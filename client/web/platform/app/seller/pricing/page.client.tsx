@@ -3,7 +3,6 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader, Card, EmptyState } from "@/components/sellers/kit";
 import { formatINR, formatDateTime, parseRupeesToPaisa } from "@/lib/format";
-import { validatePrice } from "@/lib/pricing/rules";
 import { upsertPrice } from "@/lib/api";
 import { useAuditLogs, useMockLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
@@ -13,7 +12,7 @@ function SellerPricing() {
   const loading = useMockLoading();
   const products = useProducts({ sellerId, storeId });
   const logs = useAuditLogs({ query: "" }).filter((l) => l.action === "PRICE_UPDATE");
-  const [drafts, setDrafts] = useState<Record<string, { price: string; mrp: string }>>({});
+  const [drafts, setDrafts] = useState<Record<string, { price: string }>>({});
   const [massPercent, setMassPercent] = useState("");
 
   const median = useMemo(() => {
@@ -22,8 +21,8 @@ function SellerPricing() {
     return sorted[Math.floor(sorted.length / 2)] ?? 0;
   }, [products]);
 
-  function draftFor(productId: string, price: number, mrp: number) {
-    return drafts[productId] ?? { price: String(price / 100), mrp: String(mrp / 100) };
+  function draftFor(productId: string, price: number) {
+    return drafts[productId] ?? { price: String(price / 100) };
   }
 
   function applyMass() {
@@ -31,11 +30,11 @@ function SellerPricing() {
     if (!pct) return;
     products.forEach((p) => {
       const next = Math.round(p.pricePaisa * (1 - pct / 100));
-      if (validatePrice(p.mrpPaisa, next).ok) upsertPrice(p.productId, next, p.mrpPaisa);
+      if (next > 0) upsertPrice(p.productId, next);
     });
     setDrafts({});
     setMassPercent("");
-    toast.success(`Applied ${pct}% cut where the floor allowed it`);
+    toast.success(`Applied ${pct}% cut`);
   }
 
   return (
@@ -74,10 +73,9 @@ function SellerPricing() {
           <EmptyState text="List a product first, then set its shelf price here" />
         ) : (
           products.map((product) => {
-            const draft = draftFor(product.productId, product.pricePaisa, product.mrpPaisa);
-            const mrpPaisa = parseRupeesToPaisa(draft.mrp);
+            const draft = draftFor(product.productId, product.pricePaisa);
             const pricePaisa = parseRupeesToPaisa(draft.price);
-            const check = validatePrice(mrpPaisa, pricePaisa);
+            const validPrice = Number.isInteger(pricePaisa) && pricePaisa > 0;
             const ratio = median ? (pricePaisa / median) * 100 : 100;
             return (
               <Card key={product.productId}>
@@ -95,29 +93,10 @@ function SellerPricing() {
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{product.name}</p>
-                    <p className="num text-[10px] text-muted-foreground">
-                      {product.productId} ·{" "}
-                      <span className={cn(!check.ok && "text-brand")}>{check.discountPercent}% off</span>
-                    </p>
+                    <p className="num text-[10px] text-muted-foreground">{product.productId}</p>
                   </div>
                 </div>
-                <div className="mt-3 grid grid-cols-2 gap-2">
-                  <label className="block">
-                    <span className="mb-1 block text-[10px] font-medium text-muted-foreground">
-                      MRP (₹)
-                    </span>
-                    <input
-                      value={draft.mrp}
-                      inputMode="decimal"
-                      onChange={(e) =>
-                        setDrafts((d) => ({
-                          ...d,
-                          [product.productId]: { ...draft, mrp: e.target.value },
-                        }))
-                      }
-                      className="w-full rounded-xl border border-border bg-card px-3 py-2 text-sm outline-none focus:border-info"
-                    />
-                  </label>
+                <div className="mt-3 grid gap-2">
                   <label className="block">
                     <span className="mb-1 block text-[10px] font-medium text-muted-foreground">
                       Price (₹)
@@ -149,9 +128,9 @@ function SellerPricing() {
                     vs median {ratio.toFixed(0)}%
                   </span>
                   <button
-                    disabled={!check.ok}
+                    disabled={!validPrice}
                     onClick={() => {
-                      upsertPrice(product.productId, pricePaisa, mrpPaisa);
+                      upsertPrice(product.productId, pricePaisa);
                       toast.success(`${product.name} now ${formatINR(pricePaisa)}`);
                     }}
                     className="shrink-0 rounded-xl bg-foreground px-4 py-2 text-xs font-semibold text-background disabled:opacity-40"
@@ -159,8 +138,10 @@ function SellerPricing() {
                     Save
                   </button>
                 </div>
-                {!check.ok && (
-                  <p className="mt-2 text-[11px] font-semibold text-brand">{check.message}</p>
+                {!validPrice && (
+                  <p className="mt-2 text-[11px] font-semibold text-brand">
+                    Enter a whole-rupee selling price above zero.
+                  </p>
                 )}
               </Card>
             );

@@ -81,12 +81,14 @@ seller WebView may inject `window.__faazio.vendorId`, which restores the last ac
 same console is used in a desktop browser). The old desktop `VendorSwitcher` shipped inside the
 removed width-1440 `SellerShell`.
 
-**PHARMA drug licence (0076).** `directory.stores` persists the pharmacy's drug-selling licence
-(`drug_license_number`/`drug_license_cert_key`/`drug_license_cert_asset_id`, mirroring FSSAI). The
-onboarding form captures it (optional; the document uploads to the seller's private Storage) and
-`POST /seller/stores` persists the trio; `PUT /seller/stores/{id}` and the Stores console let the
-seller edit it after creation. Mobile seller onboarding intentionally stays FOOD-FSSAI-only — the
-seller app is a WebView over this same console, which captures the licence.
+**Licences (0069, 0076).** `directory.stores` persists the FOOD FSSAI (`fssai_number`/`fssai_cert_key`/
+`fssai_cert_asset_id`) and the PHARMA drug-selling licence
+(`drug_license_number`/`drug_license_cert_key`/`drug_license_cert_asset_id`). Both are **optional at
+submission** and may be attached later; when one half is supplied the gateway requires the number +
+document together, and an admin verifies them during review. The onboarding form uploads documents to
+the seller's private Storage; `POST /seller/stores` persists the trio and `PUT /seller/stores/{id}` /
+the Stores console let the seller edit it after creation. Mobile seller onboarding captures the
+optional FOOD FSSAI only; the seller app's WebView over this console can attach either licence.
 
 **Sector-aware console chrome.** The seller UI is sector-aware rather than Zomato-flavoured. A shared
 vocabulary (`src/lib/sector.ts` — `sectorLabel` / `sectorIcon` / `sectorChip` / `orderStatusLabel`) plus
@@ -203,7 +205,7 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `seller/products/new` | create listing — sector fixed from registration, store picked from the seller's own `GET /seller/stores`, category from the **approved GST category master**, no MRP/ETA inputs, live seller "What you keep" deduction preview (platform fee, platform GST, TCS, TDS); submit persists through `POST /seller/products` (seed mode keeps the local demo path) | all |
 | `seller/products/[id]/edit` | listing editor (name/desc/photos + `upsertPrice`) — no MRP field, GST note | all |
 | `seller/inventory` | stock — hydrated from `GET /seller/inventory`; qty/ETA writes `PUT /seller/inventory/{productId}` | all |
-| `seller/pricing` | price/MRP — hydrated from `GET /seller/pricing`; edits `PUT /seller/pricing/{productId}` | all |
+| `seller/pricing` | price — hydrated from `GET /seller/pricing`; edits `PUT /seller/pricing/{productId}` (MRP retired by `0079`) | all |
 | `seller/promotions` | festival opt-ins + live price — hydrated `GET /seller/promotions` (campaigns + own opt-ins); opt-in `POST /seller/promotions/optin` | all |
 | `seller/stores` | store profile | all |
 | `seller/menus` | dish menus (+ authoritative MRP strike) | FOOD |
@@ -211,7 +213,7 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `seller/order-history` | past-orders search (order id + date range sheet) over the same `/seller/orders` data | all |
 | `seller/restaurant-status` · `seller/rush-hour` · `seller/explore` | online/offline + delivery settings, rush-mode timer, and the grouped "all tools" grid that opens from the hamburger (covers every `SELLER_NAV` item) | all |
 | `seller/prescriptions` | Rx quote → READY reveal | PHARMA |
-| `seller/returns` · `seller/reviews` · `seller/payments` | after-sales — commission-free payments ledger (TCS, TDS 0.1%, product GST; sellers keep full gross) | all |
+| `seller/returns` · `seller/reviews` · `seller/payments` | after-sales — settlement ledger (platform fee, TCS, TDS 0.1%, product GST) | all |
 | `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |
 
 **District admin console (`app/admin/district/**`)** — district-scoped oversight (campaigns, coupons and ads remain state-level; delivery allocation and payouts are district-scoped). Seller-owned catalog/store/menu and Rx quote/status endpoints are strict (`0057`): district admins need a district claim, rows must resolve to a seller in it, and unowned/dining menus are super-admin-only.
@@ -460,10 +462,10 @@ Write bodies send **whole rupee** integers (the mapper divides paisa by 100). Li
 (`seller/products/new`) awaits `POST /seller/products` and adopts the server id/status before inserting
 the local row + stock, so a rejected listing never lingers. The seller listing
 editor (`seller/products/[id]/edit`) persists name/description/photos through `updateProduct` but
-routes **price/MRP through `upsertPrice`** (`PUT /seller/pricing/{id}`) so money edits reach
+routes **price through `upsertPrice`** (`PUT /seller/pricing/{id}`) so money edits reach
 `catalog.products` + `inventory.stock` instead of staying local-only; the inventory console writes
 stock/ETA through `PUT /seller/inventory/{id}`. The seller **products + stock** slices hydrate for the
-`SELLER` role from `GET /seller/pricing` (price/MRP + identity) and `GET /seller/inventory`
+`SELLER` role from `GET /seller/pricing` (price + identity) and `GET /seller/inventory`
 (qty/ETA), so the Products, Inventory, Pricing, Ads and Analytics pages read live gateway rows
 instead of seed fixtures. The Food menu editor
 (`seller/menus`) likewise writes an optional **MRP** (list price, rupees) alongside the selling price

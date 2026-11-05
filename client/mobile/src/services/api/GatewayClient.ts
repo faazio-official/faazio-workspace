@@ -142,7 +142,6 @@ export interface CreateProductInput {
   category: string;
   description: string;
   price: number;
-  mrp?: number;
   unit?: string;
   emoji?: string;
   /** `r2:<key>` media reference or an http(s) legacy URL. */
@@ -898,7 +897,6 @@ export class GatewayClient {
             category: input.category,
             description: input.description,
             price: Math.round(input.price),
-            mrp: input.mrp !== undefined ? Math.round(input.mrp) : undefined,
             unit: input.unit,
             emoji: input.emoji,
             imageUrl: input.imageUrl,

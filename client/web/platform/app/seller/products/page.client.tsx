@@ -4,7 +4,6 @@ import { useState } from "react";
 import { ChevronRight, Package, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import { PageHeader, Card, EmptyState, Sheet } from "@/components/sellers/kit";
 import { formatINR } from "@/lib/format";
-import { discountPercent } from "@/lib/pricing/rules";
 import { useMockLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
 import { sectorLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
@@ -191,12 +190,6 @@ function ProductRow({ product }: { product: ProductRecord }) {
           </p>
           <div className="mt-1 flex items-center gap-2 text-xs">
             <b>{formatINR(product.pricePaisa)}</b>
-            <span className="text-[10px] text-muted-foreground line-through">
-              {formatINR(product.mrpPaisa)}
-            </span>
-            <span className="text-[10px] font-semibold text-success">
-              {discountPercent(product.mrpPaisa, product.pricePaisa)}% off
-            </span>
             <span
               className={cn(
                 "ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",

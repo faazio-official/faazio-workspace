@@ -62,10 +62,8 @@ function AddVendor() {
     }
   }
 
-  const valid =
-    sellerId !== "" &&
-    form.name.trim().length > 2 &&
-    (form.app !== "FOOD" || (form.fssaiNumber.trim() !== "" && form.fssaiFileKey !== ""));
+  const hasFssai = form.fssaiNumber.trim() !== "" && form.fssaiFileKey !== "";
+  const valid = sellerId !== "" && form.name.trim().length > 2;
 
   async function submit() {
     if (!valid || busy) return;
@@ -78,7 +76,7 @@ function AddVendor() {
         phone: form.phone.trim(),
         hours: form.hours.trim(),
         isLive: form.isLive,
-        ...(form.app === "FOOD"
+        ...(form.app === "FOOD" && hasFssai
           ? {
               fssaiNumber: form.fssaiNumber.trim(),
               fssaiFileKey: form.fssaiFileKey,
@@ -160,7 +158,10 @@ function AddVendor() {
 
         {form.app === "FOOD" && (
           <Card>
-            <p className="text-sm font-bold">FSSAI compliance</p>
+            <p className="text-sm font-bold">FSSAI compliance (optional)</p>
+            <p className="mb-1 text-[10px] text-muted-foreground">
+              Add both now or later; an admin verifies compliance during review.
+            </p>
             <TextField
               label="FSSAI number"
               value={form.fssaiNumber}
@@ -192,9 +193,9 @@ function AddVendor() {
             from Stores. An empty licence never sends the trio (the gateway keeps them paired). */}
         {form.app === "PHARMA" && (
           <Card>
-            <p className="text-sm font-bold">Drug licence</p>
+            <p className="text-sm font-bold">Drug licence (optional)</p>
             <p className="mb-1 text-[10px] text-muted-foreground">
-              Pharmacy shops are verified on a valid drug-selling licence before going live.
+              Add both now or later; an admin verifies the licence during review.
             </p>
             <TextField
               label="Drug licence number"

@@ -24,16 +24,70 @@ export interface FaazioAppContext {
   vendorId?: string;
 }
 
+export type FaazioPermissionKind = "camera" | "location" | "notifications" | "storage";
+
+export interface FaazioPermissionResult {
+  requestId: string;
+  kind: FaazioPermissionKind;
+  granted: boolean;
+  status: "granted" | "denied" | "blocked" | "handled-by-webview";
+}
+
+const PERMISSION_EVENT = "faazio-permission-result";
+
 declare global {
   interface Window {
     /** Injected by the native WebView shell before the portal hydrates. */
     __faazio?: FaazioAppContext;
+    /** Present only inside a React Native WebView. */
+    ReactNativeWebView?: { postMessage: (message: string) => void };
   }
 }
 
 function read(): FaazioAppContext | undefined {
   if (typeof window === "undefined") return undefined;
   return window.__faazio;
+}
+
+/**
+ * Ask the native seller shell for an OS permission (camera/location/notifications/storage).
+ *
+ * The native side answers with a `faazio-permission-result` CustomEvent; the browser (and any
+ * non-native session) resolves as "handled-by-webview" so callers keep their normal behaviour.
+ * Never assume a grant: check `result.granted`.
+ */
+export function requestNativePermission(
+  kind: FaazioPermissionKind,
+  timeoutMs = 20000,
+): Promise<FaazioPermissionResult> {
+  if (typeof window === "undefined" || !isNativeApp() || !window.ReactNativeWebView) {
+    return Promise.resolve({
+      requestId: "",
+      kind,
+      granted: true,
+      status: "handled-by-webview",
+    });
+  }
+  const bridge = window.ReactNativeWebView;
+  const requestId = `perm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return new Promise((resolve) => {
+    const finish = (result: FaazioPermissionResult) => {
+      window.removeEventListener(PERMISSION_EVENT, listener as EventListener);
+      clearTimeout(timer);
+      resolve(result);
+    };
+    const listener = (event: Event) => {
+      const detail = (event as CustomEvent<FaazioPermissionResult>).detail;
+      if (!detail || detail.requestId !== requestId) return;
+      finish(detail);
+    };
+    const timer = setTimeout(
+      () => finish({ requestId, kind, granted: false, status: "blocked" }),
+      timeoutMs,
+    );
+    window.addEventListener(PERMISSION_EVENT, listener as EventListener);
+    bridge.postMessage(JSON.stringify({ type: "faazio:permission", requestId, kind }));
+  });
 }
 
 /** True inside any native WebView shell (seller/delivery). */

@@ -126,14 +126,13 @@ func (h *Handler) purgeNearbyProductTiles(r *http.Request, storeID string) {
 	}
 }
 
-// updateProduct edits price/MRP/stock/image (seller-scoped). Body: {price?, mrp?, inStockQty?,
+// updateProduct edits price/stock/image (seller-scoped). Body: {price?, inStockQty?,
 // available?, imageAssetId?, imageKey?}. A confirmed PUBLIC media asset (by id or object key) is
 // resolved to its canonical key here and linked into catalog.products.
 func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
 		Price        *int64  `json:"price"`
-		MRP          *int64  `json:"mrp"`
 		InStockQty   *int64  `json:"inStockQty"`
 		Available    *bool   `json:"available"`
 		ImageAssetID *string `json:"imageAssetId"`
@@ -145,10 +144,6 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Price != nil && (*body.Price < 0 || *body.Price > 10_000_000) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid price")
-		return
-	}
-	if body.MRP != nil && (*body.MRP < 0 || *body.MRP > 10_000_000) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid mrp")
 		return
 	}
 	if body.InStockQty != nil && (*body.InStockQty < 0 || *body.InStockQty > 1_000_000) {
@@ -165,7 +160,7 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		return // resolveImageLink already wrote the error
 	}
 	p, found, err := h.repo.UpdateProduct(r.Context(), id, sellerID, district, ProductEdit{
-		Price: body.Price, MRP: body.MRP, InStockQty: body.InStockQty, Available: body.Available,
+		Price: body.Price, InStockQty: body.InStockQty, Available: body.Available,
 		ImageKey: imageKey, ImageAssetID: imageAssetID,
 	})
 	if err != nil {
@@ -320,7 +315,7 @@ func (h *Handler) storeProducts(w http.ResponseWriter, r *http.Request) {
 }
 
 // createProduct creates a seller listing under one of the caller's stores. Body:
-// {storeId, name, category, description (or desc), price, mrp?, unit?, emoji?, imageUrl?,
+// {storeId, name, category, description (or desc), price, unit?, emoji?, imageUrl?,
 // imageKey?, imageAssetId?, isVeg?, isPrescription?, attributes?}. Money is whole rupees. A seller
 // may only target a live store they own; admins keep their district/super scope. The listing opens
 // as PENDING_REVIEW and both catalog.products + inventory.stock are written in one transaction.
@@ -332,7 +327,6 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		Desc           string         `json:"desc"`
 		Description    string         `json:"description"`
 		Price          int64          `json:"price"`
-		MRP            *int64         `json:"mrp"`
 		Unit           string         `json:"unit"`
 		Emoji          string         `json:"emoji"`
 		ImageURL       string         `json:"imageUrl"`
@@ -348,14 +342,6 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Price < 0 || body.Price > 10_000_000 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid price")
-		return
-	}
-	if body.MRP != nil && (*body.MRP < 0 || *body.MRP > 10_000_000) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid mrp")
-		return
-	}
-	if body.MRP != nil && *body.MRP < body.Price {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be at least the price")
 		return
 	}
 	storeID := strings.TrimSpace(body.StoreID)
@@ -400,7 +386,7 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	p, found, err := h.repo.CreateProduct(r.Context(), sellerID, district, ProductCreateInput{
 		StoreID: storeID, Name: name, Category: category, Desc: desc,
-		Price: body.Price, MRP: body.MRP, Unit: body.Unit, Emoji: body.Emoji,
+		Price: body.Price, Unit: body.Unit, Emoji: body.Emoji,
 		ImageURL: imageURL, ImageKey: imageKey, ImageAssetID: imageAssetID,
 		IsVeg: body.IsVeg, IsPrescription: body.IsPrescription, Attributes: body.Attributes,
 	})
@@ -476,42 +462,33 @@ func (h *Handler) setSellerInventory(w http.ResponseWriter, r *http.Request) {
 		map[string]any{"inStockQty": body.InStockQty, "etaMinutes": body.EtaMinutes})
 }
 
-// sellerPricing lists the caller's price/MRP rows (GET /seller/pricing). Same projection as inventory;
-// price/mrp are the fields the pricing console edits.
+// sellerPricing lists the caller's price rows (GET /seller/pricing). Same projection as inventory;
+// price is the field the pricing console edits.
 func (h *Handler) sellerPricing(w http.ResponseWriter, r *http.Request) {
 	h.sellerProducts(w, r)
 }
 
-// setSellerPricing updates one listing's shelf price and MRP (PUT /seller/pricing/{productId}).
-// Body: {price?, mrp?} in whole rupees. MRP may not fall below price.
+// setSellerPricing updates one listing's shelf price (PUT /seller/pricing/{productId}).
+// Body: {price} in whole rupees.
 func (h *Handler) setSellerPricing(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "productId")
 	var body struct {
 		Price *int64 `json:"price"`
-		MRP   *int64 `json:"mrp"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
 		return
 	}
-	if body.Price == nil && body.MRP == nil {
+	if body.Price == nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "nothing to update")
 		return
 	}
-	if body.Price != nil && (*body.Price < 0 || *body.Price > 10_000_000) {
+	if *body.Price < 0 || *body.Price > 10_000_000 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid price")
 		return
 	}
-	if body.MRP != nil && (*body.MRP < 0 || *body.MRP > 10_000_000) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid mrp")
-		return
-	}
-	if body.Price != nil && body.MRP != nil && *body.MRP < *body.Price {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be at least the price")
-		return
-	}
-	h.applyProductEdit(w, r, id, ProductEdit{Price: body.Price, MRP: body.MRP}, "PRICE_UPDATE",
-		map[string]any{"price": body.Price, "mrp": body.MRP})
+	h.applyProductEdit(w, r, id, ProductEdit{Price: body.Price}, "PRICE_UPDATE",
+		map[string]any{"price": body.Price})
 }
 
 // applyProductEdit runs a scoped catalog/inventory edit, invalidates the product/stock/store caches

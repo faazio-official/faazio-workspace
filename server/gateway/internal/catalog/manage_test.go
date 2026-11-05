@@ -84,15 +84,7 @@ func TestCreateProduct(t *testing.T) {
 	if _, ok, err := repo.CreateProduct(ctx, "", "TCH", input); err != nil || !ok {
 		t.Fatalf("district create: ok=%v err=%v", ok, err)
 	}
-	// MRP cannot sit below the selling price.
-	if _, _, err := repo.CreateProduct(ctx, sellerA, "", ProductCreateInput{
-		StoreID: storeA, Name: "Bad MRP", Category: "Test", Price: 200, MRP: ptr(100),
-	}); err == nil {
-		t.Fatal("expected MRP validation error")
-	}
 }
-
-func ptr(v int64) *int64 { return &v }
 
 func TestSellerProductManagement(t *testing.T) {
 	pool := testenv.Pool(t)
@@ -181,7 +173,7 @@ func TestSellerInventoryAndPricing(t *testing.T) {
 	})
 
 	p, ok, err := repo.CreateProduct(ctx, sellerID, "", ProductCreateInput{
-		StoreID: storeID, Name: "Tracked", Category: "Test", Price: 100, MRP: ptr(120), Unit: "1 pc",
+		StoreID: storeID, Name: "Tracked", Category: "Test", Price: 100, Unit: "1 pc",
 	})
 	if err != nil || !ok {
 		t.Fatalf("create: ok=%v err=%v", ok, err)
@@ -197,13 +189,13 @@ func TestSellerInventoryAndPricing(t *testing.T) {
 		t.Fatalf("inventory projection = qty %d eta %q available %v", got.InStockQty, got.Eta, got.Available)
 	}
 
-	price, mrp := int64(90), int64(110)
-	got, ok, err = repo.UpdateProduct(ctx, p.ID, sellerID, "", ProductEdit{Price: &price, MRP: &mrp})
+	price := int64(90)
+	got, ok, err = repo.UpdateProduct(ctx, p.ID, sellerID, "", ProductEdit{Price: &price})
 	if err != nil || !ok {
 		t.Fatalf("pricing update: ok=%v err=%v", ok, err)
 	}
-	if got.Price != 90 || got.MRP == nil || *got.MRP != 110 {
-		t.Fatalf("pricing projection = price %d mrp %v", got.Price, got.MRP)
+	if got.Price != 90 {
+		t.Fatalf("pricing projection = price %d", got.Price)
 	}
 
 	items, err := repo.SellerProducts(ctx, sellerID, "", "")
@@ -219,8 +211,7 @@ func TestSellerInventoryAndPricing(t *testing.T) {
 	if found == nil {
 		t.Fatalf("product %s missing from SellerProducts", p.ID)
 	}
-	if found.InStockQty != 42 || found.Eta != "25" || found.Price != 90 ||
-		found.MRP == nil || *found.MRP != 110 || found.Unit != "1 pc" {
+	if found.InStockQty != 42 || found.Eta != "25" || found.Price != 90 || found.Unit != "1 pc" {
 		t.Fatalf("enriched projection mismatch: %+v", *found)
 	}
 }

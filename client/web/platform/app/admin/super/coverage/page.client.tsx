@@ -1,7 +1,6 @@
 "use client";
 import { CheckCircle2, AlertTriangle } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
-import { discountPercent } from "@/lib/pricing/rules";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { KpiStrip } from "@/components/patterns/KpiCard";
@@ -50,12 +49,6 @@ function Coverage() {
       table: "directory.stores",
       owner: "Seller onboarding and store settings",
       rows: stores.length,
-    },
-    {
-      surface: "Deals of the day, food specials, booking dishes",
-      table: "catalog.products (deal variants)",
-      owner: "Seller offers module",
-      rows: products.filter((p) => discountPercent(p.mrpPaisa, p.pricePaisa) > 0).length,
     },
     {
       surface: "Home top ad carousel and sponsored showcase",

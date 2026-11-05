@@ -138,8 +138,7 @@ function SellerPromotions() {
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-semibold">{product.name}</p>
                         <p className="text-[10px] text-muted-foreground">
-                          {product.sector} · cap {cap}% ·{" "}
-                          <span className="line-through">{formatINR(product.mrpPaisa)}</span>
+                          {product.sector} · cap {cap}% · {formatINR(product.pricePaisa)}
                         </p>
                       </div>
                       {existing ? (

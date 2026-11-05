@@ -50,15 +50,11 @@ export const useConnectivityStore = create<ConnectivityState>()((set, get) => ({
   navigationBlocked: false,
 
   checkConnectivity: async () => {
-    // Mock/seed mode (no gateway configured): connectivity awareness is meaningless.
+    // No gateway configured: connectivity is unknown, never assumed online. `null` keeps the UI
+    // neutral (no false "online" claim, no offline banner) and never blocks navigation.
     if (!HEALTH_URL) {
-      set((state) => ({
-        isOnline: true,
-        isChecking: false,
-        lastCheckedAt: Date.now(),
-        hasConnected: true,
-      }));
-      return true;
+      set({ isOnline: null, isChecking: false, lastCheckedAt: Date.now() });
+      return false;
     }
     if (inFlight) return inFlight;
 

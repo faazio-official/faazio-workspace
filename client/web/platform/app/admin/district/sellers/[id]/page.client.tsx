@@ -172,7 +172,7 @@ function SellerReview() {
       <div className="grid gap-4 lg:grid-cols-2">
         <SectionCard
           title="KYC documents"
-          description="Passbook is mandatory; FSSAI is required for food."
+          description="Passbook is mandatory; FSSAI and drug licences are optional and verified during review."
           actions={<ComponentHelp id="doc-row" label="About KYC documents" />}
         >
           {docs.length === 0 ? (
@@ -226,7 +226,7 @@ function SellerReview() {
 
       <SectionCard
         title="Vendors"
-        description="One account can own several shops. The platform fee and FSSAI are per vendor."
+        description="One account can own several shops. The platform fee and licences are per vendor."
       >
         {(seller.vendors ?? []).length === 0 ? (
           <p className="text-[13px] text-muted-foreground">No vendor attached to this account yet.</p>

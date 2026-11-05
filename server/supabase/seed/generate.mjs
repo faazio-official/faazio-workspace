@@ -339,14 +339,14 @@ sql.push(inserts(
 // ---------------------------------------------------------------- catalog + inventory
 sql.push(inserts(
   'catalog.products',
-  ['id', 'app', 'category', 'name', 'search_tokens', 'price_paisa', 'mrp_paisa', 'rating', 'reviews_count', 'emoji', 'image_url', 'image_key', 'image_asset_id', 'desc_text', 'badge', 'shop', 'unit', 'attributes', 'store_id', 'is_prescription', 'is_veg', 'status'],
+  ['id', 'app', 'category', 'name', 'search_tokens', 'price_paisa', 'rating', 'reviews_count', 'emoji', 'image_url', 'image_key', 'image_asset_id', 'desc_text', 'badge', 'shop', 'unit', 'attributes', 'store_id', 'is_prescription', 'is_veg', 'status'],
   d.catalogIndex.map((e) => {
     const meta = productMeta.get(e.id);
     const storeId = meta?.storeId && storeIds.has(meta.storeId) ? meta.storeId : null;
     const img = entryFor(manifest, e.image);
     return [
       q(e.id), APP(e.app), q(e.category), q(e.name), arr(e.searchTokens),
-      paisa(e.price), paisa(e.originalPrice), n(e.rating), n(e.reviewsCount ?? 0),
+      paisa(e.price), n(e.rating), n(e.reviewsCount ?? 0),
       q(e.emoji), q(e.image), q(img?.key), q(img?.id), q(e.desc), q(e.badge), q(e.shop), q(e.unit), jsonb(e.attributes),
       q(storeId), b(isPrescription(e)), b(meta?.isVeg), `'ACTIVE'::product_status`,
     ];
@@ -355,9 +355,9 @@ sql.push(inserts(
 
 sql.push(inserts(
   'inventory.stock',
-  ['product_id', 'available', 'in_stock_qty', 'price_paisa', 'mrp_paisa', 'eta', 'is_prescription'],
+  ['product_id', 'available', 'in_stock_qty', 'price_paisa', 'eta', 'is_prescription'],
   d.stockTable.map((s) => [
-    q(s.productId), b(s.available), n(s.inStockQty), paisa(s.price), paisa(s.mrp), q(s.eta), b(s.isPrescription),
+    q(s.productId), b(s.available), n(s.inStockQty), paisa(s.price), q(s.eta), b(s.isPrescription),
   ]),
 ));
 
@@ -589,7 +589,7 @@ function assertLeanContract() {
     (typeof v === 'number' && v >= 0 && v <= 5 && Math.abs(v * 10 - Math.round(v * 10)) < 1e-9);
 
   for (const e of d.catalogIndex) {
-    if (!isRupees(e.price) || !isRupees(e.originalPrice)) violations.push(`product ${e.id}: non-integer rupees price`);
+    if (!isRupees(e.price)) violations.push(`product ${e.id}: non-integer rupees price`);
     if (!isRating(e.rating)) violations.push(`product ${e.id}: rating ${e.rating} out of 0–5/1dp`);
     for (const t of e.searchTokens ?? []) {
       if (String(t).length > 64) violations.push(`product ${e.id}: search token >64 chars`);
@@ -599,7 +599,7 @@ function assertLeanContract() {
     if (!isRating(s.rating)) violations.push(`store ${s.id}: rating ${s.rating} out of 0–5/1dp`);
   }
   for (const s of d.stockTable) {
-    if (!isRupees(s.price) || !isRupees(s.mrp)) violations.push(`stock ${s.productId}: non-integer rupees price`);
+    if (!isRupees(s.price)) violations.push(`stock ${s.productId}: non-integer rupees price`);
   }
   // Menu MRP is the Food discount authority (`mrp_paisa >= price_paisa`); a bad fixture must not
   // produce a DB row the `0022` CHECK rejects.

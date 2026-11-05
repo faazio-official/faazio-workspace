@@ -158,7 +158,6 @@ export interface ProductRecord {
   galleryUrls?: string[];
   unit: string;
   pricePaisa: number;
-  mrpPaisa: number;
   isVeg: boolean;
   isPrescription: boolean;
   status: ProductStatus;

@@ -361,14 +361,6 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.App == "FOOD" && req.FSSAINumber == "" {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai number is required for food vendors")
-		return
-	}
-	if req.App == "FOOD" && !isStorageKey(req.FSSAIFileKey) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai certificate is required for food vendors")
-		return
-	}
 	if req.DrugLicenseNumber != "" || req.DrugLicenseFileKey != "" || req.DrugLicenseAssetID != "" {
 		if req.DrugLicenseNumber == "" || !isStorageKey(req.DrugLicenseFileKey) {
 			httpx.Fail(w, http.StatusBadRequest, "bad_request", "drug licence number and document key are required together")
@@ -436,7 +428,7 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "id")
-	app, fssaiNumber, fssaiKey, found, appErr := h.repo.StoreVendorMeta(r.Context(), id, sellerID, district)
+	app, _, _, found, appErr := h.repo.StoreVendorMeta(r.Context(), id, sellerID, district)
 	if appErr != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
@@ -470,10 +462,7 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if app == "FOOD" && (req.FSSAINumber == "" && fssaiNumber == "" || req.FSSAIFileKey == "" && fssaiKey == "") {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "food vendors must keep an fssai number and certificate")
-		return
-	}
+	// Licences are optional and may be attached later; if supplied they must be paired (checked above).
 	// Sellers cannot edit the fee directly; they file a fee-change request. Admins may set it, but
 	// validation is keyed on the store's actual app (never a client-supplied one).
 	if req.PlatformFeePct != 0 {

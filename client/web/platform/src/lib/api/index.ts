@@ -420,9 +420,13 @@ export function getProduct(productId: string): ProductRecord | undefined {
   return state().products.find((p) => p.productId === productId);
 }
 
-export async function createProduct(dto: Omit<ProductRecord, "createdAt">): Promise<ProductRecord> {
+export type CreateProductInput = Omit<ProductRecord, "createdAt" | "productId">;
+
+export async function createProduct(dto: CreateProductInput): Promise<ProductRecord> {
+  // The gateway owns the product id. Seed/dev mode (no gateway) still needs a local row id.
   const record: ProductRecord = {
     ...dto,
+    productId: remoteConfigured() ? "" : `local-${Date.now().toString(36)}`,
     createdAt: nowIso(),
   };
   // Live mode: persist the listing through the gateway (PENDING_REVIEW + catalog/stock in one
@@ -440,7 +444,6 @@ export async function createProduct(dto: Omit<ProductRecord, "createdAt">): Prom
       description: dto.description,
       // Gateway speaks whole rupees; the DB stores paisa.
       price: toRupees(dto.pricePaisa),
-      mrp: toRupees(dto.mrpPaisa),
       unit: dto.unit,
       emoji: dto.emoji,
       imageUrl: imageKey ? undefined : /^https?:\/\//.test(image) ? image : undefined,
@@ -493,24 +496,24 @@ export function saveProductImage(productId: string, image: string | undefined): 
   pushWrite("Product image", "put", `/seller/products/${encodeURIComponent(productId)}`, body, () => {});
 }
 
-export function upsertPrice(productId: string, pricePaisa: number, mrpPaisa: number): void {
+export function upsertPrice(productId: string, pricePaisa: number): void {
   const before = getProduct(productId);
-  updateProduct(productId, { pricePaisa, mrpPaisa });
+  updateProduct(productId, { pricePaisa });
   // The gateway speaks whole rupees and writes price to catalog.products + inventory.stock in lockstep.
   // Awaited with rollback: a rejected price write must not leave a stale optimistic price on screen.
   pushWrite(
     "Price update",
     "put",
     `/seller/pricing/${encodeURIComponent(productId)}`,
-    { price: toRupees(pricePaisa), mrp: toRupees(mrpPaisa) },
+    { price: toRupees(pricePaisa) },
     () => restoreProduct(before),
   );
   audit({
     action: "PRICE_UPDATE",
     entity: "catalog.products",
     entityId: productId,
-    before: before && { pricePaisa: before.pricePaisa, mrpPaisa: before.mrpPaisa },
-    after: { pricePaisa, mrpPaisa },
+    before: before && { pricePaisa: before.pricePaisa },
+    after: { pricePaisa },
   });
 }
 
@@ -602,7 +605,6 @@ export interface SellerConsoleRow {
   sellerId?: string;
   storeId?: string;
   price: number;
-  mrp?: number;
   description?: string;
   unit?: string;
   emoji?: string;
@@ -626,7 +628,7 @@ export function fetchSellerInventory(): Promise<SellerConsoleRow[]> {
   return fetchSellerRows("/seller/inventory");
 }
 
-/** Live seller pricing rows: shelf price/MRP plus product identity. */
+/** Live seller pricing rows: shelf price plus product identity. */
 export function fetchSellerPricing(): Promise<SellerConsoleRow[]> {
   return fetchSellerRows("/seller/pricing");
 }

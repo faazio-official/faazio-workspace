@@ -14,6 +14,11 @@ import type { Sector } from "@/data/types";
 
 const STEPS = ["Category", "Details", "Pricing", "Inventory", "Review"];
 
+/** Statutory rates mirrored from tax.platform_settings; the gateway remains authoritative. */
+const PLATFORM_GST_PCT = 18;
+const TCS_PCT = 1;
+const TDS_PCT = 0.1;
+
 function NewProduct() {
   const router = useRouter();
   const { sellerId, stores, activeStore, loading } = useSellerScope();
@@ -53,6 +58,18 @@ function NewProduct() {
   const pricePaisa = parseRupeesToPaisa(price);
   const selected = categories.find((c) => c.category === category);
   const taxRatePct = selected?.gstRatePct ?? 5;
+  const feePct = pickedStore?.platformFeePct ?? 0;
+
+  // Transparency preview of what the payout withholds. Same integer rounding as the gateway:
+  // price is GST-inclusive, the platform fee is charged on the gross, TCS/TDS are statutory.
+  const taxablePaisa =
+    taxRatePct > 0 ? Math.round((pricePaisa * 100) / (100 + taxRatePct)) : pricePaisa;
+  const productTaxPaisa = pricePaisa - taxablePaisa;
+  const commissionPaisa = Math.round((pricePaisa * feePct) / 100);
+  const platformGstPaisa = Math.round((commissionPaisa * PLATFORM_GST_PCT) / 100);
+  const tcsPaisa = Math.round((pricePaisa * TCS_PCT) / 100);
+  const tdsPaisa = Math.round((pricePaisa * TDS_PCT) / 100);
+  const sellerNetPaisa = pricePaisa - commissionPaisa - tcsPaisa - tdsPaisa;
 
   const stepValid = [
     Boolean(sector && storeId && category.trim()),
@@ -65,10 +82,8 @@ function NewProduct() {
   async function submit() {
     if (submitting) return;
     setSubmitting(true);
-    const productId = `${sector.slice(0, 2).toLowerCase()}-${Date.now().toString().slice(-5)}`;
     try {
       const created = await createProduct({
-        productId,
         sellerId,
         storeId,
         name: name.trim(),
@@ -80,7 +95,6 @@ function NewProduct() {
         galleryUrls: images.slice(1),
         unit,
         pricePaisa,
-        mrpPaisa: pricePaisa,
         isVeg: sector === "FOOD" ? isVeg : false,
         isPrescription: sector === "PHARMA" ? isPrescription : false,
         status: "PENDING_REVIEW",
@@ -222,6 +236,19 @@ function NewProduct() {
               </p>
               <p className="mt-1 text-sm font-bold">{taxRatePct}%</p>
             </div>
+            {pricePaisa > 0 && (
+              <DeductionsCard
+                pricePaisa={pricePaisa}
+                taxablePaisa={taxablePaisa}
+                productTaxPaisa={productTaxPaisa}
+                commissionPaisa={commissionPaisa}
+                platformGstPaisa={platformGstPaisa}
+                tcsPaisa={tcsPaisa}
+                tdsPaisa={tdsPaisa}
+                sellerNetPaisa={sellerNetPaisa}
+                feePct={feePct}
+              />
+            )}
           </Card>
         )}
 
@@ -263,6 +290,19 @@ function NewProduct() {
               )}
               <Row label="Status on submit" value="PENDING_REVIEW" />
             </dl>
+            {pricePaisa > 0 && (
+              <DeductionsCard
+                pricePaisa={pricePaisa}
+                taxablePaisa={taxablePaisa}
+                productTaxPaisa={productTaxPaisa}
+                commissionPaisa={commissionPaisa}
+                platformGstPaisa={platformGstPaisa}
+                tcsPaisa={tcsPaisa}
+                tdsPaisa={tdsPaisa}
+                sellerNetPaisa={sellerNetPaisa}
+                feePct={feePct}
+              />
+            )}
           </Card>
         )}
       </div>
@@ -324,6 +364,70 @@ function NewProduct() {
         ))}
       </Sheet>
     </>
+  );
+}
+
+interface DeductionsProps {
+  pricePaisa: number;
+  taxablePaisa: number;
+  productTaxPaisa: number;
+  commissionPaisa: number;
+  platformGstPaisa: number;
+  tcsPaisa: number;
+  tdsPaisa: number;
+  sellerNetPaisa: number;
+  feePct: number;
+}
+
+function DeductionsCard({
+  pricePaisa,
+  taxablePaisa,
+  productTaxPaisa,
+  commissionPaisa,
+  platformGstPaisa,
+  tcsPaisa,
+  tdsPaisa,
+  sellerNetPaisa,
+  feePct,
+}: DeductionsProps) {
+  const rows: Array<[string, string, string?]> = [
+    ["Customer pays (GST incl.)", formatINR(pricePaisa)],
+    ["Taxable value", formatINR(taxablePaisa)],
+    ["Product GST (remitted by you)", formatINR(productTaxPaisa)],
+    [`Platform fee (${feePct}%)`, `− ${formatINR(commissionPaisa)}`, "withheld"],
+    ["GST on platform fee (18%)", formatINR(platformGstPaisa), "platform liability"],
+    ["TCS (1%)", `− ${formatINR(tcsPaisa)}`, "withheld"],
+    ["TDS (0.1%)", `− ${formatINR(tdsPaisa)}`, "withheld"],
+  ];
+  return (
+    <div className="mt-3 rounded-xl border border-border">
+      <div className="border-b border-border px-3 py-2">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          What you keep (per unit)
+        </p>
+      </div>
+      <dl className="divide-y divide-border">
+        {rows.map(([label, value, hint]) => (
+          <div key={label} className="flex items-center justify-between gap-3 px-3 py-2 text-[13px]">
+            <dt>
+              {label}
+              {hint ? (
+                <span className="ml-1 text-[11px] text-muted-foreground">({hint})</span>
+              ) : null}
+            </dt>
+            <dd className="num font-medium">{value}</dd>
+          </div>
+        ))}
+        <div className="flex items-center justify-between gap-3 px-3 py-2 text-[13px] font-semibold">
+          <dt>Net seller payout per unit</dt>
+          <dd className="num">{formatINR(sellerNetPaisa)}</dd>
+        </div>
+      </dl>
+      <p className="px-3 py-2 text-[11px] text-muted-foreground">
+        Estimate using your shop&apos;s fee and the approved GST rate. The gateway recomputes the
+        final split at settlement.
+      </p>
+    </div>
   );
 }
 

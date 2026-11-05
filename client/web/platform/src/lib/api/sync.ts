@@ -175,7 +175,6 @@ function mapSellerProductRow(raw: SellerConsoleRow): ProductRecord {
     imageUrl: raw.imageUrl || (raw.imageKey ? `r2:${raw.imageKey}` : ""),
     unit: raw.unit ?? "",
     pricePaisa: toPaisa(raw.price),
-    mrpPaisa: toPaisa(raw.mrp ?? 0),
     isVeg: raw.isVeg === true,
     isPrescription: raw.isPrescription === true,
     status: raw.status as ProductRecord["status"],

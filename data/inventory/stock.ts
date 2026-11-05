@@ -10,7 +10,6 @@ export interface StockRow {
   available: boolean;
   inStockQty: number;
   price: number;
-  mrp?: number;
   eta: string;
   isPrescription?: boolean;
 }
@@ -39,7 +38,6 @@ export const stockTable: StockRow[] = catalogIndex.map((entry) => {
     available,
     inStockQty,
     price,
-    mrp: discount > 0 ? entry.price : undefined,
     eta,
     isPrescription: isPrescription || undefined,
   };

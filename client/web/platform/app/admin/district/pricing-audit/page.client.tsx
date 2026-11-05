@@ -1,7 +1,6 @@
 "use client";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
-import { discountPercent } from "@/lib/pricing/rules";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
@@ -45,8 +44,7 @@ function PricingAudit() {
     .map((product) => {
       const median = medianByCategory.get(product.category) ?? product.pricePaisa;
       const reasons: string[] = [];
-      if (discountPercent(product.mrpPaisa, product.pricePaisa) >= 60) reasons.push("Discount above 60%");
-      if (product.mrpPaisa > median * 2.5) reasons.push("MRP far above category median");
+      if (product.pricePaisa > median * 2.5) reasons.push("Price far above category median");
       if (product.pricePaisa < median * 0.4) reasons.push("Price far below category median");
       return { product, median, reasons };
     })
@@ -82,7 +80,6 @@ function PricingAudit() {
               <TableRow>
                 <TableHead>Product</TableHead>
                 <TableHead>Sector</TableHead>
-                <TableHead className="text-right">MRP</TableHead>
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead className="text-right">Category median</TableHead>
                 <TableHead>Flags</TableHead>
@@ -106,7 +103,6 @@ function PricingAudit() {
                   <TableCell>
                     <SectorPill sector={product.sector} />
                   </TableCell>
-                  <TableCell className="num text-right">{formatINR(product.mrpPaisa)}</TableCell>
                   <TableCell className="num text-right">{formatINR(product.pricePaisa)}</TableCell>
                   <TableCell className="num text-right text-muted-foreground">{formatINR(median)}</TableCell>
                   <TableCell className="text-[12px] text-warning">{reasons.join(" · ")}</TableCell>

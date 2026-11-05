@@ -123,7 +123,7 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
     venues = await gateway.fetchVenues('FOOD');
     venueAuthoritative = true;
   } catch {
-    // Offline / HTTP error: keep the fixture grid so the feed is never blank.
+    // Offline / HTTP error: the grid is empty — never a stale fixture pretending to be live.
     venues = [];
   }
 

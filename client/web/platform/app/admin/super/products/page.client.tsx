@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
-import { discountPercent } from "@/lib/pricing/rules";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { KpiStrip } from "@/components/patterns/KpiCard";
@@ -145,9 +144,7 @@ function SuperProducts() {
                 <TableHead>Product</TableHead>
                 <TableHead>Sector</TableHead>
                 <TableHead>Seller</TableHead>
-                <TableHead className="text-right">MRP</TableHead>
                 <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Discount</TableHead>
                 <TableHead>Status</TableHead>
               </TableRow>
             </TableHeader>
@@ -171,9 +168,7 @@ function SuperProducts() {
                     <SectorPill sector={product.sector} />
                   </TableCell>
                   <TableCell className="num text-[12px] text-muted-foreground">{product.sellerId}</TableCell>
-                  <TableCell className="num text-right">{formatINR(product.mrpPaisa)}</TableCell>
                   <TableCell className="num text-right">{formatINR(product.pricePaisa)}</TableCell>
-                  <TableCell className="num text-right">{discountPercent(product.mrpPaisa, product.pricePaisa)}%</TableCell>
                   <TableCell>
                     <StatusPill status={product.status} />
                   </TableCell>

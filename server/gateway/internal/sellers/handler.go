@@ -214,9 +214,13 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
-		if v.App == "FOOD" && (v.FSSAINumber == "" || !isStorageKey(v.FSSAIFileKey)) {
-			httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai number and certificate are required for food vendors")
-			return
+		// Licences are optional at submission: an admin verifies them during review, and a vendor may
+		// attach them later. If one half is supplied, require the number + certificate together.
+		if v.FSSAINumber != "" || v.FSSAIFileKey != "" || v.FSSAIAssetID != "" {
+			if v.FSSAINumber == "" || !isStorageKey(v.FSSAIFileKey) {
+				httpx.Fail(w, http.StatusBadRequest, "bad_request", "fssai number and certificate key are required together")
+				return
+			}
 		}
 	}
 	if req.DistrictCode != "" {

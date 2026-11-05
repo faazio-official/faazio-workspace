@@ -327,10 +327,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       if (!v.categoryId) return v.categories.length === 0
         ? 'Categories are unavailable right now. Reconnect and try again.'
         : `Select a category for ${label}.`;
-      if (v.app === 'FOOD') {
-        if (!v.fssaiNumber.trim()) return `Enter the FSSAI licence number for ${label}.`;
-        if (!v.fssaiUri) return `Capture the FSSAI certificate for ${label}.`;
-      }
     }
 
     if (!passbookUri) return 'Capture your bank passbook photo.';
@@ -402,12 +398,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     otpVerified &&
     Boolean(passbookUri) &&
     vendors.length > 0 &&
-    vendors.every(
-      (v) =>
-        Boolean(v.vendorName.trim()) &&
-        Boolean(v.categoryId) &&
-        (v.app !== 'FOOD' || Boolean(v.fssaiUri)),
-    );
+    vendors.every((v) => Boolean(v.vendorName.trim()) && Boolean(v.categoryId));
 
   return (
     <View style={styles.container}>
@@ -719,14 +710,15 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                     {vm.app === 'FOOD' ? (
                       <>
                         <TextInputField
-                          label={setup('fssaiNumber')?.label ?? 'FSSAI licence number'}
+                          label={setup('fssaiNumber')?.label ?? 'FSSAI licence number (optional)'}
                           placeholder={setup('fssaiNumber')?.placeholder ?? '14-digit licence number'}
                           value={vm.fssaiNumber}
                           onChangeText={(value) => updateVendor(vm.key, { fssaiNumber: value })}
                           keyboardType="number-pad"
                         />
                         <DocumentRow
-                          label="FSSAI certificate"
+                          label="FSSAI certificate (optional)"
+                          optional
                           uri={vm.fssaiUri}
                           onCapture={() => {
                             setCaptureVendorKey(vm.key);
@@ -977,11 +969,13 @@ function TextInputField({
 function DocumentRow({
   label,
   uri,
+  optional = false,
   onCapture,
   onRemove,
 }: {
   label: string;
   uri: string | null;
+  optional?: boolean;
   onCapture: () => void;
   onRemove: () => void;
 }) {
@@ -996,7 +990,7 @@ function DocumentRow({
       </View>
       <View style={{ flex: 1 }}>
         <AppText style={styles.docLabel}>{label}</AppText>
-        <AppText style={styles.docStatus}>{uri ? 'Captured' : 'Required'}</AppText>
+        <AppText style={styles.docStatus}>{uri ? 'Captured' : optional ? 'Optional' : 'Required'}</AppText>
       </View>
       <TouchableOpacity
         style={styles.docButton}

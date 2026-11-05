@@ -170,7 +170,6 @@ CREATE TABLE catalog.products (
   name          TEXT NOT NULL,
   search_tokens TEXT[] NOT NULL DEFAULT '{}',
   price_paisa   INT8 NOT NULL,               -- money as paisa (₹1 = 100)
-  mrp_paisa     INT8,                        -- optional original price
   rating        REAL NOT NULL DEFAULT 0,     -- 0..5, 1-decimal (0005; scaling stage f64/FAST)
   reviews_count INT4 NOT NULL DEFAULT 0,
   emoji         TEXT NOT NULL,
@@ -195,7 +194,6 @@ CREATE TABLE catalog.products (
 | `name` | TEXT | ~24 | display | — |
 | `search_tokens` | TEXT[] | var | Tantivy source | — |
 | `price_paisa` | INT8 | 8 | money as paisa | btree (price sort/filter) |
-| `mrp_paisa` | INT8 | 8 | optional original | — |
 | `rating` | REAL | 4 | sort | btree desc |
 | `reviews_count` | INT4 | 4 | sort | — |
 | `emoji` / `image_url` | TEXT | var | display | — |
@@ -214,17 +212,23 @@ the Valkey `search:q:*` value shrinks with it.
 **5 sample rows** (provenance: `data/catalog/products.ts` `catalogIndex` → `data/mart/products.ts`,
 `data/pharma/products.ts`):
 
-| id | app | category | name | price_paisa | mrp_paisa | rating | reviews_count | store_id |
-|---|---|---|---|---|---|---|---|---|
-| `fm-f1` | MART | Fashion | Premium Cotton Hoodie | 149900 | 199900 | 4.8 | 245 | store-m3 |
-| `gr-p7` | MART | Beverages | Arabica Coffee Beans Medium | 45000 | 58000 | 4.9 | 360 | store-g1 |
-| `fm-m1` | MART | Mobiles | Faazio Phone Pro Max | 8999900 | 10999900 | 4.9 | 1420 | store-m1 |
-| `ph-c1` | PHARMA | (cough) | (see pharma fixture) | — | — | — | — | store-p1 |
-| `sp-1` | FOOD | (biryani) | Hyderabadi Mutton Biryani | 49900 | — | — | — | (food store) |
+| id | app | category | name | price_paisa | rating | reviews_count | store_id |
+|---|---|---|---|---|---|---|---|
+| `fm-f1` | MART | Fashion | Premium Cotton Hoodie | 149900 | 4.8 | 245 | store-m3 |
+| `gr-p7` | MART | Beverages | Arabica Coffee Beans Medium | 45000 | 4.9 | 360 | store-g1 |
+| `fm-m1` | MART | Mobiles | Faazio Phone Pro Max | 8999900 | 4.9 | 1420 | store-m1 |
+| `ph-c1` | PHARMA | (cough) | (see pharma fixture) | — | — | — | store-p1 |
+| `sp-1` | FOOD | (biryani) | Hyderabadi Mutton Biryani | 49900 | — | — | (food store) |
 
 > Provenance detail: `ph-c1`, `sp-1` map to `data/pharma/products.ts` / `data/food/products.ts`
 > respectively — the doc samples `fm-f1`/`gr-p7`/`fm-m1` exactly; the remaining two are placeholders
 > pointing to their fixture files (values stable there, not repeated here to avoid drift).
+
+> **Product MRP is retired (`0079`).** `catalog.products.mrp_paisa` and `inventory.stock.mrp_paisa`
+> were dropped; the API now exposes only the selling `price_paisa`, and seller pricing writes are
+> price-only. `catalog.products_search` was recreated without the column. Authored list prices remain
+> only where a discount is explicitly authored: `directory.menus.mrp_paisa` (`0022`) and
+> `pharma.quote_items.mrp_paisa` (`0023`).
 
 ### 5.2 Tantivy index (the actual search engine)
 

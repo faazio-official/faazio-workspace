@@ -150,7 +150,7 @@ function EditProduct() {
               imageUrl: images[0] ?? "",
               galleryUrls: images.slice(1),
             });
-            upsertPrice(product.productId, pricePaisa, pricePaisa);
+            upsertPrice(product.productId, pricePaisa);
             saveProductImage(product.productId, images[0]);
             toast.success("Listing updated");
           }}

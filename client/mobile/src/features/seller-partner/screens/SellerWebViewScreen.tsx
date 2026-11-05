@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   BackHandler,
   Linking,
+  PermissionsAndroid,
   Platform,
   Pressable,
   StyleSheet,
@@ -33,6 +34,74 @@ const WebView = NativeWebView as unknown as React.ComponentType<
 >;
 
 const portalBase = WEB_PORTAL_URL.replace(/\/+$/, '');
+
+/** Permission kinds the portal may request through the bridge (`window.__faazioRequestPermission`). */
+type PermissionKind = 'camera' | 'location' | 'notifications' | 'storage';
+
+interface PermissionResult {
+  requestId: string;
+  kind: PermissionKind;
+  granted: boolean;
+  status: 'granted' | 'denied' | 'blocked' | 'handled-by-webview';
+}
+
+type AndroidPermission =
+  (typeof PermissionsAndroid.PERMISSIONS)[keyof typeof PermissionsAndroid.PERMISSIONS];
+
+const ANDROID_PERMISSIONS: Record<PermissionKind, AndroidPermission[]> = {
+  camera: [PermissionsAndroid.PERMISSIONS.CAMERA],
+  location: [
+    PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+    PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+  ],
+  notifications: [PermissionsAndroid.PERMISSIONS.POST_NOTIFICATIONS],
+  // The system photo picker (API 33+) needs no storage permission; legacy devices still do.
+  storage:
+    Number(Platform.Version) >= 33
+      ? []
+      : [PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE],
+};
+
+function isPermissionKind(value: unknown): value is PermissionKind {
+  return (
+    value === 'camera' ||
+    value === 'location' ||
+    value === 'notifications' ||
+    value === 'storage'
+  );
+}
+
+/**
+ * Ask the OS for a permission the portal needs. iOS WKWebView owns camera/mic/location prompts via
+ * its own Info.plist strings, so native only reports "handled-by-webview" and lets the prompt show.
+ */
+async function requestNativePermission(
+  requestId: string,
+  kind: PermissionKind,
+): Promise<PermissionResult> {
+  if (Platform.OS !== 'android') {
+    return { requestId, kind, granted: true, status: 'handled-by-webview' };
+  }
+  const permissions = ANDROID_PERMISSIONS[kind];
+  if (permissions.length === 0) {
+    return { requestId, kind, granted: true, status: 'granted' };
+  }
+  let granted = true;
+  for (const permission of permissions) {
+    if (await PermissionsAndroid.check(permission)) continue;
+    const result = await PermissionsAndroid.request(permission);
+    if (result !== PermissionsAndroid.RESULTS.GRANTED) {
+      granted = false;
+      break;
+    }
+  }
+  return {
+    requestId,
+    kind,
+    granted,
+    status: granted ? 'granted' : 'denied',
+  };
+}
 
 // Last vendor the seller shell was on (persisted natively) so a cold start can re-open the portal
 // scoped to the same shop via window.__faazio.vendorId before the console hydrates.
@@ -141,6 +210,47 @@ export function SellerWebViewScreen() {
     [inject],
   );
 
+  // Permission bridge: the portal posts `{type:'faazio:permission', requestId, kind}` and receives
+  // `faazio-permission-result` on `window`. Native asks the OS; the portal never sees a fake grant.
+  const onMessage = useCallback(
+    (event: { nativeEvent: { data: string } }) => {
+      let payload: unknown;
+      try {
+        payload = JSON.parse(event.nativeEvent.data);
+      } catch {
+        return;
+      }
+      if (!payload || typeof payload !== 'object') return;
+      const message = payload as Record<string, unknown>;
+      if (message['type'] !== 'faazio:permission') return;
+      const requestId = typeof message['requestId'] === 'string' ? message['requestId'] : '';
+      const kind = message['kind'];
+      if (!requestId || !isPermissionKind(kind)) return;
+      void requestNativePermission(requestId, kind)
+        .then((result) => {
+          inject(
+            `window.dispatchEvent(new CustomEvent('faazio-permission-result',{detail:${JSON.stringify(
+              result,
+            )}}));`,
+          );
+        })
+        .catch(() => {
+          const denied: PermissionResult = {
+            requestId,
+            kind,
+            granted: false,
+            status: 'denied',
+          };
+          inject(
+            `window.dispatchEvent(new CustomEvent('faazio-permission-result',{detail:${JSON.stringify(
+              denied,
+            )}}));`,
+          );
+        });
+    },
+    [inject],
+  );
+
   const openOrder = useCallback(
     (orderId: string | null, storeId?: string | null) => {
       if (!orderId) return;
@@ -245,6 +355,7 @@ export function SellerWebViewScreen() {
         cacheEnabled
         javaScriptCanOpenWindowsAutomatically={false}
         setSupportMultipleWindows={false}
+        geolocationEnabled
         allowsBackForwardNavigationGestures
         onLoadStart={() => {
           loaded.current = false;
@@ -270,6 +381,7 @@ export function SellerWebViewScreen() {
             setError(`The portal returned ${event.nativeEvent.statusCode}.`);
           }
         }}
+        onMessage={onMessage}
         onNavigationStateChange={onNavigationChange}
         onShouldStartLoadWithRequest={(request: { url: string }) => {
           if (isPortalUrl(request.url)) {

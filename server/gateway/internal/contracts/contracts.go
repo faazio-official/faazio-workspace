@@ -85,7 +85,6 @@ type Stock struct {
 	Available      bool   `json:"available"`
 	InStockQty     int64  `json:"inStockQty"`
 	Price          int64  `json:"price"` // rupees
-	MRP            *int64 `json:"mrp,omitempty"`
 	ETA            string `json:"eta"`
 	IsPrescription bool   `json:"isPrescription,omitempty"`
 }
@@ -98,7 +97,6 @@ type Product struct {
 	Name          string         `json:"name"`
 	SearchTokens  []string       `json:"searchTokens"`
 	Price         int64          `json:"price"` // rupees
-	OriginalPrice *int64         `json:"originalPrice,omitempty"`
 	Rating        float64        `json:"rating"`
 	Emoji         string         `json:"emoji"`
 	Image         string         `json:"image"`

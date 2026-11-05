@@ -37,14 +37,13 @@ func (r *Repo) StockByProductID(ctx context.Context, productID string) (contract
 		return contracts.Stock{}, false, fmt.Errorf("cartstock: database not configured")
 	}
 	var (
-		s   contracts.Stock
-		mrp *int64
-		rx  *bool
+		s  contracts.Stock
+		rx *bool
 	)
 	err := r.pool.QueryRow(ctx, `
-		select product_id, available, in_stock_qty, price_paisa, mrp_paisa, eta, is_prescription
+		select product_id, available, in_stock_qty, price_paisa, eta, is_prescription
 		from inventory.stock where product_id = $1`, productID).
-		Scan(&s.ProductID, &s.Available, &s.InStockQty, &s.Price, &mrp, &s.ETA, &rx)
+		Scan(&s.ProductID, &s.Available, &s.InStockQty, &s.Price, &s.ETA, &rx)
 	if err != nil {
 		if isNoRows(err) {
 			return contracts.Stock{}, false, nil
@@ -52,10 +51,6 @@ func (r *Repo) StockByProductID(ctx context.Context, productID string) (contract
 		return contracts.Stock{}, false, err
 	}
 	s.Price = s.Price / 100
-	if mrp != nil {
-		v := *mrp / 100
-		s.MRP = &v
-	}
 	s.IsPrescription = rx != nil && *rx
 	return s, true, nil
 }
@@ -67,7 +62,7 @@ func (r *Repo) StockByProductIDs(ctx context.Context, ids []string) (map[string]
 		return out, nil
 	}
 	rows, err := r.pool.Query(ctx, `
-		select product_id, available, in_stock_qty, price_paisa, mrp_paisa, eta, is_prescription
+		select product_id, available, in_stock_qty, price_paisa, eta, is_prescription
 		from inventory.stock where product_id = any($1)`, ids)
 	if err != nil {
 		return nil, err
@@ -75,18 +70,13 @@ func (r *Repo) StockByProductIDs(ctx context.Context, ids []string) (map[string]
 	defer rows.Close()
 	for rows.Next() {
 		var (
-			s   contracts.Stock
-			mrp *int64
-			rx  *bool
+			s  contracts.Stock
+			rx *bool
 		)
-		if err := rows.Scan(&s.ProductID, &s.Available, &s.InStockQty, &s.Price, &mrp, &s.ETA, &rx); err != nil {
+		if err := rows.Scan(&s.ProductID, &s.Available, &s.InStockQty, &s.Price, &s.ETA, &rx); err != nil {
 			return nil, err
 		}
 		s.Price = s.Price / 100
-		if mrp != nil {
-			v := *mrp / 100
-			s.MRP = &v
-		}
 		s.IsPrescription = rx != nil && *rx
 		out[s.ProductID] = s
 	}

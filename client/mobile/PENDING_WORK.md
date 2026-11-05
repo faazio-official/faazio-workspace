@@ -12,6 +12,28 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W81 — Seller listing cleanup: MRP retired, optional licences, payout preview, WebView bridge
+
+**Status:** 🟢 Shipped (gateway + web + mobile + docs).
+
+- **MRP retired (`0079`).** Dropped `catalog.products.mrp_paisa` + `inventory.stock.mrp_paisa`
+  (recreating `catalog.products_search` without the column). Product create/edit/pricing are
+  price-only across the mobile `GatewayClient`, the web `upsertPrice`/`createProduct` path and the
+  admin pricing/audit screens. Authored list prices remain only on `directory.menus` (`0022`) and
+  `pharma.quote_items` (`0023`). The seed generator no longer emits product/stock MRP.
+- **Licences optional.** FOOD FSSAI and PHARMA drug licences are no longer required to submit a
+  seller application (`internal/sellers`, `internal/directory`); if either half is supplied the
+  number + document must be paired, and an admin verifies during review. Mobile onboarding shows
+  them as optional; the web onboarding accepts either at create or later from Stores.
+- **Deduction preview restored.** `seller/products/new` shows "What you keep" on Pricing and Review
+  (platform fee, platform GST, TCS, TDS, net payout), using the picked shop's `platformFeePct` and
+  the approved GST rate; the gateway remains authoritative at settlement.
+- **WebView permission bridge.** The seller shell answers `{type:'faazio:permission'}` posts from the
+  portal (`PermissionsAndroid` on Android, `handled-by-webview` on iOS) and emits
+  `faazio-permission-result`; the portal helper is `requestNativePermission` in `appContext.ts`.
+- **Offline honesty.** `connectivityStore` no longer reports "online" when no gateway is configured
+  (reports `null`), and the Food grid's offline comment now matches the empty-grid behaviour.
+
 ## W80 — Delivery fee: fail-open on transient weather outage (degraded quotes)
 
 **Status:** 🟢 Shipped (gateway + mobile + docs).

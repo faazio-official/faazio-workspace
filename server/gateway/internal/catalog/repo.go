@@ -37,10 +37,10 @@ func New(pool *db.Pool, cdnBase ...string) *Repo {
 
 const productSelect = `
 select p.id, p.app::text, p.category, p.name, p.search_tokens,
-       p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
+       p.price_paisa, p.rating, p.reviews_count,
        p.emoji, p.image_url, p.image_key, p.desc_text, p.badge, p.shop, coalesce(p.store_id,''),
        p.unit, p.attributes,
-       s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription,
+       s.available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
        null::float8 as distance_km
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
@@ -51,10 +51,10 @@ left join inventory.stock s on s.product_id = p.id`
 // (ByID) keeps the full productSelect.
 const productListSelect = `
 select p.id, p.app::text, p.category, p.name, p.search_tokens,
-       p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
+       p.price_paisa, p.rating, p.reviews_count,
        p.emoji, p.image_url, p.image_key, ''::text as desc_text, p.badge, null::text as shop,
        coalesce(p.store_id,''), p.unit, null::jsonb as attributes,
-       s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription,
+       s.available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
        null::float8 as distance_km
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
@@ -99,10 +99,10 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 	lngDelta := radiusKm / (111.32 * cosLat)
 	rows, err := r.pool.Query(ctx, `
 		select p.id, p.app::text, p.category, p.name, p.search_tokens,
-		       p.price_paisa, p.mrp_paisa, p.rating, p.reviews_count,
+		       p.price_paisa, p.rating, p.reviews_count,
 		       p.emoji, p.image_url, p.image_key, ''::text as desc_text, p.badge,
 		       null::text as shop, coalesce(p.store_id,''), p.unit, null::jsonb as attributes,
-		       s.available, s.in_stock_qty, s.price_paisa, s.mrp_paisa, s.eta, s.is_prescription,
+		       s.available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
 		       (6371.0088 * acos(least(1, greatest(-1,
 		           sin(radians($1)) * sin(radians(d.latitude)) +
 		           cos(radians($1)) * cos(radians(d.latitude)) * cos(radians(d.longitude) - radians($2))
@@ -234,24 +234,24 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 	out := []contracts.Product{}
 	for rows.Next() {
 		var (
-			p                                contracts.Product
-			pricePaisa, mrpPaisa, stockPrice *int64
-			rating                           float64
-			reviewsCount                     *int64
-			attrsRaw                         []byte
-			badge, shop, unit                *string
-			imageKey                         *string
-			sAvail                           *bool
-			sQty, sMRP                       *int64
-			sETA                             *string
-			sRx                              *bool
-			distance                         *float64
+			p                    contracts.Product
+			pricePaisa, stockPrice *int64
+			rating               float64
+			reviewsCount         *int64
+			attrsRaw             []byte
+			badge, shop, unit    *string
+			imageKey             *string
+			sAvail               *bool
+			sQty                 *int64
+			sETA                 *string
+			sRx                  *bool
+			distance             *float64
 		)
 		if err := rows.Scan(
 			&p.ID, &p.App, &p.Category, &p.Name, &p.SearchTokens,
-			&pricePaisa, &mrpPaisa, &rating, &reviewsCount,
+			&pricePaisa, &rating, &reviewsCount,
 			&p.Emoji, &p.Image, &imageKey, &p.Desc, &badge, &shop, &p.StoreID, &unit, &attrsRaw,
-			&sAvail, &sQty, &stockPrice, &sMRP, &sETA, &sRx,
+			&sAvail, &sQty, &stockPrice, &sETA, &sRx,
 			&distance,
 		); err != nil {
 			return nil, err
@@ -264,7 +264,6 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 		// number is exact (e.g. 4.9, not 4.900000095367432).
 		p.Rating = math.Round(rating*10) / 10
 		p.Price = toRupees(pricePaisa)
-		p.OriginalPrice = moneyPtr(mrpPaisa)
 		p.ReviewsCount = reviewsCount
 		p.Badge = deref(badge)
 		p.Shop = deref(shop)
@@ -279,7 +278,6 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 				Available:      *sAvail,
 				InStockQty:     derefInt(sQty),
 				Price:          toRupees(stockPrice),
-				MRP:            moneyPtr(sMRP),
 				IsPrescription: sRx != nil && *sRx,
 			}
 			if sETA != nil {
@@ -297,14 +295,6 @@ func toRupees(paisa *int64) int64 {
 		return 0
 	}
 	return *paisa / 100
-}
-
-func moneyPtr(paisa *int64) *int64 {
-	if paisa == nil {
-		return nil
-	}
-	r := *paisa / 100
-	return &r
 }
 
 func derefInt(v *int64) int64 {
@@ -332,8 +322,7 @@ type SellerProduct struct {
 	Status         string `json:"status"`
 	SellerID       string `json:"sellerId,omitempty"`
 	StoreID        string `json:"storeId,omitempty"`
-	Price          int64  `json:"price"`         // rupees
-	MRP            *int64 `json:"mrp,omitempty"` // rupees
+	Price          int64  `json:"price"` // rupees
 	Description    string `json:"description,omitempty"`
 	Unit           string `json:"unit,omitempty"`
 	Emoji          string `json:"emoji,omitempty"`
@@ -352,7 +341,7 @@ type SellerProduct struct {
 // read joins the store rather than trusting a duplicated column.
 const sellerProductSelect = `
 select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(st.seller_id,''),
-       coalesce(p.store_id,''), p.price_paisa, p.mrp_paisa,
+       coalesce(p.store_id,''), p.price_paisa,
        coalesce(p.desc_text,''), coalesce(p.unit,''), coalesce(p.emoji,''),
        coalesce(p.image_url,''), coalesce(p.image_key,''), p.is_veg, p.is_prescription,
        coalesce(s.in_stock_qty, 0), coalesce(s.available, true), coalesce(s.eta, ''),
@@ -424,8 +413,7 @@ type ProductCreateInput struct {
 	Name           string
 	Category       string
 	Desc           string
-	Price          int64  // rupees
-	MRP            *int64 // rupees
+	Price          int64 // rupees
 	Unit           string
 	Emoji          string
 	ImageURL       string
@@ -451,12 +439,6 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 	}
 	if e.Price < 0 || e.Price > 10_000_000 {
 		return SellerProduct{}, false, fmt.Errorf("catalog: invalid price")
-	}
-	if e.MRP != nil && (*e.MRP < 0 || *e.MRP > 10_000_000) {
-		return SellerProduct{}, false, fmt.Errorf("catalog: invalid mrp")
-	}
-	if e.MRP != nil && *e.MRP < e.Price {
-		return SellerProduct{}, false, fmt.Errorf("catalog: mrp below price")
 	}
 	storeID := strings.TrimSpace(e.StoreID)
 	name := strings.TrimSpace(e.Name)
@@ -510,21 +492,16 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 
 	id := newProductID(app)
 	pricePaisa := e.Price * 100
-	var mrpPaisa *int64
-	if e.MRP != nil {
-		v := *e.MRP * 100
-		mrpPaisa = &v
-	}
 	// Ownership is not written here: the product's owner is its store's owner (0070).
 	if _, err := tx.Exec(ctx, `
 		insert into catalog.products
-		  (id, app, category, name, search_tokens, price_paisa, mrp_paisa, rating, reviews_count,
+		  (id, app, category, name, search_tokens, price_paisa, rating, reviews_count,
 		   emoji, image_url, image_key, image_asset_id, desc_text, unit, store_id, is_prescription,
 		   is_veg, attributes, status)
-		values ($1, $2::app_brand, $3, $4, $5, $6, $7, 0, 0,
-		        $8, $9, $10, $11, $12, $13, $14, $15,
-		        $16, $17, 'PENDING_REVIEW'::product_status)`,
-		id, app, category, name, searchTokens(name, category, e.Desc), pricePaisa, mrpPaisa,
+		values ($1, $2::app_brand, $3, $4, $5, $6, 0, 0,
+		        $7, $8, $9, $10, $11, $12, $13, $14,
+		        $15, $16, 'PENDING_REVIEW'::product_status)`,
+		id, app, category, name, searchTokens(name, category, e.Desc), pricePaisa,
 		strings.TrimSpace(e.Emoji), strings.TrimSpace(e.ImageURL), e.ImageKey, e.ImageAssetID,
 		strings.TrimSpace(e.Desc), strings.TrimSpace(e.Unit), storeID, e.IsPrescription, e.IsVeg,
 		attrJSON); err != nil {
@@ -532,9 +509,9 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 	}
 	if _, err := tx.Exec(ctx, `
 		insert into inventory.stock
-		  (product_id, available, in_stock_qty, price_paisa, mrp_paisa, eta, is_prescription)
-		values ($1, true, 0, $2, $3, '', $4)`,
-		id, pricePaisa, mrpPaisa, e.IsPrescription); err != nil {
+		  (product_id, available, in_stock_qty, price_paisa, eta, is_prescription)
+		values ($1, true, 0, $2, '', $3)`,
+		id, pricePaisa, e.IsPrescription); err != nil {
 		return SellerProduct{}, false, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -577,7 +554,6 @@ func newProductID(app string) string {
 // unchanged). ImageKey/ImageAssetID link a confirmed media asset; a pointer to "" clears the image.
 type ProductEdit struct {
 	Price        *int64
-	MRP          *int64
 	InStockQty   *int64
 	Available    *bool
 	Eta          *string
@@ -585,7 +561,7 @@ type ProductEdit struct {
 	ImageAssetID *string
 }
 
-// UpdateProduct edits price/MRP/stock for a seller's product. The row must belong to sellerID, or
+// UpdateProduct edits price/stock for a seller's product. The row must belong to sellerID, or
 // to a seller in district (strict); passing neither is the super-admin case. Price is written to
 // both catalog.products and inventory.stock so the two stay in lockstep. Returns ok=false when the
 // product is absent or outside the caller's scope.
@@ -625,13 +601,11 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 			return SellerProduct{}, false, nil
 		}
 	}
-	if e.Price != nil || e.MRP != nil {
+	if e.Price != nil {
 		if _, err := tx.Exec(ctx, `
 			update catalog.products
-			   set price_paisa = coalesce($2, price_paisa),
-			       mrp_paisa   = coalesce($3, mrp_paisa)
-			 where id = $1`, id,
-			mul100(e.Price), mul100(e.MRP)); err != nil {
+			   set price_paisa = coalesce($2, price_paisa)
+			 where id = $1`, id, mul100(e.Price)); err != nil {
 			return SellerProduct{}, false, err
 		}
 	}
@@ -644,17 +618,16 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 			return SellerProduct{}, false, err
 		}
 	}
-	if e.InStockQty != nil || e.Available != nil || e.Price != nil || e.MRP != nil || e.Eta != nil {
+	if e.InStockQty != nil || e.Available != nil || e.Price != nil || e.Eta != nil {
 		if _, err := tx.Exec(ctx, `
 			update inventory.stock
 			   set price_paisa  = coalesce($2, price_paisa),
-			       mrp_paisa    = coalesce($3, mrp_paisa),
-			       in_stock_qty = coalesce($4, in_stock_qty),
-			       available    = coalesce($5, available),
-			       eta          = coalesce($6, eta),
+			       in_stock_qty = coalesce($3, in_stock_qty),
+			       available    = coalesce($4, available),
+			       eta          = coalesce($5, eta),
 			       updated_at   = now()
 			 where product_id = $1`, id,
-			mul100(e.Price), mul100(e.MRP), e.InStockQty, e.Available, e.Eta); err != nil {
+			mul100(e.Price), e.InStockQty, e.Available, e.Eta); err != nil {
 			return SellerProduct{}, false, err
 		}
 	}
@@ -688,16 +661,14 @@ type sellerProductScanner interface{ Scan(dest ...any) error }
 func scanSellerProduct(row sellerProductScanner) (SellerProduct, error) {
 	var (
 		p         SellerProduct
-		mrpPaisa  *int64
 		updatedAt time.Time
 	)
 	if err := row.Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID,
-		&p.Price, &mrpPaisa, &p.Description, &p.Unit, &p.Emoji, &p.ImageURL, &p.ImageKey,
+		&p.Price, &p.Description, &p.Unit, &p.Emoji, &p.ImageURL, &p.ImageKey,
 		&p.IsVeg, &p.IsPrescription, &p.InStockQty, &p.Available, &p.Eta, &updatedAt); err != nil {
 		return SellerProduct{}, err
 	}
 	p.Price /= 100
-	p.MRP = moneyPtr(mrpPaisa)
 	p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
 	return p, nil
 }

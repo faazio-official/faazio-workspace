@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
-import { discountPercent } from "@/lib/pricing/rules";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { FilterChip } from "@/components/patterns/FilterChip";
@@ -99,9 +98,7 @@ function StateProducts() {
                 <TableHead>Product</TableHead>
                 <TableHead>Sector</TableHead>
                 <TableHead>Seller</TableHead>
-                <TableHead className="text-right">MRP</TableHead>
                 <TableHead className="text-right">Price</TableHead>
-                <TableHead className="text-right">Discount</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">
                   <span className="inline-flex items-center justify-end gap-1.5">
@@ -124,9 +121,7 @@ function StateProducts() {
                     <SectorPill sector={product.sector} />
                   </TableCell>
                   <TableCell className="num text-[12px] text-muted-foreground">{product.sellerId}</TableCell>
-                  <TableCell className="num text-right">{formatINR(product.mrpPaisa)}</TableCell>
                   <TableCell className="num text-right">{formatINR(product.pricePaisa)}</TableCell>
-                  <TableCell className="num text-right">{discountPercent(product.mrpPaisa, product.pricePaisa)}%</TableCell>
                   <TableCell>
                     <StatusPill status={product.status} />
                   </TableCell>
@@ -178,7 +173,7 @@ function StateProducts() {
                     disabled={reason.trim().length < 4}
                     onClick={() => {
                       updateProduct(active.productId, { name });
-                      upsertPrice(active.productId, parseRupeesToPaisa(price), active.mrpPaisa);
+                      upsertPrice(active.productId, parseRupeesToPaisa(price));
                       toast.success("Listing updated");
                       setActive(null);
                     }}

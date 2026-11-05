@@ -9,9 +9,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { config } from "@/lib/config";
-import { formatINR } from "@/lib/format";
-import { floorPaisa } from "@/lib/pricing/rules";
-
 
 function PlatformSettings() {
   const [form, setForm] = useState({
@@ -20,8 +17,6 @@ function PlatformSettings() {
     coinRedeemRate: String(config.coinRedeemRate),
     slaHours: String(config.slaHours),
   });
-
-  const sampleMrp = 199900;
 
   return (
     <div className="space-y-4">
@@ -45,10 +40,6 @@ function PlatformSettings() {
             />
           </div>
         </div>
-        <p className="num mt-3 text-[12px] text-muted-foreground">
-          At the current settings, a {formatINR(sampleMrp)} MRP item has a price floor of{" "}
-          {formatINR(floorPaisa(sampleMrp))}.
-        </p>
       </SectionCard>
 
       <SectionCard title="FaazioCoins">

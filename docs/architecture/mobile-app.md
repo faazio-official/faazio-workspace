@@ -596,7 +596,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `vendorRatingStore` | The signed-in user's live vendor ratings (one per `(user, vendor)`, latest wins) + verified-purchase `orderIds`; persisted AsyncStorage `faazio/vendor-ratings/v1`, reset on logout |
 | `deliveryPartnerStore` | Partner-app only: verified application phone + the rider/detail projection from `GET /delivery/me`. The Firebase session itself stays in `authStore`/Keychain and is never duplicated here |
 | `remoteConfigStore` | Central remote config (the "Central Digital Menu", `admins.app_config` `0059`): boots `gateway.getAppConfig()` (`GET /app-config`, public, variant-filtered) best-effort under the splash, keeps a flat key→value map, and **never blocks startup** (failure keeps the bake-time `config.ts` defaults). Baked values are the safe defaults; a remote row overrides its key only when present; `GATEWAY_URL`/`APP_VARIANT` are never overridden. Selectors: `selectPlacesApiKey` (wired → `usePlaceAutocomplete` — a `maps.places_api_key` edit is live on the next boot), `selectMaintenanceEnabled` (available, no screen consumes it yet), `resolvePlacesApiKey` (non-hook read for `resolvePlaceLocation`). Not persisted — refetched every cold boot |
-| `connectivityStore` | Live device connectivity (no NetInfo dep): `GET {GATEWAY_URL}/health` with a 5 s timeout, polled every 30 s while foregrounded, re-checked on `AppState` → `active`. Any HTTP response (even 4xx/5xx) means online; only a thrown fetch/timeout means offline. Holds `isOnline` (`null` until the first probe so no cold-start flash), `hasConnected` (first-ever online, distinguishes cold-start offline), `pendingNavigation` + `navigationBlocked` for the offline guard. `checkConnectivity`/`startMonitoring`/`stopMonitoring`. In mock mode (`GATEWAY_URL` unset) it reports online (awareness is meaningless). State only — no UI |
+| `connectivityStore` | Live device connectivity (no NetInfo dep): `GET {GATEWAY_URL}/health` with a 5 s timeout, polled every 30 s while foregrounded, re-checked on `AppState` → `active`. Any HTTP response (even 4xx/5xx) means online; only a thrown fetch/timeout means offline. Holds `isOnline` (`null` until the first probe so no cold-start flash), `hasConnected` (first-ever online, distinguishes cold-start offline), `pendingNavigation` + `navigationBlocked` for the offline guard. `checkConnectivity`/`startMonitoring`/`stopMonitoring`. With no gateway configured it reports **unknown** (`isOnline: null`) — it never claims online and never blocks navigation. State only — no UI |
 
 ### Offline / connectivity awareness
 
@@ -901,8 +901,15 @@ cookies; the shell also clears the WebView cache when it navigates back to `/log
 walks the WebView history, then exits.
 
 **Native responsibilities only:** safe-area/status-bar chrome, external links (anything outside the
-portal origin opens in the system browser), FCM token registration, foreground order beep, and
-notification-tap navigation (`window.location.assign('/seller/orders/{id}')`).
+portal origin opens in the system browser), FCM token registration, foreground order beep,
+notification-tap navigation (`window.location.assign('/seller/orders/{id}')`), and the **permission
+bridge**. The portal posts `{ type: 'faazio:permission', requestId, kind }` through
+`window.ReactNativeWebView.postMessage` (helper:
+`client/web/platform/src/lib/appContext.ts` → `requestNativePermission`); the shell asks Android
+(`PermissionsAndroid`) for `camera`/`location`/`notifications`/`storage` and answers on
+`window` as a `faazio-permission-result` CustomEvent. iOS returns `handled-by-webview` because
+WKWebView owns its own prompts. A denial is reported as `granted: false` — the portal never assumes
+a grant. The seller photo uploader calls `storage` before opening the file chooser on legacy Android.
 `react-native-webview` is pinned to `14.0.1`; `react-native-sound` plays the bundled
 `src/assets/orderBeep.wav`. The portal registers the injected FCM token through its authenticated
 `/api/gateway` proxy (`POST /notifications/register`), so native never needs a portal bearer token.
@@ -1015,19 +1022,22 @@ passbook** photo and the OTP digital signature — all account-level.
 
 The account then carries one or more **shops** (vendors). Each shop card picks its own app
 (`MART`/`FOOD`/`PHARMA`), shop name, taxonomy category (server-only `GET /categories?app=`, no
-fixture list), platform fee % (FOOD floor 5) and — for FOOD only — the FSSAI number + certificate;
-the submission sends every card in the `vendors[]` payload the gateway requires. Labels/placeholders
-still come from `SELLER_SETUP_FIELDS` (`@data/seller/sellerSetup.ts`).
+fixture list), platform fee % (FOOD floor 5) and — for FOOD only — an **optional** FSSAI number +
+certificate; the submission sends every card in the `vendors[]` payload. Licences (FSSAI and the
+PHARMA drug licence) are optional at submission and may be attached later; when one half is supplied
+the gateway requires the number + certificate together, and an admin verifies them during review.
+Labels/placeholders still come from `SELLER_SETUP_FIELDS` (`@data/seller/sellerSetup.ts`).
 
 Documents are captured with `DocumentCapture` (Vision Camera, consent-gated), uploaded straight to
 the private R2 bucket through `GatewayClient.uploadSellerDocument` (`/media/upload-url` presigned
 PUT → `/media/confirm`), and only the object key + asset id reach the application. Submission is
-blocked until both documents and the OTP digital signature are complete; the OTP runs on a
+blocked until the mandatory passbook photo and the OTP digital signature are complete (licences stay
+optional); the OTP runs on a
 disposable secondary Firebase app (`services/firebaseAuth.ts`) so the shopper's primary session is
 never swapped. `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) creates the
 `PENDING_REVIEW` seller, bank account and KYC rows in one transaction, plus one `directory.stores`
 **vendor** per entry in the `vendors[]` payload — the account is brand-agnostic, and the app,
-platform fee %, category and FSSAI all live on the vendor. The server treats the OTP as
+platform fee %, category and licences all live on the vendor. The server treats the OTP as
 a **digital signature**: it requires a Firebase ID token whose `phone_number` claim matches the
 application's `contactPhone` (`auth.OTPSigned`) — a client-asserted `otpVerified: true` alone is
 rejected with `401 otp_unverified`. The success state shows the `sellerId`, status and vendor apps.
@@ -1039,7 +1049,7 @@ SUPER_ADMIN reaches every district) and the mobile app:
   Reachable from the Account page through a role-gated "Seller applications" card (`AccountView`,
   shown only for `DISTRICT_ADMIN`/`SUPER_ADMIN`).
 - `SellerRequestDetailScreen` (route `SellerRequestDetail`, `{ sellerId }`) — full registration +
-  masked payout account, a **vendors** list (name · app · FSSAI) with a **per-vendor platform-fee
+  masked payout account, a **vendors** list (name · app · licences) with a **per-vendor platform-fee
   editor** (each shop's `platformFeePct`, FOOD floor 5%), per-document verify actions (PASSBOOK /
   FSSAI / PAN / GSTIN), **Verify KYC** (activates the seller — no Razorpay Route linked account since
   `0077`) and reject-with-reason. KYC images are rendered live through `GatewayClient.getPrivateMediaUrl`

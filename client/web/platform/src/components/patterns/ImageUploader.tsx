@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { MAX_PRODUCT_IMAGES, resolveImage, uploadProductImage } from "@/lib/media/productImages";
+import { isNativeApp, requestNativePermission } from "@/lib/appContext";
 import { cn } from "@/lib/utils";
 
 /**
@@ -104,7 +105,12 @@ export function ImageUploader({
         {images.length < max ? (
           <button
             type="button"
-            onClick={() => inputRef.current?.click()}
+            onClick={async () => {
+              // Inside the native seller shell the WebView file chooser needs the OS storage
+              // grant on legacy Android; the bridge asks natively and resolves on every platform.
+              if (isNativeApp()) await requestNativePermission("storage");
+              inputRef.current?.click();
+            }}
             onDragOver={(e) => {
               e.preventDefault();
               setDragging(true);
