@@ -190,13 +190,23 @@ export async function hydrateFromGateway(): Promise<boolean> {
   if (!remoteConfigured()) return false;
   const cur = usePortalStore.getState();
   const role = cur.session?.role;
+  const isAdmin = role === "DISTRICT_ADMIN" || role === "SUPER_ADMIN";
+  const canReadPayouts = role === "SELLER" || role === "SUPER_ADMIN";
 
   const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger, orders, inventory, pricing, stores] =
     await Promise.all([
       safe(() => remote.get<RawSeller[]>("/sellers").then(toCamel)),
       safe(() => remote.get<FestivalCampaign[]>("/promo/campaigns").then(toCamel)),
-      safe(() => remote.get<RawCoupon[]>("/promo/coupons").then(toCamel)),
-      safe(() => remote.get<Raw[]>("/promo/sector-caps").then(toCamel)),
+      safe(() =>
+        isAdmin
+          ? remote.get<RawCoupon[]>("/promo/coupons").then(toCamel)
+          : Promise.resolve<RawCoupon[] | undefined>(undefined),
+      ),
+      safe(() =>
+        isAdmin
+          ? remote.get<Raw[]>("/promo/sector-caps").then(toCamel)
+          : Promise.resolve<Raw[] | undefined>(undefined),
+      ),
       safe(() => remote.get<SellerOptin[]>("/promo/optins").then(toCamel)),
       safe(() => remote.get<AdSlot[]>("/ads/slots").then(toCamel)),
       safe(() => remote.get<HeroCampaign[]>("/ads/campaigns").then(toCamel)),
@@ -205,9 +215,21 @@ export async function hydrateFromGateway(): Promise<boolean> {
           ? remote.get<DistrictAdmin[]>("/district-admins").then(toCamel)
           : Promise.resolve<DistrictAdmin[] | undefined>(undefined),
       ),
-      safe(() => remote.get<AuditLog[]>("/audit-logs").then(toCamel)),
-      safe(() => remote.get<RawLedgerEntry[]>("/settlements").then(toCamel)),
-      safe(() => remote.get<RawPayout[]>("/payouts").then(toCamel)),
+      safe(() =>
+        isAdmin
+          ? remote.get<AuditLog[]>("/audit-logs").then(toCamel)
+          : Promise.resolve<AuditLog[] | undefined>(undefined),
+      ),
+      safe(() =>
+        canReadPayouts
+          ? remote.get<RawLedgerEntry[]>("/settlements").then(toCamel)
+          : Promise.resolve<RawLedgerEntry[] | undefined>(undefined),
+      ),
+      safe(() =>
+        canReadPayouts
+          ? remote.get<RawPayout[]>("/payouts").then(toCamel)
+          : Promise.resolve<RawPayout[] | undefined>(undefined),
+      ),
       safe(() =>
         remote
           .get<Raw[]>(role === "SELLER" ? "/seller/prescriptions" : "/prescriptions")
@@ -227,7 +249,11 @@ export async function hydrateFromGateway(): Promise<boolean> {
       safe(() =>
         role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/support/tickets").then(toCamel),
       ),
-      safe(() => remote.get<Raw>("/rewards/rates").then(toCamel)),
+      safe(() =>
+        isAdmin
+          ? remote.get<Raw>("/rewards/rates").then(toCamel)
+          : Promise.resolve<Raw | undefined>(undefined),
+      ),
       safe(() =>
         role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/rewards/ledger").then(toCamel),
       ),

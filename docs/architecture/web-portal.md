@@ -582,6 +582,15 @@ gateway rows.
   state for a legacy state-scoped admin — so a fabricated district (e.g. `?? "TCH"`) filtered out
   every returned row. A DISTRICT_ADMIN JWT only carries `district_code` when the login's
   `admins.portal_users.district_code` is set (migration `0065` seeds the roster, not the login).
+  Hydration is **role-gated to mirror the gateway's `RequireRole` matrix** — a session only polls
+  the endpoints its role may read, so a denied endpoint never fires. Admin-only surfaces (coupons,
+  sector caps, audit logs, rewards rates + ledger) hydrate for `DISTRICT_ADMIN`/`SUPER_ADMIN`;
+  `/settlements` + `/payouts` hydrate for `SELLER`/`SUPER_ADMIN`; seller-console slices
+  (`/seller/pricing`, `/seller/inventory`, `/seller/stores`) hydrate for `SELLER` only;
+  `/district-admins` + `/admin/sdui/home` stay SUPER_ADMIN-only. Unauthorized roles keep the seed
+  slice (previously a SELLER polled the admin-only promo/rewards/audit endpoints and a
+  DISTRICT_ADMIN polled the seller-led settlement/payout endpoints, so every sign-in and tab
+  refocus fired a batch of 401s that `safe()` swallowed).
 - **Auth (portal-only)** — `src/lib/api/index.ts` `signIn` calls
   `src/lib/portal/auth.ts`, which talks only to same-origin `/api/auth/portal/*` route
   handlers. The tokens live in HttpOnly cookies and every data call goes through
