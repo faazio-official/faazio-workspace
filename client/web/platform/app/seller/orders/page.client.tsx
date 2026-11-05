@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ClipboardList, Clock, Receipt } from "lucide-react";
 import { OrdersHeaderIcons, OrdersTopBar } from "@/components/sellers/shells";
-import { PromoBanner } from "@/components/sellers/promo";
 import { EmptyState, PillTabs, RadioRow, SectorBadge, Sheet } from "@/components/sellers/kit";
 import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
 import { useOrders, useSellerScope } from "@/lib/api/hooks";
@@ -151,7 +150,6 @@ function SellerOrders() {
         extra={<OrdersHeaderIcons onSearch={() => setSearch(true)} onScan={() => setScan(true)} />}
       />
       <div className="space-y-3 px-4 pt-3">
-        <PromoBanner />
         {!online && (
           <Link
             href="/seller/restaurant-status"

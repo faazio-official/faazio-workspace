@@ -16,7 +16,6 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { HubHeader } from "@/components/sellers/shells";
-import { PromoBanner } from "@/components/sellers/promo";
 import { Card, EmptyState, PillTabs, Sheet } from "@/components/sellers/kit";
 import { LineSpark, Bars } from "@/components/sellers/charts";
 import {
@@ -114,7 +113,6 @@ function Hub() {
       <div className="space-y-3 px-4 pt-3">
         {tab === "feed" && (
           <>
-            <PromoBanner />
             <Card>
               <div className="flex items-start justify-between">
                 <div>
