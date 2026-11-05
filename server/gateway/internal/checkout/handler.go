@@ -762,6 +762,13 @@ func (h *Handler) razorpayPaymentWebhook(w http.ResponseWriter, r *http.Request)
 	if ok && userID != "" {
 		h.cache.Del(r.Context(), cache.Orders(userID))
 	}
+	// Confirmation releases the order for dispatch: if the seller already packed while the UPI
+	// payment was still pending, push it to a rider now that the money is confirmed (0078).
+	if status == "PAID" && h.repo != nil {
+		if id, ordStatus, _, found, err := h.repo.OrderMetaByRazorpayOrderID(r.Context(), entity.OrderID); err == nil && found && ordStatus == "PACKED" {
+			h.autoDispatch(r.Context(), id)
+		}
+	}
 	httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
 
@@ -939,6 +946,12 @@ func (h *Handler) acceptSellerOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusConflict, "order_not_pending", "order has already been decided")
 		return
 	}
+	// Payment gate (0077/0078): a UPI order may only be packed once the Razorpay webhook has
+	// flipped it to PAID. COD orders are PAID at placement and pass through.
+	if order.PaymentStatus != "" && order.PaymentStatus != "PAID" {
+		httpx.Fail(w, http.StatusConflict, "payment_pending", "UPI payment has not been confirmed yet")
+		return
+	}
 	changed, err := h.repo.TransitionSellerOrder(r.Context(), orderID, scope, order.Status, "PACKED", "")
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "order_update_failed", "could not update order")
@@ -1026,6 +1039,23 @@ func (h *Handler) setOrderStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid order status")
 		return
 	}
+	// Payment gate (0078): a superadmin/operator can force a PACKED status, but never for an order
+	// whose UPI payment has not been confirmed — a rider must not be handed an unpaid order.
+	if status == "PACKED" {
+		current, ok, err := h.repo.SellerOrderByID(r.Context(), orderID, sellerScope(r))
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "order_update_failed", "could not update order")
+			return
+		}
+		if !ok {
+			httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+			return
+		}
+		if current.PaymentStatus != "" && current.PaymentStatus != "PAID" {
+			httpx.Fail(w, http.StatusConflict, "payment_pending", "UPI payment has not been confirmed yet")
+			return
+		}
+	}
 	order, ok, err := h.repo.SetOrderStatus(r.Context(), orderID, sellerScope(r), canonicalOrderStatus(status))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "order_update_failed", "could not update order")
@@ -1059,6 +1089,11 @@ func (h *Handler) autoDispatch(ctx context.Context, orderID string) {
 		dc, ok, err := h.repo.DeliveryContextForOrder(ctx, orderID)
 		if err != nil || !ok || (dc.Fulfillment != "" && dc.Fulfillment != "DELIVERY") || len(dc.StoreIDs) != 1 ||
 			dc.Latitude == nil || dc.Longitude == nil {
+			return
+		}
+		// Payment gate (0078): only a confirmed (PAID) order is dispatchable. A PENDING_PAYMENT UPI
+		// order is never handed to a rider here — the webhook releases it once payment is captured.
+		if ps, paidOK, err := h.repo.OrderPaymentStatusByID(ctx, dc.OrderID); err != nil || !paidOK || ps != "PAID" {
 			return
 		}
 		store, ok, err := h.stores.ByID(ctx, dc.StoreIDs[0])

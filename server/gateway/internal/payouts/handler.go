@@ -2,6 +2,7 @@ package payouts
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"regexp"
 	"strings"
@@ -36,6 +37,8 @@ func (h *Handler) Register(r chi.Router) {
 		// Seller-facing payment ledger: all cycles, and one cycle's line items.
 		g.Get("/seller/payments", h.sellerPayments)
 		g.Get("/seller/payments/{cycleId}", h.sellerPaymentCycle)
+		// The separate payout invoice for one of the caller's own payout rows (0078).
+		g.Get("/seller/payout-invoices/{payoutId}", h.sellerPayoutInvoices)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
@@ -44,6 +47,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
 		g.Post("/admin/seller/payouts/{sellerId}/mark-paid", h.markPaid)
+		g.Get("/admin/seller/payout-invoices/{payoutId}", h.adminPayoutInvoices)
 	})
 }
 
@@ -161,6 +165,11 @@ func (h *Handler) markPaid(w http.ResponseWriter, r *http.Request) {
 	}
 	p, err := h.repo.MarkSellerPayoutPaid(r.Context(), sellerID, req.Cycle, req.AmountPaisa, auth.UserID(r.Context()))
 	if err != nil {
+		if errors.Is(err, ErrAboveBalance) {
+			httpx.Fail(w, http.StatusBadRequest, "amount_exceeds_balance",
+				"amount exceeds the outstanding balance for this cycle")
+			return
+		}
 		httpx.Fail(w, http.StatusInternalServerError, "payout_mark_failed", "could not mark the payout paid")
 		return
 	}
@@ -174,6 +183,48 @@ func (h *Handler) markPaid(w http.ResponseWriter, r *http.Request) {
 type markPaidRequest struct {
 	Cycle       string `json:"cycle"`
 	AmountPaisa int64  `json:"amountPaisa"`
+}
+
+// adminPayoutInvoices returns the separate payout invoices for one payout id (superadmin download,
+// 0078). This is the B2B settlement document — the per-order tax invoice is untouched.
+func (h *Handler) adminPayoutInvoices(w http.ResponseWriter, r *http.Request) {
+	payoutID := strings.TrimSpace(chi.URLParam(r, "payoutId"))
+	if payoutID == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "payoutId is required")
+		return
+	}
+	items, err := h.repo.PayoutInvoices(r.Context(), payoutID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "payouts_unavailable", "payout invoices unavailable")
+		return
+	}
+	if items == nil {
+		items = []PayoutInvoice{}
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+// sellerPayoutInvoices returns the payout invoices for a payout row owned by the caller's seller.
+func (h *Handler) sellerPayoutInvoices(w http.ResponseWriter, r *http.Request) {
+	sellerID := auth.SellerID(r.Context())
+	if sellerID == "" {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
+		return
+	}
+	payoutID := strings.TrimSpace(chi.URLParam(r, "payoutId"))
+	if payoutID == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "payoutId is required")
+		return
+	}
+	items, err := h.repo.PayoutInvoicesForSeller(r.Context(), sellerID, payoutID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "payouts_unavailable", "payout invoices unavailable")
+		return
+	}
+	if items == nil {
+		items = []PayoutInvoice{}
+	}
+	httpx.JSON(w, http.StatusOK, items)
 }
 
 var cycleRe = regexp.MustCompile(`^\d{4}-\d{2}$`)

@@ -276,6 +276,8 @@ export interface SellerPayoutSummary {
   paidPaisa: number;
   balancePaisa: number;
   status: "PENDING" | "PARTIAL" | "PAID";
+  /** Accumulated payout row id (0078); links the separate payout invoice download. */
+  payoutId?: string;
 }
 
 /** Super/state admin: seller payout board (owed + paid + balance per seller per cycle). */
@@ -298,6 +300,38 @@ export async function markSellerPayoutPaid(
   return remote.post(
     `/admin/seller/payouts/${encodeURIComponent(sellerId)}/mark-paid`,
     input,
+  );
+}
+
+/** One payments.payout_invoices row — the separate B2B payout settlement document (0078),
+ * distinct from the per-order tax invoice. Amounts are in paisa. */
+export interface PayoutInvoice {
+  payoutInvoiceId: string;
+  payoutId: string;
+  sellerId: string;
+  cycle: string;
+  invoiceNumber: string;
+  grossPaisa: number;
+  commissionPaisa: number;
+  tcsPaisa: number;
+  tdsPaisa: number;
+  netPaisa: number;
+  paidAmountPaisa: number;
+  balancePaisa: number;
+  generatedAt: string;
+}
+
+/** Superadmin: the separate payout invoice(s) for one payout row. */
+export async function getPayoutInvoice(payoutId: string): Promise<PayoutInvoice[]> {
+  return remote.get<PayoutInvoice[]>(
+    `/admin/seller/payout-invoices/${encodeURIComponent(payoutId)}`,
+  );
+}
+
+/** Seller: the payout invoice(s) for one of the caller's own payout rows. */
+export async function getSellerPayoutInvoice(payoutId: string): Promise<PayoutInvoice[]> {
+  return remote.get<PayoutInvoice[]>(
+    `/seller/payout-invoices/${encodeURIComponent(payoutId)}`,
   );
 }
 

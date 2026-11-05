@@ -46,6 +46,25 @@ type Payout struct {
 	PaidAt       string `json:"paidAt,omitempty"`
 }
 
+// PayoutInvoice is one payments.payout_invoices row — the separate B2B settlement document for a
+// manual "Mark as Paid" event, distinct from the per-order tax invoice (tax.tax_invoices). Amounts
+// are in paisa on the wire (the seller portal renders rupees).
+type PayoutInvoice struct {
+	PayoutInvoiceID string `json:"payoutInvoiceId"`
+	PayoutID        string `json:"payoutId"`
+	SellerID        string `json:"sellerId"`
+	Cycle           string `json:"cycle"`
+	InvoiceNumber   string `json:"invoiceNumber"`
+	GrossPaisa      int64  `json:"grossPaisa"`
+	CommissionPaisa int64  `json:"commissionPaisa"`
+	TCSPaisa        int64  `json:"tcsPaisa"`
+	TDSPaisa        int64  `json:"tdsPaisa"`
+	NetPaisa        int64  `json:"netPaisa"`
+	PaidAmountPaisa int64  `json:"paidAmountPaisa"`
+	BalancePaisa    int64  `json:"balancePaisa"`
+	GeneratedAt     string `json:"generatedAt,omitempty"`
+}
+
 // SellerPayoutSummary is one owed/paid row on the admin payout board. It is computed live from
 // delivered checkout orders (gross − commission − TCS − TDS) merged with accumulated payouts.
 type SellerPayoutSummary struct {
@@ -63,7 +82,50 @@ type SellerPayoutSummary struct {
 	PaidPaisa       int64  `json:"paidPaisa"`
 	BalancePaisa    int64  `json:"balancePaisa"`
 	Status          string `json:"status"` // PENDING | PARTIAL | PAID
+	// PayoutID is the cycle's accumulated payout row id (stable across partial payments; the
+	// upsert keeps the first id), used by the board to link the separate payout invoice (0078).
+	PayoutID string `json:"payoutId,omitempty"`
 }
+
+// ErrAboveBalance is returned when a "Mark as Paid" amount exceeds the seller's outstanding net
+// balance for the cycle. The admin UI caps the input, so this only fires on a race/override.
+var ErrAboveBalance = errors.New("payouts: amount exceeds outstanding balance")
+
+// sellerEarningsCTE aggregates delivered order earnings to the store level. Each plotted line is
+// attributed to its own vendor store's platform_fee_pct (0078 store_id), so multi-store orders are
+// charged the correct per-store fee instead of guessing from vendor_store_ids[1]. Order-level TCS
+// and TDS are allocated to each seller proportionally to their gross share of the order.
+const sellerEarningsCTE = `
+with seller_lines as (
+  select st.seller_id,
+         coalesce(sl.business_name, '') as business_name,
+         coalesce(sl.state_code, '') as state_code,
+         coalesce(sl.district_code, '') as district_code,
+         to_char(o.placed_at, 'YYYY-MM') as cycle,
+         o.order_id,
+         sum(oi.unit_price_paisa * oi.qty)::bigint as gross_paisa,
+         round(sum(oi.unit_price_paisa * oi.qty) * coalesce(st.platform_fee_pct, 0) / 100.0)::bigint as commission_paisa
+    from checkout.order_items oi
+    join checkout.orders o on o.order_id = oi.order_id
+    join directory.stores st on st.id = oi.store_id
+    join sellers.sellers sl on sl.seller_id = st.seller_id
+   where o.status = 'Delivered' and o.total_charged_paisa > 0
+     and oi.store_id is not null
+     and st.seller_id is not null and st.seller_id <> ''
+   group by st.id, st.platform_fee_pct, st.seller_id, sl.business_name, sl.state_code,
+            sl.district_code, to_char(o.placed_at, 'YYYY-MM'), o.order_id
+),
+order_gross as (
+  select o.order_id,
+         sum(oi.unit_price_paisa * oi.qty)::bigint as gross_paisa
+    from checkout.order_items oi
+    join checkout.orders o on o.order_id = oi.order_id
+    join directory.stores st on st.id = oi.store_id
+   where o.status = 'Delivered' and o.total_charged_paisa > 0
+     and oi.store_id is not null
+   group by o.order_id
+)
+`
 
 // Repo reads/writes the payout tables.
 type Repo struct {
@@ -140,39 +202,41 @@ func (r *Repo) Payouts(ctx context.Context, sellerID string) ([]Payout, error) {
 	return out, rows.Err()
 }
 
-// Summmary aggregates delivered-order earnings per seller per cycle. commission is derived from
-// the seller's vendor store platform_fee_pct applied to the GST-inclusive gross, matching the
-// checkout split; TCS/TDS come from the stored order tax columns.
+// Summaries aggregates delivered-order earnings per seller per cycle from the per-store line
+// breakdown (0078): store A's 10% platform fee applies to store A's lines, store B's 15% to store
+// B's lines, and order-level TCS/TDS are split by each seller's gross share of the order. Merged
+// with accumulated manual payouts so the board shows owed → paid → balance.
 func (r *Repo) Summaries(ctx context.Context, district, state string) ([]SellerPayoutSummary, error) {
 	if err := r.ready(); err != nil {
 		return nil, err
 	}
-	rows, err := r.pool.Query(ctx, `
-		select st.seller_id, coalesce(sl.business_name,''), coalesce(sl.state_code,''),
-		       coalesce(sl.district_code,''), to_char(co.placed_at,'YYYY-MM') as cycle,
-		       count(*)::bigint,
-		       sum(co.total_charged_paisa),
-		       round(sum(co.total_charged_paisa) * min(st.platform_fee_pct) / 100.0),
-		       sum(co.tcs_paisa), sum(co.tds_paisa),
-		       sum(co.total_charged_paisa)
-		         - round(sum(co.total_charged_paisa) * min(st.platform_fee_pct) / 100.0)
-		         - sum(co.tcs_paisa) - sum(co.tds_paisa),
-		       coalesce(pp.paid_paisa,0), coalesce(pp.fully_paid,false)
-		  from checkout.orders co
-		  join directory.stores st on st.id = co.vendor_store_ids[1]
-		  join sellers.sellers sl on sl.seller_id = st.seller_id
+	rows, err := r.pool.Query(ctx, sellerEarningsCTE+`
+		select s.seller_id, max(s.business_name), max(s.state_code), max(s.district_code), s.cycle,
+		       count(distinct s.order_id)::bigint,
+		       sum(s.gross_paisa),
+		       sum(s.commission_paisa),
+		       sum(round(o.tcs_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0)))::bigint,
+		       sum(round(o.tds_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0)))::bigint,
+		       sum(s.gross_paisa) - sum(s.commission_paisa)
+		         - sum(round(o.tcs_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0)))
+		         - sum(round(o.tds_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0)))::bigint,
+		       coalesce(pp.paid_paisa, 0), coalesce(pp.fully_paid, false),
+		       coalesce(min(pp.payout_id), '')
+		  from seller_lines s
+		  join checkout.orders o on o.order_id = s.order_id
+		  join order_gross og on og.order_id = s.order_id
 		  left join (
 		        select seller_id, cycle, coalesce(sum(paid_amount_paisa),0)::bigint as paid_paisa,
-		               bool_or(status='PAID') as fully_paid
+		               bool_or(status='PAID') as fully_paid,
+		               min(payout_id) as payout_id
 		          from payments.payouts
 		         group by seller_id, cycle
-		       ) pp on pp.seller_id = st.seller_id
-		          and pp.cycle = to_char(co.placed_at,'YYYY-MM')
-		 where co.status = 'Delivered' and co.total_charged_paisa > 0
-		   and ($1 = '' or coalesce(sl.district_code,'') = $1)
-		   and ($2 = '' or coalesce(sl.state_code,'') = $2)
-		 group by st.seller_id, sl.business_name, sl.state_code, sl.district_code, cycle, pp.paid_paisa, pp.fully_paid
-		 order by cycle desc, st.seller_id`, district, strings.ToUpper(strings.TrimSpace(state)))
+		       ) pp on pp.seller_id = s.seller_id
+		          and pp.cycle = s.cycle
+		 where ($1 = '' or s.district_code = $1)
+		   and ($2 = '' or s.state_code = $2)
+		 group by s.seller_id, s.cycle, pp.paid_paisa, pp.fully_paid
+		 order by s.cycle desc, s.seller_id`, district, strings.ToUpper(strings.TrimSpace(state)))
 	if err != nil {
 		return nil, err
 	}
@@ -186,7 +250,7 @@ func (r *Repo) Summaries(ctx context.Context, district, state string) ([]SellerP
 		)
 		if err := rows.Scan(&s.SellerID, &s.BusinessName, &s.StateCode, &s.DistrictCode,
 			&s.Cycle, &s.OrderCount, &s.GrossPaisa, &s.CommissionPaisa, &s.TCSPaisa, &s.TDSPaisa,
-			&s.NetPaisa, &paid, &fully); err != nil {
+			&s.NetPaisa, &paid, &fully, &s.PayoutID); err != nil {
 			return nil, err
 		}
 		s.PaidPaisa = paid
@@ -209,8 +273,10 @@ func (r *Repo) Summaries(ctx context.Context, district, state string) ([]SellerP
 
 // MarkSellerPayoutPaid records a manual "Mark as Paid" for one seller + cycle. The paid amount may
 // be less than the owed amount — the balance carries forward (payouts are additive per cycle via
-// the payouts_seller_cycle_idx unique index). The owed amount is recomputed and stored so the
-// payout row is self-describing.
+// the payouts_seller_cycle_idx unique index). The owed amount is recomputed per store (0078) and
+// stored so the payout row is self-describing. Payment is capped at the outstanding net balance
+// (ErrAboveBalance when exceeded), and a separate payout invoice (payments.payout_invoices) is
+// created for the event.
 func (r *Repo) MarkSellerPayoutPaid(ctx context.Context, sellerID, cycle string, amountPaisa int64, actorID string) (Payout, error) {
 	if err := r.ready(); err != nil {
 		return Payout{}, err
@@ -224,19 +290,34 @@ func (r *Repo) MarkSellerPayoutPaid(ctx context.Context, sellerID, cycle string,
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	var owed int64
-	// fee source is the store; zero owed (seller has nothing due this cycle) is allowed — the
-	// payout row records a manual credit.
-	err = tx.QueryRow(ctx, `
-		select coalesce(sum(co.total_charged_paisa),0)
-		         - coalesce(round(sum(co.total_charged_paisa) * min(st.platform_fee_pct) / 100.0),0)
-		         - coalesce(sum(co.tcs_paisa),0) - coalesce(sum(co.tds_paisa),0)
-		  from checkout.orders co
-		  join directory.stores st on st.id = co.vendor_store_ids[1]
-		 where co.status = 'Delivered' and co.total_charged_paisa > 0
-		   and st.seller_id = $1 and to_char(co.placed_at,'YYYY-MM') = $2`, sellerID, cycle).Scan(&owed)
+	// Per-store attribution (same CTE as the board): each store's fee applies to its own lines and
+	// order-level TCS/TDS are split by gross share. Zero owed (seller has nothing due this cycle) is
+	// allowed so a manual credit can still be recorded.
+	var gross, commission, tcs, tds int64
+	err = tx.QueryRow(ctx, sellerEarningsCTE+`
+		select coalesce(sum(s.gross_paisa), 0)::bigint,
+		       coalesce(sum(s.commission_paisa), 0)::bigint,
+		       coalesce(sum(round(o.tcs_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0))), 0)::bigint,
+		       coalesce(sum(round(o.tds_paisa * s.gross_paisa::numeric / nullif(og.gross_paisa, 0))), 0)::bigint
+		  from seller_lines s
+		  join checkout.orders o on o.order_id = s.order_id
+		  join order_gross og on og.order_id = s.order_id
+		 where s.seller_id = $1 and s.cycle = $2`, sellerID, cycle).Scan(&gross, &commission, &tcs, &tds)
 	if err != nil {
 		return Payout{}, err
+	}
+	owed := gross - commission - tcs - tds
+	if owed < 0 {
+		owed = 0
+	}
+	var paidAlready int64
+	if err := tx.QueryRow(ctx, `
+		select coalesce(paid_amount_paisa, 0) from payments.payouts
+		 where seller_id = $1 and cycle = $2`, sellerID, cycle).Scan(&paidAlready); err != nil {
+		return Payout{}, err
+	}
+	if balance := owed - paidAlready; amountPaisa > balance {
+		return Payout{}, ErrAboveBalance
 	}
 	p, err := scanPayout(tx.QueryRow(ctx, `
 		insert into payments.payouts
@@ -253,10 +334,72 @@ func (r *Repo) MarkSellerPayoutPaid(ctx context.Context, sellerID, cycle string,
 	if err != nil {
 		return Payout{}, err
 	}
+	// The separate B2B payout invoice (0078): one per Mark-as-Paid event, distinct from the
+	// per-order tax invoice. pdf_key stays empty until a rendered PDF exists.
+	if _, err := tx.Exec(ctx, `
+		insert into payments.payout_invoices
+		  (payout_invoice_id, payout_id, seller_id, cycle, invoice_number,
+		   gross_paisa, commission_paisa, tcs_paisa, tds_paisa, net_paisa, paid_amount_paisa)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)`,
+		"pinv-"+shortID(), p.PayoutID, sellerID, cycle,
+		"PINV-"+strings.ReplaceAll(cycle, "-", "")+"-"+shortID(),
+		gross, commission, tcs, tds, owed, amountPaisa); err != nil {
+		return Payout{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return Payout{}, err
 	}
 	return p, nil
+}
+
+// PayoutInvoices returns the payout invoices for one payout id (superadmin download). PDF keys are
+// intentionally not serialized — the portal renders the invoice JSON natively until a PDF exists.
+func (r *Repo) PayoutInvoices(ctx context.Context, payoutID string) ([]PayoutInvoice, error) {
+	if err := r.ready(); err != nil {
+		return nil, err
+	}
+	return r.queryInvoices(ctx, payoutID, "")
+}
+
+// PayoutInvoicesForSeller returns the payout invoices for one payout id the caller's seller owns
+// (seller-facing download; the seller_id filter prevents cross-account reads).
+func (r *Repo) PayoutInvoicesForSeller(ctx context.Context, sellerID, payoutID string) ([]PayoutInvoice, error) {
+	if err := r.ready(); err != nil {
+		return nil, err
+	}
+	return r.queryInvoices(ctx, payoutID, sellerID)
+}
+
+func (r *Repo) queryInvoices(ctx context.Context, payoutID, sellerID string) ([]PayoutInvoice, error) {
+	rows, err := r.pool.Query(ctx, `
+		select payout_invoice_id, payout_id, seller_id, cycle, invoice_number,
+		       gross_paisa, commission_paisa, tcs_paisa, tds_paisa, net_paisa, paid_amount_paisa, generated_at
+		  from payments.payout_invoices
+		 where payout_id = $1 and ($2 = '' or seller_id = $2)
+		 order by generated_at desc`, payoutID, sellerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []PayoutInvoice{}
+	for rows.Next() {
+		var (
+			pi  PayoutInvoice
+			gen time.Time
+		)
+		if err := rows.Scan(&pi.PayoutInvoiceID, &pi.PayoutID, &pi.SellerID, &pi.Cycle,
+			&pi.InvoiceNumber, &pi.GrossPaisa, &pi.CommissionPaisa, &pi.TCSPaisa, &pi.TDSPaisa,
+			&pi.NetPaisa, &pi.PaidAmountPaisa, &gen); err != nil {
+			return nil, err
+		}
+		pi.BalancePaisa = pi.NetPaisa - pi.PaidAmountPaisa
+		if pi.BalancePaisa < 0 {
+			pi.BalancePaisa = 0
+		}
+		pi.GeneratedAt = gen.UTC().Format(time.RFC3339)
+		out = append(out, pi)
+	}
+	return out, rows.Err()
 }
 
 type payoutScanner interface{ Scan(dest ...any) error }

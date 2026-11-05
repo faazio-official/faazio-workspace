@@ -197,7 +197,7 @@ export default function PaymentOptionsScreen({
           )}
         </PaymentSectionCard>
 
-        <PaymentSectionCard title="Cash on Delivery">
+        <PaymentSectionCard title="Cash / UPI on Delivery">
           <PaymentRow
             icon={Banknote}
             iconBg="#EAF7EE"

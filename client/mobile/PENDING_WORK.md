@@ -53,7 +53,13 @@ landed.
 - **Gateway:** `POST /seller/stores`, `PUT /seller/stores/{id}`, `PUT /seller/stores/{id}/fee`;
   `GET /geo/states`, `GET /geo/apps`, `GET /ads/placements`; checkout + payouts resolve the fee per
   vendor; `razorpayroute` package removed (`0077`, manual mark-paid payouts); no `AUTH_DISABLED`/`X-Dev-*`
-  in production auth. **Weather + Routes:** weather is fail-closed only for hard errors (disabled
+  in production auth. **Per-store payout attribution (`0078`):** `checkout.order_items.store_id`
+  denormalised + inserted at placement; payout `Summaries`/`MarkSellerPayoutPaid` now charge each
+  store's own `platform_fee_pct` on its own lines (TCS/TDS split by gross share), mark-paid is capped
+  at the outstanding balance, and each Mark-as-Paid writes a separate `payments.payout_invoices` row
+  served by `GET /seller/payout-invoices/{payoutId}` + `GET /admin/seller/payout-invoices/{payoutId}`.
+  PACKED/dispatch is gated on `payment_status = 'PAID'` (`409 payment_pending`); the UPI webhook
+  auto-dispatches a pre-packed order once payment is captured. **Weather + Routes:** weather is fail-closed only for hard errors (disabled
   provider / budget); a transient provider outage DEGRADES the quote (`degraded:true`, weather surge
   waived) so the order proceeds, and Google
 - **Analytics:** `GET /analytics/series` + `GET /analytics/ranks` (`internal/analytics`) aggregate the
@@ -720,9 +726,12 @@ end to end; the mobile app no longer talks to Supabase Auth.
   `POST /admin/delivery/payouts/{orderId}/mark-paid`. `POST /payouts/holds` / `/release` / `/reverse`
   and `/webhooks/razorpay/route` are removed.
 
-**Remaining (ops):** apply `0077` (manual payouts + delivery COD payment gate); configure the delivery
-UPI QR via super-admin app-config. **No `RAZORPAY_ROUTE_*` keys and no Route webhook** (Route is
-removed). Customer capture is wired by **W75** (UPI Razorpay order + `POST /webhooks/razorpay/payments`).
+**Remaining (ops):** `0078` is applied (per-store order_items.store_id + `payments.payout_invoices`).
+`payments.payout_invoices.pdf_key` is **empty** — a rendered Payout Invoice PDF is not generated yet;
+the portal/app download the invoice JSON and the PDF path is stubbed for a future renderer. Configure
+the delivery UPI QR via super-admin app-config. **No `RAZORPAY_ROUTE_*` keys and no Route webhook**
+(Route is removed). Customer capture is wired by **W75** (UPI Razorpay order +
+`POST /webhooks/razorpay/payments`).
 **AVIF is deliberately deferred:** KYC
 captures upload as JPEG (`uploadSellerDocument` default) — the media allowlist accepts `image/avif`
 but no lightweight RN encoder exists without a native/CGO dependency, so it stays allowlisted for

@@ -25,6 +25,9 @@ type OrderLineItem struct {
 	Variant   string `json:"variant,omitempty"`
 	Qty       int64  `json:"qty"`
 	UnitPrice int64  `json:"unitPrice"` // rupees
+	// StoreID pins the line to its vendor store (0078). Persistent, but not part of the public
+	// line-item shape by default; the payout board uses it to charge each store's own fee.
+	StoreID string `json:"storeId,omitempty"`
 }
 
 // Order is a checkout.orders row with its line items, JSON shaped for OrderRow.
@@ -384,7 +387,8 @@ func (r *Repo) attachOrderItems(ctx context.Context, orders []Order) ([]Order, e
 		index[o.ID] = i
 	}
 	itemRows, err := r.pool.Query(ctx, `
-		select line_id, order_id, coalesce(product_id,''), name, coalesce(variant,''), qty, unit_price_paisa
+		select line_id, order_id, coalesce(product_id,''), name, coalesce(variant,''), qty, unit_price_paisa,
+		       coalesce(store_id,'')
 		  from checkout.order_items where order_id = any($1)`, orderIDs(orders))
 	if err != nil {
 		return nil, err
@@ -395,7 +399,7 @@ func (r *Repo) attachOrderItems(ctx context.Context, orders []Order) ([]Order, e
 			li      OrderLineItem
 			orderID string
 		)
-		if err := itemRows.Scan(&li.LineID, &orderID, &li.ProductID, &li.Name, &li.Variant, &li.Qty, &li.UnitPrice); err != nil {
+		if err := itemRows.Scan(&li.LineID, &orderID, &li.ProductID, &li.Name, &li.Variant, &li.Qty, &li.UnitPrice, &li.StoreID); err != nil {
 			return nil, err
 		}
 		li.UnitPrice = li.UnitPrice / 100
@@ -629,7 +633,8 @@ func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, bool, erro
 	o.LineItems = []OrderLineItem{}
 
 	itemRows, err := r.pool.Query(ctx, `
-		select line_id, coalesce(product_id,''), name, coalesce(variant,''), qty, unit_price_paisa
+		select line_id, coalesce(product_id,''), name, coalesce(variant,''), qty, unit_price_paisa,
+		       coalesce(store_id,'')
 		  from checkout.order_items where order_id = $1`, orderID)
 	if err != nil {
 		return Order{}, false, err
@@ -637,7 +642,7 @@ func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, bool, erro
 	defer itemRows.Close()
 	for itemRows.Next() {
 		var li OrderLineItem
-		if err := itemRows.Scan(&li.LineID, &li.ProductID, &li.Name, &li.Variant, &li.Qty, &li.UnitPrice); err != nil {
+		if err := itemRows.Scan(&li.LineID, &li.ProductID, &li.Name, &li.Variant, &li.Qty, &li.UnitPrice, &li.StoreID); err != nil {
 			return Order{}, false, err
 		}
 		li.UnitPrice = li.UnitPrice / 100
@@ -996,9 +1001,9 @@ func (r *Repo) InsertOrderTx(ctx context.Context, tx pgx.Tx, o Order, lines []Or
 	}
 	for _, li := range lines {
 		if _, err := tx.Exec(ctx, `
-			insert into checkout.order_items (line_id, order_id, product_id, name, variant, qty, unit_price_paisa)
-			values ($1,$2,$3,$4,$5,$6,$7)`,
-			li.LineID, o.ID, nullIfEmpty(li.ProductID), li.Name, nullIfEmpty(li.Variant), li.Qty, li.UnitPrice*100); err != nil {
+			insert into checkout.order_items (line_id, order_id, product_id, name, variant, qty, unit_price_paisa, store_id)
+			values ($1,$2,$3,$4,$5,$6,$7,coalesce(nullif($8,''),null))`,
+			li.LineID, o.ID, nullIfEmpty(li.ProductID), li.Name, nullIfEmpty(li.Variant), li.Qty, li.UnitPrice*100, li.StoreID); err != nil {
 			return err
 		}
 	}
@@ -1252,6 +1257,46 @@ func (r *Repo) SetPaymentStatusByRazorpayOrder(ctx context.Context, rzpOrderID, 
 		return "", false, err
 	}
 	return userID, true, nil
+}
+
+// OrderPaymentStatusByID returns the order-level UPI gate for any order (auto-dispatch path: an
+// unpaid UPI order must never be pushed to a rider regardless of how it reached PACKED).
+func (r *Repo) OrderPaymentStatusByID(ctx context.Context, orderID string) (string, bool, error) {
+	if r.pool == nil {
+		return "", false, fmt.Errorf("checkout: database not configured")
+	}
+	var ps string
+	err := r.pool.QueryRow(ctx, `select coalesce(payment_status,'') from checkout.orders where order_id = $1`, orderID).Scan(&ps)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	return ps, true, nil
+}
+
+// OrderMetaByRazorpayOrderID resolves the checkout order a Razorpay order id belongs to (webhook
+// auto-dispatch target), returning the order id, stored status and payment gate. found=false when
+// the razorpay id is unknown. Idempotent.
+func (r *Repo) OrderMetaByRazorpayOrderID(ctx context.Context, rzpOrderID string) (orderID, status, paymentStatus string, ok bool, err error) {
+	if r.pool == nil {
+		return "", "", "", false, fmt.Errorf("checkout: database not configured")
+	}
+	err = r.pool.QueryRow(ctx, `
+		select o.order_id, o.status::text, coalesce(o.payment_status,'')
+		  from checkout.orders o
+		  join checkout.payments p on p.order_id = o.order_id
+		 where p.razorpay_order_id = $1
+		 order by p.created_at desc limit 1`, rzpOrderID).
+		Scan(&orderID, &status, &paymentStatus)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return "", "", "", false, nil
+		}
+		return "", "", "", false, err
+	}
+	return orderID, status, paymentStatus, true, nil
 }
 
 // ProfileByUser returns accounts.profile.

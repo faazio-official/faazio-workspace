@@ -33,6 +33,7 @@ import { useSession } from "@/lib/hooks/useSession";
 import {
   listSellerPayouts,
   markSellerPayoutPaid,
+  getPayoutInvoice,
   type SellerPayoutSummary,
 } from "@/lib/api";
 
@@ -118,6 +119,27 @@ export function SellerPayoutBoard({ scope }: { scope: "SUPER" | "STATE" }) {
     }
     return { owed, paid };
   }, [rows]);
+
+  /** Download the separate payout invoice (0078) for a payout row as a JSON settlement document. */
+  const downloadInvoice = useCallback(async (row: SellerPayoutSummary) => {
+    if (!row.payoutId) return;
+    try {
+      const invoices = await getPayoutInvoice(row.payoutId);
+      if (!invoices.length) throw new Error("No payout invoice found for this payout");
+      const blob = new Blob([JSON.stringify(invoices, null, 2)], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `payout-invoice-${row.payoutId}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success("Payout invoice downloaded");
+    } catch (err) {
+      toast.error("Could not download the payout invoice", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }, []);
 
   return (
     <div className="space-y-4">
@@ -220,6 +242,16 @@ export function SellerPayoutBoard({ scope }: { scope: "SUPER" | "STATE" }) {
                     ) : (
                       <span className="text-[11px] text-muted-foreground">Settled</span>
                     )}
+                    {row.paidPaisa > 0 && row.payoutId ? (
+                      <Button
+                        size="sm"
+                        variant="link"
+                        className="ml-2 p-0 text-[11px]"
+                        onClick={() => void downloadInvoice(row)}
+                      >
+                        Payout invoice
+                      </Button>
+                    ) : null}
                   </TableCell>
                 </TableRow>
               ))}

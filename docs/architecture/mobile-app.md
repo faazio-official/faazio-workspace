@@ -1385,8 +1385,9 @@ dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a sin
   Paytm, Amazon Pay, BHIM) via `Linking.canOpenURL` (Android `<queries>` + iOS
   `LSApplicationQueriesSchemes`), rendering installed apps as `UpiAppRow` selectable rows. Selecting a
   UPI app shows the fixed floating **BottomPayBar** ("Pay ₹X").
-- **Cash on Delivery:** `COD_METHOD` (`paymentData.ts`) renders a radio row; paying with COD records
-  the COD payment at order placement and goes straight to the receipt.
+- **Cash / UPI on Delivery (single COD option):** `COD_METHOD` (`paymentData.ts`) renders a radio row
+  labelled **"Cash / UPI on Delivery"** (pay by cash, or scan the rider's UPI QR at the door); paying
+  with COD records the COD payment at order placement and goes straight to the receipt.
 - **UPI intent + detection:** `payment/UpiIntent.ts` builds `upi://pay?pa&pn&am&cu&tn&tr&url` and
   rewrites it per app on iOS (`gpay://upi/pay`, `phonepe://upi/pay`, `paytmmp://upi/pay`,
   `bhim://upi/pay`) before `Linking.openURL`. After `placeOrder` the client calls

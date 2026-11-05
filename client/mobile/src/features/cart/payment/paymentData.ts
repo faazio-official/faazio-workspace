@@ -20,8 +20,8 @@ export interface CodMethod {
 /** Cash on Delivery radio row config. */
 export const COD_METHOD: CodMethod = {
   id: 'cod',
-  label: 'Cash on Delivery',
-  subtitle: 'Pay in cash when your order arrives',
+  label: 'Cash / UPI on Delivery',
+  subtitle: 'Pay by cash, or scan the rider\u2019s UPI QR when your order arrives',
 };
 
 /** A card saved on this device (tokenized — never a raw PAN/CVV). */

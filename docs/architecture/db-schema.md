@@ -476,7 +476,8 @@ CREATE TABLE checkout.order_items (
   name         TEXT NOT NULL,
   variant      TEXT,
   qty          SMALLINT NOT NULL,     -- app caps qty at 99 (0005)
-  unit_price_paisa INT8 NOT NULL
+  unit_price_paisa INT8 NOT NULL,
+  store_id     TEXT REFERENCES directory.stores(id)  -- 0078: per-store payout attribution
 );
 ```
 
@@ -2313,6 +2314,29 @@ Razorpay UPI rail (`0066`) is unchanged. Additions:
    status PENDING/PARTIAL/PAID) and `POST /admin/seller/payouts/{sellerId}/mark-paid` (super admin,
    body `{cycle, amountPaisa}`, balance carries forward).
 5. `media.assets.owner_type` CHECK now allows `QR`; the single delivery UPI QR image is managed via
-   public `GET /app-config/delivery-upi-qr` + super-admin `PUT /app-config/delivery-upi-qr`
-   (`delivery_upi_qr_url`/`delivery_upi_qr_asset_id`, category `payments`, variant `delivery`). Riders
-   fetch it and show it at COD DROP stops.
+    public `GET /app-config/delivery-upi-qr` + super-admin `PUT /app-config/delivery-upi-qr`
+    (`delivery_upi_qr_url`/`delivery_upi_qr_asset_id`, category `payments`, variant `delivery`). Riders
+    fetch it and show it at COD DROP stops.
+
+### 12.32 Per-store payout attribution + separate payout invoice (migration `0078`)
+
+**Authority:** `monolith-breakdown.md` §1 (`payouts` row), `server-gateway-plan.md` (Manual payouts).
+Tightens the `0077` manual payout ledger for multi-store accuracy and adds the B2B settlement
+document. Additions:
+
+1. `checkout.order_items.store_id` (FK → `directory.stores.id`) — denormalized so the payout board can
+   charge **each store's own `platform_fee_pct` on its own lines** instead of the loose
+   `vendor_store_ids[1]` single-store heuristic. Backfilled online from `catalog.products.store_id`
+   for pre-0078 lines; checkout persists it per line at placement. Index
+   `order_items_store_idx ON (store_id)`.
+2. `payments.payout_invoices` — one **separate Payout Invoice** per manual "Mark as Paid" event:
+   `payout_id` → `payments.payouts`, `seller_id`, `cycle`, `invoice_number`, and
+   `gross_paisa`/`commission_paisa`/`tcs_paisa`/`tds_paisa`/`net_paisa`/`paid_amount_paisa` plus
+   `pdf_key` (R2 object key, empty until a rendered PDF exists) + `generated_at`. Distinct from the
+   per-order tax invoice (`tax.tax_invoices`); the seller downloads it from
+   `GET /seller/payout-invoices/{payoutId}` / `GET /admin/seller/payout-invoices/{payoutId}`.
+3. `internal/payouts` `Summaries()` + `MarkSellerPayoutPaid` now attribute earnings **per store**:
+   gross/commission come from `order_items.store_id` with the store's own fee
+   (`coalesce(platform_fee_pct,0)`); order-level TCS/TDS are allocated to each seller proportionally to
+   their gross share of the order. Marking a payout is **capped at the outstanding net balance**
+   (server rejects `amount_exceeds_balance`), and each Mark-as-Paid creates a `payout_invoices` row.

@@ -88,7 +88,12 @@ caller) and are event-purged on store live toggle and product edit/status change
   `{ status: PENDING | PAID | FAILED, amountPaisa, razorpayOrderId?, razorpayPaymentId? }` for the client's
   foreground poll. The public `POST /webhooks/razorpay/payments` is the source of truth: it HMAC-verifies
   `X-Razorpay-Signature` and maps `payment.captured`/`payment.authorized` → `PAID` and `payment.failed`
-  → `FAILED` on the `checkout.payments` row matched by `razorpay_order_id`. `checkout.payments` gained
+  → `FAILED` on the `checkout.payments` row matched by `razorpay_order_id`; a captured payment also
+  flips the order gate to `PAID` and, if the seller already packed while the payment was still pending,
+  auto-dispatches the order to a rider (`0078`). The **PACKED gate** (`0078`): an order with
+  `payment_status ≠ PAID` rejects the seller-accept and admin status-change transitions
+  (`409 payment_pending`), and auto-dispatch re-checks the gate last thing before pushing to a rider —
+  an unpaid UPI order can never reach a rider. `checkout.payments` gained
   `razorpay_order_id`/`razorpay_payment_id` (`0066`). Real credentials are required: with the key pair
   unset the customer rail is disabled (`POST /razorpay/customer/orders` and the webhook return 503
   `payments_disabled`) and no synthetic/paid order is ever fabricated. The UPI intent itself is
@@ -111,10 +116,15 @@ caller) and are event-purged on store live toggle and product edit/status change
   `{id}/release` / `{id}/reverse`, no `POST /webhooks/razorpay/route` and no hold releaser.
   Payouts are manual ledgers in `internal/payouts`: seller console `GET /seller/payments` +
   `GET /seller/payments/{cycleId}`, admin `GET /admin/seller/payouts` (super/state — owed = gross −
-  commission − TCS − TDS per seller per cycle from delivered `checkout.orders` +
-  `directory.stores.platform_fee_pct`, merged with paid amounts, status PENDING/PARTIAL/PAID) and
-  `POST /admin/seller/payouts/{sellerId}/mark-paid` (super admin, `{cycle, amountPaisa}`, balance
-  carries forward). The customer UPI/COD rail (`internal/platform/razorpaypay`, `0066`) is unchanged.
+  commission − TCS − TDS per seller per cycle **attributed per store** via `checkout.order_items.store_id`
+  (`0078`): each store's own `directory.stores.platform_fee_pct` applies to its own lines and order-level
+  TCS/TDS are split by gross share, merged with paid amounts, status PENDING/PARTIAL/PAID) and
+  `POST /admin/seller/payouts/{sellerId}/mark-paid` (super admin, `{cycle, amountPaisa}` — **capped at
+  the outstanding net balance**, `400 amount_exceeds_balance`; balance carries forward; each
+  Mark-as-Paid writes a separate `payments.payout_invoices` settlement document). Payout invoices are
+  downloadable by the seller (`GET /seller/payout-invoices/{payoutId}`, scope = the caller's seller)
+  and by a super admin (`GET /admin/seller/payout-invoices/{payoutId}`). The customer UPI/COD rail
+  (`internal/platform/razorpaypay`, `0066`) is unchanged.
 - **Portal identity writes (`internal/admins` + `internal/portal`):** `POST /district-admins` is the
   unified district-admin creator — a district is **mandatory** (`0065`; state-only scope is retired and
   `state_code` is derived from the district), and `issueLogin` optionally mints the `DISTRICT_ADMIN` portal

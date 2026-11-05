@@ -244,12 +244,16 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		unitPaisa := discountedUnitPaisa(snap.PricePaisa, discountByID[it.ProductID])
 		grossPaisa := qty * unitPaisa
 		unit := unitPaisa / 100
+		storeID := derefStr(snap.StoreID)
 		lines = append(lines, OrderLineItem{
 			LineID:    fmt.Sprintf("%s-l%d", newOrderID(), i+1),
 			ProductID: it.ProductID,
 			Name:      snap.Name,
 			Qty:       qty,
 			UnitPrice: unit,
+			// StoreID is persisted on the line (0078) so the payout board can charge this store's
+			// own platform_fee_pct on this line's gross instead of guessing from vendor_store_ids[1].
+			StoreID: storeID,
 		})
 		totalRupees += qty * unit
 		priced = append(priced, pricedLine{
@@ -257,7 +261,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 			ratePct:    taxRateFor(categoryRates, snap.App, snap.Category),
 			productID:  it.ProductID,
 			sellerID:   snap.SellerID,
-			storeID:    derefStr(snap.StoreID),
+			storeID:    storeID,
 		})
 		if snap.SellerID != "" {
 			sellerSet[snap.SellerID] = struct{}{}

@@ -6,6 +6,7 @@ import { HubHeader } from "@/components/sellers/shells";
 import { Card, PillTabs, Sheet, EmptyState } from "@/components/sellers/kit";
 import { formatDate, formatINR } from "@/lib/format";
 import { useLedger, useMockLoading, usePayouts } from "@/lib/api/hooks";
+import { getSellerPayoutInvoice } from "@/lib/api";
 import { useSession } from "@/lib/hooks/useSession";
 import { config } from "@/lib/config";
 import { cn } from "@/lib/utils";
@@ -17,6 +18,26 @@ const PAYOUT_PILL: Record<PayoutRecord["status"], string> = {
   ON_HOLD: "bg-warning-soft text-warning",
   PARTIAL: "bg-warning-soft text-warning",
 };
+
+/** Download the separate payout invoice (0078) for a PAID payout as a JSON settlement document. */
+async function downloadPayoutInvoice(payout: PayoutRecord) {
+  try {
+    const invoices = await getSellerPayoutInvoice(payout.payoutId);
+    if (!invoices.length) throw new Error("No payout invoice found for this payout");
+    const blob = new Blob([JSON.stringify(invoices, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `payout-invoice-${payout.payoutId}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Payout invoice downloaded");
+  } catch (err) {
+    toast.error("Could not download the payout invoice", {
+      description: err instanceof Error ? err.message : undefined,
+    });
+  }
+}
 
 function SellerPayments() {
   const session = useSession();
@@ -182,6 +203,15 @@ function SellerPayments() {
                             {p.payoutId} · cycle {p.cycle} · {formatDate(p.scheduledFor)}
                             {p.paidAt ? ` · paid ${formatDate(p.paidAt)}` : ""}
                           </p>
+                          {p.status === "PAID" ? (
+                            <button
+                              onClick={() => void downloadPayoutInvoice(p)}
+                              className="mt-2 flex items-center gap-1.5 rounded-lg bg-background px-2 py-1.5 text-[11px] font-bold text-brand ring-1 ring-inset ring-border"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              Payout invoice
+                            </button>
+                          ) : null}
                         </div>
                       );
                     })}
