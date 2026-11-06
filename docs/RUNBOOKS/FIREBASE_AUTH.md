@@ -74,9 +74,13 @@ the code (a 6-digit run next to "code"/"OTP"/"PIN", else the first standalone 6-
 it to `useSmsUserConsent`, which fills the OTP input and auto-submits. This is independent of Play
 Integrity and works on any device with Google Play Services; otherwise it errors and manual entry is
 unchanged. Native Firebase auto-retrieval, when it happens, is surfaced via `onAuthStateChanged`
-(the installed v27 modular API has no `onVerificationCompleted` callback); `LoginScreen` and
-delivery `OtpVerifyScreen` consume that session and skip code entry. iOS needs no native path —
-`textContentType="oneTimeCode"` drives QuickType. The module requires a native rebuild
+(the installed v27 modular API has no `onVerificationCompleted` callback); `LoginScreen`, delivery
+`OtpVerifyScreen`, and the `DeleteAccountScreen` re-auth consume that session and skip code entry.
+If auto-retrieval races a manual `confirm()`, `firebaseAuth` recovers the already-signed-in user
+instead of surfacing a false invalid-code error. `smsUserConsent.ts` buffers a code that arrives
+before the OTP screen mounts (delivery `PhoneEntryScreen` arms before navigating) and replays it on
+mount. iOS needs no native path — `textContentType="oneTimeCode"` drives QuickType. The module
+requires a native rebuild
 (`gh workflow run android-debug.yml -f app=customer`); no SMS body, sender, phone number or code is
 logged.
 

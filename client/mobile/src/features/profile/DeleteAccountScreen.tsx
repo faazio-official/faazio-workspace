@@ -16,7 +16,11 @@ import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { deleteAccountEverywhere } from '@/services/accountDeletion';
-import { firebaseAuthConfigured } from '@/services/firebaseAuth';
+import {
+  firebaseAuthConfigured,
+  hasAutoVerifiedOtp,
+  subscribeOtpAutoVerified,
+} from '@/services/firebaseAuth';
 import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { useAuthStore } from '@/state/authStore';
 import { openTrustedUrl } from '@/lib/externalLinks';
@@ -70,7 +74,7 @@ export function DeleteAccountScreen({ navigation }: Props) {
     setOtpError(null);
     setOtpCode(code);
   }, []);
-  const { restart: restartSmsConsent } = useSmsUserConsent(handleSmsCode, reauth);
+  const { restart: restartSmsConsent, stop: stopSmsConsent } = useSmsUserConsent(handleSmsCode, reauth);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
   const handleEmailDelete = useCallback(() => {
@@ -110,23 +114,25 @@ export function DeleteAccountScreen({ navigation }: Props) {
       await sendReauthOtp(phone);
       setReauth(true);
     } catch {
+      stopSmsConsent();
       setError(
         'We could not send a verification code to your number. Try again, or use the email option below.',
       );
     } finally {
       setSendingOtp(false);
     }
-  }, [phone, restartSmsConsent, sendReauthOtp, sendingOtp]);
+  }, [phone, restartSmsConsent, sendReauthOtp, sendingOtp, stopSmsConsent]);
 
-  const verifyAndDelete = useCallback(async () => {
-    if (submitRef.current || otpCode.length !== 6 || submitting) return;
+  const finishDelete = useCallback(async (code: string) => {
+    if (submitRef.current || submitting) return;
     submitRef.current = true;
     setOtpError(null);
     setSubmitting(true);
     try {
       // Re-auth refreshes the Firebase session (satisfies user.delete()'s recent-login) and the
       // persisted bearer, then the combined delete erases server PII + the Firebase identity.
-      await verifyReauthOtp(phone, otpCode);
+      // An auto-retrieved OTP arrives with an empty code; verifyOtp resolves it from the session.
+      await verifyReauthOtp(phone, code);
       await deleteAccountEverywhere();
       if (navigation.isFocused()) {
         navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
@@ -138,7 +144,25 @@ export function DeleteAccountScreen({ navigation }: Props) {
         'We could not delete your account. Check the code and your connection, then try again, or use the email option below.',
       );
     }
-  }, [deleteAccountEverywhere, navigation, otpCode, phone, submitting, verifyReauthOtp]);
+  }, [deleteAccountEverywhere, navigation, phone, submitting, verifyReauthOtp]);
+
+  const verifyAndDelete = useCallback(async () => {
+    if (otpCode.length !== 6) return;
+    await finishDelete(otpCode);
+  }, [finishDelete, otpCode]);
+
+  // Native Firebase auto-retrieval completes re-auth without a code; mirror Login/OtpVerify.
+  const applyAutoVerified = useCallback(() => {
+    if (!reauth || submitRef.current || submitting || sendingOtp) return;
+    if (!hasAutoVerifiedOtp(phone)) return;
+    void finishDelete('');
+  }, [finishDelete, phone, reauth, sendingOtp, submitting]);
+
+  useEffect(() => {
+    if (!reauth) return;
+    applyAutoVerified();
+    return subscribeOtpAutoVerified(applyAutoVerified);
+  }, [applyAutoVerified, reauth]);
 
   useEffect(() => {
     if (!reauth || otpCode.length !== 6) {

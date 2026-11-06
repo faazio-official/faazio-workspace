@@ -35,7 +35,7 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     setError(null);
     setCode(smsCode);
   }, []);
-  const { restart: restartSmsConsent } = useSmsUserConsent(handleSmsCode, !verifying);
+  const { restart: restartSmsConsent, stop: stopSmsConsent } = useSmsUserConsent(handleSmsCode, !verifying);
 
   const completeSignIn = useCallback(
     async (session: FirebaseSession) => {
@@ -122,11 +122,12 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     try {
       await sendOtp(phone);
     } catch (err) {
+      stopSmsConsent();
       setError(err instanceof Error ? err.message : 'Could not resend the OTP.');
     } finally {
       setResending(false);
     }
-  }, [phone, restartSmsConsent, resending, verifying]);
+  }, [phone, restartSmsConsent, resending, stopSmsConsent, verifying]);
 
   return (
     <Screen>

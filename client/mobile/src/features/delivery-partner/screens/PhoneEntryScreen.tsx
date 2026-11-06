@@ -8,6 +8,7 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useIsFocused } from '@react-navigation/native';
 import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
 import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
@@ -40,6 +41,7 @@ export function PhoneEntryScreen({ navigation }: Props) {
   const setStorePhone = useDeliveryPartnerStore((s) => s.setPhone);
   const setRider = useDeliveryPartnerStore((s) => s.setRider);
   const [checking, setChecking] = useState(false);
+  const isFocused = useIsFocused();
 
   const resume = useCallback(async () => {
     setChecking(true);
@@ -58,8 +60,10 @@ export function PhoneEntryScreen({ navigation }: Props) {
   }, [navigation, setRider]);
 
   useEffect(() => {
-    if (hydrated && isAuthenticated) void resume();
-  }, [hydrated, isAuthenticated, resume]);
+    // Only the focused screen may navigate; otherwise OtpVerify's login would re-fire this resume
+    // from the still-mounted PhoneEntry route and race a duplicate Dashboard/Register replace.
+    if (isFocused && hydrated && isAuthenticated) void resume();
+  }, [hydrated, isAuthenticated, isFocused, resume]);
 
   const onSend = useCallback(async () => {
     setError(null);

@@ -10,6 +10,7 @@ import {
   deleteFirebaseUser,
   sendOtp,
   signOutRemote,
+  toE164,
   verifyOtp,
 } from '@/services/firebaseAuth';
 
@@ -78,7 +79,7 @@ export interface AuthState {
   deleteFirebaseIdentity: () => Promise<void>;
 }
 
-export const useAuthStore = create<AuthState>()((set) => ({
+export const useAuthStore = create<AuthState>()((set, get) => ({
   isAuthenticated: false,
   user: null,
   accessToken: null,
@@ -134,6 +135,11 @@ export const useAuthStore = create<AuthState>()((set) => ({
   },
   verifyReauthOtp: async (phone, code) => {
     const session = await verifyOtp(phone, code);
+    const storedPhone = get().user?.phone;
+    const verifiedPhone = session.user.phoneNumber;
+    if (storedPhone && verifiedPhone && toE164(storedPhone) !== verifiedPhone) {
+      throw new Error('The verified phone does not match the signed-in account.');
+    }
     if (session.accessToken) {
       await updateSessionTokens(session.accessToken);
       set({ accessToken: session.accessToken });

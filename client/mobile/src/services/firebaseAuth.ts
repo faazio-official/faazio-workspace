@@ -47,6 +47,9 @@ type PendingOtp = {
   manualVerifyStarted: boolean;
   /** Native auto-retrieval already signed the user in; no code entry is needed. */
   autoSession: FirebaseSession | null;
+  /** Identity on the auth instance before this send, so a pre-existing session is never mistaken. */
+  initialUid: string | null;
+  initialSignIn: string | null;
 };
 
 /** Pending native phone verification for the current send→verify round-trip. */
@@ -70,12 +73,14 @@ function clearAutoWatch(): void {
  */
 function armAutoVerificationWatch(auth: Auth, current: PendingOtp): void {
   clearAutoWatch();
-  const initialUid = auth.currentUser?.uid ?? null;
-  const initialSignIn = auth.currentUser?.metadata.lastSignInTime ?? null;
   autoWatchUnsubscribe = auth.onAuthStateChanged(async (user) => {
     if (pending !== current || current.manualVerifyStarted) return;
     if (!user || user.phoneNumber !== current.phone) return;
-    if (initialUid && user.uid === initialUid && user.metadata.lastSignInTime === initialSignIn) {
+    if (
+      current.initialUid &&
+      user.uid === current.initialUid &&
+      user.metadata.lastSignInTime === current.initialSignIn
+    ) {
       return;
     }
     try {
@@ -121,6 +126,44 @@ export function consumeAutoVerifiedOtp(phoneDigits: string): FirebaseSession | n
   pending = null;
   clearAutoWatch();
   return session;
+}
+
+/** Non-consuming probe used by screens that complete re-auth through `verifyReauthOtp`. */
+export function hasAutoVerifiedOtp(phoneDigits: string): boolean {
+  const phone = toE164(phoneDigits);
+  return Boolean(
+    pending && pending.phone === phone && pending.scope === 'primary' && pending.autoSession,
+  );
+}
+
+/**
+ * Native auto-retrieval can sign in while a manual `confirm()` is in flight; Firebase then
+ * invalidates the code, so recover the already-signed-in user instead of reporting a false
+ * "invalid code". A pre-existing session (same uid + sign-in time) is never accepted.
+ */
+async function recoverSessionFromCurrentUser(
+  auth: Auth,
+  current: PendingOtp,
+): Promise<FirebaseSession | null> {
+  const user = auth.currentUser;
+  if (!user || user.phoneNumber !== current.phone) return null;
+  if (
+    current.initialUid &&
+    user.uid === current.initialUid &&
+    user.metadata.lastSignInTime === current.initialSignIn
+  ) {
+    return null;
+  }
+  try {
+    const token = await user.getIdTokenResult();
+    return toSession(
+      user,
+      token.token,
+      Math.floor(new Date(token.expirationTime).getTime() / 1000),
+    );
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -189,6 +232,8 @@ async function sendOtpForScope(phoneDigits: string, scope: OtpScope): Promise<vo
     confirmation: null,
     manualVerifyStarted: false,
     autoSession: null,
+    initialUid: auth.currentUser?.uid ?? null,
+    initialSignIn: auth.currentUser?.metadata.lastSignInTime ?? null,
   };
   // Replace any earlier request; an old confirmation must never verify a newer send.
   pending = current;
@@ -250,6 +295,18 @@ async function verifyOtpForScope(
     return session;
   } catch (err) {
     current.manualVerifyStarted = false;
+    // The watcher yields to a manual confirm, so it may have skipped an auto session that landed
+    // concurrently. Recover it before surfacing an invalid-code error.
+    const auth = await otpAuth(scope);
+    const recovered = current.autoSession ?? (await recoverSessionFromCurrentUser(auth, current));
+    if (recovered) {
+      if (pending === current) {
+        pending = null;
+        clearAutoWatch();
+      }
+      if (scope === 'seller' && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
+      return recovered;
+    }
     throw err;
   }
 }

@@ -846,14 +846,20 @@ registered `SMS_RETRIEVED` receiver guarded by
 `RECEIVE_SMS`/`READ_SMS` permission**. The API only observes messages received after
 `startSmsUserConsent()`, so `LoginScreen`, delivery `PhoneEntryScreen`, and the
 `DeleteAccountScreen` re-auth arm first and re-arm before every resend. Play Services shows its
-system consent sheet; on approval the module prefers a 6-digit run next to "code"/"OTP"/"PIN"
-(falling back to the first standalone 6-digit run) and emits `FaazioSmsUserConsent`, which fills and
-auto-submits the OTP in `LoginScreen`, delivery `OtpVerifyScreen`, and the delete re-auth. It is
+system consent sheet; on approval the module prefers a 6-digit run next to a whole-word
+"code"/"OTP"/"PIN" (falling back to the first standalone 6-digit run, ignoring 6-digit substrings of
+longer numbers) and emits `FaazioSmsUserConsent`, which fills and auto-submits the OTP in
+`LoginScreen`, delivery `OtpVerifyScreen`, and the delete re-auth. `smsUserConsent.ts` keeps one
+shared emitter subscription and buffers a code that arrives before the OTP screen mounts (delivery
+`PhoneEntryScreen` arms before navigating), replaying it on mount instead of dropping it. It is
 independent of Play Integrity, requires Google Play Services, and falls back to manual entry on any
 error/timeout. Native Firebase auto-retrieval, when it happens, is surfaced through
-`onAuthStateChanged` (the installed v27 modular API has no `onVerificationCompleted` callback) and
-`LoginScreen` / `OtpVerifyScreen` consume that session directly. No SMS body, sender, phone number or
-code is logged. iOS needs no native module — `textContentType="oneTimeCode"` drives QuickType.
+`onAuthStateChanged` (the installed v27 modular API has no `onVerificationCompleted` callback); if
+it races a manual confirm, `firebaseAuth` recovers the already-signed-in user rather than reporting
+a false invalid code, and `LoginScreen` / delivery `OtpVerifyScreen` / the delete re-auth consume
+that session directly. No SMS body, sender, phone number or code is logged. iOS needs no native
+module — `textContentType="oneTimeCode"` drives QuickType (the seller signature OTP input sets it
+too).
 
 **Background tracking.** While online, Android runs `DeliveryTrackingService` with
 `foregroundServiceType="location"` and a persistent low-importance notification, waking
@@ -978,7 +984,8 @@ failure sets `otpError`, which drives the shake + "Verification Failed" toast; `
 so the user can retry. A always-present **Verify** CTA (enabled at 6 digits, spinner while
 awaiting) is the manual fallback, so the user can never be stranded. Back is two-step and wired to
 both the chevron and Android hardware back (`BackHandler` via `useFocusEffect`): first press closes
-the keyboard, second returns to phone entry with the typed number preserved; on phone entry the
+the keyboard, second returns to phone entry with the typed number preserved; back is ignored while
+`isVerifying` so an in-flight `verifyOtp` cannot navigate after dismissal; on phone entry the
 hardware back pops to Welcome. `replace` deliberately removes the consumed OTP screen so back from
 Choose-language lands on Welcome, not a filled OTP form. The acceptance row under the phone field
 renders **Terms & Conditions** and **Privacy Policy** as tappable links (`TERMS_URL` / `PRIVACY_URL`

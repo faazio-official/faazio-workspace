@@ -418,6 +418,8 @@ export function LoginScreen({ navigation }: Props) {
   // Two-step back from OTP: close the keyboard first, then return to phone entry
   // (preserving the typed number). Used by both the chevron and hardware back.
   const goBackFromOtp = useCallback(() => {
+    // Never abandon the screen mid-verification; the in-flight `verifyOtp` would still navigate.
+    if (isVerifying) return;
     if (keyboardVisible) {
       Keyboard.dismiss();
       return;
@@ -427,7 +429,7 @@ export function LoginScreen({ navigation }: Props) {
     setOtpError('');
     submitRef.current = false;
     setIsVerifying(false);
-  }, [keyboardVisible]);
+  }, [isVerifying, keyboardVisible]);
 
   useFocusEffect(
     useCallback(() => {
@@ -549,7 +551,7 @@ export function LoginScreen({ navigation }: Props) {
                 </AppText>
 
                 <View style={styles.loaderContainer}>
-                  {phone.length === 10 && (
+                  {isSending && (
                     <View style={styles.loadingPill}>
                       <RotatingSpinner size={14} borderWidth={2} color="#212121" />
                       <AppText style={styles.loadingText}>Sending OTP...</AppText>

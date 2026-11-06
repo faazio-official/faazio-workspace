@@ -737,8 +737,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                       placeholder="6-digit OTP"
                       placeholderTextColor={neutral.inkSubtle}
                       value={otpCode}
-                      onChangeText={setOtpCode}
+                      onChangeText={(v) => setOtpCode(v.replace(/\D/g, '').slice(0, 6))}
                       keyboardType="number-pad"
+                      textContentType="oneTimeCode"
+                      autoComplete="sms-otp"
                       maxLength={6}
                     />
                     <TouchableOpacity
