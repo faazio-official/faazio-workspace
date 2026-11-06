@@ -146,3 +146,24 @@ Go migrator discards query result rows (`server/gateway/cmd/migrate/main.go` run
 `apply-migration.sh` prints nothing. Run one in the Supabase SQL Editor (or any pgx/psql client);
 `diagnostics/verify-seller-tiruchi.sql` confirms the `0063` seller, the `0065` TTC roster row and the
 district-admin login's `district_code` scope.
+
+## 6. Gotcha: schema-qualify `DROP INDEX` (search_path omits the module schemas)
+
+The Supabase connection's `search_path` is `"$user", public, extensions` — it does **not** include
+`payments`, `sellers`, `catalog`, etc. So an **unqualified** `drop index if exists <name>` silently
+resolves to nothing and **no-ops** (the `if exists` swallows it). Then a following
+`create [unique] index if not exists <name> on <schema>.<table> (...)` sees the old index still
+present and **skips**, leaving the table on the old (e.g. non-unique) index — with no error.
+
+This bit `0081` (`payments.payouts_seller_cycle_idx` stayed non-unique because `0077`'s
+`create unique ... if not exists` matched the `0015` non-unique index). Always write
+`drop index if exists <schema>.<index>;` (`CREATE INDEX` cannot be schema-qualified — it always
+lands in the table's schema). Verify with:
+
+```sql
+select indexname, indexdef from pg_indexes
+ where schemaname = 'payments' and tablename = 'payouts';
+```
+
+For a destructive index swap, wrap the DROP+CREATE in one `BEGIN; … COMMIT;` with a duplicate
+preflight (see `0081`) so a failure can never leave the table without its index.

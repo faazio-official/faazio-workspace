@@ -513,7 +513,9 @@ func (r *Repo) CreateOrder(ctx context.Context, o Order, stops []Stop, otpHash s
 	}
 	// Payment collection model (0077): mirror the checkout payment method so the rider knows whether
 	// the customer pays on delivery. COD orders require the rider's "Payment received" before the
-	// DROP is DELIVERED.
+	// DROP is DELIVERED. PaymentStatus mirrors checkout.payments.status (freed text) so the rider
+	// app can render PENDING/PAID/FAILED; it is snapshotted to 'PAID' when the order has no ledger
+	// row (confirmed/COD/coins orders).
 	method, payStatus, err := r.CheckoutPaymentMethod(ctx, o.CustomerOrderID)
 	if err != nil {
 		return Order{}, err
@@ -532,14 +534,14 @@ func (r *Repo) CreateOrder(ctx context.Context, o Order, stops []Stop, otpHash s
 		   total_distance_meters, estimated_duration_seconds, payout_amount_paisa, require_otp,
 		   district_code, payout_mode, calculated_fare_paisa, manual_distance_km, manual_fare_paisa,
 		   fare_override_reason, assigned_at, expires_at,
-		   payment_method, payment_required)
+		   payment_method, payment_status, payment_required)
 		values ($1,$2,$3,$4,'ASSIGNED',$5,$6,$7,$8,$9,nullif($10,''),$11::delivery_payout_mode,
-		        $12,$13,$14,nullif($15,''),now(),$16,nullif($17,''),$18)`,
+		        $12,$13,$14,nullif($15,''),now(),$16,nullif($17,''),coalesce(nullif($18,''),'PAID'),$19)`,
 		o.OrderID, o.CustomerOrderID, o.StoreID, o.RiderID, o.RouteSequence,
 		o.TotalDistanceMeters, o.EstimatedDurationSecs, o.PayoutAmountPaisa, o.RequireOTP,
 		o.DistrictCode, payoutModeOrDefault(o.PayoutMode), o.CalculatedFarePaisa,
 		o.ManualDistanceKm, o.ManualFarePaisa, o.FareOverrideReason, assignExpires,
-		o.PaymentMethod, o.PaymentRequired)
+		o.PaymentMethod, o.PaymentStatus, o.PaymentRequired)
 	if err != nil {
 		return Order{}, err
 	}

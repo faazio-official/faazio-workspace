@@ -431,8 +431,17 @@ sql.push(inserts(
 ));
 sql.push(inserts(
   'checkout.order_items',
-  ['line_id', 'order_id', 'product_id', 'name', 'variant', 'qty', 'unit_price_paisa'],
-  orders.flatMap((o) => o.lineItems.map((li) => [q(li.lineId), q(o.id), q(li.productId), q(li.name), q(li.variant), n(li.qty), paisa(li.unitPrice)])),
+  ['line_id', 'order_id', 'product_id', 'name', 'variant', 'qty', 'unit_price_paisa', 'store_id'],
+  orders.flatMap((o) => o.lineItems.map((li) => {
+    // 0078 per-store payout attribution: prefer the line's product home store, fall back to the
+    // order's own vendor store (past-* fixtures carry no product_id). Null only when neither
+    // resolves — those lines are display-only history and stay off the payout board.
+    const meta = li.productId ? productMeta.get(li.productId) : null;
+    const fromProduct = meta?.storeId && storeIds.has(meta.storeId) ? meta.storeId : null;
+    const fromOrder = Array.isArray(o.vendorStoreIds) && o.vendorStoreIds.length && storeIds.has(o.vendorStoreIds[0]) ? o.vendorStoreIds[0] : null;
+    const storeId = fromProduct ?? fromOrder;
+    return [q(li.lineId), q(o.id), q(li.productId), q(li.name), q(li.variant), n(li.qty), paisa(li.unitPrice), q(storeId)];
+  })),
 ));
 
 // ---------------------------------------------------------------- accounts
