@@ -30,23 +30,26 @@ dependencies exist. Do not build the backend/seller flows until told to.
   before the OTP screen mounts (delivery `PhoneEntryScreen` arms before navigating), replaying it on
   mount. Android-only, no-op on iOS.
 - **Arming order fixed:** the User Consent API only sees SMS received after it starts, so
-  `LoginScreen`, delivery `PhoneEntryScreen`, and the `DeleteAccountScreen` re-auth arm **before**
-  `sendOtp`/`sendReauthOtp` and re-arm before each resend; a failed send/resend disarms again.
-- Wired into `LoginScreen`, delivery `OtpVerifyScreen`, and the `DeleteAccountScreen` re-auth:
-  approval fills the code and auto-submits. Added `textContentType="oneTimeCode"` /
-  `autoComplete="sms-otp"` to the hidden Login input and the seller signature OTP input. Consent
-  events are ignored while a verify is in flight; resend is blocked during verification; the
-  pending OTP is request-scoped so an older `confirm()` cannot clear a newer send.
+  `LoginScreen`, delivery `PhoneEntryScreen`, the `DeleteAccountScreen` re-auth, and the
+  `SellerRegistrationScreen` signature arm **before** `sendOtp`/`sendSellerOtp`/
+  `sendReauthOtp` and re-arm before each resend; a failed send/resend disarms again.
+- Wired into `LoginScreen`, delivery `OtpVerifyScreen`, the `DeleteAccountScreen` re-auth, and the
+  seller signature: approval fills the code and auto-submits. Added
+  `textContentType="oneTimeCode"` / `autoComplete="sms-otp"` to the hidden Login input and every
+  visible OTP input, including the seller signature. Consent events are ignored while a verify is in
+  flight; resend is blocked during verification; the pending OTP is request-scoped so an older
+  `confirm()` cannot clear a newer send. The seller input locks during verify, clears on resend, and
+  the visible Verify button enables at six digits (manual fallback if consent is unavailable).
 - Native Firebase auto-retrieval is surfaced through `onAuthStateChanged` (the installed
   `@react-native-firebase/auth@27` modular API has no `onVerificationCompleted` callback);
   `LoginScreen`, delivery `OtpVerifyScreen`, and the `DeleteAccountScreen` re-auth consume that
   session and skip code entry. If auto-retrieval races a manual `confirm()`, the already-signed-in
   user is recovered instead of reporting a false invalid code. Firebase templates usually cannot
   use hash-based auto-retrieval, so SMS User Consent remains the fast path.
-- **Remaining:** the seller signature OTP (`sendSellerOtp` on the disposable secondary app) gets
-  keyboard autofill but is not wired to SMS User Consent yet; on-device consent-sheet QA is still
-  pending.
-- iOS needs no native change (`textContentType` QuickType). No SMS body/sender/phone/code is logged.
+- **Remaining:** on-device consent-sheet QA for the seller signature (`sendSellerOtp` on the
+  disposable secondary app) is still pending; the code path is wired and CI-buildable.
+- iOS needs no native change (`textContentType` QuickType, including the seller input). No SMS
+  body/sender/phone/code is logged.
 - Native rebuild required: `gh workflow run android-debug.yml -f app=customer`.
 - Docs: `docs/RUNBOOKS/FIREBASE_AUTH.md` §3/§7, `docs/architecture/mobile-app.md`.
 

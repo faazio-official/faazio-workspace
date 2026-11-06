@@ -43,9 +43,10 @@ never needs a git change. No service-account key is used by the mobile app.
 ## 3. Flow
 
 ```
-LoginScreen / delivery PhoneEntry
+LoginScreen / delivery PhoneEntry / seller signature
   └─ SMS User Consent armed BEFORE the SMS is requested
-       └─ firebaseAuth.sendOtp(digits) → signInWithPhoneNumber(getAuth(), "+91…")
+       └─ firebaseAuth.sendOtp(digits) / sendSellerOtp(phoneDigits)
+            → signInWithPhoneNumber(getAuth(), "+91…") (seller: disposable secondary app)
             ├─ Android: Play Integrity / reCAPTCHA → SMS (or native auto-retrieval)
             └─ iOS: APNs silent push, else reCAPTCHA → SMS
   └─ Android SMS User Consent (src/lib/smsUserConsent.ts + SmsUserConsentModule.kt)
@@ -61,19 +62,23 @@ LoginScreen / delivery PhoneEntry
 
 `sendOtp`/`verifyOtp` sign in the **primary** Firebase app so `refreshIdToken()` can rotate the
 session. Seller onboarding uses `sendSellerOtp`/`verifySellerOtp`, a disposable secondary app, because
-that OTP is only a signature and must not replace the shopper session. `refreshIdToken()` forces
-`getIdToken(true)`; `GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token,
-phone number or OTP code.
+that OTP is only a signature and must not replace the shopper session. The seller signature uses the
+same Android SMS User Consent path: consent fills the six digits and auto-submits the seller verify,
+then the gateway's `auth.OTPSigned` check binds the shared shopper token's `phone_number` claim to the
+application's `contactPhone`. `refreshIdToken()` forces `getIdToken(true)`;
+`GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token, phone number or OTP code.
 
-Android arms **SMS User Consent before** `sendOtp`: the API only observes messages received after
-`startSmsUserConsent()`, so `LoginScreen`, delivery `PhoneEntryScreen`, and the `DeleteAccountScreen`
-re-auth start a dynamically registered `SMS_RETRIEVED` receiver first (guarded by
+Android arms **SMS User Consent before** `sendOtp`/`sendSellerOtp`: the API only observes messages
+received after `startSmsUserConsent()`, so `LoginScreen`, delivery `PhoneEntryScreen`, the
+`DeleteAccountScreen` re-auth, and the `SellerRegistrationScreen` signature start a dynamically
+registered `SMS_RETRIEVED` receiver first (guarded by
 `com.google.android.gms.auth.api.phone.permission.SEND`, **no `RECEIVE_SMS`/`READ_SMS` permission**)
 and re-arm before every resend. When the user approves the system sheet, the native module extracts
 the code (a 6-digit run next to "code"/"OTP"/"PIN", else the first standalone 6-digit run) and emits
-it to `useSmsUserConsent`, which fills the OTP input and auto-submits. This is independent of Play
-Integrity and works on any device with Google Play Services; otherwise it errors and manual entry is
-unchanged. Native Firebase auto-retrieval, when it happens, is surfaced via `onAuthStateChanged`
+it to `useSmsUserConsent`, which fills the OTP input and auto-submits (including the seller signature
+on the disposable secondary app). This is independent of Play Integrity and works on any device with
+Google Play Services; otherwise it errors and manual entry is unchanged. Native Firebase
+auto-retrieval, when it happens, is surfaced via `onAuthStateChanged`
 (the installed v27 modular API has no `onVerificationCompleted` callback); `LoginScreen`, delivery
 `OtpVerifyScreen`, and the `DeleteAccountScreen` re-auth consume that session and skip code entry.
 If auto-retrieval races a manual `confirm()`, `firebaseAuth` recovers the already-signed-in user
@@ -239,6 +244,8 @@ Device smoke test (CI debug APK):
 | SMS never arrives | Region policy excludes +91, the number is not a test number, or the free quota is exhausted (Blaze billing required past the quota). |
 | No SMS-autofill consent sheet | Google Play Services is missing/outdated, the APK predates the native module, or the retriever was armed **after** the SMS was sent. Type the code manually; rebuild via `gh workflow run android-debug.yml -f app=customer`. |
 | Consent approved but the code is not filled | The message must contain a 6-digit run and be surfaced by Play Services. Type the code manually; no `RECEIVE_SMS` permission is involved. |
+| Seller signature OTP does not autofill | SMS User Consent is independent of the disposable `faazio-seller-otp` app, so the same consent sheet should appear after "Send OTP". Without Play Services, type the code manually; the Verify button enables at six digits. |
+| `401 otp_unverified` after the seller signature | The bearer token's phone claim does not match the application `contactPhone` (last 10 digits). Sign in on the shopper account that owns the contact phone and re-verify; a client `otpVerified: true` alone is rejected. |
 | Auto-verification never skips the OTP screen | Firebase templates usually cannot use hash-based auto-retrieval; SMS User Consent is the normal fast path. Manual entry remains available. |
 | OTP screen shows an error right after a resend | An older `confirm()` resolved against a newer send; pending requests are request-scoped now, so retry once and report if it recurs. |
 | Token works but user rows are missing | `checkout.users` upsert needs Postgres; check `/health` → `db:true`. |

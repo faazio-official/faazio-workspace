@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -30,6 +30,7 @@ import {
   type SellerApplication,
 } from '@/services/api/GatewayClient';
 import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/services/firebaseAuth';
+import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
 import DocumentCapture from './DocumentCapture';
@@ -184,6 +185,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
 
   // Guards a category request per shop so a slower earlier app request cannot overwrite a newer one.
   const categoryReq = useRef<Record<string, number>>({});
+  const sendRef = useRef(false);
+  const submitRef = useRef(false);
+  const autoSubmittedRef = useRef<string | null>(null);
+  const consentArmedRef = useRef(false);
 
   const update = (key: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -197,10 +202,28 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     setOtpVerifiedAt('');
     setCountdown(0);
     setOtpError('');
+    autoSubmittedRef.current = null;
+    consentArmedRef.current = false;
   };
 
   const otpPhone = authPhone || form.contactPhone;
   const phoneDigits = useMemo(() => otpPhone.replace(/\D/g, '').slice(-10), [otpPhone]);
+  // Snapshot for async guards: a phone edit mid-request must not mark the new number verified.
+  const phoneDigitsRef = useRef(phoneDigits);
+  useEffect(() => {
+    phoneDigitsRef.current = phoneDigits;
+  }, [phoneDigits]);
+
+  const handleSmsCode = useCallback((code: string) => {
+    if (!consentArmedRef.current || submitRef.current) return;
+    setOtpError('');
+    setOtpCode(code);
+  }, []);
+
+  const { restart: restartSmsConsent, stop: stopSmsConsent } = useSmsUserConsent(
+    handleSmsCode,
+    otpSent && !otpVerified,
+  );
 
   const updateVendor = (key: string, patch: Partial<VendorDraft>) =>
     setVendors((prev) => prev.map((v) => (v.key === key ? { ...v, ...patch } : v)));
@@ -313,6 +336,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   }, [countdown]);
 
   const sendSignatureOtp = async () => {
+    if (sendRef.current) return;
     setOtpError('');
     if (phoneDigits.length !== 10) {
       setOtpError('A valid 10-digit mobile number is required.');
@@ -322,38 +346,78 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       setOtpError('OTP verification is not available in this build.');
       return;
     }
+    const targetPhone = phoneDigits;
+    sendRef.current = true;
+    submitRef.current = false;
+    autoSubmittedRef.current = null;
     setOtpBusy(true);
+    setOtpCode('');
+    setOtpVerified(false);
+    setOtpVerifiedAt('');
+    // The User Consent API only observes SMS received after it starts — arm before the send.
+    consentArmedRef.current = true;
+    restartSmsConsent();
     try {
-      await sendSellerOtp(phoneDigits);
+      await sendSellerOtp(targetPhone);
+      if (phoneDigitsRef.current !== targetPhone) {
+        consentArmedRef.current = false;
+        stopSmsConsent();
+        return;
+      }
       setOtpSent(true);
       setCountdown(60);
-      setOtpVerified(false);
     } catch {
-      setOtpError('Could not send the OTP. Please try again.');
+      consentArmedRef.current = false;
+      stopSmsConsent();
+      if (phoneDigitsRef.current === targetPhone) {
+        setOtpError('Could not send the OTP. Please try again.');
+      }
     } finally {
+      sendRef.current = false;
       setOtpBusy(false);
     }
   };
 
   const confirmSignatureOtp = async () => {
+    if (submitRef.current) return;
     setOtpError('');
     if (!otpSent || otpCode.trim().length !== 6) {
       setOtpError('Enter the 6-digit code.');
       return;
     }
+    const targetPhone = phoneDigits;
+    const code = otpCode.trim();
+    submitRef.current = true;
     setOtpBusy(true);
     try {
-      await verifySellerOtp(phoneDigits, otpCode.trim());
+      await verifySellerOtp(targetPhone, code);
+      if (phoneDigitsRef.current !== targetPhone) return;
       // The OTP is the digital signature; the shopper's primary Firebase session is untouched.
+      consentArmedRef.current = false;
       setOtpVerified(true);
       setOtpVerifiedAt(new Date().toLocaleTimeString());
       setCountdown(0);
     } catch {
-      setOtpError('That code is incorrect or expired. Request a new one.');
+      if (phoneDigitsRef.current === targetPhone) {
+        setOtpError('That code is incorrect or expired. Request a new one.');
+      }
     } finally {
+      submitRef.current = false;
       setOtpBusy(false);
     }
   };
+
+  // Submission derives from state, not the 6th keystroke: this fires however the code arrived
+  // (typing, paste, or Android SMS User Consent). A failed verify keeps the dedup value so it is
+  // not retried in a loop; the visible Verify button remains available.
+  useEffect(() => {
+    if (otpCode.length !== 6) autoSubmittedRef.current = null;
+    if (!otpSent || otpVerified || otpBusy || otpCode.length !== 6) return;
+    if (autoSubmittedRef.current === otpCode) return;
+    autoSubmittedRef.current = otpCode;
+    void confirmSignatureOtp();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [otpCode, otpSent, otpVerified, otpBusy]);
 
   const validate = (): string | null => {
     const required: [keyof FormState, string][] = [
@@ -742,15 +806,20 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                       textContentType="oneTimeCode"
                       autoComplete="sms-otp"
                       maxLength={6}
+                      editable={!otpBusy}
                     />
                     <TouchableOpacity
                       style={[
                         styles.otpButton,
-                        (otpBusy || (!otpSent ? phoneDigits.length !== 10 : countdown > 0)) &&
+                        (otpBusy ||
+                          (otpSent ? otpCode.length !== 6 : phoneDigits.length !== 10)) &&
                           styles.otpButtonDisabled,
                       ]}
                       onPress={otpSent ? confirmSignatureOtp : sendSignatureOtp}
-                      disabled={otpBusy || (!otpSent ? phoneDigits.length !== 10 : countdown > 0)}
+                      disabled={
+                        otpBusy ||
+                        (otpSent ? otpCode.length !== 6 : phoneDigits.length !== 10)
+                      }
                       activeOpacity={0.85}
                     >
                       {otpBusy ? (

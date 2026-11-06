@@ -844,22 +844,24 @@ Before the SMS is requested, `src/lib/smsUserConsent.ts` (`useSmsUserConsent`) a
 registered `SMS_RETRIEVED` receiver guarded by
 `com.google.android.gms.auth.api.phone.permission.SEND` — there is **no
 `RECEIVE_SMS`/`READ_SMS` permission**. The API only observes messages received after
-`startSmsUserConsent()`, so `LoginScreen`, delivery `PhoneEntryScreen`, and the
-`DeleteAccountScreen` re-auth arm first and re-arm before every resend. Play Services shows its
-system consent sheet; on approval the module prefers a 6-digit run next to a whole-word
-"code"/"OTP"/"PIN" (falling back to the first standalone 6-digit run, ignoring 6-digit substrings of
-longer numbers) and emits `FaazioSmsUserConsent`, which fills and auto-submits the OTP in
-`LoginScreen`, delivery `OtpVerifyScreen`, and the delete re-auth. `smsUserConsent.ts` keeps one
-shared emitter subscription and buffers a code that arrives before the OTP screen mounts (delivery
-`PhoneEntryScreen` arms before navigating), replaying it on mount instead of dropping it. It is
-independent of Play Integrity, requires Google Play Services, and falls back to manual entry on any
-error/timeout. Native Firebase auto-retrieval, when it happens, is surfaced through
+`startSmsUserConsent()`, so `LoginScreen`, delivery `PhoneEntryScreen`, the `DeleteAccountScreen`
+re-auth, and the `SellerRegistrationScreen` signature arm first and re-arm before every resend. Play
+Services shows its system consent sheet; on approval the module prefers a 6-digit run next to a
+whole-word "code"/"OTP"/"PIN" (falling back to the first standalone 6-digit run, ignoring 6-digit
+substrings of longer numbers) and emits `FaazioSmsUserConsent`, which fills and auto-submits the OTP
+in `LoginScreen`, delivery `OtpVerifyScreen`, the delete re-auth, and the seller signature (the
+seller verify runs on its disposable secondary Firebase app, so the shopper session is untouched).
+`smsUserConsent.ts` keeps one shared emitter subscription and buffers a code that arrives before the
+OTP screen mounts (delivery `PhoneEntryScreen` arms before navigating), replaying it on mount instead
+of dropping it. It is independent of Play Integrity, requires Google Play Services, and falls back
+to manual entry on any error/timeout. Native Firebase auto-retrieval, when it happens, is surfaced
+through
 `onAuthStateChanged` (the installed v27 modular API has no `onVerificationCompleted` callback); if
 it races a manual confirm, `firebaseAuth` recovers the already-signed-in user rather than reporting
 a false invalid code, and `LoginScreen` / delivery `OtpVerifyScreen` / the delete re-auth consume
 that session directly. No SMS body, sender, phone number or code is logged. iOS needs no native
-module — `textContentType="oneTimeCode"` drives QuickType (the seller signature OTP input sets it
-too).
+module — `textContentType="oneTimeCode"` drives QuickType on every OTP input, including the seller
+signature.
 
 **Background tracking.** While online, Android runs `DeliveryTrackingService` with
 `foregroundServiceType="location"` and a persistent low-importance notification, waking
@@ -1080,7 +1082,10 @@ PUT → `/media/confirm`), and only the object key + asset id reach the applicat
 blocked until the mandatory passbook photo and the OTP digital signature are complete (licences stay
 optional); the OTP runs on a
 disposable secondary Firebase app (`services/firebaseAuth.ts`) so the shopper's primary session is
-never swapped. `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) creates the
+never swapped. The signature also uses Android **SMS User Consent**: `SellerRegistrationScreen` arms
+the retriever before `sendSellerOtp`, re-arms on resend, fills the six digits on approval, and
+auto-submits `verifySellerOtp` (manual entry and the Verify button remain available).
+`GatewayClient.submitSellerApplication` (`POST /sellers`, audited) creates the
 `PENDING_REVIEW` seller, bank account and KYC rows in one transaction, plus one `directory.stores`
 **vendor** per entry in the `vendors[]` payload — the account is brand-agnostic, and the app,
 platform fee %, category, licences, pin and optional bank override all live on the vendor. The
