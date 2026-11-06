@@ -14,7 +14,7 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ## W82 — Automatic OTP autofill (Android SMS User Consent)
 
-**Status:** 🟢 Shipped (code); native build verification in CI, on-device consent pending.
+**Status:** 🟢 Shipped (code + CI debug build); on-device consent pending.
 
 - New Android native module `SmsUserConsentModule.kt` + `SmsUserConsentPackage` (registered in
   `MainApplication`) using `play-services-auth-api-phone:18.3.1`. It dynamically registers the
