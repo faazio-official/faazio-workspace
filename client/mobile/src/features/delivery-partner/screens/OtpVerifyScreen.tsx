@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
@@ -7,6 +7,7 @@ import { sendOtp, verifyOtp } from '@/services/firebaseAuth';
 import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
+import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
@@ -20,9 +21,18 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
   const [resending, setResending] = useState(false);
   const login = useAuthStore((s) => s.login);
   const setRider = useDeliveryPartnerStore((s) => s.setRider);
+  const submitRef = useRef(false);
+  const autoSubmittedRef = useRef<string | null>(null);
+
+  const handleSmsCode = useCallback((smsCode: string) => {
+    setError(null);
+    setCode(smsCode);
+  }, []);
+  const { restart: restartSmsConsent } = useSmsUserConsent(handleSmsCode, true);
 
   const onVerify = useCallback(async () => {
-    if (code.length !== 6) return;
+    if (submitRef.current || code.length !== 6) return;
+    submitRef.current = true;
     setError(null);
     setVerifying(true);
     try {
@@ -44,27 +54,44 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
         if (err instanceof GatewayHttpError && err.status === 404) {
           navigation.replace('Register');
         } else {
+          submitRef.current = false;
           setError('Could not load your rider profile. Try again.');
         }
       }
     } catch (err) {
+      submitRef.current = false;
       setError(err instanceof Error ? err.message : 'Incorrect OTP. Try again.');
     } finally {
       setVerifying(false);
     }
   }, [code, login, navigation, phone, setRider]);
 
+  useEffect(() => {
+    if (code.length !== 6) {
+      autoSubmittedRef.current = null;
+      return;
+    }
+    if (autoSubmittedRef.current === code || verifying || resending) return;
+    autoSubmittedRef.current = code;
+    void onVerify();
+  }, [code, onVerify, resending, verifying]);
+
   const onResend = useCallback(async () => {
+    if (resending || verifying) return;
     setError(null);
+    setCode('');
+    submitRef.current = false;
+    autoSubmittedRef.current = null;
     setResending(true);
     try {
       await sendOtp(phone);
+      restartSmsConsent();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not resend the OTP.');
     } finally {
       setResending(false);
     }
-  }, [phone]);
+  }, [phone, restartSmsConsent, resending, verifying]);
 
   return (
     <Screen>
@@ -83,19 +110,26 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
               placeholder="••••••"
               maxLength={6}
               style={styles.otp}
+              editable={!verifying}
             />
             <ErrorText>{error}</ErrorText>
             <PrimaryButton
               label="Verify & continue"
               onPress={onVerify}
-              disabled={code.length !== 6}
+              disabled={code.length !== 6 || verifying}
               loading={verifying}
             />
-            <TouchableOpacity onPress={onResend} disabled={resending} style={styles.resend}>
+            <TouchableOpacity onPress={onResend} disabled={resending || verifying} style={styles.resend}>
               <AppText style={styles.resendText}>{resending ? 'Sending…' : 'Resend OTP'}</AppText>
             </TouchableOpacity>
           </Card>
-          <TouchableOpacity onPress={() => navigation.replace('PhoneEntry')} style={styles.back}>
+          <TouchableOpacity
+            onPress={() => {
+              if (!verifying) navigation.replace('PhoneEntry');
+            }}
+            disabled={verifying}
+            style={styles.back}
+          >
             <AppText style={styles.backText}>Change number</AppText>
           </TouchableOpacity>
         </ScrollView>

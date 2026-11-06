@@ -245,6 +245,8 @@ dependencies {
     implementation("com.facebook.react:react-android")
     // Native launch theme (windowSplashScreen*).
     implementation("androidx.core:core-splashscreen:1.0.1")
+    // SMS User Consent (no RECEIVE_SMS permission); see SmsUserConsentModule.kt.
+    implementation("com.google.android.gms:play-services-auth-api-phone:18.3.1")
 
     implementation("com.facebook.react:hermes-android")
 }

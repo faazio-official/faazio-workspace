@@ -33,6 +33,7 @@ import {
   sendOtp,
   verifyOtp,
 } from '@/services/firebaseAuth';
+import { useSmsUserConsent } from '@/lib/smsUserConsent';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -138,6 +139,7 @@ export function LoginScreen({ navigation }: Props) {
   const phoneInputRef = useRef<TextInput>(null);
   const otpInputRef = useRef<TextInput>(null);
   const submitRef = useRef(false);
+  const resendRef = useRef(false);
   const phoneAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
@@ -292,6 +294,13 @@ export function LoginScreen({ navigation }: Props) {
     }
   }, [otpCode, phone, login, navigation]);
 
+  const handleSmsCode = useCallback((code: string) => {
+    setOtpError('');
+    setOtpCode(code);
+  }, []);
+
+  const smsConsent = useSmsUserConsent(handleSmsCode, otpState);
+
   // Submission derives from state, not from the 6th keystroke's onChangeText:
   // this fires however the code arrived (fast typing, paste, re-render race).
   useEffect(() => {
@@ -385,20 +394,27 @@ export function LoginScreen({ navigation }: Props) {
   );
 
   const handleResend = () => {
+    if (resendRef.current) return;
     setOtpCode('');
     setOtpError('');
     submitRef.current = false;
     setIsVerifying(false);
     if (firebaseAuthConfigured()) {
-      void sendOtp(phone).catch((err: unknown) => {
-        if (__DEV__) {
-          const code = (err as { code?: string })?.code ?? 'unknown';
-          console.warn('[phone-auth] resend failed:', code, (err as Error)?.message);
-          Alert.alert('Could not send OTP', `${code}\n\n${(err as Error)?.message ?? ''}`);
-          return;
-        }
-        Alert.alert('Could not send OTP', 'Please try again in a moment.');
-      });
+      resendRef.current = true;
+      void sendOtp(phone)
+        .then(() => smsConsent.restart())
+        .catch((err: unknown) => {
+          if (__DEV__) {
+            const code = (err as { code?: string })?.code ?? 'unknown';
+            console.warn('[phone-auth] resend failed:', code, (err as Error)?.message);
+            Alert.alert('Could not send OTP', `${code}\n\n${(err as Error)?.message ?? ''}`);
+            return;
+          }
+          Alert.alert('Could not send OTP', 'Please try again in a moment.');
+        })
+        .finally(() => {
+          resendRef.current = false;
+        });
     } else {
       Alert.alert('Resend', 'A new demo OTP code has been sent to (+91) ' + phone);
     }
@@ -551,6 +567,9 @@ export function LoginScreen({ navigation }: Props) {
                   value={otpCode}
                   onChangeText={handleOtpChange}
                   caretHidden={true}
+                  textContentType="oneTimeCode"
+                  autoComplete="sms-otp"
+                  editable={!isVerifying}
                 />
 
                 <View style={styles.segmentsRow}>

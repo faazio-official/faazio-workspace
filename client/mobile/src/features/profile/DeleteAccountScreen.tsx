@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,6 +17,7 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { deleteAccountEverywhere } from '@/services/accountDeletion';
 import { firebaseAuthConfigured } from '@/services/firebaseAuth';
+import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { useAuthStore } from '@/state/authStore';
 import { openTrustedUrl } from '@/lib/externalLinks';
 import { ACCOUNT_DELETION_MAILTO, PRIVACY_URL } from '@/lib/site';
@@ -59,8 +60,16 @@ export function DeleteAccountScreen({ navigation }: Props) {
   const [sendingOtp, setSendingOtp] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState<string | null>(null);
+  const submitRef = useRef(false);
+  const autoSubmittedRef = useRef<string | null>(null);
 
   const phone = user?.phone ?? '';
+
+  const handleSmsCode = useCallback((code: string) => {
+    setOtpError(null);
+    setOtpCode(code);
+  }, []);
+  useSmsUserConsent(handleSmsCode, reauth);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
   const handleEmailDelete = useCallback(() => {
@@ -88,6 +97,8 @@ export function DeleteAccountScreen({ navigation }: Props) {
 
   const startReauth = useCallback(async () => {
     if (sendingOtp) return;
+    submitRef.current = false;
+    autoSubmittedRef.current = null;
     setOtpCode('');
     setOtpError(null);
     setError(null);
@@ -105,7 +116,8 @@ export function DeleteAccountScreen({ navigation }: Props) {
   }, [phone, sendReauthOtp, sendingOtp]);
 
   const verifyAndDelete = useCallback(async () => {
-    if (otpCode.length !== 6 || submitting) return;
+    if (submitRef.current || otpCode.length !== 6 || submitting) return;
+    submitRef.current = true;
     setOtpError(null);
     setSubmitting(true);
     try {
@@ -117,12 +129,23 @@ export function DeleteAccountScreen({ navigation }: Props) {
         navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
       }
     } catch {
+      submitRef.current = false;
       setSubmitting(false);
       setOtpError(
         'We could not delete your account. Check the code and your connection, then try again, or use the email option below.',
       );
     }
   }, [deleteAccountEverywhere, navigation, otpCode, phone, submitting, verifyReauthOtp]);
+
+  useEffect(() => {
+    if (!reauth || otpCode.length !== 6) {
+      if (otpCode.length !== 6) autoSubmittedRef.current = null;
+      return;
+    }
+    if (autoSubmittedRef.current === otpCode || submitting || sendingOtp) return;
+    autoSubmittedRef.current = otpCode;
+    void verifyAndDelete();
+  }, [otpCode, reauth, sendingOtp, submitting, verifyAndDelete]);
 
   const handleDelete = useCallback(() => {
     Alert.alert(
@@ -251,7 +274,13 @@ export function DeleteAccountScreen({ navigation }: Props) {
             <TouchableOpacity
               style={styles.emailButton}
               activeOpacity={0.8}
-              onPress={() => setReauth(false)}
+              onPress={() => {
+                submitRef.current = false;
+                autoSubmittedRef.current = null;
+                setOtpCode('');
+                setOtpError(null);
+                setReauth(false);
+              }}
               disabled={submitting}
               accessibilityRole="button"
               accessibilityLabel="Cancel account deletion"

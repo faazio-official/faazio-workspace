@@ -12,6 +12,24 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W82 — Automatic OTP autofill (Android SMS User Consent)
+
+**Status:** 🟢 Shipped (code); native build verification in CI, on-device consent pending.
+
+- New Android native module `SmsUserConsentModule.kt` + `SmsUserConsentPackage` (registered in
+  `MainApplication`) using `play-services-auth-api-phone:18.3.1`. It dynamically registers the
+  `SMS_RETRIEVED` receiver with Play Services' SEND permission — **no `RECEIVE_SMS`/`READ_SMS`
+  permission** — and shows the system consent sheet.
+- `src/lib/smsUserConsent.ts` (`useSmsUserConsent`) listens for `FaazioSmsUserConsent`, validates the
+  6-digit code, and arms/restarts the retriever; Android-only, no-op on iOS.
+- Wired into `LoginScreen`, delivery `OtpVerifyScreen`, and the `DeleteAccountScreen` re-auth:
+  approval fills the code and auto-submits. Added `textContentType="oneTimeCode"` /
+  `autoComplete="sms-otp"` to the hidden Login input. Resend re-arms the retriever; guards prevent
+  double-submit and auto-submit loops after a wrong code.
+- iOS needs no native change (`textContentType` QuickType). No SMS body/sender/phone/code is logged.
+- Native rebuild required: `gh workflow run android-debug.yml -f app=customer`.
+- Docs: `docs/RUNBOOKS/FIREBASE_AUTH.md` §3/§7, `docs/architecture/mobile-app.md`.
+
 ## W81 — Seller listing cleanup: MRP retired, optional licences, payout preview, WebView bridge
 
 **Status:** 🟢 Shipped (gateway + web + mobile + docs).

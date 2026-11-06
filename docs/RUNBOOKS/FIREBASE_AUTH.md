@@ -47,7 +47,9 @@ LoginScreen phone entry
   └─ firebaseAuth.sendOtp(digits) → signInWithPhoneNumber(getAuth(), "+91…")
        ├─ Android: Play Integrity / reCAPTCHA → SMS (or auto-retrieval)
        └─ iOS: APNs silent push, else reCAPTCHA → SMS
-  └─ user enters 6 digits → firebaseAuth.verifyOtp()
+  └─ Android SMS User Consent (src/lib/smsUserConsent.ts + SmsUserConsentModule.kt)
+       └─ Play Services consent sheet → 6-digit code → fills the OTP UI + auto-submits
+  └─ user enters 6 digits (or the code is autofilled) → firebaseAuth.verifyOtp()
        └─ ConfirmationResult.confirm(code) → Firebase user + ID token (RS256 JWT)
             └─ authStore.login() stores {token, user} in the Keychain
                  └─ GatewayClient sends `Authorization: Bearer <ID token>`
@@ -60,6 +62,17 @@ session. Seller onboarding uses `sendSellerOtp`/`verifySellerOtp`, a disposable 
 that OTP is only a signature and must not replace the shopper session. `refreshIdToken()` forces
 `getIdToken(true)`; `GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token,
 phone number or OTP code.
+
+Android also runs **SMS User Consent** after `sendOtp` resolves: a dynamically registered
+`SMS_RETRIEVED` receiver (guarded by `com.google.android.gms.auth.api.phone.permission.SEND`, **no
+`RECEIVE_SMS`/`READ_SMS` permission**) starts `SmsRetriever.startSmsUserConsent(null)`. When the user
+approves the system sheet, the native module extracts a 6-digit code and emits it to
+`useSmsUserConsent`, which fills the OTP input and auto-submits (`LoginScreen`, delivery
+`OtpVerifyScreen`, and the `DeleteAccountScreen` re-auth). This is independent of Play Integrity and
+works on any device with Google Play Services; otherwise it errors and manual entry is unchanged.
+iOS needs no native path — `textContentType="oneTimeCode"` drives QuickType. The module requires a
+native rebuild (`gh workflow run android-debug.yml -f app=customer`); no SMS body, sender, phone
+number or code is logged.
 
 **Account deletion deletes the Firebase identity client-side:** `DeleteAccountScreen` runs a fresh
 phone-OTP re-auth (`sendReauthOtp`/`verifyReauthOtp`), then `deleteAccountEverywhere()` calls the
@@ -207,4 +220,6 @@ Device smoke test (CI debug APK):
 | Send always fails on iOS | Part 6 APNs not configured; reCAPTCHA fallback should still open. Add the `.p8` key. |
 | `401` from the gateway after login | `FIREBASE_PROJECT_ID` mismatch with the token `aud`/`iss`, or the gateway still runs `AUTH_DISABLED=false` with no Firebase verifier. Check Render env. |
 | SMS never arrives | Region policy excludes +91, the number is not a test number, or the free quota is exhausted (Blaze billing required past the quota). |
+| No SMS-autofill consent sheet | Google Play Services is missing/outdated, or the APK predates the native module. Type the code manually; rebuild via `gh workflow run android-debug.yml -f app=customer`. |
+| Consent approved but the code is not filled | The message must contain a standalone 6-digit code and be surfaced by Play Services. Type the code manually; no `RECEIVE_SMS` permission is involved. |
 | Token works but user rows are missing | `checkout.users` upsert needs Postgres; check `/health` → `db:true`. |
