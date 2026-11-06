@@ -195,6 +195,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
 
   // Editing the phone invalidates any OTP already sent/verified for the previous number.
   const updateContactPhone = (value: string) => {
+    // The field is locked while a send/verify is in flight; ignore any programmatic edit as well so
+    // an in-flight request can never sign a number the user just replaced.
+    if (sendRef.current || submitRef.current) return;
+    phoneDigitsRef.current = value.replace(/\D/g, '').slice(-10);
     setForm((prev) => ({ ...prev, contactPhone: value }));
     setOtpCode('');
     setOtpSent(false);
@@ -204,6 +208,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     setOtpError('');
     autoSubmittedRef.current = null;
     consentArmedRef.current = false;
+    stopSmsConsent();
   };
 
   const otpPhone = authPhone || form.contactPhone;
@@ -216,8 +221,12 @@ export function SellerRegistrationScreen({ navigation }: Props) {
 
   const handleSmsCode = useCallback((code: string) => {
     if (!consentArmedRef.current || submitRef.current) return;
+    // Defense in depth: the hook and native module already validate, but the single state binding
+    // must never receive anything except six digits (a chip/paste must fully overwrite a typo).
+    const digits = code.replace(/\D/g, '').slice(0, 6);
+    if (digits.length !== 6) return;
     setOtpError('');
-    setOtpCode(code);
+    setOtpCode(digits);
   }, []);
 
   const { restart: restartSmsConsent, stop: stopSmsConsent } = useSmsUserConsent(
@@ -336,7 +345,9 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   }, [countdown]);
 
   const sendSignatureOtp = async () => {
-    if (sendRef.current) return;
+    // A resend must never overlap an in-flight verify or another send: Firebase replaces `pending`
+    // per send, so an overlapping verify would resolve against the wrong request.
+    if (sendRef.current || submitRef.current) return;
     setOtpError('');
     if (phoneDigits.length !== 10) {
       setOtpError('A valid 10-digit mobile number is required.');
@@ -347,8 +358,8 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       return;
     }
     const targetPhone = phoneDigits;
+    const wasSent = otpSent;
     sendRef.current = true;
-    submitRef.current = false;
     autoSubmittedRef.current = null;
     setOtpBusy(true);
     setOtpCode('');
@@ -370,6 +381,13 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       consentArmedRef.current = false;
       stopSmsConsent();
       if (phoneDigitsRef.current === targetPhone) {
+        // A failed resend has already dropped the previous pending confirmation inside
+        // firebaseAuth, so keeping the UI in "Verify" mode would only produce misleading errors.
+        if (wasSent) {
+          setOtpSent(false);
+          setCountdown(0);
+          setOtpCode('');
+        }
         setOtpError('Could not send the OTP. Please try again.');
       }
     } finally {
@@ -378,8 +396,8 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     }
   };
 
-  const confirmSignatureOtp = async () => {
-    if (submitRef.current) return;
+  const confirmSignatureOtp = useCallback(async () => {
+    if (submitRef.current || sendRef.current) return;
     setOtpError('');
     if (!otpSent || otpCode.trim().length !== 6) {
       setOtpError('Enter the 6-digit code.');
@@ -405,7 +423,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       submitRef.current = false;
       setOtpBusy(false);
     }
-  };
+  }, [otpCode, otpSent, phoneDigits]);
 
   // Submission derives from state, not the 6th keystroke: this fires however the code arrived
   // (typing, paste, or Android SMS User Consent). A failed verify keeps the dedup value so it is
@@ -416,8 +434,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     if (autoSubmittedRef.current === otpCode) return;
     autoSubmittedRef.current = otpCode;
     void confirmSignatureOtp();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [otpCode, otpSent, otpVerified, otpBusy]);
+  }, [confirmSignatureOtp, otpCode, otpSent, otpVerified, otpBusy]);
 
   const validate = (): string | null => {
     const required: [keyof FormState, string][] = [
@@ -717,7 +734,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 value={form.contactPhone}
                 onChangeText={authPhone ? undefined : updateContactPhone}
                 keyboardType="phone-pad"
-                editable={!authPhone}
+                editable={!authPhone && !otpBusy}
               />
               <TextInputField
                 label={setup('contactEmail')?.label ?? 'Contact email'}
@@ -801,7 +818,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                       placeholder="6-digit OTP"
                       placeholderTextColor={neutral.inkSubtle}
                       value={otpCode}
-                      onChangeText={(v) => setOtpCode(v.replace(/\D/g, '').slice(0, 6))}
+                      onChangeText={(v) => {
+                        setOtpError('');
+                        setOtpCode(v.replace(/\D/g, '').slice(0, 6));
+                      }}
                       keyboardType="number-pad"
                       textContentType="oneTimeCode"
                       autoComplete="sms-otp"

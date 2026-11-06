@@ -37,9 +37,12 @@ dependencies exist. Do not build the backend/seller flows until told to.
   seller signature: approval fills the code and auto-submits. Added
   `textContentType="oneTimeCode"` / `autoComplete="sms-otp"` to the hidden Login input and every
   visible OTP input, including the seller signature. Consent events are ignored while a verify is in
-  flight; resend is blocked during verification; the pending OTP is request-scoped so an older
-  `confirm()` cannot clear a newer send. The seller input locks during verify, clears on resend, and
-  the visible Verify button enables at six digits (manual fallback if consent is unavailable).
+  flight; send and verify are mutually exclusive (a resend during verification is refused, and a
+  verify during a send is refused); the pending OTP is request-scoped so an older `confirm()` cannot
+  clear a newer send. The seller OTP and contact-phone inputs lock while `otpBusy`, editing the phone
+  clears the signature and disarms the retriever, and a failed resend drops back to "Send OTP" (the
+  previous pending confirmation is gone). The visible Verify button enables at six digits (manual
+  fallback if consent is unavailable).
 - Native Firebase auto-retrieval is surfaced through `onAuthStateChanged` (the installed
   `@react-native-firebase/auth@27` modular API has no `onVerificationCompleted` callback);
   `LoginScreen`, delivery `OtpVerifyScreen`, and the `DeleteAccountScreen` re-auth consume that

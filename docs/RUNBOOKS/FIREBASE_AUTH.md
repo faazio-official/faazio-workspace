@@ -65,7 +65,12 @@ session. Seller onboarding uses `sendSellerOtp`/`verifySellerOtp`, a disposable 
 that OTP is only a signature and must not replace the shopper session. The seller signature uses the
 same Android SMS User Consent path: consent fills the six digits and auto-submits the seller verify,
 then the gateway's `auth.OTPSigned` check binds the shared shopper token's `phone_number` claim to the
-application's `contactPhone`. `refreshIdToken()` forces `getIdToken(true)`;
+application's `contactPhone`. The seller screen also refuses a resend while a verify is in flight (and
+vice versa), locks the OTP and contact-phone inputs while `otpBusy`, clears the code on a phone edit,
+and returns to "Send OTP" if a resend fails (Firebase has already discarded the previous pending
+confirmation, so keeping "Verify" would only fail). The seller scope has no `onAuthStateChanged`
+auto-retrieval watcher; consent autofill or manual entry is its fast path.
+`refreshIdToken()` forces `getIdToken(true)`;
 `GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token, phone number or OTP code.
 
 Android arms **SMS User Consent before** `sendOtp`/`sendSellerOtp`: the API only observes messages
@@ -245,6 +250,8 @@ Device smoke test (CI debug APK):
 | No SMS-autofill consent sheet | Google Play Services is missing/outdated, the APK predates the native module, or the retriever was armed **after** the SMS was sent. Type the code manually; rebuild via `gh workflow run android-debug.yml -f app=customer`. |
 | Consent approved but the code is not filled | The message must contain a 6-digit run and be surfaced by Play Services. Type the code manually; no `RECEIVE_SMS` permission is involved. |
 | Seller signature OTP does not autofill | SMS User Consent is independent of the disposable `faazio-seller-otp` app, so the same consent sheet should appear after "Send OTP". Without Play Services, type the code manually; the Verify button enables at six digits. |
+| Seller screen drops back to "Send OTP" after tapping resend | The resend failed, so Firebase discarded the previous pending confirmation; re-send once the network is back rather than typing the old code. |
+| "Resend OTP" is tappable but does nothing during verification | Expected: a resend is refused while a verify owns the pending request. Wait for Verify to finish, then resend. |
 | `401 otp_unverified` after the seller signature | The bearer token's phone claim does not match the application `contactPhone` (last 10 digits). Sign in on the shopper account that owns the contact phone and re-verify; a client `otpVerified: true` alone is rejected. |
 | Auto-verification never skips the OTP screen | Firebase templates usually cannot use hash-based auto-retrieval; SMS User Consent is the normal fast path. Manual entry remains available. |
 | OTP screen shows an error right after a resend | An older `confirm()` resolved against a newer send; pending requests are request-scoped now, so retry once and report if it recurs. |

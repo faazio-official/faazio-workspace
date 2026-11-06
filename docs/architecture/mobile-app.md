@@ -1084,7 +1084,12 @@ optional); the OTP runs on a
 disposable secondary Firebase app (`services/firebaseAuth.ts`) so the shopper's primary session is
 never swapped. The signature also uses Android **SMS User Consent**: `SellerRegistrationScreen` arms
 the retriever before `sendSellerOtp`, re-arms on resend, fills the six digits on approval, and
-auto-submits `verifySellerOtp` (manual entry and the Verify button remain available).
+auto-submits `verifySellerOtp` (manual entry and the Verify button remain available). Send and verify
+are mutually exclusive (a resend is refused while a verify is pending, and vice versa), the OTP and
+contact-phone inputs lock while `otpBusy`, editing the phone clears the signature and disarms the
+retriever, and a failed resend returns the UI to "Send OTP" because Firebase discarded the previous
+pending confirmation. The seller scope has no `onAuthStateChanged` auto-retrieval watcher; consent
+autofill or manual entry is its path.
 `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) creates the
 `PENDING_REVIEW` seller, bank account and KYC rows in one transaction, plus one `directory.stores`
 **vendor** per entry in the `vendors[]` payload — the account is brand-agnostic, and the app,
