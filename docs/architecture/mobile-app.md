@@ -1021,10 +1021,14 @@ minimal form and is reached from the Account `earn` group. It is a two-part form
 GSTIN**, required PAN, address, contact phone/email), the **mandatory bank passbook** photo, the
 default payout account (bank name, account number, IFSC, beneficiary) and the OTP digital signature.
 There are **no manual state/district dropdowns**: when a shop is pinned in Part 2 the picker's
-reverse-geocoded region/district are matched case-insensitively against `GET /geo/states`
-(`GatewayClient.getStates`) and `GET /geo/districts` (`GatewayClient.getDistricts`); the first
-matched shop sets the account `stateCode`/`districtCode`. If no shop is pinned, or its state is not
-in the server master (TN/PY coverage today), submission is blocked with a clear message.
+reverse-geocoded region/district are matched case-/punctuation-insensitively (the `(UT)` suffix and
+the `Pondicherry` spelling are normalised) against `GET /geo/states`
+(`GatewayClient.getStates`) and `GET /geo/districts` (`GatewayClient.getDistricts`); the first pinned
+shop whose state is in the district master sets the account `stateCode`/`districtCode`, and the same
+shop supplies the account coordinates. The derivation is recomputed when shops are added, re-pinned
+or removed, so the account can never keep a stale state after its shop is deleted. If no shop is
+pinned, or none is in the server's district master (TN/PY coverage today), submission is blocked with
+a clear message.
 
 **Part 2 — the shops (vendors).** Each `ShopCard` (`features/seller-onboarding/components/`) picks
 its own app (`MART`/`FOOD`/`PHARMA` via the shared `SelectDropdown`), shop name/address, taxonomy

@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   ScrollView,
@@ -66,6 +66,72 @@ interface PinSelection {
 }
 
 /**
+ * Fold a place name/address for tolerant matching: case, accents, punctuation and the `(UT)`
+ * suffix are removed, and the common `Pondicherry` spelling maps onto `Puducherry`.
+ */
+const foldGeo = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[àáâãäå]/g, 'a')
+    .replace(/[èéêë]/g, 'e')
+    .replace(/[ìíîï]/g, 'i')
+    .replace(/[òóôõö]/g, 'o')
+    .replace(/[ùúûü]/g, 'u')
+    .replace(/ç/g, 'c')
+    .replace(/\([^)]*\)/g, ' ')
+    .replace(/[^a-z0-9]/g, '')
+    .replace(/pondicherry/g, 'puducherry');
+
+function matchGeo(
+  address: string,
+  states: GeoState[],
+  districts: DistrictInfo[],
+): { stateCode: string; districtCode: string } | null {
+  const haystack = foldGeo(address);
+  if (!haystack) return null;
+  const state = states.find((s) => {
+    const name = foldGeo(s.name);
+    return name.length > 0 && haystack.includes(name);
+  });
+  if (!state) return null;
+  const district = districts.find((d) => {
+    const name = foldGeo(d.name);
+    return d.stateCode === state.stateCode && name.length > 0 && haystack.includes(name);
+  });
+  return { stateCode: state.stateCode, districtCode: district?.districtCode ?? '' };
+}
+
+/**
+ * Account state/district come from the pinned shops. Prefer the first shop whose state is in the
+ * district master (TN/PY today), so a covered shop always wins over one outside coverage; fall back
+ * to the first matched shop when the district master has not loaded yet. The same shop supplies the
+ * account-level coordinates, keeping `sellers.sellers`' pin and `stateCode` consistent.
+ */
+function deriveAccountGeo(
+  vendors: VendorDraft[],
+  states: GeoState[],
+  districts: DistrictInfo[],
+): { stateCode: string; districtCode: string; latitude: number; longitude: number } | null {
+  const matches: {
+    stateCode: string;
+    districtCode: string;
+    latitude: number;
+    longitude: number;
+  }[] = [];
+  for (const shop of vendors) {
+    if (shop.latitude == null || shop.longitude == null) continue;
+    const geo = matchGeo(shop.pinnedAddress, states, districts);
+    if (!geo) continue;
+    matches.push({ ...geo, latitude: shop.latitude, longitude: shop.longitude });
+  }
+  if (matches.length === 0) return null;
+  if (districts.length > 0) {
+    return matches.find((m) => districts.some((d) => d.stateCode === m.stateCode)) ?? null;
+  }
+  return matches[0];
+}
+
+/**
  * Full seller registration in two parts:
  *   Part 1 — the brand-agnostic account (identity, KYC passbook, payout bank, OTP signature).
  *   Part 2 — one or more shops (vendors), each with its own app/category/fee, documents, optional
@@ -114,9 +180,24 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SellerApplication | null>(null);
+  const [otpVerifiedAt, setOtpVerifiedAt] = useState('');
+
+  // Guards a category request per shop so a slower earlier app request cannot overwrite a newer one.
+  const categoryReq = useRef<Record<string, number>>({});
 
   const update = (key: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
+
+  // Editing the phone invalidates any OTP already sent/verified for the previous number.
+  const updateContactPhone = (value: string) => {
+    setForm((prev) => ({ ...prev, contactPhone: value }));
+    setOtpCode('');
+    setOtpSent(false);
+    setOtpVerified(false);
+    setOtpVerifiedAt('');
+    setCountdown(0);
+    setOtpError('');
+  };
 
   const otpPhone = authPhone || form.contactPhone;
   const phoneDigits = useMemo(() => otpPhone.replace(/\D/g, '').slice(-10), [otpPhone]);
@@ -127,14 +208,22 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   // Superadmin-owned category taxonomy for one shop's app (GET /categories?app=). Server-only — no
   // fixture list. A failure leaves the picker empty so the seller can retry by re-selecting the app.
   function loadCategoriesFor(key: string, app: VendorDraft['app']) {
+    const requestId = (categoryReq.current[key] ?? 0) + 1;
+    categoryReq.current[key] = requestId;
+    const isCurrent = () => categoryReq.current[key] === requestId;
     updateVendor(key, { categoriesLoading: true, categories: [] });
     gateway
       .fetchCategories(app)
-      .then((rows) =>
-        updateVendor(key, { categories: rows.filter((c) => c.parentId === null && c.isActive) }),
-      )
-      .catch(() => updateVendor(key, { categories: [] }))
-      .finally(() => updateVendor(key, { categoriesLoading: false }));
+      .then((rows) => {
+        if (!isCurrent()) return;
+        updateVendor(key, { categories: rows.filter((c) => c.parentId === null && c.isActive) });
+      })
+      .catch(() => {
+        if (isCurrent()) updateVendor(key, { categories: [] });
+      })
+      .finally(() => {
+        if (isCurrent()) updateVendor(key, { categoriesLoading: false });
+      });
   }
 
   const changeVendorApp = (key: string, app: VendorDraft['app']) => {
@@ -158,17 +247,23 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const removeVendor = (key: string) =>
     setVendors((prev) => (prev.length > 1 ? prev.filter((v) => v.key !== key) : prev));
 
-  // Region/district live in the picker's formatted address (reverse geocode joins name, street,
-  // district, city, region). Match case-insensitively against the server masters.
-  const matchGeo = (address: string): { stateCode: string; districtCode: string } | null => {
-    const haystack = address.toLowerCase();
-    const state = states.find((s) => haystack.includes(s.name.toLowerCase()));
-    if (!state) return null;
-    const district = districts.find(
-      (d) => d.stateCode === state.stateCode && haystack.includes(d.name.toLowerCase()),
+  // Region/district come from the picker's formatted address (reverse geocode joins name, street,
+  // district, city, region). The account state/district/coordinates are derived from the shops so
+  // removing or re-pinning a shop cannot leave them stale.
+  const accountGeo = useMemo(
+    () => deriveAccountGeo(vendors, states, districts),
+    [vendors, states, districts],
+  );
+
+  useEffect(() => {
+    const nextState = accountGeo?.stateCode ?? '';
+    const nextDistrict = accountGeo?.districtCode ?? '';
+    setForm((prev) =>
+      prev.stateCode === nextState && prev.districtCode === nextDistrict
+        ? prev
+        : { ...prev, stateCode: nextState, districtCode: nextDistrict },
     );
-    return { stateCode: state.stateCode, districtCode: district?.districtCode ?? '' };
-  };
+  }, [accountGeo]);
 
   const pinVendor = pinTarget ? vendors.find((v) => v.key === pinTarget) : undefined;
   const pinInitial =
@@ -182,42 +277,8 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       longitude: selection.coordinates.longitude,
       pinnedAddress: selection.address,
     });
-    const geo = matchGeo(selection.address);
-    if (geo) {
-      setForm((prev) => {
-        // The first shop in a state owns the account state; later shops may fill a missing district.
-        if (prev.stateCode && prev.stateCode !== geo.stateCode) return prev;
-        return {
-          ...prev,
-          stateCode: prev.stateCode || geo.stateCode,
-          districtCode: prev.districtCode || geo.districtCode,
-        };
-      });
-    }
     setPinTarget(null);
   };
-
-  // The reference masters can arrive after the first pin; re-derive once they are available, and
-  // fill a missing district from any later pinned shop in the same state.
-  useEffect(() => {
-    if (form.stateCode && form.districtCode) return;
-    const pinnedShops = vendors.filter(
-      (v) => v.latitude != null && v.longitude != null && v.pinnedAddress,
-    );
-    for (const shop of pinnedShops) {
-      const geo = matchGeo(shop.pinnedAddress);
-      if (!geo) continue;
-      if (form.stateCode && geo.stateCode !== form.stateCode) continue;
-      setForm((prev) => ({
-        ...prev,
-        stateCode: prev.stateCode || geo.stateCode,
-        districtCode: prev.districtCode || geo.districtCode,
-      }));
-      break;
-    }
-    // matchGeo reads states/districts, both listed below.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [states, districts, vendors, form.stateCode, form.districtCode]);
 
   useEffect(() => {
     let alive = true;
@@ -285,6 +346,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       await verifySellerOtp(phoneDigits, otpCode.trim());
       // The OTP is the digital signature; the shopper's primary Firebase session is untouched.
       setOtpVerified(true);
+      setOtpVerifiedAt(new Date().toLocaleTimeString());
       setCountdown(0);
     } catch {
       setOtpError('That code is incorrect or expired. Request a new one.');
@@ -375,6 +437,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   };
 
   const submit = async () => {
+    if (submitting) return;
     const problem = validate();
     if (problem) {
       setError(problem);
@@ -424,7 +487,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           };
         }),
       );
-      const firstPinned = vendors.find((v) => v.latitude != null && v.longitude != null);
       const res = await gateway.submitSellerApplication({
         businessName: form.businessName.trim(),
         ownerName: form.ownerName.trim(),
@@ -435,8 +497,8 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         contactEmail: form.contactEmail.trim(),
         stateCode: form.stateCode.trim().toUpperCase(),
         districtCode: form.districtCode || undefined,
-        latitude: firstPinned?.latitude,
-        longitude: firstPinned?.longitude,
+        latitude: accountGeo?.latitude,
+        longitude: accountGeo?.longitude,
         vendors: vendorPayload,
         bankName: form.bankName.trim(),
         bankAccountNumber: form.bankAccountNumber.replace(/\D/g, ''),
@@ -458,7 +520,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     !submitting &&
     otpVerified &&
     Boolean(passbookUri) &&
-    /^[A-Z]{2}$/.test(form.stateCode) &&
+    /^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase()) &&
     vendors.length > 0 &&
     vendors.some((v) => v.latitude != null && v.longitude != null) &&
     vendors.every(
@@ -512,7 +574,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
             </View>
             <AppText style={styles.successTitle}>Application submitted</AppText>
             <AppText style={styles.successBody}>
-              Your KYC is queued for state-admin review. You will be notified when it is verified.
+              Your KYC is queued for district-admin review. You will be notified when it is verified.
             </AppText>
             <View style={styles.successRow}>
               <AppText style={styles.successKey}>Application ID</AppText>
@@ -589,7 +651,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 label={setup('contactPhone')?.label ?? 'Contact phone'}
                 placeholder={setup('contactPhone')?.placeholder ?? '+91 00000 00000'}
                 value={form.contactPhone}
-                onChangeText={authPhone ? undefined : update('contactPhone')}
+                onChangeText={authPhone ? undefined : updateContactPhone}
                 keyboardType="phone-pad"
                 editable={!authPhone}
               />
@@ -715,7 +777,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 <View style={styles.signedBox}>
                   <FileCheck2 size={ms(18)} color={semantic.success} strokeWidth={2.2} />
                   <AppText style={styles.signedText}>
-                    OTP verified at {new Date().toLocaleTimeString()}. This is your digital
+                    OTP verified at {otpVerifiedAt || 'this session'}. This is your digital
                     signature.
                   </AppText>
                 </View>
