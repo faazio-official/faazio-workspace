@@ -551,7 +551,9 @@ CREATE INDEX stores_geo_idx ON directory.stores (latitude, longitude)
  CHECK (1..100)`, `seller_category_id TEXT REFERENCES taxonomy.categories(id)`, and
  `fssai_number`/`fssai_cert_key`/`fssai_cert_asset_id` (0069). PHARMA shops additionally carry their
  drug-selling licence `drug_license_number`/`drug_license_cert_key`/`drug_license_cert_asset_id` (0076,
- opt-in: a pharmacy may go live before the licence is attached). One seller ACCOUNT owns many vendors across
+ opt-in: a pharmacy may go live before the licence is attached). A shop may also override the account
+ payout account with `bank_name`/`bank_account_number` (masked tail only)/`bank_ifsc`/
+ `bank_beneficiary_name` (0083, empty = fall back to `sellers.bank_accounts`). One seller ACCOUNT owns many vendors across
  apps. `catalog.products.seller_id` and `directory.menus.seller_id` were **dropped** (0070); product
  ownership derives via `store_id`, menu ownership via `venue_id` → the owning store (dining-venue menus
  have no owner). The account is explicitly brand-agnostic: `sellers.sellers.category`,
@@ -2305,11 +2307,15 @@ Razorpay UPI rail (`0066`) is unchanged. Additions:
    are `PENDING_PAYMENT` at placement until the Razorpay webhook flips them; COD/coins orders are
    `PAID`. Informational — the `checkout.payments` ledger is authoritative.
 2. `delivery.delivery_orders.payment_method` / `payment_status` / `payment_required` /
-   `payment_received` / `payment_received_at` — a mirror of the checkout payment method at creation;
-   `payment_required` is true for COD orders (cash or delivery-QR UPI). Rider endpoint
-   `POST /delivery/{orderId}/stop/{stopId}/payment-received` confirms "Payment received"; the DROP
-   stop may **not** transition to `DELIVERED` (`409 payment_not_received`) until `payment_received`
-   is set. `delivery_payout_status` gains `PARTIAL`.
+    `payment_received` / `payment_received_at` — a mirror of the checkout payment method at creation;
+    `payment_required` is true for COD orders (cash or delivery-QR UPI). Rider endpoint
+    `POST /delivery/{orderId}/stop/{stopId}/payment-received` confirms "Payment received"; the DROP
+    stop may **not** transition to `DELIVERED` (`409 payment_not_received`) until `payment_received`
+    is set. `delivery_payout_status` gains `PARTIAL`. **Correction:** `0077` actually added the
+    other four columns on `delivery.delivery_orders` but **not** `payment_status` — the gateway's
+    delivery read selected it and would error (`column does not exist`); the column shipped later in
+    migration `0080` (permissive `text`, default `PAID`, mirroring `checkout.payments.status`, not
+    the checkout order-gate vocabulary).
 3. `delivery.delivery_payouts.paid_amount_paisa` + `paid_by`/`paid_at` — superadmin/state-admin
    "Mark as Paid" (`POST /admin/delivery/payouts/{orderId}/mark-paid`, body `{amountPaisa}`)
    accumulates `paid_amount_paisa`; status is `PARTIAL` until fully paid and the balance carries
@@ -2344,7 +2350,43 @@ document. Additions:
    per-order tax invoice (`tax.tax_invoices`); the seller downloads it from
    `GET /seller/payout-invoices/{payoutId}` / `GET /admin/seller/payout-invoices/{payoutId}`.
 3. `internal/payouts` `Summaries()` + `MarkSellerPayoutPaid` now attribute earnings **per store**:
-   gross/commission come from `order_items.store_id` with the store's own fee
-   (`coalesce(platform_fee_pct,0)`); order-level TCS/TDS are allocated to each seller proportionally to
-   their gross share of the order. Marking a payout is **capped at the outstanding net balance**
-   (server rejects `amount_exceeds_balance`), and each Mark-as-Paid creates a `payout_invoices` row.
+    gross/commission come from `order_items.store_id` with the store's own fee
+    (`coalesce(platform_fee_pct,0)`); order-level TCS/TDS are allocated to each seller proportionally to
+    their gross share of the order. Marking a payout is **capped at the outstanding net balance**
+    (server rejects `amount_exceeds_balance`), and each Mark-as-Paid creates a `payout_invoices` row.
+
+### 12.33 Delivery payment snapshot + payout uniqueness + order-line store backfill (migrations `0080`–`0082`)
+
+**Authority:** `monolith-breakdown.md` §1 (`delivery`, `payouts` rows). Closes the gaps left open by
+`0077`/`0078` and seals the seed. Changes:
+
+1. **`0080` — `delivery.delivery_orders.payment_status`** (`text NOT NULL DEFAULT 'PAID'`). Completes
+   the rider-facing payment mirror that `0077` documented but never shipped: `internal/delivery`
+   `CreateOrder` snapshots `checkout.payments.status` at dispatch (`coalesce` to `PAID` when the order
+   has no payment row). Vocabulary is the **ledger's** free text (`PENDING`/`PAID`/`FAILED`/`REFUNDED`),
+   not the checkout order-gate set — the authoritative money state stays on `checkout.payments`.
+2. **`0081` — `payments.payouts` `payouts_seller_cycle_idx` is now unique.** `0077` issued
+   `create unique index if not exists` against the name that `0015` had already used for a
+   **non-unique** index, so `IF NOT EXISTS` silently skipped the unique index and duplicate
+   `(seller_id, cycle)` payouts were possible. `0081` drops the non-unique index and recreates it
+   unique; a preflight query in the file surfaces pre-existing duplicates before it will apply.
+3. **`0082` — re-runs the `0078` online backfill** (`order_items.store_id` ← `catalog.products.store_id`)
+   for lines created outside checkout (seed fixtures, pre-0078 replays) so no payout-bearing line is
+   left un-attributed. The seed generator (`generate.mjs`) now writes `store_id` per line — the
+   line's product home store, falling back to the order's `vendorStoreIds[0]` for product-less
+   `past-*` fixtures; lines whose order resolves only to a *dining venue* (`dn-*`, no seller/payout)
+   stay NULL by design.
+
+### 12.34 Per-shop payout override (migration `0083`)
+
+**Authority:** `monolith-breakdown.md` §1 (`sellers` row). One seller ACCOUNT can own shops with
+different payout accounts. The account-level default stays in `sellers.bank_accounts`; a shop may
+carry its own override on `directory.stores`:
+
+1. `directory.stores` gains `bank_name`, `bank_account_number`, `bank_ifsc` and
+   `bank_beneficiary_name` (`text NOT NULL DEFAULT ''`, 0083). Empty means "use the account bank".
+2. `POST /sellers` accepts per-vendor `bankName`/`bankAccountNumber`/`bankIfsc`/`bankBeneficiary`
+   (all-or-none when any is supplied). The gateway masks the account number before storage, exactly
+   like the account-level bank row — the full number never reaches Postgres.
+3. `directory.stores.drug_license_*` (0076) is now populated by mobile onboarding too (PHARMA shops),
+   alongside the existing FOOD FSSAI trio.

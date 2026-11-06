@@ -552,11 +552,27 @@ export interface SellerApplicationVendorInput {
   fssaiNumber?: string;
   fssaiFileKey?: string;
   fssaiAssetId?: string;
+  /** PHARMA drug-selling licence (number + private object key); sent together or not at all. */
+  drugLicenseNumber?: string;
+  drugLicenseFileKey?: string;
+  drugLicenseAssetId?: string;
+  /** Per-shop payout override; sent only when the shop uses its own bank account. */
+  bankName?: string;
+  bankAccountNumber?: string;
+  bankIfsc?: string;
+  bankBeneficiary?: string;
   address?: string;
   phone?: string;
   hours?: string;
   latitude?: number;
   longitude?: number;
+}
+
+/** One active state/UT from `GET /geo/states` (admins.states). */
+export interface GeoState {
+  stateCode: string;
+  name: string;
+  kind?: string;
 }
 
 export interface SellerApplicationInput {
@@ -1776,6 +1792,14 @@ export class GatewayClient {
     return this.serverOnly(
       () => this.http<DistrictInfo[]>(`/geo/districts${queryString({ state: stateCode })}`),
     );
+  }
+
+  /**
+   * Active states/UTs (`GET /geo/states`, any signed-in account). The onboarding pin derives the
+   * account state/district by matching the reverse-geocoded region against this server master.
+   */
+  async getStates(): Promise<GeoState[]> {
+    return this.serverOnly(() => this.http<GeoState[]>('/geo/states'));
   }
 
   /**

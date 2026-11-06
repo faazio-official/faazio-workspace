@@ -9,16 +9,13 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   BadgeCheck,
-  Camera,
   ChevronLeft,
   FileCheck2,
-  LocateFixed,
   Lock,
   Mail,
   Plus,
   ShieldCheck,
   Store,
-  X,
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
@@ -27,35 +24,21 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { SELLER_SETUP_FIELDS } from '@data/index';
 import type { DistrictInfo } from '@data/districts';
-import type { AppBrand } from '@data/types';
-import { gateway, type Category, type SellerApplication } from '@/services/api/GatewayClient';
+import {
+  gateway,
+  type GeoState,
+  type SellerApplication,
+} from '@/services/api/GatewayClient';
 import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/services/firebaseAuth';
-import { getCurrentAddress, type Coordinates } from '@/services/location';
-import SellerLocationPicker from './SellerLocationPicker';
 import { useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
 import DocumentCapture from './DocumentCapture';
-import { parentRamp } from '@/theme/brandTokens';
+import SellerLocationPicker from './SellerLocationPicker';
+import { neutral, parentRamp, semantic, semanticTint } from '@/theme/brandTokens';
+import ShopCard, { newVendorDraft, type VendorDraft } from './components/ShopCard';
+import { DocumentRow, TextInputField } from './components/FormControls';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SellWithUs'>;
-
-const CATEGORIES: { value: AppBrand; label: string }[] = [
-  { value: 'MART', label: 'Mart' },
-  { value: 'FOOD', label: 'Food' },
-  { value: 'PHARMA', label: 'Pharma' },
-];
-
-const INDIAN_STATES: Record<string, string> = {
-  maharashtra: 'MH', karnataka: 'KA', delhi: 'DL', 'new delhi': 'DL', gujarat: 'GJ',
-  'tamil nadu': 'TN', telangana: 'TG', 'andhra pradesh': 'AP', 'uttar pradesh': 'UP',
-  'west bengal': 'WB', rajasthan: 'RJ', 'madhya pradesh': 'MP', kerala: 'KL', punjab: 'PB',
-  haryana: 'HR', bihar: 'BR', odisha: 'OR', jharkhand: 'JH', chhattisgarh: 'CG',
-  assam: 'AS', uttarakhand: 'UK', 'himachal pradesh': 'HP', goa: 'GA', tripura: 'TR',
-  manipur: 'MN', meghalaya: 'ML', mizoram: 'MZ', nagaland: 'NL', sikkim: 'SK',
-  'arunachal pradesh': 'AR', 'jammu and kashmir': 'JK', ladakh: 'LA', puducherry: 'PY',
-  chandigarh: 'CH', 'andaman and nicobar islands': 'AN', lakshadweep: 'LD',
-  'dadra and nagar haveli and daman and diu': 'DN',
-};
 
 /** Label/placeholder sourced from the stable @data contract (keeps the fixture meaningful). */
 const setup = (key: string) => SELLER_SETUP_FIELDS.find((f) => f.key === key);
@@ -68,6 +51,7 @@ interface FormState {
   businessAddress: string;
   contactPhone: string;
   contactEmail: string;
+  /** Derived from the first pinned shop (reverse-geocoded region matched to GET /geo/states). */
   stateCode: string;
   districtCode: string;
   bankName: string;
@@ -76,38 +60,20 @@ interface FormState {
   bankBeneficiary: string;
 }
 
-/** One shop (vendor) the account applies to carry. Each vendor picks its own app, category, fee and
- * (for FOOD) FSSAI licence — the account is brand-agnostic and can own several across Mart/Food/Pharma. */
-interface VendorDraft {
-  key: string;
-  app: AppBrand;
-  vendorName: string;
-  platformFee: string;
-  categoryId: string | null;
-  categories: Category[];
-  categoriesLoading: boolean;
-  fssaiNumber: string;
-  fssaiUri: string | null;
-}
-
-function newVendor(app: AppBrand = 'MART'): VendorDraft {
-  return {
-    key: `v-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    app,
-    vendorName: '',
-    platformFee: '10',
-    categoryId: null,
-    categories: [],
-    categoriesLoading: false,
-    fssaiNumber: '',
-    fssaiUri: null,
-  };
+interface PinSelection {
+  coordinates: { latitude: number; longitude: number };
+  address: string;
 }
 
 /**
- * Full seller registration: business identity, location-derived state, platform fee, payout bank
- * account, mandatory passbook (+ FSSAI for food) and an OTP digital signature. Documents upload
- * straight to the private R2 bucket via a presigned PUT; the server stores keys/asset ids only.
+ * Full seller registration in two parts:
+ *   Part 1 — the brand-agnostic account (identity, KYC passbook, payout bank, OTP signature).
+ *   Part 2 — one or more shops (vendors), each with its own app/category/fee, documents, optional
+ *            bank override and map pin.
+ *
+ * There are no manual state/district dropdowns: the account state/district are derived from the
+ * first shop pin (reverse-geocoded region/district matched against `GET /geo/states` and
+ * `GET /geo/districts`). GSTIN is optional; PAN remains required.
  */
 export function SellerRegistrationScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -129,17 +95,14 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     bankIfsc: '',
     bankBeneficiary: '',
   });
-  const [vendors, setVendors] = useState<VendorDraft[]>(() => [newVendor()]);
+  const [vendors, setVendors] = useState<VendorDraft[]>(() => [newVendorDraft()]);
   const [passbookUri, setPassbookUri] = useState<string | null>(null);
-  const [capture, setCapture] = useState<'passbook' | 'fssai' | null>(null);
+  const [capture, setCapture] = useState<'passbook' | 'fssai' | 'drug' | null>(null);
   const [captureVendorKey, setCaptureVendorKey] = useState<string | null>(null);
+  const [pinTarget, setPinTarget] = useState<string | null>(null);
 
-  const [locating, setLocating] = useState(false);
-  const [locationLabel, setLocationLabel] = useState('');
-  const [locationError, setLocationError] = useState('');
-  const [shopPin, setShopPin] = useState<Coordinates | null>(null);
-  const [shopAddress, setShopAddress] = useState('');
-  const [pinOpen, setPinOpen] = useState(false);
+  const [states, setStates] = useState<GeoState[]>([]);
+  const [districts, setDistricts] = useState<DistrictInfo[]>([]);
 
   const [otpCode, setOtpCode] = useState('');
   const [otpSent, setOtpSent] = useState(false);
@@ -151,9 +114,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SellerApplication | null>(null);
-  // District master for the picker. Hydrates from GET /geo/districts — the DB is the read authority
-  // and the only source; an offline/empty read leaves the picker empty (no bundled district rows).
-  const [districts, setDistricts] = useState<DistrictInfo[]>([]);
 
   const update = (key: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -164,9 +124,9 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const updateVendor = (key: string, patch: Partial<VendorDraft>) =>
     setVendors((prev) => prev.map((v) => (v.key === key ? { ...v, ...patch } : v)));
 
-  // Superadmin-owned category taxonomy for one vendor's app (GET /categories?app=). Server-only — no
+  // Superadmin-owned category taxonomy for one shop's app (GET /categories?app=). Server-only — no
   // fixture list. A failure leaves the picker empty so the seller can retry by re-selecting the app.
-  function loadCategoriesFor(key: string, app: AppBrand) {
+  function loadCategoriesFor(key: string, app: VendorDraft['app']) {
     updateVendor(key, { categoriesLoading: true, categories: [] });
     gateway
       .fetchCategories(app)
@@ -177,13 +137,20 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       .finally(() => updateVendor(key, { categoriesLoading: false }));
   }
 
-  const changeVendorApp = (key: string, app: AppBrand) => {
-    updateVendor(key, { app, categoryId: null, fssaiNumber: '', fssaiUri: null });
+  const changeVendorApp = (key: string, app: VendorDraft['app']) => {
+    updateVendor(key, {
+      app,
+      categoryId: null,
+      fssaiNumber: '',
+      fssaiUri: null,
+      drugLicenseNumber: '',
+      drugLicenseUri: null,
+    });
     loadCategoriesFor(key, app);
   };
 
   const addVendor = () => {
-    const draft = newVendor();
+    const draft = newVendorDraft();
     setVendors((prev) => [...prev, draft]);
     loadCategoriesFor(draft.key, 'MART');
   };
@@ -191,25 +158,84 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const removeVendor = (key: string) =>
     setVendors((prev) => (prev.length > 1 ? prev.filter((v) => v.key !== key) : prev));
 
-  const districtsForState = useMemo(() => {
-    const byState = new Map<string, DistrictInfo[]>();
-    for (const d of districts) {
-      const list = byState.get(d.stateCode);
-      if (list) list.push(d);
-      else byState.set(d.stateCode, [d]);
+  // Region/district live in the picker's formatted address (reverse geocode joins name, street,
+  // district, city, region). Match case-insensitively against the server masters.
+  const matchGeo = (address: string): { stateCode: string; districtCode: string } | null => {
+    const haystack = address.toLowerCase();
+    const state = states.find((s) => haystack.includes(s.name.toLowerCase()));
+    if (!state) return null;
+    const district = districts.find(
+      (d) => d.stateCode === state.stateCode && haystack.includes(d.name.toLowerCase()),
+    );
+    return { stateCode: state.stateCode, districtCode: district?.districtCode ?? '' };
+  };
+
+  const pinVendor = pinTarget ? vendors.find((v) => v.key === pinTarget) : undefined;
+  const pinInitial =
+    pinVendor && pinVendor.latitude != null && pinVendor.longitude != null
+      ? { latitude: pinVendor.latitude, longitude: pinVendor.longitude }
+      : null;
+
+  const handlePin = (key: string, selection: PinSelection) => {
+    updateVendor(key, {
+      latitude: selection.coordinates.latitude,
+      longitude: selection.coordinates.longitude,
+      pinnedAddress: selection.address,
+    });
+    const geo = matchGeo(selection.address);
+    if (geo) {
+      setForm((prev) => {
+        // The first shop in a state owns the account state; later shops may fill a missing district.
+        if (prev.stateCode && prev.stateCode !== geo.stateCode) return prev;
+        return {
+          ...prev,
+          stateCode: prev.stateCode || geo.stateCode,
+          districtCode: prev.districtCode || geo.districtCode,
+        };
+      });
     }
-    return (stateCode: string) => byState.get(stateCode.trim().toUpperCase()) ?? [];
-  }, [districts]);
+    setPinTarget(null);
+  };
+
+  // The reference masters can arrive after the first pin; re-derive once they are available, and
+  // fill a missing district from any later pinned shop in the same state.
+  useEffect(() => {
+    if (form.stateCode && form.districtCode) return;
+    const pinnedShops = vendors.filter(
+      (v) => v.latitude != null && v.longitude != null && v.pinnedAddress,
+    );
+    for (const shop of pinnedShops) {
+      const geo = matchGeo(shop.pinnedAddress);
+      if (!geo) continue;
+      if (form.stateCode && geo.stateCode !== form.stateCode) continue;
+      setForm((prev) => ({
+        ...prev,
+        stateCode: prev.stateCode || geo.stateCode,
+        districtCode: prev.districtCode || geo.districtCode,
+      }));
+      break;
+    }
+    // matchGeo reads states/districts, both listed below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [states, districts, vendors, form.stateCode, form.districtCode]);
 
   useEffect(() => {
     let alive = true;
     gateway
-      .getDistricts()
+      .getStates()
       .then((rows) => {
-        if (alive && rows.length > 0) setDistricts(rows);
+        if (alive) setStates(rows);
       })
       .catch(() => {
-        // Offline/unauthorized: the picker stays empty; state code can still be typed manually.
+        // Offline/unauthorized: no state match means submission is blocked with a clear message.
+      });
+    gateway
+      .getDistricts()
+      .then((rows) => {
+        if (alive) setDistricts(rows);
+      })
+      .catch(() => {
+        // Offline/unauthorized: district remains empty; the server accepts a missing district.
       });
     const first = vendors[0];
     if (first) loadCategoriesFor(first.key, first.app);
@@ -224,31 +250,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
     return () => clearTimeout(timer);
   }, [countdown]);
-
-  const detectLocation = async () => {
-    setLocating(true);
-    setLocationError('');
-    try {
-      const address = await getCurrentAddress();
-      if (!address) {
-        setLocationError('Location permission was denied. Enter your state code manually.');
-        return;
-      }
-      const region = address.place?.region ?? '';
-      const key = region.trim().toLowerCase();
-      const code = INDIAN_STATES[key] ?? (/^[A-Za-z]{2}$/.test(region) ? region.toUpperCase() : '');
-      if (code) {
-        setForm((prev) => ({ ...prev, stateCode: code }));
-        setLocationLabel(region || code);
-      } else {
-        setLocationError('Could not detect your state. Enter the 2-letter code manually.');
-      }
-    } catch {
-      setLocationError('Could not read your location. Enter the state code manually.');
-    } finally {
-      setLocating(false);
-    }
-  };
 
   const sendSignatureOtp = async () => {
     setOtpError('');
@@ -296,12 +297,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     const required: [keyof FormState, string][] = [
       ['businessName', 'business name'],
       ['ownerName', 'owner name'],
-      ['gstin', 'GSTIN'],
       ['pan', 'PAN'],
       ['businessAddress', 'business address'],
       ['contactPhone', 'contact phone'],
       ['contactEmail', 'contact email'],
-      ['stateCode', 'state code'],
       ['bankName', 'bank name'],
       ['bankAccountNumber', 'bank account number'],
       ['bankIfsc', 'IFSC'],
@@ -309,28 +308,69 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     ];
     const missing = required.filter(([k]) => !form[k].trim()).map(([, label]) => label);
     if (missing.length > 0) return `Please fill in: ${missing.join(', ')}.`;
-    const stateCode = form.stateCode.trim().toUpperCase();
-    if (!/^[A-Z]{2}$/.test(stateCode)) return 'Enter a 2-letter state code.';
-    if (districtsForState(stateCode).length > 0 && !form.districtCode) return 'Select your district.';
+    if (phoneDigits.length !== 10) return 'Enter a valid 10-digit contact phone number.';
     if (!/^\S+@\S+\.\S+$/.test(form.contactEmail.trim())) return 'Enter a valid contact email.';
-    if (form.bankAccountNumber.replace(/\D/g, '').length < 6) return 'Enter a valid bank account number.';
-    if (form.bankIfsc.trim().length !== 11) return 'IFSC must be 11 characters.';
-
-    for (const v of vendors) {
-      const label = v.vendorName.trim() || 'every vendor';
-      const vPct = Number(v.platformFee);
-      if (!v.vendorName.trim()) return 'Give every shop a name.';
-      if (!Number.isInteger(vPct) || vPct < 1 || vPct > 100) {
-        return `Platform fee for ${label} must be between 1 and 100.`;
-      }
-      if (v.app === 'FOOD' && vPct < 5) return `${label} is a food shop: its platform fee must be at least 5%.`;
-      if (!v.categoryId) return v.categories.length === 0
-        ? 'Categories are unavailable right now. Reconnect and try again.'
-        : `Select a category for ${label}.`;
+    const accountDigits = form.bankAccountNumber.replace(/\D/g, '');
+    if (accountDigits.length < 6 || accountDigits.length > 20) {
+      return 'Enter a valid bank account number.';
     }
-
+    if (form.bankIfsc.trim().length !== 11) return 'IFSC must be 11 characters.';
     if (!passbookUri) return 'Capture your bank passbook photo.';
     if (!otpVerified) return 'Verify the OTP to sign your application.';
+    if (vendors.length === 0) return 'Add at least one shop.';
+    if (!/^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase())) {
+      return 'Pin at least one shop on the map in Tamil Nadu / Puducherry so the state and district can be set.';
+    }
+    if (!vendors.some((v) => v.latitude != null && v.longitude != null)) {
+      return 'Pin at least one shop on the map in Tamil Nadu / Puducherry so the state and district can be set.';
+    }
+
+    for (const v of vendors) {
+      const label = v.shopName.trim() || 'every shop';
+      if (!v.shopName.trim()) return 'Give every shop a name.';
+      if (!v.shopAddress.trim()) return `Enter the address for ${label}.`;
+      if (!v.categoryId) {
+        return v.categories.length === 0
+          ? 'Categories are unavailable right now. Reconnect and try again.'
+          : `Select a category for ${label}.`;
+      }
+      const pct = Number(v.platformFee);
+      if (!Number.isInteger(pct) || pct < 1 || pct > 100) {
+        return `Platform fee for ${label} must be between 1 and 100.`;
+      }
+      if (v.app === 'FOOD' && pct < 5) {
+        return `${label} is a food shop: its platform fee must be at least 5%.`;
+      }
+      if (v.app === 'FOOD' && (v.fssaiNumber.trim() === '') !== (v.fssaiUri === null)) {
+        return `For ${label}, provide both the FSSAI number and certificate, or neither.`;
+      }
+      if (
+        v.app === 'PHARMA' &&
+        (v.drugLicenseNumber.trim() === '') !== (v.drugLicenseUri === null)
+      ) {
+        return `For ${label}, provide both the drug licence number and certificate, or neither.`;
+      }
+      if (!v.sameAsAccountBank) {
+        const shopBank = [
+          v.bankName,
+          v.bankAccountNumber,
+          v.bankIfsc,
+          v.bankBeneficiary,
+        ].map((field) => field.trim());
+        if (shopBank.some(Boolean)) {
+          if (shopBank.some((field) => !field)) {
+            return `For ${label}, fill all shop bank fields or leave them blank.`;
+          }
+          const digits = v.bankAccountNumber.replace(/\D/g, '');
+          if (digits.length < 6 || digits.length > 20) {
+            return `Enter a valid bank account number for ${label}.`;
+          }
+          if (v.bankIfsc.trim().length !== 11) {
+            return `IFSC for ${label} must be 11 characters.`;
+          }
+        }
+      }
+    }
     return null;
   };
 
@@ -351,31 +391,52 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           if (v.app === 'FOOD' && v.fssaiUri) {
             fssai = await gateway.uploadSellerDocument(v.fssaiUri, ownerId);
           }
+          let drug: { key: string; assetId: string } | undefined;
+          if (v.app === 'PHARMA' && v.drugLicenseUri) {
+            drug = await gateway.uploadSellerDocument(v.drugLicenseUri, ownerId);
+          }
+          const useShopBank =
+            !v.sameAsAccountBank &&
+            [v.bankName, v.bankAccountNumber, v.bankIfsc, v.bankBeneficiary].some((field) =>
+              field.trim(),
+            );
           return {
-            name: v.vendorName.trim(),
+            name: v.shopName.trim(),
             app: v.app,
             categoryId: v.categoryId ?? undefined,
             platformFeePct: Number(v.platformFee),
-            fssaiNumber: v.fssaiNumber.trim() || undefined,
+            address: v.shopAddress.trim() || undefined,
+            latitude: v.latitude,
+            longitude: v.longitude,
+            fssaiNumber: v.app === 'FOOD' ? v.fssaiNumber.trim() || undefined : undefined,
             fssaiFileKey: fssai?.key,
             fssaiAssetId: fssai?.assetId,
-            latitude: shopPin?.latitude,
-            longitude: shopPin?.longitude,
+            drugLicenseNumber:
+              v.app === 'PHARMA' ? v.drugLicenseNumber.trim() || undefined : undefined,
+            drugLicenseFileKey: drug?.key,
+            drugLicenseAssetId: drug?.assetId,
+            bankName: useShopBank ? v.bankName.trim() : undefined,
+            bankAccountNumber: useShopBank
+              ? v.bankAccountNumber.replace(/\D/g, '')
+              : undefined,
+            bankIfsc: useShopBank ? v.bankIfsc.trim().toUpperCase() : undefined,
+            bankBeneficiary: useShopBank ? v.bankBeneficiary.trim() : undefined,
           };
         }),
       );
+      const firstPinned = vendors.find((v) => v.latitude != null && v.longitude != null);
       const res = await gateway.submitSellerApplication({
         businessName: form.businessName.trim(),
         ownerName: form.ownerName.trim(),
         gstin: form.gstin.trim().toUpperCase(),
         pan: form.pan.trim().toUpperCase(),
         businessAddress: form.businessAddress.trim(),
-        contactPhone: form.contactPhone.trim(),
+        contactPhone: `+91${phoneDigits}`,
         contactEmail: form.contactEmail.trim(),
         stateCode: form.stateCode.trim().toUpperCase(),
         districtCode: form.districtCode || undefined,
-        latitude: shopPin?.latitude,
-        longitude: shopPin?.longitude,
+        latitude: firstPinned?.latitude,
+        longitude: firstPinned?.longitude,
         vendors: vendorPayload,
         bankName: form.bankName.trim(),
         bankAccountNumber: form.bankAccountNumber.replace(/\D/g, ''),
@@ -397,8 +458,18 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     !submitting &&
     otpVerified &&
     Boolean(passbookUri) &&
+    /^[A-Z]{2}$/.test(form.stateCode) &&
     vendors.length > 0 &&
-    vendors.every((v) => Boolean(v.vendorName.trim()) && Boolean(v.categoryId));
+    vendors.some((v) => v.latitude != null && v.longitude != null) &&
+    vendors.every(
+      (v) => Boolean(v.shopName.trim()) && Boolean(v.shopAddress.trim()) && Boolean(v.categoryId),
+    );
+
+  const stateName = states.find((s) => s.stateCode === form.stateCode)?.name;
+  const districtName = districts.find((d) => d.districtCode === form.districtCode)?.name;
+  const geoLabel = form.stateCode
+    ? [stateName ?? form.stateCode, districtName].filter(Boolean).join(' · ')
+    : '';
 
   return (
     <View style={styles.container}>
@@ -410,7 +481,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
+          <ChevronLeft size={ms(26)} color={neutral.ink} strokeWidth={2.2} />
         </TouchableOpacity>
         <AppText style={styles.headerTitle}>Sell with us</AppText>
         <View style={{ width: ms(40) }} />
@@ -429,15 +500,15 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           </View>
           <AppText style={styles.heroTitle}>Partner with Faazio</AppText>
           <AppText style={styles.heroSub}>
-            Complete your business, payout and KYC details. A district admin reviews every application
-            before your store goes live.
+            Complete your business account first, then add every shop you run. A district admin
+            reviews the application before your shops go live.
           </AppText>
         </View>
 
         {result ? (
           <View style={styles.successCard}>
             <View style={styles.successIcon}>
-              <BadgeCheck size={ms(26)} color="#16A34A" strokeWidth={2.2} />
+              <BadgeCheck size={ms(26)} color={semantic.success} strokeWidth={2.2} />
             </View>
             <AppText style={styles.successTitle}>Application submitted</AppText>
             <AppText style={styles.successBody}>
@@ -452,23 +523,34 @@ export function SellerRegistrationScreen({ navigation }: Props) {
               <AppText style={styles.successValue}>Pending review</AppText>
             </View>
             <View style={styles.successRow}>
-              <AppText style={styles.successKey}>Vendors</AppText>
+              <AppText style={styles.successKey}>Shops</AppText>
               <AppText style={styles.successValue}>
                 {result.vendors && result.vendors.length > 0
                   ? result.vendors.map((v) => v.app).join(' / ')
                   : '—'}
               </AppText>
             </View>
-            <TouchableOpacity style={styles.submitBtn} onPress={() => navigation.goBack()} activeOpacity={0.9}>
+            <TouchableOpacity
+              style={styles.submitBtn}
+              onPress={() => navigation.goBack()}
+              activeOpacity={0.9}
+            >
               <AppText style={styles.submitText}>Done</AppText>
             </TouchableOpacity>
           </View>
         ) : (
           <>
+            <View style={styles.stepRow}>
+              <View style={styles.stepBadge}>
+                <AppText style={styles.stepBadgeText}>1</AppText>
+              </View>
+              <AppText style={styles.stepTitle}>Business account</AppText>
+            </View>
+
             <View style={styles.sectionCard}>
-              <AppText style={styles.sectionTitle}>Business details</AppText>
+              <AppText style={styles.sectionTitle}>Business identity</AppText>
               <AppText style={styles.sectionNote}>
-                Your business identity. The shops you run under it are added next.
+                The account that owns your shops. PAN is required; GSTIN is optional.
               </AppText>
 
               <TextInputField
@@ -484,7 +566,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 onChangeText={update('ownerName')}
               />
               <TextInputField
-                label={setup('gstin')?.label ?? 'GSTIN'}
+                label={`${setup('gstin')?.label ?? 'GSTIN'} (optional)`}
                 placeholder={setup('gstin')?.placeholder ?? '22ABCDE1234F1Z5'}
                 value={form.gstin}
                 onChangeText={update('gstin')}
@@ -503,24 +585,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 value={form.businessAddress}
                 onChangeText={update('businessAddress')}
               />
-              <TouchableOpacity
-                style={styles.pinButton}
-                onPress={() => setPinOpen(true)}
-                activeOpacity={0.8}
-              >
-                <LocateFixed size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
-                <View style={{ flex: 1 }}>
-                  <AppText style={styles.pinButtonTitle}>
-                    {shopPin ? 'Shop pin selected' : 'Pin shop location on map'}
-                  </AppText>
-                  <AppText style={styles.pinButtonValue} numberOfLines={1}>
-                    {shopPin
-                      ? shopAddress ||
-                        `${shopPin.latitude.toFixed(5)}, ${shopPin.longitude.toFixed(5)}`
-                      : 'Helps customers find you and powers nearby ranking'}
-                  </AppText>
-                </View>
-              </TouchableOpacity>
               <TextInputField
                 label={setup('contactPhone')?.label ?? 'Contact phone'}
                 placeholder={setup('contactPhone')?.placeholder ?? '+91 00000 00000'}
@@ -537,216 +601,27 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
-
-              <View style={styles.stateRow}>
-                <View style={{ flex: 1 }}>
-                  <TextInputField
-                    label={setup('state')?.label ?? 'State'}
-                    placeholder={setup('state')?.placeholder ?? 'e.g. MH'}
-                    value={form.stateCode}
-                    onChangeText={(v) => {
-                      setLocationLabel('');
-                      setForm((prev) => ({
-                        ...prev,
-                        stateCode: v.toUpperCase(),
-                        districtCode: '',
-                      }));
-                    }}
-                    autoCapitalize="characters"
-                    maxLength={2}
-                    editable={!locationLabel}
-                  />
-                </View>
-                <TouchableOpacity
-                  style={styles.locationButton}
-                  onPress={detectLocation}
-                  disabled={locating}
-                  activeOpacity={0.8}
-                >
-                  {locating ? (
-                    <ActivityIndicator size="small" color={parentRamp.base} />
-                  ) : (
-                    <LocateFixed size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
-                  )}
-                  <AppText style={styles.locationText}>
-                    {locationLabel ? 'Detected' : 'Use location'}
-                  </AppText>
-                </TouchableOpacity>
-              </View>
-              {districtsForState(form.stateCode).length > 0 ? (
-                <View style={styles.districtBlock}>
-                  <AppText style={styles.districtLabel}>District</AppText>
-                  <View style={styles.districtChips}>
-                    {districtsForState(form.stateCode).map((d) => {
-                      const active = form.districtCode === d.districtCode;
-                      return (
-                        <TouchableOpacity
-                          key={d.districtCode}
-                          style={[styles.districtChip, active && styles.districtChipActive]}
-                          onPress={() => update('districtCode')(d.districtCode)}
-                          accessibilityRole="button"
-                          accessibilityState={{ selected: active }}
-                        >
-                          <AppText
-                            style={[styles.districtChipText, active && styles.districtChipTextActive]}
-                          >
-                            {d.name}
-                          </AppText>
-                        </TouchableOpacity>
-                      );
-                    })}
-                  </View>
-                </View>
-              ) : null}
-              {locationLabel ? (
-                <TouchableOpacity onPress={() => setLocationLabel('')} activeOpacity={0.7}>
-                  <AppText style={styles.linkText}>Change state manually</AppText>
-                </TouchableOpacity>
-              ) : null}
-              {locationError ? <AppText style={styles.helperError}>{locationError}</AppText> : null}
             </View>
 
             <View style={styles.sectionCard}>
-              <AppText style={styles.sectionTitle}>Your shops</AppText>
+              <AppText style={styles.sectionTitle}>KYC documents</AppText>
               <AppText style={styles.sectionNote}>
-                Add every shop you run. Each shop picks its own app, category, platform fee and (for
-                a food shop) FSSAI licence — one account can own several.
+                Images are uploaded to a private bucket and shown only to you and the review team.
+                Your state and district are set from the first shop pin in Part 2.
               </AppText>
-
-              {vendors.map((vm, index) => {
-                return (
-                  <View key={vm.key} style={styles.vendorCard}>
-                    <View style={styles.vendorHeader}>
-                      <View style={styles.vendorBadge}>
-                        <Store size={ms(14)} color="#FFFFFF" strokeWidth={2.2} />
-                      </View>
-                      <AppText style={styles.vendorTitle}>Shop {index + 1}</AppText>
-                      {vendors.length > 1 ? (
-                        <TouchableOpacity
-                          onPress={() => removeVendor(vm.key)}
-                          style={styles.vendorRemove}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Remove shop ${index + 1}`}
-                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                        >
-                          <X size={ms(16)} color="#64748B" strokeWidth={2.2} />
-                        </TouchableOpacity>
-                      ) : null}
-                    </View>
-
-                    <AppText style={styles.inputLabel}>App</AppText>
-                    <View style={styles.chipRow}>
-                      {CATEGORIES.map((c) => {
-                        const active = vm.app === c.value;
-                        return (
-                          <TouchableOpacity
-                            key={c.value}
-                            style={[styles.chip, active && styles.chipActive]}
-                            onPress={() => changeVendorApp(vm.key, c.value)}
-                            activeOpacity={0.8}
-                            accessibilityRole="button"
-                            accessibilityState={{ selected: active }}
-                          >
-                            <AppText style={[styles.chipText, active && styles.chipTextActive]}>
-                              {c.label}
-                            </AppText>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </View>
-
-                    <TextInputField
-                      label="Shop name"
-                      placeholder={vm.app === 'FOOD' ? 'e.g. Paradise Biryani House' : 'e.g. Darling Mobiles'}
-                      value={vm.vendorName}
-                      onChangeText={(value) => updateVendor(vm.key, { vendorName: value })}
-                    />
-
-                    <AppText style={styles.inputLabel}>
-                      {vm.app === 'FOOD' ? 'Restaurant type' : 'Category'}
-                    </AppText>
-                    {vm.categoriesLoading ? (
-                      <ActivityIndicator color={parentRamp.base} style={styles.categoryLoader} />
-                    ) : vm.categories.length === 0 ? (
-                      <AppText style={styles.categoryEmpty}>
-                        Categories are unavailable for {vm.app}. Check your connection and re-select
-                        the app.
-                      </AppText>
-                    ) : (
-                      <View style={styles.chipRow}>
-                        {vm.categories.map((c) => {
-                          const active = vm.categoryId === c.id;
-                          return (
-                            <TouchableOpacity
-                              key={c.id}
-                              style={[styles.chip, active && styles.chipActive]}
-                              onPress={() => updateVendor(vm.key, { categoryId: c.id })}
-                              activeOpacity={0.8}
-                              accessibilityRole="button"
-                              accessibilityState={{ selected: active }}
-                            >
-                              <AppText style={[styles.chipText, active && styles.chipTextActive]}>
-                                {c.name}
-                              </AppText>
-                            </TouchableOpacity>
-                          );
-                        })}
-                      </View>
-                    )}
-
-                    <TextInputField
-                      label={setup('platformFee')?.label ?? 'Platform fee %'}
-                      placeholder={vm.app === 'FOOD' ? '5 – 100' : '1 – 100'}
-                      value={vm.platformFee}
-                      onChangeText={(value) => updateVendor(vm.key, { platformFee: value })}
-                      keyboardType="number-pad"
-                      maxLength={3}
-                    />
-                    <AppText style={styles.helperText}>
-                      The platform retains this share of each order; the rest is settled to your bank
-                      after the 7-day buyer-protection hold.
-                    </AppText>
-
-                    {vm.app === 'FOOD' ? (
-                      <>
-                        <TextInputField
-                          label={setup('fssaiNumber')?.label ?? 'FSSAI licence number (optional)'}
-                          placeholder={setup('fssaiNumber')?.placeholder ?? '14-digit licence number'}
-                          value={vm.fssaiNumber}
-                          onChangeText={(value) => updateVendor(vm.key, { fssaiNumber: value })}
-                          keyboardType="number-pad"
-                        />
-                        <DocumentRow
-                          label="FSSAI certificate (optional)"
-                          optional
-                          uri={vm.fssaiUri}
-                          onCapture={() => {
-                            setCaptureVendorKey(vm.key);
-                            setCapture('fssai');
-                          }}
-                          onRemove={() => updateVendor(vm.key, { fssaiUri: null })}
-                        />
-                      </>
-                    ) : null}
-                  </View>
-                );
-              })}
-
-              <TouchableOpacity
-                style={styles.addVendorBtn}
-                onPress={addVendor}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-              >
-                <Plus size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
-                <AppText style={styles.addVendorText}>Add another shop</AppText>
-              </TouchableOpacity>
+              <DocumentRow
+                label="Bank passbook"
+                uri={passbookUri}
+                onCapture={() => setCapture('passbook')}
+                onRemove={() => setPassbookUri(null)}
+              />
             </View>
 
             <View style={styles.sectionCard}>
               <AppText style={styles.sectionTitle}>Payout account</AppText>
               <AppText style={styles.sectionNote}>
-                The full account number is sent to Razorpay and never stored by Faazio.
+                The default account for every shop. A shop can override it in Part 2. The full
+                account number is sent to Razorpay and never stored by Faazio.
               </AppText>
               <TextInputField
                 label={setup('bankName')?.label ?? 'Bank name'}
@@ -778,25 +653,11 @@ export function SellerRegistrationScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.sectionCard}>
-              <AppText style={styles.sectionTitle}>KYC documents</AppText>
-              <AppText style={styles.sectionNote}>
-                Images are uploaded to a private bucket and shown only to you and the review team.
-              </AppText>
-
-              <DocumentRow
-                label="Bank passbook"
-                uri={passbookUri}
-                onCapture={() => setCapture('passbook')}
-                onRemove={() => setPassbookUri(null)}
-              />
-            </View>
-
-            <View style={styles.sectionCard}>
               <View style={styles.sectionTitleRow}>
                 <AppText style={styles.sectionTitle}>Digital signature</AppText>
                 {otpVerified ? (
                   <View style={styles.verifiedPill}>
-                    <ShieldCheck size={ms(12)} color="#16A34A" strokeWidth={2.4} />
+                    <ShieldCheck size={ms(12)} color={semantic.success} strokeWidth={2.4} />
                     <AppText style={styles.verifiedText}>Verified</AppText>
                   </View>
                 ) : null}
@@ -812,7 +673,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                     <AppTextInput
                       style={[styles.input, styles.otpInput]}
                       placeholder="6-digit OTP"
-                      placeholderTextColor="#94A3B8"
+                      placeholderTextColor={neutral.inkSubtle}
                       value={otpCode}
                       onChangeText={setOtpCode}
                       keyboardType="number-pad"
@@ -829,7 +690,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                       activeOpacity={0.85}
                     >
                       {otpBusy ? (
-                        <ActivityIndicator size="small" color="#ffffff" />
+                        <ActivityIndicator size="small" color={parentRamp.onBase} />
                       ) : (
                         <AppText style={styles.otpButtonText}>
                           {otpSent ? 'Verify' : 'Send OTP'}
@@ -852,13 +713,63 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 </>
               ) : (
                 <View style={styles.signedBox}>
-                  <FileCheck2 size={ms(18)} color="#16A34A" strokeWidth={2.2} />
+                  <FileCheck2 size={ms(18)} color={semantic.success} strokeWidth={2.2} />
                   <AppText style={styles.signedText}>
                     OTP verified at {new Date().toLocaleTimeString()}. This is your digital
                     signature.
                   </AppText>
                 </View>
               )}
+            </View>
+
+            <View style={styles.stepRow}>
+              <View style={styles.stepBadge}>
+                <AppText style={styles.stepBadgeText}>2</AppText>
+              </View>
+              <AppText style={styles.stepTitle}>Your shops</AppText>
+            </View>
+
+            <View style={styles.sectionCard}>
+              <AppText style={styles.sectionNote}>
+                Add every shop you run. Each shop picks its own app, category, platform fee,
+                documents, optional bank account and map pin.
+              </AppText>
+
+              {vendors.map((vendor, index) => (
+                <ShopCard
+                  key={vendor.key}
+                  vendor={vendor}
+                  index={index}
+                  canRemove={vendors.length > 1}
+                  onRemove={() => removeVendor(vendor.key)}
+                  onChange={(patch) => updateVendor(vendor.key, patch)}
+                  onAppChange={(app) => changeVendorApp(vendor.key, app)}
+                  onPinLocation={() => setPinTarget(vendor.key)}
+                  onCaptureDoc={(kind) => {
+                    setCaptureVendorKey(vendor.key);
+                    setCapture(kind);
+                  }}
+                  onAddAnother={addVendor}
+                />
+              ))}
+
+              <TouchableOpacity
+                style={styles.addShopBtn}
+                onPress={addVendor}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+              >
+                <Plus size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
+                <AppText style={styles.addShopText}>Add another shop</AppText>
+              </TouchableOpacity>
+
+              <View style={styles.geoNote}>
+                <AppText style={styles.geoNoteText}>
+                  {geoLabel
+                    ? `State & district set from your pinned shop: ${geoLabel}.`
+                    : 'Pin at least one shop on the map so your state and district can be set.'}
+                </AppText>
+              </View>
             </View>
 
             {error ? <AppText style={styles.errorText}>{error}</AppText> : null}
@@ -870,10 +781,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
               disabled={!canSubmit}
             >
               {submitting ? (
-                <ActivityIndicator size="small" color="#ffffff" />
+                <ActivityIndicator size="small" color={parentRamp.onBase} />
               ) : (
                 <>
-                  <Lock size={ms(16)} color="#ffffff" strokeWidth={2.2} />
+                  <Lock size={ms(16)} color={parentRamp.onBase} strokeWidth={2.2} />
                   <AppText style={styles.submitText}>
                     {canSubmit ? 'Submit for review' : 'Complete OTP and documents'}
                   </AppText>
@@ -885,7 +796,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
             ) : null}
 
             <View style={styles.secureNote}>
-              <Mail size={ms(12)} color="#94A3B8" strokeWidth={2.2} />
+              <Mail size={ms(12)} color={neutral.inkSubtle} strokeWidth={2.2} />
               <AppText style={styles.secureNoteText}>
                 Your bank details are sent over an authenticated connection. KYC images live in a
                 private bucket; secrets and OTPs are never logged.
@@ -896,19 +807,23 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       </ScrollView>
 
       <SellerLocationPicker
-        visible={pinOpen}
-        initial={shopPin}
-        onCancel={() => setPinOpen(false)}
-        onPick={({ coordinates, address }) => {
-          setShopPin(coordinates);
-          setShopAddress(address);
-          setPinOpen(false);
+        visible={pinTarget !== null}
+        initial={pinInitial}
+        onCancel={() => setPinTarget(null)}
+        onPick={(selection) => {
+          if (pinTarget) handlePin(pinTarget, selection);
         }}
       />
 
       <DocumentCapture
         visible={capture !== null}
-        title={capture === 'fssai' ? 'FSSAI certificate' : 'Bank passbook'}
+        title={
+          capture === 'fssai'
+            ? 'FSSAI certificate'
+            : capture === 'drug'
+              ? 'Drug licence certificate'
+              : 'Bank passbook'
+        }
         onClose={() => {
           setCapture(null);
           setCaptureVendorKey(null);
@@ -916,6 +831,8 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         onCaptured={(uri) => {
           if (capture === 'fssai' && captureVendorKey) {
             updateVendor(captureVendorKey, { fssaiUri: uri });
+          } else if (capture === 'drug' && captureVendorKey) {
+            updateVendor(captureVendorKey, { drugLicenseUri: uri });
           } else if (capture === 'passbook') {
             setPassbookUri(uri);
           }
@@ -927,86 +844,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   );
 }
 
-interface TextInputFieldProps {
-  label: string;
-  placeholder: string;
-  value: string;
-  onChangeText?: (value: string) => void;
-  autoCapitalize?: 'none' | 'sentences' | 'words' | 'characters';
-  keyboardType?: 'default' | 'phone-pad' | 'number-pad' | 'email-address';
-  maxLength?: number;
-  editable?: boolean;
-}
-
-function TextInputField({
-  label,
-  placeholder,
-  value,
-  onChangeText,
-  autoCapitalize,
-  keyboardType,
-  maxLength,
-  editable = true,
-}: TextInputFieldProps) {
-  return (
-    <View style={styles.fieldWrap}>
-      <AppText style={styles.inputLabel}>{label}</AppText>
-      <AppTextInput
-        style={[styles.input, !editable && styles.inputReadOnly]}
-        placeholder={placeholder}
-        placeholderTextColor="#94A3B8"
-        value={value}
-        onChangeText={onChangeText}
-        autoCapitalize={autoCapitalize}
-        keyboardType={keyboardType}
-        maxLength={maxLength}
-        editable={editable}
-      />
-    </View>
-  );
-}
-
-function DocumentRow({
-  label,
-  uri,
-  optional = false,
-  onCapture,
-  onRemove,
-}: {
-  label: string;
-  uri: string | null;
-  optional?: boolean;
-  onCapture: () => void;
-  onRemove: () => void;
-}) {
-  return (
-    <View style={styles.docRow}>
-      <View style={[styles.docIcon, uri && styles.docIconDone]}>
-        {uri ? (
-          <BadgeCheck size={ms(18)} color="#16A34A" strokeWidth={2.2} />
-        ) : (
-          <Camera size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
-        )}
-      </View>
-      <View style={{ flex: 1 }}>
-        <AppText style={styles.docLabel}>{label}</AppText>
-        <AppText style={styles.docStatus}>{uri ? 'Captured' : optional ? 'Optional' : 'Required'}</AppText>
-      </View>
-      <TouchableOpacity
-        style={styles.docButton}
-        onPress={uri ? onRemove : onCapture}
-        activeOpacity={0.8}
-      >
-        <AppText style={styles.docButtonText}>{uri ? 'Retake' : 'Capture'}</AppText>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
 export default SellerRegistrationScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F6F9' },
+  container: { flex: 1, backgroundColor: neutral.surfaceAlt },
   scroll: { flex: 1 },
   scrollContent: {
     paddingTop: SPACE.SECTION,
@@ -1019,7 +860,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
     paddingBottom: SPACE.BLOCK,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     zIndex: 10,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -1028,7 +869,7 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   backButton: { width: ms(40), height: ms(40), alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: ms(18), fontWeight: '900', color: '#0f172a' },
+  headerTitle: { fontSize: ms(18), fontWeight: '900', color: neutral.ink },
   heroCard: {
     backgroundColor: parentRamp.base,
     borderRadius: ms(20),
@@ -1039,15 +880,38 @@ const styles = StyleSheet.create({
     width: ms(42),
     height: ms(42),
     borderRadius: ms(12),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACE.BLOCK,
   },
-  heroTitle: { fontSize: ms(18), fontWeight: '900', color: '#FFFFFF' },
-  heroSub: { fontSize: ms(12), color: '#DBEAFE', lineHeight: ms(18), marginTop: vs(6) },
+  heroTitle: { fontSize: ms(18), fontWeight: '900', color: parentRamp.onBase },
+  heroSub: { fontSize: ms(12), color: parentRamp.tint, lineHeight: ms(18), marginTop: vs(6) },
+  stepRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(8),
+    marginBottom: SPACE.BLOCK,
+    marginTop: vs(2),
+  },
+  stepBadge: {
+    width: ms(24),
+    height: ms(24),
+    borderRadius: ms(12),
+    backgroundColor: parentRamp.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepBadgeText: { fontSize: ms(12), fontWeight: '900', color: parentRamp.base },
+  stepTitle: {
+    fontSize: ms(13),
+    fontWeight: '900',
+    color: neutral.ink,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
   sectionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(18),
     padding: hs(16),
     marginBottom: SPACE.SECTION,
@@ -1056,171 +920,31 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: ms(14),
     fontWeight: '900',
-    color: '#0f172a',
+    color: neutral.ink,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
   sectionNote: {
     fontSize: ms(11),
-    color: '#94A3B8',
+    color: neutral.inkSubtle,
     marginTop: vs(2),
     marginBottom: SPACE.BLOCK,
-  },
-  fieldWrap: { marginTop: vs(12) },
-  inputLabel: {
-    fontSize: ms(11),
-    fontWeight: '700',
-    color: '#94A3B8',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-    marginBottom: vs(6),
+    lineHeight: ms(16),
   },
   input: {
     height: Math.max(46, vs(46)),
-    backgroundColor: '#F8FAFC',
+    backgroundColor: neutral.surface,
     borderRadius: ms(12),
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: neutral.border,
     paddingHorizontal: hs(12),
     fontSize: ms(14),
     fontWeight: '600',
-    color: '#0f172a',
+    color: neutral.ink,
   },
-  inputReadOnly: { backgroundColor: '#EEF2F7', color: '#64748B' },
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: hs(8) },
-  categoryLoader: { alignSelf: 'flex-start', marginVertical: vs(8) },
-  categoryEmpty: { fontSize: ms(12), fontWeight: '600', color: '#94A3B8', marginBottom: vs(8) },
-  vendorCard: {
-    backgroundColor: '#F8FAFC',
-    borderRadius: ms(14),
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    padding: hs(14),
-    marginBottom: SPACE.BLOCK,
-  },
-  vendorHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: vs(12) },
-  vendorBadge: {
-    width: ms(26),
-    height: ms(26),
-    borderRadius: ms(8),
-    backgroundColor: parentRamp.base,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: hs(8),
-  },
-  vendorTitle: { flex: 1, fontSize: ms(13), fontWeight: '900', color: '#0f172a' },
-  vendorRemove: {
-    width: ms(28),
-    height: ms(28),
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: ms(8),
-  },
-  addVendorBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: hs(6),
-    height: Math.max(46, vs(46)),
-    borderRadius: ms(12),
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    borderStyle: 'dashed',
-    backgroundColor: '#F8FAFC',
-  },
-  addVendorText: { fontSize: ms(12), fontWeight: '800', color: parentRamp.base },
-  chip: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: vs(10),
-    borderRadius: ms(12),
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-    backgroundColor: '#F8FAFC',
-  },
-  chipActive: { borderColor: parentRamp.base, backgroundColor: '#EFF6FF' },
-  chipText: { fontSize: ms(13), fontWeight: '800', color: '#64748B' },
-  chipTextActive: { color: parentRamp.base },
-  districtBlock: { marginTop: vs(10) },
-  districtLabel: { fontSize: ms(12), fontWeight: '800', color: '#334155', marginBottom: vs(8) },
-  districtChips: { flexDirection: 'row', flexWrap: 'wrap', gap: hs(8) },
-  districtChip: {
-    paddingHorizontal: hs(12),
-    paddingVertical: vs(7),
-    borderRadius: ms(16),
-    backgroundColor: '#FFFFFF',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
-  },
-  districtChipActive: { backgroundColor: parentRamp.base, borderColor: parentRamp.base },
-  districtChipText: { fontSize: ms(11.5), fontWeight: '700', color: '#64748B' },
-  districtChipTextActive: { color: '#FFFFFF' },
-  stateRow: { flexDirection: 'row', alignItems: 'flex-end', gap: hs(8) },
-  locationButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: hs(6),
-    height: Math.max(46, vs(46)),
-    paddingHorizontal: hs(12),
-    borderRadius: ms(12),
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    backgroundColor: '#EFF6FF',
-  },
-  pinButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(10),
-    paddingHorizontal: hs(12),
-    paddingVertical: vs(10),
-    borderRadius: ms(10),
-    borderWidth: 1,
-    borderColor: '#BFD7F7',
-    backgroundColor: '#F5F9FF',
-    marginTop: vs(10),
-  },
-  pinButtonTitle: { fontSize: ms(11), fontWeight: '800', color: '#0f172a' },
-  pinButtonValue: { fontSize: ms(10), color: '#64748B', marginTop: vs(1) },
-  locationText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base },
-  helperText: {
-    fontSize: ms(10.5),
-    color: '#94A3B8',
-    lineHeight: ms(15),
-    marginTop: vs(8),
-  },
-  helperError: { fontSize: ms(11), color: '#DC2626', fontWeight: '700', marginTop: vs(8) },
+  helperError: { fontSize: ms(11), color: semantic.danger, fontWeight: '700', marginTop: vs(8) },
   linkText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base, marginTop: vs(8) },
-  linkTextMuted: { color: '#94A3B8' },
-  docRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(10),
-    paddingVertical: vs(10),
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#EEF1F5',
-  },
-  docIcon: {
-    width: ms(38),
-    height: ms(38),
-    borderRadius: ms(11),
-    backgroundColor: '#EFF6FF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  docIconDone: { backgroundColor: '#DCFCE7' },
-  docLabel: { fontSize: ms(13), fontWeight: '800', color: '#0f172a' },
-  docStatus: { fontSize: ms(10.5), color: '#94A3B8', marginTop: vs(2) },
-  docButton: {
-    paddingHorizontal: hs(12),
-    paddingVertical: vs(8),
-    borderRadius: ms(10),
-    borderWidth: 1,
-    borderColor: '#BFDBFE',
-    backgroundColor: '#EFF6FF',
-  },
-  docButtonText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base },
+  linkTextMuted: { color: neutral.inkSubtle },
   verifiedPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1228,9 +952,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(8),
     paddingVertical: vs(4),
     borderRadius: ms(20),
-    backgroundColor: '#DCFCE7',
+    backgroundColor: semanticTint.success,
   },
-  verifiedText: { fontSize: ms(10), fontWeight: '800', color: '#16A34A' },
+  verifiedText: { fontSize: ms(10), fontWeight: '800', color: semantic.success },
   otpRow: { flexDirection: 'row', gap: hs(8), alignItems: 'center' },
   otpInput: { flex: 1 },
   otpButton: {
@@ -1242,20 +966,40 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   otpButtonDisabled: { opacity: 0.6 },
-  otpButtonText: { fontSize: ms(12), fontWeight: '800', color: '#ffffff', textTransform: 'uppercase' },
+  otpButtonText: { fontSize: ms(12), fontWeight: '800', color: parentRamp.onBase, textTransform: 'uppercase' },
   signedBox: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(8),
     padding: hs(12),
     borderRadius: ms(12),
-    backgroundColor: '#F0FDF4',
+    backgroundColor: semanticTint.success,
   },
-  signedText: { flex: 1, fontSize: ms(11), color: '#166534', lineHeight: ms(16), fontWeight: '600' },
+  signedText: { flex: 1, fontSize: ms(11), color: semantic.success, lineHeight: ms(16), fontWeight: '600' },
+  addShopBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: hs(6),
+    height: Math.max(46, vs(46)),
+    borderRadius: ms(12),
+    borderWidth: 1,
+    borderColor: parentRamp.tint,
+    borderStyle: 'dashed',
+    backgroundColor: neutral.surface,
+  },
+  addShopText: { fontSize: ms(12), fontWeight: '800', color: parentRamp.base },
+  geoNote: {
+    marginTop: SPACE.BLOCK,
+    padding: hs(10),
+    borderRadius: ms(10),
+    backgroundColor: parentRamp.tint,
+  },
+  geoNoteText: { fontSize: ms(10.5), fontWeight: '600', color: parentRamp.deep, lineHeight: ms(15) },
   errorText: {
     fontSize: ms(12),
     fontWeight: '700',
-    color: '#DC2626',
+    color: semantic.danger,
     marginBottom: vs(10),
     textAlign: 'center',
   },
@@ -1269,10 +1013,10 @@ const styles = StyleSheet.create({
     backgroundColor: parentRamp.base,
   },
   submitBtnDisabled: { opacity: 0.55 },
-  submitText: { fontSize: ms(13), fontWeight: '800', color: '#ffffff', textTransform: 'uppercase' },
+  submitText: { fontSize: ms(13), fontWeight: '800', color: parentRamp.onBase, textTransform: 'uppercase' },
   uploadingText: {
     fontSize: ms(10.5),
-    color: '#64748B',
+    color: neutral.inkMuted,
     textAlign: 'center',
     marginTop: vs(8),
   },
@@ -1284,9 +1028,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(8),
     gap: hs(6),
   },
-  secureNoteText: { fontSize: ms(10.5), color: '#94A3B8', lineHeight: ms(15), flex: 1 },
+  secureNoteText: { fontSize: ms(10.5), color: neutral.inkSubtle, lineHeight: ms(15), flex: 1 },
   successCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(18),
     padding: hs(18),
     alignItems: 'center',
@@ -1295,15 +1039,15 @@ const styles = StyleSheet.create({
     width: ms(52),
     height: ms(52),
     borderRadius: ms(26),
-    backgroundColor: '#DCFCE7',
+    backgroundColor: semanticTint.success,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACE.BLOCK,
   },
-  successTitle: { fontSize: ms(16), fontWeight: '900', color: '#0f172a' },
+  successTitle: { fontSize: ms(16), fontWeight: '900', color: neutral.ink },
   successBody: {
     fontSize: ms(12),
-    color: '#64748B',
+    color: neutral.inkMuted,
     textAlign: 'center',
     lineHeight: ms(18),
     marginTop: vs(6),
@@ -1316,8 +1060,8 @@ const styles = StyleSheet.create({
     alignSelf: 'stretch',
     paddingVertical: vs(8),
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EEF1F5',
+    borderBottomColor: neutral.border,
   },
-  successKey: { fontSize: ms(12), fontWeight: '700', color: '#94A3B8' },
-  successValue: { fontSize: ms(13), fontWeight: '800', color: '#0f172a' },
+  successKey: { fontSize: ms(12), fontWeight: '700', color: neutral.inkSubtle },
+  successValue: { fontSize: ms(13), fontWeight: '800', color: neutral.ink },
 });

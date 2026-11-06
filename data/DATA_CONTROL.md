@@ -370,14 +370,14 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `SELLER_SETUP_FIELDS` | `SellerSetupField[]` — seller-onboarding field labels/placeholders (business identity, PAN/state, platform fee, bank name/account/IFSC/beneficiary, contact email, FSSAI) | `SellerRegistrationScreen` (`features/seller-onboarding/`; labels/placeholders for the onboarding wizard; submission goes to `POST /sellers` via `GatewayClient.submitSellerApplication`) | `@mock` |
+| `SELLER_SETUP_FIELDS` | `SellerSetupField[]` — seller-onboarding field labels/placeholders (business identity, PAN/state, platform fee, bank name/account/IFSC/beneficiary, contact email, FSSAI); `SellerSetupField.required` defaults to `true` and `gstin` sets `required: false` (GSTIN is optional) | `SellerRegistrationScreen` (`features/seller-onboarding/`; labels/placeholders for the two-part onboarding form; submission goes to `POST /sellers` via `GatewayClient.submitSellerApplication`) | `@mock` |
 | `SellerSetupField` | type | `SellerRegistrationScreen` | `@mock` |
 
 ### `@data/districts` — owner: `features/seller-onboarding`
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `DISTRICTS` | `DistrictInfo[]` — 42 TN/PY districts (`districtCode`, `name`, `stateCode`) | `SellerRegistrationScreen` (district picker for covered states) | `@server` (fixture fallback) |
+| `DISTRICTS` | `DistrictInfo[]` — 42 TN/PY districts (`districtCode`, `name`, `stateCode`) | `SellerRegistrationScreen` (matches the first shop pin's reverse-geocoded district) | `@server` (fixture fallback) |
 | `districtsForState` / `stateForDistrict` / `districtName` | helpers | seller onboarding, future district-scoped lists | `@mock` (not on the wire) |
 | `DistrictInfo` | type | mobile + web mirrors | `@server` (wire shape) |
 
@@ -388,8 +388,10 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > **Contract:** Live source is `GET /geo/districts` via `GatewayClient.getDistricts` (any signed-in
 > account; `?state=` optional 2-letter filter); the wire row is camelCase
 > `{districtCode,name,stateCode}` — shape-identical to `DistrictInfo`, so the fixture is a drop-in
-> offline fallback. `SellerRegistrationScreen` seeds state from the fixture and replaces it with the
-> live list; the server validates `districtCode` on `POST /sellers` regardless of the client list.
+> offline fallback. `SellerRegistrationScreen` hydrates the live district list and matches the first
+> shop pin's reverse-geocoded district against it; the account state comes live from
+> `GET /geo/states` via `GatewayClient.getStates` (no manual state/district dropdowns). The server
+> validates `districtCode` on `POST /sellers` regardless of the client list.
 
 ### `@data/home` — owner: `features/home`
 

@@ -122,8 +122,8 @@ landed.
   `drug_license_number`/`drug_license_cert_key`/`drug_license_cert_asset_id` (0076); the gateway
   `POST /seller/stores` + `PUT /seller/stores/{id}` accept and persist the trio (number+document
   required together, opt-in for PHARMA); the web onboarding submits it and the Stores console lets
-  the seller edit it after creation. Mobile onboarding stays FOOD-FSSAI-only by decision — the seller
-  app is a WebView over the portal, which captures the licence.
+  the seller edit it after creation. Mobile onboarding now captures the PHARMA drug licence per shop
+  too (number + certificate, optional/both-or-neither), alongside FOOD FSSAI.
 - **Remaining:** (1) keep adding the `ReportIssueButton` to the remaining feed/empty surfaces as they
   are touched; (2) if store names matter in search/order history, project them from the gateway
   (currently `<shop>`/`Order` when absent); (3) the authored editorial rails (Mart/Food/Pharma deal +
@@ -571,9 +571,10 @@ default it to `https://app.faazio.com`.
   role `DISTRICT_ADMIN`; production coverage = 42 TN/PY districts (`admins.district_master`, 0046). The
   gateway resolves district scope through `internal/platform/geo`; legacy non-TN/PY admins fall back
   to their 2-letter `state_code`.
-- Mobile onboarding requires a district for TN/PY; the picker hydrates from `GET /geo/districts`
-  (`GatewayClient.getDistricts`) with `@data/districts` as the offline fallback, sellers carry
-  `districtCode` (0047), and admin queues are server-scoped by district.
+- Mobile onboarding has no manual state/district picker: the first shop pin's reverse-geocoded
+  region/district are matched against `GET /geo/states` + `GET /geo/districts` and set the account
+  `stateCode`/`districtCode`; sellers carry `districtCode` (0047), and admin queues are server-scoped
+  by district. Submission is blocked until a shop is pinned in a covered state (TN/PY today).
 - **Fee change requests (0049):** sellers file `POST /sellers/{id}/platform-fee-request` and read
   their history; district/super admins review via `GET /seller/fee-change-requests` +
   `PATCH .../{id}/approve|reject`. New mobile screens `SellerPlatformFeeRequestScreen` and
@@ -3532,24 +3533,37 @@ with `GatewayClient` balance calls).
 
 ## Sell with us — live partner onboarding
 
-**Status:** 🟢 Live submit (gateway wired; `@data` label fixture retained).
+**Status:** 🟢 Live two-part submit (gateway wired; `@data` label fixture retained).
 
-**Feature:** `SellWithUsScreen` (route `SellWithUs`, from the Account `earn` group's
-`Sell with us` row) is a real onboarding form. It collects business name, owner, category
-(`MART`/`FOOD`/`PHARMA` chips), GSTIN, PAN, business address, contact phone and a 2-letter
-state code. **All fields are mandatory** — submission is blocked until each is filled and the
-state code is exactly two letters. Then submits a `PENDING_REVIEW` application via
-`GatewayClient.submitSellerApplication` (`POST /sellers`, audited). On success it shows the
-returned `sellerId`; offline/mock mode returns a local `PENDING_REVIEW` row so the flow still
-completes. Field labels/placeholders still come from the stable
-`@data/seller/sellerSetup.ts` fixture (`SELLER_SETUP_FIELDS`).
+**Feature:** `SellerRegistrationScreen` (route `SellWithUs`, from the Account `earn` group's
+`Sell with us` row) is a real onboarding form in two parts.
+
+**Part 1 — account:** business name, owner, **optional GSTIN**, required PAN, business address,
+contact phone/email, mandatory bank-passbook capture, default payout account (bank name/account/
+IFSC/beneficiary) and the Firebase OTP digital signature. There are no manual state/district
+dropdowns — the first pinned shop in Part 2 sets the account state/district by matching its
+reverse-geocoded region/district against `GET /geo/states` + `GET /geo/districts`.
+
+**Part 2 — shops:** repeatable `ShopCard`s (`features/seller-onboarding/components/`). Each shop
+picks app (`MART`/`FOOD`/`PHARMA`), name, address, taxonomy category (`GET /categories?app=`),
+platform fee % (FOOD floor 5), its own map pin (precise lat/lng), optional FOOD FSSAI or PHARMA drug
+licence (number + certificate, both-or-neither), and an optional shop bank override ("Same as
+account bank details" default on). Submission sends one `vendors[]` payload; per-shop bank overrides
+are masked server-side (`0083`).
+
+Submission goes through `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) and
+creates a `PENDING_REVIEW` seller, the account bank/KYC rows and one `directory.stores` vendor per
+shop. On success it shows the returned `sellerId`. Field labels/placeholders still come from the
+stable `@data/seller/sellerSetup.ts` fixture (`SELLER_SETUP_FIELDS`; `gstin.required` is now
+`false`).
 
 **Remaining / honest gaps:**
-- **KYC + bank** are collected after approval (`POST /sellers/{id}/kyc`,
-  `PUT /sellers/{id}/bank-account`, portal/seller-scoped) — not on this first screen.
-- **No document picker yet** — KYC upload from mobile is a later step (Storage object keys).
+- Per-shop bank overrides are captured at onboarding; the portal Stores console does not yet edit
+  them after creation.
+- The account state/district match depends on the native reverse geocoder returning a region name
+  that exists in `admins.states` (TN/PY coverage today).
 
-**Date:** 2026-09-10 — updated 2026-10-13 (live submit).
+**Date:** 2026-09-10 — updated 2026-10-13 (live submit) — updated 2026-11-06 (two-part form).
 
 ---
 

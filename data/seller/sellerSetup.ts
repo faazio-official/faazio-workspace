@@ -9,6 +9,8 @@ export interface SellerSetupField {
   label: string;
   placeholder: string;
   hint?: string;
+  /** Whether the field is mandatory; defaults to true when omitted. */
+  required?: boolean;
   /** Mock value shown to demonstrate the form (cleared before real entry). */
   sample?: string;
 }
@@ -18,7 +20,7 @@ export const SELLER_SETUP_FIELDS: SellerSetupField[] = [
   { key: 'businessName', label: 'Business name', placeholder: 'e.g. Sharma Traders', sample: 'Sharma Traders' },
   { key: 'ownerName', label: 'Owner / contact name', placeholder: 'Full name', sample: 'Rohit Sharma' },
   { key: 'category', label: 'Category', placeholder: 'e.g. Grocery, Electronics', hint: 'What do you sell?', sample: 'Grocery' },
-  { key: 'gstin', label: 'GSTIN', placeholder: '22ABCDE1234F1Z5', sample: '22ABCDE1234F1Z5' },
+  { key: 'gstin', label: 'GSTIN', placeholder: '22ABCDE1234F1Z5', required: false, sample: '22ABCDE1234F1Z5' },
   { key: 'pan', label: 'PAN', placeholder: 'ABCDE1234F', sample: 'ABCDE1234F' },
   { key: 'businessAddress', label: 'Business address', placeholder: 'Full address', sample: '12, MG Road, Pune' },
   { key: 'state', label: 'State', placeholder: 'e.g. MH', hint: 'Detected from your location or entered manually', sample: 'MH' },

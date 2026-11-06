@@ -116,18 +116,28 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 // vendorApplication is one VENDOR (shop) created with the account. The account itself is
 // brand-agnostic (0068); app brand, platform fee, taxonomy category and FSSAI live here.
 type vendorApplication struct {
-	Name           string   `json:"name"`
-	App            string   `json:"app"`
-	CategoryID     string   `json:"categoryId"`
-	PlatformFeePct int      `json:"platformFeePct"`
-	FSSAINumber    string   `json:"fssaiNumber"`
-	FSSAIFileKey   string   `json:"fssaiFileKey"`
-	FSSAIAssetID   string   `json:"fssaiAssetId"`
-	Address        string   `json:"address"`
-	Phone          string   `json:"phone"`
-	Hours          string   `json:"hours"`
-	Latitude       *float64 `json:"latitude"`
-	Longitude      *float64 `json:"longitude"`
+	Name           string `json:"name"`
+	App            string `json:"app"`
+	CategoryID     string `json:"categoryId"`
+	PlatformFeePct int    `json:"platformFeePct"`
+	FSSAINumber    string `json:"fssaiNumber"`
+	FSSAIFileKey   string `json:"fssaiFileKey"`
+	FSSAIAssetID   string `json:"fssaiAssetId"`
+	// PHARMA shops carry a drug-selling licence (number + certificate), optional like FSSAI.
+	DrugLicenseNumber  string `json:"drugLicenseNumber"`
+	DrugLicenseFileKey string `json:"drugLicenseFileKey"`
+	DrugLicenseAssetID string `json:"drugLicenseAssetId"`
+	// Per-shop payout override; falls back to the account bank when omitted. The full account number
+	// is accepted transiently and masked before it is stored.
+	BankName          string   `json:"bankName"`
+	BankAccountNumber string   `json:"bankAccountNumber"`
+	BankIFSC          string   `json:"bankIfsc"`
+	BankBeneficiary   string   `json:"bankBeneficiary"`
+	Address           string   `json:"address"`
+	Phone             string   `json:"phone"`
+	Hours             string   `json:"hours"`
+	Latitude          *float64 `json:"latitude"`
+	Longitude         *float64 `json:"longitude"`
 }
 
 type createSellerRequest struct {
@@ -188,6 +198,11 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		v.Name = strings.TrimSpace(v.Name)
 		v.CategoryID = strings.TrimSpace(v.CategoryID)
 		v.FSSAINumber = strings.TrimSpace(v.FSSAINumber)
+		v.DrugLicenseNumber = strings.TrimSpace(v.DrugLicenseNumber)
+		v.BankName = strings.TrimSpace(v.BankName)
+		v.BankAccountNumber = strings.TrimSpace(v.BankAccountNumber)
+		v.BankIFSC = strings.ToUpper(strings.TrimSpace(v.BankIFSC))
+		v.BankBeneficiary = strings.TrimSpace(v.BankBeneficiary)
 		if v.Name == "" || !validCategory(v.App) {
 			httpx.Fail(w, http.StatusBadRequest, "bad_request", "each vendor needs a name and a valid app")
 			return
@@ -222,6 +237,24 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 		}
+		// PHARMA drug licence follows the same both-or-neither rule (accept for any app, but it is
+		// semantically a pharmacy licence).
+		if v.DrugLicenseNumber != "" || v.DrugLicenseFileKey != "" || v.DrugLicenseAssetID != "" {
+			if v.DrugLicenseNumber == "" || !isStorageKey(v.DrugLicenseFileKey) {
+				httpx.Fail(w, http.StatusBadRequest, "bad_request", "drug licence number and certificate key are required together")
+				return
+			}
+		}
+		// A per-shop payout override must be complete when any field is supplied; mask the account
+		// number so only the tail reaches Postgres.
+		if v.BankName != "" || v.BankAccountNumber != "" || v.BankIFSC != "" || v.BankBeneficiary != "" {
+			masked, ok := maskAccount(v.BankAccountNumber)
+			if !ok || v.BankName == "" || len(v.BankIFSC) != 11 || v.BankBeneficiary == "" {
+				httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop bank name, account number, ifsc and beneficiary are required together")
+				return
+			}
+			v.BankAccountNumber = masked
+		}
 	}
 	if req.DistrictCode != "" {
 		if !geo.IsValid(req.DistrictCode) {
@@ -245,8 +278,9 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusUnauthorized, "otp_unverified", "a Firebase ID token for this phone is required")
 		return
 	}
-	if req.GSTIN == "" || req.PAN == "" || !strings.Contains(req.ContactEmail, "@") {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "gstin, pan and contact email are required")
+	// GSTIN is optional for onboarding (small/unregistered shops); PAN + email remain required.
+	if req.PAN == "" || !strings.Contains(req.ContactEmail, "@") {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "pan and contact email are required")
 		return
 	}
 	masked, ok := maskAccount(req.BankAccountNumber)
@@ -274,6 +308,10 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 			Hours: v.Hours, Latitude: v.Latitude, Longitude: v.Longitude, PlatformFeePct: v.PlatformFeePct,
 			SellerCategoryID: v.CategoryID, FSSAINumber: v.FSSAINumber,
 			FSSAICertKey: strings.TrimSpace(v.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(v.FSSAIAssetID),
+			DrugLicenseNumber: v.DrugLicenseNumber, DrugLicenseCertKey: strings.TrimSpace(v.DrugLicenseFileKey),
+			DrugLicenseCertAssetID: strings.TrimSpace(v.DrugLicenseAssetID),
+			BankName:               v.BankName, BankAccountNumber: v.BankAccountNumber, BankIFSC: v.BankIFSC,
+			BankBeneficiary: v.BankBeneficiary,
 		})
 	}
 	s, err := h.repo.CreateExtended(r.Context(), Seller{

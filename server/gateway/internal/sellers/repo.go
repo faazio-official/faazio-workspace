@@ -39,13 +39,13 @@ type Seller struct {
 	Status          string  `json:"status"`
 	Rating          float64 `json:"rating"`
 	// Shop pin captured during onboarding (public business location, not customer PII).
-	Latitude  *float64        `json:"latitude,omitempty"`
-	Longitude *float64        `json:"longitude,omitempty"`
-	OTPVerified bool          `json:"otpVerified"`
-	OTPVerifiedAt           string          `json:"otpVerifiedAt,omitempty"`
-	RejectionReason         string          `json:"rejectionReason,omitempty"`
-	RejectionHistory        json.RawMessage `json:"rejectionHistory,omitempty"`
-	CreatedAt               string          `json:"createdAt"`
+	Latitude         *float64        `json:"latitude,omitempty"`
+	Longitude        *float64        `json:"longitude,omitempty"`
+	OTPVerified      bool            `json:"otpVerified"`
+	OTPVerifiedAt    string          `json:"otpVerifiedAt,omitempty"`
+	RejectionReason  string          `json:"rejectionReason,omitempty"`
+	RejectionHistory json.RawMessage `json:"rejectionHistory,omitempty"`
+	CreatedAt        string          `json:"createdAt"`
 	// VendorCount/VendorApps are populated by List (one account can own shops in several apps).
 	VendorCount int      `json:"vendorCount,omitempty"`
 	VendorApps  []string `json:"vendorApps,omitempty"`
@@ -54,19 +54,27 @@ type Seller struct {
 // VendorSeed is one VENDOR created alongside an onboarding account. Commercial fields belong to the
 // shop and are written to directory.stores.
 type VendorSeed struct {
-	Name             string
-	App              string
-	StateCode        string
-	Address          string
-	Phone            string
-	Hours            string
-	Latitude         *float64
-	Longitude        *float64
-	PlatformFeePct   int
-	SellerCategoryID string
-	FSSAINumber      string
-	FSSAICertKey     string
-	FSSAICertAssetID string
+	Name                   string
+	App                    string
+	StateCode              string
+	Address                string
+	Phone                  string
+	Hours                  string
+	Latitude               *float64
+	Longitude              *float64
+	PlatformFeePct         int
+	SellerCategoryID       string
+	FSSAINumber            string
+	FSSAICertKey           string
+	FSSAICertAssetID       string
+	DrugLicenseNumber      string
+	DrugLicenseCertKey     string
+	DrugLicenseCertAssetID string
+	// Per-shop payout override (masked account tail only); empty means use the account bank.
+	BankName          string
+	BankAccountNumber string
+	BankIFSC          string
+	BankBeneficiary   string
 }
 
 // KycDocument is one sellers.kyc_documents row; file_key is a private R2 object key, never a URL.
@@ -354,11 +362,15 @@ func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, 
 		if _, err := tx.Exec(ctx, `
 			insert into directory.stores
 			  (id, app, name, seller_id, state_code, address, phone, hours, latitude, longitude,
-			   platform_fee_pct, seller_category_id, fssai_number, fssai_cert_key, fssai_cert_asset_id, is_live)
+			   platform_fee_pct, seller_category_id, fssai_number, fssai_cert_key, fssai_cert_asset_id,
+			   drug_license_number, drug_license_cert_key, drug_license_cert_asset_id,
+			   bank_name, bank_account_number, bank_ifsc, bank_beneficiary_name, is_live)
 			values ($1, $2::app_brand, $3, $4, nullif($5,''), nullif($6,''), nullif($7,''), nullif($8,''),
-			        $9, $10, $11, nullif($12,''), $13, $14, $15, false)`,
+			        $9, $10, $11, nullif($12,''), $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, false)`,
 			"store-"+shortID(), v.App, v.Name, created.SellerID, v.StateCode, v.Address, v.Phone, v.Hours,
-			v.Latitude, v.Longitude, fee, v.SellerCategoryID, v.FSSAINumber, v.FSSAICertKey, v.FSSAICertAssetID); err != nil {
+			v.Latitude, v.Longitude, fee, v.SellerCategoryID, v.FSSAINumber, v.FSSAICertKey, v.FSSAICertAssetID,
+			v.DrugLicenseNumber, v.DrugLicenseCertKey, v.DrugLicenseCertAssetID,
+			v.BankName, v.BankAccountNumber, v.BankIFSC, v.BankBeneficiary); err != nil {
 			return Seller{}, err
 		}
 	}

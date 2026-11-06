@@ -1015,21 +1015,29 @@ the server — the screen only ever sends `{tag, name, phone, address, isDefault
 ## Sell with us (seller onboarding)
 
 `SellerRegistrationScreen` (`features/seller-onboarding/`, route `SellWithUs`) replaced the old
-minimal form and is reached from the Account `earn` group. One wizard collects the business identity
-(account name, owner, GSTIN, PAN, address, contact phone/email), a
-location-derived 2-letter state (GPS → state code; manual entry is the fallback) plus a required
-**district** picker for TN/PY (hydrated from `GET /geo/districts` via `GatewayClient.getDistricts`;
-the DB is the only source, no fixture fallback; the gateway rejects a district that does not belong
-to the state), payout account (bank name, account number, IFSC, beneficiary), a **mandatory bank
-passbook** photo and the OTP digital signature — all account-level.
+minimal form and is reached from the Account `earn` group. It is a two-part form:
 
-The account then carries one or more **shops** (vendors). Each shop card picks its own app
-(`MART`/`FOOD`/`PHARMA`), shop name, taxonomy category (server-only `GET /categories?app=`, no
-fixture list), platform fee % (FOOD floor 5) and — for FOOD only — an **optional** FSSAI number +
-certificate; the submission sends every card in the `vendors[]` payload. Licences (FSSAI and the
-PHARMA drug licence) are optional at submission and may be attached later; when one half is supplied
-the gateway requires the number + certificate together, and an admin verifies them during review.
-Labels/placeholders still come from `SELLER_SETUP_FIELDS` (`@data/seller/sellerSetup.ts`).
+**Part 1 — the brand-agnostic account.** Business identity (business name, owner, **optional
+GSTIN**, required PAN, address, contact phone/email), the **mandatory bank passbook** photo, the
+default payout account (bank name, account number, IFSC, beneficiary) and the OTP digital signature.
+There are **no manual state/district dropdowns**: when a shop is pinned in Part 2 the picker's
+reverse-geocoded region/district are matched case-insensitively against `GET /geo/states`
+(`GatewayClient.getStates`) and `GET /geo/districts` (`GatewayClient.getDistricts`); the first
+matched shop sets the account `stateCode`/`districtCode`. If no shop is pinned, or its state is not
+in the server master (TN/PY coverage today), submission is blocked with a clear message.
+
+**Part 2 — the shops (vendors).** Each `ShopCard` (`features/seller-onboarding/components/`) picks
+its own app (`MART`/`FOOD`/`PHARMA` via the shared `SelectDropdown`), shop name/address, taxonomy
+category (server-only `GET /categories?app=`, no fixture list), platform fee % (FOOD floor 5), its
+own map pin (`SellerLocationPicker` → precise lat/lng), an **optional** FOOD FSSAI number +
+certificate or PHARMA drug-licence number + certificate (both-or-neither), and an optional **shop
+bank override**: the "Same as account bank details" checkbox defaults on; unchecked reveals shop
+bank name/account/IFSC/beneficiary, sent only when filled. Cards are repeatable ("Add another
+shop", remove when > 1); the submission sends every card in the `vendors[]` payload. Licences are
+optional at submission and may be attached later; when one half is supplied the gateway requires the
+number + certificate together, and an admin verifies them during review. UI copy says "Shop";
+internal code keeps "vendor". Labels/placeholders still come from `SELLER_SETUP_FIELDS`
+(`@data/seller/sellerSetup.ts`, where `gstin.required` is now `false`).
 
 Documents are captured with `DocumentCapture` (Vision Camera, consent-gated), uploaded straight to
 the private R2 bucket through `GatewayClient.uploadSellerDocument` (`/media/upload-url` presigned
@@ -1040,7 +1048,10 @@ disposable secondary Firebase app (`services/firebaseAuth.ts`) so the shopper's 
 never swapped. `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) creates the
 `PENDING_REVIEW` seller, bank account and KYC rows in one transaction, plus one `directory.stores`
 **vendor** per entry in the `vendors[]` payload — the account is brand-agnostic, and the app,
-platform fee %, category and licences all live on the vendor. The server treats the OTP as
+platform fee %, category, licences, pin and optional bank override all live on the vendor. The
+account-level `latitude`/`longitude` mirror the first pinned shop so `sellers.sellers` keeps a
+meaningful account pin; per-shop bank overrides are masked server-side before storage. The server
+treats the OTP as
 a **digital signature**: it requires a Firebase ID token whose `phone_number` claim matches the
 application's `contactPhone` (`auth.OTPSigned`) — a client-asserted `otpVerified: true` alone is
 rejected with `401 otp_unverified`. The success state shows the `sellerId`, status and vendor apps.
@@ -1327,9 +1338,11 @@ Two Home/Mart rails consume those server nearby reads: `NearbyOffersSection` cal
 fix / the gateway is unreachable — an authoritative empty response renders empty, never fixture data.
 Without a fix, the Mart rail uses the full `getStores('MART')` directory.
 
-Seller onboarding adds a foreground `SellerLocationPicker` (native `react-native-maps` modal) and
-submits `latitude`/`longitude` with the application; the shop pin is stored on `sellers.sellers` and
-is public business data. Maps keys come from `GOOGLE_MAPS_API_KEY_ANDROID` (manifest resource generated
+Seller onboarding adds a foreground `SellerLocationPicker` (native `react-native-maps` modal) per
+shop; each shop's precise `latitude`/`longitude` is stored on its `directory.stores` vendor row and
+is public business data. The first pinned shop also supplies the account `sellers.sellers`
+latitude/longitude and derives the account state/district from its reverse-geocoded region/district.
+Maps keys come from `GOOGLE_MAPS_API_KEY_ANDROID` (manifest resource generated
 by `scripts/configure.js`) and `GOOGLE_MAPS_API_KEY_IOS`; no key ⇒ the map renders blank, no crash.
 
 The native `MapView` is mounted by exactly two products: the **customer** app (`SellerLocationPicker`,
