@@ -66,10 +66,11 @@ export function DeleteAccountScreen({ navigation }: Props) {
   const phone = user?.phone ?? '';
 
   const handleSmsCode = useCallback((code: string) => {
+    if (submitRef.current) return;
     setOtpError(null);
     setOtpCode(code);
   }, []);
-  useSmsUserConsent(handleSmsCode, reauth);
+  const { restart: restartSmsConsent } = useSmsUserConsent(handleSmsCode, reauth);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
   const handleEmailDelete = useCallback(() => {
@@ -103,6 +104,8 @@ export function DeleteAccountScreen({ navigation }: Props) {
     setOtpError(null);
     setError(null);
     setSendingOtp(true);
+    // The User Consent API only sees SMS received after it starts — arm before the re-auth send.
+    restartSmsConsent();
     try {
       await sendReauthOtp(phone);
       setReauth(true);
@@ -113,7 +116,7 @@ export function DeleteAccountScreen({ navigation }: Props) {
     } finally {
       setSendingOtp(false);
     }
-  }, [phone, sendReauthOtp, sendingOtp]);
+  }, [phone, restartSmsConsent, sendReauthOtp, sendingOtp]);
 
   const verifyAndDelete = useCallback(async () => {
     if (submitRef.current || otpCode.length !== 6 || submitting) return;

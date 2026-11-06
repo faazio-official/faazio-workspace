@@ -27,7 +27,10 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext),
   ActivityEventListener {
 
-  private var receiverRegistered = false
+  @Volatile private var receiverRegistered = false
+
+  /** Guards against launching a second consent sheet while one is already showing. */
+  @Volatile private var consentInFlight = false
 
   private val smsReceiver =
     object : BroadcastReceiver() {
@@ -50,17 +53,21 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
               return
             }
             try {
+              consentInFlight = true
               activity.startActivityForResult(consentIntent, SMS_CONSENT_REQUEST)
             } catch (error: Exception) {
+              consentInFlight = false
               emitError("consent-launch-failed")
             }
           }
           CommonStatusCodes.TIMEOUT -> {
             unregisterSmsReceiver()
+            consentInFlight = false
             emitError("timeout")
           }
           else -> {
             unregisterSmsReceiver()
+            consentInFlight = false
             emitError("sms-retrieval-failed")
           }
         }
@@ -75,6 +82,8 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun startSmsUserConsent() {
+    // A resend can arrive while the sheet is open; never stack a second consent UI.
+    if (consentInFlight) return
     unregisterSmsReceiver()
     registerSmsReceiver()
     SmsRetriever.getClient(reactApplicationContext)
@@ -87,6 +96,7 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
 
   @ReactMethod
   fun stopSmsUserConsent() {
+    consentInFlight = false
     unregisterSmsReceiver()
   }
 
@@ -99,13 +109,14 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
 
   override fun onActivityResult(activity: Activity, requestCode: Int, resultCode: Int, data: Intent?) {
     if (requestCode != SMS_CONSENT_REQUEST) return
+    consentInFlight = false
     unregisterSmsReceiver()
     if (resultCode != Activity.RESULT_OK || data == null) {
       emitError("consent-denied")
       return
     }
     val message = data.getStringExtra(SmsRetriever.EXTRA_SMS_MESSAGE)
-    val code = message?.let { CODE_REGEX.find(it)?.value }
+    val code = message?.let { extractCode(it) }
     if (code == null) {
       emitError("no-code")
       return
@@ -118,6 +129,7 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
   override fun onNewIntent(intent: Intent) = Unit
 
   override fun invalidate() {
+    consentInFlight = false
     unregisterSmsReceiver()
     reactApplicationContext.removeActivityEventListener(this)
     super.invalidate()
@@ -155,6 +167,16 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
     }
   }
 
+  /**
+   * Prefer a 6-digit run adjacent to an OTP keyword ("code", "OTP", "PIN") so an order id,
+   * amount or timestamp earlier in the message cannot be mistaken for the code. Fall back to the
+   * first standalone 6-digit run for messages that do not use those words.
+   */
+  private fun extractCode(message: String): String? {
+    OTP_KEYWORD_REGEX.find(message)?.groupValues?.getOrNull(1)?.let { return it }
+    return CODE_REGEX.find(message)?.value
+  }
+
   private fun emitError(reason: String) {
     if (!reactApplicationContext.hasActiveReactInstance()) return
     val payload = Arguments.createMap().apply { putString("error", reason) }
@@ -166,5 +188,6 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
     const val EVENT_NAME = "FaazioSmsUserConsent"
     const val SMS_CONSENT_REQUEST = 0xFAA2
     val CODE_REGEX = Regex("\\b\\d{6}\\b")
+    val OTP_KEYWORD_REGEX = Regex("(?i)(?:code|otp|pin)\\D{0,24}(\\d{6})")
   }
 }

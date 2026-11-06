@@ -28,10 +28,13 @@ import { openTrustedUrl } from '@/lib/externalLinks';
 import { PRIVACY_URL, TERMS_URL } from '@/lib/site';
 import { decodeIdToken } from '@/lib/tokenClaims';
 import {
+  consumeAutoVerifiedOtp,
   displayName,
   firebaseAuthConfigured,
   sendOtp,
+  subscribeOtpAutoVerified,
   verifyOtp,
+  type FirebaseSession,
 } from '@/services/firebaseAuth';
 import { useSmsUserConsent } from '@/lib/smsUserConsent';
 
@@ -243,6 +246,29 @@ export function LoginScreen({ navigation }: Props) {
     prevOtpLength.current = otpCode.length;
   }, [otpCode, digitAnims]);
 
+  const completeLogin = useCallback(
+    async (session: FirebaseSession): Promise<boolean> => {
+      const claims = decodeIdToken(session.accessToken);
+      await login({
+        user: {
+          id: session.user.uid,
+          name: displayName(session.user),
+          email: session.user.email ?? '',
+          phone,
+          role: claims.role,
+          stateCode: claims.stateCode,
+          districtCode: claims.districtCode,
+          sellerId: claims.sellerId,
+        },
+        accessToken: session.accessToken,
+      });
+      if (!navigationRef.isReady()) return false;
+      navigation.replace('LanguageSelection');
+      return true;
+    },
+    [login, navigation, phone],
+  );
+
   const submitOtp = useCallback(async () => {
     if (submitRef.current || otpCode.length !== 6 || phone.length < 10) return;
     submitRef.current = true;
@@ -254,20 +280,7 @@ export function LoginScreen({ navigation }: Props) {
       if (firebaseAuthConfigured()) {
         // Real Firebase phone-OTP session: the ID token is the same bearer the gateway verifies.
         const session = await verifyOtp(phone, otpCode);
-        const claims = decodeIdToken(session.accessToken);
-        await login({
-          user: {
-            id: session.user.uid,
-            name: displayName(session.user),
-            email: session.user.email ?? '',
-            phone,
-            role: claims.role,
-            stateCode: claims.stateCode,
-            districtCode: claims.districtCode,
-            sellerId: claims.sellerId,
-          },
-          accessToken: session.accessToken,
-        });
+        if (await completeLogin(session)) return;
       } else if (__DEV__) {
         // Dev-only fallback when Firebase Auth is unconfigured (local AUTH_DISABLED gateway).
         // Release builds never reach here — configure.js refuses to embed a mock-login build.
@@ -276,30 +289,32 @@ export function LoginScreen({ navigation }: Props) {
           user: { id: `user_${phone}`, name: 'Faazio User', email: '', phone },
           accessToken: placeholderToken,
         });
+        if (navigationRef.isReady()) {
+          navigation.replace('LanguageSelection');
+          return;
+        }
       } else {
         throw new Error('auth-unconfigured');
       }
+      submitRef.current = false;
+      setIsVerifying(false);
     } catch {
       submitRef.current = false;
       setIsVerifying(false);
       setOtpError('That code was not valid. Please try again.');
-      return;
     }
-
-    if (navigationRef.isReady()) {
-      navigation.replace('LanguageSelection');
-    } else {
-      submitRef.current = false;
-      setIsVerifying(false);
-    }
-  }, [otpCode, phone, login, navigation]);
+  }, [completeLogin, login, navigation, otpCode, phone]);
 
   const handleSmsCode = useCallback((code: string) => {
+    if (submitRef.current) return;
     setOtpError('');
     setOtpCode(code);
   }, []);
 
-  const smsConsent = useSmsUserConsent(handleSmsCode, otpState);
+  const { restart: restartSmsConsent, stop: stopSmsConsent } = useSmsUserConsent(
+    handleSmsCode,
+    otpState,
+  );
 
   // Submission derives from state, not from the 6th keystroke's onChangeText:
   // this fires however the code arrived (fast typing, paste, re-render race).
@@ -308,6 +323,34 @@ export function LoginScreen({ navigation }: Props) {
       void submitOtp();
     }
   }, [otpState, otpCode, submitOtp]);
+
+  // Native Firebase can verify the OTP without the user typing (auto-retrieval). Consume the
+  // resulting session and finish login exactly like a manual submit.
+  const applyAutoVerified = useCallback(() => {
+    if (!otpState || submitRef.current || phone.length < 10) return;
+    const session = consumeAutoVerifiedOtp(phone);
+    if (!session) return;
+    submitRef.current = true;
+    setIsVerifying(true);
+    setOtpError('');
+    void completeLogin(session)
+      .then((navigated) => {
+        if (navigated) return;
+        submitRef.current = false;
+        setIsVerifying(false);
+      })
+      .catch(() => {
+        submitRef.current = false;
+        setIsVerifying(false);
+        setOtpError('That code was not valid. Please try again.');
+      });
+  }, [completeLogin, otpState, phone]);
+
+  useEffect(() => {
+    if (!otpState) return;
+    applyAutoVerified();
+    return subscribeOtpAutoVerified(applyAutoVerified);
+  }, [applyAutoVerified, otpState]);
 
   /** Send the SMS OTP, then advance to the code screen. Dev-only when Firebase is unconfigured. */
   const requestOtp = useCallback(
@@ -320,9 +363,12 @@ export function LoginScreen({ navigation }: Props) {
       setIsVerifying(false);
       if (firebaseAuthConfigured()) {
         setIsSending(true);
+        // The User Consent API only sees SMS received after it starts — arm before the send.
+        restartSmsConsent();
         try {
           await sendOtp(digits);
         } catch (err) {
+          stopSmsConsent();
           setIsSending(false);
           // Surface the Firebase code in dev: a bare "check your number" hides the real cause
           // (e.g. app-not-authorized from an unregistered signing cert) and makes it undebuggable.
@@ -337,9 +383,11 @@ export function LoginScreen({ navigation }: Props) {
         }
         setIsSending(false);
       }
+      // Freeze the number that actually received the SMS, even if the field was edited mid-send.
+      setPhone(digits);
       setOtpState(true);
     },
-    [isSending],
+    [isSending, restartSmsConsent, stopSmsConsent],
   );
 
   const handlePhoneChange = (val: string) => {
@@ -394,16 +442,18 @@ export function LoginScreen({ navigation }: Props) {
   );
 
   const handleResend = () => {
-    if (resendRef.current) return;
+    if (resendRef.current || submitRef.current || isSending) return;
     setOtpCode('');
     setOtpError('');
     submitRef.current = false;
     setIsVerifying(false);
     if (firebaseAuthConfigured()) {
       resendRef.current = true;
+      // Re-arm before the resend SMS leaves the server (same 5-minute-window rule as the first send).
+      restartSmsConsent();
       void sendOtp(phone)
-        .then(() => smsConsent.restart())
         .catch((err: unknown) => {
+          stopSmsConsent();
           if (__DEV__) {
             const code = (err as { code?: string })?.code ?? 'unknown';
             console.warn('[phone-auth] resend failed:', code, (err as Error)?.message);
@@ -669,7 +719,11 @@ export function LoginScreen({ navigation }: Props) {
 
                 <View style={styles.resendRow}>
                   <AppText style={styles.resendTextSub}>Didn't get the code? </AppText>
-                  <TouchableOpacity activeOpacity={0.7} onPress={handleResend}>
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    disabled={isVerifying || isSending}
+                    onPress={handleResend}
+                  >
                     <AppText style={styles.resendTextAction}>Resend</AppText>
                   </TouchableOpacity>
                 </View>

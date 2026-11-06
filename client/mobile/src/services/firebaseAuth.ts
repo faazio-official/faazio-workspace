@@ -14,6 +14,7 @@ import {
   getAuth,
   signInWithPhoneNumber,
   signOut,
+  type Auth,
   type ConfirmationResult,
   type User,
 } from '@react-native-firebase/auth';
@@ -35,8 +36,92 @@ export interface FirebaseSession {
 
 type OtpScope = 'primary' | 'seller';
 
+type PendingOtp = {
+  phone: string;
+  scope: OtpScope;
+  confirmation: ConfirmationResult | null;
+  /**
+   * Set while a manual `confirm(code)` is in flight so the auth-state watcher cannot complete the
+   * same verification twice (native sign-in also fires `onAuthStateChanged`).
+   */
+  manualVerifyStarted: boolean;
+  /** Native auto-retrieval already signed the user in; no code entry is needed. */
+  autoSession: FirebaseSession | null;
+};
+
 /** Pending native phone verification for the current send→verify round-trip. */
-let pending: { phone: string; confirmation: ConfirmationResult; scope: OtpScope } | null = null;
+let pending: PendingOtp | null = null;
+let autoWatchUnsubscribe: (() => void) | null = null;
+const autoVerifiedListeners = new Set<() => void>();
+
+function clearAutoWatch(): void {
+  autoWatchUnsubscribe?.();
+  autoWatchUnsubscribe = null;
+}
+
+/**
+ * Native Firebase can complete phone verification without user input (Android auto-retrieval or
+ * iOS instant verification). The modular `signInWithPhoneNumber` API has no
+ * `onVerificationCompleted` callback, but the native SDK signs the user in, so
+ * `onAuthStateChanged` is the only reliable JS signal.
+ *
+ * This watcher never treats a pre-existing session as a successful OTP (delete-account re-auth)
+ * and yields to a manual `confirm()` that is already in flight.
+ */
+function armAutoVerificationWatch(auth: Auth, current: PendingOtp): void {
+  clearAutoWatch();
+  const initialUid = auth.currentUser?.uid ?? null;
+  const initialSignIn = auth.currentUser?.metadata.lastSignInTime ?? null;
+  autoWatchUnsubscribe = auth.onAuthStateChanged(async (user) => {
+    if (pending !== current || current.manualVerifyStarted) return;
+    if (!user || user.phoneNumber !== current.phone) return;
+    if (initialUid && user.uid === initialUid && user.metadata.lastSignInTime === initialSignIn) {
+      return;
+    }
+    try {
+      const token = await user.getIdTokenResult();
+      if (pending !== current || current.manualVerifyStarted) return;
+      current.autoSession = toSession(
+        user,
+        token.token,
+        Math.floor(new Date(token.expirationTime).getTime() / 1000),
+      );
+      clearAutoWatch();
+      autoVerifiedListeners.forEach((listener) => {
+        try {
+          listener();
+        } catch {
+          // A screen listener must never break the auth state machine.
+        }
+      });
+    } catch {
+      // Auto-verification is best-effort; manual code entry remains available.
+    }
+  });
+}
+
+/** Notified when native Firebase auto-verifies the pending primary OTP. */
+export function subscribeOtpAutoVerified(listener: () => void): () => void {
+  autoVerifiedListeners.add(listener);
+  return () => {
+    autoVerifiedListeners.delete(listener);
+  };
+}
+
+/**
+ * Take the auto-verified session for a primary OTP and clear the pending request. Returns null
+ * when auto-verification has not completed (or another screen already consumed it).
+ */
+export function consumeAutoVerifiedOtp(phoneDigits: string): FirebaseSession | null {
+  const phone = toE164(phoneDigits);
+  if (!pending || pending.phone !== phone || pending.scope !== 'primary' || !pending.autoSession) {
+    return null;
+  }
+  const session = pending.autoSession;
+  pending = null;
+  clearAutoWatch();
+  return session;
+}
 
 /**
  * Seller onboarding treats the OTP as a digital signature while the shopper is already signed in.
@@ -97,11 +182,26 @@ async function sendOtpForScope(phoneDigits: string, scope: OtpScope): Promise<vo
     throw new Error('Firebase Auth is not configured.');
   }
   const phone = toE164(phoneDigits);
+  const auth = await otpAuth(scope);
+  const current: PendingOtp = {
+    phone,
+    scope,
+    confirmation: null,
+    manualVerifyStarted: false,
+    autoSession: null,
+  };
+  // Replace any earlier request; an old confirmation must never verify a newer send.
+  pending = current;
+  // Arm before the request: native auto-retrieval can sign in as soon as the SMS lands.
+  if (scope === 'primary') armAutoVerificationWatch(auth, current);
   try {
-    const confirmation = await signInWithPhoneNumber(await otpAuth(scope), phone);
-    pending = { phone, confirmation, scope };
+    current.confirmation = await signInWithPhoneNumber(auth, phone);
   } catch (err) {
-    if (scope === 'seller') await disposeOtpApp();
+    if (pending === current) {
+      pending = null;
+      clearAutoWatch();
+    }
+    if (scope === 'seller' && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
     throw err;
   }
 }
@@ -115,19 +215,43 @@ async function verifyOtpForScope(
     throw new Error('Firebase Auth is not configured.');
   }
   const phone = toE164(phoneDigits);
-  if (!pending || pending.phone !== phone || pending.scope !== scope) {
+  const current = pending;
+  if (!current || current.phone !== phone || current.scope !== scope) {
     throw new Error('No OTP request is pending.');
   }
-  const credential = await pending.confirmation.confirm(code);
-  pending = null;
-  const token = await credential.user.getIdTokenResult();
-  const session = toSession(
-    credential.user,
-    token.token,
-    Math.floor(new Date(token.expirationTime).getTime() / 1000),
-  );
-  if (scope === 'seller') await disposeOtpApp();
-  return session;
+  // Auto-retrieval already produced the session; any code entry can resolve it.
+  if (current.autoSession) {
+    const session = current.autoSession;
+    if (pending === current) {
+      pending = null;
+      clearAutoWatch();
+    }
+    if (scope === 'seller' && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
+    return session;
+  }
+  if (!current.confirmation) {
+    throw new Error('No OTP request is pending.');
+  }
+  current.manualVerifyStarted = true;
+  try {
+    const credential = await current.confirmation.confirm(code);
+    // Only clear this request; a resend that landed meanwhile owns the new pending state.
+    if (pending === current) {
+      pending = null;
+      clearAutoWatch();
+    }
+    const token = await credential.user.getIdTokenResult();
+    const session = toSession(
+      credential.user,
+      token.token,
+      Math.floor(new Date(token.expirationTime).getTime() / 1000),
+    );
+    if (scope === 'seller' && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
+    return session;
+  } catch (err) {
+    current.manualVerifyStarted = false;
+    throw err;
+  }
 }
 
 /**

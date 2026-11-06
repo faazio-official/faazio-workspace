@@ -43,12 +43,14 @@ never needs a git change. No service-account key is used by the mobile app.
 ## 3. Flow
 
 ```
-LoginScreen phone entry
-  └─ firebaseAuth.sendOtp(digits) → signInWithPhoneNumber(getAuth(), "+91…")
-       ├─ Android: Play Integrity / reCAPTCHA → SMS (or auto-retrieval)
-       └─ iOS: APNs silent push, else reCAPTCHA → SMS
+LoginScreen / delivery PhoneEntry
+  └─ SMS User Consent armed BEFORE the SMS is requested
+       └─ firebaseAuth.sendOtp(digits) → signInWithPhoneNumber(getAuth(), "+91…")
+            ├─ Android: Play Integrity / reCAPTCHA → SMS (or native auto-retrieval)
+            └─ iOS: APNs silent push, else reCAPTCHA → SMS
   └─ Android SMS User Consent (src/lib/smsUserConsent.ts + SmsUserConsentModule.kt)
        └─ Play Services consent sheet → 6-digit code → fills the OTP UI + auto-submits
+  └─ native auto-retrieval (when supported) → onAuthStateChanged → session, no typing
   └─ user enters 6 digits (or the code is autofilled) → firebaseAuth.verifyOtp()
        └─ ConfirmationResult.confirm(code) → Firebase user + ID token (RS256 JWT)
             └─ authStore.login() stores {token, user} in the Keychain
@@ -63,16 +65,20 @@ that OTP is only a signature and must not replace the shopper session. `refreshI
 `getIdToken(true)`; `GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token,
 phone number or OTP code.
 
-Android also runs **SMS User Consent** after `sendOtp` resolves: a dynamically registered
-`SMS_RETRIEVED` receiver (guarded by `com.google.android.gms.auth.api.phone.permission.SEND`, **no
-`RECEIVE_SMS`/`READ_SMS` permission**) starts `SmsRetriever.startSmsUserConsent(null)`. When the user
-approves the system sheet, the native module extracts a 6-digit code and emits it to
-`useSmsUserConsent`, which fills the OTP input and auto-submits (`LoginScreen`, delivery
-`OtpVerifyScreen`, and the `DeleteAccountScreen` re-auth). This is independent of Play Integrity and
-works on any device with Google Play Services; otherwise it errors and manual entry is unchanged.
-iOS needs no native path — `textContentType="oneTimeCode"` drives QuickType. The module requires a
-native rebuild (`gh workflow run android-debug.yml -f app=customer`); no SMS body, sender, phone
-number or code is logged.
+Android arms **SMS User Consent before** `sendOtp`: the API only observes messages received after
+`startSmsUserConsent()`, so `LoginScreen`, delivery `PhoneEntryScreen`, and the `DeleteAccountScreen`
+re-auth start a dynamically registered `SMS_RETRIEVED` receiver first (guarded by
+`com.google.android.gms.auth.api.phone.permission.SEND`, **no `RECEIVE_SMS`/`READ_SMS` permission**)
+and re-arm before every resend. When the user approves the system sheet, the native module extracts
+the code (a 6-digit run next to "code"/"OTP"/"PIN", else the first standalone 6-digit run) and emits
+it to `useSmsUserConsent`, which fills the OTP input and auto-submits. This is independent of Play
+Integrity and works on any device with Google Play Services; otherwise it errors and manual entry is
+unchanged. Native Firebase auto-retrieval, when it happens, is surfaced via `onAuthStateChanged`
+(the installed v27 modular API has no `onVerificationCompleted` callback); `LoginScreen` and
+delivery `OtpVerifyScreen` consume that session and skip code entry. iOS needs no native path —
+`textContentType="oneTimeCode"` drives QuickType. The module requires a native rebuild
+(`gh workflow run android-debug.yml -f app=customer`); no SMS body, sender, phone number or code is
+logged.
 
 **Account deletion deletes the Firebase identity client-side:** `DeleteAccountScreen` runs a fresh
 phone-OTP re-auth (`sendReauthOtp`/`verifyReauthOtp`), then `deleteAccountEverywhere()` calls the
@@ -175,8 +181,9 @@ runtime notification permission.
     `ios/Faazio/Faazio-Debug.entitlements` = `development` for `*Debug`; `remote-notification` in all
     three variant plists). Only the `.p8` upload above remains.
 
-Until Part 6 is done, SMS auto-retrieval and silent iOS verification may not work. OTP still works
-via manual code entry/reCAPTCHA.
+Until Part 6 is done, native SMS auto-retrieval and silent iOS verification may not work. Android
+SMS User Consent still autofills (it is independent of Play Integrity), and manual code
+entry/reCAPTCHA remains the fallback everywhere.
 
 ## 5. Server configuration
 
@@ -220,6 +227,8 @@ Device smoke test (CI debug APK):
 | Send always fails on iOS | Part 6 APNs not configured; reCAPTCHA fallback should still open. Add the `.p8` key. |
 | `401` from the gateway after login | `FIREBASE_PROJECT_ID` mismatch with the token `aud`/`iss`, or the gateway still runs `AUTH_DISABLED=false` with no Firebase verifier. Check Render env. |
 | SMS never arrives | Region policy excludes +91, the number is not a test number, or the free quota is exhausted (Blaze billing required past the quota). |
-| No SMS-autofill consent sheet | Google Play Services is missing/outdated, or the APK predates the native module. Type the code manually; rebuild via `gh workflow run android-debug.yml -f app=customer`. |
-| Consent approved but the code is not filled | The message must contain a standalone 6-digit code and be surfaced by Play Services. Type the code manually; no `RECEIVE_SMS` permission is involved. |
+| No SMS-autofill consent sheet | Google Play Services is missing/outdated, the APK predates the native module, or the retriever was armed **after** the SMS was sent. Type the code manually; rebuild via `gh workflow run android-debug.yml -f app=customer`. |
+| Consent approved but the code is not filled | The message must contain a 6-digit run and be surfaced by Play Services. Type the code manually; no `RECEIVE_SMS` permission is involved. |
+| Auto-verification never skips the OTP screen | Firebase templates usually cannot use hash-based auto-retrieval; SMS User Consent is the normal fast path. Manual entry remains available. |
+| OTP screen shows an error right after a resend | An older `confirm()` resolved against a newer send; pending requests are request-scoped now, so retry once and report if it recurs. |
 | Token works but user rows are missing | `checkout.users` upsert needs Postgres; check `/health` → `db:true`. |

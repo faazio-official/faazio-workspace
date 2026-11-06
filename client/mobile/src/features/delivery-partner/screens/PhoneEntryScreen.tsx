@@ -12,6 +12,7 @@ import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
 import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
 import { sendOtp } from '@/services/firebaseAuth';
+import { armSmsUserConsent, disarmSmsUserConsent } from '@/lib/smsUserConsent';
 import { GatewayHttpError, gateway } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
@@ -67,11 +68,14 @@ export function PhoneEntryScreen({ navigation }: Props) {
       return;
     }
     setSending(true);
+    // Start listening before the SMS is sent; the OTP screen attaches the listener on mount.
+    armSmsUserConsent();
     try {
       await sendOtp(phone);
       setStorePhone(phone);
       navigation.navigate('OtpVerify', { phone });
     } catch (err) {
+      disarmSmsUserConsent();
       setError(err instanceof Error ? err.message : 'Could not send the OTP. Try again.');
     } finally {
       setSending(false);

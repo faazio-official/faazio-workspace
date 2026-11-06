@@ -19,13 +19,24 @@ dependencies exist. Do not build the backend/seller flows until told to.
 - New Android native module `SmsUserConsentModule.kt` + `SmsUserConsentPackage` (registered in
   `MainApplication`) using `play-services-auth-api-phone:18.3.1`. It dynamically registers the
   `SMS_RETRIEVED` receiver with Play Services' SEND permission — **no `RECEIVE_SMS`/`READ_SMS`
-  permission** — and shows the system consent sheet.
+  permission** — and shows the system consent sheet. The receiver flag is `@Volatile`, a second
+  sheet is never stacked, and code extraction prefers a 6-digit run next to "code"/"OTP"/"PIN"
+  with the first standalone 6-digit run as fallback.
 - `src/lib/smsUserConsent.ts` (`useSmsUserConsent`) listens for `FaazioSmsUserConsent`, validates the
-  6-digit code, and arms/restarts the retriever; Android-only, no-op on iOS.
+  6-digit code, and exposes `start`/`stop`/`restart`; the listener stays mounted while `active`
+  gates auto-arming. Android-only, no-op on iOS.
+- **Arming order fixed:** the User Consent API only sees SMS received after it starts, so
+  `LoginScreen`, delivery `PhoneEntryScreen`, and the `DeleteAccountScreen` re-auth arm **before**
+  `sendOtp`/`sendReauthOtp` and re-arm before each resend.
 - Wired into `LoginScreen`, delivery `OtpVerifyScreen`, and the `DeleteAccountScreen` re-auth:
   approval fills the code and auto-submits. Added `textContentType="oneTimeCode"` /
-  `autoComplete="sms-otp"` to the hidden Login input. Resend re-arms the retriever; guards prevent
-  double-submit and auto-submit loops after a wrong code.
+  `autoComplete="sms-otp"` to the hidden Login input. Consent events are ignored while a verify is
+  in flight; resend is blocked during verification; the pending OTP is request-scoped so an older
+  `confirm()` cannot clear a newer send.
+- Native Firebase auto-retrieval is surfaced through `onAuthStateChanged` (the installed
+  `@react-native-firebase/auth@27` modular API has no `onVerificationCompleted` callback);
+  `LoginScreen` and delivery `OtpVerifyScreen` consume that session and skip code entry. Firebase
+  templates usually cannot use hash-based auto-retrieval, so SMS User Consent remains the fast path.
 - iOS needs no native change (`textContentType` QuickType). No SMS body/sender/phone/code is logged.
 - Native rebuild required: `gh workflow run android-debug.yml -f app=customer`.
 - Docs: `docs/RUNBOOKS/FIREBASE_AUTH.md` §3/§7, `docs/architecture/mobile-app.md`.

@@ -839,15 +839,21 @@ seller app never mounts a `MapView`. **Never delete a shared native dependency t
 instead, as the seller flavor does for the Maps key (below).
 
 **Android SMS User Consent.** `android/.../SmsUserConsentModule.kt` (registered by
-`SmsUserConsentPackage` in `MainApplication`) implements the Play Services SMS User Consent API. After
-`sendOtp` resolves, `src/lib/smsUserConsent.ts` (`useSmsUserConsent`) arms a dynamically registered
-`SMS_RETRIEVED` receiver guarded by `com.google.android.gms.auth.api.phone.permission.SEND` — there
-is **no `RECEIVE_SMS`/`READ_SMS` permission**. Play Services shows its system consent sheet; on
-approval the module extracts a standalone 6-digit code and emits `FaazioSmsUserConsent`, which fills
-and auto-submits the OTP in `LoginScreen`, delivery `OtpVerifyScreen`, and the `DeleteAccountScreen`
-re-auth. It is independent of Play Integrity, requires Google Play Services, and falls back to manual
-entry on any error/timeout. No SMS body, sender, phone number or code is logged. iOS needs no native
-module — `textContentType="oneTimeCode"` drives QuickType.
+`SmsUserConsentPackage` in `MainApplication`) implements the Play Services SMS User Consent API.
+Before the SMS is requested, `src/lib/smsUserConsent.ts` (`useSmsUserConsent`) arms a dynamically
+registered `SMS_RETRIEVED` receiver guarded by
+`com.google.android.gms.auth.api.phone.permission.SEND` — there is **no
+`RECEIVE_SMS`/`READ_SMS` permission**. The API only observes messages received after
+`startSmsUserConsent()`, so `LoginScreen`, delivery `PhoneEntryScreen`, and the
+`DeleteAccountScreen` re-auth arm first and re-arm before every resend. Play Services shows its
+system consent sheet; on approval the module prefers a 6-digit run next to "code"/"OTP"/"PIN"
+(falling back to the first standalone 6-digit run) and emits `FaazioSmsUserConsent`, which fills and
+auto-submits the OTP in `LoginScreen`, delivery `OtpVerifyScreen`, and the delete re-auth. It is
+independent of Play Integrity, requires Google Play Services, and falls back to manual entry on any
+error/timeout. Native Firebase auto-retrieval, when it happens, is surfaced through
+`onAuthStateChanged` (the installed v27 modular API has no `onVerificationCompleted` callback) and
+`LoginScreen` / `OtpVerifyScreen` consume that session directly. No SMS body, sender, phone number or
+code is logged. iOS needs no native module — `textContentType="oneTimeCode"` drives QuickType.
 
 **Background tracking.** While online, Android runs `DeliveryTrackingService` with
 `foregroundServiceType="location"` and a persistent low-importance notification, waking
@@ -954,12 +960,14 @@ instead of shipping a non-functional shell.
 ### Phone-auth flow (Login)
 
 `LoginScreen` is a two-phase screen (phone → OTP). Phone entry auto-advances 150 ms after the
-10th digit, calling `firebaseAuth.sendOtp()` (native Firebase) first; a failed send shows an alert
-and stays on phone entry. Android's Firebase SDK may auto-retrieve when Play Integrity succeeds;
-independently, the app runs **SMS User Consent** (`src/lib/smsUserConsent.ts` + native
-`SmsUserConsentModule`), which shows the Play Services consent sheet after `sendOtp` resolves, fills
-the 6 digits and auto-submits. iOS falls back to reCAPTCHA until APNs is configured and uses
-`textContentType="oneTimeCode"` QuickType for autofill (see `docs/RUNBOOKS/FIREBASE_AUTH.md`). OTP submission is an explicit state machine, **not** a side effect of the 6th
+10th digit, arming **SMS User Consent** (`src/lib/smsUserConsent.ts` + native
+`SmsUserConsentModule`) *before* calling `firebaseAuth.sendOtp()` (native Firebase); a failed send
+disarms it and shows an alert. The User Consent API only sees SMS received after it starts, so the
+ordering matters. Play Services then shows the consent sheet, fills the 6 digits and auto-submits.
+Independently, Android's Firebase SDK may auto-retrieve when Play Integrity succeeds; that session
+is surfaced through `onAuthStateChanged` and consumed without typing. iOS falls back to reCAPTCHA
+until APNs is configured and uses `textContentType="oneTimeCode"` QuickType for autofill (see
+`docs/RUNBOOKS/FIREBASE_AUTH.md`). OTP submission is an explicit state machine, **not** a side effect of the 6th
 keystroke: a `useEffect` keyed on `otpCode` calls `submitOtp()` whenever the code reaches 6
 digits (covers typing, paste, and re-render races), guarded by a `submitRef` so it fires once.
 `submitOtp` dismisses the keyboard, **awaits** `firebaseAuth.verifyOtp()` → `authStore.login()`

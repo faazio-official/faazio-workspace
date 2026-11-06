@@ -3,7 +3,13 @@ import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacit
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
-import { sendOtp, verifyOtp } from '@/services/firebaseAuth';
+import {
+  consumeAutoVerifiedOtp,
+  sendOtp,
+  subscribeOtpAutoVerified,
+  verifyOtp,
+  type FirebaseSession,
+} from '@/services/firebaseAuth';
 import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
@@ -25,18 +31,14 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
   const autoSubmittedRef = useRef<string | null>(null);
 
   const handleSmsCode = useCallback((smsCode: string) => {
+    if (submitRef.current) return;
     setError(null);
     setCode(smsCode);
   }, []);
-  const { restart: restartSmsConsent } = useSmsUserConsent(handleSmsCode, true);
+  const { restart: restartSmsConsent } = useSmsUserConsent(handleSmsCode, !verifying);
 
-  const onVerify = useCallback(async () => {
-    if (submitRef.current || code.length !== 6) return;
-    submitRef.current = true;
-    setError(null);
-    setVerifying(true);
-    try {
-      const session = await verifyOtp(phone, code);
+  const completeSignIn = useCallback(
+    async (session: FirebaseSession) => {
       await login({
         user: {
           id: session.user.uid,
@@ -53,18 +55,50 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
       } catch (err) {
         if (err instanceof GatewayHttpError && err.status === 404) {
           navigation.replace('Register');
-        } else {
-          submitRef.current = false;
-          setError('Could not load your rider profile. Try again.');
+          return;
         }
+        throw err;
       }
+    },
+    [login, navigation, phone, setRider],
+  );
+
+  const onVerify = useCallback(async () => {
+    if (submitRef.current || code.length !== 6) return;
+    submitRef.current = true;
+    setError(null);
+    setVerifying(true);
+    try {
+      const session = await verifyOtp(phone, code);
+      await completeSignIn(session);
     } catch (err) {
       submitRef.current = false;
       setError(err instanceof Error ? err.message : 'Incorrect OTP. Try again.');
     } finally {
       setVerifying(false);
     }
-  }, [code, login, navigation, phone, setRider]);
+  }, [code, completeSignIn, phone]);
+
+  const applyAutoVerified = useCallback(() => {
+    const session = consumeAutoVerifiedOtp(phone);
+    if (!session || submitRef.current) return;
+    submitRef.current = true;
+    setError(null);
+    setVerifying(true);
+    void completeSignIn(session)
+      .catch((err: unknown) => {
+        submitRef.current = false;
+        setError(err instanceof Error ? err.message : 'Could not load your rider profile. Try again.');
+      })
+      .finally(() => {
+        setVerifying(false);
+      });
+  }, [completeSignIn, phone]);
+
+  useEffect(() => {
+    applyAutoVerified();
+    return subscribeOtpAutoVerified(applyAutoVerified);
+  }, [applyAutoVerified]);
 
   useEffect(() => {
     if (code.length !== 6) {
@@ -83,9 +117,10 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     submitRef.current = false;
     autoSubmittedRef.current = null;
     setResending(true);
+    // Re-arm before the resend SMS leaves the server.
+    restartSmsConsent();
     try {
       await sendOtp(phone);
-      restartSmsConsent();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not resend the OTP.');
     } finally {

@@ -22,6 +22,20 @@ function getNativeModule(): SmsUserConsentNativeModule | null {
   return typeof nativeModule?.startSmsUserConsent === 'function' ? nativeModule : null;
 }
 
+/**
+ * Imperative arm for screens that start the retriever before navigating (delivery phone entry).
+ * The listener is attached by `useSmsUserConsent` once the OTP screen mounts.
+ */
+export function armSmsUserConsent(): void {
+  const nativeModule = getNativeModule();
+  if (nativeModule) startSmsUserConsent(nativeModule);
+}
+
+export function disarmSmsUserConsent(): void {
+  const nativeModule = getNativeModule();
+  if (nativeModule) stopSmsUserConsent(nativeModule);
+}
+
 export function isSmsUserConsentAvailable(): boolean {
   return getNativeModule() != null;
 }
@@ -47,23 +61,20 @@ function stopSmsUserConsent(nativeModule: SmsUserConsentNativeModule): void {
  * approval the native module emits a 6-digit code. iOS needs no listener — the keyboard's
  * `textContentType="oneTimeCode"` suggestion covers it.
  *
- * The receiver is armed while `active` and stopped on deactivation/unmount. Call `restart` after a
- * resend so the 5-minute retriever window starts again without resubscribing.
+ * The listener is attached for the component lifetime, while `active` controls only whether the
+ * retriever auto-arms. Call `start`/`restart` **before** sending the SMS: the User Consent API
+ * only observes messages received after `startSmsUserConsent()`, so arming after `sendOtp`
+ * resolves races the SMS. `stop` disarms when the flow is abandoned.
  */
 export function useSmsUserConsent(onCode: (code: string) => void, active: boolean) {
   const onCodeRef = useRef(onCode);
+  const startedRef = useRef(false);
   const activeRef = useRef(active);
 
-  useEffect(() => {
-    onCodeRef.current = onCode;
-  }, [onCode]);
+  onCodeRef.current = onCode;
+  activeRef.current = active;
 
   useEffect(() => {
-    activeRef.current = active;
-  }, [active]);
-
-  useEffect(() => {
-    if (!active) return;
     const nativeModule = getNativeModule();
     if (!nativeModule) return;
 
@@ -72,24 +83,47 @@ export function useSmsUserConsent(onCode: (code: string) => void, active: boolea
       const emitter = new NativeEventEmitter(nativeModule as never);
       subscription = emitter.addListener(EVENT_NAME, (event: SmsUserConsentPayload) => {
         const code = event?.code;
-        if (typeof code === 'string' && /^\d{6}$/.test(code)) onCodeRef.current(code);
+        if (typeof code !== 'string' || !/^\d{6}$/.test(code)) return;
+        // Ignore late results once the retriever was disarmed and no explicit arm is active.
+        if (!activeRef.current && !startedRef.current) return;
+        onCodeRef.current(code);
       });
     } catch {
       // No event emitter available — keep manual entry.
     }
-    startSmsUserConsent(nativeModule);
 
     return () => {
       subscription?.remove();
       stopSmsUserConsent(nativeModule);
+      startedRef.current = false;
     };
-  }, [active]);
-
-  const restart = useCallback(() => {
-    if (!activeRef.current) return;
-    const nativeModule = getNativeModule();
-    if (nativeModule) startSmsUserConsent(nativeModule);
   }, []);
 
-  return { available: isSmsUserConsentAvailable(), restart };
+  useEffect(() => {
+    const nativeModule = getNativeModule();
+    if (!nativeModule) return;
+    if (active) {
+      startSmsUserConsent(nativeModule);
+      startedRef.current = true;
+    } else if (startedRef.current) {
+      stopSmsUserConsent(nativeModule);
+      startedRef.current = false;
+    }
+  }, [active]);
+
+  const start = useCallback(() => {
+    const nativeModule = getNativeModule();
+    if (!nativeModule) return;
+    startSmsUserConsent(nativeModule);
+    startedRef.current = true;
+  }, []);
+
+  const stop = useCallback(() => {
+    const nativeModule = getNativeModule();
+    if (!nativeModule) return;
+    stopSmsUserConsent(nativeModule);
+    startedRef.current = false;
+  }, []);
+
+  return { available: isSmsUserConsentAvailable(), start, stop, restart: start };
 }
