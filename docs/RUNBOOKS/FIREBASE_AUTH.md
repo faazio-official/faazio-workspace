@@ -136,23 +136,27 @@ runtime notification permission.
 
 - [x] Firebase project created; Google Analytics disabled.
 - [x] Android app registered with `com.faazio.customer`.
-- [ ] **Signing fingerprints are not fully registered — phone OTP fails on debug APKs.**
+- [x] **Signing fingerprints registered (verified 2026-11-06).** Firebase validates the installed
+  app's signing cert during the app-identifier check. The **Play-delivered** app is signed by
+  Google's **Play App Signing** key, *not* the upload key — that is the cert production phone OTP
+  needs.
 
-  > Digests are not repeated here. The single source of truth for every app's release and debug
-  > SHA-1/SHA-256, and what is registered where, is
+  > Digests are not repeated here. The single source of truth for every app's Play App Signing,
+  > upload, and debug SHA-1/SHA-256, and what is registered where, is
   > `docs/RUNBOOKS/SIGNING_FINGERPRINTS.md` §5 — **gitignored**, so it exists only on a local
   > machine that has it, never in a fresh clone.
 
-  Summary as of 2026-11-02: no debug SHA-1 is registered on **any** of the three
-  Firebase apps, and `com.faazio.customer` carries a **stale release SHA-1**. Firebase validates
-  the signing cert's SHA-1 during the app-identifier check, so **phone OTP fails on every debug
-  APK with a real number** while Firebase *test* numbers still work — they skip the
-  app-verification round trip. The customer release SHA-1 mismatch additionally breaks phone OTP
-  for a production build.
+  Current state (verified via the Firebase Management API):
+  - `com.faazio.customer` — Play App Signing `DE:0E:7A:EF:…` (SHA-256 `7B:3C:7B:F0:…`) ✓ and
+    debug `5E:8F:16:06:…` ✓. The upload key was **purged on 2026-11-06**; reset it in Play Console
+    before building customer release APKs.
+  - `com.faazio.sellerpartner` / `com.faazio.deliverypartner` — release/upload ✓ and debug ✓
+    (debug added 2026-11-06). Their Play App Signing certs do not exist yet (no Play listing); add
+    them here once each listing exists.
 
-  **Fix:** add the fingerprints listed in `SIGNING_FINGERPRINTS.md` §5 (local copy) to each Android app in
-  Firebase Console → Project Settings → Your apps → *Add fingerprint*, and remove the stale
-  customer SHA-1. No rebuild is needed — fingerprints are read server-side per request.
+  **Fix for a future mismatch:** add the missing fingerprint in Firebase Console → Project
+  Settings → Your apps → *Add fingerprint*. No rebuild is needed — fingerprints are read
+  server-side per request.
 
   **Symptom chain in logcat** (this is what to grep for):
   ```
@@ -178,8 +182,10 @@ runtime notification permission.
   - [ ] Enable **Play Integrity API** in the linked GCP project.
   - [ ] App Check → Android app → Play Integrity → **Enforce** (after testing).
   - [ ] Upload the APNs **.p8 auth key** (Key ID + Team ID) for iOS.
-  - [ ] Add each app's **release** and its own **debug** SHA-1/SHA-256 in Firebase Project
-    Settings → Your apps. Digests and current gaps: `SIGNING_FINGERPRINTS.md` §5 (local copy).
+  - [x] Add each app's **Play App Signing / release** and its own **debug** SHA-1/SHA-256 in
+    Firebase Project Settings → Your apps. Customer Play App Signing + debug done; seller/delivery
+    release + debug done; seller/delivery Play App Signing certs pending their listings.
+    Digests: `SIGNING_FINGERPRINTS.md` §5 (local copy).
   - [x] Push Notifications capability + Background Modes → Remote notifications — committed in the
     repo (`ios/Faazio/Faazio.entitlements` = `aps-environment production` for `*Release`,
     `ios/Faazio/Faazio-Debug.entitlements` = `development` for `*Debug`; `remote-notification` in all

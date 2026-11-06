@@ -12,11 +12,13 @@
   (`.github/workflows/release-apk.yml`) runs `scripts/restore-keystore.sh <app>`, which decodes the
   matching `KEYSTORE_BASE64_<APP>` secret and writes that product's properties file before
   `./gradlew assemble<App>Release`. A release build without that product's file fails fast.
-  - customer → `keystore/keystore.properties` / `faazio-release.keystore` (alias `faazio`)
+  - customer → **purged 2026-11-06** — re-provision via Play Console upload-key reset (`keystore/keystore.properties` / `faazio-release.keystore`, alias `faazio`, is the expected path)
   - delivery → `keystore/keystore-delivery.properties` / `faazio-delivery-release.keystore` (alias `faazio-delivery`)
   - seller → `keystore/keystore-seller.properties` / `faazio-seller-release.keystore` (alias `faazio-seller`)
 - The keystore files live at `client/mobile/keystore/` (gitignored).
-  **Back all three up securely — losing one means you can never update that app on the store.**
+  **Back up the delivery and seller keystores securely — losing one means you can never update that
+  app on the store. The customer key was purged on 2026-11-06 and must be re-provisioned, then
+  backed up.**
 - **Release signing must use the release keystore, not the debug keystore.** A debug-signed
   build (`CN=Android Debug`) differs from the release cert (`CN=Faazio…`); a user who installed
   one can no longer update — Android reports a signature conflict as
@@ -34,39 +36,57 @@ Each product has its own signing cert, so the fingerprints are **different per a
 public (embedded in every signed APK) but must be whitelisted before a signed build can verify
 phone OTP or render restricted Maps keys.
 
-> **All fingerprints live in one local file:** `docs/RUNBOOKS/SIGNING_FINGERPRINTS.md`.
-> It is the single source of truth for every app's release and debug SHA-1/SHA-256 and for what
-> is registered where. It is **gitignored** (see the repo-root `.gitignore`), so it exists only on
-> a machine that has it — it is not in a fresh clone. Do not restate a digest in another document;
-> point at that file. The one exception is the CI pin in `.github/workflows/release-apk.yml`,
-> which must inline the three release SHA-256s because CI cannot read a gitignored file.
+**Two lanes — register both.** With Play App Signing enabled, the APK users install from Play is
+signed by **Google's Play App Signing key**, not the upload keystore:
+- **Play-delivered / production** → the **Play App Signing** cert (Play Console → **Protected with
+  Play** → **Play Store protection** → **Manage Play app signing** → **App signing key**). This is
+  the cert that must be in Firebase and Maps for
+  real users.
+- **Sideloaded / CI release APK** (GitHub Releases, `assemble<App>Release`) → the **upload key**.
+  The customer upload key was **purged on 2026-11-06**; reset it in Play Console before building
+  customer release APKs.
 
-- **Firebase** (Project Settings → Your apps): add **each app's own** release SHA-1/SHA-256 to its
-  matching Android app registration, plus the shared debug SHA-1 for debug-APK testing. Without it
-  that build fails phone OTP with `auth/missing-client-identifier` or `auth/invalid-app-credential`.
-  Current gaps are tracked in `SIGNING_FINGERPRINTS.md` §5 and `docs/RUNBOOKS/FIREBASE_AUTH.md` §4.
-  That file is gitignored — read it on a machine that has it, not from a fresh clone.
+> **All fingerprints live in one local file:** `docs/RUNBOOKS/SIGNING_FINGERPRINTS.md`.
+> It is the single source of truth for every app's Play App Signing, upload, and debug SHA-1/SHA-256
+> and for what is registered where. It is **gitignored** (see the repo-root `.gitignore`), so it
+> exists only on a machine that has it — it is not in a fresh clone. Do not restate a digest in
+> another document; point at that file. The one exception is the CI pin in
+> `.github/workflows/release-apk.yml`, which inlines the delivery/seller upload-key SHA-256s because
+> CI cannot read a gitignored file. The customer pin was removed on 2026-11-06 with the purge.
+
+- **Firebase** (Project Settings → Your apps): add the **Play App Signing** SHA-1/SHA-256 for each
+  listed app, the **upload-key** SHA-1/SHA-256 for sideloaded/CI release APKs (delivery/seller; the
+  customer upload key was purged and must be re-provisioned first), and each app's own
+  **debug** SHA-1/SHA-256 for debug-APK testing. Without the right cert that build fails phone OTP
+  with `auth/missing-client-identifier` / `auth/invalid-app-credential` (`INVALID_CERT_HASH 400` in
+  logcat). Current state is tracked in `SIGNING_FINGERPRINTS.md` §5 and
+  `docs/RUNBOOKS/FIREBASE_AUTH.md` §4. That file is gitignored — read it on a machine that has it.
 - **Maps / Places API keys**: only the **customer** and **delivery** apps mount a native map
   (customer "Sell with us" pin picker, delivery route). Restrict each shared key to those packages
-  **+ each app's release SHA-1** (the debug SHA-1 is not accepted). The **seller** app is a WebView
-  shell with no `MapView`, so its package is **not** needed on the Maps/Places allowlist and its
-  flavor strips the key (`tools:node="remove"` + an empty string override under
-  `android/app/src/seller/`). The workflow passes one shared `GOOGLE_MAPS_API_KEY_ANDROID` /
-  `GOOGLE_PLACES_API_KEY`; create per-app keys in Google Cloud and set per-app secrets if you want
-  them independent. See TROUBLESHOOTING.md → "Location / maps".
+  **+ the Play App Signing SHA-1** (and the new upload-key SHA-1 once the customer key is
+  re-provisioned, if sideloaded APKs must render maps).
+  The **seller** app is a WebView shell with no `MapView`, so its package is **not** needed on the
+  Maps/Places allowlist and its flavor strips the key (`tools:node="remove"` + an empty string
+  override under `android/app/src/seller/`). The workflow passes one shared
+  `GOOGLE_MAPS_API_KEY_ANDROID` / `GOOGLE_PLACES_API_KEY`; create per-app keys in Google Cloud and
+  set per-app secrets if you want them independent. See TROUBLESHOOTING.md → "Location / maps".
 - **CI pin:** `.github/workflows/release-apk.yml` compares the built APK's signer cert SHA-256
-  against the matching value in `SIGNING_FINGERPRINTS.md` and fails on any mismatch. Because that
-  file is gitignored, the three SHA-256s are inlined in the workflow — update **both** whenever a
-  keystore is rotated (they are public digests, safe to commit).
+  against the matching value in `SIGNING_FINGERPRINTS.md` and fails on any mismatch. CI builds are
+  signed with the **upload key**, so the pin stays the upload-key SHA-256 even after Play App
+  Signing is enabled. Because that file is gitignored, the delivery/seller SHA-256s are inlined in
+  the workflow — update **both** whenever a keystore is rotated (public digests, safe to commit).
+  The customer pin is an explicit "purged" error until a new upload key is created.
 - **Debug builds use a per-app debug cert, not the release cert.** Debug APKs
   (`android-debug.yml`, or a local `assemble<App>Debug`) are signed with that product's committed
   debug keystore (`android/app/debug.keystore` for customer, `debug-delivery.keystore`,
   `debug-seller.keystore`; all `CN=Android Debug`). Each flavor assigns its own debug signing
   config, so the three debug certs are distinct. See `SIGNING_FINGERPRINTS.md` §1 and §2–§4
   (gitignored, local copy only).
-- **Google Play Console** (Setup → App signing): each listing's first AAB upload registers that app's
-  **upload key**; confirm Play shows the matching SHA-256 from `SIGNING_FINGERPRINTS.md`
-  (gitignored, local copy only).
+- **Google Play Console** (**Protected with Play → Play Store protection → Manage Play app
+  signing**): the page shows the **App signing key** (Google-held; copy its SHA-1/SHA-256 into
+  Firebase + Maps — if the app uses **quantum-ready hybrid signing**, register all three key
+  fingerprints) and the **Upload key certificate** (yours; signs AABs and sideloaded release APKs).
+  Confirm both against `SIGNING_FINGERPRINTS.md` (gitignored, local copy only).
 - Drill a fingerprint with `keytool -list -v -keystore <file> -alias <alias>` (store password from
   the matching `keystore[-app].properties`).
 
@@ -300,7 +320,7 @@ apksigner verify --verbose --print-certs app-customer-release.apk
 # EXPECT a "certificate SHA-256 digest:" line to equal that app's digest in the table above.
 #        The line prefix depends on the build-tools version: "Signer #1 certificate SHA-256
 #        digest:" on older releases, "V2 Signer: certificate SHA-256 digest:" on 37+.
-#        (apksigner prints it as lowercase hex without colons, e.g. 238a02b2…099d).
+#        (apksigner prints it as lowercase hex without colons).
 ```
 `keytool -printcert -jarfile` cannot verify these APKs: they are v2/v3-signed with no v1/JAR
 signature, so use `apksigner`.
@@ -475,10 +495,10 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass (both are CI steps).
 - [ ] `versionCode` > the previous release (committed +1 bump, or derived from `-f version` semver — e.g. `1.0.4` → `10004`).
-- [ ] Release keystore SHA-1/SHA-256 registered in Firebase for all three Android apps; Maps/Places keys restricted to the release SHA-1 for **customer + delivery** only (seller mounts no map — see "Register the release cert").
+- [ ] **Play App Signing** SHA-1/SHA-256 registered in Firebase for each Play-listed app (customer production), plus the **upload-key** SHA-1/SHA-256 if sideloaded CI APKs must pass phone OTP; each app's **debug** cert registered for debug testing. Maps/Places keys restricted to the Play App Signing SHA-1 (+ upload-key SHA-1) for **customer + delivery** only (seller mounts no map — see "Register the release cert").
 - [ ] `CERT_PINS` set and Firebase native config committed when `USE_GATEWAY=true` (release configure fails without them).
-- [ ] Per-app GitHub secrets set: `KEYSTORE_BASE64_<APP>`, `KEYSTORE_PASS_<APP>`, `KEY_ALIAS_<APP>`, `ALIAS_PASS_<APP>` for each product being released (all keystores backed up).
-- [ ] Release APK signed with that app's **release cert** (CI pins its SHA-256: customer `23:8A…09:9D`, delivery `E1:B6…5E:ED`, seller `B7:DA…B7:A6`), not the debug cert.
+- [ ] Per-app GitHub secrets set: `KEYSTORE_BASE64_<APP>`, `KEYSTORE_PASS_<APP>`, `KEY_ALIAS_<APP>`, `ALIAS_PASS_<APP>` for each product being released (delivery/seller keystores backed up; customer upload key purged — reset in Play Console).
+- [ ] Release APK signed with that app's **release cert** (CI pins its SHA-256: delivery `E1:B6…5E:ED`, seller `B7:DA…B7:A6`; customer pin removed pending upload-key reset), not the debug cert.
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.
 - [ ] Portal (if deploying): `0032` + `0033` applied, `PORTAL_JWT_SECRET`/`PORTAL_PEPPER` set, a superadmin hash provisioned (`PORTAL_AUTH.md`).
 - [ ] **Server/Render:** all `server/supabase/migrations/` files up to the latest are applied from a dev terminal (`DATABASE_MIGRATIONS.md` — Render never auto-applies); then the gateway deploy rolled.

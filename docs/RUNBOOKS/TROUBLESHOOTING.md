@@ -104,7 +104,9 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 
 - **Map is blank (customer "Sell with us" pin picker, or delivery route)** → `GOOGLE_MAPS_API_KEY_ANDROID`
   was empty when `scripts/configure.js` ran, or the key is not restricted to that app's package +
-  signing SHA-1. Set the repository variable/secret the workflows read, re-run `npm run configure`
+  signing SHA-1. For a Play-installed build that is the **Play App Signing** SHA-1 (customer
+  `DE:0E:7A:EF…`), not the upload key — see `SIGNING_FINGERPRINTS.md` §6. Set the repository
+  variable/secret the workflows read, re-run `npm run configure`
   (writes the gitignored `android/app/src/main/res/values/google_maps_api_key.xml`) and rebuild in CI.
   The customer build needs the key restricted to `com.faazio.customer` and the delivery build to
   `com.faazio.deliverypartner`. The **seller** APK has no native map (WebView shell) and deliberately
@@ -602,9 +604,11 @@ runtime, not build time.
   that script first (see RELEASE.md).
 - **"Store file not found"** → `keystore/keystore.properties` (`STORE_FILE`) points to a missing
   file. Confirm the keystore exists and the path is correct (relative to project root). In CI,
-  ensure `KEYSTORE_BASE64` secret is set.
-- **CI build fails on `restore-keystore.sh`** → the `KEYSTORE_BASE64`/`KEYSTORE_PASS`/`KEY_ALIAS`/
-  `ALIAS_PASS` secrets are missing or wrong; verify with `gh secret list`.
+  ensure the app's `KEYSTORE_BASE64_<APP>` secret is set.
+- **CI build fails on `restore-keystore.sh`** → the `KEYSTORE_BASE64_<APP>`/`KEYSTORE_PASS_<APP>`/
+  `KEY_ALIAS_<APP>`/`ALIAS_PASS_<APP>` secrets are missing or wrong; verify with `gh secret list`.
+  For `customer` this is expected after the 2026-11-06 upload-key purge — reset the key in Play
+  Console and re-add the `_CUSTOMER` secrets.
 - **"App not installed as package appears to be invalid" (with a Done button, app name in the
   header)** → the device already has a **different-signature** Faazio installed, almost always a
   **debug-signed** build (from earlier `npm run android` dev testing) that was never uninstalled.

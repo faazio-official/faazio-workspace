@@ -46,7 +46,7 @@ Android metadata lives in the committed native project, not `app.json` (deleted)
 
 | App | Properties file | Keystore | Alias |
 |---|---|---|---|
-| customer | `keystore/keystore.properties` | `faazio-release.keystore` | `faazio` |
+| customer | `keystore/keystore.properties` | `faazio-release.keystore` (**purged 2026-11-06 — re-provision**) | `faazio` |
 | delivery | `keystore/keystore-delivery.properties` | `faazio-delivery-release.keystore` | `faazio-delivery` |
 | seller | `keystore/keystore-seller.properties` | `faazio-seller-release.keystore` | `faazio-seller` |
 
@@ -67,12 +67,15 @@ ALIAS_PASS=...
 
 - **CI:** `.github/workflows/release-apk.yml` restores the product's keystore from
   `KEYSTORE_BASE64_<APP>` + the matching password secrets via `scripts/restore-keystore.sh <app>`,
-  then `apksigner verify`s the signed APK and pins that app's release-cert SHA-256 — a cross-app
-  keystore mix fails the build.
+  then `apksigner verify`s the signed APK and pins that app's **upload-key** SHA-256 — a cross-app
+  keystore mix fails the build. The **customer** branch is intentionally blocked until its purged
+  upload key is re-provisioned (see Step 2 below).
 - **Manual:** run the same script with `<app>` and those env vars present.
 - A release build fails fast if that product's keystore/properties are missing — it never falls back
   to the debug key.
-- **Back up all three keystores.** Losing one means you can never update that app on Play.
+- **Back up the delivery and seller keystores securely.** Losing one means you can never update
+  that app on Play. The customer key was purged on 2026-11-06 and must be re-provisioned, then
+  backed up.
 
 Signature schemes: release APKs are v2/v3-signed, correct for `minSdk 24`. v1 is not required.
 
@@ -119,13 +122,15 @@ Each product is a **separate Play listing**; run this for `com.faazio.customer` 
 
 1. **Create the app** (Play Console → **Create app**): name + default language; enter the exact
    `applicationId` as the Application ID; free/paid; declare ads.
-2. **App signing** (Setup → **App signing**): Play App Signing is mandatory for new apps. Your
-   release keystore becomes the **upload key**. Export its public certificate and upload it —
+2. **App signing** (**Protected with Play → Play Store protection → Manage Play app signing**):
+   Play App Signing is mandatory for new apps. The customer upload key was **purged on
+   2026-11-06**. Generate the new keystore first, export its public cert, then submit the reset —
    `keytool -exportcert -rfc -keystore keystore/faazio-release.keystore -alias faazio -file /tmp/faazio_upload_key.pem`
-   (public cert only; safe to send to Play). Confirm the **upload-key SHA-256** shown matches the
-   customer release SHA-256 in `docs/RUNBOOKS/SIGNING_FINGERPRINTS.md` §2 (gitignored, local copy).
-   Google then manages the **app signing key**; CI keeps signing every AAB with the same release
-   keystore (upload key) so uploads are always accepted.
+   (public cert only; safe to send to Play). In the **Upload key certificate** section click
+   **Request upload key reset**, enter the reason, upload the PEM, and **Request**. Record the new
+   upload-key SHA-256 in `docs/RUNBOOKS/SIGNING_FINGERPRINTS.md` §2. If the page shows
+   **quantum-ready hybrid signing**, register all three app-signing fingerprints with Firebase/Maps.
+   Google manages the **app signing key**; CI signs every AAB with the new upload key.
 3. **App content / Data safety** (App content → Data safety): disclose **camera, location (rough +
    precise), media/photos, and Keychain/Keystore token storage**. Also complete content rating,
    target audience, and a Privacy Policy URL before a production rollout. Use the answer sheet in
@@ -180,8 +185,14 @@ legal retention. Never ship a build with the row hidden or the route removed.
 
 - [ ] `versionCode` > previous release (auto-derived from `-f version=` semver, or +1 committed bump) and `versionName` matches `package.json`.
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass (both run in CI).
+- [ ] Customer upload key re-provisioned (Play Console upload-key reset) and the four `_CUSTOMER`
+  keystore secrets re-added; customer CI releases are intentionally blocked until then.
 - [ ] Release built in CI with the release keystore and `CERT_PINS` configured.
-- [ ] Release keystore SHA-1/SHA-256 registered in Firebase for all three apps; Maps/Places keys restricted to the release SHA-1 for **customer + delivery** (the seller app is a WebView shell with no native map).
+- [ ] **Play App Signing** SHA-1/SHA-256 registered in Firebase for each Play-listed app; the
+  **upload-key** SHA-1/SHA-256 registered for sideloaded/CI APKs (delivery/seller; customer after
+  the reset); each app's **debug** cert registered. Maps/Places keys restricted to the Play App
+  Signing SHA-1 (+ the new upload-key SHA-1) for **customer + delivery** (the seller app is a WebView
+  shell with no native map).
 - [ ] R8 smoke test passed on a device: Home → Cart → Checkout → Pharma.
 - [ ] Data Safety answer sheet (Step 3c) applied to every listing: 18+, minors restricted, delete-account URL `https://faazio.com/privacy`, delete-without-account = Yes, advertising ID = No.
 - [ ] Data Safety discloses camera, location, media, and Keychain/Keystore token storage.

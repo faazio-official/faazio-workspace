@@ -75,8 +75,10 @@ you (gh CLI) ──► GitHub Actions
   writes `keystore/keystore[-app].properties` from `KEYSTORE_PASS_<APP>`/`KEY_ALIAS_<APP>`/
   `ALIAS_PASS_<APP>`. `android/app/build.gradle` reads the matching file per flavor; a release build
   fails fast if it is missing. CI also runs `apksigner verify` and pins the APK signer certificate's
-  SHA-256 **per app** (customer/delivery/seller — values in `RELEASE.md`). An unsigned APK, a
-  debug-signed APK, or one signed with another app's keystore fails the build.
+  SHA-256 **per app** (delivery/seller — values in `RELEASE.md`). An unsigned APK, a
+  debug-signed APK, or one signed with another app's keystore fails the build. The **customer
+  upload key was purged on 2026-11-06**; customer release builds stay blocked until it is reset in
+  Play Console and the `_CUSTOMER` secrets are re-provisioned.
 
 ## 🔐 Secrets (set once, never committed)
 
@@ -89,8 +91,9 @@ Set on the repo with `gh secret set`:
 | `KEY_ALIAS_<APP>` | value from that app's properties (`faazio` / `faazio-delivery` / `faazio-seller`) |
 | `ALIAS_PASS_<APP>` | value from that app's properties |
 
-`<APP>` = `CUSTOMER` / `DELIVERY` / `SELLER` (set all three; each release reads only its own).
-`STORE_FILE_<APP>` is optional (defaults per app).
+`<APP>` = `CUSTOMER` / `DELIVERY` / `SELLER` (each release reads only its own). `CUSTOMER` is
+currently **unset** (upload key purged 2026-11-06) — reset it in Play Console and re-add the four
+`_CUSTOMER` secrets before the next customer release. `STORE_FILE_<APP>` is optional (defaults per app).
 
 ### iOS / App Store (set once, never committed)
 
@@ -252,7 +255,8 @@ adb install -r app-customer-release.apk   # flavor-named: app-delivery-release.a
 - `npm ci` fails on `patch-package` → a stale patch references a removed package. Remove the
   orphan `patches/<pkg>.patch` (e.g. the old `react-native-skia` one).
 - `restore-keystore.sh` fails → the `_<APP>` `KEYSTORE_BASE64`/`KEYSTORE_PASS`/`KEY_ALIAS`/`ALIAS_PASS`
-  secrets are missing or wrong (`gh secret list`).
+  secrets are missing or wrong (`gh secret list`). For `customer` this is expected after the
+  2026-11-06 purge: reset the upload key in Play Console and re-add the `_CUSTOMER` secrets.
 - **`Typecheck` fails with "Seller builds require WEB_PORTAL_URL"** → `configure.js` runs in the
   Typecheck step too, and a seller build needs a portal origin. Both workflows pass `WEB_PORTAL_URL`
   (falling back to `https://app.faazio.com`) plus `GATEWAY_URL` in that step; if you renamed the
