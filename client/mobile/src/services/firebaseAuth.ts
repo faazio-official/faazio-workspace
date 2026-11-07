@@ -19,7 +19,7 @@ import {
   type User,
 } from '@react-native-firebase/auth';
 import { FIREBASE_AUTH_ENABLED } from '../lib/config';
-import { DEFAULT_COUNTRY, toE164 as normalizePhone } from '../lib/phone';
+import { DEFAULT_COUNTRY, toE164 as normalizePhone } from '@/lib/phone';
 
 export interface FirebaseUser {
   uid: string;

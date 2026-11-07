@@ -3598,20 +3598,24 @@ are masked server-side (`0083`).
 Submission goes through `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) and
 creates a `PENDING_REVIEW` seller, the account bank/KYC rows and one `directory.stores` vendor per
 shop. The screen then branches on the returned status: `PENDING_REVIEW` shows a read-only
-under-review card (application id + shops), `ACTIVE` shows the official-seller card with an Android
-seller-app download CTA (iOS shows the Play Store hint), and `REJECTED`/`SUSPENDED` return to the
-form for resubmission. Field labels/placeholders still come from the stable
+under-review card (application id + submitted shops), and `ACTIVE` would show the official-seller
+card with an Android seller-app download CTA (iOS shows the Play Store hint). Create always returns
+`PENDING_REVIEW`, so `ACTIVE` is future-facing. `REJECTED`/`SUSPENDED` fall back to the form, which
+submits a new `POST /sellers` application. Field labels/placeholders still come from the stable
 `@data/seller/sellerSetup.ts` fixture (`SELLER_SETUP_FIELDS`; `gstin.required` is now `false`).
 
-Phone normalization is implemented in `src/lib/phone.ts` (`libphonenumber-js`): the contact field
-pairs the shared `CountryCodePicker` with the input and sends parsed E.164 instead of the old
-`.slice(-10)` + `+91` coercion. `toE164(digits, country = 'IN')` keeps every existing OTP flow on
-the `+91` default.
+Phone normalization is implemented in `src/lib/phone.ts` (`libphonenumber-js`): when the account has
+no auth phone the contact field pairs the shared `CountryCodePicker` (7 countries) with the input and
+sends parsed E.164 instead of the old `.slice(-10)` + `+91` coercion. `toE164(digits, country = 'IN')`
+keeps every existing OTP flow on the `+91` default, preserves an explicit leading `+`, and falls back
+to the selected country's calling code. In the normal signed-in path the phone comes from the auth
+session (read-only field, no picker).
 
 **Remaining / honest gaps:**
 - Status is derived from the submit response, so the under-review/active states are session-scoped;
-  a cross-session "my application" read (persist `sellerId` + fetch) is not wired because the only
-  seller read is role-gated to `SELLER` and a new applicant is still a shopper.
+  a cross-session "my application" read (persist `sellerId` + fetch) is not wired because
+  `GET /sellers/{id}` is gated to `SELLER`/district admin/super admin, and a new applicant is still a
+  shopper. The `ACTIVE` card is therefore not reachable from a fresh create today.
 - The Android seller-app download CTA opens
   `https://play.google.com/store/apps/details?id=com.faazio.sellerpartner`; iOS shows the Play Store
   search hint (the seller app is Android-only).

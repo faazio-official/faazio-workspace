@@ -1,5 +1,5 @@
-import React, { useCallback, useState } from 'react';
-import { Modal, Pressable, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Check, ChevronDown } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -20,7 +20,7 @@ export type CountryOptionCode = (typeof COUNTRY_OPTIONS)[number]['code'];
 interface CountryCodePickerProps {
   /** Current ISO 3166-1 alpha-2 code, e.g. `IN`. */
   value: string;
-  onChange: (code: string) => void;
+  onChange: (code: CountryOptionCode) => void;
   disabled?: boolean;
 }
 
@@ -28,12 +28,17 @@ export function CountryCodePicker({ value, onChange, disabled = false }: Country
   const [open, setOpen] = useState(false);
   const selected = COUNTRY_OPTIONS.find((c) => c.code === value) ?? COUNTRY_OPTIONS[0];
 
+  // A disabled picker must not leave an interactive sheet open behind the screen.
+  useEffect(() => {
+    if (disabled) setOpen(false);
+  }, [disabled]);
+
   const openPicker = useCallback(() => {
     if (!disabled) setOpen(true);
   }, [disabled]);
 
   const select = useCallback(
-    (code: string) => {
+    (code: CountryOptionCode) => {
       setOpen(false);
       if (code !== value) onChange(code);
     },
@@ -62,27 +67,38 @@ export function CountryCodePicker({ value, onChange, disabled = false }: Country
         onRequestClose={() => setOpen(false)}
       >
         <Pressable style={styles.backdrop} onPress={() => setOpen(false)}>
-          <Pressable style={styles.sheet} onPress={() => undefined}>
+          <Pressable
+            style={styles.sheet}
+            onPress={() => undefined}
+            accessibilityViewIsModal
+            accessibilityLabel="Country selection"
+          >
             <AppText style={styles.sheetTitle}>Select country</AppText>
-            {COUNTRY_OPTIONS.map((option) => {
-              const isSelected = option.code === value;
-              return (
-                <TouchableOpacity
-                  key={option.code}
-                  style={styles.row}
-                  onPress={() => select(option.code)}
-                  activeOpacity={0.75}
-                  accessibilityRole="button"
-                  accessibilityState={{ selected: isSelected }}
-                >
-                  <AppText style={styles.rowDial}>{option.dial}</AppText>
-                  <AppText style={styles.rowLabel}>{option.label}</AppText>
-                  {isSelected ? (
-                    <Check size={ms(18)} color={parentRamp.base} strokeWidth={2.4} />
-                  ) : null}
-                </TouchableOpacity>
-              );
-            })}
+            <ScrollView
+              style={styles.list}
+              contentContainerStyle={styles.listContent}
+              keyboardShouldPersistTaps="handled"
+            >
+              {COUNTRY_OPTIONS.map((option) => {
+                const isSelected = option.code === value;
+                return (
+                  <TouchableOpacity
+                    key={option.code}
+                    style={styles.row}
+                    onPress={() => select(option.code)}
+                    activeOpacity={0.75}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: isSelected }}
+                  >
+                    <AppText style={styles.rowDial}>{option.dial}</AppText>
+                    <AppText style={styles.rowLabel}>{option.label}</AppText>
+                    {isSelected ? (
+                      <Check size={ms(18)} color={parentRamp.base} strokeWidth={2.4} />
+                    ) : null}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </Pressable>
         </Pressable>
       </Modal>
@@ -119,6 +135,8 @@ const styles = StyleSheet.create({
     paddingVertical: vs(8),
     paddingHorizontal: hs(8),
   },
+  list: { maxHeight: vs(360) },
+  listContent: { paddingBottom: vs(4) },
   sheetTitle: {
     fontSize: ms(13),
     fontWeight: '900',

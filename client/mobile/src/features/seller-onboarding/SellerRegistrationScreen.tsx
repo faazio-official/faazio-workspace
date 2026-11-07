@@ -640,7 +640,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const applicationStatus = (result?.status ?? 'NOT_APPLIED').toUpperCase();
   const isUnderReview = applicationStatus === 'PENDING_REVIEW';
   const isActiveSeller = applicationStatus === 'ACTIVE';
-  const showForm = !isUnderReview && !isActiveSeller;
+  // The create response does not echo shops, so fall back to the locally submitted selection.
+  const submittedApps = (result?.vendors?.map((v) => v.app) ?? vendors.map((v) => v.app)).filter(
+    Boolean,
+  );
 
   const handleDownloadSellerApp = useCallback(() => {
     const androidUrl =
@@ -673,7 +676,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         bounces={false}
         keyboardShouldPersistTaps="handled"
       >
-        {showForm ? (
+        {!isUnderReview && !isActiveSeller ? (
           <View style={styles.heroCard}>
             <View style={styles.heroIcon}>
               <Store size={ms(22)} color={parentRamp.base} strokeWidth={2.2} />
@@ -701,18 +704,18 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 <AppText style={styles.reviewMetaValue}>{result.sellerId}</AppText>
               </View>
             ) : null}
-            {result?.vendors && result.vendors.length > 0 ? (
+            {submittedApps.length > 0 ? (
               <View style={styles.reviewMetaRow}>
                 <AppText style={styles.reviewMetaKey}>Shops</AppText>
-                <AppText style={styles.reviewMetaValue}>
-                  {result.vendors.map((v) => v.app).join(' / ')}
-                </AppText>
+                <AppText style={styles.reviewMetaValue}>{submittedApps.join(' / ')}</AppText>
               </View>
             ) : null}
             <TouchableOpacity
               style={[styles.submitBtn, styles.reviewDone]}
               onPress={() => navigation.goBack()}
               activeOpacity={0.9}
+              accessibilityRole="button"
+              accessibilityLabel="Done"
             >
               <AppText style={styles.submitText}>Done</AppText>
             </TouchableOpacity>
@@ -742,7 +745,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
               </AppText>
             )}
           </View>
-        ) : showForm ? (
+        ) : (
           <>
             <View style={styles.stepRow}>
               <View style={styles.stepBadge}>
@@ -1032,7 +1035,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
               </AppText>
             </View>
           </>
-        ) : null}
+        )}
       </ScrollView>
 
       <SellerLocationPicker

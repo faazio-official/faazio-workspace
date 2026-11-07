@@ -1100,14 +1100,18 @@ treats the OTP as
 a **digital signature**: it requires a Firebase ID token whose `phone_number` claim matches the
 application's `contactPhone` (`auth.OTPSigned`) — a client-asserted `otpVerified: true` alone is
 rejected with `401 otp_unverified`. The contact phone is normalized to E.164 through
-`src/lib/phone.ts` (`libphonenumber-js`); the seller field pairs `CountryCodePicker` with the input and
-sends the parsed `+CC…` number instead of truncating to the last 10 digits (`toE164` keeps the `+91`
-default for every other OTP flow). After submission the screen branches on the returned status:
-`PENDING_REVIEW` shows a read-only under-review card with the application id and shops, `ACTIVE`
-shows the official-seller card with an Android seller-app download CTA (iOS shows the Play Store
-hint), and `REJECTED`/`SUSPENDED` fall back to the form for resubmission. Status is derived from the
-submit response, so the read-only/active states are available within the current session (the seller
-has no cross-session "my application" read yet).
+`src/lib/phone.ts` (`libphonenumber-js`); when the account has no auth phone the seller field pairs
+`CountryCodePicker` (7 countries) with the input and sends the parsed `+CC…` number instead of
+truncating to the last 10 digits (`toE164` keeps the `+91` default for every other OTP flow, treats a
+leading `+` as international, and falls back to the selected country's calling code). After
+submission the screen branches on the returned status: `PENDING_REVIEW` shows a read-only
+under-review card with the application id and submitted shops, and `ACTIVE` would show the
+official-seller card with an Android seller-app download CTA (iOS shows the Play Store hint). The
+create response is always `PENDING_REVIEW`, so `ACTIVE` is future-facing until a status read exists.
+`REJECTED`/`SUSPENDED` fall back to the form, which submits a new `POST /sellers` application; the
+`POST /sellers/{id}/edit` resubmit is `SELLER`-gated and not reachable by a still-shopper applicant.
+Status is derived from the submit response, so the read-only/active states are available within the
+current session (the seller has no cross-session "my application" read yet).
 
 Admin review ships on **both surfaces** — the web portal (`admin/district/sellers[/[id]]`,
 SUPER_ADMIN reaches every district) and the mobile app:
