@@ -41,6 +41,7 @@ docs/
 ├── UI_DESIGN_SYSTEM.md             # unslop: direction, 9 passes, tokens, theme contract, done checklist
 ├── BRAND_COLOR_MIGRATION.md        # royal-purple → Faazio-blue change log + revert
 ├── architecture/                   # deep-dives (mvp-backend, monolith-breakdown, mobile-app, web-portal, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
+├── user-interaction-workflow/      # authoritative end-to-end flows per app (customer, seller, delivery, shared) + KNOWN_GAPS.md
 └── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, DATABASE_MIGRATIONS, FIREBASE_AUTH, PORTAL_AUTH, TROUBLESHOOTING)
 ```
 
@@ -62,12 +63,32 @@ Anyone doing UI work reads `docs/UI_DESIGN_SYSTEM.md` first.
 10. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
 11. **Docs** — architecture deep-dives live in `docs/architecture/`, operational guides in `docs/RUNBOOKS/`; update `docs/README.md` and the "Documentation map" when adding docs.
 12. **Refactor-doc freshness** — any new server function/handler/package, DB table/column/index, cache key/TTL, endpoint, or `GatewayClient` method MUST update `docs/architecture/monolith-breakdown.md` (ownership table + extraction checklist) in the same change. PRs that add server code without the doc touch fail review. If no doc change is needed, state why in the PR.
+13. **User Interaction Workflow freshness** — any code change that touches a user-facing flow (screen, route, tab, bottom sheet, action, store, `GatewayClient` method, endpoint, or DB read/write in a flow) MUST update the matching page under `docs/user-interaction-workflow/<app>/<domain>/` in the same change. A PR that ships behavior without the workflow page is incomplete and fails review. No partial or half-built user-interaction workflows may exist: if a route/screen/endpoint exists, its end-to-end flow (trigger → steps → screens → state → API → DB → success/error/empty) is documented before or alongside the code, and partial flows are listed in `docs/user-interaction-workflow/KNOWN_GAPS.md`. Deleting a flow removes its page in the same change. New pages/subfolders are added to `docs/user-interaction-workflow/README.md`, `docs/README.md`, and this Documentation map.
+14. **No mocked setup — DB-driven data only** — no fixture, fake latency, hardcoded response, or in-memory seed may act as the online origin on the client or the server. `@data/*` fixtures are explicitly labelled offline/error shells or type/seed sources only; `GatewayClient` is server-only and never substitutes fixtures on a remote failure. See "No mocked setup" below.
+
+## No mocked setup — DB-driven data only (client + server)
+
+- **Client:** no inline fixture data presented as live, no `useMockLoading`-style fake latency, no
+  client-generated demo orders/balances/coins as online data, no mock mode as the online origin.
+  `@data/*` appears only as an explicitly labelled offline/error shell or read-through cache, never
+  while the gateway answers. `GatewayClient` is server-only — no `@data/*` substitution on failure.
+- **Server:** no hardcoded return values, no in-memory seed as runtime origin, no fake latency, no
+  synthetic responses. Every read/write goes to Supabase Postgres/MongoDB through the Go Chi
+  modular monolith; seed files bootstrap only.
+- **Tag discipline:** `@data/*` entries carry `@mock`/`@seed`/`@static`/`@server` in
+  `data/DATA_CONTROL.md`; every `@mock` entry is a contract for a gateway handler
+  (`@mock → @server`), not a UI data source.
+- **Known violations** are listed in `docs/user-interaction-workflow/KNOWN_GAPS.md` and must be
+  removed, not expanded.
 
 ## Update docs by default
 Any code change that affects behavior, structure, or APIs must update the docs **by default** in
 the same change — do not wait to be asked. Concretely, after implementing:
 - **New/removed/renamed feature, module, screen, route, or store** → update
   `docs/architecture/mobile-app.md` (module map, stores table, nav graph) and `client/mobile/PENDING_WORK.md`.
+- **New/removed/renamed user-facing flow or screen** → update
+  `docs/user-interaction-workflow/<app>/<domain>/` (and `KNOWN_GAPS.md` if the flow is partial) in
+  the same change; for the web portal flows use `docs/user-interaction-workflow/seller/web-portal/`.
 - **Data/`@data/*` changes** → update `data/DATA_CONTROL.md` and `docs/architecture/data-layer-sdui.md`.
 - **Server/API changes** → update `docs/architecture/server-gateway-plan.md` and, for package/context
   or endpoint changes, `docs/architecture/monolith-breakdown.md` (§1 ownership table).

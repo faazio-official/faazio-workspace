@@ -12,7 +12,7 @@ Single source of truth for all product, store, and UI metadata used by the React
 - `types.ts` — canonical entities (`Product`, `AppBrand`, `StoreProfile`, `CartItem`, `Review`, …)
 - `schema.ts` — `SDUINode` discriminated union. **`@aspirational`**: no data file produces SDUI trees yet.
 - `index.ts` — the single barrel all sub-apps feed into (no per-sub-app barrels).
-- `<domain>/*` — per-sub-app data: `home/`, `food/`, `mart/`, `grocery/`, `pharma/`, `cart/`,
+- `<domain>/*` — per-sub-app data: `home/`, `food/`, `mart/`, `pharma/`, `cart/`,
   `account/`, `explore/`, `categories/`, `productMeta/`.
 
 ## Rules

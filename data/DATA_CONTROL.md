@@ -3,7 +3,8 @@
 > Data ownership, consumption, and status control for every sub-app's data.
 > This is the authoritative map of **who owns**, **who consumes**, and **what is real vs mock**
 > for each entry in the shared `data/` layer. The React Native app (`client/mobile/`) is the only
-> current consumer — the root Vite web app (frozen reference) uses its own `src/data/` copies.
+> consumer; the shipping web portal (`client/web/platform/`) reads live data from the gateway and
+> keeps no bundled domain seed copies.
 
 > **Production (live):** live data is served **server-only** by the Go gateway over Supabase
 > (Postgres) + MongoDB via `GatewayClient`. `@data/*` fixtures are retained for shared types,
@@ -382,8 +383,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `DistrictInfo` | type | mobile + web mirrors | `@server` (wire shape) |
 
 > **Contract:** Mirrors `admins.district_master` (migration `0046`); the gateway
-> (`internal/platform/geo`) is authoritative. `DISTRICTS` must stay in sync with `geo.go` and the web
-> mirror `client/web/platform/src/data/districts.ts`.
+> (`internal/platform/geo`) is authoritative. `DISTRICTS` must stay in sync with `geo.go`; the web
+> portal reads the same rows live from `GET /geo/districts`.
 
 > **Contract:** Live source is `GET /geo/districts` via `GatewayClient.getDistricts` (any signed-in
 > account; `?state=` optional 2-letter filter); the wire row is camelCase

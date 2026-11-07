@@ -9,8 +9,9 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 3. **`UI_DESIGN_SYSTEM.md`** — required before any UI work (web platform, landing page, mobile app).
 4. **`DEVELOPER_ONBOARDING.md`** — get a device booting in ~15 minutes.
 5. `data/DATA_CONTROL.md` — data ownership & status matrix (authoritative).
-6. `PAGE_CATALOG.md` (root) — every screen/path in the app.
-7. `PENDING_WORK.md` (root) — repo-level backlog (server/DB/web/data); app-only backlog lives in `client/mobile/PENDING_WORK.md`.
+6. **`user-interaction-workflow/README.md`** — authoritative end-to-end flows per app (customer, seller, delivery, shared).
+7. `PAGE_CATALOG.md` (root) — every screen/path in the app.
+8. `PENDING_WORK.md` (root) — repo-level backlog (server/DB/web/data); app-only backlog lives in `client/mobile/PENDING_WORK.md`.
 
 ## Map
 
@@ -27,6 +28,8 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 | [architecture/server-gateway-plan.md](./architecture/server-gateway-plan.md) | Deep dive: production monolith + scaling-stage Go Chi microservices plan | Engineers / infra |
 | [architecture/db-schema.md](./architecture/db-schema.md) | Deep dive: production DB schemas + scaling-stage microservice targets (tables, datatypes, sample rows) | Engineers / infra |
 | [architecture/caching-cloudflare-valkey.md](./architecture/caching-cloudflare-valkey.md) | Deep dive: Cloudflare edge + Aiven Valkey cache layer | Engineers / infra |
+| [user-interaction-workflow/README.md](./user-interaction-workflow/README.md) | **Flow authority**: end-to-end user interactions per app (trigger → steps → state → API → DB → success/error/empty) | Everyone |
+| [user-interaction-workflow/KNOWN_GAPS.md](./user-interaction-workflow/KNOWN_GAPS.md) | Living audit of partial/incomplete flows and no-mocks violations | Engineers / reviewers |
 | [RUNBOOKS/RELEASE.md](./RUNBOOKS/RELEASE.md) | Build, sign, and ship Android + iOS | Release / DevOps |
 | [RUNBOOKS/CI_PIPELINE.md](./RUNBOOKS/CI_PIPELINE.md) | GitHub Actions build + release flow (gh CLI, secrets, dev-vs-CI) | Release / DevOps |
 | [RUNBOOKS/DATA_FIXTURES.md](./RUNBOOKS/DATA_FIXTURES.md) | Authoring rules for `@data/*` fixtures | Engineers |
@@ -39,5 +42,6 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 
 - **Terminology:** **"web app" / "the web app"** means the **web platform** — `client/web/` (Next.js Partner Portal at `client/web/platform/`, plus the landing page at `client/web/landingpage/`). **"app" / "mobile app"** means the React Native SuperApp at `client/mobile/`.
 - **Architecture deep-dives** live under `docs/architecture/`.
+- **User-flow docs** live under `docs/user-interaction-workflow/<app>/<domain>/`; any flow change updates its page in the same change.
 - **Operational guides / runbooks** live under `docs/RUNBOOKS/`.
 - When you add a doc, add it to this index and to the `docs/` tree in root `AGENTS.md`.
