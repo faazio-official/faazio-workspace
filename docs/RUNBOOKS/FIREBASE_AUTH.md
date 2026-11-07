@@ -70,6 +70,15 @@ vice versa), locks the OTP and contact-phone inputs while `otpBusy`, clears the 
 and returns to "Send OTP" if a resend fails (Firebase has already discarded the previous pending
 confirmation, so keeping "Verify" would only fail). The seller scope has no `onAuthStateChanged`
 auto-retrieval watcher; consent autofill or manual entry is its fast path.
+Phone numbers are normalized to E.164 through `src/lib/phone.ts` (`libphonenumber-js`).
+`toE164(digits, country = 'IN')` keeps the historical `+91` default for the existing OTP flows, while
+the seller contact field pairs `CountryCodePicker` with the input and sends the parsed E.164
+(`+CC…`) — it no longer truncates to the last 10 digits. A leading `+` is always treated as
+international; without one, the digits are parsed against the selected country.
+After submit, `SellerRegistrationScreen` branches on the returned `status`: `PENDING_REVIEW` shows a
+read-only under-review card, `ACTIVE` shows the official-seller card with the Android seller-app
+download CTA (iOS shows a Play Store hint), and `REJECTED`/`SUSPENDED` return to the form for
+resubmission. These states are derived from the submit response for the current session.
 `refreshIdToken()` forces `getIdToken(true)`;
 `GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token, phone number or OTP code.
 
@@ -252,7 +261,8 @@ Device smoke test (CI debug APK):
 | Seller signature OTP does not autofill | SMS User Consent is independent of the disposable `faazio-seller-otp` app, so the same consent sheet should appear after "Send OTP". Without Play Services, type the code manually; the Verify button enables at six digits. |
 | Seller screen drops back to "Send OTP" after tapping resend | The resend failed, so Firebase discarded the previous pending confirmation; re-send once the network is back rather than typing the old code. |
 | "Resend OTP" is tappable but does nothing during verification | Expected: a resend is refused while a verify owns the pending request. Wait for Verify to finish, then resend. |
-| `401 otp_unverified` after the seller signature | The bearer token's phone claim does not match the application `contactPhone` (last 10 digits). Sign in on the shopper account that owns the contact phone and re-verify; a client `otpVerified: true` alone is rejected. |
+| `401 otp_unverified` after the seller signature | The bearer token's phone claim does not match the application `contactPhone` (now sent as parsed E.164). Sign in on the shopper account that owns the contact phone and re-verify; a client `otpVerified: true` alone is rejected. |
+| International number rejected or mangled on seller onboarding | The seller contact field uses `src/lib/phone.ts` (`libphonenumber-js`). Pick the country first, then type the national number; a leading `+` is parsed as international. Existing login/delivery flows still assume a 10-digit Indian number. |
 | Auto-verification never skips the OTP screen | Firebase templates usually cannot use hash-based auto-retrieval; SMS User Consent is the normal fast path. Manual entry remains available. |
 | OTP screen shows an error right after a resend | An older `confirm()` resolved against a newer send; pending requests are request-scoped now, so retry once and report if it recurs. |
 | Token works but user rows are missing | `checkout.users` upsert needs Postgres; check `/health` → `db:true`. |

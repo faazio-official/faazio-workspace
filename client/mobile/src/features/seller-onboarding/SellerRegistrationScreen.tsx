@@ -1,6 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Alert,
+  Linking,
+  Platform,
   ScrollView,
   StyleSheet,
   TouchableOpacity,
@@ -20,6 +23,8 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
+import { CountryCodePicker } from '@/components/CountryCodePicker';
+import { DEFAULT_COUNTRY, isValidPhone, toE164 } from '@/lib/phone';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { SELLER_SETUP_FIELDS } from '@data/index';
@@ -146,6 +151,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const user = useAuthStore((s) => s.user);
   const authPhone = user?.phone ?? '';
+  const [phoneCountry, setPhoneCountry] = useState(DEFAULT_COUNTRY);
 
   const [form, setForm] = useState<FormState>({
     businessName: '',
@@ -193,13 +199,19 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const update = (key: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  // Editing the phone invalidates any OTP already sent/verified for the previous number.
-  const updateContactPhone = (value: string) => {
-    // The field is locked while a send/verify is in flight; ignore any programmatic edit as well so
-    // an in-flight request can never sign a number the user just replaced.
-    if (sendRef.current || submitRef.current) return;
-    phoneDigitsRef.current = value.replace(/\D/g, '').slice(-10);
-    setForm((prev) => ({ ...prev, contactPhone: value }));
+  const otpPhone = authPhone || form.contactPhone;
+  // The number actually dialled/verified: E.164 for the selected country. Never truncate to the
+  // last 10 digits — that silently mangles non-Indian numbers.
+  const phoneE164 = useMemo(() => toE164(otpPhone, phoneCountry), [otpPhone, phoneCountry]);
+  const phoneValid = useMemo(() => isValidPhone(otpPhone, phoneCountry), [otpPhone, phoneCountry]);
+  // Snapshot for async guards: a phone edit mid-request must not mark the new number verified.
+  const phoneE164Ref = useRef(phoneE164);
+  useEffect(() => {
+    phoneE164Ref.current = phoneE164;
+  }, [phoneE164]);
+
+  // Editing the phone (or its country) invalidates any OTP already sent/verified.
+  const resetSignature = () => {
     setOtpCode('');
     setOtpSent(false);
     setOtpVerified(false);
@@ -211,13 +223,21 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     stopSmsConsent();
   };
 
-  const otpPhone = authPhone || form.contactPhone;
-  const phoneDigits = useMemo(() => otpPhone.replace(/\D/g, '').slice(-10), [otpPhone]);
-  // Snapshot for async guards: a phone edit mid-request must not mark the new number verified.
-  const phoneDigitsRef = useRef(phoneDigits);
-  useEffect(() => {
-    phoneDigitsRef.current = phoneDigits;
-  }, [phoneDigits]);
+  const updateContactPhone = (value: string) => {
+    // The field is locked while a send/verify is in flight; ignore any programmatic edit as well so
+    // an in-flight request can never sign a number the user just replaced.
+    if (sendRef.current || submitRef.current) return;
+    phoneE164Ref.current = toE164(value, phoneCountry);
+    setForm((prev) => ({ ...prev, contactPhone: value }));
+    resetSignature();
+  };
+
+  const changePhoneCountry = (code: string) => {
+    if (sendRef.current || submitRef.current || code === phoneCountry) return;
+    phoneE164Ref.current = toE164(form.contactPhone, code);
+    setPhoneCountry(code);
+    resetSignature();
+  };
 
   const handleSmsCode = useCallback((code: string) => {
     if (!consentArmedRef.current || submitRef.current) return;
@@ -349,15 +369,15 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     // per send, so an overlapping verify would resolve against the wrong request.
     if (sendRef.current || submitRef.current) return;
     setOtpError('');
-    if (phoneDigits.length !== 10) {
-      setOtpError('A valid 10-digit mobile number is required.');
+    if (!phoneValid || !phoneE164) {
+      setOtpError('Enter a valid contact phone number for the selected country.');
       return;
     }
     if (!firebaseAuthConfigured()) {
       setOtpError('OTP verification is not available in this build.');
       return;
     }
-    const targetPhone = phoneDigits;
+    const targetPhone = phoneE164;
     const wasSent = otpSent;
     sendRef.current = true;
     autoSubmittedRef.current = null;
@@ -370,7 +390,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     restartSmsConsent();
     try {
       await sendSellerOtp(targetPhone);
-      if (phoneDigitsRef.current !== targetPhone) {
+      if (phoneE164Ref.current !== targetPhone) {
         consentArmedRef.current = false;
         stopSmsConsent();
         return;
@@ -380,7 +400,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     } catch {
       consentArmedRef.current = false;
       stopSmsConsent();
-      if (phoneDigitsRef.current === targetPhone) {
+      if (phoneE164Ref.current === targetPhone) {
         // A failed resend has already dropped the previous pending confirmation inside
         // firebaseAuth, so keeping the UI in "Verify" mode would only produce misleading errors.
         if (wasSent) {
@@ -403,27 +423,27 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       setOtpError('Enter the 6-digit code.');
       return;
     }
-    const targetPhone = phoneDigits;
+    const targetPhone = phoneE164;
     const code = otpCode.trim();
     submitRef.current = true;
     setOtpBusy(true);
     try {
       await verifySellerOtp(targetPhone, code);
-      if (phoneDigitsRef.current !== targetPhone) return;
+      if (phoneE164Ref.current !== targetPhone) return;
       // The OTP is the digital signature; the shopper's primary Firebase session is untouched.
       consentArmedRef.current = false;
       setOtpVerified(true);
       setOtpVerifiedAt(new Date().toLocaleTimeString());
       setCountdown(0);
     } catch {
-      if (phoneDigitsRef.current === targetPhone) {
+      if (phoneE164Ref.current === targetPhone) {
         setOtpError('That code is incorrect or expired. Request a new one.');
       }
     } finally {
       submitRef.current = false;
       setOtpBusy(false);
     }
-  }, [otpCode, otpSent, phoneDigits]);
+  }, [otpCode, otpSent, phoneE164]);
 
   // Submission derives from state, not the 6th keystroke: this fires however the code arrived
   // (typing, paste, or Android SMS User Consent). A failed verify keeps the dedup value so it is
@@ -451,7 +471,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     ];
     const missing = required.filter(([k]) => !form[k].trim()).map(([, label]) => label);
     if (missing.length > 0) return `Please fill in: ${missing.join(', ')}.`;
-    if (phoneDigits.length !== 10) return 'Enter a valid 10-digit contact phone number.';
+    if (!phoneValid) return 'Enter a valid contact phone number for the selected country.';
     if (!/^\S+@\S+\.\S+$/.test(form.contactEmail.trim())) return 'Enter a valid contact email.';
     const accountDigits = form.bankAccountNumber.replace(/\D/g, '');
     if (accountDigits.length < 6 || accountDigits.length > 20) {
@@ -574,7 +594,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         gstin: form.gstin.trim().toUpperCase(),
         pan: form.pan.trim().toUpperCase(),
         businessAddress: form.businessAddress.trim(),
-        contactPhone: `+91${phoneDigits}`,
+        contactPhone: phoneE164,
         contactEmail: form.contactEmail.trim(),
         stateCode: form.stateCode.trim().toUpperCase(),
         districtCode: form.districtCode || undefined,
@@ -614,6 +634,29 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     ? [stateName ?? form.stateCode, districtName].filter(Boolean).join(' · ')
     : '';
 
+  // Status-derived UI. `result` is the submit response, so these states are available for the
+  // current session. Rejected/suspended (and any unexpected status) fall back to the form so the
+  // applicant is never left on a blank screen.
+  const applicationStatus = (result?.status ?? 'NOT_APPLIED').toUpperCase();
+  const isUnderReview = applicationStatus === 'PENDING_REVIEW';
+  const isActiveSeller = applicationStatus === 'ACTIVE';
+  const showForm = !isUnderReview && !isActiveSeller;
+
+  const handleDownloadSellerApp = useCallback(() => {
+    // TODO: set the Play Store listing URL when the seller partner app is published.
+    const androidUrl = '';
+    if (androidUrl) {
+      void Linking.openURL(androidUrl).catch(() => {
+        Alert.alert('Unable to open', 'Could not open the Play Store link.');
+      });
+      return;
+    }
+    Alert.alert(
+      'Coming soon',
+      'The Faazio Seller Partner app will be available on Play Store shortly.',
+    );
+  }, []);
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + vs(8) }]}>
@@ -637,51 +680,76 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         bounces={false}
         keyboardShouldPersistTaps="handled"
       >
-        <View style={styles.heroCard}>
-          <View style={styles.heroIcon}>
-            <Store size={ms(22)} color={parentRamp.base} strokeWidth={2.2} />
-          </View>
-          <AppText style={styles.heroTitle}>Partner with Faazio</AppText>
-          <AppText style={styles.heroSub}>
-            Complete your business account first, then add every shop you run. A district admin
-            reviews the application before your shops go live.
-          </AppText>
-        </View>
-
-        {result ? (
-          <View style={styles.successCard}>
-            <View style={styles.successIcon}>
-              <BadgeCheck size={ms(26)} color={semantic.success} strokeWidth={2.2} />
+        {showForm ? (
+          <View style={styles.heroCard}>
+            <View style={styles.heroIcon}>
+              <Store size={ms(22)} color={parentRamp.base} strokeWidth={2.2} />
             </View>
-            <AppText style={styles.successTitle}>Application submitted</AppText>
-            <AppText style={styles.successBody}>
-              Your KYC is queued for district-admin review. You will be notified when it is verified.
+            <AppText style={styles.heroTitle}>Partner with Faazio</AppText>
+            <AppText style={styles.heroSub}>
+              Complete your business account first, then add every shop you run. A district admin
+              reviews the application before your shops go live.
             </AppText>
-            <View style={styles.successRow}>
-              <AppText style={styles.successKey}>Application ID</AppText>
-              <AppText style={styles.successValue}>{result.sellerId}</AppText>
+          </View>
+        ) : null}
+
+        {isUnderReview ? (
+          <View style={styles.reviewCard}>
+            <View style={styles.reviewIcon}>
+              <Store size={ms(32)} color={parentRamp.base} strokeWidth={2.4} />
             </View>
-            <View style={styles.successRow}>
-              <AppText style={styles.successKey}>Status</AppText>
-              <AppText style={styles.successValue}>Pending review</AppText>
-            </View>
-            <View style={styles.successRow}>
-              <AppText style={styles.successKey}>Shops</AppText>
-              <AppText style={styles.successValue}>
-                {result.vendors && result.vendors.length > 0
-                  ? result.vendors.map((v) => v.app).join(' / ')
-                  : '—'}
-              </AppText>
-            </View>
+            <AppText style={styles.reviewTitle}>Your request is under review</AppText>
+            <AppText style={styles.reviewBody}>
+              Our professionals will contact you soon regarding your seller application.
+            </AppText>
+            {result?.sellerId ? (
+              <View style={styles.reviewMetaRow}>
+                <AppText style={styles.reviewMetaKey}>Application ID</AppText>
+                <AppText style={styles.reviewMetaValue}>{result.sellerId}</AppText>
+              </View>
+            ) : null}
+            {result?.vendors && result.vendors.length > 0 ? (
+              <View style={styles.reviewMetaRow}>
+                <AppText style={styles.reviewMetaKey}>Shops</AppText>
+                <AppText style={styles.reviewMetaValue}>
+                  {result.vendors.map((v) => v.app).join(' / ')}
+                </AppText>
+              </View>
+            ) : null}
             <TouchableOpacity
-              style={styles.submitBtn}
+              style={[styles.submitBtn, styles.reviewDone]}
               onPress={() => navigation.goBack()}
               activeOpacity={0.9}
             >
               <AppText style={styles.submitText}>Done</AppText>
             </TouchableOpacity>
           </View>
-        ) : (
+        ) : isActiveSeller ? (
+          <View style={styles.activeCard}>
+            <View style={styles.activeIcon}>
+              <BadgeCheck size={ms(32)} color={semantic.success} strokeWidth={2.4} />
+            </View>
+            <AppText style={styles.activeTitle}>You're an Official Faazio Seller partner.</AppText>
+            <AppText style={styles.activeBody}>
+              To continue, download the Faazio Seller Partner app.
+            </AppText>
+            {Platform.OS === 'android' ? (
+              <TouchableOpacity
+                style={styles.downloadBtn}
+                onPress={handleDownloadSellerApp}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+              >
+                <AppText style={styles.downloadBtnText}>Download for Android</AppText>
+              </TouchableOpacity>
+            ) : (
+              <AppText style={styles.iosNote}>
+                The Faazio Seller Partner app is available on Android devices only. Search "Faazio
+                seller partner app" on Play Store and tap Install.
+              </AppText>
+            )}
+          </View>
+        ) : showForm ? (
           <>
             <View style={styles.stepRow}>
               <View style={styles.stepBadge}>
@@ -728,14 +796,33 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 value={form.businessAddress}
                 onChangeText={update('businessAddress')}
               />
-              <TextInputField
-                label={setup('contactPhone')?.label ?? 'Contact phone'}
-                placeholder={setup('contactPhone')?.placeholder ?? '+91 00000 00000'}
-                value={form.contactPhone}
-                onChangeText={authPhone ? undefined : updateContactPhone}
-                keyboardType="phone-pad"
-                editable={!authPhone && !otpBusy}
-              />
+              {authPhone ? (
+                <TextInputField
+                  label={setup('contactPhone')?.label ?? 'Contact phone'}
+                  placeholder={setup('contactPhone')?.placeholder ?? '+91 00000 00000'}
+                  value={form.contactPhone}
+                  keyboardType="phone-pad"
+                  editable={false}
+                />
+              ) : (
+                <View style={styles.phoneRow}>
+                  <CountryCodePicker
+                    value={phoneCountry}
+                    onChange={changePhoneCountry}
+                    disabled={otpBusy}
+                  />
+                  <View style={styles.phoneInputWrap}>
+                    <TextInputField
+                      label={setup('contactPhone')?.label ?? 'Contact phone'}
+                      placeholder={setup('contactPhone')?.placeholder ?? '+91 00000 00000'}
+                      value={form.contactPhone}
+                      onChangeText={updateContactPhone}
+                      keyboardType="phone-pad"
+                      editable={!otpBusy}
+                    />
+                  </View>
+                </View>
+              )}
               <TextInputField
                 label={setup('contactEmail')?.label ?? 'Contact email'}
                 placeholder={setup('contactEmail')?.placeholder ?? 'owner@business.com'}
@@ -831,15 +918,11 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                     <TouchableOpacity
                       style={[
                         styles.otpButton,
-                        (otpBusy ||
-                          (otpSent ? otpCode.length !== 6 : phoneDigits.length !== 10)) &&
+                        (otpBusy || (otpSent ? otpCode.length !== 6 : !phoneValid)) &&
                           styles.otpButtonDisabled,
                       ]}
                       onPress={otpSent ? confirmSignatureOtp : sendSignatureOtp}
-                      disabled={
-                        otpBusy ||
-                        (otpSent ? otpCode.length !== 6 : phoneDigits.length !== 10)
-                      }
+                      disabled={otpBusy || (otpSent ? otpCode.length !== 6 : !phoneValid)}
                       activeOpacity={0.85}
                     >
                       {otpBusy ? (
@@ -956,7 +1039,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
               </AppText>
             </View>
           </>
-        )}
+        ) : null}
       </ScrollView>
 
       <SellerLocationPicker
@@ -1182,23 +1265,30 @@ const styles = StyleSheet.create({
     gap: hs(6),
   },
   secureNoteText: { fontSize: ms(10.5), color: neutral.inkSubtle, lineHeight: ms(15), flex: 1 },
-  successCard: {
+  phoneRow: { flexDirection: 'row', alignItems: 'flex-end', gap: hs(8) },
+  phoneInputWrap: { flex: 1 },
+  reviewCard: {
     backgroundColor: neutral.card,
     borderRadius: ms(18),
     padding: hs(18),
     alignItems: 'center',
   },
-  successIcon: {
+  reviewIcon: {
     width: ms(52),
     height: ms(52),
     borderRadius: ms(26),
-    backgroundColor: semanticTint.success,
+    backgroundColor: parentRamp.tint,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACE.BLOCK,
   },
-  successTitle: { fontSize: ms(16), fontWeight: '900', color: neutral.ink },
-  successBody: {
+  reviewTitle: {
+    fontSize: ms(16),
+    fontWeight: '900',
+    color: neutral.ink,
+    textAlign: 'center',
+  },
+  reviewBody: {
     fontSize: ms(12),
     color: neutral.inkMuted,
     textAlign: 'center',
@@ -1206,7 +1296,7 @@ const styles = StyleSheet.create({
     marginTop: vs(6),
     marginBottom: SPACE.SECTION,
   },
-  successRow: {
+  reviewMetaRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -1215,6 +1305,56 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: neutral.border,
   },
-  successKey: { fontSize: ms(12), fontWeight: '700', color: neutral.inkSubtle },
-  successValue: { fontSize: ms(13), fontWeight: '800', color: neutral.ink },
+  reviewMetaKey: { fontSize: ms(12), fontWeight: '700', color: neutral.inkSubtle },
+  reviewMetaValue: { fontSize: ms(13), fontWeight: '800', color: neutral.ink },
+  reviewDone: { alignSelf: 'stretch', marginTop: SPACE.SECTION },
+  activeCard: {
+    backgroundColor: neutral.card,
+    borderRadius: ms(18),
+    padding: hs(18),
+    alignItems: 'center',
+  },
+  activeIcon: {
+    width: ms(52),
+    height: ms(52),
+    borderRadius: ms(26),
+    backgroundColor: semanticTint.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACE.BLOCK,
+  },
+  activeTitle: {
+    fontSize: ms(16),
+    fontWeight: '900',
+    color: neutral.ink,
+    textAlign: 'center',
+  },
+  activeBody: {
+    fontSize: ms(12),
+    color: neutral.inkMuted,
+    textAlign: 'center',
+    lineHeight: ms(18),
+    marginTop: vs(6),
+    marginBottom: SPACE.SECTION,
+  },
+  downloadBtn: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    height: Math.max(48, vs(48)),
+    borderRadius: ms(14),
+    backgroundColor: parentRamp.base,
+  },
+  downloadBtnText: {
+    fontSize: ms(13),
+    fontWeight: '800',
+    color: parentRamp.onBase,
+    textTransform: 'uppercase',
+  },
+  iosNote: {
+    fontSize: ms(11),
+    color: neutral.inkMuted,
+    textAlign: 'center',
+    lineHeight: ms(16),
+  },
 });

@@ -19,6 +19,7 @@ import {
   type User,
 } from '@react-native-firebase/auth';
 import { FIREBASE_AUTH_ENABLED } from '../lib/config';
+import { DEFAULT_COUNTRY, toE164 as normalizePhone } from '../lib/phone';
 
 export interface FirebaseUser {
   uid: string;
@@ -200,11 +201,13 @@ export function firebaseAuthConfigured(): boolean {
   }
 }
 
-/** Normalize a 10-digit Indian mobile into E.164 (`+91…`) — Firebase requires a country code. */
-export function toE164(digits: string): string {
-  const clean = digits.replace(/\D/g, '');
-  if (clean.startsWith('91') && clean.length === 12) return `+${clean}`;
-  return `+91${clean}`;
+/**
+ * Normalize a phone number into E.164 (`+CC…`) — Firebase requires a country code. Callers that
+ * predate the country picker omit `country` and keep the historical `+91` assumption; a number
+ * that already starts with `+` is always treated as international.
+ */
+export function toE164(digits: string, country: string = DEFAULT_COUNTRY): string {
+  return normalizePhone(digits, country);
 }
 
 function toSession(user: User, accessToken: string, expiresAt: number): FirebaseSession {

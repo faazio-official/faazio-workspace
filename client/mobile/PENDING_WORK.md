@@ -3597,17 +3597,30 @@ are masked server-side (`0083`).
 
 Submission goes through `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) and
 creates a `PENDING_REVIEW` seller, the account bank/KYC rows and one `directory.stores` vendor per
-shop. On success it shows the returned `sellerId`. Field labels/placeholders still come from the
-stable `@data/seller/sellerSetup.ts` fixture (`SELLER_SETUP_FIELDS`; `gstin.required` is now
-`false`).
+shop. The screen then branches on the returned status: `PENDING_REVIEW` shows a read-only
+under-review card (application id + shops), `ACTIVE` shows the official-seller card with an Android
+seller-app download CTA (iOS shows the Play Store hint), and `REJECTED`/`SUSPENDED` return to the
+form for resubmission. Field labels/placeholders still come from the stable
+`@data/seller/sellerSetup.ts` fixture (`SELLER_SETUP_FIELDS`; `gstin.required` is now `false`).
+
+Phone normalization is implemented in `src/lib/phone.ts` (`libphonenumber-js`): the contact field
+pairs the shared `CountryCodePicker` with the input and sends parsed E.164 instead of the old
+`.slice(-10)` + `+91` coercion. `toE164(digits, country = 'IN')` keeps every existing OTP flow on
+the `+91` default.
 
 **Remaining / honest gaps:**
+- Status is derived from the submit response, so the under-review/active states are session-scoped;
+  a cross-session "my application" read (persist `sellerId` + fetch) is not wired because the only
+  seller read is role-gated to `SELLER` and a new applicant is still a shopper.
+- The Android seller-app download URL is an empty placeholder → "Coming soon" alert until the Play
+  Store listing exists.
 - Per-shop bank overrides are captured at onboarding; the portal Stores console does not yet edit
   them after creation.
 - The account state/district match depends on the native reverse geocoder returning a region name
   that exists in `admins.states` (TN/PY coverage today).
 
-**Date:** 2026-09-10 — updated 2026-10-13 (live submit) — updated 2026-11-06 (two-part form).
+**Date:** 2026-09-10 — updated 2026-10-13 (live submit) — updated 2026-11-06 (two-part form) —
+updated 2026-11-07 (three-state status UI + phone normalization).
 
 ---
 
