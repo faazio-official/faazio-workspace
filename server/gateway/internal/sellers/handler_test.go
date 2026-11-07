@@ -103,6 +103,32 @@ func TestSellerRoleGating(t *testing.T) {
 	}
 }
 
+// TestSellerMeRead covers GET /sellers/me: a still-shopper account (no SELLER role) can read its
+// own latest application across sessions, and an applicant with no row gets 404.
+func TestSellerMeRead(t *testing.T) {
+	pool := testenv.Pool(t)
+	h := handlerRouter(t, pool)
+
+	if rec := do(t, h, http.MethodGet, "/sellers/me", "",
+		map[string]string{"X-Dev-User": "user-me-empty"}); rec.Code != http.StatusNotFound {
+		t.Fatalf("me before apply status = %d body=%s, want 404", rec.Code, rec.Body.String())
+	}
+
+	created := createTestSeller(t, pool, h, "Me Test")
+
+	rec := do(t, h, http.MethodGet, "/sellers/me", "", map[string]string{"X-Dev-User": "user-1"})
+	if rec.Code != http.StatusOK {
+		t.Fatalf("me status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got Seller
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.SellerID != created.SellerID {
+		t.Fatalf("me sellerId = %q, want %q", got.SellerID, created.SellerID)
+	}
+}
+
 func createTestSeller(t *testing.T, pool *pgxpool.Pool, h http.Handler, name string) Seller {
 	t.Helper()
 	create := do(t, h, http.MethodPost, "/sellers",

@@ -12,7 +12,7 @@ func TestSellerLifecycle(t *testing.T) {
 	repo := New(pool)
 	ctx := context.Background()
 
-	s, err := repo.Create(ctx, Seller{
+	s, err := repo.Create(ctx, "user-test-1", Seller{
 		BusinessName: "Test Traders", OwnerName: "A. Kaur",
 		GSTIN: "29ABCDE1234F1Z5", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
 		ContactPhone: "+91 9000000000", ContactEmail: "test@example.com", StateCode: "KA",
@@ -31,6 +31,14 @@ func TestSellerLifecycle(t *testing.T) {
 	got, ok, err := repo.ByID(ctx, s.SellerID)
 	if err != nil || !ok || got.BusinessName != "Test Traders" {
 		t.Fatalf("ByID: ok=%v err=%v seller=%+v", ok, err, got)
+	}
+
+	byUser, ok, err := repo.GetByUserID(ctx, "user-test-1")
+	if err != nil || !ok || byUser.SellerID != s.SellerID {
+		t.Fatalf("GetByUserID: ok=%v err=%v seller=%+v", ok, err, byUser)
+	}
+	if _, ok, _ := repo.GetByUserID(ctx, "user-does-not-exist"); ok {
+		t.Fatal("GetByUserID returned a row for an unknown user")
 	}
 
 	active, ok, err := repo.SetStatus(ctx, s.SellerID, "ACTIVE")

@@ -559,7 +559,8 @@ CREATE INDEX stores_geo_idx ON directory.stores (latitude, longitude)
  have no owner). The account is explicitly brand-agnostic: `sellers.sellers.category`,
 `platform_fee_pct`, `seller_category_id` and the `fssai_*` columns were **dropped** (0074) — every
  commercial licence field (FSSAI for FOOD, drug licence for PHARMA) now lives on the shop. `sellers.contact_email` is a unique identity key
- (partial, `lower(contact_email)` where non-empty, 0068). The seed (`generate.mjs`) binds every store's
+ (partial, `lower(contact_email)` where non-empty, 0068). `sellers.sellers.user_id` (nullable, indexed) links the application to the
+ authenticated shopper (`checkout.users.user_id`) so `GET /sellers/me` can answer "what is my application status?" across sessions (0084). The seed (`generate.mjs`) binds every store's
  `seller_id`, `platform_fee_pct`, `seller_category_id` (a best-fit top-level `taxonomy.categories` id derived
  from the store fixture's category labels; vendors with no clear home stay NULL) and FOOD-only FSSAI —
  seeded PHARMA stores carry no licence (0076).
@@ -2390,3 +2391,17 @@ carry its own override on `directory.stores`:
    like the account-level bank row — the full number never reaches Postgres.
 3. `directory.stores.drug_license_*` (0076) is now populated by mobile onboarding too (PHARMA shops),
    alongside the existing FOOD FSSAI trio.
+
+### 12.35 Seller application ↔ shopper link (migration `0084`)
+
+**Authority:** `monolith-breakdown.md` §1 (`sellers` row), `server-gateway-plan.md`,
+`mobile-app.md` ("Sell with us"). A "Sell with us" applicant is an authenticated shopper with no
+`SELLER` role until an admin activates the account, so the role-gated `GET /sellers/{id}` cannot
+serve their own-status read.
+
+1. `sellers.sellers` gains a nullable `user_id text` column, linked to `checkout.users.user_id` via
+   `auth.UserID()` at `POST /sellers` (0084).
+2. `sellers_user_id_idx` (partial, `where user_id is not null`) backs the "my application" lookup.
+3. `GET /sellers/me` (`auth.Require`) returns the newest application for the caller's `user_id`, or
+   `404 not_found` when none exists. The customer app calls `GatewayClient.getMySellerApplication`
+   on mount, so status survives an app restart.

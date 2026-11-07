@@ -78,13 +78,14 @@ last 10 digits. A leading `+` is always treated as international and is never re
 country; without one, the digits are parsed against the selected country, then fall back to that
 country's calling code. In the normal signed-in path the phone comes from the auth session, the
 field is read-only, and the picker is not shown.
-After submit, `SellerRegistrationScreen` branches on the returned `status`: `PENDING_REVIEW` shows a
-read-only under-review card (application id + submitted shops), and `ACTIVE` would show the
-official-seller card with the Android seller-app download CTA (iOS shows a Play Store hint). The
-create response is always `PENDING_REVIEW`, so `ACTIVE` is future-facing until a status read exists.
-`REJECTED`/`SUSPENDED` fall back to the form, which calls `POST /sellers` again (a new application);
-the `POST /sellers/{id}/edit` resubmit path is `SELLER`-gated and is not reachable for a still-shopper
-applicant. These states are derived from the submit response for the current session.
+After submit, `SellerRegistrationScreen` branches on the status: `PENDING_REVIEW` shows a read-only
+under-review card (application id + submitted shops), and `ACTIVE` shows the official-seller card
+with the Android seller-app download CTA (iOS shows a Play Store hint). On mount the screen also
+calls `GatewayClient.getMySellerApplication` (`GET /sellers/me`, `auth.Require`) so the status
+survives an app restart: `404` means no application yet (form), `REJECTED`/`SUSPENDED` show the
+form with a notice. The application is linked to the shopper via `sellers.sellers.user_id` (0084).
+`POST /sellers/{id}/edit` resubmit is `SELLER`-gated and is not reachable for a still-shopper
+applicant, which re-submits through the form.
 `refreshIdToken()` forces `getIdToken(true)`;
 `GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token, phone number or OTP code.
 

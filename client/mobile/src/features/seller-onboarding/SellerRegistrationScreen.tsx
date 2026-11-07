@@ -188,6 +188,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SellerApplication | null>(null);
   const [otpVerifiedAt, setOtpVerifiedAt] = useState('');
+  // Cross-session status read: `loadingStatus` holds the form back until GET /sellers/me settles so
+  // an existing PENDING/ACTIVE applicant never flashes the onboarding form.
+  const [loadingStatus, setLoadingStatus] = useState(true);
+  const [submittedApps, setSubmittedApps] = useState<string[]>([]);
 
   // Guards a category request per shop so a slower earlier app request cannot overwrite a newer one.
   const categoryReq = useRef<Record<string, number>>({});
@@ -195,6 +199,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const submitRef = useRef(false);
   const autoSubmittedRef = useRef<string | null>(null);
   const consentArmedRef = useRef(false);
+  const statusCheckedRef = useRef(false);
 
   const update = (key: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -356,6 +361,29 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       alive = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Cross-session application status. A fresh app open has no submit response, so ask the server
+  // "what is my application?" via GET /sellers/me. 404 means NOT_APPLIED (form); offline/other
+  // failures also fall back to the form (submit surfaces its own honest error).
+  useEffect(() => {
+    if (statusCheckedRef.current) return;
+    statusCheckedRef.current = true;
+    let alive = true;
+    gateway
+      .getMySellerApplication()
+      .then((app) => {
+        if (alive) setResult(app);
+      })
+      .catch(() => {
+        // No application (404), offline, or transient failure: keep the onboarding form.
+      })
+      .finally(() => {
+        if (alive) setLoadingStatus(false);
+      });
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -610,6 +638,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         otpVerified: true,
       });
       setResult(res);
+      setSubmittedApps(vendorPayload.map((v) => v.app).filter(Boolean));
     } catch {
       setError('Could not submit right now. Please try again.');
     } finally {
@@ -634,16 +663,15 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     ? [stateName ?? form.stateCode, districtName].filter(Boolean).join(' · ')
     : '';
 
-  // Status-derived UI. `result` is the submit response, so these states are available for the
-  // current session. Rejected/suspended (and any unexpected status) fall back to the form so the
+  // Status-derived UI. `result` comes from GET /sellers/me on mount or from the submit response;
+  // rejected/suspended (and any unexpected status) fall back to the form (with a notice) so the
   // applicant is never left on a blank screen.
   const applicationStatus = (result?.status ?? 'NOT_APPLIED').toUpperCase();
   const isUnderReview = applicationStatus === 'PENDING_REVIEW';
   const isActiveSeller = applicationStatus === 'ACTIVE';
-  // The create response does not echo shops, so fall back to the locally submitted selection.
-  const submittedApps = (result?.vendors?.map((v) => v.app) ?? vendors.map((v) => v.app)).filter(
-    Boolean,
-  );
+  // Prefer vendor apps echoed by the server; otherwise the local submit selection. A cross-session
+  // fetch echoes no vendors, so it must not fall back to the empty default draft.
+  const displayedApps = (result?.vendors?.map((v) => v.app) ?? submittedApps).filter(Boolean);
 
   const handleDownloadSellerApp = useCallback(() => {
     const androidUrl =
@@ -676,7 +704,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         bounces={false}
         keyboardShouldPersistTaps="handled"
       >
-        {!isUnderReview && !isActiveSeller ? (
+        {!loadingStatus && !isUnderReview && !isActiveSeller ? (
           <View style={styles.heroCard}>
             <View style={styles.heroIcon}>
               <Store size={ms(22)} color={parentRamp.base} strokeWidth={2.2} />
@@ -689,7 +717,28 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           </View>
         ) : null}
 
-        {isUnderReview ? (
+        {applicationStatus === 'REJECTED' ? (
+          <View style={styles.statusNoticeCard}>
+            <AppText style={styles.statusNoticeTitle}>Application not approved</AppText>
+            <AppText style={styles.statusNoticeBody}>
+              {result?.rejectionReason?.trim() ||
+                'Please review your details below and submit again.'}
+            </AppText>
+          </View>
+        ) : applicationStatus === 'SUSPENDED' ? (
+          <View style={styles.statusNoticeCard}>
+            <AppText style={styles.statusNoticeTitle}>Seller account suspended</AppText>
+            <AppText style={styles.statusNoticeBody}>
+              Contact Faazio support to restore your seller account.
+            </AppText>
+          </View>
+        ) : null}
+
+        {loadingStatus ? (
+          <View style={styles.statusLoading}>
+            <ActivityIndicator color={parentRamp.base} />
+          </View>
+        ) : isUnderReview ? (
           <View style={styles.reviewCard}>
             <View style={styles.reviewIcon}>
               <Store size={ms(32)} color={parentRamp.base} strokeWidth={2.4} />
@@ -704,10 +753,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 <AppText style={styles.reviewMetaValue}>{result.sellerId}</AppText>
               </View>
             ) : null}
-            {submittedApps.length > 0 ? (
+            {displayedApps.length > 0 ? (
               <View style={styles.reviewMetaRow}>
                 <AppText style={styles.reviewMetaKey}>Shops</AppText>
-                <AppText style={styles.reviewMetaValue}>{submittedApps.join(' / ')}</AppText>
+                <AppText style={styles.reviewMetaValue}>{displayedApps.join(' / ')}</AppText>
               </View>
             ) : null}
             <TouchableOpacity
@@ -1263,6 +1312,20 @@ const styles = StyleSheet.create({
   secureNoteText: { fontSize: ms(10.5), color: neutral.inkSubtle, lineHeight: ms(15), flex: 1 },
   phoneRow: { flexDirection: 'row', alignItems: 'flex-end', gap: hs(8) },
   phoneInputWrap: { flex: 1 },
+  statusLoading: { paddingVertical: vs(48), alignItems: 'center', justifyContent: 'center' },
+  statusNoticeCard: {
+    backgroundColor: semanticTint.danger,
+    borderRadius: ms(14),
+    padding: hs(14),
+    marginBottom: SPACE.BLOCK,
+  },
+  statusNoticeTitle: { fontSize: ms(13), fontWeight: '800', color: semantic.danger },
+  statusNoticeBody: {
+    fontSize: ms(12),
+    color: semantic.danger,
+    lineHeight: ms(18),
+    marginTop: vs(4),
+  },
   reviewCard: {
     backgroundColor: neutral.card,
     borderRadius: ms(18),

@@ -1822,6 +1822,16 @@ export class GatewayClient {
     return this.http<SellerApplication>('/sellers', { method: 'POST', body: JSON.stringify(input) });
   }
 
+  /**
+   * The authenticated shopper's latest seller application. Server-only. Throws
+   * `GatewayHttpError` 404 when the shopper has never applied (callers treat that as NOT_APPLIED).
+   * Uses `auth.Require` (not a SELLER role) so a pre-activation shopper can read their status.
+   */
+  async getMySellerApplication(): Promise<SellerApplication> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<SellerApplication>('/sellers/me');
+  }
+
   /** One seller with payout account, KYC documents and manual verification log. */
   async getSellerDetail(sellerId: string): Promise<SellerDetail> {
     return this.http<SellerDetail>(`/sellers/${encodeURIComponent(sellerId)}`);

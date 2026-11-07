@@ -111,6 +111,11 @@ caller) and are event-purged on store live toggle and product edit/status change
   `POST /sellers/:id/reject`, and seller `POST /sellers/:id/edit` (rejected rows only; field history).
   `GET /sellers/:id` returns the seller + masked bank account + KYC docs + verification log; admin KYC
   images render via the existing `GET /media/private/{id}` presigned-GET (creator or admin only).
+  **Shopper self-read (`0084`):** `POST /sellers` stores `auth.UserID()` as `sellers.sellers.user_id`,
+  and `GET /sellers/me` (mounted under `auth.Require`, **not** `RequireRole`) returns the caller's
+  newest application or `404 not_found`. This lets a still-shopper applicant read their status
+  across app sessions (`GatewayClient.getMySellerApplication`); the role-gated `GET /sellers/{id}`
+  is unchanged.
   **Razorpay Route is removed (`0077`)** — `internal/platform/razorpayroute` + `internal/settlement`
   are deleted, so there are no linked accounts, no `on_hold` transfers, no `POST /payouts/holds` /
   `{id}/release` / `{id}/reverse`, no `POST /webhooks/razorpay/route` and no hold releaser.

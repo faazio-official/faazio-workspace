@@ -32,6 +32,9 @@ func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handle
 func (h *Handler) Register(r chi.Router) {
 	// Onboarding: any authenticated applicant can create a PENDING_REVIEW seller.
 	r.With(auth.Require).Post("/sellers", h.create)
+	// The applicant's own status. auth.Require (not RequireRole) is intentional: a shopper is
+	// authenticated via Firebase but has no SELLER role until an admin activates the account.
+	r.With(auth.Require).Get("/sellers/me", h.me)
 
 	// Seller-scoped reads/writes + admin moderation. Admin-only actions re-check the role and the
 	// state scope inside the handler so a seller can never moderate their own application.
@@ -111,6 +114,20 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, d)
+}
+
+// me returns the authenticated shopper's latest seller application, or 404 when none exists.
+func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
+	s, ok, err := h.repo.GetByUserID(r.Context(), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "no seller application")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, s)
 }
 
 // vendorApplication is one VENDOR (shop) created with the account. The account itself is
@@ -314,7 +331,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 			BankBeneficiary: v.BankBeneficiary,
 		})
 	}
-	s, err := h.repo.CreateExtended(r.Context(), Seller{
+	s, err := h.repo.CreateExtended(r.Context(), auth.UserID(r.Context()), Seller{
 		BusinessName: req.BusinessName, OwnerName: req.OwnerName,
 		GSTIN: req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
 		ContactPhone: req.ContactPhone, ContactEmail: req.ContactEmail, StateCode: req.StateCode,

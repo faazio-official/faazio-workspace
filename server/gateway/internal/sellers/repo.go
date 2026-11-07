@@ -227,6 +227,25 @@ func (r *Repo) List(ctx context.Context, f ListFilter) ([]Seller, error) {
 	return out, rows.Err()
 }
 
+// GetByUserID returns the latest seller application linked to an authenticated shopper.
+// A shopper can submit more than once, so the newest row wins for the "my application" read.
+func (r *Repo) GetByUserID(ctx context.Context, userID string) (Seller, bool, error) {
+	if r.pool == nil {
+		return Seller{}, false, fmt.Errorf("sellers: database not configured")
+	}
+	if userID == "" {
+		return Seller{}, false, nil
+	}
+	s, err := scanSeller(r.pool.QueryRow(ctx, sellerSelect+` where user_id = $1 order by created_at desc limit 1`, userID))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Seller{}, false, nil
+		}
+		return Seller{}, false, err
+	}
+	return s, true, nil
+}
+
 // ByID returns one seller.
 func (r *Repo) ByID(ctx context.Context, id string) (Seller, bool, error) {
 	if r.pool == nil {
@@ -304,13 +323,14 @@ func (r *Repo) Vendors(ctx context.Context, sellerID string) ([]Vendor, error) {
 }
 
 // Create inserts an onboarding seller (status PENDING_REVIEW) and returns the new row.
-func (r *Repo) Create(ctx context.Context, s Seller) (Seller, error) {
-	return r.CreateExtended(ctx, s, nil, nil, nil)
+func (r *Repo) Create(ctx context.Context, userID string, s Seller) (Seller, error) {
+	return r.CreateExtended(ctx, userID, s, nil, nil, nil)
 }
 
 // CreateExtended inserts the account, payout account, KYC documents and its vendors in one
 // transaction. The account row carries no brand/fee/FSSAI: those live on each vendor row.
-func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, docs []KycDocument, vendors []VendorSeed) (Seller, error) {
+// userID links the application to the authenticated shopper for GET /sellers/me.
+func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank *BankAccount, docs []KycDocument, vendors []VendorSeed) (Seller, error) {
 	if r.pool == nil {
 		return Seller{}, fmt.Errorf("sellers: database not configured")
 	}
@@ -331,12 +351,12 @@ func (r *Repo) CreateExtended(ctx context.Context, s Seller, bank *BankAccount, 
 
 	created, err := scanSeller(tx.QueryRow(ctx, `
 		insert into sellers.sellers
-		  (seller_id, business_name, owner_name, gstin, pan, address, phone, contact_email,
+		  (seller_id, user_id, business_name, owner_name, gstin, pan, address, phone, contact_email,
 		   state_code, district_code,
 		   otp_verified, otp_verified_at, latitude, longitude)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
 		returning `+sellerColumns,
-		s.SellerID, s.BusinessName, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
+		s.SellerID, nullIfEmpty(userID), s.BusinessName, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
 		nullIfEmpty(s.ContactPhone), s.ContactEmail, s.StateCode, nullIfEmpty(s.DistrictCode),
 		s.OTPVerified, otpAt, s.Latitude, s.Longitude))
 	if err != nil {

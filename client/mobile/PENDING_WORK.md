@@ -3597,12 +3597,15 @@ are masked server-side (`0083`).
 
 Submission goes through `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) and
 creates a `PENDING_REVIEW` seller, the account bank/KYC rows and one `directory.stores` vendor per
-shop. The screen then branches on the returned status: `PENDING_REVIEW` shows a read-only
-under-review card (application id + submitted shops), and `ACTIVE` would show the official-seller
-card with an Android seller-app download CTA (iOS shows the Play Store hint). Create always returns
-`PENDING_REVIEW`, so `ACTIVE` is future-facing. `REJECTED`/`SUSPENDED` fall back to the form, which
-submits a new `POST /sellers` application. Field labels/placeholders still come from the stable
-`@data/seller/sellerSetup.ts` fixture (`SELLER_SETUP_FIELDS`; `gstin.required` is now `false`).
+shop. The application is linked to the authenticated shopper via `sellers.sellers.user_id` (0084).
+On mount the screen calls `GatewayClient.getMySellerApplication` (`GET /sellers/me`, `auth.Require`)
+so status survives a fresh app open: `404` means `NOT_APPLIED` (form), `PENDING_REVIEW` shows the
+read-only under-review card (application id + submitted shops), `ACTIVE` shows the official-seller
+card with an Android seller-app download CTA (iOS shows the Play Store hint), and
+`REJECTED`/`SUSPENDED` show the form with a notice (rejection reason / support hint). A rejected
+applicant re-submits through the form (`POST /sellers/{id}/edit` is `SELLER`-gated). Field
+labels/placeholders still come from the stable `@data/seller/sellerSetup.ts` fixture
+(`SELLER_SETUP_FIELDS`; `gstin.required` is now `false`).
 
 Phone normalization is implemented in `src/lib/phone.ts` (`libphonenumber-js`): when the account has
 no auth phone the contact field pairs the shared `CountryCodePicker` (7 countries) with the input and
@@ -3612,10 +3615,6 @@ to the selected country's calling code. In the normal signed-in path the phone c
 session (read-only field, no picker).
 
 **Remaining / honest gaps:**
-- Status is derived from the submit response, so the under-review/active states are session-scoped;
-  a cross-session "my application" read (persist `sellerId` + fetch) is not wired because
-  `GET /sellers/{id}` is gated to `SELLER`/district admin/super admin, and a new applicant is still a
-  shopper. The `ACTIVE` card is therefore not reachable from a fresh create today.
 - The Android seller-app download CTA opens
   `https://play.google.com/store/apps/details?id=com.faazio.sellerpartner`; iOS shows the Play Store
   search hint (the seller app is Android-only).
@@ -3625,7 +3624,7 @@ session (read-only field, no picker).
   that exists in `admins.states` (TN/PY coverage today).
 
 **Date:** 2026-09-10 — updated 2026-10-13 (live submit) — updated 2026-11-06 (two-part form) —
-updated 2026-11-07 (three-state status UI + phone normalization).
+updated 2026-11-07 (cross-session `GET /sellers/me` status + phone normalization).
 
 ---
 
