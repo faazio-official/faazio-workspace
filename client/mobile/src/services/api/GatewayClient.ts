@@ -498,6 +498,8 @@ export interface NotificationRecord {
   status: string;
   createdAt: string;
   sentAt?: string;
+  /** Set once the recipient opened the notification (in-app read state). */
+  readAt?: string;
   data?: unknown;
 }
 
@@ -1357,6 +1359,20 @@ export class GatewayClient {
     return this.serverOnly(
       () => this.http<NotificationRecord[]>('/notifications'),
     );
+  }
+
+  /** Mark one notification as read (idempotent; a foreign/unknown id is a no-op). */
+  async markNotificationRead(id: string): Promise<void> {
+    if (!REMOTE_ENABLED) return;
+    await this.http<{ ok: boolean }>(`/notifications/${encodeURIComponent(id)}/read`, {
+      method: 'POST',
+    });
+  }
+
+  /** Mark every unread notification as read (clears the badge). */
+  async markAllNotificationsRead(): Promise<void> {
+    if (!REMOTE_ENABLED) return;
+    await this.http<{ ok: boolean }>('/notifications/read-all', { method: 'POST' });
   }
 
   /**

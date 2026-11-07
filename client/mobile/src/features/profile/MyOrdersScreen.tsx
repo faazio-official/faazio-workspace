@@ -106,33 +106,31 @@ export function MyOrdersScreen({ navigation, route }: Props) {
   const [notificationCount, setNotificationCount] = useState(0);
   const [invoiceNotice, setInvoiceNotice] = useState<string | null>(null);
 
+  // Badge = UNREAD notifications only (read_at is stamped when the inbox is opened).
+  const refreshNotifications = useCallback(() => {
+    void gateway
+      .getNotifications()
+      .then((items) => setNotificationCount(items.filter((item) => !item.readAt).length))
+      .catch(() => {
+        // Inbox is best-effort; the badge simply stays hidden on failure.
+      });
+  }, []);
+
   // Server history is authoritative: refresh on every focus (status changes while away).
   useFocusEffect(
     useCallback(() => {
       void refreshOrders();
-    }, [refreshOrders]),
+      refreshNotifications();
+    }, [refreshOrders, refreshNotifications]),
   );
 
   useEffect(() => {
-    let active = true;
-    const refresh = () =>
-      gateway
-        .getNotifications()
-        .then((items) => {
-          if (active) setNotificationCount(items.length);
-        })
-        .catch(() => {
-          // Inbox is best-effort; the badge simply stays hidden on failure.
-        });
-    refresh();
+    refreshNotifications();
     // Poll while the screen is mounted (production monitoring without FCM): Rx READY / order-status
     // notifications land in the in-app inbox and the badge updates within the poll window.
-    const timer = setInterval(refresh, 60_000);
-    return () => {
-      active = false;
-      clearInterval(timer);
-    };
-  }, []);
+    const timer = setInterval(refreshNotifications, 60_000);
+    return () => clearInterval(timer);
+  }, [refreshNotifications]);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
   const handleNotificationPress = useCallback(() => {

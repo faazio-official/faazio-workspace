@@ -80,13 +80,13 @@ export function DonorDashboard() {
     void refreshIncoming();
   }, [refreshIncoming]);
 
-  // Honest inbox count: server notifications only (mock/anon → 0), never a fabricated seed.
+  // Honest inbox count: UNREAD server notifications only (mock/anon → 0), never a fabricated seed.
   useEffect(() => {
     let active = true;
     gateway
       .getNotifications()
       .then((items) => {
-        if (active) setNotifCount(items.length);
+        if (active) setNotifCount(items.filter((item) => !item.readAt).length);
       })
       .catch(() => {
         if (active) setNotifCount(0);

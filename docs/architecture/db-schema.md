@@ -1352,6 +1352,12 @@ ALTER TABLE notifications.outbox ADD COLUMN next_attempt_at timestamptz;
 ALTER TABLE notifications.outbox ADD COLUMN updated_at timestamptz NOT NULL DEFAULT now();
 CREATE INDEX notifications_outbox_retry_idx ON notifications.outbox (status, next_attempt_at)
   WHERE status IN ('PENDING','FAILED');
+-- 0085 adds the in-app read marker: read_at is stamped when the customer opens a notification
+-- (POST /notifications/{id}/read) or clears the badge (POST /notifications/read-all). The unread
+-- badge counts rows where read_at IS NULL.
+ALTER TABLE notifications.outbox ADD COLUMN read_at timestamptz;
+CREATE INDEX notifications_outbox_unread_idx ON notifications.outbox (user_id, created_at DESC)
+  WHERE read_at IS NULL;
 CREATE TABLE notifications.push_tokens (
   user_id text PRIMARY KEY, token text NOT NULL, platform text, updated_at timestamptz
 );

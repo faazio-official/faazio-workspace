@@ -41,6 +41,7 @@ export function NotificationsScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [markingAll, setMarkingAll] = useState(false);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
@@ -55,6 +56,29 @@ export function NotificationsScreen({ navigation }: Props) {
       setRefreshing(false);
     }
   }, []);
+
+  const unreadCount = items.filter((item) => !item.readAt).length;
+
+  // Opening a notification marks it read (optimistic; reloaded on failure).
+  const markRead = useCallback((id: string) => {
+    setItems((prev) =>
+      prev.map((item) =>
+        item.id === id && !item.readAt ? { ...item, readAt: new Date().toISOString() } : item,
+      ),
+    );
+    void gateway.markNotificationRead(id).catch(() => void load());
+  }, [load]);
+
+  const markAllRead = useCallback(() => {
+    if (markingAll) return;
+    setMarkingAll(true);
+    const stamped = new Date().toISOString();
+    setItems((prev) => prev.map((item) => (item.readAt ? item : { ...item, readAt: stamped })));
+    void gateway
+      .markAllNotificationsRead()
+      .catch(() => void load())
+      .finally(() => setMarkingAll(false));
+  }, [markingAll, load]);
 
   useFocusEffect(
     useCallback(() => {
@@ -78,7 +102,21 @@ export function NotificationsScreen({ navigation }: Props) {
             <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={1.75} />
           </TouchableOpacity>
           <AppText style={styles.headerTitle}>Notifications</AppText>
-          <View style={{ width: ms(34) }} />
+          {unreadCount > 0 ? (
+            <TouchableOpacity
+              onPress={markAllRead}
+              disabled={markingAll}
+              style={styles.markAllBtn}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              accessibilityLabel={`Mark all ${unreadCount} notifications as read`}
+              accessibilityState={{ disabled: markingAll }}
+            >
+              <AppText style={styles.markAllText}>Mark all read</AppText>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.headerSpacer} />
+          )}
         </View>
       </View>
 
@@ -144,12 +182,24 @@ export function NotificationsScreen({ navigation }: Props) {
                 </TouchableOpacity>
               </View>
             ) : null}
-            {items.map((item) => (
-              <View key={item.id} style={styles.card}>
+            {items.map((item) => {
+              const unread = !item.readAt;
+              return (
+              <TouchableOpacity
+                key={item.id}
+                style={[styles.card, unread && styles.cardUnread]}
+                activeOpacity={0.9}
+                onPress={() => markRead(item.id)}
+                accessibilityRole="button"
+                accessibilityLabel={`${unread ? 'Unread' : 'Read'} notification: ${item.title}`}
+              >
                 <View style={styles.cardHeader}>
-                  <AppText style={styles.cardTitle} numberOfLines={2}>
-                    {item.title}
-                  </AppText>
+                  <View style={styles.cardTitleRow}>
+                    {unread ? <View style={styles.unreadDot} /> : null}
+                    <AppText style={[styles.cardTitle, unread && styles.cardTitleUnread]} numberOfLines={2}>
+                      {item.title}
+                    </AppText>
+                  </View>
                   <View
                     style={[
                       styles.statusPill,
@@ -168,8 +218,9 @@ export function NotificationsScreen({ navigation }: Props) {
                 </View>
                 <AppText style={styles.cardBody}>{item.body}</AppText>
                 <AppText style={styles.cardWhen}>{formatWhen(item.createdAt)}</AppText>
-              </View>
-            ))}
+              </TouchableOpacity>
+              );
+            })}
             <View style={styles.bottomSpacer} />
           </View>
         )}
@@ -205,6 +256,9 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   headerTitle: { fontSize: ms(18), fontWeight: '600', color: '#111827' },
+  headerSpacer: { width: ms(34) },
+  markAllBtn: { minHeight: 44, justifyContent: 'center', paddingHorizontal: hs(4) },
+  markAllText: { fontSize: ms(13), fontWeight: '600', color: parentRamp.base },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: SPACE.LIST_BOTTOM },
   list: { paddingHorizontal: hs(16), paddingTop: SPACE.BLOCK },
@@ -216,13 +270,31 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#E5E7EB',
   },
+  cardUnread: {
+    borderColor: parentRamp.base,
+    backgroundColor: '#F5F8FF',
+  },
   cardHeader: {
     flexDirection: 'row',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
     gap: hs(8),
   },
-  cardTitle: { flex: 1, fontSize: ms(14), fontWeight: '600', color: '#111827' },
+  cardTitleRow: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: hs(6),
+  },
+  unreadDot: {
+    width: ms(8),
+    height: ms(8),
+    borderRadius: ms(4),
+    backgroundColor: parentRamp.base,
+    marginTop: vs(5),
+  },
+  cardTitle: { flex: 1, fontSize: ms(14), fontWeight: '400', color: '#111827' },
+  cardTitleUnread: { fontWeight: '600' },
   cardBody: {
     fontSize: ms(13),
     color: '#4B5563',

@@ -15,7 +15,7 @@ import { ms, vs, hs } from '@/utils/responsive';
 import { reverseGeocode, type Coordinates } from '@/services/location';
 import { refreshLiveLocation } from '@/hooks/useLiveLocation';
 import { useLocationStore } from '@/state/locationStore';
-import { parentRamp } from '@/theme/brandTokens';
+import { parentRamp, neutral, semanticTint } from '@/theme/brandTokens';
 
 interface Props {
   visible: boolean;
@@ -90,7 +90,7 @@ export default function SellerLocationPicker({
       <View style={styles.container}>
         <View style={[styles.header, { paddingTop: insets.top + vs(8) }]}>
           <Pressable onPress={onCancel} style={styles.iconBtn} accessibilityLabel="Close map">
-            <X size={ms(20)} color="#0f172a" />
+            <X size={ms(20)} color={neutral.ink} />
           </Pressable>
           <AppText style={styles.title}>Pin your shop</AppText>
           <View style={styles.iconBtn} />
@@ -154,7 +154,7 @@ export default function SellerLocationPicker({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
+  container: { flex: 1, backgroundColor: neutral.card },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -162,21 +162,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(16),
     paddingBottom: vs(10),
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e2e8f0',
+    borderColor: neutral.border,
   },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: ms(15), fontWeight: '800', color: '#0f172a' },
+  title: { fontSize: ms(15), fontWeight: '800', color: neutral.ink },
   map: { flex: 1 },
   sheet: {
     paddingHorizontal: hs(16),
     paddingTop: vs(14),
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
+    borderColor: neutral.border,
+    backgroundColor: neutral.card,
   },
   pinRow: { flexDirection: 'row', gap: hs(10), alignItems: 'flex-start' },
-  pinLabel: { fontSize: ms(10), fontWeight: '700', color: '#64748b', textTransform: 'uppercase' },
-  pinValue: { fontSize: ms(12), fontWeight: '600', color: '#0f172a', marginTop: vs(2) },
+  pinLabel: { fontSize: ms(10), fontWeight: '700', color: neutral.inkMuted, textTransform: 'uppercase' },
+  pinValue: { fontSize: ms(12), fontWeight: '600', color: neutral.ink, marginTop: vs(2) },
   actions: { flexDirection: 'row', gap: hs(10), marginTop: vs(14) },
   locateBtn: {
     flex: 1,
@@ -186,7 +186,7 @@ const styles = StyleSheet.create({
     gap: hs(6),
     paddingVertical: vs(11),
     borderRadius: ms(10),
-    backgroundColor: '#EAF2FE',
+    backgroundColor: parentRamp.tint,
   },
   locateText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base },
   confirmBtn: {
@@ -197,5 +197,5 @@ const styles = StyleSheet.create({
     borderRadius: ms(10),
     backgroundColor: parentRamp.base,
   },
-  confirmText: { fontSize: ms(11), fontWeight: '800', color: '#ffffff' },
+  confirmText: { fontSize: ms(11), fontWeight: '800', color: neutral.card },
 });

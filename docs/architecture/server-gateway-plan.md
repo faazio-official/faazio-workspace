@@ -80,7 +80,9 @@ caller) and are event-purged on store live toggle and product edit/status change
   owning a store in the order (`contracts.Notifier.EnqueueSeller`). Notification devices register
   with `POST /notifications/register` and unregister with `DELETE /notifications/register` (portal
   sign-out); re-registering a token drops any previous owner so a shared phone cannot inherit the
-  old seller's order pushes.
+  old seller's order pushes. The inbox carries in-app read state: `GET /notifications` returns
+  `readAt`, stamped by `POST /notifications/{id}/read` (open a row) and `POST /notifications/read-all`
+  (clear the badge); the unread badge counts rows with a null `readAt`.
 - **Customer payments — UPI + COD (`internal/checkout` + `internal/platform/razorpaypay`, migration `0066`):**
   `POST /razorpay/customer/orders` creates a Razorpay order for an owned checkout order (server-derived
   amount = stored order total − coins redeemed; **idempotent** — reuses an in-flight Razorpay order and

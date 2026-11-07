@@ -19,7 +19,7 @@ import { SPACE } from '@/theme/spacing';
 import { gateway, type FeeChangeRequest } from '@/services/api/GatewayClient';
 import { isPartnerAdmin, useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
-import { parentRamp } from '@/theme/brandTokens';
+import { parentRamp, neutral, semantic, semanticTint } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FeeChangeRequests'>;
 
@@ -32,9 +32,9 @@ const FILTERS: { key: string; label: string }[] = [
 
 /** Status is conveyed by text *and* colour (never colour alone). */
 const STATUS_BG: Record<string, string> = {
-  PENDING: '#B45309',
-  APPROVED: '#15803D',
-  REJECTED: '#DC2626',
+  PENDING: semantic.warning,
+  APPROVED: semantic.success,
+  REJECTED: semantic.danger,
 };
 
 /**
@@ -128,7 +128,7 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
+          <ChevronLeft size={ms(26)} color={neutral.ink} strokeWidth={2.2} />
         </TouchableOpacity>
         <AppText style={styles.headerTitle}>Fee change requests</AppText>
         <View style={styles.headerSpacer} />
@@ -214,7 +214,7 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
                     accessibilityRole="button"
                     accessibilityLabel={`Approve request from ${item.businessName || item.sellerId}`}
                   >
-                    <Check size={ms(16)} color="#FFFFFF" strokeWidth={2.6} />
+                    <Check size={ms(16)} color={neutral.card} strokeWidth={2.6} />
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.actionBtn, styles.rejectBtn]}
@@ -223,11 +223,11 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
                     accessibilityRole="button"
                     accessibilityLabel={`Reject request from ${item.businessName || item.sellerId}`}
                   >
-                    <X size={ms(16)} color="#FFFFFF" strokeWidth={2.6} />
+                    <X size={ms(16)} color={neutral.card} strokeWidth={2.6} />
                   </TouchableOpacity>
                 </View>
               ) : (
-                <View style={[styles.statusPill, { backgroundColor: STATUS_BG[item.status] ?? '#64748B' }]}>
+                <View style={[styles.statusPill, { backgroundColor: STATUS_BG[item.status] ?? neutral.inkMuted }]}>
                   <AppText style={styles.statusText}>{item.status}</AppText>
                 </View>
               )}
@@ -276,16 +276,16 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F4F6F9' },
+  root: { flex: 1, backgroundColor: neutral.surface },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
     paddingBottom: SPACE.BLOCK,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     zIndex: 10,
-    shadowColor: '#000000',
+    shadowColor: 'black',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -293,39 +293,39 @@ const styles = StyleSheet.create({
   },
   headerSpacer: { width: 44 },
   backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: ms(18), fontWeight: '900', color: '#0f172a' },
+  headerTitle: { fontSize: ms(18), fontWeight: '900', color: neutral.ink },
   filterRow: { flexDirection: 'row', gap: hs(8), paddingHorizontal: hs(16), paddingVertical: vs(12) },
   filterChip: {
     paddingHorizontal: hs(14),
     paddingVertical: vs(8),
     borderRadius: ms(20),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: neutral.border,
   },
   filterChipActive: { backgroundColor: parentRamp.base, borderColor: parentRamp.base },
-  filterText: { fontSize: ms(12), fontWeight: '700', color: '#64748B' },
-  filterTextActive: { color: '#FFFFFF' },
+  filterText: { fontSize: ms(12), fontWeight: '700', color: neutral.inkMuted },
+  filterTextActive: { color: neutral.card },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: hs(24) },
   listContent: { paddingHorizontal: hs(16), paddingBottom: SPACE.LIST_BOTTOM },
   emptyContent: { flexGrow: 1 },
-  emptyText: { fontSize: ms(13), color: '#94A3B8', fontWeight: '600', textAlign: 'center' },
+  emptyText: { fontSize: ms(13), color: neutral.inkSubtle, fontWeight: '600', textAlign: 'center' },
   retryBtn: {
     minHeight: 44,
     marginTop: vs(12),
     paddingHorizontal: hs(20),
     borderRadius: ms(22),
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: neutral.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   retryText: { fontSize: ms(13), fontWeight: '600', color: parentRamp.base },
-  error: { fontSize: ms(12), color: '#DC2626', fontWeight: '700', marginBottom: vs(8) },
+  error: { fontSize: ms(12), color: semantic.danger, fontWeight: '700', marginBottom: vs(8) },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(16),
     padding: hs(14),
     marginBottom: SPACE.BLOCK,
@@ -335,24 +335,24 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: ms(12),
-    backgroundColor: '#EFF6FF',
+    backgroundColor: semanticTint.info,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rowText: { flex: 1 },
-  rowTitle: { fontSize: ms(14), fontWeight: '800', color: '#0f172a' },
-  rowSubtitle: { fontSize: ms(11), color: '#94A3B8', marginTop: vs(3), fontWeight: '600' },
-  rowReason: { fontSize: ms(11), color: '#64748B', marginTop: vs(3) },
+  rowTitle: { fontSize: ms(14), fontWeight: '800', color: neutral.ink },
+  rowSubtitle: { fontSize: ms(11), color: neutral.inkSubtle, marginTop: vs(3), fontWeight: '600' },
+  rowReason: { fontSize: ms(11), color: neutral.inkMuted, marginTop: vs(3) },
   actions: { flexDirection: 'row', gap: hs(6) },
   actionBtn: { width: 44, height: 44, borderRadius: ms(10), alignItems: 'center', justifyContent: 'center' },
-  approveBtn: { backgroundColor: '#15803D' },
-  rejectBtn: { backgroundColor: '#DC2626' },
-  statusPill: { backgroundColor: '#94A3B8', paddingHorizontal: hs(8), paddingVertical: vs(3), borderRadius: ms(10) },
-  statusText: { fontSize: ms(11), fontWeight: '800', color: '#FFFFFF' },
-  gateTitle: { fontSize: ms(16), fontWeight: '900', color: '#0f172a', textAlign: 'center', marginTop: vs(40) },
+  approveBtn: { backgroundColor: semantic.success },
+  rejectBtn: { backgroundColor: semantic.danger },
+  statusPill: { backgroundColor: neutral.inkSubtle, paddingHorizontal: hs(8), paddingVertical: vs(3), borderRadius: ms(10) },
+  statusText: { fontSize: ms(11), fontWeight: '800', color: neutral.card },
+  gateTitle: { fontSize: ms(16), fontWeight: '900', color: neutral.ink, textAlign: 'center', marginTop: vs(40) },
   gateBody: {
     fontSize: ms(12),
-    color: '#64748B',
+    color: neutral.inkMuted,
     textAlign: 'center',
     lineHeight: ms(18),
     marginTop: vs(6),
@@ -365,27 +365,27 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     padding: hs(20),
   },
-  modalCard: { width: '100%', backgroundColor: '#FFFFFF', borderRadius: ms(18), padding: hs(18) },
-  modalTitle: { fontSize: ms(16), fontWeight: '900', color: '#0f172a', marginBottom: vs(6) },
-  muted: { fontSize: ms(12), color: '#64748B', lineHeight: ms(18) },
+  modalCard: { width: '100%', backgroundColor: neutral.card, borderRadius: ms(18), padding: hs(18) },
+  modalTitle: { fontSize: ms(16), fontWeight: '900', color: neutral.ink, marginBottom: vs(6) },
+  muted: { fontSize: ms(12), color: neutral.inkMuted, lineHeight: ms(18) },
   input: {
     marginTop: vs(12),
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: neutral.border,
     borderRadius: ms(12),
     paddingHorizontal: hs(12),
     paddingVertical: vs(10),
     fontSize: ms(14),
-    color: '#0f172a',
+    color: neutral.ink,
     minHeight: vs(72),
     textAlignVertical: 'top',
   },
   modalActions: { flexDirection: 'row', gap: hs(10), marginTop: vs(16) },
   modalBtn: { flex: 1, alignItems: 'center', paddingVertical: vs(12), borderRadius: ms(12) },
-  modalCancel: { backgroundColor: '#F1F5F9' },
-  modalCancelText: { fontSize: ms(13), fontWeight: '800', color: '#475569' },
-  modalConfirm: { backgroundColor: '#DC2626' },
-  modalConfirmText: { fontSize: ms(13), fontWeight: '800', color: '#FFFFFF' },
+  modalCancel: { backgroundColor: neutral.surfaceAlt },
+  modalCancelText: { fontSize: ms(13), fontWeight: '800', color: neutral.inkMuted },
+  modalConfirm: { backgroundColor: semantic.danger },
+  modalConfirmText: { fontSize: ms(13), fontWeight: '800', color: neutral.card },
 });
 
 export default FeeChangeRequestsScreen;

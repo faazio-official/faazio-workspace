@@ -28,7 +28,8 @@ import type { RootStackParamList } from '@/navigation/types';
 import SearchPharmaProductCard from './components/SearchPharmaProductCard';
 import PharmaImage from './components/pharma-home/PharmaImage';
 import UploadPrescriptionFAB from './components/pharma-home/UploadPrescriptionFAB';
-import { brandRamp, neutral } from '@/theme/brandTokens';
+import { brandRamp, neutral, semantic, semanticTint } from '@/theme/brandTokens';
+import { getStoreOpenStatus } from '@/utils/storeHours';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MedicalShopDetails'>;
 
@@ -37,6 +38,15 @@ const PHARMA_TEAL_DEEP = brandRamp.PHARMA.deep;
 const PHARMA_INK = neutral.ink;
 
 const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
+  const [openStatus, setOpenStatus] = useState(() => getStoreOpenStatus(store.hours));
+
+  // Re-evaluate once a minute so the pill crosses the open/close boundary without a remount.
+  useEffect(() => {
+    setOpenStatus(getStoreOpenStatus(store.hours));
+    const timer = setInterval(() => setOpenStatus(getStoreOpenStatus(store.hours)), 60_000);
+    return () => clearInterval(timer);
+  }, [store.hours]);
+
   return (
     <View style={styles.infoSection}>
       <PharmaImage uri={store.coverImage} style={styles.cover} contentFit="cover" />
@@ -97,7 +107,33 @@ const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
         {store.hours ? (
           <View style={styles.contactRow}>
             <Clock size={ms(15)} color={PHARMA_TEAL} strokeWidth={1.75} />
-            <AppText style={styles.contactText}>Hours: {store.hours}</AppText>
+            <View style={styles.hoursBody}>
+              <AppText style={styles.contactText}>Hours: {store.hours}</AppText>
+              {openStatus !== 'unknown' ? (
+                <View
+                  style={[
+                    styles.openPill,
+                    openStatus === 'open' ? styles.openPillOpen : styles.openPillClosed,
+                  ]}
+                  accessibilityLabel={openStatus === 'open' ? 'Open now' : 'Closed now'}
+                >
+                  <View
+                    style={[
+                      styles.openDot,
+                      openStatus === 'open' ? styles.openDotOpen : styles.openDotClosed,
+                    ]}
+                  />
+                  <AppText
+                    style={[
+                      styles.openPillText,
+                      openStatus === 'open' ? styles.openTextOpen : styles.openTextClosed,
+                    ]}
+                  >
+                    {openStatus === 'open' ? 'Open now' : 'Closed now'}
+                  </AppText>
+                </View>
+              ) : null}
+            </View>
           </View>
         ) : null}
       </View>
@@ -315,6 +351,24 @@ const styles = StyleSheet.create({
   contactCard: { marginTop: SPACE.SECTION, padding: hs(12), gap: SPACE.ITEM, borderRadius: ms(12), backgroundColor: neutral.surface, borderWidth: 1, borderColor: neutral.border },
   contactRow: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(9) },
   contactText: { flex: 1, fontSize: ms(12), lineHeight: vs(18), fontWeight: '500', color: neutral.inkMuted },
+  hoursBody: { flex: 1, gap: vs(4) },
+  openPill: {
+    alignSelf: 'flex-start',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(5),
+    paddingHorizontal: hs(8),
+    paddingVertical: vs(2),
+    borderRadius: ms(10),
+  },
+  openPillOpen: { backgroundColor: semanticTint.success },
+  openPillClosed: { backgroundColor: semanticTint.danger },
+  openDot: { width: ms(6), height: ms(6), borderRadius: ms(3) },
+  openDotOpen: { backgroundColor: semantic.success },
+  openDotClosed: { backgroundColor: semantic.danger },
+  openPillText: { fontSize: ms(11), fontWeight: '600' },
+  openTextOpen: { color: semantic.success },
+  openTextClosed: { color: semantic.danger },
   storeHero: { marginTop: SPACE.SECTION, marginHorizontal: hs(16) },
   reviewsSection: { paddingHorizontal: hs(16), paddingTop: SPACE.SECTION },
   productsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: hs(16), paddingTop: SPACE.SECTION, paddingBottom: SPACE.BLOCK },

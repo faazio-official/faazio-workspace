@@ -1143,7 +1143,7 @@ const styles = StyleSheet.create({
     paddingBottom: SPACE.BLOCK,
     backgroundColor: neutral.card,
     zIndex: 10,
-    shadowColor: '#000000',
+    shadowColor: 'black',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,

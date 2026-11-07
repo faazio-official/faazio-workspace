@@ -39,6 +39,8 @@ type Notification struct {
 	Attempts  int             `json:"attempts"`
 	CreatedAt string          `json:"createdAt"`
 	SentAt    string          `json:"sentAt,omitempty"`
+	// ReadAt is set the first time the recipient opens the notification (in-app read state).
+	ReadAt string `json:"readAt,omitempty"`
 }
 
 // Repo reads/writes the notifications schema.
@@ -124,10 +126,46 @@ func (r *Repo) Inbox(ctx context.Context, userID string, limit int) ([]Notificat
 		limit = 50
 	}
 	return r.scan(ctx, `
-		select id, coalesce(user_id,''), kind, title, body, data, status, attempts, created_at, sent_at
+		select id, coalesce(user_id,''), kind, title, body, data, status, attempts, created_at, sent_at, read_at
 		  from notifications.outbox
 		 where user_id = $1
 		 order by created_at desc limit $2`, userID, limit)
+}
+
+// MarkRead stamps one of the caller's notifications as read. A foreign/unknown id is a no-op.
+func (r *Repo) MarkRead(ctx context.Context, userID, id string) error {
+	if r.pool == nil {
+		return fmt.Errorf("notifications: database not configured")
+	}
+	_, err := r.pool.Exec(ctx, `
+		update notifications.outbox
+		   set read_at = now()
+		 where id = $1 and user_id = $2 and read_at is null`, id, userID)
+	if err != nil {
+		return err
+	}
+	if r.cache != nil {
+		r.cache.Del(ctx, cache.Notifications(userID))
+	}
+	return nil
+}
+
+// MarkAllRead stamps every unread notification for the caller as read.
+func (r *Repo) MarkAllRead(ctx context.Context, userID string) error {
+	if r.pool == nil {
+		return fmt.Errorf("notifications: database not configured")
+	}
+	_, err := r.pool.Exec(ctx, `
+		update notifications.outbox
+		   set read_at = now()
+		 where user_id = $1 and read_at is null`, userID)
+	if err != nil {
+		return err
+	}
+	if r.cache != nil {
+		r.cache.Del(ctx, cache.Notifications(userID))
+	}
+	return nil
 }
 
 // Outbox lists notifications for the admin console, optionally filtered by status.
@@ -139,7 +177,7 @@ func (r *Repo) Outbox(ctx context.Context, status string, limit int) ([]Notifica
 		limit = 100
 	}
 	return r.scan(ctx, `
-		select id, coalesce(user_id,''), kind, title, body, data, status, attempts, created_at, sent_at
+		select id, coalesce(user_id,''), kind, title, body, data, status, attempts, created_at, sent_at, read_at
 		  from notifications.outbox
 		 where ($1 = '' or status = $1)
 		 order by created_at desc limit $2`, status, limit)
@@ -298,8 +336,9 @@ func (r *Repo) scan(ctx context.Context, query string, args ...any) ([]Notificat
 			data      []byte
 			createdAt time.Time
 			sentAt    *time.Time
+			readAt    *time.Time
 		)
-		if err := rows.Scan(&n.ID, &n.UserID, &n.Kind, &n.Title, &n.Body, &data, &n.Status, &n.Attempts, &createdAt, &sentAt); err != nil {
+		if err := rows.Scan(&n.ID, &n.UserID, &n.Kind, &n.Title, &n.Body, &data, &n.Status, &n.Attempts, &createdAt, &sentAt, &readAt); err != nil {
 			return nil, err
 		}
 		if len(data) > 0 {
@@ -308,6 +347,9 @@ func (r *Repo) scan(ctx context.Context, query string, args ...any) ([]Notificat
 		n.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 		if sentAt != nil {
 			n.SentAt = sentAt.UTC().Format(time.RFC3339)
+		}
+		if readAt != nil {
+			n.ReadAt = readAt.UTC().Format(time.RFC3339)
 		}
 		out = append(out, n)
 	}

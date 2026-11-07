@@ -141,7 +141,10 @@ removed — Pharma rails' "View all" opens the first-class Search route, not the
 while using `useVendorProducts` (`GET /stores/{id}/products`, festival-overlaid) and
 `SearchPharmaProductCard` for its live product list.
 Its shop info block includes the cover, contact details, hours and pickup address, and its
-`UploadPrescriptionFAB` opens `PrescriptionFlow` with the pharmacy preselected.
+`UploadPrescriptionFAB` opens `PrescriptionFlow` with the pharmacy preselected. The hours row
+derives a real **Open now / Closed now** pill from the free-text `hours` string
+(`utils/storeHours.ts` parses the common `open – close` formats, handles overnight ranges, and
+renders nothing when the text is unrecognised — never guesses), re-evaluated every minute.
 **(W59)** Pharma residual honesty + routing closure: the `PharmaHeroBanner` coupon pill now renders
 **only** when `feed.heroCouponCode` resolves — the **first Top Offer's** code (`PharmaFeed.heroCouponCode`;
 the editorial fixture in mock, the top server-honoured `GET /coupons?app=PHARMA` code when online, else
@@ -810,7 +813,10 @@ foreground messages plus notification taps. The durable inbox is `NotificationsS
 `Notifications`, opened from the My Orders bell), which reads `GET /notifications`; push delivery is
 best-effort via the gateway's embedded FCM sender (Android; `FCM_SERVICE_ACCOUNT_JSON` +
 `FCM_PROJECT_ID` on the gateway — see `RUNBOOKS/FIREBASE_AUTH.md`) and the inbox still works without
-FCM/APNs.
+FCM/APNs. In-app read state is server-owned (`read_at`, migration `0085`): opening a row marks it
+read (`POST /notifications/{id}/read`), a header action clears the badge
+(`POST /notifications/read-all`), and the My Orders / blood-donor bell badge counts only **unread**
+rows.
 
 **Native identity.** One committed RN shell, three products: the Android `customer`/`delivery`/`seller`
 product flavors (`com.faazio.customer`, launcher label "Faazio" / `com.faazio.deliverypartner`,
@@ -1556,8 +1562,10 @@ actions. "Items Purchased" rows no longer show an icon: the name is ¾-width ell
 in the sub-app wrapper) runs a step machine `CAPTURE → NOTE → VENDORS → CONFIRMED` for the
 normal entry:
 - **CAPTURE** (`PrescriptionCameraStep`) — full-screen `CameraView` with a consent dialog
-  (`requestCameraPermissionsAsync`) before mount, shutter, flash toggle, thumbnail strip with
-  per-photo delete, "n/10" counter, `Confirm (n)` enabled at ≥1 and hard-capped at 10 pages.
+  (`requestCameraPermissionsAsync`) before mount, shutter, flash toggle, gallery import
+  (`react-native-image-picker` system picker — no media permission, reachable with or without camera
+  access), thumbnail strip with per-photo delete, "n/10" counter, `Confirm (n)` enabled at ≥1 and
+  hard-capped at 10 pages. The top/bottom bars respect the safe-area insets.
 - **NOTE** (`PrescriptionNoteStep`) — thumbnail recap + optional multiline pharmacist note.
 - **VENDORS** (`PharmaVendorList` + `PharmaVendorCard`) — mirrors Mart's local-vendor rail but
   the CTA is an "Order" pill; search filters name/categories/desc/offerTag. Built pharma-local
@@ -1568,7 +1576,7 @@ normal entry:
 - Fulfilment choice (`PharmaFulfilmentSheet` on `SlideUpSheet`, Delivery/Self-Pickup rows,
   subtitle = vendor name) gates the direct order — not persisted to the cart. Placing the
   order calls `ordersStore.recordOrder` (prescription kind) and shows in My Orders with a
-  📄 "Prescription order" card ("N pages • {vendor}", Delivery/Self-Pickup chip, Processing).
+  prescription card ("N pages • {vendor}", Delivery/Self-Pickup chip, Processing).
   When opened from `MedicalShopDetails` with `presetVendorId`, the flow stores that pharmacy after
   NOTE, skips `VENDORS`, and shows the same fulfilment sheet in the flow screen; dismissing it
   returns to NOTE.

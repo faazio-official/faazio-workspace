@@ -58,6 +58,8 @@
     </dict>
     <key>NSCameraUsageDescription</key>
     <string>Faazio uses the camera so you can upload your delivery partner verification documents.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Faazio lets you choose existing photos from your photo library.</string>
     <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
     <string>Delivery partners stay visible to dispatch while online. Faazio uses background location only after you allow it, and only to send a periodic rider heartbeat while you are online.</string>
     <key>NSLocationWhenInUseUsageDescription</key>

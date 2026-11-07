@@ -31,6 +31,9 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/notifications", h.inbox)
 		g.Post("/notifications/register", h.register)
 		g.Delete("/notifications/register", h.unregister)
+		// Per-notification and bulk in-app read state (auth-scoped; a foreign id is a no-op).
+		g.Post("/notifications/{id}/read", h.markRead)
+		g.Post("/notifications/read-all", h.markAllRead)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
@@ -54,6 +57,27 @@ func (h *Handler) inbox(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.SetJSON(r.Context(), cache.Notifications(userID), items, cache.TTLNotifications)
 	httpx.JSON(w, http.StatusOK, items)
+}
+
+func (h *Handler) markRead(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" || len(id) > 128 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid notification id")
+		return
+	}
+	if err := h.repo.MarkRead(r.Context(), auth.UserID(r.Context()), id); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "notifications_unavailable", "notifications unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+func (h *Handler) markAllRead(w http.ResponseWriter, r *http.Request) {
+	if err := h.repo.MarkAllRead(r.Context(), auth.UserID(r.Context())); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "notifications_unavailable", "notifications unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {

@@ -16,15 +16,16 @@ import { SPACE } from '@/theme/spacing';
 import { gateway, type FeeChangeRequest, type SellerApplicationVendor } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
-import { parentRamp } from '@/theme/brandTokens';
+import { parentRamp, neutral, semantic, semanticTint } from '@/theme/brandTokens';
+import { categorical } from '@/theme/categorical';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SellerPlatformFeeRequest'>;
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING: '#B45309',
-  APPROVED: '#15803D',
-  REJECTED: '#DC2626',
-  CANCELLED: '#64748B',
+  PENDING: semantic.warning,
+  APPROVED: semantic.success,
+  REJECTED: semantic.danger,
+  CANCELLED: neutral.inkMuted,
 };
 
 /**
@@ -158,7 +159,7 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
+          <ChevronLeft size={ms(26)} color={neutral.ink} strokeWidth={2.2} />
         </TouchableOpacity>
         <AppText style={styles.headerTitle}>Platform fee</AppText>
         <View style={styles.headerSpacer} />
@@ -249,7 +250,7 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
             activeOpacity={0.85}
           >
             {busy ? (
-              <ActivityIndicator color="#FFFFFF" />
+              <ActivityIndicator color={neutral.card} />
             ) : (
               <AppText style={styles.primaryBtnText}>Submit request</AppText>
             )}
@@ -276,7 +277,7 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
               <View
                 style={[
                   styles.statusPill,
-                  { backgroundColor: STATUS_COLORS[item.status] ?? '#64748B' },
+                  { backgroundColor: STATUS_COLORS[item.status] ?? neutral.inkMuted },
                 ]}
               >
                 <AppText style={styles.statusText}>{item.status}</AppText>
@@ -290,16 +291,16 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F4F6F9' },
+  root: { flex: 1, backgroundColor: neutral.surface },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
     paddingBottom: SPACE.BLOCK,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     zIndex: 10,
-    shadowColor: '#000000',
+    shadowColor: 'black',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -307,25 +308,25 @@ const styles = StyleSheet.create({
   },
   headerSpacer: { width: 44 },
   backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: ms(18), fontWeight: '900', color: '#0f172a' },
+  headerTitle: { fontSize: ms(18), fontWeight: '900', color: neutral.ink },
   content: { padding: hs(16), paddingBottom: SPACE.LIST_BOTTOM },
-  card: { backgroundColor: '#FFFFFF', borderRadius: ms(18), padding: hs(16) },
+  card: { backgroundColor: neutral.card, borderRadius: ms(18), padding: hs(16) },
   cardTitleRow: { flexDirection: 'row', alignItems: 'center', gap: hs(8), marginBottom: vs(6) },
-  cardTitle: { fontSize: ms(15), fontWeight: '900', color: '#0f172a' },
-  muted: { fontSize: ms(12), color: '#64748B', lineHeight: ms(18) },
+  cardTitle: { fontSize: ms(15), fontWeight: '900', color: neutral.ink },
+  muted: { fontSize: ms(12), color: neutral.inkMuted, lineHeight: ms(18) },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: hs(8), marginTop: vs(6) },
   chip: {
     paddingHorizontal: hs(12),
     paddingVertical: vs(7),
     borderRadius: ms(18),
     borderWidth: 1,
-    borderColor: '#CBD5E1',
-    backgroundColor: '#FFFFFF',
+    borderColor: neutral.border,
+    backgroundColor: neutral.card,
     maxWidth: '100%',
   },
   chipActive: { backgroundColor: parentRamp.base, borderColor: parentRamp.base },
-  chipText: { fontSize: ms(11.5), fontWeight: '800', color: '#334155' },
-  chipTextActive: { color: '#FFFFFF' },
+  chipText: { fontSize: ms(11.5), fontWeight: '800', color: neutral.inkMuted },
+  chipTextActive: { color: neutral.card },
   currentRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -334,26 +335,26 @@ const styles = StyleSheet.create({
     paddingVertical: vs(10),
     paddingHorizontal: hs(12),
     borderRadius: ms(12),
-    backgroundColor: '#EFF6FF',
+    backgroundColor: semanticTint.info,
   },
-  currentLabel: { fontSize: ms(12), fontWeight: '700', color: '#1D4ED8' },
+  currentLabel: { fontSize: ms(12), fontWeight: '700', color: categorical.blue },
   currentValue: { fontSize: ms(16), fontWeight: '900', color: parentRamp.base },
-  label: { fontSize: ms(12), fontWeight: '800', color: '#334155', marginTop: vs(14), marginBottom: vs(6) },
+  label: { fontSize: ms(12), fontWeight: '800', color: neutral.inkMuted, marginTop: vs(14), marginBottom: vs(6) },
   input: {
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: neutral.border,
     borderRadius: ms(12),
     paddingHorizontal: hs(12),
     paddingVertical: vs(10),
     fontSize: ms(15),
-    color: '#0f172a',
-    backgroundColor: '#FFFFFF',
+    color: neutral.ink,
+    backgroundColor: neutral.card,
   },
-  pendingNote: { marginTop: vs(10), fontSize: ms(12), color: '#B45309', fontWeight: '700' },
-  error: { marginTop: vs(10), fontSize: ms(12), color: '#DC2626', fontWeight: '700' },
+  pendingNote: { marginTop: vs(10), fontSize: ms(12), color: semantic.warning, fontWeight: '700' },
+  error: { marginTop: vs(10), fontSize: ms(12), color: semantic.danger, fontWeight: '700' },
   retryBtn: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', marginTop: vs(8) },
   retryText: { fontSize: ms(13), fontWeight: '600', color: parentRamp.base, textDecorationLine: 'underline' },
-  notice: { marginTop: vs(10), fontSize: ms(12), color: '#15803D', fontWeight: '700' },
+  notice: { marginTop: vs(10), fontSize: ms(12), color: semantic.success, fontWeight: '700' },
   primaryBtn: {
     marginTop: vs(16),
     borderRadius: ms(14),
@@ -362,11 +363,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryBtnDisabled: { opacity: 0.5 },
-  primaryBtnText: { fontSize: ms(14), fontWeight: '900', color: '#FFFFFF' },
+  primaryBtnText: { fontSize: ms(14), fontWeight: '900', color: neutral.card },
   sectionTitle: {
     fontSize: ms(13),
     fontWeight: '900',
-    color: '#0f172a',
+    color: neutral.ink,
     marginTop: vs(22),
     marginBottom: vs(10),
   },
@@ -374,21 +375,21 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(14),
     padding: hs(14),
     marginBottom: SPACE.BLOCK,
     gap: hs(10),
   },
   rowText: { flex: 1 },
-  rowTitle: { fontSize: ms(14), fontWeight: '800', color: '#0f172a' },
-  rowSubtitle: { fontSize: ms(11), color: '#94A3B8', marginTop: vs(3), fontWeight: '600' },
+  rowTitle: { fontSize: ms(14), fontWeight: '800', color: neutral.ink },
+  rowSubtitle: { fontSize: ms(11), color: neutral.inkSubtle, marginTop: vs(3), fontWeight: '600' },
   statusPill: { paddingHorizontal: hs(8), paddingVertical: vs(3), borderRadius: ms(10) },
-  statusText: { fontSize: ms(11), fontWeight: '800', color: '#FFFFFF' },
-  gateTitle: { fontSize: ms(16), fontWeight: '900', color: '#0f172a', textAlign: 'center', marginTop: vs(40) },
+  statusText: { fontSize: ms(11), fontWeight: '800', color: neutral.card },
+  gateTitle: { fontSize: ms(16), fontWeight: '900', color: neutral.ink, textAlign: 'center', marginTop: vs(40) },
   gateBody: {
     fontSize: ms(12),
-    color: '#64748B',
+    color: neutral.inkMuted,
     textAlign: 'center',
     lineHeight: ms(18),
     marginTop: vs(6),

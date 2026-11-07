@@ -18,15 +18,16 @@ import { SPACE } from '@/theme/spacing';
 import { gateway, type SellerDetail, type SellerKycDocument } from '@/services/api/GatewayClient';
 import { isPartnerAdmin, useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
-import { parentRamp } from '@/theme/brandTokens';
+import { parentRamp, neutral, semantic, semanticTint } from '@/theme/brandTokens';
+import { categorical } from '@/theme/categorical';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SellerRequestDetail'>;
 
 const STATUS_COLORS: Record<string, string> = {
-  PENDING_REVIEW: '#B45309',
-  ACTIVE: '#15803D',
-  SUSPENDED: '#DC2626',
-  REJECTED: '#7C3AED',
+  PENDING_REVIEW: semantic.warning,
+  ACTIVE: semantic.success,
+  SUSPENDED: semantic.danger,
+  REJECTED: categorical.purple,
 };
 
 function statusLabel(s: string): string {
@@ -196,7 +197,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
+          <ChevronLeft size={ms(26)} color={neutral.ink} strokeWidth={2.2} />
         </TouchableOpacity>
         <AppText style={styles.headerTitle}>Review application</AppText>
         <View style={styles.headerSpacer} />
@@ -221,7 +222,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
                   : d.districtCode || d.stateCode}
               </AppText>
             </View>
-            <View style={[styles.statusPill, { backgroundColor: STATUS_COLORS[d.status] ?? '#94A3B8' }]}>
+            <View style={[styles.statusPill, { backgroundColor: STATUS_COLORS[d.status] ?? neutral.inkSubtle }]}>
               <AppText style={styles.statusText}>{statusLabel(d.status)}</AppText>
             </View>
           </View>
@@ -305,7 +306,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
                     keyboardType="number-pad"
                     maxLength={3}
                     placeholder="%"
-                    placeholderTextColor="#94A3B8"
+                    placeholderTextColor={neutral.inkSubtle}
                   />
                   <TouchableOpacity
                     style={styles.primaryBtn}
@@ -334,7 +335,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
                 <View key={doc.kycId} style={styles.docRow}>
                   <View style={[styles.docIcon, verified && styles.docIconDone]}>
                     {verified ? (
-                      <BadgeCheck size={ms(18)} color="#16A34A" strokeWidth={2.2} />
+                      <BadgeCheck size={ms(18)} color={semantic.success} strokeWidth={2.2} />
                     ) : (
                       <FileCheck2 size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
                     )}
@@ -365,7 +366,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
                       accessibilityLabel={`Verify ${doc.docType ?? 'document'}`}
                       accessibilityState={{ disabled: busy }}
                     >
-                      <BadgeCheck size={ms(14)} color="#FFFFFF" strokeWidth={2.4} />
+                      <BadgeCheck size={ms(14)} color={neutral.card} strokeWidth={2.4} />
                       <AppText style={styles.docButtonTextPrimary}>Verify</AppText>
                     </TouchableOpacity>
                   ) : null}
@@ -383,7 +384,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
               disabled={busy}
               activeOpacity={0.9}
             >
-              <BadgeCheck size={ms(18)} color="#FFFFFF" strokeWidth={2.2} />
+              <BadgeCheck size={ms(18)} color={neutral.card} strokeWidth={2.2} />
               <AppText style={styles.activateText}>Verify KYC & activate</AppText>
             </TouchableOpacity>
 
@@ -394,7 +395,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
                 disabled={busy}
                 activeOpacity={0.9}
               >
-                <Ban size={ms(18)} color="#DC2626" strokeWidth={2.2} />
+                <Ban size={ms(18)} color={semantic.danger} strokeWidth={2.2} />
                 <AppText style={styles.rejectText}>Reject application</AppText>
               </TouchableOpacity>
             ) : (
@@ -427,7 +428,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
               value={rejectReason}
               onChangeText={setRejectReason}
               placeholder="Reason (min 4 characters)"
-              placeholderTextColor="#94A3B8"
+              placeholderTextColor={neutral.inkSubtle}
               multiline
             />
             <TouchableOpacity
@@ -483,7 +484,7 @@ function InfoRow({ label, value, uppercase = false }: { label: string; value: st
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#F4F6F9' },
+  root: { flex: 1, backgroundColor: neutral.surface },
   center: { alignItems: 'center', justifyContent: 'center' },
   header: {
     flexDirection: 'row',
@@ -491,9 +492,9 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
     paddingBottom: SPACE.BLOCK,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     zIndex: 10,
-    shadowColor: '#000000',
+    shadowColor: 'black',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -501,11 +502,11 @@ const styles = StyleSheet.create({
   },
   headerSpacer: { width: 44 },
   backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  headerTitle: { fontSize: ms(18), fontWeight: '900', color: '#0f172a' },
+  headerTitle: { fontSize: ms(18), fontWeight: '900', color: neutral.ink },
   scroll: { flex: 1 },
   scrollContent: { paddingTop: SPACE.SECTION, paddingHorizontal: hs(16), paddingBottom: SPACE.LIST_BOTTOM },
   hero: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(18),
     padding: hs(16),
     marginBottom: SPACE.SECTION,
@@ -515,16 +516,16 @@ const styles = StyleSheet.create({
     width: ms(42),
     height: ms(42),
     borderRadius: ms(12),
-    backgroundColor: '#EFF6FF',
+    backgroundColor: semanticTint.info,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  heroTitle: { fontSize: ms(16), fontWeight: '900', color: '#0f172a' },
-  heroSub: { fontSize: ms(11), color: '#94A3B8', marginTop: vs(3), fontWeight: '700' },
+  heroTitle: { fontSize: ms(16), fontWeight: '900', color: neutral.ink },
+  heroSub: { fontSize: ms(11), color: neutral.inkSubtle, marginTop: vs(3), fontWeight: '700' },
   statusPill: { paddingHorizontal: hs(8), paddingVertical: vs(3), borderRadius: ms(10) },
-  statusText: { fontSize: ms(11), fontWeight: '800', color: '#FFFFFF', textTransform: 'uppercase' },
+  statusText: { fontSize: ms(11), fontWeight: '800', color: neutral.card, textTransform: 'uppercase' },
   sectionCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(18),
     padding: hs(16),
     marginBottom: SPACE.SECTION,
@@ -532,11 +533,11 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: ms(14),
     fontWeight: '900',
-    color: '#0f172a',
+    color: neutral.ink,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
   },
-  sectionNote: { fontSize: ms(11), color: '#94A3B8', marginTop: vs(2), marginBottom: SPACE.BLOCK },
+  sectionNote: { fontSize: ms(11), color: neutral.inkSubtle, marginTop: vs(2), marginBottom: SPACE.BLOCK },
   infoRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -544,24 +545,24 @@ const styles = StyleSheet.create({
     gap: hs(12),
     paddingVertical: vs(8),
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EEF1F5',
+    borderBottomColor: neutral.border,
   },
-  infoLabel: { fontSize: ms(11.5), fontWeight: '700', color: '#94A3B8' },
-  infoValue: { flex: 1, fontSize: ms(13), fontWeight: '700', color: '#0f172a', textAlign: 'right' },
+  infoLabel: { fontSize: ms(11.5), fontWeight: '700', color: neutral.inkSubtle },
+  infoValue: { flex: 1, fontSize: ms(13), fontWeight: '700', color: neutral.ink, textAlign: 'right' },
   infoValueUpper: { textTransform: 'uppercase' },
-  mutedText: { fontSize: ms(12), color: '#64748B', fontWeight: '600', marginTop: vs(6) },
-  razorpayNote: { fontSize: ms(11), color: '#B45309', fontWeight: '700', marginTop: vs(8) },
+  mutedText: { fontSize: ms(12), color: neutral.inkMuted, fontWeight: '600', marginTop: vs(6) },
+  razorpayNote: { fontSize: ms(11), color: semantic.warning, fontWeight: '700', marginTop: vs(8) },
   feeRow: { flexDirection: 'row', gap: hs(8), alignItems: 'center' },
   input: {
     height: Math.max(46, vs(46)),
-    backgroundColor: '#F8FAFC',
+    backgroundColor: neutral.surface,
     borderRadius: ms(12),
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: neutral.border,
     paddingHorizontal: hs(12),
     fontSize: ms(14),
     fontWeight: '600',
-    color: '#0f172a',
+    color: neutral.ink,
   },
   feeInput: { flex: 1 },
   primaryBtn: {
@@ -572,36 +573,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  primaryBtnText: { fontSize: ms(12), fontWeight: '800', color: '#FFFFFF', textTransform: 'uppercase' },
+  primaryBtnText: { fontSize: ms(12), fontWeight: '800', color: neutral.card, textTransform: 'uppercase' },
   docRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(10),
     paddingVertical: vs(10),
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#EEF1F5',
+    borderTopColor: neutral.border,
   },
   docIcon: {
     width: ms(38),
     height: ms(38),
     borderRadius: ms(11),
-    backgroundColor: '#EFF6FF',
+    backgroundColor: semanticTint.info,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  docIconDone: { backgroundColor: '#DCFCE7' },
-  docLabel: { fontSize: ms(13), fontWeight: '800', color: '#0f172a' },
-  docStatus: { fontSize: ms(11), color: '#94A3B8', marginTop: vs(2) },
+  docIconDone: { backgroundColor: semanticTint.success },
+  docLabel: { fontSize: ms(13), fontWeight: '800', color: neutral.ink },
+  docStatus: { fontSize: ms(11), color: neutral.inkSubtle, marginTop: vs(2) },
   vendorText: { flex: 1 },
   vendorApp: { color: parentRamp.base },
   feeBlock: {
     borderTopWidth: StyleSheet.hairlineWidth,
-    borderTopColor: '#EEF1F5',
+    borderTopColor: neutral.border,
     paddingTop: vs(10),
     marginTop: vs(6),
     paddingBottom: vs(10),
   },
-  feeVendorLabel: { fontSize: ms(12), fontWeight: '800', color: '#0f172a', marginBottom: vs(6) },
+  feeVendorLabel: { fontSize: ms(12), fontWeight: '800', color: neutral.ink, marginBottom: vs(6) },
   docButton: {
     minHeight: 44,
     flexDirection: 'row',
@@ -612,12 +613,12 @@ const styles = StyleSheet.create({
     paddingVertical: vs(8),
     borderRadius: ms(10),
     borderWidth: 1,
-    borderColor: '#BFDBFE',
-    backgroundColor: '#EFF6FF',
+    borderColor: parentRamp.baseLift,
+    backgroundColor: semanticTint.info,
   },
   docButtonPrimary: { backgroundColor: parentRamp.base, borderColor: parentRamp.base },
   docButtonText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base },
-  docButtonTextPrimary: { fontSize: ms(11), fontWeight: '800', color: '#FFFFFF' },
+  docButtonTextPrimary: { fontSize: ms(11), fontWeight: '800', color: neutral.card },
   activateBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -625,10 +626,10 @@ const styles = StyleSheet.create({
     gap: hs(8),
     height: Math.max(50, vs(50)),
     borderRadius: ms(14),
-    backgroundColor: '#15803D',
+    backgroundColor: semantic.success,
     marginBottom: SPACE.BLOCK,
   },
-  activateText: { fontSize: ms(13), fontWeight: '800', color: '#FFFFFF', textTransform: 'uppercase' },
+  activateText: { fontSize: ms(13), fontWeight: '800', color: neutral.card, textTransform: 'uppercase' },
   rejectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -636,17 +637,17 @@ const styles = StyleSheet.create({
     gap: hs(8),
     height: Math.max(50, vs(50)),
     borderRadius: ms(14),
-    backgroundColor: '#FEE2E2',
+    backgroundColor: semanticTint.danger,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: semanticTint.danger,
     marginBottom: SPACE.SECTION,
   },
-  rejectText: { fontSize: ms(13), fontWeight: '800', color: '#DC2626', textTransform: 'uppercase' },
+  rejectText: { fontSize: ms(13), fontWeight: '800', color: semantic.danger, textTransform: 'uppercase' },
   btnDisabled: { opacity: 0.55 },
   errorText: {
     fontSize: ms(12),
     fontWeight: '700',
-    color: '#DC2626',
+    color: semantic.danger,
     textAlign: 'center',
     marginBottom: vs(10),
   },
@@ -658,17 +659,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(24),
   },
   rejectCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(20),
     padding: hs(20),
     alignSelf: 'stretch',
   },
-  rejectTitle: { fontSize: ms(16), fontWeight: '900', color: '#0f172a', marginBottom: vs(4) },
+  rejectTitle: { fontSize: ms(16), fontWeight: '900', color: neutral.ink, marginBottom: vs(4) },
   rejectInput: { minHeight: vs(88), textAlignVertical: 'top', marginBottom: SPACE.BLOCK },
   rejectSubmit: {
     height: Math.max(48, vs(48)),
     borderRadius: ms(12),
-    backgroundColor: '#DC2626',
+    backgroundColor: semantic.danger,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -686,20 +687,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(20),
     paddingBottom: vs(12),
   },
-  previewTitle: { fontSize: ms(16), fontWeight: '900', color: '#FFFFFF' },
+  previewTitle: { fontSize: ms(16), fontWeight: '900', color: neutral.card },
   previewImage: { flex: 1, width: '100%' },
   previewEmpty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  previewEmptyText: { fontSize: ms(13), color: '#E2E8F0', fontWeight: '600' },
+  previewEmptyText: { fontSize: ms(13), color: neutral.border, fontWeight: '600' },
   gateTitle: {
     fontSize: ms(16),
     fontWeight: '900',
-    color: '#0f172a',
+    color: neutral.ink,
     textAlign: 'center',
     marginTop: vs(48),
   },
   gateBody: {
     fontSize: ms(12),
-    color: '#64748B',
+    color: neutral.inkMuted,
     textAlign: 'center',
     lineHeight: ms(18),
     marginTop: vs(6),
@@ -711,13 +712,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(20),
     borderRadius: ms(22),
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: neutral.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   retryText: { fontSize: ms(13), fontWeight: '600', color: parentRamp.base },
   backLink: { minHeight: 44, justifyContent: 'center', marginTop: vs(4) },
-  backLinkText: { fontSize: ms(13), fontWeight: '500', color: '#64748B' },
+  backLinkText: { fontSize: ms(13), fontWeight: '500', color: neutral.inkMuted },
 });
 
 export default SellerRequestDetailScreen;

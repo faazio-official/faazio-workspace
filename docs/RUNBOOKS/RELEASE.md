@@ -313,6 +313,12 @@ every APK even if one product never uses it. Never delete a shared dependency to
 scope the exclusion in that flavor's manifest/resources instead (the seller flavor strips the Maps key
 this way). CI builds each flavor separately; do not build two in one Gradle task.
 
+Prescription **gallery import** uses `react-native-image-picker` (autolinked; system photo picker —
+no Android media permission). It is a native module, so a JS-only update is not enough: a **CI native
+rebuild is required** on both platforms, and iOS carries `NSPhotoLibraryUsageDescription` in
+`ios/Faazio/Info.plist`, `Info-Delivery.plist` and `Info-Seller.plist` (the `pod install` step in
+`ios-release.yml` picks up the autolinked pod).
+
 To verify a **downloaded** APK is signed with the release cert (not the debug cert):
 ```bash
 apksigner verify --verbose --print-certs app-customer-release.apk

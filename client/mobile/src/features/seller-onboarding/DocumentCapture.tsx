@@ -5,7 +5,7 @@ import { Camera as CameraIcon, ChevronLeft, X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { parentRamp } from '@/theme/brandTokens';
+import { parentRamp, neutral, semanticTint } from '@/theme/brandTokens';
 
 interface Props {
   visible: boolean;
@@ -41,7 +41,7 @@ export default function DocumentCapture({ visible, title, onClose, onCaptured }:
             accessibilityRole="button"
             accessibilityLabel="Close camera"
           >
-            <ChevronLeft size={ms(24)} color="#ffffff" strokeWidth={2.2} />
+            <ChevronLeft size={ms(24)} color={neutral.card} strokeWidth={2.2} />
           </TouchableOpacity>
           <AppText style={styles.title}>{title}</AppText>
           <TouchableOpacity
@@ -50,7 +50,7 @@ export default function DocumentCapture({ visible, title, onClose, onCaptured }:
             accessibilityRole="button"
             accessibilityLabel="Cancel"
           >
-            <X size={ms(22)} color="#ffffff" strokeWidth={2.2} />
+            <X size={ms(22)} color={neutral.card} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
 
@@ -100,7 +100,7 @@ export default function DocumentCapture({ visible, title, onClose, onCaptured }:
 }
 
 const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: '#000000' },
+  root: { flex: 1, backgroundColor: 'black' },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
-  title: { fontSize: ms(14), fontWeight: '800', color: '#ffffff' },
+  title: { fontSize: ms(14), fontWeight: '800', color: neutral.card },
   consentWrap: {
     flex: 1,
     alignItems: 'center',
@@ -120,7 +120,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(24),
   },
   consentCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderRadius: ms(20),
     padding: hs(20),
     alignItems: 'center',
@@ -129,15 +129,15 @@ const styles = StyleSheet.create({
     width: ms(54),
     height: ms(54),
     borderRadius: ms(27),
-    backgroundColor: '#EFF6FF',
+    backgroundColor: semanticTint.info,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACE.BLOCK,
   },
-  consentTitle: { fontSize: ms(16), fontWeight: '900', color: '#0f172a' },
+  consentTitle: { fontSize: ms(16), fontWeight: '900', color: neutral.ink },
   consentText: {
     fontSize: ms(12),
-    color: '#64748B',
+    color: neutral.inkMuted,
     textAlign: 'center',
     lineHeight: ms(18),
     marginTop: vs(6),
@@ -151,9 +151,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  allowText: { fontSize: ms(13), fontWeight: '800', color: '#ffffff', textTransform: 'uppercase' },
+  allowText: { fontSize: ms(13), fontWeight: '800', color: neutral.card, textTransform: 'uppercase' },
   cancelButton: { paddingVertical: vs(12) },
-  cancelText: { fontSize: ms(12), fontWeight: '700', color: '#64748B' },
+  cancelText: { fontSize: ms(12), fontWeight: '700', color: neutral.inkMuted },
   cameraWrap: { flex: 1 },
   captureBar: {
     position: 'absolute',
@@ -167,11 +167,11 @@ const styles = StyleSheet.create({
     height: ms(72),
     borderRadius: ms(36),
     borderWidth: 4,
-    borderColor: '#ffffff',
+    borderColor: neutral.card,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  shutterInner: { width: ms(56), height: ms(56), borderRadius: ms(28), backgroundColor: '#ffffff' },
+  shutterInner: { width: ms(56), height: ms(56), borderRadius: ms(28), backgroundColor: neutral.card },
   hint: {
     position: 'absolute',
     left: hs(24),
@@ -179,6 +179,6 @@ const styles = StyleSheet.create({
     bottom: vs(24),
     textAlign: 'center',
     fontSize: ms(11),
-    color: '#E2E8F0',
+    color: neutral.border,
   },
 });

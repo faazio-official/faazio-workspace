@@ -58,6 +58,8 @@
     </dict>
     <key>NSCameraUsageDescription</key>
     <string>Faazio uses the camera so you can capture medical prescriptions and upload seller verification documents.</string>
+    <key>NSPhotoLibraryUsageDescription</key>
+    <string>Faazio lets you choose existing photos from your photo library.</string>
     <key>RCTMetroPort</key>
     <string>$(RCT_METRO_PORT)</string>
     <key>UIBackgroundModes</key>

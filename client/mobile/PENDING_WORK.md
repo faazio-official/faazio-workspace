@@ -12,10 +12,10 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
-## W83 — UI-craft pass (partial; honest status)
+## W83 — UI-craft pass
 
-**Status:** 🟡 Shipped in parts. Foundations + many screens fixed; four items remain open (below).
-A second pass landed the remaining functional bugs and closed the order-list gap (see "Second pass").
+**Status:** 🟢 Shipped (three passes). Foundations, screen fixes, the remaining functional bugs, and
+the last four open items are all landed (see "Second pass" and "Third pass").
 
 Second pass (behavioural + a11y fixes):
 - **Payments:** `PaymentCallback` "Verify again" no longer dead-locks after a cancel
@@ -73,16 +73,23 @@ Shipped (first pass):
   select-all + inline result; rate-vendor a11y value/toast/cancel/haptic; seller request detail
   no longer spins forever and invalid fee edits are explained.
 
-Open (not done — do not mark this entry complete):
-1. **Prescription gallery import** — needs an image-picker dependency (not installed; camera-only
-   today).
-2. **Medical shop computed open/closed** — `StoreProfile.hours` is free text; no structured
-   open-hours field exists, so only the real hours string is shown.
-3. **Seller-onboarding colour-literal sweep** — `SellerRequestDetail`/`PlatformFee`/
-   `SellerRequests`/`FeeChangeRequests` still carry ~150 hex literals; behaviour, a11y, 44pt
-   targets, empty/error states and status colours are fixed, but the repo rule forbids a big-bang
-   colour sweep, so the literals are moved only as those screens are touched.
-4. **Notification read/unread** — the server has no `read_at`; badges count items, not unread.
+Third pass — all previously-open W83 items closed:
+1. **Prescription gallery import** — added `react-native-image-picker@8.3.0` (system photo picker,
+   no media permission) and a gallery action in both the camera and consent states; photos join the
+   same capped/confirm flow. Requires a native rebuild (autolinked; iOS `pod install` runs in CI).
+2. **Medical shop open/closed** — `utils/storeHours.ts` parses the common free-text `open – close`
+   formats (including overnight ranges) into an **Open now / Closed now** pill, refreshed every
+   minute; unrecognised text renders only the hours string (no guessing).
+3. **Seller-onboarding colour-literal sweep** — every hex literal in `seller-onboarding/*` is now a
+   `brandTokens`/`categorical` value (0 remaining), including `DocumentCapture` and
+   `SellerLocationPicker`.
+4. **Notification read/unread** — migration `0085` adds `notifications.outbox.read_at`;
+   `GET /notifications` returns `readAt`, `POST /notifications/{id}/read` and
+   `POST /notifications/read-all` stamp it, the inbox renders unread/read state + a "Mark all read"
+   action, and the My Orders / donor badges count only unread rows. Migration is applied to the live
+   Supabase DB; a gateway deploy is required to serve the new field/endpoints.
+
+W83 status: **shipped** (all scoped items done). The UI baseline reflects the final sweep.
 
 ---
 

@@ -6,8 +6,10 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
-import { ChevronLeft, Zap, ZapOff, Camera as CameraIcon, Trash2 } from 'lucide-react-native';
+import { launchImageLibrary } from 'react-native-image-picker';
+import { ChevronLeft, Zap, ZapOff, Camera as CameraIcon, Images, Trash2 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
@@ -24,10 +26,12 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
   onNext,
   maxPhotos,
 }: PrescriptionCameraStepProps) {
+  const insets = useSafeAreaInsets();
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const [flash, setFlash] = useState<'off' | 'on'>('off');
   const [photos, setPhotos] = useState<string[]>([]);
+  const [galleryError, setGalleryError] = useState('');
   const cameraRef = useRef<Camera>(null);
 
   const handleConsentGrant = useCallback(async () => {
@@ -50,6 +54,38 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
     setPhotos((prev) => prev.filter((_, i) => i !== index));
   }, []);
 
+  // Import existing photos from the device library (system photo picker — no media permission).
+  const pickFromGallery = useCallback(async () => {
+    const remaining = Math.max(0, maxPhotos - photos.length);
+    if (remaining === 0) return;
+    setGalleryError('');
+    try {
+      const result = await launchImageLibrary({
+        mediaType: 'photo',
+        selectionLimit: remaining,
+        includeBase64: false,
+        quality: 0.9,
+      });
+      if (result.didCancel) return;
+      if (result.errorCode) {
+        setGalleryError(
+          result.errorCode === 'permission'
+            ? 'Allow photo access in Settings to add pictures from your gallery.'
+            : 'Could not open your photo library. Try again.',
+        );
+        return;
+      }
+      const uris = (result.assets ?? [])
+        .map((asset) => asset.uri)
+        .filter((uri): uri is string => Boolean(uri));
+      if (uris.length > 0) {
+        setPhotos((prev) => [...prev, ...uris].slice(0, maxPhotos));
+      }
+    } catch {
+      setGalleryError('Could not open your photo library. Try again.');
+    }
+  }, [photos.length, maxPhotos]);
+
   return (
     <View style={styles.root}>
       {!hasPermission ? (
@@ -60,8 +96,9 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
             </View>
             <AppText style={styles.consentTitle}>Camera Access</AppText>
             <AppText style={styles.consentText}>
-              Faazio needs camera access to capture your prescription pages. Each photo is uploaded
-              securely to the private storage bucket and shared only with the pharmacy you choose.
+              Capture your prescription with the camera, or add existing photos from your gallery.
+              Every page is uploaded securely to a private storage bucket and shared only with the
+              pharmacy you choose.
             </AppText>
             <TouchableOpacity
               style={styles.consentAllowBtn}
@@ -72,6 +109,17 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
             >
               <AppText style={styles.consentAllowText}>Allow camera</AppText>
             </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.galleryBtnWide}
+              onPress={() => void pickFromGallery()}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Choose prescription photos from your gallery"
+            >
+              <Images size={ms(16)} color={brandRamp.PHARMA.deep} strokeWidth={2.2} />
+              <AppText style={styles.galleryBtnWideText}>Choose from gallery</AppText>
+            </TouchableOpacity>
+            {galleryError ? <AppText style={styles.galleryError}>{galleryError}</AppText> : null}
             <TouchableOpacity
               style={styles.consentBackBtn}
               onPress={onBack}
@@ -100,11 +148,12 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
           )}
 
           {/* Top bar */}
-          <View style={styles.topBar}>
+          <View style={[styles.topBar, { top: insets.top + vs(8) }]}>
             <TouchableOpacity
               style={styles.roundBtn}
               onPress={onBack}
               activeOpacity={0.8}
+              accessibilityRole="button"
               accessibilityLabel="Back"
             >
               <ChevronLeft size={ms(20)} color="#FFFFFF" strokeWidth={1.75} />
@@ -114,6 +163,7 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
               style={styles.roundBtn}
               onPress={() => setFlash((f) => (f === 'off' ? 'on' : 'off'))}
               activeOpacity={0.8}
+              accessibilityRole="button"
               accessibilityLabel="Toggle flash"
             >
               {flash === 'off' ? (
@@ -132,7 +182,12 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
           </View>
 
           {/* Bottom controls */}
-          <View style={styles.bottomArea}>
+          <View
+            style={[
+              styles.bottomArea,
+              { paddingBottom: Math.max(vs(24), insets.bottom + vs(12)) },
+            ]}
+          >
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
@@ -153,16 +208,33 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
               ))}
             </ScrollView>
 
+            {galleryError ? <AppText style={styles.galleryError}>{galleryError}</AppText> : null}
+
             <View style={styles.controlRow}>
+              <TouchableOpacity
+                style={styles.galleryBtn}
+                onPress={() => void pickFromGallery()}
+                activeOpacity={0.85}
+                disabled={photos.length >= maxPhotos}
+                accessibilityRole="button"
+                accessibilityLabel="Choose prescription photos from your gallery"
+                accessibilityState={{ disabled: photos.length >= maxPhotos }}
+              >
+                <Images size={ms(20)} color="#FFFFFF" strokeWidth={2} />
+                <AppText style={styles.galleryBtnText}>Gallery</AppText>
+              </TouchableOpacity>
               <TouchableOpacity
                 style={styles.shutterBtn}
                 onPress={takePhoto}
                 activeOpacity={0.85}
                 disabled={photos.length >= maxPhotos}
+                accessibilityRole="button"
                 accessibilityLabel="Take photo"
+                accessibilityState={{ disabled: photos.length >= maxPhotos }}
               >
                 <View style={styles.shutterInner} />
               </TouchableOpacity>
+              <View style={styles.controlSpacer} />
             </View>
 
             <TouchableOpacity
@@ -352,8 +424,51 @@ const styles = StyleSheet.create({
     borderColor: '#FFFFFF',
   },
   controlRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: hs(28),
     marginBottom: SPACE.BLOCK,
+  },
+  galleryBtn: {
+    width: 64,
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: vs(2),
+  },
+  galleryBtnText: {
+    fontSize: ms(11),
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  controlSpacer: {
+    width: 64,
+    height: 44,
+  },
+  galleryBtnWide: {
+    width: '100%',
+    minHeight: 48,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: hs(8),
+    borderRadius: ms(12),
+    borderWidth: 1,
+    borderColor: brandRamp.PHARMA.base,
+    marginBottom: vs(10),
+  },
+  galleryBtnWideText: {
+    fontSize: ms(14),
+    fontWeight: '600',
+    color: brandRamp.PHARMA.deep,
+  },
+  galleryError: {
+    fontSize: ms(12),
+    color: '#B91C1C',
+    textAlign: 'center',
+    marginHorizontal: hs(20),
+    marginBottom: vs(8),
   },
   shutterBtn: {
     width: ms(68),
