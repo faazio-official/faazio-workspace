@@ -643,18 +643,11 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const showForm = !isUnderReview && !isActiveSeller;
 
   const handleDownloadSellerApp = useCallback(() => {
-    // TODO: set the Play Store listing URL when the seller partner app is published.
-    const androidUrl = '';
-    if (androidUrl) {
-      void Linking.openURL(androidUrl).catch(() => {
-        Alert.alert('Unable to open', 'Could not open the Play Store link.');
-      });
-      return;
-    }
-    Alert.alert(
-      'Coming soon',
-      'The Faazio Seller Partner app will be available on Play Store shortly.',
-    );
+    const androidUrl =
+      'https://play.google.com/store/apps/details?id=com.faazio.sellerpartner';
+    void Linking.openURL(androidUrl).catch(() => {
+      Alert.alert('Unable to open', 'Could not open the Play Store link.');
+    });
   }, []);
 
   return (

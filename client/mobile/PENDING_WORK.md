@@ -3612,8 +3612,9 @@ the `+91` default.
 - Status is derived from the submit response, so the under-review/active states are session-scoped;
   a cross-session "my application" read (persist `sellerId` + fetch) is not wired because the only
   seller read is role-gated to `SELLER` and a new applicant is still a shopper.
-- The Android seller-app download URL is an empty placeholder → "Coming soon" alert until the Play
-  Store listing exists.
+- The Android seller-app download CTA opens
+  `https://play.google.com/store/apps/details?id=com.faazio.sellerpartner`; iOS shows the Play Store
+  search hint (the seller app is Android-only).
 - Per-shop bank overrides are captured at onboarding; the portal Stores console does not yet edit
   them after creation.
 - The account state/district match depends on the native reverse geocoder returning a region name
