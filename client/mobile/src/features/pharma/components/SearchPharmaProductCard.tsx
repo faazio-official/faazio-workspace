@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import SearchProductRowCard from '@/components/shared/SearchProductRowCard';
 import { useCartProductActions } from '@/components/shared/hooks';
+import { useFavoriteStore } from '@/state/favoriteStore';
 import type { Product } from '@data/types';
 
 interface SearchPharmaProductCardProps {
@@ -23,12 +24,15 @@ const SearchPharmaProductCard = memo(function SearchPharmaProductCard({
   showStoreHeader = true,
 }: SearchPharmaProductCardProps) {
   const cart = useCartProductActions(product);
+  const isFavorite = useFavoriteStore((s) => s.favorites.includes(product.id));
+  const toggleFavorite = useFavoriteStore((s) => s.toggleFavorite);
   return (
     <SearchProductRowCard
       product={product}
       appBrand="PHARMA"
       showFavorite
-      isFavorite={false}
+      isFavorite={isFavorite}
+      onFavorite={() => void toggleFavorite(product.id)}
       quantity={cart.quantity}
       onAdd={cart.onAdd}
       onIncrement={cart.onIncrement}

@@ -149,21 +149,24 @@ export function DonorDashboard() {
             <AppText style={styles.greeting}>Hi, {firstName(userName)}</AppText>
             <AppText style={styles.greetingSub}>Ready to save lives?</AppText>
           </View>
-          {/* No inbox screen yet, so this is a non-interactive status indicator (no dead tap). The
-              badge counts live server notifications + pending incoming requests, never a seed. */}
-          <View
+          {/* Opens the in-app notifications list. The badge counts live server notifications +
+              pending incoming requests, never a seed. */}
+          <TouchableOpacity
             style={styles.bellBtn}
+            onPress={() => navigation.navigate('Notifications')}
+            activeOpacity={0.8}
+            accessibilityRole="button"
             accessibilityLabel={
-              unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+              unreadCount > 0 ? `Notifications, ${unreadCount} items` : 'Notifications'
             }
           >
-            <Bell size={ms(20)} color={BLOOD_TEXT} strokeWidth={2.2} />
+            <Bell size={ms(20)} color={BLOOD_TEXT} strokeWidth={1.75} />
             {unreadCount > 0 ? (
               <View style={styles.bellBadge}>
                 <AppText style={styles.bellBadgeText}>{unreadCount}</AppText>
               </View>
             ) : null}
-          </View>
+          </TouchableOpacity>
         </View>
 
         {pendingOps.length > 0 ? (

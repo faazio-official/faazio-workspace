@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Smartphone } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
@@ -18,6 +18,8 @@ export interface PaymentStatusScreenProps {
   onPaid: () => void;
   /** Failed or timed out → show the retry screen (`timedOut` drives the copy). */
   onFailed: (timedOut: boolean) => void;
+  /** Leave the waiting screen and pick another payment method. */
+  onCancel?: () => void;
 }
 
 function formatTimer(ms: number): string {
@@ -38,6 +40,7 @@ export default function PaymentStatusScreen({
   upiLabel,
   onPaid,
   onFailed,
+  onCancel,
 }: PaymentStatusScreenProps) {
   const insets = useSafeAreaInsets();
   const amount = (amountPaisa / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 });
@@ -73,6 +76,18 @@ export default function PaymentStatusScreen({
 
         <AppText style={styles.timer}>{formatTimer(elapsedMs)}</AppText>
         <AppText style={styles.order}>Order {orderId}</AppText>
+
+        {onCancel ? (
+          <TouchableOpacity
+            onPress={onCancel}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Cancel and choose another payment method"
+            style={styles.cancelBtn}
+          >
+            <AppText style={styles.cancelText}>Choose another method</AppText>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   );
@@ -138,5 +153,16 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     color: '#9CA3AF',
     marginTop: vs(4),
+  },
+  cancelBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
+    marginTop: vs(13),
+    paddingHorizontal: hs(16),
+  },
+  cancelText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: BRAND.blue,
   },
 });

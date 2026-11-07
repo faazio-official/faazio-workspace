@@ -16,6 +16,7 @@ import {
   TrendingUp,
   Clock,
   Gift,
+  Check,
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
@@ -42,7 +43,7 @@ const LEDGER_META: Record<
   EARN: { label: 'Coins earned', color: semantic.success, sign: () => '+' },
   REDEEM: { label: 'Coins redeemed', color: semantic.warning, sign: () => '−' },
   EXPIRE: { label: 'Card expired', color: '#94A3B8', sign: () => '' },
-  STREAK: { label: '7-day streak reward', color: '#7C3AED', sign: () => '🎉' },
+  STREAK: { label: '7-day streak reward', color: '#7C3AED', sign: () => '+' },
 };
 
 function formatLedgerDate(iso: string): string {
@@ -145,7 +146,7 @@ export function FaazioRewardsScreen({ navigation }: Props) {
               const filled = i < streakCount;
               return (
                 <View key={i} style={[styles.streakDot, filled && styles.streakDotFilled]}>
-                  {filled && <AppText style={styles.streakDotCheck}>✓</AppText>}
+                  {filled && <Check size={ms(12)} color="#FFFFFF" strokeWidth={2} />}
                 </View>
               );
             })}

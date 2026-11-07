@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Animated, Image, Alert } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Animated, Image } from 'react-native';
 import {
   ArrowLeft,
   ShoppingBag,
@@ -21,6 +21,7 @@ import {
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { semantic } from '@/theme/brandTokens';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
 import Checkbox from '@/components/shared/Checkbox';
@@ -227,6 +228,8 @@ export default function CartView({
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const [paymentProcessing, setPaymentProcessing] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   // In-flight UPI attempt (order already placed): drives the status/failed screens and retry.
   const [paymentAttempt, setPaymentAttempt] = useState<{
     orderId: string;
@@ -275,8 +278,13 @@ export default function CartView({
     coinsRedeemed: number;
   } | null>(null);
 
+  const reduceMotion = useReducedMotion();
   const bounceAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    if (reduceMotion) {
+      bounceAnim.setValue(0);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(bounceAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
@@ -285,19 +293,18 @@ export default function CartView({
     );
     loop.start();
     return () => loop.stop();
-  }, [bounceAnim]);
+  }, [bounceAnim, reduceMotion]);
 
-  const pulseAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, { toValue: 1, duration: 1200, useNativeDriver: true }),
-        Animated.timing(pulseAnim, { toValue: 0, duration: 1200, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulseAnim]);
+  // The receipt status is static, so the "live" pulse was decoration. Keep a
+  // steady dot instead of an endless loop (and no Reduce-Motion special case).
+  const cartOriginLabel = useMemo(() => {
+    const hasRestaurantLine = cartItems.some((item) => Boolean(item.restaurantId));
+    const categories = new Set(cartItems.map((item) => item.category).filter(Boolean));
+    const category = categories.size === 1 ? [...categories][0] : undefined;
+    if (category === 'FOOD' || (hasRestaurantLine && !category)) return 'Faazio Food';
+    if (category === 'PHARMA') return 'Faazio Pharma';
+    return 'Faazio Mart';
+  }, [cartItems]);
 
   // FREE-Delivery coupons discount the *current* delivery fee (base + extra + any active surge), not
   // the fee that happened to be showing when the code was applied; a quote arriving later must
@@ -473,7 +480,13 @@ export default function CartView({
   }, [step, fulfillment, hasLiveFix, storeIdsForQuote, liveAddress.lat, liveAddress.lng]);
 
   const handlePlaceOrder = (payload?: PlaceOrderPayload) => {
+    if (paymentProcessing) return;
+    setPaymentError(null);
     const { method = 'COD', upiAppId, upiLabel, coinsRedeemed = 0 } = payload ?? {};
+    if ((fulfillment ?? 'DELIVERY') === 'DELIVERY' && !savedAddress?.id && !deliveryAddress.address.trim()) {
+      setPaymentError('Add a delivery address before paying.');
+      return;
+    }
     setPaymentProcessing(true);
     void (async () => {
       try {
@@ -634,7 +647,7 @@ export default function CartView({
               ? 'This order is already being processed. Please check My Orders before retrying.'
               : 'We could not place your order. Please review your address and items and try again.'
             : 'You appear to be offline. Check your connection and try again.';
-        Alert.alert('Order not placed', message);
+        setPaymentError(message);
       } finally {
         setPaymentProcessing(false);
       }
@@ -677,7 +690,7 @@ export default function CartView({
           }),
         );
       } catch {
-        Alert.alert('Could not restart payment', 'Please check your connection and try again.');
+        setPaymentError('Could not restart the payment. Check your connection and try again.');
       } finally {
         setRetryingPayment(false);
       }
@@ -699,7 +712,7 @@ export default function CartView({
         setPlacedOrderDetails((prev) => (prev ? { ...prev, payment: 'Cash on Delivery' } : prev));
         setStep('RECEIPT');
       } catch {
-        Alert.alert('Could not switch to Cash on Delivery', 'Please check your connection and try again.');
+        setPaymentError('Could not switch to Cash on Delivery. Check your connection and try again.');
       } finally {
         setRetryingPayment(false);
       }
@@ -721,6 +734,7 @@ export default function CartView({
             setPaymentTimedOut(timedOut);
             setStep('PAYMENT_FAILED');
           }}
+          onCancel={() => setStep('PAYMENT')}
         />
       </View>
     );
@@ -941,7 +955,7 @@ export default function CartView({
               disabled={selectedItems.length === 0}
             >
               <AppText style={styles.proceedText}>
-                {selectedItems.length === 0 ? 'Select items to pay' : 'Place order'}
+                {selectedItems.length === 0 ? 'Select items to pay' : 'Continue'}
               </AppText>
             </TouchableOpacity>
           </View>
@@ -1125,11 +1139,24 @@ export default function CartView({
         </ScrollView>
 
         <View style={styles.fulfillmentBottomBar}>
+          {checkoutError ? (
+            <AppText style={styles.checkoutErrorText}>{checkoutError}</AppText>
+          ) : null}
           <TouchableOpacity
-            style={[styles.proceedBtn, !fulfillment && styles.proceedBtnDisabled]}
-            onPress={() => setStep('PAYMENT')}
+            style={[styles.proceedBtn, (!fulfillment || (fulfillment === 'DELIVERY' && !deliveryAddress.address.trim())) && styles.proceedBtnDisabled]}
+            onPress={() => {
+              if (fulfillment === 'DELIVERY' && !deliveryAddress.address.trim()) {
+                setCheckoutError('Add a delivery address before paying.');
+                return;
+              }
+              setCheckoutError(null);
+              setPaymentError(null);
+              setStep('PAYMENT');
+            }}
             activeOpacity={0.88}
-            disabled={!fulfillment}
+            disabled={!fulfillment || (fulfillment === 'DELIVERY' && !deliveryAddress.address.trim())}
+            accessibilityRole="button"
+            accessibilityLabel={fulfillment ? 'Proceed to payment' : 'Choose pickup or delivery'}
           >
             <AppText style={styles.proceedText}>
               {fulfillment ? 'Proceed to pay' : 'Choose pickup or delivery'}
@@ -1156,10 +1183,12 @@ export default function CartView({
             label: fulfillment === 'PICKUP' ? (primaryPickup?.name ?? 'Pickup point') : deliveryAddress.label,
             address: fulfillment === 'PICKUP' ? (primaryPickup?.address ?? '') : deliveryAddress.address,
           }}
-          originLabel="Instamart"
+          originLabel={cartOriginLabel}
           fulfillment={fulfillment ?? 'DELIVERY'}
           pickup={primaryPickup}
           contactPhone={accountPhone || savedAddress?.phone}
+          processing={paymentProcessing}
+          error={paymentError}
           onBack={() => setStep('FULFILLMENT')}
           onPlaceOrder={handlePlaceOrder}
         />
@@ -1178,7 +1207,7 @@ export default function CartView({
           <View style={styles.receiptCheckCircle}>
             <CheckCircle size={ms(24)} color="#56B821" strokeWidth={2.5} />
           </View>
-          <AppText style={styles.receiptTitle}>Order Confirmed!</AppText>
+          <AppText style={styles.receiptTitle}>Order confirmed</AppText>
           <AppText style={styles.receiptOrderId}>ID: {placedOrderDetails?.orderId}</AppText>
         </View>
 
@@ -1186,17 +1215,15 @@ export default function CartView({
         <View style={styles.liveTrackingBox}>
           <View style={styles.liveTrackingHeader}>
             <View style={styles.liveTrackingHeaderLeft}>
-              <Animated.View style={{ opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.3] }) }}>
-                <Store size={ms(10)} color="#475569" style={{ marginRight: hs(4) }} />
-              </Animated.View>
-              <AppText style={styles.liveTrackingLabel}>Real-Time Tracking Status</AppText>
+              <Store size={ms(12)} color="#475569" style={{ marginRight: hs(4) }} />
+              <AppText style={styles.liveTrackingLabel}>Order status</AppText>
             </View>
           </View>
 
           <View style={styles.liveStepsContainer}>
             <View style={[styles.liveStepRow, { marginBottom: 0 }]}>
               <View style={styles.liveStepDotOuter}>
-                <Animated.View style={[styles.liveStepActiveDotPulse, { opacity: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] }) }]} />
+                <View style={styles.liveStepActiveDotPulse} />
               </View>
               <View style={styles.liveStepTextCol}>
                 <AppText style={styles.liveStepTitle}>Order has been placed</AppText>
@@ -1209,7 +1236,7 @@ export default function CartView({
                     , {placedOrderDetails.pickup.address}
                   </AppText>
                 ) : (
-                  <AppText style={styles.liveStepDesc}>Preparing your order for delivery</AppText>
+                  <AppText style={styles.liveStepDesc}>Updates will appear in My Orders as it progresses</AppText>
                 )}
               </View>
             </View>
@@ -1282,7 +1309,7 @@ export default function CartView({
 
         {/* Payment info info */}
         <View style={styles.receiptPaymentDetails}>
-          <AppText style={styles.paymentProtocolLabel}>Payment Protocol:</AppText>
+          <AppText style={styles.paymentProtocolLabel}>Payment method:</AppText>
           <AppText style={styles.paymentProtocolValue}>{placedOrderDetails?.payment}</AppText>
         </View>
 
@@ -2514,6 +2541,13 @@ const styles = StyleSheet.create({
     backgroundColor: '#118C4F',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  checkoutErrorText: {
+    color: '#B91C1C',
+    fontSize: ms(13),
+    fontWeight: '500',
+    textAlign: 'center',
+    marginBottom: vs(8),
   },
   proceedBtnDisabled: {
     backgroundColor: '#94A3B8',

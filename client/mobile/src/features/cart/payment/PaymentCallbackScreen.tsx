@@ -93,18 +93,30 @@ export default function PaymentCallbackScreen() {
     navigation.replace('MyOrders', orderId ? { highlightOrderId: orderId } : undefined);
   };
 
-  if (phase === 'verifying') {
+if (phase === 'verifying') {
     return (
       <View style={[styles.root, { paddingTop: insets.top + vs(48) }]}>
         <View style={styles.card}>
           <View style={styles.iconWrap}>
             <ActivityIndicator size="large" color={BRAND.green} />
           </View>
-          <AppText style={styles.title}>Verifying your payment…</AppText>
+          <AppText style={styles.title}>Verifying your payment...</AppText>
           <AppText style={styles.subtitle}>
             Confirming with the payment gateway. This only takes a moment.
           </AppText>
         </View>
+        <TouchableOpacity
+          style={styles.secondaryBtn}
+          onPress={() => {
+            cancelled.current = true;
+            setPhase('pending');
+          }}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Stop waiting and check My Orders"
+        >
+          <AppText style={styles.secondaryText}>Check My Orders instead</AppText>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -198,7 +210,7 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: ms(20),
-    fontWeight: '800',
+    fontWeight: '600',
     color: BRAND.ink,
     textAlign: 'center',
   },
@@ -229,7 +241,7 @@ const styles = StyleSheet.create({
   },
   primaryText: {
     fontSize: ms(15),
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#ffffff',
   },
   secondaryBtn: {
@@ -244,7 +256,7 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     fontSize: ms(14),
-    fontWeight: '700',
+    fontWeight: '600',
     color: BRAND.ink,
   },
 });

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { StyleSheet, View, TouchableOpacity, Pressable, Platform, Alert, Image, Keyboard, KeyboardAvoidingView, Animated, Easing, BackHandler, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Pressable, Platform, Image, Keyboard, KeyboardAvoidingView, Animated, Easing, BackHandler, ActivityIndicator } from 'react-native';
 import type { TextInput } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
@@ -23,10 +23,14 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import phoneAuthBackgroundImg from '@/assets/phone_auth_background.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
+import { COUNTRY_OPTIONS, CountryCodePicker } from '@/components/CountryCodePicker';
+import type { CountryOptionCode } from '@/components/CountryCodePicker';
 import { useAuthStore } from '@/state/authStore';
+import { useOnboardingStore } from '@/state/onboardingStore';
 import { openTrustedUrl } from '@/lib/externalLinks';
 import { PRIVACY_URL, TERMS_URL } from '@/lib/site';
 import { decodeIdToken } from '@/lib/tokenClaims';
+import { isValidPhone, toE164 } from '@/lib/phone';
 import {
   consumeAutoVerifiedOtp,
   displayName,
@@ -37,6 +41,7 @@ import {
   type FirebaseSession,
 } from '@/services/firebaseAuth';
 import { useSmsUserConsent } from '@/lib/smsUserConsent';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -121,9 +126,13 @@ function RotatingSpinner({ size = 14, borderWidth = 2, color = '#212121' }) {
   );
 }
 
+const RESEND_COOLDOWN_S = 30;
+
 export function LoginScreen({ navigation }: Props) {
   const login = useAuthStore((s) => s.login);
+  const hasSeenOnboarding = useOnboardingStore((s) => s.hasSeenOnboarding);
   const insets = useSafeAreaInsets();
+  const reduceMotion = useReducedMotion();
   const handleOpenTerms = useCallback(() => {
     void openTrustedUrl(TERMS_URL);
   }, []);
@@ -131,6 +140,8 @@ export function LoginScreen({ navigation }: Props) {
     void openTrustedUrl(PRIVACY_URL);
   }, []);
   const [phone, setPhone] = useState('');
+  const [country, setCountry] = useState<CountryOptionCode>('IN');
+  const [phoneError, setPhoneError] = useState('');
   const [otpState, setOtpState] = useState(false);
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState('');
@@ -138,6 +149,7 @@ export function LoginScreen({ navigation }: Props) {
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const phoneInputRef = useRef<TextInput>(null);
   const otpInputRef = useRef<TextInput>(null);
@@ -196,6 +208,18 @@ export function LoginScreen({ navigation }: Props) {
   }, [otpState, fadeAnim]);
 
   useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((seconds) => (seconds <= 1 ? 0 : seconds - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      pulseAnim.setValue(1);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, { toValue: 0.4, duration: 800, useNativeDriver: true }),
@@ -204,10 +228,11 @@ export function LoginScreen({ navigation }: Props) {
     );
     loop.start();
     return () => loop.stop();
-  }, [pulseAnim]);
+  }, [pulseAnim, reduceMotion]);
 
   const triggerShake = () => {
     shakeAnim.setValue(0);
+    if (reduceMotion) return;
     Animated.sequence([
       Animated.timing(shakeAnim, { toValue: -5, duration: 80, useNativeDriver: true }),
       Animated.timing(shakeAnim, { toValue: 5, duration: 80, useNativeDriver: true }),
@@ -246,6 +271,10 @@ export function LoginScreen({ navigation }: Props) {
     prevOtpLength.current = otpCode.length;
   }, [otpCode, digitAnims]);
 
+  const dial = COUNTRY_OPTIONS.find((option) => option.code === country)?.dial ?? '+91';
+  const phoneE164 = toE164(phone, country);
+  const phoneValid = isValidPhone(phone, country);
+
   const completeLogin = useCallback(
     async (session: FirebaseSession): Promise<boolean> => {
       const claims = decodeIdToken(session.accessToken);
@@ -254,7 +283,7 @@ export function LoginScreen({ navigation }: Props) {
           id: session.user.uid,
           name: displayName(session.user),
           email: session.user.email ?? '',
-          phone,
+          phone: phoneE164,
           role: claims.role,
           stateCode: claims.stateCode,
           districtCode: claims.districtCode,
@@ -266,11 +295,11 @@ export function LoginScreen({ navigation }: Props) {
       navigation.replace('LanguageSelection');
       return true;
     },
-    [login, navigation, phone],
+    [login, navigation, phoneE164],
   );
 
   const submitOtp = useCallback(async () => {
-    if (submitRef.current || otpCode.length !== 6 || phone.length < 10) return;
+    if (submitRef.current || otpCode.length !== 6 || !phoneValid) return;
     submitRef.current = true;
     setIsVerifying(true);
     Keyboard.dismiss();
@@ -279,14 +308,14 @@ export function LoginScreen({ navigation }: Props) {
     try {
       if (firebaseAuthConfigured()) {
         // Real Firebase phone-OTP session: the ID token is the same bearer the gateway verifies.
-        const session = await verifyOtp(phone, otpCode);
+        const session = await verifyOtp(phoneE164, otpCode);
         if (await completeLogin(session)) return;
       } else if (__DEV__) {
         // Dev-only fallback when Firebase Auth is unconfigured (local AUTH_DISABLED gateway).
         // Release builds never reach here — configure.js refuses to embed a mock-login build.
         const placeholderToken = `placeholder.${phone}.${Date.now()}`;
         await login({
-          user: { id: `user_${phone}`, name: 'Faazio User', email: '', phone },
+          user: { id: `user_${phoneE164}`, name: 'Faazio User', email: '', phone: phoneE164 },
           accessToken: placeholderToken,
         });
         if (navigationRef.isReady()) {
@@ -303,7 +332,7 @@ export function LoginScreen({ navigation }: Props) {
       setIsVerifying(false);
       setOtpError('That code was not valid. Please try again.');
     }
-  }, [completeLogin, login, navigation, otpCode, phone]);
+  }, [completeLogin, login, navigation, otpCode, phoneE164, phoneValid]);
 
   const handleSmsCode = useCallback((code: string) => {
     if (submitRef.current) return;
@@ -327,8 +356,8 @@ export function LoginScreen({ navigation }: Props) {
   // Native Firebase can verify the OTP without the user typing (auto-retrieval). Consume the
   // resulting session and finish login exactly like a manual submit.
   const applyAutoVerified = useCallback(() => {
-    if (!otpState || submitRef.current || phone.length < 10) return;
-    const session = consumeAutoVerifiedOtp(phone);
+    if (!otpState || submitRef.current || !phoneValid) return;
+    const session = consumeAutoVerifiedOtp(phoneE164);
     if (!session) return;
     submitRef.current = true;
     setIsVerifying(true);
@@ -344,7 +373,7 @@ export function LoginScreen({ navigation }: Props) {
         setIsVerifying(false);
         setOtpError('That code was not valid. Please try again.');
       });
-  }, [completeLogin, otpState, phone]);
+  }, [completeLogin, otpState, phoneE164, phoneValid]);
 
   useEffect(() => {
     if (!otpState) return;
@@ -356,7 +385,12 @@ export function LoginScreen({ navigation }: Props) {
   const requestOtp = useCallback(
     async (digits: string) => {
       if (isSending) return;
+      if (!isValidPhone(digits, country)) {
+        setPhoneError('Enter a valid phone number for the selected country.');
+        return;
+      }
       Keyboard.dismiss();
+      setPhoneError('');
       setOtpError('');
       setOtpCode('');
       submitRef.current = false;
@@ -366,19 +400,16 @@ export function LoginScreen({ navigation }: Props) {
         // The User Consent API only sees SMS received after it starts — arm before the send.
         restartSmsConsent();
         try {
-          await sendOtp(digits);
+          await sendOtp(toE164(digits, country));
         } catch (err) {
           stopSmsConsent();
           setIsSending(false);
-          // Surface the Firebase code in dev: a bare "check your number" hides the real cause
-          // (e.g. app-not-authorized from an unregistered signing cert) and makes it undebuggable.
+          // Log the Firebase code in dev without surfacing raw SDK details in the UI.
           if (__DEV__) {
             const code = (err as { code?: string })?.code ?? 'unknown';
             console.warn('[phone-auth] sendOtp failed:', code, (err as Error)?.message);
-            Alert.alert('Could not send OTP', `${code}\n\n${(err as Error)?.message ?? ''}`);
-            return;
           }
-          Alert.alert('Could not send OTP', 'Please check your number and try again.');
+          setPhoneError('Could not send the code. Check your number and try again.');
           return;
         }
         setIsSending(false);
@@ -386,23 +417,32 @@ export function LoginScreen({ navigation }: Props) {
       // Freeze the number that actually received the SMS, even if the field was edited mid-send.
       setPhone(digits);
       setOtpState(true);
+      setResendCooldown(RESEND_COOLDOWN_S);
     },
-    [isSending, restartSmsConsent, stopSmsConsent],
+    [country, isSending, restartSmsConsent, stopSmsConsent],
   );
 
   const handlePhoneChange = (val: string) => {
-    const numericVal = val.replace(/\D/g, '').slice(0, 10);
+    const numericVal = val.replace(/\D/g, '').slice(0, 15);
     setPhone(numericVal);
+    setPhoneError('');
     if (phoneAdvanceRef.current) {
       clearTimeout(phoneAdvanceRef.current);
       phoneAdvanceRef.current = null;
     }
-    if (numericVal.length === 10 && !otpState) {
+    // India keeps the auto-advance at 10 digits; other countries use the Send code button
+    // because national lengths differ.
+    if (country === 'IN' && numericVal.length === 10 && !otpState) {
       phoneAdvanceRef.current = setTimeout(() => {
         phoneAdvanceRef.current = null;
         void requestOtp(numericVal);
       }, 150);
     }
+  };
+
+  const handleCountryChange = (code: CountryOptionCode) => {
+    setCountry(code);
+    setPhoneError('');
   };
 
   const handleOtpChange = (val: string) => {
@@ -444,31 +484,30 @@ export function LoginScreen({ navigation }: Props) {
   );
 
   const handleResend = () => {
-    if (resendRef.current || submitRef.current || isSending) return;
+    if (resendRef.current || submitRef.current || isSending || resendCooldown > 0) return;
     setOtpCode('');
     setOtpError('');
     submitRef.current = false;
     setIsVerifying(false);
+    setResendCooldown(RESEND_COOLDOWN_S);
     if (firebaseAuthConfigured()) {
       resendRef.current = true;
       // Re-arm before the resend SMS leaves the server (same 5-minute-window rule as the first send).
       restartSmsConsent();
-      void sendOtp(phone)
+      void sendOtp(phoneE164)
         .catch((err: unknown) => {
           stopSmsConsent();
           if (__DEV__) {
             const code = (err as { code?: string })?.code ?? 'unknown';
             console.warn('[phone-auth] resend failed:', code, (err as Error)?.message);
-            Alert.alert('Could not send OTP', `${code}\n\n${(err as Error)?.message ?? ''}`);
-            return;
           }
-          Alert.alert('Could not send OTP', 'Please try again in a moment.');
+          setOtpError('Could not resend the code. Try again in a moment.');
         })
         .finally(() => {
           resendRef.current = false;
         });
     } else {
-      Alert.alert('Resend', 'A new demo OTP code has been sent to (+91) ' + phone);
+      setOtpError(`A new demo code has been sent to ${dial} ${phone}.`);
     }
   };
 
@@ -481,12 +520,16 @@ export function LoginScreen({ navigation }: Props) {
       {!otpState ? (
         <View style={styles.phoneStateContainer}>
 
-          <ScalePressable
-            onPress={() => navigation.navigate('Onboarding')}
-            style={[styles.backBtn, { top: Platform.OS === 'ios' ? vs(44) : insets.top + vs(8) }]}
-          >
-            <ChevronLeft size={ms(20)} color="#1e293b" strokeWidth={2.5} />
-          </ScalePressable>
+          {!hasSeenOnboarding ? (
+            <ScalePressable
+              onPress={() => navigation.navigate('Onboarding')}
+              style={[styles.backBtn, { top: insets.top + vs(8) }]}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <ChevronLeft size={ms(20)} color="#1e293b" strokeWidth={2.5} />
+            </ScalePressable>
+          ) : null}
 
           <View style={styles.topImageContainer}>
             <Pressable style={{ flex: 1 }} onPress={() => Keyboard.dismiss()}>
@@ -523,19 +566,24 @@ export function LoginScreen({ navigation }: Props) {
             <View style={styles.formContainer}>
               <View>
                 <View style={[styles.phoneInputRow, isPhoneFocused && styles.phoneInputRowFocused]}>
-                  <AppText style={styles.countryCode}>(+91)</AppText>
+                  <CountryCodePicker
+                    value={country}
+                    onChange={handleCountryChange}
+                    disabled={isSending || otpState}
+                  />
                   <View style={styles.separator} />
                   <AppTextInput
                     ref={phoneInputRef}
                     style={styles.textInput}
                     placeholder="Enter your mobile number"
                     placeholderTextColor="#e2e8f0"
-                    keyboardType="number-pad"
-                    maxLength={10}
+                    keyboardType="phone-pad"
+                    maxLength={15}
                     value={phone}
                     onChangeText={handlePhoneChange}
                     onFocus={() => setIsPhoneFocused(true)}
                     onBlur={() => setIsPhoneFocused(false)}
+                    accessibilityLabel="Mobile number"
                   />
                 </View>
 
@@ -551,12 +599,29 @@ export function LoginScreen({ navigation }: Props) {
                 </AppText>
 
                 <View style={styles.loaderContainer}>
-                  {isSending && (
+                  {isSending ? (
                     <View style={styles.loadingPill}>
                       <RotatingSpinner size={14} borderWidth={2} color="#212121" />
-                      <AppText style={styles.loadingText}>Sending OTP...</AppText>
+                      <AppText style={styles.loadingText}>Sending code…</AppText>
                     </View>
+                  ) : (
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      disabled={!phoneValid || otpState}
+                      onPress={() => void requestOtp(phone)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Send code"
+                      accessibilityState={{ disabled: !phoneValid }}
+                      style={[styles.sendBtn, !phoneValid && styles.sendBtnDisabled]}
+                    >
+                      <AppText style={styles.sendBtnText}>Send code</AppText>
+                    </TouchableOpacity>
                   )}
+                  {phoneError ? (
+                    <AppText style={styles.phoneErrorText} accessibilityLiveRegion="polite">
+                      {phoneError}
+                    </AppText>
+                  ) : null}
                 </View>
               </View>
             </View>
@@ -574,13 +639,15 @@ export function LoginScreen({ navigation }: Props) {
 
           <ScalePressable
             onPress={goBackFromOtp}
-            style={[styles.backBtn, { top: Platform.OS === 'ios' ? vs(44) : insets.top + vs(8) }]}
+            style={[styles.backBtn, { top: insets.top + vs(8) }]}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
           >
             <ChevronLeft size={ms(20)} color="#1e293b" strokeWidth={2.5} />
           </ScalePressable>
 
           <View style={styles.otpHeaderContainer}>
-            <AppText style={styles.otpHeaderTitle}>Lets get verified</AppText>
+            <AppText style={styles.otpHeaderTitle}>Let's get verified</AppText>
           </View>
 
           <View style={styles.checkCircleBg} />
@@ -605,9 +672,9 @@ export function LoginScreen({ navigation }: Props) {
           >
             <View style={styles.otpWhiteContent}>
               <View style={styles.otpPromptContainer}>
-                <AppText style={styles.securePromptSub}>Secure Verification</AppText>
+                <AppText style={styles.securePromptSub}>Secure verification</AppText>
                 <AppText style={styles.securePromptMain}>Enter the code sent to</AppText>
-                <AppText style={styles.securePromptPhone}>{phone ? `+91 ${phone}` : '+9876543210'}</AppText>
+                <AppText style={styles.securePromptPhone}>{phone ? `${dial} ${phone}` : 'your number'}</AppText>
               </View>
 
               <View style={styles.otpSegmentsContainer}>
@@ -622,6 +689,9 @@ export function LoginScreen({ navigation }: Props) {
                   textContentType="oneTimeCode"
                   autoComplete="sms-otp"
                   editable={!isVerifying}
+                  accessibilityLabel="Enter the 6-digit code"
+                  accessibilityHint="The code was sent to your phone"
+                  accessibilityValue={{ text: `${otpCode.length} of 6 digits entered` }}
                 />
 
                 <View style={styles.segmentsRow}>
@@ -723,10 +793,15 @@ export function LoginScreen({ navigation }: Props) {
                   <AppText style={styles.resendTextSub}>Didn't get the code? </AppText>
                   <TouchableOpacity
                     activeOpacity={0.7}
-                    disabled={isVerifying || isSending}
+                    disabled={isVerifying || isSending || resendCooldown > 0}
                     onPress={handleResend}
+                    accessibilityRole="button"
+                    accessibilityLabel={resendCooldown > 0 ? `Resend code in ${resendCooldown} seconds` : 'Resend code'}
+                    accessibilityState={{ disabled: isVerifying || isSending || resendCooldown > 0 }}
                   >
-                    <AppText style={styles.resendTextAction}>Resend</AppText>
+                    <AppText style={styles.resendTextAction}>
+                      {resendCooldown > 0 ? `Resend in ${resendCooldown}s` : 'Resend'}
+                    </AppText>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -747,9 +822,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: hs(16),
     zIndex: 40,
-    width: ms(40),
-    height: ms(40),
-    borderRadius: ms(20),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -834,10 +909,8 @@ const styles = StyleSheet.create({
   headerBlock: { alignItems: 'center' },
   exploreTitle: {
     color: '#ffffff',
-    fontWeight: '900',
+    fontWeight: '600',
     fontSize: ms(28),
-    textTransform: 'uppercase',
-    letterSpacing: -0.5,
   },
   formContainer: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', paddingTop: SPACE.SECTION },
   phoneInputRow: {
@@ -863,7 +936,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 8,
   },
-  countryCode: { fontSize: ms(14), fontWeight: '800', color: '#212121' },
+  countryCode: { fontSize: ms(14), fontWeight: '600', color: '#212121' },
   separator: { width: 1, height: vs(16), backgroundColor: '#e2e8f0', marginHorizontal: hs(10) },
   textInput: { flex: 1, fontSize: ms(14), fontWeight: '600', color: '#212121' },
   termsText: {
@@ -874,7 +947,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(8),
     lineHeight: ms(16),
   },
-  termsLink: { fontWeight: '800', textDecorationLine: 'underline' },
+  termsLink: { fontWeight: '600', textDecorationLine: 'underline' },
   loaderContainer: { minHeight: Math.max(44, vs(44)), marginTop: SPACE.BLOCK, alignItems: 'center', justifyContent: 'center' },
   loadingPill: {
     flexDirection: 'row',
@@ -890,11 +963,34 @@ const styles = StyleSheet.create({
     elevation: 6,
     gap: hs(10),
   },
-  loadingText: { color: '#212121', fontWeight: '900', fontSize: ms(12) },
+  loadingText: { color: '#212121', fontWeight: '600', fontSize: ms(12) },
+  sendBtn: {
+    minHeight: Math.max(48, vs(48)),
+    minWidth: hs(200),
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: ms(30),
+    backgroundColor: '#41E68F',
+    shadowColor: '#41E68F',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 10,
+    elevation: 6,
+  },
+  sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.35)', shadowOpacity: 0, elevation: 0 },
+  sendBtnText: { color: '#0f172a', fontWeight: '600', fontSize: ms(14) },
+  phoneErrorText: {
+    marginTop: SPACE.BLOCK,
+    fontSize: ms(12),
+    color: '#fecdd3',
+    fontWeight: '600',
+    textAlign: 'center',
+    paddingHorizontal: hs(12),
+  },
   otpStateContainer: { flex: 1, backgroundColor: '#1f40d4', position: 'relative' },
   otpTopDismissArea: { position: 'absolute', top: 0, left: 0, right: 0, height: '24.2%', zIndex: 30 },
   otpHeaderContainer: { position: 'absolute', top: '9%', left: 0, right: 0, alignItems: 'center', zIndex: 10 },
-  otpHeaderTitle: { color: '#ffffff', fontWeight: '900', textTransform: 'uppercase', fontSize: ms(24), letterSpacing: -0.5 },
+  otpHeaderTitle: { color: '#ffffff', fontWeight: '600', fontSize: ms(24) },
   checkCircleBg: {
     position: 'absolute',
     top: '14%',
@@ -949,16 +1045,16 @@ const styles = StyleSheet.create({
   },
   otpWhiteContent: { flex: 1, paddingVertical: SPACE.SECTION, paddingHorizontal: hs(24), alignItems: 'center' },
   otpPromptContainer: { alignItems: 'center', marginBottom: SPACE.SECTION },
-  securePromptSub: { fontSize: ms(10), fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: 1.5, marginBottom: vs(6) },
-  securePromptMain: { fontSize: ms(18), fontWeight: '900', color: '#1e293b', marginBottom: vs(2) },
-  securePromptPhone: { fontSize: ms(20), fontWeight: '900', color: '#2f80ed', letterSpacing: 0.5 },
+  securePromptSub: { fontSize: ms(11), fontWeight: '600', color: '#94a3b8', marginBottom: vs(6) },
+  securePromptMain: { fontSize: ms(18), fontWeight: '600', color: '#1e293b', marginBottom: vs(2) },
+  securePromptPhone: { fontSize: ms(20), fontWeight: '600', color: '#2f80ed', letterSpacing: 0.5 },
   otpSegmentsContainer: { flex: 1, justifyContent: 'flex-start', alignItems: 'center', width: '100%', position: 'relative', paddingTop: vs(8) },
   hiddenOtpInput: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, zIndex: 40, color: 'transparent' },
   segmentsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: hs(12), width: '100%', maxWidth: hs(320), zIndex: 30 },
   segmentColumn: { alignItems: 'center', width: Math.max(44, vs(44)) },
   segmentDigitContainer: { height: vs(48), justifyContent: 'center', alignItems: 'center' },
-  segmentDigit: { fontSize: ms(30), fontWeight: '900', color: '#1e293b', letterSpacing: -1 },
-  segmentDot: { fontSize: ms(12), fontWeight: '900', color: '#cbd5e1', opacity: 0.7 },
+  segmentDigit: { fontSize: ms(30), fontWeight: '600', color: '#1e293b', letterSpacing: -1 },
+  segmentDot: { fontSize: ms(12), fontWeight: '600', color: '#cbd5e1', opacity: 0.7 },
   segmentTrack: { height: vs(6), borderRadius: ms(3), width: '100%', marginTop: vs(4) },
   segmentTrackDefault: { backgroundColor: '#cbd5e1', opacity: 0.7 },
   segmentTrackCurrent: { backgroundColor: '#3b82f6', height: vs(5) },
@@ -1012,7 +1108,7 @@ const styles = StyleSheet.create({
     elevation: 3,
   },
   errorToastTextContainer: { flexShrink: 1 },
-  errorToastTitle: { fontSize: ms(11), fontWeight: '900', color: '#9f1239', lineHeight: ms(14) },
+  errorToastTitle: { fontSize: ms(11), fontWeight: '600', color: '#9f1239', lineHeight: ms(14) },
   errorToastMessage: { fontSize: ms(10), fontWeight: '700', color: '#e11d48', marginTop: vs(2), lineHeight: ms(14) },
   verifyBtn: {
     width: '100%',
@@ -1029,8 +1125,8 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   verifyBtnDisabled: { backgroundColor: '#cbd5e1', shadowOpacity: 0, elevation: 0 },
-  verifyBtnText: { color: '#ffffff', fontWeight: '900', fontSize: ms(15), letterSpacing: 0.5 },
+  verifyBtnText: { color: '#ffffff', fontWeight: '600', fontSize: ms(15), letterSpacing: 0.5 },
   resendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
   resendTextSub: { fontSize: ms(12), color: '#64748b', fontWeight: '600' },
-  resendTextAction: { fontSize: ms(12), color: '#2f80ed', fontWeight: '800' },
+  resendTextAction: { fontSize: ms(12), color: '#2f80ed', fontWeight: '600' },
 });

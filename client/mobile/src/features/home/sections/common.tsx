@@ -1,7 +1,10 @@
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { ChevronRight } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { neutral, parentRamp } from '@/theme/brandTokens';
+import { ICON, TOUCH } from '@/theme/tokens';
 import type { SubAppId } from '@/state/uiStore';
 import type { AppBrand, Product, StoreProfile } from '@data/types';
 import type { SduiCampaign } from '@data/home/sdui';
@@ -64,9 +67,20 @@ interface SectionHeaderProps {
   subtitle?: string;
   leading?: React.ReactNode;
   right?: React.ReactNode;
+  actionLabel?: string;
+  onAction?: () => void;
+  accent?: string;
 }
 
-export function SectionHeader({ title, subtitle, leading, right }: SectionHeaderProps) {
+export function SectionHeader({
+  title,
+  subtitle,
+  leading,
+  right,
+  actionLabel = 'View all',
+  onAction,
+  accent = parentRamp.deep,
+}: SectionHeaderProps) {
   return (
     <View style={styles.headerRow}>
       <View style={styles.headerTitleGroup}>
@@ -76,16 +90,20 @@ export function SectionHeader({ title, subtitle, leading, right }: SectionHeader
           {subtitle ? <AppText style={styles.subtitle}>{subtitle}</AppText> : null}
         </View>
       </View>
-      {right}
+      {right ??
+        (onAction ? (
+          <TouchableOpacity
+            onPress={onAction}
+            style={styles.action}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={actionLabel}
+          >
+            <AppText style={[styles.actionLabel, { color: accent }]}>{actionLabel}</AppText>
+            <ChevronRight size={ICON.sm} color={accent} strokeWidth={1.5} />
+          </TouchableOpacity>
+        ) : null)}
     </View>
-  );
-}
-
-export function RailRightLabel({ label, tint }: { label: string; tint?: string }) {
-  return (
-    <TouchableOpacity style={[styles.rightPill, tint ? { backgroundColor: tint } : styles.rightPillDefault]} activeOpacity={0.8}>
-      <AppText style={styles.rightPillText}>{label}</AppText>
-    </TouchableOpacity>
   );
 }
 
@@ -104,29 +122,24 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: ms(18),
-    fontWeight: '900',
-    color: '#0f172a',
-    letterSpacing: 0.3,
+    fontWeight: '600',
+    color: neutral.ink,
   },
   subtitle: {
-    fontSize: ms(9.5),
-    fontWeight: '700',
-    color: '#94a3b8',
+    fontSize: ms(12),
+    fontWeight: '400',
+    color: neutral.inkMuted,
     marginTop: vs(1),
   },
-  rightPill: {
-    paddingHorizontal: hs(9),
-    paddingVertical: vs(3),
-    borderRadius: ms(10),
+  action: {
+    minHeight: TOUCH.min,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(2),
+    paddingLeft: hs(12),
   },
-  rightPillDefault: {
-    backgroundColor: '#f1f5f9',
-  },
-  rightPillText: {
-    fontSize: ms(8),
-    fontWeight: '900',
-    color: '#475569',
-    textTransform: 'uppercase',
-    letterSpacing: 0.3,
+  actionLabel: {
+    fontSize: ms(13),
+    fontWeight: '500',
   },
 });

@@ -89,7 +89,10 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
 
   const saveFee = (storeId: string) => {
     const pct = Number(feeDrafts[storeId]);
-    if (!Number.isInteger(pct) || pct < 1 || pct > 100) return;
+    if (!Number.isInteger(pct) || pct < 1 || pct > 100) {
+      setError('Enter a whole platform fee between 1 and 100.');
+      return;
+    }
     run(
       () => gateway.updateSellerPlatformFee(sellerId, storeId, pct),
       'Could not update the platform fee.',
@@ -146,10 +149,37 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
     );
   }
 
-  if (loading || !detail) {
+  if (loading) {
     return (
       <View style={[styles.root, styles.center]}>
         <ActivityIndicator size="large" color={parentRamp.base} />
+      </View>
+    );
+  }
+
+  if (!detail) {
+    return (
+      <View style={[styles.root, styles.center]}>
+        <AppText style={styles.gateTitle}>Couldn't load this application</AppText>
+        <AppText style={styles.gateBody}>{error ?? 'Check your connection and try again.'}</AppText>
+        <TouchableOpacity
+          onPress={() => void load()}
+          style={styles.retryBtn}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel="Retry loading application"
+        >
+          <AppText style={styles.retryText}>Try again</AppText>
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          style={styles.backLink}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <AppText style={styles.backLinkText}>Go back</AppText>
+        </TouchableOpacity>
       </View>
     );
   }
@@ -664,6 +694,19 @@ const styles = StyleSheet.create({
     marginTop: vs(6),
     paddingHorizontal: hs(24),
   },
+  retryBtn: {
+    minHeight: 44,
+    marginTop: vs(16),
+    paddingHorizontal: hs(20),
+    borderRadius: ms(22),
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryText: { fontSize: ms(13), fontWeight: '600', color: parentRamp.base },
+  backLink: { minHeight: 44, justifyContent: 'center', marginTop: vs(4) },
+  backLinkText: { fontSize: ms(13), fontWeight: '500', color: '#64748B' },
 });
 
 export default SellerRequestDetailScreen;

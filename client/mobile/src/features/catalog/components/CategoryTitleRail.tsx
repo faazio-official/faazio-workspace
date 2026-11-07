@@ -65,15 +65,15 @@ const styles = StyleSheet.create({
   },
   chip: {
     paddingHorizontal: hs(14),
-    height: vs(32),
-    borderRadius: ms(16),
+    height: 44,
+    borderRadius: ms(22),
     backgroundColor: 'transparent',
     justifyContent: 'center',
     alignItems: 'center',
   },
   label: {
-    fontSize: ms(11),
-    fontWeight: '800',
+    fontSize: ms(12),
+    fontWeight: '600',
     color: '#111827',
   },
   labelActive: {

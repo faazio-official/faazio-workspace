@@ -151,10 +151,11 @@ jobs:
           fi
           printf '%s' "$GOOGLE_SERVICE_INFO_SELLER_PLIST" | base64 --decode > ios/Faazio/GoogleService-Info-Seller.plist
 
-      - name: Typecheck + module boundaries
+      - name: Typecheck + module boundaries + UI hygiene
         run: |
           npm run ts:check
           npm run check:boundaries
+          npm run check:ui
         env:
           # ts:check re-runs configure.js; keep the selected product variant from being reset.
           APP_VARIANT: ${{ github.event.inputs.app }}

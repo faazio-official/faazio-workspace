@@ -2,9 +2,8 @@ import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
-  TextInput,
   ActivityIndicator,
 } from 'react-native';
 import { ChevronLeft, Search, X } from 'lucide-react-native';
@@ -12,16 +11,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
+import AppTextInput from '@/components/AppTextInput';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { ReportIssueButton } from '@/components/shared/ReportIssueButton';
 import type { Product } from '@data/types';
 import { openHeroTarget } from '@/services/adsTarget';
 import { useCategoryVendors } from '@/features/catalog/hooks/useCategoryVendors';
 import { useCategoryTree } from '@/features/catalog/hooks/useCategoryTree';
-import type { VendorApp } from '@/services/categoryVendors';
+import type { VendorApp, VendorProducts } from '@/services/categoryVendors';
 import CategoryTitleRail from './CategoryTitleRail';
 import StoreProductSection from './StoreProductSection';
-import { parentRamp } from '@/theme/brandTokens';
+import { neutral, parentRamp } from '@/theme/brandTokens';
 
 /** Faazio brand blue — the category drill-in page is a brand surface. */
 const FAAZIO_BLUE = parentRamp.base;
@@ -54,7 +54,7 @@ export function CategoryDrillInPanel({
 }: CategoryDrillInPanelProps) {
   const insets = useSafeAreaInsets();
   const accent = FAAZIO_BLUE;
-  const bodyRef = useRef<ScrollView>(null);
+  const bodyRef = useRef<FlatList<VendorProducts>>(null);
 
   // Server-backed taxonomy for this sub-app (superadmin-owned; no fixture fallback).
   const { categories, loading: treeLoading } = useCategoryTree(app);
@@ -99,7 +99,7 @@ export function CategoryDrillInPanel({
   const handleSelectItem = useCallback((id: string) => {
     setActiveItemId(id);
     setSearchQuery('');
-    bodyRef.current?.scrollTo({ y: 0, animated: false });
+    bodyRef.current?.scrollToOffset({ offset: 0, animated: false });
   }, []);
 
   /** Public `AppBrand` for the paid CATEGORY_TOP hero (drill-in app is Mart/Pharma). */
@@ -136,7 +136,13 @@ export function CategoryDrillInPanel({
     return (
       <View style={styles.container}>
         <View style={[styles.header, { paddingTop: insets.top + vs(12) }]}>
-          <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={onBack}
+            style={styles.backBtn}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
             <ChevronLeft size={ms(22)} color="#1E2022" strokeWidth={2.5} />
           </TouchableOpacity>
           <AppText style={styles.headerTitle} numberOfLines={1}>{title}</AppText>
@@ -157,22 +163,29 @@ export function CategoryDrillInPanel({
     <View style={styles.container}>
       {/* Header: back + title + inline searchbar. */}
       <View style={[styles.header, { paddingTop: insets.top + vs(12) }]}>
-        <TouchableOpacity onPress={onBack} style={styles.backBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+            onPress={onBack}
+            style={styles.backBtn}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
           <ChevronLeft size={ms(22)} color="#1E2022" strokeWidth={2.5} />
         </TouchableOpacity>
         <View style={styles.headerMid}>
           <AppText style={styles.headerTitle} numberOfLines={1}>{title}</AppText>
           <View style={styles.searchWrap}>
             <Search size={ms(15)} color="#94a3b8" strokeWidth={2.2} />
-            <TextInput
+            <AppTextInput
               style={styles.searchInput}
               value={searchQuery}
               onChangeText={setSearchQuery}
-              placeholder="Search vendors..."
+              placeholder="Search vendors"
               placeholderTextColor="#94a3b8"
               returnKeyType="search"
               clearButtonMode="never"
               accessibilityLabel="Search vendors"
+              autoCorrect={false}
             />
             {searchQuery.length > 0 && (
               <TouchableOpacity onPress={() => setSearchQuery('')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -194,43 +207,51 @@ export function CategoryDrillInPanel({
       </View>
 
       {/* Store-grouped body: title ad, then a per-store heading → product list. */}
-      <ScrollView
+      <FlatList
         ref={bodyRef}
+        data={vendors}
+        keyExtractor={(item) => item.store.id}
         style={styles.body}
         contentContainerStyle={styles.bodyContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
-      >
-        <CampaignHero
-          placement="CATEGORY_TOP"
-          app={heroApp}
-          category={tabId}
-          onPress={handleHeroPress}
-          style={styles.topAd}
-        />
-
-        {loading && vendors.length === 0 ? (
-          <View style={styles.emptyWrap}>
-            <ActivityIndicator color={accent} />
-          </View>
-        ) : vendors.length === 0 ? (
-          <View style={styles.emptyWrap}>
-            <AppText style={styles.emptyText}>No vendors yet</AppText>
-            {failed ? <ReportIssueButton context={`category "${activeItem?.searchQuery ?? ''}"`} /> : null}
-          </View>
-        ) : (
-          vendors.map(({ store, products }) => (
-            <StoreProductSection
-              key={store.id}
-              app={app}
-              store={store}
-              products={products}
-              onStorePress={() => onVendorPress(store.id, activeItem?.searchQuery ?? '')}
-              onProductPress={onProductPress}
-            />
-          ))
+        ListHeaderComponent={
+          <CampaignHero
+            placement="CATEGORY_TOP"
+            app={heroApp}
+            category={tabId}
+            onPress={handleHeroPress}
+            style={styles.topAd}
+          />
+        }
+        renderItem={({ item }) => (
+          <StoreProductSection
+            app={app}
+            store={item.store}
+            products={item.products}
+            onStorePress={() => onVendorPress(item.store.id, activeItem?.searchQuery ?? '')}
+            onProductPress={onProductPress}
+          />
         )}
-      </ScrollView>
+        ListEmptyComponent={
+          loading ? (
+            <View style={styles.emptyWrap}>
+              <ActivityIndicator color={accent} />
+            </View>
+          ) : (
+            <View style={styles.emptyWrap}>
+              <AppText style={styles.emptyText}>
+                {failed
+                  ? "Couldn't load this category. Check your connection and try again."
+                  : 'No vendors in this category yet.'}
+              </AppText>
+              {failed ? (
+                <ReportIssueButton context={`category "${activeItem?.searchQuery ?? ''}"`} />
+              ) : null}
+            </View>
+          )
+        }
+      />
     </View>
   );
 }
@@ -240,7 +261,7 @@ export default CategoryDrillInPanel;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
   },
   header: {
     flexDirection: 'row',
@@ -250,12 +271,12 @@ const styles = StyleSheet.create({
     paddingBottom: vs(10),
   },
   backBtn: {
-    width: ms(36),
-    height: ms(36),
-    borderRadius: ms(18),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F5F6F8',
+    backgroundColor: neutral.surfaceAlt,
   },
   headerMid: {
     flex: 1,
@@ -263,16 +284,16 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: ms(16),
-    fontWeight: '800',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   headerSpacer: {
     width: ms(36),
   },
   searchWrap: {
-    height: ms(38),
-    borderRadius: ms(19),
-    backgroundColor: '#F1F5F9',
+    minHeight: 44,
+    borderRadius: ms(22),
+    backgroundColor: neutral.surfaceAlt,
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(8),
@@ -281,12 +302,12 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: ms(12),
-    color: '#1E2022',
+    color: neutral.ink,
     paddingVertical: 0,
   },
   railWrap: {
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#E2E8F0',
+    borderBottomColor: neutral.border,
     paddingVertical: vs(2),
   },
   body: {
@@ -305,9 +326,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(24),
   },
   emptyText: {
-    fontSize: ms(11),
+    fontSize: ms(13),
     fontWeight: '500',
-    color: '#94a3b8',
-    fontStyle: 'italic',
+    color: neutral.inkMuted,
+    textAlign: 'center',
   },
 });

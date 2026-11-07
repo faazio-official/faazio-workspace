@@ -1,11 +1,10 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   StyleSheet,
   FlatList,
   ActivityIndicator,
   TouchableOpacity,
-  TextInput,
   type ListRenderItemInfo,
 } from 'react-native';
 import { ArrowLeft, MapPin, Search, X } from 'lucide-react-native';
@@ -13,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppImage } from '@/components/shared/AppImage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import AppTextInput from '@/components/AppTextInput';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { getStoreById, type StoreRecord } from '@data/directory/stores';
@@ -25,7 +25,7 @@ import { useVendorProducts } from '@/features/catalog/hooks/useVendorProducts';
 import type { RootStackParamList } from '@/navigation/types';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
-import { parentRamp } from '@/theme/brandTokens';
+import { neutral, parentRamp, semantic } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VendorDetails'>;
 
@@ -47,13 +47,13 @@ const ProductRow = memo(function ProductRow({
 
 /**
  * Vendor Details page: a single store's products with an inline searchbar to its
- * right of the back arrow. The tapped sub-category's query is pre-applied and the
- * field auto-focuses; typing re-filters that vendor's product pool live.
+ * right of the back arrow. The tapped sub-category's query is pre-applied; typing
+ * re-filters that vendor's product pool live. The field does not autofocus, so the
+ * store header stays visible on open.
  */
 export function VendorDetailScreen({ navigation, route }: Props) {
   const { storeId, app, initialQuery } = route.params;
   const insets = useSafeAreaInsets();
-  const inputRef = useRef<TextInput | null>(null);
   const [query, setQuery] = useState(initialQuery ?? '');
 
   // Progressive enhancement: render the local directory fixture immediately, then
@@ -79,7 +79,7 @@ export function VendorDetailScreen({ navigation, route }: Props) {
 
   // Vendor inventory: one shared hook (server `GET /stores/{id}/products` + approved festival
   // discounts), so this page, the in-wrapper drill-in and the deals landing can never diverge.
-  const { products: pricedProducts } = useVendorProducts(storeId);
+  const { products: pricedProducts, loading: productsLoading } = useVendorProducts(storeId);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return pricedProducts;
@@ -135,26 +135,38 @@ export function VendorDetailScreen({ navigation, route }: Props) {
     <View style={styles.container}>
       {/* Top bar: back arrow + inline searchbar filling the rest. */}
       <View style={[styles.topBar, { paddingTop: insets.top + vs(4) }]}>
-        <TouchableOpacity onPress={handleBack} style={styles.backBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.6} />
+        <TouchableOpacity
+          onPress={handleBack}
+          style={styles.backBtn}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <ArrowLeft size={ms(20)} color={neutral.ink} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.searchWrap}>
-          <Search size={ms(16)} color="#94a3b8" strokeWidth={2.2} />
-          <TextInput
-            ref={inputRef}
+          <Search size={ms(16)} color={neutral.inkSubtle} strokeWidth={1.75} />
+          <AppTextInput
             style={styles.searchInput}
             value={query}
             onChangeText={setQuery}
-            placeholder="Search this store..."
+            placeholder="Search this store"
             placeholderTextColor="#94a3b8"
-            autoFocus
             returnKeyType="search"
             clearButtonMode="never"
             accessibilityLabel="Search within this store"
+            autoCorrect={false}
           />
           {query.length > 0 && (
-            <TouchableOpacity onPress={() => setQuery('')} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <X size={ms(16)} color="#94a3b8" strokeWidth={2.4} />
+            <TouchableOpacity
+              onPress={() => setQuery('')}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
+              <X size={ms(16)} color={neutral.inkSubtle} strokeWidth={1.75} />
             </TouchableOpacity>
           )}
         </View>
@@ -179,7 +191,7 @@ export function VendorDetailScreen({ navigation, route }: Props) {
                 <View style={styles.storeDetails}>
                   <AppText style={styles.storeName} numberOfLines={1}>{store.name}</AppText>
                   <View style={styles.metaRow}>
-                    <MapPin size={ms(13)} color="#94a3b8" />
+                    <MapPin size={ms(13)} color={neutral.inkSubtle} />
                     <AppText style={styles.metaText} numberOfLines={1}>
                       {store.address ? store.address.split(',').slice(0, 2).join(',') : store.distance} · {store.distance}
                     </AppText>
@@ -213,8 +225,14 @@ export function VendorDetailScreen({ navigation, route }: Props) {
         }
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
-            <AppText style={styles.emptyTitle}>No matches found</AppText>
-            <AppText style={styles.emptySub}>Try a different search for this store.</AppText>
+            {productsLoading ? (
+              <ActivityIndicator color={parentRamp.base} />
+            ) : (
+              <>
+                <AppText style={styles.emptyTitle}>No matches found</AppText>
+                <AppText style={styles.emptySub}>Try a different search for this store.</AppText>
+              </>
+            )}
           </View>
         }
         contentContainerStyle={styles.listContent}
@@ -230,7 +248,7 @@ export default VendorDetailScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
   },
   center: {
     alignItems: 'center',
@@ -242,21 +260,21 @@ const styles = StyleSheet.create({
     gap: hs(10),
     paddingHorizontal: hs(16),
     paddingBottom: vs(10),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
   },
   backBtn: {
-    width: ms(38),
-    height: ms(38),
-    borderRadius: ms(19),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: neutral.surfaceAlt,
   },
   searchWrap: {
     flex: 1,
-    height: ms(40),
-    borderRadius: ms(20),
-    backgroundColor: '#F1F5F9',
+    minHeight: 44,
+    borderRadius: ms(22),
+    backgroundColor: neutral.surfaceAlt,
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(8),
@@ -265,7 +283,7 @@ const styles = StyleSheet.create({
   searchInput: {
     flex: 1,
     fontSize: ms(12),
-    color: '#1E2022',
+    color: neutral.ink,
     paddingVertical: 0,
   },
   listContent: {
@@ -298,14 +316,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: -ms(6),
     alignSelf: 'center',
-    backgroundColor: '#22C55E',
+    backgroundColor: semantic.success,
     borderRadius: ms(8),
     paddingHorizontal: hs(6),
     paddingVertical: vs(1),
   },
   ratingText: {
-    fontSize: ms(9),
-    fontWeight: '900',
+    fontSize: ms(11),
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   storeDetails: {
@@ -314,8 +332,8 @@ const styles = StyleSheet.create({
   },
   storeName: {
     fontSize: ms(16),
-    fontWeight: '800',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   metaRow: {
     flexDirection: 'row',
@@ -324,21 +342,21 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
   },
   metaText: {
-    fontSize: ms(10),
-    fontWeight: '600',
-    color: '#64748b',
+    fontSize: ms(12),
+    fontWeight: '500',
+    color: neutral.inkMuted,
   },
   offerBadge: {
-    backgroundColor: '#F0F4FE',
+    backgroundColor: parentRamp.tint,
     borderRadius: ms(6),
     paddingHorizontal: hs(6),
     paddingVertical: vs(2),
     maxWidth: hs(200),
   },
   offerText: {
-    fontSize: ms(8.5),
-    fontWeight: '700',
-    color: parentRamp.base,
+    fontSize: ms(11),
+    fontWeight: '600',
+    color: parentRamp.deep,
   },
   storeHero: {
     marginTop: SPACE.ITEM,
@@ -350,11 +368,9 @@ const styles = StyleSheet.create({
     paddingBottom: vs(8),
   },
   resultsCount: {
-    fontSize: ms(11),
-    fontWeight: '800',
-    color: '#1E2022',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: neutral.inkMuted,
   },
   emptyWrap: {
     alignItems: 'center',
@@ -362,13 +378,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(24),
   },
   emptyTitle: {
-    fontSize: ms(12),
-    fontWeight: '800',
-    color: '#1E2022',
+    fontSize: ms(14),
+    fontWeight: '600',
+    color: neutral.ink,
   },
   emptySub: {
-    fontSize: ms(9.5),
-    color: '#94a3b8',
+    fontSize: ms(12),
+    color: neutral.inkMuted,
     fontWeight: '500',
     marginTop: vs(4),
     textAlign: 'center',

@@ -1,5 +1,7 @@
 import React, { useCallback } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
   StyleSheet,
   View,
   ScrollView,
@@ -107,7 +109,19 @@ export function AccountView({
   const streakCount = useRewardsStore((s) => s.streakCount);
   const authUser = useAuthStore((s) => s.user);
   // Nav groups: server rows first, universal catalog chrome fills empty groups (see useAccountNav).
-  const accountNavGroups = useAccountNav();
+  const {
+    groups: accountNavGroups,
+    loading: navLoading,
+    error: navError,
+    retry: retryNav,
+  } = useAccountNav();
+
+  const handleLogout = useCallback(() => {
+    Alert.alert('Log out?', 'You will need to sign in again to use Faazio.', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Log out', style: 'destructive', onPress: onLogout },
+    ]);
+  }, [onLogout]);
 
   const handleRowPress = useCallback(
     (row: AccountNavRow) => {
@@ -187,7 +201,7 @@ export function AccountView({
           activeOpacity={0.85}
           onPress={onOpenRewards}
           accessibilityRole="button"
-          accessibilityLabel="Open FaazioRewards"
+          accessibilityLabel="Open FaazioCoins"
         >
           <View style={styles.coinsHeader}>
             <View style={styles.coinsTitleRow}>
@@ -223,6 +237,28 @@ export function AccountView({
         </TouchableOpacity>
 
         {/* 5 + 6. Nav groups */}
+        {navLoading && accountNavGroups.length === 0 ? (
+          <View style={styles.navState}>
+            <ActivityIndicator color={BRAND_BLUE} />
+            <AppText style={styles.navStateText}>Loading account settings…</AppText>
+          </View>
+        ) : navError && accountNavGroups.length === 0 ? (
+          <View style={styles.navState}>
+            <AppText style={styles.navStateTitle}>Couldn't load account settings</AppText>
+            <AppText style={styles.navStateText}>
+              Check your connection and try again.
+            </AppText>
+            <TouchableOpacity
+              style={styles.navRetryBtn}
+              onPress={retryNav}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading account settings"
+            >
+              <AppText style={styles.navRetryText}>Try again</AppText>
+            </TouchableOpacity>
+          </View>
+        ) : null}
         {accountNavGroups.map((group: AccountNavGroup) => (
           <View key={group.key} style={styles.navGroup}>
             {group.title ? (
@@ -311,9 +347,9 @@ export function AccountView({
         ) : null}
 
         {/* 8. Logout */}
-        <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={onLogout}>
-          <LogOut size={ms(18)} color="#ffffff" strokeWidth={2.2} />
-          <AppText style={styles.logoutText}>Log Out</AppText>
+        <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={handleLogout}>
+          <LogOut size={ms(18)} color="#ffffff" strokeWidth={1.75} />
+          <AppText style={styles.logoutText}>Log out</AppText>
         </TouchableOpacity>
       </ScrollView>
     </View>
@@ -436,6 +472,38 @@ const styles = StyleSheet.create({
   },
   navGroup: {
     marginBottom: vs(4),
+  },
+  navState: {
+    alignItems: 'center',
+    paddingVertical: SPACE.SECTION,
+    paddingHorizontal: hs(16),
+    gap: vs(8),
+  },
+  navStateTitle: {
+    fontSize: ms(14),
+    fontWeight: '600',
+    color: '#0f172a',
+    textAlign: 'center',
+  },
+  navStateText: {
+    fontSize: ms(12),
+    color: '#64748b',
+    textAlign: 'center',
+  },
+  navRetryBtn: {
+    minHeight: 44,
+    marginTop: vs(4),
+    paddingHorizontal: hs(20),
+    borderRadius: ms(22),
+    borderWidth: 1,
+    borderColor: '#cbd5e1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navRetryText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: BRAND_BLUE,
   },
   navGroupTitle: {
     fontSize: ms(12),

@@ -35,12 +35,12 @@ const styles = StyleSheet.create({
   },
   text: {
     color: '#ffffff',
-    fontSize: ms(6.5),
-    fontWeight: '900',
-    letterSpacing: 0.6,
+    fontSize: ms(11),
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
   textMd: {
-    fontSize: ms(7.5),
-    letterSpacing: 0.8,
+    fontSize: ms(12),
+    letterSpacing: 0.3,
   },
 });

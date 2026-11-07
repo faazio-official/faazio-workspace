@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing } from 'react-native';
+import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing, Linking } from 'react-native';
 import { hs, vs, ms, wp, hp } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,6 +32,7 @@ import { requestAndRefreshLocation, useLiveOrigin } from '@/hooks/useLiveLocatio
 import { useLocationStore } from '@/state/locationStore';
 import { parentRamp } from '@/theme/brandTokens';
 import { semantic } from '@/theme/brandTokens';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Location'>;
 
@@ -69,8 +70,14 @@ function StreetMapSVG() {
 function PulsingLocator() {
   const ring1Anim = useRef(new Animated.Value(0)).current;
   const ring2Anim = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
+    if (reduceMotion) {
+      ring1Anim.setValue(1);
+      ring2Anim.setValue(1);
+      return;
+    }
     const loop1 = Animated.loop(
       Animated.timing(ring1Anim, { toValue: 1, duration: 2200, useNativeDriver: true })
     );
@@ -80,7 +87,7 @@ function PulsingLocator() {
     loop1.start();
     const delay = setTimeout(() => loop2.start(), 700);
     return () => { loop1.stop(); loop2.stop(); clearTimeout(delay); };
-  }, [ring1Anim, ring2Anim]);
+  }, [ring1Anim, ring2Anim, reduceMotion]);
 
   const ring1Scale = ring1Anim.interpolate({ inputRange: [0, 1], outputRange: [0.6, 1.4] });
   const ring1Opacity = ring1Anim.interpolate({ inputRange: [0, 1], outputRange: [0.8, 0] });
@@ -148,7 +155,12 @@ function PulsingLocator() {
 
 function BouncingPin() {
   const bounceAnim = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
   useEffect(() => {
+    if (reduceMotion) {
+      bounceAnim.setValue(0);
+      return;
+    }
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(bounceAnim, {
@@ -167,7 +179,7 @@ function BouncingPin() {
     );
     loop.start();
     return () => loop.stop();
-  }, [bounceAnim]);
+  }, [bounceAnim, reduceMotion]);
 
   const translateY = bounceAnim.interpolate({
     inputRange: [0, 1],
@@ -196,13 +208,17 @@ function BouncingPin() {
 
 export function LocationScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const [step, setStep] = useState<'request' | 'manual' | 'loader'>('request');
-  const [selectedLocation, setSelectedLocation] = useState(
-    'Sunnambukkara Street, Karaikal'
+  const storedAddress = useLocationStore((s) => s.address);
+  // A returning user with a saved address goes straight to the picker; only a
+  // first-time user sees the permission request.
+  const [step, setStep] = useState<'request' | 'manual' | 'loader'>(
+    storedAddress ? 'manual' : 'request',
   );
+  const [selectedLocation, setSelectedLocation] = useState(storedAddress);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [permissionError, setPermissionError] = useState('');
+  const [manualError, setManualError] = useState('');
   const liveOrigin = useLiveOrigin();
   const { suggestions, loading: suggestionsLoading, enabled: placesEnabled } = usePlaceAutocomplete(
     searchQuery,
@@ -211,6 +227,7 @@ export function LocationScreen({ navigation }: Props) {
 
   const useMyLocation = async () => {
     setPermissionError('');
+    setManualError('');
     const ok = await requestAndRefreshLocation();
     if (!ok) {
       setPermissionError(
@@ -219,6 +236,10 @@ export function LocationScreen({ navigation }: Props) {
       return;
     }
     const state = useLocationStore.getState();
+    if (state.status !== 'ready') {
+      setPermissionError('We could not get your location. Try again, or enter an area manually.');
+      return;
+    }
     setSelectedLocation(
       state.address || `${state.latitude.toFixed(4)}, ${state.longitude.toFixed(4)}`,
     );
@@ -226,12 +247,10 @@ export function LocationScreen({ navigation }: Props) {
   };
 
   const pickSuggestion = async (suggestion: PlaceSuggestion) => {
+    setManualError('');
     const resolved = await resolvePlaceLocation(suggestion.placeId);
     if (!resolved) {
-      setSelectedLocation(
-        [suggestion.title, suggestion.subtitle].filter(Boolean).join(', '),
-      );
-      setStep('loader');
+      setManualError('Could not find that place. Try another area or use your current location.');
       return;
     }
     useLocationStore.getState().setFix({
@@ -254,12 +273,20 @@ export function LocationScreen({ navigation }: Props) {
   const cardAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (step === 'loader') {
-      const timer = setTimeout(() => {
+    if (step !== 'loader') return;
+    const timer = setTimeout(() => {
+      const state = useLocationStore.getState();
+      const confirmed =
+        state.status === 'ready' && (state.latitude !== 0 || state.longitude !== 0);
+      if (confirmed) {
         navigation.navigate('MainTabs');
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
+      } else {
+        // Never advance on a location we could not confirm — send the user back to pick one.
+        setStep('manual');
+        setManualError('We could not confirm that location. Try another area or use your current location.');
+      }
+    }, 1500);
+    return () => clearTimeout(timer);
   }, [step, navigation]);
 
   // Request step entry animations
@@ -335,24 +362,6 @@ export function LocationScreen({ navigation }: Props) {
     outputRange: [20, 0],
   });
 
-  const searchResults = [
-    { title: 'Karaikal Beach', subtitle: 'Karaikal, Puducherry' },
-    { title: 'Karaikal Bus Stand', subtitle: 'Karaikal, Puducherry' },
-    {
-      title: 'Karaikal Railway Station (KIK)',
-      subtitle: 'Karaikal, Puducherry, India',
-    },
-    {
-      title: 'Karaikal Ammaiyar Temple',
-      subtitle: 'Bharathiyar Street, Karaikal, Puducherry',
-    },
-  ].filter(
-    (item) =>
-      !searchQuery ||
-      item.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.subtitle.toLowerCase().includes(searchQuery.toLowerCase())
-  );
-
   return (
     <Screen>
       {step === 'request' && (
@@ -390,10 +399,20 @@ export function LocationScreen({ navigation }: Props) {
               ]}
               onPress={useMyLocation}
             >
-              <AppText style={styles.allowBtnText}>ALLOW LOCATION ACCESS</AppText>
+              <AppText style={styles.allowBtnText}>Allow location access</AppText>
             </Pressable>
             {permissionError ? (
-              <AppText style={styles.permissionError}>{permissionError}</AppText>
+              <View style={styles.permissionErrorBlock}>
+                <AppText style={styles.permissionError}>{permissionError}</AppText>
+                <Pressable
+                  onPress={() => void Linking.openSettings()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Open device settings"
+                  style={styles.settingsLink}
+                >
+                  <AppText style={styles.settingsLinkText}>Open settings</AppText>
+                </Pressable>
+              </View>
             ) : null}
 
             <Pressable
@@ -404,7 +423,7 @@ export function LocationScreen({ navigation }: Props) {
               onPress={() => setStep('manual')}
             >
               <AppText style={styles.manualBtnText}>
-                Enter Location Manually
+                Enter location manually
               </AppText>
               <ArrowRight size={ms(11)} color="#1e293b" />
             </Pressable>
@@ -423,13 +442,15 @@ export function LocationScreen({ navigation }: Props) {
             behavior={Platform.OS === 'ios' ? 'padding' : undefined}
             style={{ flex: 1 }}
           >
-            <View style={[styles.manualHeader, { paddingTop: Platform.OS === 'ios' ? vs(56) : insets.top + vs(8) }]}>
+            <View style={[styles.manualHeader, { paddingTop: insets.top + vs(8) }]}>
               <Pressable
                 style={({ pressed }) => [
                   styles.backBtn,
                   pressed && { transform: [{ scale: 0.95 }] },
                 ]}
                 onPress={() => setStep('request')}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
               >
                 <ChevronLeft size={ms(20)} color="#334155" />
               </Pressable>
@@ -462,6 +483,8 @@ export function LocationScreen({ navigation }: Props) {
                       pressed && { backgroundColor: '#cbd5e1' },
                     ]}
                     onPress={() => setSearchQuery('')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear search"
                   >
                     <X size={ms(10)} color="#64748b" />
                   </Pressable>
@@ -474,6 +497,8 @@ export function LocationScreen({ navigation }: Props) {
                   pressed && { opacity: 0.7 },
                 ]}
                 onPress={useMyLocation}
+                accessibilityRole="button"
+                accessibilityLabel="Use my current location"
               >
                 <View style={styles.currentLocationLeft}>
                   <View style={styles.currentLocationIconBg}>
@@ -493,10 +518,13 @@ export function LocationScreen({ navigation }: Props) {
 
             <View style={styles.separator} />
 
-            <ScrollView style={styles.resultsList}>
+<ScrollView style={styles.resultsList}>
               <AppText style={styles.resultsHeader}>
-                {suggestionsLoading ? 'SEARCHING…' : 'SEARCH RESULTS'}
+                {suggestionsLoading ? 'Searching…' : 'Search results'}
               </AppText>
+              {manualError ? (
+                <AppText style={styles.permissionError}>{manualError}</AppText>
+              ) : null}
               {placesEnabled && suggestions.length > 0 ? (
                 suggestions.map((item) => (
                   <Pressable
@@ -524,55 +552,15 @@ export function LocationScreen({ navigation }: Props) {
                     </View>
                   </Pressable>
                 ))
-              ) : searchResults.length > 0 ? (
-                searchResults.map((item, idx) => (
-                  <Pressable
-                    key={idx}
-                    style={({ pressed }) => [
-                      styles.resultItem,
-                      { backgroundColor: pressed ? '#f1f5f9' : 'transparent' },
-                    ]}
-                    onPress={() => {
-                      setSelectedLocation(
-                        `${item.title}, ${item.subtitle.split(',')[0]}`,
-                      );
-                      setStep('loader');
-                    }}
-                  >
-                    <View style={styles.resultIconBg}>
-                      <NavigationIcon
-                        size={ms(13)}
-                        color="#94a3b8"
-                        style={{ transform: [{ rotate: '135deg' }] }}
-                      />
-                    </View>
-                    <View style={styles.resultTextContainer}>
-                      <AppText style={styles.resultTitle}>{item.title}</AppText>
-                      <AppText style={styles.resultSubtitle}>
-                        {item.subtitle}
-                      </AppText>
-                    </View>
-                  </Pressable>
-                ))
               ) : suggestionsLoading ? null : (
                 <View style={styles.noResultsContainer}>
                   <AppText style={styles.noResultsText}>
-                    No locations found matching your search
+                    {!placesEnabled
+                      ? 'Search is unavailable right now. Use your current location or try again later.'
+                      : searchQuery.trim()
+                        ? 'No locations found. Try a different area.'
+                        : 'Type an area or apartment name to search.'}
                   </AppText>
-                  <Pressable
-                    style={({ pressed }) => [
-                      styles.useAnywayBtn,
-                      pressed && { opacity: 0.8 },
-                    ]}
-                    onPress={() => {
-                      setSelectedLocation(`${searchQuery}, Karaikal`);
-                      setStep('loader');
-                    }}
-                  >
-                    <AppText style={styles.useAnywayText}>
-                      USE "{searchQuery}" ANYWAY
-                    </AppText>
-                  </Pressable>
                 </View>
               )}
             </ScrollView>
@@ -601,7 +589,7 @@ export function LocationScreen({ navigation }: Props) {
                 },
               ]}
             >
-              <AppText style={styles.deliveringLabel}>DELIVERING TO</AppText>
+              <AppText style={styles.deliveringLabel}>Delivering to</AppText>
               <View style={styles.deliveringLocationRow}>
                 <View style={styles.greenDot} />
                 <AppText style={styles.deliveringTitle} numberOfLines={1}>
@@ -635,7 +623,7 @@ const styles = StyleSheet.create({
   topTextContent: { alignItems: 'center', zIndex: 10 },
   titleWrapper: { alignItems: 'center' },
   titleText: {
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#0f172a',
     fontSize: ms(24),
     textAlign: 'center',
@@ -671,10 +659,8 @@ const styles = StyleSheet.create({
   },
   allowBtnText: {
     color: '#ffffff',
-    fontWeight: '900',
-    fontSize: ms(12),
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontWeight: '600',
+    fontSize: ms(14),
   },
   manualBtn: {
     flexDirection: 'row',
@@ -683,14 +669,29 @@ const styles = StyleSheet.create({
     gap: hs(6),
     marginTop: vs(18),
   },
-  manualBtnText: { fontSize: ms(11), fontWeight: '900', color: '#1e293b' },
-  permissionError: {
+  manualBtnText: { fontSize: ms(12), fontWeight: '600', color: '#1e293b' },
+  permissionErrorBlock: {
+    alignItems: 'center',
     marginTop: vs(8),
-    fontSize: ms(10),
-    lineHeight: ms(14),
+  },
+  permissionError: {
+    fontSize: ms(12),
+    lineHeight: ms(17),
     color: '#b91c1c',
     textAlign: 'center',
     paddingHorizontal: hs(8),
+  },
+  settingsLink: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: hs(12),
+    marginTop: vs(4),
+  },
+  settingsLinkText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: parentRamp.base,
+    textDecorationLine: 'underline',
   },
   manualContainer: { flex: 1, backgroundColor: '#ffffff' },
   manualHeader: {
@@ -703,13 +704,13 @@ const styles = StyleSheet.create({
     gap: hs(12),
   },
   backBtn: {
-    width: ms(32),
-    height: ms(32),
-    borderRadius: ms(16),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  manualHeaderTitle: { fontWeight: '900', fontSize: ms(14), color: '#0f172a' },
+  manualHeaderTitle: { fontWeight: '600', fontSize: ms(14), color: '#0f172a' },
   searchSection: { paddingHorizontal: hs(16), paddingVertical: vs(16) },
   searchInputContainer: {
     flexDirection: 'row',
@@ -736,6 +737,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   currentLocationBtn: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
@@ -755,7 +757,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  currentLocationText: { fontSize: ms(12), fontWeight: '900', color: '#3D8CF2' },
+  currentLocationText: { fontSize: ms(13), fontWeight: '600', color: '#3D8CF2' },
   separator: {
     height: vs(8),
     backgroundColor: '#f8fafc',
@@ -768,11 +770,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(16),
     paddingTop: SPACE.BLOCK,
   },
-  resultsHeader: {
-    fontSize: ms(10),
-    letterSpacing: 1,
+resultsHeader: {
+    fontSize: ms(12),
     color: '#94a3b8',
-    fontWeight: '700',
+    fontWeight: '600',
     marginBottom: SPACE.BLOCK,
     paddingHorizontal: hs(4),
   },
@@ -796,27 +797,13 @@ const styles = StyleSheet.create({
   resultTextContainer: { flex: 1 },
   resultTitle: {
     fontSize: ms(12),
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#0f172a',
     marginBottom: vs(2),
   },
   resultSubtitle: { fontSize: ms(10), color: '#94a3b8', fontWeight: '600' },
   noResultsContainer: { alignItems: 'center', paddingVertical: vs(32) },
   noResultsText: { fontSize: ms(12), fontWeight: '600', color: '#94a3b8' },
-  useAnywayBtn: {
-    marginTop: vs(12),
-    paddingHorizontal: hs(16),
-    paddingVertical: vs(6),
-    backgroundColor: '#3D8CF2',
-    borderRadius: ms(8),
-  },
-  useAnywayText: {
-    fontSize: ms(10),
-    fontWeight: '900',
-    color: '#ffffff',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
-  },
   loaderContainer: {
     flex: 1,
     backgroundColor: '#F9F6F0',
@@ -860,11 +847,9 @@ const styles = StyleSheet.create({
     elevation: 12,
   },
   deliveringLabel: {
-    fontSize: ms(9),
-    fontWeight: '900',
+    fontSize: ms(11),
+    fontWeight: '600',
     color: '#94a3b8',
-    textTransform: 'uppercase',
-    letterSpacing: 1.5,
   },
   deliveringLocationRow: {
     flexDirection: 'row',
@@ -880,7 +865,7 @@ const styles = StyleSheet.create({
   },
   deliveringTitle: {
     fontSize: ms(14),
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#0f172a',
     maxWidth: hs(240),
   },

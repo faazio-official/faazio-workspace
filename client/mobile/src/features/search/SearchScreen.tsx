@@ -81,6 +81,7 @@ const SearchScreen = memo(function SearchScreen({
   const [remoteData, setRemoteData] = useState<any[] | null>(null);
   const [remoteFailed, setRemoteFailed] = useState(false);
   const [fetching, setFetching] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
   useEffect(() => {
     setRemoteData(null);
     setRemoteFailed(false);
@@ -109,11 +110,12 @@ const SearchScreen = memo(function SearchScreen({
     return () => {
       active = false;
     };
-  }, [mode, submittedQuery, preSearch]);
+  }, [mode, submittedQuery, preSearch, retryKey]);
 
-  const dataPool = remoteData ?? [];
-  // Server FTS is the only result source; there is no authored fallback pool. When it fails or
-  // returns nothing the list is honestly empty (with the error surfaced by the reload state).
+  // On a server failure the authored `mode.data` pool is used as an offline fallback and
+  // filtered locally; `effectiveQuery` stays the typed query so the predicate still applies.
+  const usingFallback = remoteFailed && !!mode?.data?.length;
+  const dataPool = remoteData ?? (usingFallback ? mode!.data : []);
   const effectiveQuery = remoteData ? '' : submittedQuery;
 
   const allResults = useMemo(() => {
@@ -160,11 +162,9 @@ const SearchScreen = memo(function SearchScreen({
     if (preSearch) return;
     if (isLoadingMore) return;
     if (visibleCount >= allResults.length) return;
-    setIsLoadingMore(true);
-    setTimeout(() => {
-      setVisibleCount((c) => Math.min(c + PAGE_SIZE, allResults.length));
-      setIsLoadingMore(false);
-    }, 400);
+    // The full result set is already in memory, so reveal the next window immediately —
+    // no artificial delay, which only made the list feel slower than it is.
+    setVisibleCount((c) => Math.min(c + PAGE_SIZE, allResults.length));
   };
 
   const facetGroups = useFacets({
@@ -228,21 +228,36 @@ const SearchScreen = memo(function SearchScreen({
   const empty = preSearch
     ? null
     : allResults.length === 0
-      ? (mode?.empty ?? (
-          <EmptyState
-            accentColor={config.accentColor}
-            hasQuery={submittedQuery.trim().length > 0}
-            hasActiveFilters={activeFilterIds.length > 0 || Object.keys(activeFacets).length > 0}
-            onClearQuery={() => {
-              setQuery('');
-              setSubmittedQuery('');
-            }}
-            onClearFilters={() => {
-              setActiveFilterIds([]);
-              setActiveFacets({});
-            }}
-          />
-        ))
+      ? remoteFailed && !usingFallback
+        ? (
+            <View style={styles.emptyErrorWrap}>
+              <AppText style={styles.emptyErrorTitle}>Couldn’t reach search</AppText>
+              <AppText style={styles.emptyErrorBody}>Check your connection and try again.</AppText>
+              <TouchableOpacity
+                style={styles.retryBtn}
+                onPress={() => setRetryKey((key) => key + 1)}
+                accessibilityRole="button"
+                accessibilityLabel="Retry search"
+              >
+                <AppText style={styles.retryText}>Try again</AppText>
+              </TouchableOpacity>
+            </View>
+          )
+        : (mode?.empty ?? (
+            <EmptyState
+              accentColor={config.accentColor}
+              hasQuery={submittedQuery.trim().length > 0}
+              hasActiveFilters={activeFilterIds.length > 0 || Object.keys(activeFacets).length > 0}
+              onClearQuery={() => {
+                setQuery('');
+                setSubmittedQuery('');
+              }}
+              onClearFilters={() => {
+                setActiveFilterIds([]);
+                setActiveFacets({});
+              }}
+            />
+          ))
       : null;
 
   return (
@@ -295,6 +310,12 @@ const SearchScreen = memo(function SearchScreen({
           )}
         </>
       )}
+
+      {!typing && usingFallback ? (
+        <View style={styles.fallbackBanner}>
+          <AppText style={styles.fallbackText}>Showing offline results</AppText>
+        </View>
+      ) : null}
 
       {!typing && (
         <FlatList
@@ -402,6 +423,48 @@ const styles = StyleSheet.create({
   },
   listEmptySpinner: {
     marginTop: vs(32),
+  },
+  emptyErrorWrap: {
+    alignItems: 'center',
+    marginTop: vs(40),
+    paddingHorizontal: hs(32),
+  },
+  emptyErrorTitle: {
+    fontSize: ms(15),
+    fontWeight: '600',
+    color: '#0f172a',
+    textAlign: 'center',
+  },
+  emptyErrorBody: {
+    fontSize: ms(13),
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: vs(6),
+  },
+  retryBtn: {
+    minHeight: 44,
+    marginTop: vs(14),
+    paddingHorizontal: hs(20),
+    borderRadius: ms(22),
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryText: {
+    fontSize: ms(14),
+    fontWeight: '600',
+    color: '#0f172a',
+  },
+  fallbackBanner: {
+    backgroundColor: '#FEF3C7',
+    paddingVertical: vs(6),
+    paddingHorizontal: hs(16),
+  },
+  fallbackText: {
+    fontSize: ms(12),
+    fontWeight: '500',
+    color: '#854D0E',
   },
   emptyCard: {
     flex: 1,

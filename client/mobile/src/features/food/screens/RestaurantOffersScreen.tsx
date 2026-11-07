@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, FlatList, TextInput } from 'react-native';
+import { View, StyleSheet, FlatList } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Search } from 'lucide-react-native';
@@ -12,6 +12,7 @@ import { dishToProduct } from '../mocks/specials';
 import { getOfferDishes } from '../utils/menu';
 import { useRestaurantMenu } from '../hooks/useRestaurantMenu';
 import AppText from '@/components/AppText';
+import AppTextInput from '@/components/AppTextInput';
 import FoodDetailTopBar from '../components/FoodDetailTopBar';
 import SearchDishCard from '../components/SearchDishCard';
 
@@ -66,12 +67,16 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
 
       <View style={styles.searchBox}>
         <Search color={foodTheme.textSecondary} size={ms(16)} />
-        <TextInput
-          placeholder="Search offers…"
+<AppTextInput
+          placeholder="Search offers"
           placeholderTextColor={foodTheme.textSecondary}
           style={styles.searchInput}
           value={searchQuery}
           onChangeText={setSearchQuery}
+          accessibilityLabel="Search offers"
+          autoCorrect={false}
+          returnKeyType="search"
+          clearButtonMode="while-editing"
         />
       </View>
 
@@ -109,18 +114,19 @@ export default RestaurantOffersScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F5F5F5',
+    backgroundColor: foodTheme.background,
   },
   searchBox: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: foodTheme.sectionBg,
     borderRadius: 12,
     paddingHorizontal: hs(12),
     marginHorizontal: hs(16),
     marginBottom: vs(8),
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: foodTheme.divider,
   },
   searchInput: {
     flex: 1,

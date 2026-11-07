@@ -4,19 +4,20 @@ import {
   View,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/AppNavigator';
-import { Search } from 'lucide-react-native';
+import { Search, Check, ArrowRight, ChevronLeft } from 'lucide-react-native';
 import AppText from '@/components/AppText';
+import AppTextInput from '@/components/AppTextInput';
 import { Screen } from '@/components/shared';
 import { useLanguageStore } from '@/state/languageStore';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { parentRamp } from '@/theme/brandTokens';
+import { TOUCH } from '@/theme/tokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LanguageSelection'>;
 
@@ -59,10 +60,10 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
   const filteredLanguages = useMemo(() => {
     if (!searchQuery) return ALL_LANGUAGES;
     const lowerQuery = searchQuery.toLowerCase();
-    return ALL_LANGUAGES.filter(
+    return [SUGGESTED_LANGUAGE, ...ALL_LANGUAGES].filter(
       (lang) =>
         lang.english.toLowerCase().includes(lowerQuery) ||
-        lang.native.includes(lowerQuery)
+        lang.native.toLowerCase().includes(lowerQuery)
     );
   }, [searchQuery]);
 
@@ -83,13 +84,24 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
           showsVerticalScrollIndicator={false}
         >
           {/* HEADER */}
+          <View style={styles.navRow}>
+            <TouchableOpacity
+              onPress={() => (navigation.canGoBack() ? navigation.goBack() : navigation.navigate('Login'))}
+              style={styles.backButton}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              hitSlop={8}
+            >
+              <ChevronLeft size={ms(22)} color="#111827" />
+            </TouchableOpacity>
+          </View>
           <View style={styles.headerContainer}>
             <View style={styles.headerTextContainer}>
               <AppText style={styles.headerTitle}>Choose your language</AppText>
             </View>
 
             {/* Custom Illustration Block */}
-            <View style={styles.illustrationContainer}>
+            <View style={styles.illustrationContainer} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
               <View style={styles.darkBubble}>
                 <AppText style={styles.darkBubbleText}>A</AppText>
                 <View style={styles.darkBubbleTail} />
@@ -98,22 +110,21 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
                 <AppText style={styles.lightBubbleText}>अ</AppText>
                 <View style={styles.lightBubbleTail} />
               </View>
-              {/* Decorative stars */}
-              <AppText style={[styles.star, styles.starOne]}>✦</AppText>
-              <AppText style={[styles.star, styles.starTwo]}>✦</AppText>
-              <AppText style={[styles.star, styles.starThree]}>✦</AppText>
             </View>
           </View>
 
           {/* SEARCH BAR */}
           <View style={styles.searchContainer}>
             <Search size={ms(21)} color="#9CA3AF" style={styles.searchIcon} />
-            <TextInput
+            <AppTextInput
               onChangeText={setSearchQuery}
               placeholder="Search language"
               placeholderTextColor="#9CA3AF"
               style={styles.searchInput}
               value={searchQuery}
+              accessibilityLabel="Search languages"
+              autoCorrect={false}
+              returnKeyType="search"
             />
           </View>
 
@@ -124,6 +135,9 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
               <TouchableOpacity
                 activeOpacity={0.8}
                 onPress={() => setSelectedId(SUGGESTED_LANGUAGE.id)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: selectedId === SUGGESTED_LANGUAGE.id }}
+                accessibilityLabel={`English, ${selectedId === SUGGESTED_LANGUAGE.id ? 'selected' : 'not selected'}`}
                 style={[
                   styles.rowPill,
                   styles.suggestedPill,
@@ -147,7 +161,7 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
                 </View>
                 {selectedId === SUGGESTED_LANGUAGE.id ? (
                   <View style={styles.checkedCircle}>
-                    <AppText style={styles.checkIcon}>✓</AppText>
+                    <Check size={ms(14)} color="#FFFFFF" strokeWidth={2.5} />
                   </View>
                 ) : (
                   <View style={styles.radioCircle} />
@@ -166,6 +180,9 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
                 key={lang.id}
                 activeOpacity={0.7}
                 onPress={() => setSelectedId(lang.id)}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: isSelected }}
+                accessibilityLabel={`${lang.english}, ${isSelected ? 'selected' : 'not selected'}`}
                 style={[styles.rowPill, isSelected && styles.rowPillSelected]}
               >
                 <View style={styles.rowLeft}>
@@ -185,7 +202,7 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
                 </View>
                 {isSelected ? (
                   <View style={styles.checkedCircle}>
-                    <AppText style={styles.checkIcon}>✓</AppText>
+                    <Check size={ms(14)} color="#FFFFFF" strokeWidth={2.5} />
                   </View>
                 ) : (
                   <View style={styles.radioCircle} />
@@ -194,14 +211,27 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
             );
           })}
 
+          {filteredLanguages.length === 0 ? (
+            <View style={styles.emptyState}>
+              <AppText style={styles.emptyTitle}>No languages match "{searchQuery}"</AppText>
+              <AppText style={styles.emptyBody}>Try a shorter search or clear the field.</AppText>
+            </View>
+          ) : null}
+
           {/* Bottom Padding for scroll area */}
           <View style={{ height: vs(100) }} />
         </ScrollView>
 
         {/* STICKY FOOTER */}
         <View style={styles.footer}>
-          <TouchableOpacity onPress={handleContinue} style={styles.continueButton}>
-            <AppText style={styles.continueText}>Continue →</AppText>
+          <TouchableOpacity
+            onPress={handleContinue}
+            style={styles.continueButton}
+            accessibilityRole="button"
+            accessibilityLabel="Continue"
+          >
+            <AppText style={styles.continueText}>Continue</AppText>
+            <ArrowRight size={ms(18)} color="#FFFFFF" strokeWidth={2} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
@@ -212,6 +242,14 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   flexContainer: { flex: 1 },
   scrollContent: { paddingHorizontal: hs(20), paddingTop: SPACE.SECTION },
+
+  navRow: { marginBottom: vs(4) },
+  backButton: {
+    width: TOUCH.min,
+    height: TOUCH.min,
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
 
   /* Header */
   headerContainer: {
@@ -226,7 +264,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingTop: vs(8),
   },
-  headerTitle: { fontSize: ms(22), fontWeight: '700', color: '#111827', marginBottom: vs(6) },
+  headerTitle: { fontSize: ms(22), fontWeight: '600', color: '#111827', marginBottom: vs(6) },
 
   /* Illustration Block */
   illustrationContainer: { width: hs(60), height: vs(60), position: 'relative' },
@@ -270,10 +308,6 @@ const styles = StyleSheet.create({
     backgroundColor: ACCENT_LIGHT,
     transform: [{ rotate: '45deg' }],
   },
-  star: { position: 'absolute', fontSize: ms(14) },
-  starOne: { top: 0, right: 10, color: '#93C5FD' },
-  starTwo: { top: 10, right: -5, fontSize: ms(15), color: '#FCD34D' },
-  starThree: { bottom: -5, left: 10, fontSize: ms(10), color: '#F59E0B' },
 
   /* Search */
   searchContainer: {
@@ -291,13 +325,13 @@ const styles = StyleSheet.create({
   /* Sections */
   sectionTitleAccent: {
     fontSize: ms(14),
-    fontWeight: '700',
+    fontWeight: '600',
     color: ACCENT,
     marginBottom: SPACE.BLOCK,
   },
   sectionTitleDark: {
     fontSize: ms(14),
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#111827',
     marginBottom: SPACE.BLOCK,
     marginTop: vs(8),
@@ -333,7 +367,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: hs(16),
   },
-  avatarTextAccent: { color: ACCENT, fontWeight: '700', fontSize: ms(14) },
+  avatarTextAccent: { color: ACCENT, fontWeight: '600', fontSize: ms(14) },
   avatarTextAccentSmall: { color: ACCENT, fontWeight: '600', fontSize: ms(12) },
 
   /* Text styling */
@@ -356,7 +390,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  checkIcon: { color: '#FFFFFF', fontSize: ms(12), fontWeight: 'bold' },
+
+  /* Empty search */
+  emptyState: {
+    paddingVertical: SPACE.SECTION,
+    paddingHorizontal: hs(8),
+  },
+  emptyTitle: { fontSize: ms(14), fontWeight: '600', color: '#111827' },
+  emptyBody: { fontSize: ms(13), color: '#6B7280', marginTop: vs(4) },
 
   /* Footer */
   footer: {
@@ -373,10 +414,13 @@ const styles = StyleSheet.create({
   },
   continueButton: {
     backgroundColor: ACCENT,
+    minHeight: TOUCH.min,
     height: vs(54),
     borderRadius: ms(30),
+    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    gap: 8,
   },
-  continueText: { color: '#FFFFFF', fontSize: ms(16), fontWeight: '700' },
+  continueText: { color: '#FFFFFF', fontSize: ms(16), fontWeight: '600' },
 });

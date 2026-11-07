@@ -12,6 +12,49 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W83 — UI-craft pass (partial; honest status)
+
+**Status:** 🟡 Shipped in parts. Foundations + many screens fixed; five items remain open (below).
+
+Shipped:
+- Foundations: `theme/tokens.ts`, `theme/motion.ts`, `useReducedMotion`, `components/Button.tsx`,
+  shared `AppText` variants; `scripts/check-ui.mjs` + `.ui-baseline.json` (`npm run check:ui`)
+  wired into the mobile CI checks.
+- Onboarding/Language/Login/Location: reduce-motion cross-fade, returning-user onboarding gate,
+  country-code picker (E.164), resend cooldown, inline send errors, sentence-case labels.
+- Home: brand-stop gradient with no decoration, 44pt sector cards, stable seeded rails, shared
+  section header with a 44pt chevron action; dead `HomeRailCard`/`SDUIRenderer` removed.
+- Tab bar: real Cart tab (not a floating action), tab roles/selected state, token colours.
+- Mart/category/vendor/food: static search skeleton, virtualised category body, loading-guarded
+  vendor empty state, chevrons + one page background.
+- Pharma: category grid opens the shared PDP (inline PDP deleted), history icons (no emoji);
+  Medical shop contact rows/actions tokenised; prescription privacy copy is honest, upload progress
+  + inline retry + stepper added, note step keyboard-safe; donor bell opens Notifications and the
+  stepper announces its step.
+- Search/PDP: fake 400ms pagination removed; dead variant selector removed; invented "Open now"/
+  "Restaurant verified" claims removed; empty Product-details heading suppressed; food image
+  fallback.
+- Cart/payments: honest receipt/status copy, cart-origin label, payment-waiting cancel, cart loops
+  respect Reduce Motion; orphan `AddCard` route/screen deleted (cards are intentionally not offered).
+- Favourites/tab de-duplicated to one store-backed surface; rewards emoji removed; notifications
+  refresh retry/error banner; order list item icons; account nav loading/error/retry + logout
+  confirm; profile spinner/retry; saved addresses server-first + inline validation; data-deletion
+  select-all + inline result; rate-vendor a11y value/toast/cancel/haptic; seller request detail
+  no longer spins forever and invalid fee edits are explained.
+
+Open (not done — do not mark this entry complete):
+1. **Prescription gallery import** — needs an image-picker dependency (not installed; camera-only
+   today).
+2. **Medical shop computed open/closed** — `StoreProfile.hours` is free text; no structured
+   open-hours field exists, so only the real hours string is shown.
+3. **MyOrders virtualisation** — still a `ScrollView` + `.map`; convert to `FlatList` when order
+   history grows.
+4. **Seller-onboarding token sweep** — `SellerRequestDetail`/`PlatformFee`/`SellerRequests`/
+   `FeeChangeRequests` still carry ~169 hex literals; behaviour/a11y/empty states are fixed.
+5. **Notification read/unread** — the server has no `read_at`; badges count items, not unread.
+
+---
+
 ## W82 — Automatic OTP autofill (Android SMS User Consent)
 
 **Status:** 🟢 Shipped (code + CI debug build); on-device consent pending.

@@ -14,6 +14,8 @@ interface MenuItemRowProps {
   onAdd: () => void;
   onIncrement: () => void;
   onDecrement: () => void;
+  /** Open the dish detail page. */
+  onPress?: () => void;
 }
 
 /**
@@ -27,13 +29,26 @@ const MenuItemRow = memo(function MenuItemRow({
   onAdd,
   onIncrement,
   onDecrement,
+  onPress,
 }: MenuItemRowProps) {
   const isAdded = quantity > 0;
 
   return (
     <View style={styles.listCard}>
-      <View style={styles.listDetails}>
-        <AppText style={styles.listTitle}>{dish.dishName}</AppText>
+      <TouchableOpacity
+        style={styles.listDetails}
+        onPress={onPress}
+        activeOpacity={0.8}
+        disabled={!onPress}
+        accessibilityRole={onPress ? 'button' : undefined}
+        accessibilityLabel={onPress ? `${dish.dishName}, ₹${dish.price}. Opens details` : undefined}
+      >
+        <View style={styles.vegRow}>
+          <View style={[styles.vegMark, dish.isVeg ? styles.vegMarkVeg : styles.vegMarkNonVeg]}>
+            <View style={[styles.vegDot, dish.isVeg ? styles.vegDotVeg : styles.vegDotNonVeg]} />
+          </View>
+          <AppText style={styles.listTitle} numberOfLines={2}>{dish.dishName}</AppText>
+        </View>
         <AppText numberOfLines={2} style={styles.listDesc}>
           {dish.description}
         </AppText>
@@ -43,7 +58,7 @@ const MenuItemRow = memo(function MenuItemRow({
             <AppText style={styles.listMrp}>₹{dish.mrp}</AppText>
           ) : null}
         </View>
-      </View>
+      </TouchableOpacity>
       <View style={styles.listImageWrapper}>
         <RemoteImage uri={dish.image} variant="dish" style={styles.listImage} />
         {isAdded ? (
@@ -96,7 +111,22 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
   listDetails: { flex: 1, paddingRight: 16 },
-  listTitle: { fontSize: ms(16), fontWeight: 'bold', color: foodTheme.textPrimary, marginBottom: 4 },
+  vegRow: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(6), marginBottom: 4 },
+  vegMark: {
+    width: 14,
+    height: 14,
+    borderRadius: 3,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 3,
+  },
+  vegMarkVeg: { borderColor: '#15803D' },
+  vegMarkNonVeg: { borderColor: '#B91C1C' },
+  vegDot: { width: 6, height: 6, borderRadius: 3 },
+  vegDotVeg: { backgroundColor: '#15803D' },
+  vegDotNonVeg: { backgroundColor: '#B91C1C' },
+  listTitle: { flexShrink: 1, fontSize: ms(16), fontWeight: '600', color: foodTheme.textPrimary, marginBottom: 4 },
   listDesc: { fontSize: ms(13), color: foodTheme.textSecondary, lineHeight: 18, marginBottom: 8 },
   listPriceRow: { flexDirection: 'row', alignItems: 'baseline', gap: hs(6) },
   listPrice: { fontSize: ms(15), fontWeight: 'bold', color: foodTheme.textPrimary },

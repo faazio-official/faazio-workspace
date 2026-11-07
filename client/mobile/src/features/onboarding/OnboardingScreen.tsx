@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { StyleSheet, View, TouchableOpacity, Image, Animated, Easing } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, Image, Animated } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '../../navigation/AppNavigator';
 import { ChevronLeft, ChevronRight } from 'lucide-react-native';
@@ -15,6 +15,10 @@ import welcomeIllustration4 from '../../assets/welcome_illustration_4.webp';
 import welcomeIllustration5 from '../../assets/welcome_illustration_5.webp';
 import AppText from '@/components/AppText';
 import { parentRamp } from '@/theme/brandTokens';
+import { TOUCH } from '@/theme/tokens';
+import { DURATION, EASING } from '@/theme/motion';
+import { useOnboardingStore } from '@/state/onboardingStore';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
 
@@ -86,6 +90,8 @@ export function OnboardingScreen({ navigation }: Props) {
   const [currentStep, setCurrentStep] = useState(0);
   const directionRef = useRef<'next' | 'back'>('next');
   const isFirstRender = useRef(true);
+  const markSeen = useOnboardingStore((s) => s.markSeen);
+  const reduceMotion = useReducedMotion();
 
   const slideAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
@@ -97,29 +103,33 @@ export function OnboardingScreen({ navigation }: Props) {
     }
 
     const offset = directionRef.current === 'next' ? 120 : -120;
-    slideAnim.setValue(offset);
+    // Reduce Motion removes the slide but keeps a short cross-fade, so the
+    // content still changes legibly instead of popping in.
+    slideAnim.setValue(reduceMotion ? 0 : offset);
     opacityAnim.setValue(0);
 
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: 220,
-        easing: Easing.out(Easing.ease),
+        duration: reduceMotion ? 0 : DURATION.base,
+        easing: EASING,
         useNativeDriver: true,
       }),
       Animated.timing(opacityAnim, {
         toValue: 1,
-        duration: 220,
+        duration: reduceMotion ? DURATION.fast : DURATION.base,
+        easing: EASING,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [currentStep]);
+  }, [currentStep, reduceMotion, slideAnim, opacityAnim]);
 
   const handleNext = () => {
     if (currentStep < ONBOARDING_DATA.length - 1) {
       directionRef.current = 'next';
       setCurrentStep((prev) => prev + 1);
     } else {
+      markSeen();
       navigation.navigate('Login');
     }
   };
@@ -132,6 +142,7 @@ export function OnboardingScreen({ navigation }: Props) {
   };
 
   const handleSkip = () => {
+    markSeen();
     navigation.navigate('Login');
   };
 
@@ -154,7 +165,13 @@ export function OnboardingScreen({ navigation }: Props) {
         <View style={styles.headerLeft}>
           <FaazioLogo size={LOGO_HEIGHT} variant="welcome" />
         </View>
-        <TouchableOpacity onPress={handleSkip} style={styles.skipButton} activeOpacity={0.8}>
+        <TouchableOpacity
+          onPress={handleSkip}
+          style={styles.skipButton}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Skip onboarding"
+        >
           <AppText style={styles.skipText}>Skip</AppText>
         </TouchableOpacity>
       </View>
@@ -205,7 +222,18 @@ export function OnboardingScreen({ navigation }: Props) {
       {/* Footer Navigation */}
       <View style={styles.footer}>
         {/* Progress Dots Indicator */}
-        <View style={styles.dotsContainer}>
+        <View
+          style={styles.dotsContainer}
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel="Onboarding progress"
+          accessibilityValue={{
+            min: 1,
+            max: ONBOARDING_DATA.length,
+            now: currentStep + 1,
+            text: `Step ${currentStep + 1} of ${ONBOARDING_DATA.length}`,
+          }}
+        >
           {ONBOARDING_DATA.map((_, index) => {
             const isActive = index === currentStep;
             return (
@@ -229,8 +257,10 @@ export function OnboardingScreen({ navigation }: Props) {
               onPress={handleBack}
               style={styles.backButton}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Previous slide"
             >
-              <ChevronLeft size={ms(12)} color="#475569" />
+              <ChevronLeft size={ms(14)} color="#475569" />
               <AppText style={styles.backButtonText}>Back</AppText>
             </TouchableOpacity>
           )}
@@ -238,11 +268,13 @@ export function OnboardingScreen({ navigation }: Props) {
             onPress={handleNext}
             style={[styles.nextButton, { backgroundColor: accentColor, shadowColor: accentColor }]}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={isLastStep ? 'Get started' : 'Next slide'}
           >
             <AppText style={styles.nextButtonText}>
               {isLastStep ? 'Get Started' : 'Next'}
             </AppText>
-            <ChevronRight size={ms(12)} color="#ffffff" />
+            <ChevronRight size={ms(14)} color="#ffffff" />
           </TouchableOpacity>
         </View>
       </View>
@@ -268,6 +300,10 @@ const styles = StyleSheet.create({
     gap: hs(8),
   },
   skipButton: {
+    minHeight: TOUCH.min,
+    minWidth: TOUCH.min,
+    alignItems: 'center',
+    justifyContent: 'center',
     paddingVertical: vs(6),
     paddingHorizontal: hs(12),
     borderRadius: ms(16),
@@ -276,9 +312,9 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(226,232,240,0.5)',
   },
   skipText: {
-    fontSize: ms(11),
+    fontSize: ms(12),
     color: '#475569',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   contentContainer: {
     flex: 1,
@@ -305,31 +341,25 @@ const styles = StyleSheet.create({
   },
   titleText: {
     fontSize: SCREEN_H < 700 ? ms(18) : ms(20),
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#0f172a',
     textAlign: 'center',
-    letterSpacing: -0.5,
   },
   titleHighlight: {
     fontSize: SCREEN_H < 700 ? ms(18) : ms(20),
-    fontWeight: '900',
+    fontWeight: '600',
     textAlign: 'center',
-    letterSpacing: -0.5,
   },
   subtitleText: {
     fontSize: SCREEN_H < 700 ? ms(12) : ms(13),
-    fontWeight: '800',
+    fontWeight: '600',
     textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
     marginTop: vs(4),
   },
   taglineHighlight: {
     fontSize: SCREEN_H < 700 ? ms(12) : ms(13),
-    fontWeight: '800',
+    fontWeight: '600',
     textAlign: 'center',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
   },
   underline: {
     width: hs(40),
@@ -375,6 +405,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   backButton: {
+    minHeight: TOUCH.min,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: vs(8),
@@ -382,21 +413,22 @@ const styles = StyleSheet.create({
     borderRadius: ms(20),
     backgroundColor: 'rgba(226,232,240,0.8)',
     marginRight: hs(8),
-    gap: hs(2),
+    gap: hs(4),
   },
   backButtonText: {
     color: '#475569',
-    fontSize: ms(12),
-    fontWeight: '700',
+    fontSize: ms(13),
+    fontWeight: '600',
   },
   nextButton: {
+    minHeight: TOUCH.min,
     flexDirection: 'row',
     alignItems: 'center',
     paddingVertical: vs(8),
     paddingHorizontal: hs(16),
     borderRadius: ms(20),
     justifyContent: 'center',
-    gap: hs(2),
+    gap: hs(4),
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
@@ -404,7 +436,7 @@ const styles = StyleSheet.create({
   },
   nextButtonText: {
     color: '#ffffff',
-    fontSize: ms(12),
-    fontWeight: '700',
+    fontSize: ms(13),
+    fontWeight: '600',
   },
 });

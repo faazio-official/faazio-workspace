@@ -3,6 +3,7 @@ import {
   View,
   ScrollView,
   StyleSheet,
+  AppState,
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from 'react-native';
@@ -13,6 +14,7 @@ import { adCampaigns } from '@data/home/campaigns';
 import BrandCampaignCard from '@/features/home/cards/BrandCampaignCard';
 import type { SectionProps } from './common';
 import AppText from '@/components/AppText';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 const SWIPE_INTERVAL = 4500;
 
@@ -34,19 +36,29 @@ const CampaignCarousel = memo(function CampaignCarousel({
 }) {
   const [index, setIndex] = useState(0);
   const [width, setWidth] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [appActive, setAppActive] = useState(true);
   const scrollRef = useRef<ScrollView>(null);
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
-    if (campaigns.length < 2) return;
+    if (campaigns.length < 2 || reduceMotion || paused || !appActive) return;
     const timer = setInterval(() => {
       setIndex((prev) => {
         const next = (prev + 1) % campaigns.length;
-        scrollRef.current?.scrollTo({ x: next * width, animated: true });
+        scrollRef.current?.scrollTo({ x: next * width, animated: !reduceMotion });
         return next;
       });
     }, SWIPE_INTERVAL);
     return () => clearInterval(timer);
-  }, [width, campaigns.length]);
+  }, [width, campaigns.length, reduceMotion, paused, appActive]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) =>
+      setAppActive(state === 'active'),
+    );
+    return () => sub.remove();
+  }, []);
 
   const onMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(e.nativeEvent.contentOffset.x / Math.max(width, 1));
@@ -62,6 +74,8 @@ const CampaignCarousel = memo(function CampaignCarousel({
           pagingEnabled
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={onMomentumScrollEnd}
+          onScrollBeginDrag={() => setPaused(true)}
+          onTouchStart={() => setPaused(true)}
         >
           {campaigns.map((campaign) => (
             <View key={campaign.id} style={[styles.slide, { width }]}>
@@ -75,7 +89,18 @@ const CampaignCarousel = memo(function CampaignCarousel({
         </ScrollView>
       )}
       {width > 0 && campaigns.length > 1 && (
-        <View style={styles.dots}>
+        <View
+          style={styles.dots}
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel="Deals carousel"
+          accessibilityValue={{
+            min: 1,
+            max: campaigns.length,
+            now: index + 1,
+            text: `Slide ${index + 1} of ${campaigns.length}`,
+          }}
+        >
           {campaigns.map((c, i) => (
             <View key={c.id} style={[styles.dot, i === index && styles.dotActive]} />
           ))}
@@ -140,9 +165,8 @@ const styles = StyleSheet.create({
   },
   containerTitle: {
     fontSize: ms(18),
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#0f172a',
-    letterSpacing: 0.3,
     marginBottom: SPACE.BLOCK,
     marginLeft: hs(2),
   },

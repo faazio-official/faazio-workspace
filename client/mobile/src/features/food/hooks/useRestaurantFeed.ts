@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { haversineKm } from '@/utils/distance';
 import { useLiveOrigin } from '@/hooks/useLiveLocation';
 import { fetchRestaurantFeed, type RestaurantFeed } from '../services/restaurantFeedService';
@@ -29,21 +29,37 @@ function byLiveDistance(
     });
 }
 
-export function useRestaurantFeed(): RestaurantFeed | null {
+export interface RestaurantFeedState {
+  feed: RestaurantFeed | null;
+  /** True when the feed request failed and there is no previous feed to show. */
+  error: boolean;
+  reload: () => void;
+}
+
+export function useRestaurantFeed(): RestaurantFeedState {
   const [feed, setFeed] = useState<RestaurantFeed | null>(null);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const origin = useLiveOrigin();
 
   useEffect(() => {
     let active = true;
-    fetchRestaurantFeed().then((data) => {
-      if (active) setFeed(data);
-    });
+    setError(false);
+    fetchRestaurantFeed()
+      .then((data) => {
+        if (active) setFeed(data);
+      })
+      .catch(() => {
+        if (active) setError(true);
+      });
     return () => {
       active = false;
     };
-  }, []);
+  }, [reloadKey]);
 
-  return useMemo(() => {
+  const reload = useCallback(() => setReloadKey((key) => key + 1), []);
+
+  const value = useMemo(() => {
     if (!feed) return null;
     return {
       ...feed,
@@ -51,4 +67,6 @@ export function useRestaurantFeed(): RestaurantFeed | null {
       restaurants: byLiveDistance(feed.restaurants, origin),
     };
   }, [feed, origin]);
+
+  return { feed: value, error, reload };
 }

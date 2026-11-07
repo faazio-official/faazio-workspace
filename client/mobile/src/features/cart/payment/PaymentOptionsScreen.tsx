@@ -56,6 +56,10 @@ export interface PaymentOptionsScreenProps {
   pickup?: PickupPoint;
   /** Contact phone for pickup (defaults to the signed-in user profile phone). */
   contactPhone?: string;
+  /** True while the order is being placed; disables the pay button and shows a spinner. */
+  processing?: boolean;
+  /** Inline checkout error from the order request. */
+  error?: string | null;
   onBack?: () => void;
   /** Fired with the chosen method + coins being redeemed when the shopper pays. */
   onPlaceOrder?: (payload: PlaceOrderPayload) => void;
@@ -76,10 +80,12 @@ export default function PaymentOptionsScreen({
   deliveryBreakdown,
   deliveryFeeEstimated = false,
   deliveryAddress,
-  originLabel = 'Instamart',
+  originLabel = 'Faazio Mart',
   fulfillment = 'DELIVERY',
   pickup,
   contactPhone,
+  processing = false,
+  error = null,
   onBack,
   onPlaceOrder,
 }: PaymentOptionsScreenProps) {
@@ -118,7 +124,7 @@ export default function PaymentOptionsScreen({
   const payableTotal = Math.max(0, total - redeemRupees);
 
   const handlePay = () => {
-    if (!selected || !onPlaceOrder) return;
+    if (!selected || !onPlaceOrder || processing) return;
     const coins = redeemRupees > 0 ? coinsForRedemption(redeemRupees) : 0;
     if (selected.kind === 'cod') {
       onPlaceOrder({ method: 'COD', coinsRedeemed: coins });
@@ -214,9 +220,12 @@ export default function PaymentOptionsScreen({
           Payments are encrypted & processed securely under Faazio Gateway. UPI payments are
           confirmed by our server and this screen updates automatically.
         </AppText>
+        {error ? <AppText style={styles.errorText}>{error}</AppText> : null}
       </ScrollView>
 
-      {selected ? <BottomPayBar total={payableTotal} onPay={handlePay} /> : null}
+      {selected ? (
+        <BottomPayBar total={payableTotal} onPay={handlePay} loading={processing} />
+      ) : null}
     </View>
   );
 }
@@ -235,9 +244,9 @@ const styles = StyleSheet.create({
     paddingBottom: vs(12),
   },
   backBtn: {
-    width: ms(38),
-    height: ms(38),
-    borderRadius: ms(12),
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
     justifyContent: 'center',
@@ -245,8 +254,8 @@ const styles = StyleSheet.create({
   },
   topTitle: {
     flex: 1,
-    fontSize: ms(15),
-    fontWeight: '800',
+    fontSize: ms(16),
+    fontWeight: '600',
     color: BRAND.ink,
   },
   scroll: {
@@ -266,5 +275,13 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: hs(24),
     marginTop: vs(4),
+  },
+  errorText: {
+    fontSize: ms(13),
+    fontWeight: '500',
+    color: '#B91C1C',
+    textAlign: 'center',
+    paddingHorizontal: hs(24),
+    marginTop: vs(10),
   },
 });

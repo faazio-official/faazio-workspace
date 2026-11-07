@@ -1,6 +1,5 @@
 import React from 'react';
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { StyleSheet, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import { BRAND } from '../constants';
@@ -9,6 +8,7 @@ interface BottomPayBarProps {
   total: number;
   onPay: () => void;
   disabled?: boolean;
+  loading?: boolean;
 }
 
 /**
@@ -16,19 +16,26 @@ interface BottomPayBarProps {
  * at the call site) only once a payment method — a detected UPI app or a saved
  * card — has been chosen.
  */
-export default function BottomPayBar({ total, onPay, disabled = false }: BottomPayBarProps) {
-  const insets = useSafeAreaInsets();
+export default function BottomPayBar({ total, onPay, disabled = false, loading = false }: BottomPayBarProps) {
+  const inactive = disabled || loading;
+  // The app root reserves the bottom safe area once (App.tsx AppLayout), so this
+  // in-tree bar uses a fixed pad and must not add insets.bottom again.
   return (
-    <View style={[styles.wrap, { paddingBottom: Math.max(insets.bottom, vs(16)) }]}>
+    <View style={styles.wrap}>
       <TouchableOpacity
         onPress={onPay}
-        style={[styles.payBtn, disabled && styles.payBtnDisabled]}
+        style={[styles.payBtn, inactive && styles.payBtnDisabled]}
         activeOpacity={0.85}
-        disabled={disabled}
+        disabled={inactive}
         accessibilityRole="button"
         accessibilityLabel={`Pay ₹${total.toLocaleString('en-IN')}`}
+        accessibilityState={{ disabled: inactive, busy: loading }}
       >
-        <AppText style={styles.payText}>Pay ₹{total.toLocaleString('en-IN')}</AppText>
+        {loading ? (
+          <ActivityIndicator color="#ffffff" />
+        ) : (
+          <AppText style={styles.payText}>Pay ₹{total.toLocaleString('en-IN')}</AppText>
+        )}
       </TouchableOpacity>
     </View>
   );
@@ -42,6 +49,7 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: hs(16),
     paddingTop: vs(10),
+    paddingBottom: vs(16),
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: BRAND.border,

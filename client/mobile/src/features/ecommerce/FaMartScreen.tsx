@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { neutral } from '@/theme/brandTokens';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/store';
 import type { Product, StoreProfile } from '@data/types';
@@ -97,32 +98,46 @@ export function FaMartScreen({
   const {
     products: vendorProducts,
     discounted: discountedProducts,
+    loading: vendorProductsLoading,
   } = useVendorProducts(vendor?.id);
 
   // Feed search mode: full catalog search (FTS on the server, local mirror offline), so results
   // are no longer limited to the local fixture pool. Empty when no query.
   const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState(false);
+  const [searchRetry, setSearchRetry] = useState(0);
   useEffect(() => {
     if (!normalizedSearch || vendor) {
       setSearchResults([]);
+      setSearchLoading(false);
+      setSearchError(false);
       return;
     }
     let active = true;
+    setSearchLoading(true);
+    setSearchError(false);
     gateway
       .searchProducts(searchQuery.trim(), 'MART')
       .then((rows) => {
         if (!active) return;
         setSearchResults(rows);
+        setSearchLoading(false);
         // Behavior analytics (ID-only, allowlisted): the `search` event has no product id of its
         // own, so it is anchored to the top result — mirrors SearchScreen.
         const anchor = rows.find((r) => r?.id)?.id;
         if (anchor) void gateway.trackEvent(String(anchor), 'search').catch(() => {});
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (!active) return;
+        setSearchResults([]);
+        setSearchError(true);
+        setSearchLoading(false);
+      });
     return () => {
       active = false;
     };
-  }, [normalizedSearch, searchQuery, vendor]);
+  }, [normalizedSearch, searchQuery, vendor, searchRetry]);
 
   // Passive `view` impressions for the search-result grid and the vendor drill-in "All Products"
   // grid that actually scroll into view (deduped per session by `trackProductView`). PDP opens
@@ -312,6 +327,7 @@ export function FaMartScreen({
         onRateVendor={handleRateVendor}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
+        loading={vendorProductsLoading}
       />
     );
   }
@@ -332,7 +348,23 @@ export function FaMartScreen({
           viewabilityConfig={viewabilityConfig}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
-              <AppText style={styles.emptyText}>No products found for "{searchQuery}"</AppText>
+              {searchLoading ? (
+                <SearchResultsSkeleton />
+              ) : searchError ? (
+                <>
+                  <AppText style={styles.emptyText}>Could not reach search. Check your connection and try again.</AppText>
+                  <TouchableOpacity
+                    style={styles.retryBtn}
+                    onPress={() => setSearchRetry((n) => n + 1)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry search"
+                  >
+                    <AppText style={styles.retryText}>Try again</AppText>
+                  </TouchableOpacity>
+                </>
+              ) : (
+                <AppText style={styles.emptyText}>No products found for "{searchQuery}"</AppText>
+              )}
             </View>
           }
         />
@@ -361,6 +393,22 @@ export function FaMartScreen({
   );
 }
 
+/** Static placeholder grid while a Mart search is in flight — no shimmer, so it
+ *  needs no Reduce-Motion guard. */
+function SearchResultsSkeleton() {
+  return (
+    <View style={styles.skeletonGrid} accessible accessibilityLabel="Loading results">
+      {Array.from({ length: 6 }).map((_, index) => (
+        <View key={index} style={styles.skeletonCard}>
+          <View style={styles.skeletonThumb} />
+          <View style={styles.skeletonLine} />
+          <View style={[styles.skeletonLine, styles.skeletonLineShort]} />
+        </View>
+      ))}
+    </View>
+  );
+}
+
 export default FaMartScreen;
 
 const styles = StyleSheet.create({
@@ -369,7 +417,34 @@ const styles = StyleSheet.create({
   },
   drillContainer: {
     flex: 1,
-    backgroundColor: '#F8FAFC',
+    backgroundColor: neutral.surface,
+  },
+  skeletonGrid: {
+    width: '100%',
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    paddingHorizontal: hs(16),
+    paddingTop: vs(8),
+  },
+  skeletonCard: {
+    width: '48%',
+    marginBottom: vs(16),
+  },
+  skeletonThumb: {
+    width: '100%',
+    aspectRatio: 1,
+    borderRadius: ms(12),
+    backgroundColor: neutral.surfaceAlt,
+  },
+  skeletonLine: {
+    height: vs(10),
+    borderRadius: ms(5),
+    backgroundColor: neutral.surfaceAlt,
+    marginTop: vs(8),
+  },
+  skeletonLineShort: {
+    width: '60%',
   },
   productGrid: {
     padding: hs(16),
@@ -384,7 +459,24 @@ const styles = StyleSheet.create({
   },
   emptyText: {
     fontSize: ms(13),
+    fontWeight: '500',
+    color: neutral.inkMuted,
+    textAlign: 'center',
+    paddingHorizontal: hs(24),
+  },
+  retryBtn: {
+    minHeight: 44,
+    marginTop: vs(12),
+    paddingHorizontal: hs(20),
+    borderRadius: ms(22),
+    borderWidth: 1,
+    borderColor: neutral.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryText: {
+    fontSize: ms(14),
     fontWeight: '600',
-    color: '#666666',
+    color: neutral.ink,
   },
 });

@@ -17,8 +17,10 @@ import {
   Search,
   MapPin,
   Star,
-  ShieldCheck,
+  Receipt,
   CheckCircle2,
+  UtensilsCrossed,
+  ChevronRight,
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
@@ -205,7 +207,7 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
           <View style={styles.storeInfoRow}>
             <View style={styles.logoContainer}>
               <View style={styles.storeLogo}>
-                <AppText style={styles.logoEmoji}>🍽️</AppText>
+                <UtensilsCrossed size={ms(28)} color={foodTheme.primaryDeep} strokeWidth={1.75} />
               </View>
               <View style={styles.ratingBadge}>
                 <AppText style={styles.ratingText}>{restaurant.rating.toFixed(1)}</AppText>
@@ -227,12 +229,7 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
                 </AppText>
               </View>
 
-              <View style={styles.statusRow}>
-                <View style={styles.openBadge}>
-                  <AppText style={styles.openText}>Open now</AppText>
-                </View>
               </View>
-            </View>
           </View>
 
           {/* HIGHLIGHTS ROW */}
@@ -242,15 +239,21 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
                 <Star color={foodTheme.primary} fill={foodTheme.primary} size={ms(16)} />
               </View>
               <AppText style={styles.highlightTitle}>{restaurant.rating.toFixed(1)} Rating</AppText>
-              <AppText style={styles.highlightSub}>{restaurant.ratingCount / 1000}k+ reviews</AppText>
+              <AppText style={styles.highlightSub}>
+                {restaurant.ratingCount >= 1000
+                  ? `${(restaurant.ratingCount / 1000).toFixed(1)}k+ reviews`
+                  : restaurant.ratingCount > 0
+                    ? `${restaurant.ratingCount} reviews`
+                    : 'No reviews yet'}
+              </AppText>
             </View>
             <View style={styles.highlightDivider} />
             <View style={styles.highlightItem}>
               <View style={styles.iconCircle}>
-                <ShieldCheck color={foodTheme.primary} size={ms(16)} />
+                <Receipt color={foodTheme.primary} size={ms(16)} />
               </View>
-              <AppText style={styles.highlightTitle}>Hygienic</AppText>
-              <AppText style={styles.highlightSub}>FSSAI Certified</AppText>
+              <AppText style={styles.highlightTitle}>₹{restaurant.priceForTwo}</AppText>
+              <AppText style={styles.highlightSub}>approx. for two</AppText>
             </View>
           </View>
 
@@ -289,8 +292,11 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
                 <TouchableOpacity
                   onPress={() => navigation.navigate('RestaurantOffers', { restaurant, offers: offerDishes })}
                   accessibilityRole="button"
+                  accessibilityLabel="View all offers"
+                  style={styles.seeAllBtn}
                 >
-                  <AppText style={styles.seeAllText}>View All {'>'}</AppText>
+                  <AppText style={styles.seeAllText}>View all</AppText>
+                  <ChevronRight size={ms(14)} color={foodTheme.primary} strokeWidth={1.75} />
                 </TouchableOpacity>
               </View>
 
@@ -416,7 +422,7 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
 export default RestaurantProfileScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: foodTheme.background },
   scrollContent: { paddingBottom: SPACE.LIST_BOTTOM },
   heroContainer: {
     backgroundColor: '#F3F4F6',
@@ -534,6 +540,13 @@ const styles = StyleSheet.create({
     marginTop: SPACE.SECTION,
   },
   sectionTitle: { fontSize: ms(16), fontWeight: 'bold', color: foodTheme.textPrimary },
+  seeAllBtn: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(2),
+    paddingLeft: hs(8),
+  },
   seeAllText: { fontSize: ms(13), color: foodTheme.primaryDeep, fontWeight: '600' },
   discountScroll: { paddingLeft: hs(16), paddingRight: hs(8) },
   discountCard: { width: 140, marginRight: 16 },

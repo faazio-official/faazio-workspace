@@ -61,8 +61,6 @@ export type RootStackParamList = {
    * server and shows the authoritative result; `status` is only a hint, never trusted.
    */
   PaymentCallback: { orderId?: string; status?: 'PAID' | 'FAILED' | 'PENDING' } | undefined;
-  /** Secure "Add New Card" form (tokenized; PAN/CVV never stored or logged). */
-  AddCard: undefined;
   /** "My Profile" — personal info, preferences, security (pushed from Account). */
   UserDetails: undefined;
   /** "Saved Addresses" — manage, select, add delivery locations (pushed from Account). */

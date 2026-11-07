@@ -14,6 +14,10 @@ import {
   SlidersHorizontal,
   PackageOpen,
   X,
+  FileText,
+  Utensils,
+  Pill,
+  ShoppingBag,
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
@@ -99,6 +103,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [stagedStatus, setStagedStatus] = useState<MyOrdersStatusFilter>(statusFilter);
   const [notificationCount, setNotificationCount] = useState(0);
+  const [invoiceNotice, setInvoiceNotice] = useState<string | null>(null);
 
   // Server history is authoritative: refresh on every focus (status changes while away).
   useFocusEffect(
@@ -224,21 +229,22 @@ export function MyOrdersScreen({ navigation, route }: Props) {
     [navigation],
   );
 
-  /** Open the presigned invoice when rendered; otherwise fall through to the invoice card. */
+  /** Open the presigned invoice when rendered; surface a failure inline instead of navigating. */
   const handleDownloadInvoice = useCallback(
     async (orderId: string) => {
+      setInvoiceNotice(null);
       try {
         const invoice = await gateway.getOrderInvoice(orderId);
         if (invoice.downloadUrl) {
           await Linking.openURL(invoice.downloadUrl);
           return;
         }
+        setInvoiceNotice('The invoice is still being generated. Try again in a moment.');
       } catch {
-        // The detail screen explains when an invoice is not available yet.
+        setInvoiceNotice('Could not fetch the invoice. Check your connection and try again.');
       }
-      handleOpenOrder(orderId);
     },
-    [handleOpenOrder],
+    [],
   );
 
   const handleRateVendor = useCallback(
@@ -289,6 +295,20 @@ export function MyOrdersScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={false}
         bounces={false}
       >
+        {invoiceNotice ? (
+          <View style={styles.invoiceNotice}>
+            <AppText style={styles.invoiceNoticeText}>{invoiceNotice}</AppText>
+            <TouchableOpacity
+              onPress={() => setInvoiceNotice(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss"
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <X size={ms(14)} color="#854D0E" strokeWidth={2.4} />
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         {/* 2. Sub-app rail */}
         <MyOrdersAppRail activeApp={activeApp} counts={appCounts} onSelect={setActiveApp} />
 
@@ -394,7 +414,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
 
                     <View style={styles.cardBody}>
                       <View style={styles.productImagePlaceholder}>
-                        <AppText style={styles.productEmoji}>📄</AppText>
+                        <FileText size={ms(22)} color={semantic.info} strokeWidth={1.5} />
                       </View>
                       <View style={styles.productInfo}>
                         <AppText style={styles.productName} numberOfLines={1}>Prescription order</AppText>
@@ -410,7 +430,9 @@ export function MyOrdersScreen({ navigation, route }: Props) {
 
               // Placed items order (in-session + server history) — standard card from store data.
               const first = po.items?.[0];
-              const emoji = first?.emoji ?? '🛍️';
+              const orderApp = inferPlacedApp(po);
+              const OrderIcon =
+                orderApp === 'PHARMA' ? Pill : orderApp === 'FOOD' ? Utensils : ShoppingBag;
               const qtyTotal = po.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
               return (
                 <TouchableOpacity
@@ -449,7 +471,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
 
                   <View style={styles.cardBody}>
                     <View style={styles.productImagePlaceholder}>
-                      <AppText style={styles.productEmoji}>{emoji}</AppText>
+                      <OrderIcon size={ms(22)} color={semantic.neutral} strokeWidth={1.5} />
                     </View>
                     <View style={styles.productInfo}>
                       <AppText style={styles.productName} numberOfLines={1}>{po.vendorName}</AppText>
@@ -818,5 +840,23 @@ const styles = StyleSheet.create({
 
   listBottomSpacer: {
     height: vs(40),
+  },
+
+  invoiceNotice: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: hs(8),
+    marginHorizontal: hs(16),
+    marginTop: vs(12),
+    paddingVertical: vs(10),
+    paddingHorizontal: hs(12),
+    borderRadius: ms(10),
+    backgroundColor: '#FEF3C7',
+  },
+  invoiceNoticeText: {
+    flex: 1,
+    fontSize: ms(12),
+    color: '#854D0E',
   },
 });

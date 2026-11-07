@@ -92,6 +92,7 @@ export function DealsLandingScreen({ navigation, route }: Props) {
   const [listProducts, setListProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   useEffect(() => {
     if (mode !== 'discounts' || !store) {
@@ -120,7 +121,7 @@ export function DealsLandingScreen({ navigation, route }: Props) {
     return () => {
       active = false;
     };
-  }, [mode, store]);
+  }, [mode, store, retry]);
 
   useEffect(() => {
     if (!isListMode || !productIds?.length) {
@@ -151,7 +152,7 @@ export function DealsLandingScreen({ navigation, route }: Props) {
     return () => {
       active = false;
     };
-  }, [isListMode, productIds]);
+  }, [isListMode, productIds, retry]);
 
   const baseProducts = useMemo<Product[]>(() => {
     if (mode === 'campaign') {
@@ -219,9 +220,9 @@ export function DealsLandingScreen({ navigation, route }: Props) {
 
   const title =
     mode === 'campaign'
-      ? (campaignStore?.name ?? '')
+      ? (campaignStore?.name ?? routeTitle ?? 'Deals')
       : mode === 'discounts'
-        ? (store?.name ?? '')
+        ? (store?.name ?? routeTitle ?? 'Deals')
         : (routeTitle ?? (mode === 'martDeals' ? 'Deals of the Day' : 'Daily Essentials'));
 
   // Paid sector rail (SECTOR_RAIL) — same ad-server fill/labelling as the Home rail.
@@ -248,7 +249,14 @@ export function DealsLandingScreen({ navigation, route }: Props) {
   return (
     <View style={styles.container}>
       <View style={[styles.topBar, { paddingTop: insets.top + vs(4) }]}>
-        <TouchableOpacity onPress={handleBack} style={styles.backBtn} activeOpacity={0.7} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity
+          onPress={handleBack}
+          style={styles.backBtn}
+          activeOpacity={0.7}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
           <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.6} />
         </TouchableOpacity>
         <AppText style={styles.topBarTitle} numberOfLines={1}>{title}</AppText>
@@ -297,6 +305,14 @@ export function DealsLandingScreen({ navigation, route }: Props) {
             <View style={styles.emptyWrap}>
               <AppText style={styles.emptyTitle}>Couldn’t load deals</AppText>
               <AppText style={styles.emptySub}>Please check your connection and try again.</AppText>
+              <TouchableOpacity
+                style={styles.retryBtn}
+                onPress={() => setRetry((n) => n + 1)}
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading deals"
+              >
+                <AppText style={styles.retryText}>Try again</AppText>
+              </TouchableOpacity>
             </View>
           ) : (
             <View style={styles.emptyWrap}>
@@ -330,9 +346,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFFFFF',
   },
   backBtn: {
-    width: ms(38),
-    height: ms(38),
-    borderRadius: ms(19),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F1F5F9',
@@ -389,10 +405,25 @@ const styles = StyleSheet.create({
     color: '#1E2022',
   },
   emptySub: {
-    fontSize: ms(10),
-    color: '#94a3b8',
-    fontWeight: '500',
+    fontSize: ms(13),
+    color: '#475569',
+    fontWeight: '400',
     marginTop: vs(6),
     textAlign: 'center',
+  },
+  retryBtn: {
+    minHeight: 44,
+    marginTop: vs(14),
+    paddingHorizontal: hs(20),
+    borderRadius: ms(22),
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryText: {
+    fontSize: ms(14),
+    fontWeight: '600',
+    color: '#0F172A',
   },
 });

@@ -14,6 +14,8 @@ import {
   Heart,
   MapPin,
   ShieldCheck,
+  Package,
+  Star,
   Plus,
   Minus,
 } from 'lucide-react-native';
@@ -73,26 +75,25 @@ export default function CommonProductDetailView({
   const product = propProduct;
   const safePrice = Number(product?.price) || 0;
   const safeOriginal = Number(product?.originalPrice) || 0;
-  const safeRating = Number(product?.rating) || 4.5;
-  const safeEmoji = product?.emoji ?? '🛍️';
-  const safeDesc = product?.desc ?? 'Premium quality product';
+  // Never invent social proof: show a rating only when the product actually has one.
+  const safeRating =
+    product?.rating !== undefined && Number(product.rating) > 0
+      ? Number(product.rating)
+      : undefined;
+  const safeDesc = product?.desc ?? '';
   const discount = discountPercent(safePrice, safeOriginal);
+
+  const [imageFailed, setImageFailed] = useState(false);
+  const [foodImageFailed, setFoodImageFailed] = useState(false);
+  useEffect(() => {
+    setImageFailed(false);
+    setFoodImageFailed(false);
+  }, [product?.image]);
 
   const brand =
     (product?.attributes?.brand as string | undefined) ||
     product?.shop ||
     'Faazio';
-
-  const variants = useMemo<string[]>(() => {
-    const attrVar = product?.attributes?.variants;
-    if (Array.isArray(attrVar) && attrVar.length > 0) {
-      return attrVar.map(String);
-    }
-    if (product?.unit) return [product.unit];
-    return ['500g', '1kg'];
-  }, [product?.unit, product?.attributes]);
-
-  const [selectedVariant, setSelectedVariant] = useState(variants[0]);
 
   const isFavorite = product ? favorites.includes(product.id) : false;
   const cartItem = product ? cartItems.find((i) => i.id === product.id) : undefined;
@@ -237,12 +238,11 @@ export default function CommonProductDetailView({
                 {store.distance} away
               </AppText>
             </View>
-            <View style={styles.storeTimeRow}>
-              <View style={styles.storeOpenBadge}>
-                <AppText style={styles.storeOpenText}>Open now</AppText>
+            {store.hours ? (
+              <View style={styles.storeTimeRow}>
+                <AppText style={styles.storeCloseText}>{store.hours}</AppText>
               </View>
-              {store.hours ? <AppText style={styles.storeCloseText}> · {store.hours}</AppText> : null}
-            </View>
+            ) : null}
           </View>
         </View>
 
@@ -263,6 +263,7 @@ export default function CommonProductDetailView({
                     originalPrice={p.originalPrice}
                     quantity={qty}
                     isAdded={qty > 0}
+                    onPress={onOpenProduct}
                     onAdd={() => addToCart(p.id, p.name, Number(p.price) || 0, p.emoji ?? '🛍️')}
                     onIncrement={() => updateCartQuantity(p.id, 1)}
                     onDecrement={() => updateCartQuantity(p.id, -1)}
@@ -295,22 +296,25 @@ export default function CommonProductDetailView({
             disabled={!onViewRestaurant}
           >
             <View style={styles.storeLogoContainer}>
-              <Image
-                source={{ uri: product.image }}
-                style={styles.storeCover}
-                resizeMode="cover"
-              />
+              {foodImageFailed || !product.image ? (
+                <View style={[styles.storeCover, styles.storeCoverFallback]}>
+                  <Package size={ms(28)} color="#94a3b8" strokeWidth={1.25} />
+                </View>
+              ) : (
+                <Image
+                  source={{ uri: product.image }}
+                  style={styles.storeCover}
+                  resizeMode="cover"
+                  onError={() => setFoodImageFailed(true)}
+                />
+              )}
             </View>
             <View style={styles.storeDetails}>
               <View style={styles.storeNameRow}>
                 <AppText style={styles.storeName} numberOfLines={1}>{product.shop}</AppText>
                 <ShieldCheck size={ms(16)} color="#3B82F6" fill="#DBEAFE" />
               </View>
-              <View style={styles.storeLocationRow}>
-                <MapPin size={ms(14)} color="#94a3b8" />
-                <AppText style={styles.storeLocationText}>Restaurant verified</AppText>
               </View>
-            </View>
           </TouchableOpacity>
 
           {onViewRestaurant ? (
@@ -352,29 +356,48 @@ export default function CommonProductDetailView({
       </View>
     ) : null;
 
-  const heroImage = product.image ? (
+  const heroImage = product.image && !imageFailed ? (
     <Image
       source={{ uri: product.image }}
       style={styles.heroImage}
       resizeMode="cover"
+      onError={() => setImageFailed(true)}
     />
   ) : (
     <View style={styles.heroEmojiTile}>
-      <AppText style={styles.heroEmoji}>{safeEmoji}</AppText>
+      <Package size={ms(64)} color="#94a3b8" strokeWidth={1.25} />
     </View>
   );
 
   return (
     <SafeAreaView edges={['top']} style={styles.root}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.headerBtn} activeOpacity={0.7}>
+        <TouchableOpacity
+          onPress={onClose}
+          style={styles.headerBtn}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Close product details"
+        >
           <ArrowLeft size={ms(22)} color="#0f172a" strokeWidth={2.2} />
         </TouchableOpacity>
         <View style={styles.headerRight}>
-          <TouchableOpacity onPress={onSearch} style={styles.headerBtn} activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={onSearch}
+            style={styles.headerBtn}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Search"
+          >
             <Search size={ms(23)} color="#0f172a" strokeWidth={2.2} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={onCart} style={styles.headerBtn} activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={onCart}
+            style={styles.headerBtn}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel="Open cart"
+          >
             <ShoppingCart size={ms(20)} color="#0f172a" strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
@@ -392,6 +415,9 @@ export default function CommonProductDetailView({
             onPress={handleToggleFavorite}
             style={styles.heartBtn}
             activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel={isFavorite ? 'Remove from favourites' : 'Add to favourites'}
+            accessibilityState={{ selected: isFavorite }}
           >
             <Heart
               size={ms(20)}
@@ -406,16 +432,17 @@ export default function CommonProductDetailView({
           <AppText style={styles.brandText} numberOfLines={1}>{brand}</AppText>
           <AppText style={styles.titleText} numberOfLines={2}>{product.name}</AppText>
 
-          <View style={styles.ratingRow}>
-            <View style={styles.ratingPill}>
-              <AppText style={styles.ratingPillText}>
-                {safeRating.toFixed(1)} ★
-              </AppText>
+          {safeRating !== undefined ? (
+            <View style={styles.ratingRow}>
+              <View style={styles.ratingPill}>
+                <AppText style={styles.ratingPillText}>{safeRating.toFixed(1)}</AppText>
+                <Star size={ms(11)} color="#f59e0b" fill="#f59e0b" strokeWidth={1.5} />
+              </View>
+              {product.reviewsCount ? (
+                <AppText style={styles.ratingMeta}>{product.reviewsCount} ratings</AppText>
+              ) : null}
             </View>
-            <AppText style={styles.ratingMeta}>
-              {product.reviewsCount ? `${product.reviewsCount} ratings` : '4.5k ratings'}
-            </AppText>
-          </View>
+          ) : null}
 
           <View style={styles.priceRow}>
             <AppText style={styles.finalPrice}>
@@ -433,49 +460,16 @@ export default function CommonProductDetailView({
           <AppText style={styles.inclTax}>Inclusive of all taxes</AppText>
         </View>
 
-        {/* Variant selector */}
-        <View style={styles.padded}>
-          <AppText style={styles.sectionLabel}>Select Variant</AppText>
-          <View style={styles.variantRow}>
-            {variants.map((v) => {
-              const selected = v === selectedVariant;
-              return (
-                <TouchableOpacity
-                  key={v}
-                  onPress={() => setSelectedVariant(v)}
-                  style={[styles.variantPill, selected && styles.variantPillActive]}
-                  activeOpacity={0.8}
-                >
-                  <AppText
-                    style={[styles.variantPillText, selected && styles.variantPillTextActive]}
-                  >
-                    {v}
-                  </AppText>
-                </TouchableOpacity>
-              );
-            })}
+        {/* Product details — only render the block when there is real content. */}
+        {safeDesc || product.unit ? (
+          <View style={styles.padded}>
+            <AppText style={styles.sectionLabel}>Product details</AppText>
+            {safeDesc ? <AppText style={styles.descText}>{safeDesc}</AppText> : null}
+            {product.unit ? (
+              <AppText style={styles.unitText}>Pack size: {product.unit}</AppText>
+            ) : null}
           </View>
-        </View>
-
-        {/* Product details */}
-        <View style={styles.padded}>
-          <AppText style={styles.sectionLabel}>Product Details</AppText>
-          <AppText style={styles.descText}>{safeDesc}</AppText>
-          <View style={styles.highlightList}>
-            <View style={styles.highlightItem}>
-              <View style={styles.bulletDot} />
-              <AppText style={styles.highlightText}>100% genuine, sealed retail unit</AppText>
-            </View>
-            <View style={styles.highlightItem}>
-              <View style={styles.bulletDot} />
-              <AppText style={styles.highlightText}>Free & fast delivery to your doorstep</AppText>
-            </View>
-            <View style={styles.highlightItem}>
-              <View style={styles.bulletDot} />
-              <AppText style={styles.highlightText}>Hassle-free returns & easy replacement</AppText>
-            </View>
-          </View>
-        </View>
+        ) : null}
 
         {storeSection}
         {foodSection}
@@ -538,9 +532,9 @@ const styles = StyleSheet.create({
     gap: hs(4),
   },
   headerBtn: {
-    width: ms(40),
-    height: ms(40),
-    borderRadius: ms(20),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -570,7 +564,7 @@ const styles = StyleSheet.create({
   },
   hero: {
     width: SCREEN_W,
-    height: SCREEN_W,
+    height: Math.min(SCREEN_W, vs(320)),
     backgroundColor: '#f8fafc',
     position: 'relative',
   },
@@ -591,9 +585,9 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: vs(12),
     right: hs(12),
-    width: ms(40),
-    height: ms(40),
-    borderRadius: ms(20),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.92)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -630,6 +624,9 @@ const styles = StyleSheet.create({
     borderRadius: ms(6),
     paddingVertical: vs(3),
     paddingHorizontal: hs(8),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
   },
   ratingPillText: {
     color: '#ffffff',
@@ -671,7 +668,7 @@ const styles = StyleSheet.create({
   },
   sectionLabel: {
     fontSize: ms(13),
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#0f172a',
     marginBottom: vs(8),
   },
@@ -703,8 +700,14 @@ const styles = StyleSheet.create({
   descText: {
     fontSize: ms(13),
     color: '#475569',
-    fontWeight: '500',
+    fontWeight: '400',
     lineHeight: ms(19),
+  },
+  unitText: {
+    fontSize: ms(13),
+    color: '#64748b',
+    fontWeight: '500',
+    marginTop: vs(8),
   },
   highlightList: {
     marginTop: vs(10),
@@ -748,6 +751,11 @@ const styles = StyleSheet.create({
     borderRadius: ms(12),
     borderWidth: 1,
     borderColor: '#eee',
+  },
+  storeCoverFallback: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F1F5F9',
   },
   storeRatingBadge: {
     position: 'absolute',
@@ -886,9 +894,9 @@ const styles = StyleSheet.create({
     minWidth: hs(120),
   },
   stepBtn: {
-    width: ms(38),
-    height: ms(38),
-    borderRadius: ms(12),
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',

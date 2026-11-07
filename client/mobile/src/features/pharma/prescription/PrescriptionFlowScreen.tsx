@@ -1,7 +1,11 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, Alert } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import AppText from '@/components/AppText';
+import { neutral } from '@/theme/brandTokens';
+import { hs, ms, vs } from '@/utils/responsive';
+import { SPACE } from '@/theme/spacing';
 import type { RootStackParamList } from '@/navigation/types';
 import type { StoreProfile } from '@data/types';
 import type { FulfillmentMode } from '@data/types';
@@ -46,6 +50,8 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
   const [confirmedFulfillment, setConfirmedFulfillment] = useState<FulfillmentMode>('DELIVERY');
   const [sheetVisible, setSheetVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const recordOrder = useOrdersStore((s) => s.recordOrder);
 
@@ -90,6 +96,8 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
       const pages = draft.photos.length;
       const note = draft.note.trim() ? draft.note : undefined;
       setSubmitting(true);
+      setSubmitError(null);
+      setUploadProgress(draft.photos.length > 0 ? { done: 0, total: draft.photos.length } : null);
       void (async () => {
         try {
           // Resolve the delivery address from the SERVER-owned list (auth-scoped) so the
@@ -98,17 +106,20 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
           const addresses = await gateway.getAddresses();
           const addressId =
             addresses.find((a) => a.isDefault === true)?.id ?? addresses[0]?.id;
-          // 1. Upload each photo to the private bucket via a signed URL; keep the object KEYS
-          //    (never URLs, never logged). Failures drop that photo but never block the Rx.
-          const keys = (
-            await Promise.all(draft.photos.map((uri) => gateway.uploadPrescriptionImage(uri)))
-          ).filter((k): k is string => Boolean(k));
-          // A durable Rx must carry its scans: on a real server session an all-upload failure is a
-          // hard stop, not a silent zero-image Rx. (Mock mode intentionally allows empty images.)
-          if (gateway.remoteEnabled && draft.photos.length > 0 && keys.length === 0) {
-            Alert.alert(
-              'Upload failed',
-              "We couldn't upload your prescription images. Check your connection and try again.",
+          // 1. Upload each photo sequentially to the private bucket via a signed URL; keep the
+          //    object KEYS (never URLs, never logged). Progress is shown while this runs.
+          const keys: string[] = [];
+          for (let index = 0; index < draft.photos.length; index += 1) {
+            const key = await gateway.uploadPrescriptionImage(draft.photos[index]);
+            if (key) keys.push(key);
+            setUploadProgress({ done: index + 1, total: draft.photos.length });
+          }
+          // A durable Rx must carry its scans: on a real server session any failed page is a hard
+          // stop so the shopper can retry, not a silent partial upload. (Mock mode allows empty.)
+          if (gateway.remoteEnabled && keys.length !== draft.photos.length) {
+            const failed = draft.photos.length - keys.length;
+            setSubmitError(
+              `Couldn't upload ${failed} of ${draft.photos.length} page${draft.photos.length === 1 ? '' : 's'}. Check your connection and try again.`,
             );
             return;
           }
@@ -139,21 +150,15 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
           setConfirmedFulfillment(fulfillment);
           setStep('CONFIRMED');
         } catch (err) {
-          // A rejected/unknown pharmacy is a fixable choice, not a transient failure — send the user
-          // back to the vendor step with a specific message instead of a generic "try again".
+          // A rejected/unknown pharmacy is a fixable choice, not a transient failure.
           if (err instanceof GatewayHttpError && (err.status === 404 || err.status === 422)) {
-            Alert.alert(
-              'Pharmacy unavailable',
-              'This pharmacy can no longer receive prescriptions. Please pick another.',
-            );
+            setSubmitError('This pharmacy can no longer receive prescriptions. Please pick another.');
             return;
           }
           // Strict/remote failure (or a bad payload): keep the user on the current step and explain.
-          Alert.alert(
-            'Something went wrong',
-            "We couldn't submit your prescription. Please try again.",
-          );
+          setSubmitError("We couldn't submit your prescription. Please try again.");
         } finally {
+          setUploadProgress(null);
           setSubmitting(false);
         }
       })();
@@ -163,8 +168,64 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
 
   const handleDone = useCallback(() => navigation.goBack(), [navigation]);
 
+  const stepNumber = step === 'NOTE' ? 2 : step === 'VENDORS' ? 3 : 1;
+  const showStepper = step === 'NOTE' || step === 'VENDORS';
+
   return (
     <View style={[styles.root, { paddingTop: insets.top }]}>
+      {showStepper ? (
+        <View
+          style={styles.stepper}
+          accessible
+          accessibilityRole="progressbar"
+          accessibilityLabel="Prescription progress"
+          accessibilityValue={{
+            min: 1,
+            max: 3,
+            now: stepNumber,
+            text: `Step ${stepNumber} of 3`,
+          }}
+        >
+          <AppText style={styles.stepperText}>Step {stepNumber} of 3</AppText>
+        </View>
+      ) : null}
+
+      {submitError ? (
+        <View style={styles.errorBanner} accessibilityLiveRegion="polite">
+          <AppText style={styles.errorText}>{submitError}</AppText>
+          <TouchableOpacity
+            onPress={() => setSubmitError(null)}
+            accessibilityRole="button"
+            accessibilityLabel="Dismiss error"
+            style={styles.errorDismiss}
+          >
+            <AppText style={styles.errorDismissText}>Dismiss</AppText>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {submitting ? (
+        <View
+          style={styles.submitOverlay}
+          accessibilityViewIsModal
+          accessible
+          accessibilityLabel={
+            uploadProgress
+              ? `Uploading page ${uploadProgress.done} of ${uploadProgress.total}`
+              : 'Submitting prescription'
+          }
+        >
+          <View style={styles.submitCard}>
+            <ActivityIndicator color={neutral.ink} />
+            <AppText style={styles.submitText}>
+              {uploadProgress
+                ? `Uploading page ${uploadProgress.done} of ${uploadProgress.total}`
+                : 'Submitting prescription'}
+            </AppText>
+          </View>
+        </View>
+      ) : null}
+
       {step === 'CAPTURE' && (
         <PrescriptionCameraStep
           onBack={handleBack}
@@ -219,6 +280,71 @@ export default PrescriptionFlowScreen;
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
+  },
+  stepper: {
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(8),
+    backgroundColor: neutral.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: neutral.border,
+  },
+  stepperText: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: neutral.inkMuted,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(10),
+    marginHorizontal: hs(16),
+    marginTop: vs(8),
+    paddingVertical: vs(10),
+    paddingHorizontal: hs(12),
+    borderRadius: ms(10),
+    backgroundColor: '#FEF3C7',
+  },
+  errorText: {
+    flex: 1,
+    fontSize: ms(12),
+    lineHeight: vs(17),
+    color: '#854D0E',
+  },
+  errorDismiss: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: hs(8),
+  },
+  errorDismissText: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: '#854D0E',
+  },
+  submitOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 50,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15, 23, 42, 0.35)',
+  },
+  submitCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(10),
+    paddingHorizontal: hs(20),
+    paddingVertical: vs(16),
+    borderRadius: ms(14),
+    backgroundColor: neutral.card,
+    marginHorizontal: SPACE.SECTION,
+  },
+  submitText: {
+    fontSize: ms(13),
+    fontWeight: '500',
+    color: neutral.ink,
   },
 });

@@ -1,13 +1,12 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { StyleSheet, View, ScrollView, Image, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import {
-  Heart, CheckCircle, Search, ChevronLeft,
-  Star, Minus, Plus, ClipboardList, CloudOff,
+  Search, ChevronLeft,
+  ClipboardList, CloudOff, Pill, Receipt, FileText,
 } from 'lucide-react-native';
-import Svg, { Defs, LinearGradient, Stop, Rect } from 'react-native-svg';
-import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
+import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
 import AppTextInput from '@/components/AppTextInput';
@@ -101,14 +100,11 @@ export function PharmaScreen({
   setActiveTab,
   searchQuery = '',
 }: PharmaScreenProps) {
-  const [currentView, setCurrentView] = useState<'HOME' | 'CATEGORY_PRODUCTS' | 'PRODUCT_DETAIL'>('HOME');
+  const [currentView, setCurrentView] = useState<'HOME' | 'CATEGORY_PRODUCTS'>('HOME');
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
-  const [selectedProduct, setSelectedProduct] = useState<PharmaDBItem | null>(null);
-  const [quantity, setQuantity] = useState(1);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [addedAnimationId, setAddedAnimationId] = useState<string | null>(null);
   const [feedAddedIds, setFeedAddedIds] = useState<Set<string>>(new Set());
-  const [localFavorites, setLocalFavorites] = useState<string[]>(['ph-t1', 'ph-f1']);
   const [categorySource, setCategorySource] = useState<'idle' | 'loading' | 'live' | 'fallback'>('idle');
   const [categoryServerById, setCategoryServerById] = useState<Record<string, ProductView> | null>(null);
 
@@ -179,43 +175,14 @@ export function PharmaScreen({
     return eff < p.price ? p.price : undefined;
   };
 
-  const toggleLocalFavorite = (id: string) => {
-    setLocalFavorites(prev =>
-      prev.includes(id) ? prev.filter(fid => fid !== id) : [...prev, id]
-    );
-  };
-
   const handleAddWithFeedback = (id: string, name: string, price: number, emoji: string) => {
     if (addToCart) addToCart(id, name, price, emoji);
     setAddedAnimationId(id);
     setTimeout(() => setAddedAnimationId(null), 1200);
   };
 
-  const handleAddMultipleToCart = (product: PharmaDBItem, qty: number) => {
-    const unit = effectivePrice(product.price, discountFor(product.id));
-    if (setCartItems) {
-      setCartItems((prev: any) => {
-        const existing = prev.find((item: any) => item.id === product.id);
-        if (existing) {
-          return prev.map((item: any) =>
-            item.id === product.id ? { ...item, quantity: item.quantity + qty } : item
-          );
-        }
-        return [...prev, { id: product.id, name: product.name, price: unit, quantity: qty, emoji: product.emoji }];
-      });
-    } else if (addToCart) {
-      for (let i = 0; i < qty; i++) {
-        addToCart(product.id, product.name, unit, product.emoji);
-      }
-    }
-  };
-
   const goBack = () => {
-    if (currentView === 'PRODUCT_DETAIL') {
-      setCurrentView(selectedCategoryId ? 'CATEGORY_PRODUCTS' : 'HOME');
-    } else {
-      setCurrentView('HOME');
-    }
+    setCurrentView('HOME');
   };
 
   const homeSearchNormalized = searchQuery.trim().toLowerCase();
@@ -224,19 +191,27 @@ export function PharmaScreen({
   // festival discounts overlaid — the same pipeline as Mart and the first-class Search route, so the
   // header never shows a fixture-only result set divergent from the Search tab.
   const [searchResults, setSearchResults] = useState<Product[]>([]);
+  const [searchError, setSearchError] = useState(false);
   useEffect(() => {
     if (!homeSearchNormalized) {
       setSearchResults([]);
+      setSearchError(false);
       return;
     }
     let active = true;
+    setSearchError(false);
     gateway
       .searchProducts(searchQuery.trim(), 'PHARMA')
       .then((rows) => withActiveDiscounts(rows))
       .then((rows) => {
         if (active) setSearchResults(rows);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) {
+          setSearchResults([]);
+          setSearchError(true);
+        }
+      });
     return () => {
       active = false;
     };
@@ -258,12 +233,6 @@ export function PharmaScreen({
     if (categorySource === 'fallback' || !gateway.remoteEnabled) return authored;
     return [];
   }, [selectedCategoryId, categorySearchQuery, categorySource, categoryServerById]);
-
-  const renderStars = (rating: number, size: number = 10) => {
-    return Array.from({ length: 5 }, (_, i) => (
-      <Star key={i} size={ms(size)} color={i < Math.floor(rating) ? brandRamp.PHARMA.deep : '#E2E8F0'} fill={i < Math.floor(rating) ? brandRamp.PHARMA.deep : 'none'} strokeWidth={1.5} />
-    ));
-  };
 
   const handleFeedAdd = (item: PharmaQuickReorderItem | PharmaPopularMedicine) => {
     if (addToCart) addToCart(item.id, item.name, item.price, '💊');
@@ -320,7 +289,11 @@ export function PharmaScreen({
       </View>
       {searchedProducts.length === 0 ? (
         <View style={styles.emptyWrap}>
-          <AppText style={styles.emptyText}>No medicines found for "{searchQuery}"</AppText>
+          <AppText style={styles.emptyText}>
+            {searchError
+              ? 'Could not reach search. Check your connection and try again.'
+              : `No medicines found for "${searchQuery}"`}
+          </AppText>
         </View>
       ) : (
         <ScrollView
@@ -426,112 +399,37 @@ export function PharmaScreen({
         </View>
       ) : filteredCategoryProducts.length === 0 ? (
         <View style={styles.emptyStateCard}>
-          <AppText style={styles.emptyStateEmoji}>💊</AppText>
+          <Pill size={ms(36)} color={brandRamp.PHARMA.deep} strokeWidth={1.5} style={styles.emptyStateIcon} />
           <AppText style={styles.emptyStateTitle}>No products found</AppText>
         </View>
       ) : (
         <View style={styles.catProductsGrid}>
-          {filteredCategoryProducts.map(product => (
-            <PharmaProductCard
-              key={product.id}
-              product={{ id: product.id, name: product.name, price: displayPrice(product), emoji: product.emoji, image: product.image, desc: product.desc, rating: product.rating, app: 'PHARMA', category: product.category, badge: displayBadge(product.id, product.discountBadge) }}
-              originalPrice={displayOriginal(product)}
-              isAdded={addedAnimationId === product.id}
-              onPress={() => { setSelectedProduct(product); setCurrentView('PRODUCT_DETAIL'); }}
-              onAdd={() => handleAddWithFeedback(product.id, product.name, displayPrice(product), product.emoji)}
-            />
-          ))}
+          {filteredCategoryProducts.map(product => {
+            const cardProduct = {
+              id: product.id,
+              name: product.name,
+              price: displayPrice(product),
+              emoji: product.emoji,
+              image: product.image,
+              desc: product.desc,
+              rating: product.rating,
+              app: 'PHARMA' as const,
+              category: product.category,
+              badge: displayBadge(product.id, product.discountBadge),
+            };
+            return (
+              <PharmaProductCard
+                key={product.id}
+                product={cardProduct}
+                originalPrice={displayOriginal(product)}
+                isAdded={addedAnimationId === product.id}
+                onPress={() => onProductClick?.(cardProduct)}
+                onAdd={() => handleAddWithFeedback(product.id, product.name, displayPrice(product), product.emoji)}
+              />
+            );
+          })}
         </View>
       )}
-      <View style={{ height: vs(24) }} />
-    </ScrollView>
-  );
-
-  const productDetailView = selectedProduct && (
-    <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
-      <View style={styles.detailHero}>
-        <Svg width={SCREEN_W} height={vs(320)} style={StyleSheet.absoluteFill}>
-          <Defs>
-            <LinearGradient id="detailGrad" x1="0" y1="0" x2="0" y2="1">
-              <Stop offset="0" stopColor="#FFF2EE" />
-              <Stop offset="1" stopColor="#FFF7F4" />
-            </LinearGradient>
-          </Defs>
-          <Rect width={SCREEN_W} height={vs(320)} fill="url(#detailGrad)" rx={ms(36)} />
-        </Svg>
-        <View style={styles.detailTopBar}>
-          <TouchableOpacity style={styles.detailBackBtn} onPress={goBack} activeOpacity={0.8}>
-            <ChevronLeft size={ms(16)} color="#ffffff" strokeWidth={3} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.detailHeartBtn} onPress={() => toggleLocalFavorite(selectedProduct.id)}>
-            <Heart size={ms(14)} color={localFavorites.includes(selectedProduct.id) ? '#e11d48' : '#94a3b8'} fill={localFavorites.includes(selectedProduct.id) ? '#e11d48' : 'none'} strokeWidth={2} />
-          </TouchableOpacity>
-        </View>
-        <View style={styles.detailImageContainer}>
-          <Image source={{ uri: selectedProduct.image }} style={styles.detailImage} />
-        </View>
-      </View>
-
-      <View style={styles.detailContent}>
-        <AppText style={styles.detailName}>{selectedProduct.name}</AppText>
-
-        <View style={styles.detailStarsRow}>
-          {renderStars(selectedProduct.rating, 12)}
-          <AppText style={styles.detailReviewCount}>({selectedProduct.reviewsCount} Reviews)</AppText>
-        </View>
-
-        <View style={styles.quantityRow}>
-          <TouchableOpacity
-            style={styles.qtyBtn}
-            onPress={() => setQuantity(Math.max(1, quantity - 1))}
-            activeOpacity={0.8}
-          >
-            <Minus size={ms(11)} color="#0f172a" strokeWidth={3} />
-          </TouchableOpacity>
-          <AppText style={styles.qtyValue}>{quantity}</AppText>
-          <TouchableOpacity
-            style={styles.qtyBtn}
-            onPress={() => setQuantity(quantity + 1)}
-            activeOpacity={0.8}
-          >
-            <Plus size={ms(11)} color="#0f172a" strokeWidth={3} />
-          </TouchableOpacity>
-        </View>
-
-        <AppText style={styles.detailDesc}>{selectedProduct.desc}</AppText>
-
-        <View style={styles.bulletsContainer}>
-          {selectedProduct.bullets?.map((bullet: string, idx: number) => (
-            <View key={idx} style={styles.bulletRow}>
-              <View style={styles.bulletCircle}>
-                <CheckCircle size={ms(8)} color={brandRamp.PHARMA.deep} strokeWidth={4} />
-              </View>
-              <AppText style={styles.bulletText}>{bullet}</AppText>
-            </View>
-          ))}
-        </View>
-
-        <View style={styles.totalBar}>
-          <View>
-            <AppText style={styles.totalLabel}>TOTAL AMOUNT</AppText>
-            <AppText style={styles.totalAmount}>₹{displayPrice(selectedProduct) * quantity}</AppText>
-          </View>
-          <TouchableOpacity
-            style={[styles.addToCartBtn, addedAnimationId === selectedProduct.id && styles.addToCartBtnAdded]}
-            onPress={() => {
-              handleAddMultipleToCart(selectedProduct, quantity);
-              setAddedAnimationId(selectedProduct.id);
-              setTimeout(() => setAddedAnimationId(null), 1200);
-            }}
-            activeOpacity={0.9}
-          >
-            <AppText style={styles.addToCartBtnText}>
-              {addedAnimationId === selectedProduct.id ? 'Added to Cart!' : 'Add to Cart'}
-            </AppText>
-          </TouchableOpacity>
-        </View>
-      </View>
-
       <View style={{ height: vs(24) }} />
     </ScrollView>
   );
@@ -547,7 +445,6 @@ export function PharmaScreen({
       {historyOrders.map((order) => {
         const rx = order.kind === 'prescription';
         const firstLine = order.items?.find((i) => i.id.startsWith('ph-')) ?? order.items?.[0];
-        const emoji = rx ? '📄' : firstLine?.emoji ?? '💊';
         const name = rx ? 'Prescription order' : firstLine?.name ?? order.vendorName;
         const qty = rx
           ? `${order.pages ?? 0} page${order.pages === 1 ? '' : 's'}`
@@ -561,7 +458,11 @@ export function PharmaScreen({
           >
             <View style={styles.historyRow}>
               <View style={styles.historyOrderIcon}>
-                <AppText style={styles.historyOrderEmoji}>{emoji}</AppText>
+                {rx ? (
+                  <FileText size={ms(20)} color={brandRamp.PHARMA.deep} strokeWidth={1.5} />
+                ) : (
+                  <Pill size={ms(20)} color={brandRamp.PHARMA.deep} strokeWidth={1.5} />
+                )}
               </View>
               <View style={styles.historyOrderDetails}>
                 <AppText style={styles.historyOrderName} numberOfLines={1}>
@@ -592,7 +493,7 @@ export function PharmaScreen({
             <View key={order.id} style={styles.historyCard}>
               <View style={styles.historyRow}>
                 <View style={styles.historyOrderIcon}>
-                  <AppText style={styles.historyOrderEmoji}>{order.emoji}</AppText>
+                  <Pill size={ms(20)} color={brandRamp.PHARMA.deep} strokeWidth={1.5} />
                 </View>
                 <View style={styles.historyOrderDetails}>
                   <AppText style={styles.historyOrderName} numberOfLines={1}>
@@ -620,7 +521,7 @@ export function PharmaScreen({
 
       {!showFixtureHistory && historyOrders.length === 0 ? (
         <View style={styles.emptyStateCard}>
-          <AppText style={styles.emptyStateEmoji}>🧾</AppText>
+          <Receipt size={ms(36)} color={brandRamp.PHARMA.deep} strokeWidth={1.5} style={styles.emptyStateIcon} />
           <AppText style={styles.emptyStateTitle}>No pharmacy orders yet</AppText>
         </View>
       ) : null}
@@ -643,7 +544,6 @@ export function PharmaScreen({
     case 'HOME':
       return homeSearchNormalized ? searchView : feedView;
     case 'CATEGORY_PRODUCTS': return categoryProductsView;
-    case 'PRODUCT_DETAIL': return productDetailView;
     default: return feedView;
   }
 }
@@ -730,9 +630,9 @@ const styles = StyleSheet.create({
     paddingTop: vs(12),
     paddingBottom: vs(8),
   },  backBtn: {
-    width: ms(32),
-    height: ms(32),
-    borderRadius: ms(16),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',
@@ -743,10 +643,9 @@ const styles = StyleSheet.create({
     elevation: 1,
   },
   topTitle: {
-    fontSize: ms(12),
-    fontWeight: '900',
+    fontSize: ms(13),
+    fontWeight: '600',
     color: '#0f172a',
-    letterSpacing: 0.5,
   },
   searchFilter: {
     flexDirection: 'row',
@@ -755,13 +654,13 @@ const styles = StyleSheet.create({
     borderRadius: ms(12),
     marginHorizontal: hs(16),
     paddingHorizontal: hs(12),
-    height: vs(36),
+    height: 44,
     gap: hs(6),
     marginBottom: vs(12),
   },
   searchFilterInput: {
     flex: 1,
-    fontSize: ms(10),
+    fontSize: ms(12),
     color: '#0f172a',
     fontWeight: '600',
     padding: 0,
@@ -794,6 +693,9 @@ const styles = StyleSheet.create({
     fontSize: ms(32),
     marginBottom: vs(8),
   },
+  emptyStateIcon: {
+    marginBottom: vs(8),
+  },
   emptyStateTitle: {
     fontSize: ms(12),
     fontWeight: '900',
@@ -814,17 +716,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(20),
   },
   detailBackBtn: {
-    width: ms(32),
-    height: ms(32),
-    borderRadius: ms(16),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(0,0,0,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   detailHeartBtn: {
-    width: ms(32),
-    height: ms(32),
-    borderRadius: ms(16),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -872,9 +774,9 @@ const styles = StyleSheet.create({
     marginBottom: vs(16),
   },
   qtyBtn: {
-    width: ms(30),
-    height: ms(30),
-    borderRadius: ms(15),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#ffffff',
     alignItems: 'center',
     justifyContent: 'center',

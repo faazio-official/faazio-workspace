@@ -1,6 +1,7 @@
 import React, { memo } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { ChevronRight } from 'lucide-react-native';
 import type { AdCampaign, Product } from '@data/types';
 import { getCampaignProducts, getCampaignStore } from '@data/home/campaigns';
 import AdProductCard from '@/features/home/cards/AdProductCard';
@@ -49,8 +50,16 @@ const BrandCampaignCard = memo(function BrandCampaignCard({
           {name}
         </AppText>
         {onViewAll ? (
-          <TouchableOpacity onPress={() => onViewAll(campaign)} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <AppText style={styles.viewAllText}>View all {'>'}</AppText>
+          <TouchableOpacity
+            onPress={() => onViewAll(campaign)}
+            activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={`View all from ${name}`}
+            style={styles.viewAllBtn}
+          >
+            <AppText style={styles.viewAllText}>View all</AppText>
+            <ChevronRight size={ms(13)} color="#B45309" strokeWidth={2} />
           </TouchableOpacity>
         ) : null}
       </View>
@@ -93,18 +102,24 @@ const styles = StyleSheet.create({
   },
   brandName: {
     fontSize: ms(16),
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#111827',
     flexShrink: 1,
   },
+  viewAllBtn: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
   viewAllText: {
-    fontSize: ms(10),
-    fontWeight: '800',
+    fontSize: ms(12),
+    fontWeight: '600',
     color: '#B45309',
   },
   discountLabel: {
-    fontSize: ms(10),
-    fontWeight: '800',
+    fontSize: ms(12),
+    fontWeight: '600',
     color: '#B45309',
     marginTop: vs(3),
   },

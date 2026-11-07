@@ -9,6 +9,8 @@ import { HomeTabScreen } from '@/features/home/HomeTabScreen';
 import { SplashFallback } from '@/components/SplashFallback';
 import type { MainTabParamList } from '@/navigation/types';
 import NavbarHomeShortcut from '@/components/shared/NavbarHomeShortcut';
+import { neutral, parentRamp, semantic } from '@/theme/brandTokens';
+import { ICON } from '@/theme/tokens';
 
 const lazyNamed = <T extends { [K in string]: unknown }>(
   loader: () => Promise<T>,
@@ -17,31 +19,26 @@ const lazyNamed = <T extends { [K in string]: unknown }>(
 
 const FavouritesTabScreen = lazyNamed(() => import('@/features/favourites/FavouritesTabScreen'), 'FavouritesTabScreen');
 const AccountScreen = lazyNamed(() => import('@/features/profile/AccountScreen'), 'AccountScreen');
-
-const TAB_COLORS: Record<keyof MainTabParamList, string> = {
-  Home: '#2F80ED',
-  Favourites: '#FF4A6B',
-  You: '#6C5CE7',
-  Cart: '#F2994A',
-};
+const CartTabScreen = lazyNamed(() => import('@/features/cart/CartTabScreen'), 'CartTabScreen');
 
 const TAB_LABELS: Record<keyof MainTabParamList, string> = {
   Home: 'Home',
   Favourites: 'Favourites',
-  You: 'You',
   Cart: 'Cart',
+  You: 'You',
 };
 
 const TAB_ICONS: Record<keyof MainTabParamList, React.ComponentType<any>> = {
   Home,
   Favourites: Heart,
-  You: User,
   Cart: ShoppingBag,
+  You: User,
 };
 
 const TAB_BAR_PAD = hs(12);
 const TAB_BAR_H = vs(60);
-const INACTIVE_TINT = '#94a3b8';
+const ACTIVE_TINT = parentRamp.deep;
+const INACTIVE_TINT = neutral.inkMuted;
 
 function HubTabBar({ state, navigation }: BottomTabBarProps) {
   const tabBarH = TAB_BAR_H;
@@ -53,7 +50,7 @@ function HubTabBar({ state, navigation }: BottomTabBarProps) {
         {state.routes.map((route, index) => {
           const name = route.name as keyof MainTabParamList;
           const isActive = state.index === index;
-          const tint = isActive ? TAB_COLORS[name] : INACTIVE_TINT;
+          const tint = isActive ? ACTIVE_TINT : INACTIVE_TINT;
           const Icon = TAB_ICONS[name];
           return (
             <TouchableOpacity
@@ -61,38 +58,29 @@ function HubTabBar({ state, navigation }: BottomTabBarProps) {
               onPress={() => navigation.navigate(name)}
               style={styles.tabItem}
               activeOpacity={0.75}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isActive }}
+              accessibilityLabel={TAB_LABELS[name]}
             >
               <View>
                 <Icon
-                  size={ms(24)}
+                  size={ICON.lg}
                   color={tint}
-                  strokeWidth={isActive ? 2.5 : 2}
+                  strokeWidth={2}
                   fill={isActive ? tint : 'transparent'}
                 />
+                {name === 'Cart' && totalCartQty > 0 && (
+                  <View style={styles.cartBadge}>
+                    <AppText style={styles.cartBadgeText}>{totalCartQty > 99 ? '99+' : totalCartQty}</AppText>
+                  </View>
+                )}
               </View>
-              <AppText style={[styles.tabLabel, isActive && { color: TAB_COLORS[name], fontWeight: '900' }]}>
+              <AppText style={[styles.tabLabel, isActive && { color: ACTIVE_TINT }]}>
                 {TAB_LABELS[name]}
               </AppText>
             </TouchableOpacity>
           );
         })}
-
-        {/* Central Cart page — pushed on the root stack so the back button returns. */}
-        <TouchableOpacity
-          onPress={() => navigation.getParent()?.navigate('Cart', {})}
-          style={styles.tabItem}
-          activeOpacity={0.75}
-        >
-          <View>
-            <ShoppingBag size={ms(24)} color={INACTIVE_TINT} strokeWidth={2} />
-            {totalCartQty > 0 && (
-              <View style={styles.cartBadge}>
-                <AppText style={styles.cartBadgeText}>{totalCartQty}</AppText>
-              </View>
-            )}
-          </View>
-          <AppText style={styles.tabLabel}>Cart</AppText>
-        </TouchableOpacity>
       </View>
       {state.index !== 0 ? (
         <NavbarHomeShortcut
@@ -117,6 +105,7 @@ export function MainTabs() {
         >
           <Tab.Screen name="Home" component={HomeTabScreen} />
           <Tab.Screen name="Favourites" component={FavouritesTabScreen} />
+          <Tab.Screen name="Cart" component={CartTabScreen} />
           <Tab.Screen name="You" component={AccountScreen} />
         </Tab.Navigator>
       </Suspense>
@@ -127,7 +116,7 @@ export function MainTabs() {
 const styles = StyleSheet.create({
   entranceRoot: { flex: 1 },
   tabBarWrap: {
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderTopLeftRadius: ms(18),
     borderTopRightRadius: ms(18),
     paddingHorizontal: TAB_BAR_PAD,
@@ -139,7 +128,7 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(148,163,184,0.15)',
+    borderTopColor: neutral.border,
   },
   tabBarInner: {
     flexDirection: 'row',
@@ -147,21 +136,21 @@ const styles = StyleSheet.create({
   },
   tabItem: {
     flex: 1,
+    minHeight: 44,
     alignItems: 'center',
     justifyContent: 'center',
     gap: vs(3),
   },
   tabLabel: {
-    fontSize: ms(9),
-    fontWeight: '700',
-    color: 'rgba(148,163,184,0.9)',
-    letterSpacing: 0.2,
+    fontSize: ms(11),
+    fontWeight: '600',
+    color: INACTIVE_TINT,
   },
   cartBadge: {
     position: 'absolute',
     top: vs(-7),
     right: ms(-12),
-    backgroundColor: '#e11d48',
+    backgroundColor: semantic.danger,
     borderRadius: ms(9),
     minWidth: ms(18),
     height: ms(18),
@@ -169,12 +158,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingHorizontal: hs(3),
     borderWidth: 2,
-    borderColor: '#ffffff',
+    borderColor: neutral.card,
     zIndex: 3,
   },
   cartBadgeText: {
     color: '#ffffff',
-    fontSize: ms(8),
-    fontWeight: '900',
+    fontSize: ms(11),
+    fontWeight: '600',
   },
 });

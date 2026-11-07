@@ -123,6 +123,11 @@ jobs:
           GATEWAY_URL: ${{ vars.GATEWAY_URL || 'https://api.faazio.com' }}
           WEB_PORTAL_URL: ${{ vars.WEB_PORTAL_URL || secrets.WEB_PORTAL_URL || 'https://app.faazio.com' }}
 
+      - name: Module boundaries + UI hygiene
+        run: |
+          npm run check:boundaries
+          npm run check:ui
+
       - name: Generate JS/native config
         run: npm run configure
         env:

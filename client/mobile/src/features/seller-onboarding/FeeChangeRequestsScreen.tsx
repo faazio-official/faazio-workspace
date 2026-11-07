@@ -165,7 +165,20 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
           }
           ListEmptyComponent={
             <View style={styles.center}>
-              <AppText style={styles.emptyText}>No requests in this view.</AppText>
+              <AppText style={styles.emptyText}>
+                {error ? 'Could not load fee-change requests.' : 'No requests in this view.'}
+              </AppText>
+              {error ? (
+                <TouchableOpacity
+                  onPress={() => void load()}
+                  style={styles.retryBtn}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading fee-change requests"
+                >
+                  <AppText style={styles.retryText}>Try again</AppText>
+                </TouchableOpacity>
+              ) : null}
             </View>
           }
           renderItem={({ item }) => (
@@ -289,7 +302,18 @@ const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: hs(24) },
   listContent: { paddingHorizontal: hs(16), paddingBottom: SPACE.LIST_BOTTOM },
   emptyContent: { flexGrow: 1 },
-  emptyText: { fontSize: ms(13), color: '#94A3B8', fontWeight: '600' },
+  emptyText: { fontSize: ms(13), color: '#94A3B8', fontWeight: '600', textAlign: 'center' },
+  retryBtn: {
+    minHeight: 44,
+    marginTop: vs(12),
+    paddingHorizontal: hs(20),
+    borderRadius: ms(22),
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryText: { fontSize: ms(13), fontWeight: '600', color: parentRamp.base },
   error: { fontSize: ms(12), color: '#DC2626', fontWeight: '700', marginBottom: vs(8) },
   row: {
     flexDirection: 'row',

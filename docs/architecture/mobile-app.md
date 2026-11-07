@@ -733,7 +733,7 @@ offline read still throws `GatewayOfflineError` (the retired `_mock` lambdas/`wi
 AppNavigator (root native stack)
 ├── Onboarding ── Login ── LanguageSelection ── Location
 ├── MainTabs (bottom tabs)
-│   ├── Home · Favourites · You   (+ central Cart pill)
+│   ├── Home · Favourites · Cart · You (Cart is a real tab; restaurant-scoped carts still push the root `Cart` route)
 ├── SubApp (generic sub-app wrapper; optional `initialVendorStoreId` opens the Mart vendor drill-in)
 │   (Mart tabs: Home · Search · You · Cart — "You" pushes the account page)
 │   (Mart in-wrapper drill-in = `VendorProfileView`: All Products + unlabelled "Discounted Products"
@@ -741,7 +741,7 @@ AppNavigator (root native stack)
 │    both read GET /stores/{id}/products)
 │   (Pharma tabs: Home · Search · Cart · History · Donor)
 ├── FoodApp (FoodStack — FoodHome restaurant-first → Search → RestaurantProfile → RestaurantMenu / RestaurantOffers; 2-tab bottom nav Home/Search + You/Cart)
-├── ProductDetail · Search · Cart (`{ restaurantId?, restaurantName? }`) · PaymentOptions · AddCard · PaymentCallback (`{ orderId?; status? }` — UPI `faazio://payment/callback` return leg, server-verified)
+├── ProductDetail · Search · Cart (`{ restaurantId?, restaurantName? }`) · PaymentOptions · PaymentCallback (`{ orderId?; status? }` — UPI `faazio://payment/callback` return leg, server-verified)
 ├── CategoryDrillIn (category drill-in page from the Home/Mart rail) ── VendorDetails (single-store search)
 ├── DealsLanding (deals page — four modes: `campaign` from the Home "Deals of the day" carousel
 │   (Home-owned `@data`), `discounts` from the Mart vendor profile "View All" (server pool),
@@ -761,8 +761,9 @@ AppNavigator (root native stack)
 │   optional `presetVendorId` skips the vendor step and opens fulfilment for that pharmacy)
 ```
 
-Entry is `Onboarding` (or `MainTabs` when authenticated) — decided in `AppNavigator.tsx`
-from `useAuthStore.isAuthenticated`.
+Entry is `Onboarding` on first launch, `Login` for a returning signed-out user
+(`useOnboardingStore.hasSeenOnboarding`), or `MainTabs` when authenticated — decided in
+`AppNavigator.tsx` from `useAuthStore.isAuthenticated` + the hydrated onboarding store.
 
 ## Delivery Partner app (separate product)
 
@@ -1021,10 +1022,27 @@ destination screen.
 A FaazioCoins streak card (title + balance + a row of 7 flame icons, filled per
 `streakCount`) sits above the nav groups and pushes the `FaazioRewards` screen.
 
+## UI foundations (W83)
+
+Shared, token-based primitives introduced by the UI-craft pass, all under `src/theme/` and
+`src/components/`:
+
+- `theme/tokens.ts` — `RADIUS`, `TOUCH` (44pt min), `ICON`, `TEXT` (three text roles) and the
+  `TYPE` scale (11pt floor, weights 400/500/600). Colours still come from `brandTokens.ts`.
+- `theme/motion.ts` — one easing curve + durations; `hooks/useReducedMotion.ts` gates animation.
+- `components/Button.tsx` and `components/AppText.tsx` (`variant`/`tone`/`weight` props).
+- `scripts/check-ui.mjs` (`npm run check:ui`) — a ratchet baseline (`.ui-baseline.json`) that
+  fails when hardcoded hex literals, sub-11pt type, 700–900 weights or emoji counts regress.
+
+`FavouritesView` (fixture-backed tab duplicate) and the orphan `AddCard` route/screen were
+deleted; the Pharma category grid now opens the shared `CommonProductDetailView` instead of an
+inline PDP. Favourites is **one** server-backed surface.
+
 ## Favourites page (from My Account)
 
 `FavouritesScreen` (root route `Favourites`) wraps the presentational `FavouritesPageView`,
-a search-results-style page reached from the "Favourites" row in My Account. It mirrors the
+also rendered directly by the **Favourites tab** (`FavouritesTabScreen`) so both entry points
+share one store-backed surface. It mirrors the
 search shell: a static header (back chevron + "Favourites (N)" title pill), a
 `SegmentedToggle` (All / Mart / Food / Pharma), a sort-only `FilterChipsRail`, and a
 `FlatList` of favourite items resolved via `getCatalogEntriesByIds(useFavoriteStore.favorites)`

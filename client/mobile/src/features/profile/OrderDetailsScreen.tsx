@@ -1,13 +1,21 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Linking, StyleSheet, View, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ChevronLeft, ExternalLink, PackageOpen } from 'lucide-react-native';
+import {
+  ChevronLeft,
+  ExternalLink,
+  PackageOpen,
+  FileText,
+  Utensils,
+  Pill,
+  ShoppingBag,
+} from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { VendorRateButton } from '@/components/shared';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { getProductById, getVendorById, portalSectors } from '@data/index';
+import { getCatalogEntryById, getProductById, getVendorById, portalSectors } from '@data/index';
 import { SECTOR_VISUALS } from '@/theme/sectorVisuals';
 import { semantic } from '@/theme/brandTokens';
 import { useOrdersStore } from '@/state/ordersStore';
@@ -77,6 +85,19 @@ interface OrderView {
   vendorId?: string;
 }
 
+/** Infer the sector from the order's first line (catalog entry first, then id heuristics). */
+function inferOrderApp(kind: string, firstItemId: string | undefined): 'FOOD' | 'MART' | 'PHARMA' {
+  if (kind === 'prescription') return 'PHARMA';
+  if (firstItemId) {
+    const entry = getCatalogEntryById(firstItemId);
+    if (entry) return entry.app;
+    const id = firstItemId.toLowerCase();
+    if (id.startsWith('ph-') || id.includes('pharma') || id.includes('med')) return 'PHARMA';
+    if (id.startsWith('fm-') || id.startsWith('gr-') || id.includes('mart') || id.includes('grocery')) return 'MART';
+  }
+  return 'FOOD';
+}
+
 export function OrderDetailsScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const accountPhone = useAuthStore((s) => s.user?.phone);
@@ -106,7 +127,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
           minute: '2-digit',
         }),
         fulfillment: placedOrder.fulfillment,
-        app: placedOrder.kind === 'prescription' ? 'PHARMA' : 'FOOD',
+        app: inferOrderApp(placedOrder.kind, first?.id),
         emoji: first?.emoji ?? '🛍️',
         productName: placedOrder.vendorName,
         variant: first?.name ?? 'Order',
@@ -114,6 +135,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
         qty: placedOrder.items?.reduce((s, i) => s + i.quantity, 0) ?? 1,
         lineTotal: placedOrder.total,
         pickups,
+        productId: first?.id,
         vendorId: placedOrder.storeIds?.[0],
       };
     }
@@ -226,7 +248,15 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
           <AppText style={styles.sectionTitle}>Item</AppText>
           <View style={styles.itemRow}>
             <View style={styles.productImagePlaceholder}>
-              <AppText style={styles.productEmoji}>{order.emoji}</AppText>
+              {placedOrder?.kind === 'prescription' ? (
+                <FileText size={ms(22)} color={semantic.info} strokeWidth={1.5} />
+              ) : order.app === 'PHARMA' ? (
+                <Pill size={ms(22)} color={semantic.info} strokeWidth={1.5} />
+              ) : order.app === 'FOOD' ? (
+                <Utensils size={ms(22)} color={semantic.warning} strokeWidth={1.5} />
+              ) : (
+                <ShoppingBag size={ms(22)} color={semantic.neutral} strokeWidth={1.5} />
+              )}
             </View>
             <View style={styles.itemInfo}>
               <AppText style={styles.productName}>{order.productName}</AppText>
@@ -342,7 +372,8 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
           </View>
         ) : null}
 
-        {/* Tax invoice — immutable server record, downloadable once rendered to PDF */}
+        {/* Tax invoice — only meaningful once the order is paid/delivered (server record). */}
+        {invoice !== null || (order && /deliver|complet|paid/i.test(order.status)) ? (
         <View style={styles.card}>
           <AppText style={styles.sectionTitle}>Tax invoice</AppText>
           <AppText style={styles.invoiceHint}>
@@ -375,6 +406,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
             </View>
           ) : null}
         </View>
+        ) : null}
 
         {/* View Product */}
         {product ? (

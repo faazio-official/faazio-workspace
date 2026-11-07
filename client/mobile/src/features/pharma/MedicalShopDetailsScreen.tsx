@@ -2,16 +2,18 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import {
   ActivityIndicator,
   FlatList,
+  Linking,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   View,
   type ListRenderItemInfo,
+  type TextInput,
 } from 'react-native';
 import { ArrowLeft, Clock, MapPin, Phone, Search, Star, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import AppTextInput from '@/components/AppTextInput';
 import { VendorReviewsSection } from '@/components/shared';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { openHeroTarget } from '@/services/adsTarget';
@@ -26,9 +28,13 @@ import type { RootStackParamList } from '@/navigation/types';
 import SearchPharmaProductCard from './components/SearchPharmaProductCard';
 import PharmaImage from './components/pharma-home/PharmaImage';
 import UploadPrescriptionFAB from './components/pharma-home/UploadPrescriptionFAB';
-import { PHARMA_TEAL, PHARMA_INK } from './mocks/pharmaHomeFeed';
+import { brandRamp, neutral } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MedicalShopDetails'>;
+
+const PHARMA_TEAL = brandRamp.PHARMA.base;
+const PHARMA_TEAL_DEEP = brandRamp.PHARMA.deep;
+const PHARMA_INK = neutral.ink;
 
 const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
   return (
@@ -45,11 +51,11 @@ const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
         <View style={styles.identityBody}>
           <AppText style={styles.storeName} numberOfLines={1}>{store.name}</AppText>
           <View style={styles.metaRow}>
-            <MapPin size={ms(13)} color="#64748B" strokeWidth={2} />
+            <MapPin size={ms(13)} color={neutral.inkMuted} strokeWidth={1.75} />
             <AppText style={styles.metaText}>{store.distance} away</AppText>
           </View>
           <View style={styles.metaRow}>
-            <Clock size={ms(13)} color="#64748B" strokeWidth={2} />
+            <Clock size={ms(13)} color={neutral.inkMuted} strokeWidth={1.75} />
             <AppText style={styles.metaText}>{store.deliveryTime} delivery</AppText>
           </View>
         </View>
@@ -63,21 +69,35 @@ const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
 
       <View style={styles.contactCard}>
         {store.address ? (
-          <View style={styles.contactRow}>
-            <MapPin size={ms(15)} color={PHARMA_TEAL} strokeWidth={2} />
+          <TouchableOpacity
+            style={styles.contactRow}
+            onPress={() =>
+              void Linking.openURL(
+                `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.address ?? '')}`,
+              )
+            }
+            accessibilityRole="link"
+            accessibilityLabel={`Open directions to ${store.name}`}
+          >
+            <MapPin size={ms(15)} color={PHARMA_TEAL} strokeWidth={1.75} />
             <AppText style={styles.contactText}>{store.address}</AppText>
-          </View>
+          </TouchableOpacity>
         ) : null}
         {store.phone ? (
-          <View style={styles.contactRow}>
-            <Phone size={ms(15)} color={PHARMA_TEAL} strokeWidth={2} />
+          <TouchableOpacity
+            style={styles.contactRow}
+            onPress={() => void Linking.openURL(`tel:${store.phone?.replace(/[^+\d]/g, '')}`)}
+            accessibilityRole="link"
+            accessibilityLabel={`Call ${store.name}`}
+          >
+            <Phone size={ms(15)} color={PHARMA_TEAL} strokeWidth={1.75} />
             <AppText style={styles.contactText}>{store.phone}</AppText>
-          </View>
+          </TouchableOpacity>
         ) : null}
         {store.hours ? (
           <View style={styles.contactRow}>
-            <Clock size={ms(15)} color={PHARMA_TEAL} strokeWidth={2} />
-            <AppText style={styles.contactText}>Open {store.hours}</AppText>
+            <Clock size={ms(15)} color={PHARMA_TEAL} strokeWidth={1.75} />
+            <AppText style={styles.contactText}>Hours: {store.hours}</AppText>
           </View>
         ) : null}
       </View>
@@ -117,7 +137,7 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
   const store = localStore ?? fetchedStore;
   // Canonical store inventory: server `GET /stores/{id}/products` with approved festival discounts
   // overlaid (same hook the Mart vendor drill-in uses) — the local `@data` pool is the offline fallback.
-  const { products } = useVendorProducts(route.params.storeId);
+  const { products, loading: productsLoading } = useVendorProducts(route.params.storeId);
   const filtered = useMemo(
     () => query.trim() ? products.filter((product) => matchesQuery(product, query)) : products,
     [products, query],
@@ -176,23 +196,29 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <ArrowLeft size={ms(20)} color={PHARMA_INK} strokeWidth={2.6} />
+          <ArrowLeft size={ms(20)} color={PHARMA_INK} strokeWidth={1.75} />
         </TouchableOpacity>
         <View style={styles.searchWrap}>
-          <Search size={ms(16)} color="#94A3B8" strokeWidth={2.2} />
-          <TextInput
+          <Search size={ms(16)} color={neutral.inkSubtle} strokeWidth={1.75} />
+          <AppTextInput
             ref={inputRef}
             style={styles.searchInput}
             value={query}
             onChangeText={setQuery}
-            placeholder="Search this medical..."
+            placeholder="Search this medical"
             placeholderTextColor="#94A3B8"
             returnKeyType="search"
             accessibilityLabel="Search products in this medical"
+            autoCorrect={false}
           />
           {query.length > 0 ? (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityLabel="Clear search">
-              <X size={ms(16)} color="#94A3B8" strokeWidth={2.4} />
+            <TouchableOpacity
+              onPress={() => setQuery('')}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              accessibilityRole="button"
+              accessibilityLabel="Clear search"
+            >
+              <X size={ms(16)} color={neutral.inkSubtle} strokeWidth={1.75} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -226,8 +252,14 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
         }
         ListEmptyComponent={
           <View style={styles.emptyProducts}>
-            <AppText style={styles.emptyTitle}>No matches found</AppText>
-            <AppText style={styles.emptySub}>Try a different search for this medical.</AppText>
+            {productsLoading ? (
+              <ActivityIndicator color={PHARMA_TEAL} />
+            ) : (
+              <>
+                <AppText style={styles.emptyTitle}>No matches found</AppText>
+                <AppText style={styles.emptySub}>Try a different search for this medical.</AppText>
+              </>
+            )}
           </View>
         }
         contentContainerStyle={[styles.listContent, { paddingBottom: vs(96) }]}
@@ -256,11 +288,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#E6F2F1',
   },
   backBtn: {
-    width: ms(38), height: ms(38), borderRadius: ms(19),
+    width: 44, height: 44, borderRadius: 22,
     alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F6F4',
   },
   searchWrap: {
-    flex: 1, height: ms(40), borderRadius: ms(20), backgroundColor: '#F1FAF9',
+    flex: 1, height: 44, borderRadius: 22, backgroundColor: '#F1FAF9',
     flexDirection: 'row', alignItems: 'center', gap: hs(8), paddingHorizontal: hs(14),
   },
   searchInput: { flex: 1, fontSize: ms(12), color: PHARMA_INK, paddingVertical: 0 },
@@ -271,25 +303,25 @@ const styles = StyleSheet.create({
   logo: { width: ms(60), height: ms(60), borderRadius: ms(15) },
   ratingBadge: {
     position: 'absolute', bottom: -ms(6), alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: hs(2),
-    paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(7), backgroundColor: PHARMA_TEAL,
+    paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(7), backgroundColor: PHARMA_TEAL_DEEP,
   },
-  ratingText: { fontSize: ms(9), fontWeight: '900', color: '#FFFFFF' },
+  ratingText: { fontSize: ms(11), fontWeight: '600', color: '#FFFFFF' },
   identityBody: { flex: 1, gap: vs(5) },
-  storeName: { fontSize: ms(17), fontWeight: '900', color: PHARMA_INK },
+  storeName: { fontSize: ms(17), fontWeight: '600', color: PHARMA_INK },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: hs(5) },
-  metaText: { fontSize: ms(10), fontWeight: '700', color: '#64748B' },
-  offerRow: { alignSelf: 'flex-start', marginTop: SPACE.SECTION, paddingHorizontal: hs(9), paddingVertical: vs(5), borderRadius: ms(7), backgroundColor: '#E8F6F4' },
-  offerText: { fontSize: ms(10), fontWeight: '800', color: PHARMA_TEAL },
-  contactCard: { marginTop: SPACE.SECTION, padding: hs(12), gap: SPACE.ITEM, borderRadius: ms(12), backgroundColor: '#F8FAFC', borderWidth: 1, borderColor: '#EEF2F6' },
+  metaText: { fontSize: ms(12), fontWeight: '500', color: neutral.inkMuted },
+  offerRow: { alignSelf: 'flex-start', marginTop: SPACE.SECTION, paddingHorizontal: hs(9), paddingVertical: vs(5), borderRadius: ms(7), backgroundColor: brandRamp.PHARMA.tint },
+  offerText: { fontSize: ms(11), fontWeight: '600', color: PHARMA_TEAL_DEEP },
+  contactCard: { marginTop: SPACE.SECTION, padding: hs(12), gap: SPACE.ITEM, borderRadius: ms(12), backgroundColor: neutral.surface, borderWidth: 1, borderColor: neutral.border },
   contactRow: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(9) },
-  contactText: { flex: 1, fontSize: ms(10), lineHeight: vs(15), fontWeight: '600', color: '#475569' },
+  contactText: { flex: 1, fontSize: ms(12), lineHeight: vs(18), fontWeight: '500', color: neutral.inkMuted },
   storeHero: { marginTop: SPACE.SECTION, marginHorizontal: hs(16) },
   reviewsSection: { paddingHorizontal: hs(16), paddingTop: SPACE.SECTION },
   productsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: hs(16), paddingTop: SPACE.SECTION, paddingBottom: SPACE.BLOCK },
-  productsTitle: { fontSize: ms(14), fontWeight: '900', color: PHARMA_INK },
-  productsCount: { fontSize: ms(10), fontWeight: '700', color: '#94A3B8' },
+  productsTitle: { fontSize: ms(14), fontWeight: '600', color: PHARMA_INK },
+  productsCount: { fontSize: ms(12), fontWeight: '500', color: neutral.inkMuted },
   listContent: { paddingTop: vs(2) },
   emptyProducts: { alignItems: 'center', paddingVertical: SPACE.LIST_BOTTOM, paddingHorizontal: hs(24) },
-  emptyTitle: { fontSize: ms(13), fontWeight: '800', color: PHARMA_INK },
-  emptySub: { marginTop: vs(5), fontSize: ms(10), fontWeight: '600', textAlign: 'center', color: '#94A3B8' },
+  emptyTitle: { fontSize: ms(14), fontWeight: '600', color: PHARMA_INK },
+  emptySub: { marginTop: vs(5), fontSize: ms(12), fontWeight: '500', textAlign: 'center', color: neutral.inkMuted },
 });

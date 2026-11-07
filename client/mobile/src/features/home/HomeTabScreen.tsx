@@ -1,6 +1,7 @@
 import React, { useCallback, useState } from 'react';
-import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { MapPin, ChevronDown, Search } from 'lucide-react-native';
 import Animated, {
@@ -33,6 +34,7 @@ import type { MainTabParamList, RootStackParamList } from '@/navigation/types';
 import type { SubAppId } from '@/state/uiStore';
 import HeaderCategoryRail from '@/components/shared/HeaderCategoryRail';
 import type { CategoryRailItem } from '@/services/categoryRail';
+import { useLocationStore } from '@/state/locationStore';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>,
@@ -50,6 +52,17 @@ const launchSubApp = (navigation: Props['navigation'], id: SubAppId) => {
 export function HomeTabScreen({ navigation }: Props) {
   const addToCart = useCartStore((s) => s.addToCart);
   const insets = useSafeAreaInsets();
+  const savedAddress = useLocationStore((s) => s.address);
+  const addressLabel = savedAddress || 'Set your location';
+
+  // The Home header sits on the blue gradient, so the status-bar icons must be
+  // light while this tab is focused. Restore dark icons when it blurs.
+  useFocusEffect(
+    useCallback(() => {
+      StatusBar.setBarStyle('light-content');
+      return () => StatusBar.setBarStyle('dark-content');
+    }, []),
+  );
 
   const handleLaunchSubApp = useCallback(
     (id: SubAppId) => launchSubApp(navigation, id),
@@ -136,12 +149,14 @@ export function HomeTabScreen({ navigation }: Props) {
                       style={styles.locationRow}
                       activeOpacity={0.7}
                       onPress={() => navigation.navigate('Location')}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Change delivery location. Current: ${addressLabel}`}
                     >
-                      <MapPin size={ms(11)} color="#7CE045" />
+                      <MapPin size={ms(12)} color="#7CE045" />
                       <AppText style={styles.locationText} numberOfLines={1}>
-                        Sunnambukkara Street, Karaikal
+                        {addressLabel}
                       </AppText>
-                      <ChevronDown size={ms(11)} color="rgba(255,255,255,0.6)" />
+                      <ChevronDown size={ms(12)} color="rgba(255,255,255,0.7)" />
                     </TouchableOpacity>
                   </View>
                 </View>
@@ -225,16 +240,16 @@ const styles = StyleSheet.create({
   headerTopRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: vs(6) },
   headerCenter: { flex: 1, alignItems: 'center' },
   locationRow: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(4),
-    maxWidth: hs(200),
+    maxWidth: hs(210),
   },
   locationText: {
-    fontSize: ms(10),
-    fontWeight: '900',
-    color: 'rgba(255,255,255,0.9)',
-    textTransform: 'uppercase',
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.95)',
     maxWidth: hs(160),
   },
   searchBar: {

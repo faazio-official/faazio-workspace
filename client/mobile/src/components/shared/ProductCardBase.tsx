@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppImage } from './AppImage';
-import { Star, Plus, Minus, Check } from 'lucide-react-native';
+import { Star, Plus, Minus, Check, Heart, Zap } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { brandTokens } from '@/theme/brandTokens';
 import { resolveBadgeBg, formatRating } from './format';
@@ -65,7 +65,16 @@ const ProductCardBase = memo(function ProductCardBase({
   const imageH = isRail ? vs(100) : vs(120);
 
   return (
-    <TouchableOpacity style={cardStyle} onPress={() => onPress?.(product)} activeOpacity={0.9}>
+    <TouchableOpacity
+      style={cardStyle}
+      onPress={() => onPress?.(product)}
+      activeOpacity={0.9}
+      accessibilityRole="button"
+      accessibilityLabel={
+        showPrice ? `${product.name}, ₹${product.price}` : product.name
+      }
+      accessibilityHint={onPress ? 'Opens product details' : undefined}
+    >
       <View style={styles.imageWrap}>
         <AppImage
           source={{ uri: product.image }}
@@ -80,15 +89,28 @@ const ProductCardBase = memo(function ProductCardBase({
           </View>
         )}
         {showHeart && (
-          <TouchableOpacity style={styles.heartBtn} onPress={onFavorite} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <View style={{ width: ms(20), height: ms(20), borderRadius: ms(10), backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' }}>
-              <AppText style={{ fontSize: ms(10) }}>{isFavorite ? '❤️' : '🤍'}</AppText>
+          <TouchableOpacity
+            style={styles.heartBtn}
+            onPress={onFavorite}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={isFavorite ? `Remove ${product.name} from favourites` : `Add ${product.name} to favourites`}
+            accessibilityState={{ selected: Boolean(isFavorite) }}
+          >
+            <View style={styles.heartCircle}>
+              <Heart
+                size={ms(15)}
+                color={isFavorite ? '#e11d48' : '#64748b'}
+                fill={isFavorite ? '#e11d48' : 'transparent'}
+                strokeWidth={2}
+              />
             </View>
           </TouchableOpacity>
         )}
         {variant === 'flash' && (
           <View style={styles.flashBadge}>
-            <AppText style={styles.flashText}>⚡ FLASH</AppText>
+            <Zap size={ms(10)} color="#ffffff" fill="#ffffff" strokeWidth={2} />
+            <AppText style={styles.flashText}>FLASH</AppText>
           </View>
         )}
         {showAdLabel && (
@@ -100,7 +122,7 @@ const ProductCardBase = memo(function ProductCardBase({
       <View style={styles.body}>
         {product.rating !== undefined && showRating && (
           <View style={styles.ratingRow}>
-            <Star size={ms(9)} color="#f59e0b" fill="#f59e0b" />
+            <Star size={ms(11)} color="#f59e0b" fill="#f59e0b" />
             <AppText style={styles.ratingText}>{formatRating(product.rating)}</AppText>
           </View>
         )}
@@ -121,12 +143,22 @@ const ProductCardBase = memo(function ProductCardBase({
             {showAddButton && <View style={{ flex: 1 }} />}
             {showAddButton && (quantity > 0 ? (
               <View style={[styles.stepper, { backgroundColor: tokens.btnAdded }]}>
-                <TouchableOpacity onPress={onDecrement} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Minus size={ms(10)} color="#ffffff" strokeWidth={3} />
+                <TouchableOpacity
+                  onPress={onDecrement}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove one ${product.name}`}
+                >
+                  <Minus size={ms(12)} color="#ffffff" strokeWidth={3} />
                 </TouchableOpacity>
                 <AppText style={styles.stepperQty}>{quantity}</AppText>
-                <TouchableOpacity onPress={onIncrement} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                  <Plus size={ms(10)} color="#ffffff" strokeWidth={3} />
+                <TouchableOpacity
+                  onPress={onIncrement}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add one more ${product.name}`}
+                >
+                  <Plus size={ms(12)} color="#ffffff" strokeWidth={3} />
                 </TouchableOpacity>
               </View>
             ) : (
@@ -135,11 +167,13 @@ const ProductCardBase = memo(function ProductCardBase({
                 onPress={() => onAdd?.(product)}
                 activeOpacity={0.8}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Add ${product.name} to cart`}
               >
                 {isAdded ? (
-                  <Check size={ms(10)} color="#ffffff" strokeWidth={3} />
+                  <Check size={ms(12)} color="#ffffff" strokeWidth={3} />
                 ) : (
-                  <Plus size={ms(10)} color="#ffffff" strokeWidth={3} />
+                  <Plus size={ms(12)} color="#ffffff" strokeWidth={3} />
                 )}
               </TouchableOpacity>
             ))}
@@ -156,20 +190,21 @@ const styles = StyleSheet.create({
   imageWrap: { position: 'relative' },
   image: { width: '100%', backgroundColor: '#e2e8f0' },
   badge: { position: 'absolute', top: vs(6), left: hs(6), paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(4) },
-  badgeText: { fontSize: ms(7), fontWeight: '900', color: '#ffffff' },
-  flashBadge: { position: 'absolute', top: vs(6), right: hs(6), backgroundColor: '#ef4444', paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(4) },
-  flashText: { fontSize: ms(7), fontWeight: '900', color: '#ffffff' },
+  badgeText: { fontSize: ms(11), fontWeight: '600', color: '#ffffff' },
+  flashBadge: { position: 'absolute', top: vs(6), right: hs(6), backgroundColor: '#ef4444', paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(4), flexDirection: 'row', alignItems: 'center', gap: 2 },
+  flashText: { fontSize: ms(11), fontWeight: '600', color: '#ffffff' },
   adLabelWrap: { position: 'absolute', bottom: vs(4), right: hs(4) },
-  heartBtn: { position: 'absolute', top: vs(6), right: hs(6) },
+  heartBtn: { position: 'absolute', top: vs(2), right: hs(2), width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
+  heartCircle: { width: ms(28), height: ms(28), borderRadius: ms(14), backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
   body: { padding: hs(8) },
   ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: vs(2) },
-  ratingText: { fontSize: ms(8), fontWeight: '800', color: '#64748b', marginLeft: hs(3) },
-  name: { fontSize: ms(10), fontWeight: '800', color: '#0f172a', minHeight: ms(22) },
-  desc: { fontSize: ms(8), fontWeight: '600', color: '#94a3b8', marginTop: vs(2) },
+  ratingText: { fontSize: ms(11), fontWeight: '500', color: '#64748b', marginLeft: hs(3) },
+  name: { fontSize: ms(12), fontWeight: '500', color: '#0f172a', minHeight: ms(32) },
+  desc: { fontSize: ms(11), fontWeight: '400', color: '#94a3b8', marginTop: vs(2) },
   priceRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(4) },
-  price: { fontSize: ms(11), fontWeight: '900' },
-  originalPrice: { fontSize: ms(8), fontWeight: '700', color: '#94a3b8', textDecorationLine: 'line-through', marginLeft: hs(4) },
-  addBtn: { width: ms(24), height: ms(24), borderRadius: ms(12), alignItems: 'center', justifyContent: 'center' },
-  stepper: { flexDirection: 'row', alignItems: 'center', borderRadius: ms(12), paddingHorizontal: hs(4), height: ms(24) },
-  stepperQty: { fontSize: ms(10), fontWeight: '900', color: '#ffffff', marginHorizontal: hs(6), minWidth: ms(12), textAlign: 'center' },
+  price: { fontSize: ms(13), fontWeight: '600' },
+  originalPrice: { fontSize: ms(11), fontWeight: '400', color: '#94a3b8', textDecorationLine: 'line-through', marginLeft: hs(4) },
+  addBtn: { width: ms(32), height: ms(32), borderRadius: ms(16), alignItems: 'center', justifyContent: 'center' },
+  stepper: { flexDirection: 'row', alignItems: 'center', borderRadius: ms(16), paddingHorizontal: hs(6), height: ms(32) },
+  stepperQty: { fontSize: ms(12), fontWeight: '600', color: '#ffffff', marginHorizontal: hs(6), minWidth: ms(12), textAlign: 'center' },
 });

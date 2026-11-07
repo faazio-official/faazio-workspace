@@ -76,8 +76,8 @@ export function CartScreen({ navigation, route }: Props) {
         onTrackOrder={handleTrackOrder}
         restaurantName={restaurantName}
         initialCouponCode={couponCode}
-        onClearItems={restaurantId ? handleClearScoped : undefined}
-        onDeleteItem={restaurantId ? removeFromCart : undefined}
+        onClearItems={restaurantId ? handleClearScoped : () => { void useCartStore.getState().clearCart(); }}
+        onDeleteItem={removeFromCart}
       />
     </View>
   );

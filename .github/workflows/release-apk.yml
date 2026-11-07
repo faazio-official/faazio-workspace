@@ -180,10 +180,11 @@ jobs:
           mkdir -p android/app/src/seller
           printf '%s' "$GOOGLE_SERVICES_SELLER_JSON" > android/app/src/seller/google-services.json
 
-      - name: Typecheck + module boundaries
+      - name: Typecheck + module boundaries + UI hygiene
         run: |
           npm run ts:check
           npm run check:boundaries
+          npm run check:ui
         env:
           # ts:check re-runs configure.js; keep the selected product variant from being reset.
           # Release settings are generated again below with cert pins + restricted keys.

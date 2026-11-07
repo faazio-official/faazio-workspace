@@ -4,7 +4,7 @@ import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { useSharedValue } from 'react-native-reanimated';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { hs } from '@/utils/responsive';
+import { hs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
 import AppText from '@/components/AppText';
@@ -33,6 +33,7 @@ import { openHeroTarget } from '@/services/adsTarget';
 import { gateway } from '@/services/api/GatewayClient';
 import FoodHouseHero from '../components/FoodHouseHero';
 import type { StoreProfile } from '@data/types';
+import Button from '@/components/Button';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
 
@@ -43,7 +44,7 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
  * "Restaurants" grid is the body — no nested vertical lists.
  */
 export function FoodHomeScreen({ navigation }: Props) {
-  const feed = useRestaurantFeed();
+  const { feed, error, reload } = useRestaurantFeed();
   const [activeTab, setActiveTab] = useState<FoodTab>('Home');
   const scrollY = useSharedValue(0);
   const dietFilter = useFoodFilterStore((s) => s.dietFilter);
@@ -207,7 +208,15 @@ export function FoodHomeScreen({ navigation }: Props) {
   if (!feed) {
     return (
       <View style={styles.container}>
-        <LoadingSkeleton />
+        {error ? (
+          <View style={styles.errorState}>
+            <AppText style={styles.errorTitle}>Could not load restaurants</AppText>
+            <AppText style={styles.errorSub}>Check your connection and try again.</AppText>
+            <Button label="Try again" onPress={reload} accent={foodTheme.primary} style={styles.errorButton} />
+          </View>
+        ) : (
+          <LoadingSkeleton />
+        )}
         <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} onHomePress={openHubHome} />
       </View>
     );
@@ -249,6 +258,28 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: foodTheme.background,
+  },
+  errorState: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: hs(32),
+  },
+  errorTitle: {
+    fontSize: ms(16),
+    fontWeight: '600',
+    color: foodTheme.textPrimary,
+    textAlign: 'center',
+  },
+  errorSub: {
+    fontSize: ms(14),
+    color: foodTheme.textMuted,
+    textAlign: 'center',
+    marginTop: 6,
+  },
+  errorButton: {
+    marginTop: 20,
+    alignSelf: 'stretch',
   },
   heroWrap: {
     paddingHorizontal: hs(16),

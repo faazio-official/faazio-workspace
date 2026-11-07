@@ -1,11 +1,12 @@
 import React, { useCallback } from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, TouchableOpacity } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import SubAppWrapper from '@/components/SubAppWrapper';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useCartStore, type CartItem } from '@/state/cartStore';
 import type { RootStackParamList } from '@/navigation/types';
 import { parentRamp } from '@/theme/brandTokens';
+import AppText from '@/components/AppText';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SubApp'>;
 
@@ -38,10 +39,16 @@ export function SubAppScreen({ navigation, route }: Props) {
   if (!subAppId) {
     return (
       <View style={styles.fallback}>
-        <Text style={styles.fallbackTitle}>Sub-app unavailable</Text>
-        <Text style={styles.fallbackSub}>This section couldn&apos;t be opened.</Text>
-        <TouchableOpacity style={styles.fallbackBtn} onPress={() => navigation.goBack()} activeOpacity={0.8}>
-          <Text style={styles.fallbackBtnText}>Go back</Text>
+        <AppText style={styles.fallbackTitle}>Sub-app unavailable</AppText>
+        <AppText style={styles.fallbackSub}>This section couldn&apos;t be opened.</AppText>
+        <TouchableOpacity
+          style={styles.fallbackBtn}
+          onPress={() => navigation.goBack()}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <AppText style={styles.fallbackBtnText}>Go back</AppText>
         </TouchableOpacity>
       </View>
     );
@@ -81,7 +88,7 @@ const styles = StyleSheet.create({
   },
   fallbackTitle: {
     fontSize: 16,
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#1e293b',
     marginBottom: 8,
   },
@@ -102,6 +109,6 @@ const styles = StyleSheet.create({
   fallbackBtnText: {
     color: '#ffffff',
     fontSize: 14,
-    fontWeight: '800',
+    fontWeight: '600',
   },
 });

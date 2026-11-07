@@ -53,14 +53,22 @@ export function RequestDataDeletionScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<CategoryKey[]>([]);
   const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
   const toggle = useCallback((key: CategoryKey) => {
+    setResult(null);
     setSelected((current) =>
       current.includes(key) ? current.filter((item) => item !== key) : [...current, key],
     );
   }, []);
+
+  const allSelected = selected.length === CATEGORIES.length;
+  const toggleAll = useCallback(() => {
+    setResult(null);
+    setSelected(allSelected ? [] : CATEGORIES.map((category) => category.key));
+  }, [allSelected]);
 
   const serverCategories = useMemo(
     () => selected.filter((key): key is DataDeletionCategory => key !== 'search-history'),
@@ -70,22 +78,22 @@ export function RequestDataDeletionScreen({ navigation }: Props) {
 
   const submit = useCallback(async () => {
     setSubmitting(true);
+    setResult(null);
     try {
       await deleteSelectedUserData(serverCategories, includeSearchHistory);
-      setSubmitting(false);
-      Alert.alert(
-        'Data deleted',
-        'The selected data has been removed. Your account and order records are unchanged.',
-        [{ text: 'Done', onPress: () => navigation.goBack() }],
-      );
+      setResult({
+        ok: true,
+        message: 'The selected data has been removed. Your account and order records are unchanged.',
+      });
     } catch {
+      setResult({
+        ok: false,
+        message: 'Check your connection and try again. Nothing was removed.',
+      });
+    } finally {
       setSubmitting(false);
-      Alert.alert(
-        'Could not delete data',
-        'Check your connection and try again. Nothing was removed.',
-      );
     }
-  }, [serverCategories, includeSearchHistory, navigation]);
+  }, [serverCategories, includeSearchHistory]);
 
   const handleSubmit = useCallback(() => {
     if (selected.length === 0) {
@@ -137,6 +145,22 @@ export function RequestDataDeletionScreen({ navigation }: Props) {
         </View>
 
         <View style={styles.card}>
+          <TouchableOpacity
+            style={styles.row}
+            activeOpacity={0.8}
+            onPress={toggleAll}
+            accessibilityRole="checkbox"
+            accessibilityState={{ checked: allSelected }}
+            accessibilityLabel="Select all categories"
+          >
+            <View style={[styles.checkbox, allSelected && styles.checkboxSelected]}>
+              {allSelected ? <Check size={ms(13)} color="#ffffff" strokeWidth={2} /> : null}
+            </View>
+            <View style={styles.rowText}>
+              <AppText style={styles.rowTitle}>Select all</AppText>
+              <AppText style={styles.rowSubtitle}>Delete every category below.</AppText>
+            </View>
+          </TouchableOpacity>
           {CATEGORIES.map((category) => {
             const isSelected = selected.includes(category.key);
             return (
@@ -159,6 +183,36 @@ export function RequestDataDeletionScreen({ navigation }: Props) {
             );
           })}
         </View>
+
+        {result ? (
+          <View
+            style={[styles.resultCard, result.ok ? styles.resultOk : styles.resultError]}
+            accessibilityLiveRegion="polite"
+          >
+            <AppText style={[styles.resultText, result.ok ? styles.resultTextOk : styles.resultTextError]}>
+              {result.message}
+            </AppText>
+            {result.ok ? (
+              <TouchableOpacity
+                style={styles.resultAction}
+                onPress={() => navigation.goBack()}
+                accessibilityRole="button"
+                accessibilityLabel="Done"
+              >
+                <AppText style={styles.resultActionText}>Done</AppText>
+              </TouchableOpacity>
+            ) : (
+              <TouchableOpacity
+                style={styles.resultAction}
+                onPress={() => void submit()}
+                accessibilityRole="button"
+                accessibilityLabel="Retry deleting data"
+              >
+                <AppText style={styles.resultActionText}>Retry</AppText>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : null}
 
         <TouchableOpacity
           style={[styles.submitButton, submitting && styles.submitButtonDisabled]}
@@ -229,6 +283,21 @@ const styles = StyleSheet.create({
   rowText: { flex: 1 },
   rowTitle: { fontSize: ms(13.5), fontWeight: '800', color: '#0f172a' },
   rowSubtitle: { fontSize: ms(11.5), fontWeight: '500', color: '#64748b', marginTop: vs(2), lineHeight: ms(17) },
+  resultCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(10),
+    borderRadius: ms(12),
+    padding: hs(12),
+    marginBottom: SPACE.BLOCK,
+  },
+  resultOk: { backgroundColor: '#DCFCE7' },
+  resultError: { backgroundColor: '#FEE2E2' },
+  resultText: { flex: 1, fontSize: ms(12), lineHeight: ms(17) },
+  resultTextOk: { color: '#15803D' },
+  resultTextError: { color: '#B91C1C' },
+  resultAction: { minHeight: 44, justifyContent: 'center', paddingHorizontal: hs(6) },
+  resultActionText: { fontSize: ms(13), fontWeight: '600', color: '#0f172a' },
   submitButton: {
     alignItems: 'center',
     justifyContent: 'center',

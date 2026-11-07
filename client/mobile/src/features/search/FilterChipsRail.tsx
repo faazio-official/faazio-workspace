@@ -1,5 +1,5 @@
 import React, { memo, useState } from 'react';
-import { View, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, ScrollView, StyleSheet, Modal, Pressable } from 'react-native';
 import { ChevronDown, Zap, Leaf, Star, Check } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -69,7 +69,7 @@ const FilterChipsRail = memo(function FilterChipsRail({
             <TouchableOpacity
               key={chip.id}
               onPress={() => onToggleChip(chip.id)}
-              style={[styles.chip, isActive && styles.chipActive]}
+              style={[styles.chip, isActive && { backgroundColor: accentColor, borderColor: accentColor }]}
               activeOpacity={0.8}
               accessibilityRole="button"
               accessibilityLabel={chip.label}
@@ -83,26 +83,35 @@ const FilterChipsRail = memo(function FilterChipsRail({
       </ScrollView>
 
       {sortOpen ? (
-        <View style={styles.sortPanel}>
-          {sortOptions.map((option) => {
-            const isSelected = option.id === activeSortId;
-            return (
-              <TouchableOpacity
-                key={option.id}
-                onPress={() => chooseSort(option.id)}
-                style={styles.sortOption}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={option.label}
-              >
-                <AppText style={[styles.sortOptionLabel, isSelected && { color: accentColor, fontWeight: '800' }]}>
-                  {option.label}
-                </AppText>
-                {isSelected ? <Check size={ms(15)} color={accentColor} strokeWidth={2.6} /> : null}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <Modal transparent visible animationType="fade" onRequestClose={() => setSortOpen(false)}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setSortOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close sort menu"
+          />
+          <View style={styles.sortPanel}>
+            {sortOptions.map((option) => {
+              const isSelected = option.id === activeSortId;
+              return (
+                <TouchableOpacity
+                  key={option.id}
+                  onPress={() => chooseSort(option.id)}
+                  style={styles.sortOption}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={option.label}
+                  accessibilityState={{ selected: isSelected }}
+                >
+                  <AppText style={[styles.sortOptionLabel, isSelected && { color: accentColor, fontWeight: '600' }]}>
+                    {option.label}
+                  </AppText>
+                  {isSelected ? <Check size={ms(15)} color={accentColor} strokeWidth={2.6} /> : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Modal>
       ) : null}
     </View>
   );
@@ -163,8 +172,10 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
   },
   sortPanel: {
-    marginHorizontal: hs(16),
-    marginTop: vs(4),
+    position: 'absolute',
+    top: vs(150),
+    left: hs(16),
+    right: hs(16),
     borderRadius: ms(14),
     backgroundColor: '#FFFFFF',
     borderWidth: 1,

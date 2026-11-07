@@ -1,5 +1,5 @@
 import React, { memo, useState } from 'react';
-import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, TouchableOpacity, StyleSheet, Modal, Pressable } from 'react-native';
 import { ChevronDown, Check } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -44,31 +44,40 @@ const SortDropdown = memo(function SortDropdown({
       </TouchableOpacity>
 
       {open ? (
-        <View style={styles.panel}>
-          {options.map((option) => {
-            const isSelected = option.id === activeId;
-            return (
-              <TouchableOpacity
-                key={option.id}
-                onPress={() => {
-                  onSelect(option.id);
-                  setOpen(false);
-                }}
-                style={styles.option}
-                activeOpacity={0.7}
-                accessibilityRole="button"
-                accessibilityLabel={option.label}
-              >
-                <AppText style={[styles.optionLabel, isSelected && { color: accentColor, fontWeight: '800' }]}>
-                  {option.label}
-                </AppText>
-                {isSelected ? (
-                  <Check size={ms(15)} color={accentColor} strokeWidth={2.6} />
-                ) : null}
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <Modal transparent visible animationType="fade" onRequestClose={() => setOpen(false)}>
+          <Pressable
+            style={StyleSheet.absoluteFill}
+            onPress={() => setOpen(false)}
+            accessibilityRole="button"
+            accessibilityLabel="Close sort menu"
+          />
+          <View style={styles.panel}>
+            {options.map((option) => {
+              const isSelected = option.id === activeId;
+              return (
+                <TouchableOpacity
+                  key={option.id}
+                  onPress={() => {
+                    onSelect(option.id);
+                    setOpen(false);
+                  }}
+                  style={styles.option}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel={option.label}
+                  accessibilityState={{ selected: isSelected }}
+                >
+                  <AppText style={[styles.optionLabel, isSelected && { color: accentColor, fontWeight: '600' }]}>
+                    {option.label}
+                  </AppText>
+                  {isSelected ? (
+                    <Check size={ms(15)} color={accentColor} strokeWidth={2.6} />
+                  ) : null}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </Modal>
       ) : null}
     </View>
   );
@@ -97,8 +106,8 @@ const styles = StyleSheet.create({
   },
   panel: {
     position: 'absolute',
-    top: vs(44),
-    right: 0,
+    top: vs(96),
+    right: hs(16),
     minWidth: hs(220),
     backgroundColor: '#FFFFFF',
     borderRadius: ms(14),
@@ -110,7 +119,6 @@ const styles = StyleSheet.create({
     shadowRadius: 14,
     elevation: 6,
     overflow: 'hidden',
-    zIndex: 20,
   },
   option: {
     flexDirection: 'row',

@@ -294,7 +294,7 @@ export default function SubAppWrapper({
         <AppText style={styles.basketTitle}>Your Basket</AppText>
         {cartItems.length === 0 ? (
           <View style={styles.noDataState}>
-            <AppText style={styles.noDataEmoji}>🛒</AppText>
+            <ShoppingBag size={ms(36)} color="#94a3b8" strokeWidth={1.5} style={{ marginBottom: SPACE.BLOCK }} />
             <AppText style={styles.noDataTitle}>Your basket is empty</AppText>
             <AppText style={styles.noDataSub}>Browse products and add them to your basket.</AppText>
           </View>
@@ -311,11 +311,11 @@ export default function SubAppWrapper({
                     <IndianRupee size={ms(8)} color="#94a3b8" />
                     <AppText style={styles.basketRowPrice}>{item.price}×{item.quantity}</AppText>
                   </View>
-                  <TouchableOpacity onPress={() => updateCartQuantity(item.id, -1)} style={styles.basketStepperBtn}>
+                  <TouchableOpacity onPress={() => updateCartQuantity(item.id, -1)} style={styles.basketStepperBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={`Remove one ${item.name}`}>
                     <Minus size={ms(12)} color="#64748b" />
                   </TouchableOpacity>
                   <AppText style={styles.basketStepperText}>{item.quantity}</AppText>
-                  <TouchableOpacity onPress={() => updateCartQuantity(item.id, 1)} style={styles.basketStepperBtn}>
+                  <TouchableOpacity onPress={() => updateCartQuantity(item.id, 1)} style={styles.basketStepperBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} accessibilityRole="button" accessibilityLabel={`Add one more ${item.name}`}>
                     <Plus size={ms(12)} color="#64748b" />
                   </TouchableOpacity>
                 </View>
@@ -403,11 +403,14 @@ export default function SubAppWrapper({
                 else setActiveTab(tab.name);              }}
               style={[styles.tabItem, tabCount > 4 && { width: adaptiveTabWidth }]}
               activeOpacity={0.8}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isCurrent }}
+              accessibilityLabel={tab.name}
             >
               <View style={styles.iconContainer}>
-                <Icon size={ms(18)} color={isCurrent ? activeColor : '#94a3b8'} strokeWidth={isCurrent ? 2.5 : 2} fill={isCurrent ? activeColor : 'transparent'} />
+                <Icon size={ms(18)} color={isCurrent ? activeColor : '#64748B'} strokeWidth={isCurrent ? 2.25 : 1.75} fill={isCurrent ? activeColor : 'transparent'} />
               </View>
-              <AppText style={[styles.tabLabel, isCurrent && { color: activeColor, fontWeight: '900' }]}>
+              <AppText style={[styles.tabLabel, isCurrent && { color: activeColor }]}>
                 {tab.name}
               </AppText>
             </TouchableOpacity>
@@ -557,9 +560,9 @@ const styles = StyleSheet.create({
     position: 'relative',
   },
   tabLabel: {
-    fontSize: ms(8.5),
-    color: '#94a3b8',
-    fontWeight: '700',
+    fontSize: ms(11),
+    color: '#64748B',
+    fontWeight: '600',
     marginTop: vs(3),
   },
   basketContainer: {

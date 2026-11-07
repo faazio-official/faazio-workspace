@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   TextInput,
+  Vibration,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ShieldCheck } from 'lucide-react-native';
@@ -51,6 +52,7 @@ export function RateVendorScreen({ navigation, route }: Props) {
   const [comment, setComment] = useState(existing?.comment ?? '');
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
@@ -61,7 +63,9 @@ export function RateVendorScreen({ navigation, route }: Props) {
     const result = await submitVendorRating(vendorId, rating, comment);
     setSubmitting(false);
     if (result.ok) {
-      navigation.goBack();
+      Vibration.vibrate(10);
+      setToast(existing ? 'Rating updated' : 'Rating saved');
+      setTimeout(() => navigation.goBack(), 800);
       return;
     }
     setError(
@@ -71,7 +75,7 @@ export function RateVendorScreen({ navigation, route }: Props) {
           ? 'Your session has expired. Please sign in again to sync your rating.'
           : 'Please choose a rating between 1 and 5.',
     );
-  }, [rating, comment, vendorId, navigation, submitting]);
+  }, [comment, existing, navigation, rating, submitting, vendorId]);
 
   const submitDisabled = rating < 1 || submitting;
 
@@ -85,9 +89,18 @@ export function RateVendorScreen({ navigation, route }: Props) {
           accessibilityRole="button"
           accessibilityLabel="Go back"
         >
-          <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
+          <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={1.75} />
         </TouchableOpacity>
-        <AppText style={styles.headerTitle}>Rate Vendor</AppText>
+        <AppText style={styles.headerTitle}>Rate vendor</AppText>
+        <TouchableOpacity
+          onPress={handleBack}
+          style={styles.cancelBtn}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Cancel rating"
+        >
+          <AppText style={styles.cancelText}>Cancel</AppText>
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -108,7 +121,7 @@ export function RateVendorScreen({ navigation, route }: Props) {
             <View style={styles.card}>
               <AppText style={styles.vendorName}>{displayName}</AppText>
               <View style={styles.verifiedRow}>
-                <ShieldCheck size={ms(14)} color={ROYAL_GREEN} strokeWidth={2.3} />
+                <ShieldCheck size={ms(14)} color={ROYAL_GREEN} strokeWidth={1.75} />
                 <AppText style={styles.verifiedText}>Verified purchase</AppText>
               </View>
 
@@ -148,7 +161,7 @@ export function RateVendorScreen({ navigation, route }: Props) {
       </ScrollView>
 
       {canRate ? (
-        <View style={[styles.footer, { paddingBottom: insets.bottom + vs(12) }]}>
+        <View style={styles.footer}>
           <TouchableOpacity
             onPress={handleSubmit}
             style={[styles.submitBtn, submitDisabled && styles.submitBtnDisabled]}
@@ -161,6 +174,12 @@ export function RateVendorScreen({ navigation, route }: Props) {
               {submitting ? 'Saving…' : existing ? 'Update rating' : 'Submit rating'}
             </AppText>
           </TouchableOpacity>
+        </View>
+      ) : null}
+
+      {toast ? (
+        <View style={styles.toast} accessibilityLiveRegion="polite">
+          <AppText style={styles.toastText}>{toast}</AppText>
         </View>
       ) : null}
     </View>
@@ -188,9 +207,20 @@ const styles = StyleSheet.create({
     padding: hs(2),
   },
   headerTitle: {
+    flex: 1,
     fontSize: ms(18),
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#111827',
+  },
+  cancelBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: hs(4),
+  },
+  cancelText: {
+    fontSize: ms(14),
+    fontWeight: '500',
+    color: '#475569',
   },
   scroll: {
     flex: 1,
@@ -209,7 +239,7 @@ const styles = StyleSheet.create({
   },
   vendorName: {
     fontSize: ms(16),
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#111827',
   },
   verifiedRow: {
@@ -220,7 +250,7 @@ const styles = StyleSheet.create({
   },
   verifiedText: {
     fontSize: ms(12),
-    fontWeight: '700',
+    fontWeight: '600',
     color: ROYAL_GREEN,
   },
   starsWrap: {
@@ -229,14 +259,14 @@ const styles = StyleSheet.create({
   },
   ratingLabel: {
     fontSize: ms(13),
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#6B7280',
     textAlign: 'center',
     marginTop: SPACE.BLOCK,
   },
   inputLabel: {
     fontSize: ms(13),
-    fontWeight: '700',
+    fontWeight: '600',
     color: '#374151',
     marginBottom: SPACE.BLOCK,
   },
@@ -280,7 +310,7 @@ const styles = StyleSheet.create({
   },
   blockedTitle: {
     fontSize: ms(15),
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#111827',
     marginBottom: vs(6),
   },
@@ -293,22 +323,41 @@ const styles = StyleSheet.create({
   footer: {
     paddingHorizontal: hs(16),
     paddingTop: vs(12),
+    paddingBottom: vs(12),
     backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
   },
   submitBtn: {
+    minHeight: 48,
     paddingVertical: vs(14),
     borderRadius: ms(10),
     backgroundColor: ROYAL_GREEN,
     alignItems: 'center',
+    justifyContent: 'center',
   },
   submitBtnDisabled: {
     backgroundColor: '#9CA3AF',
   },
   submitText: {
     fontSize: ms(15),
-    fontWeight: '800',
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  toast: {
+    position: 'absolute',
+    left: hs(16),
+    right: hs(16),
+    bottom: vs(24),
+    paddingVertical: vs(12),
+    paddingHorizontal: hs(16),
+    borderRadius: ms(12),
+    backgroundColor: '#0f172a',
+    alignItems: 'center',
+  },
+  toastText: {
+    fontSize: ms(13),
+    fontWeight: '600',
     color: '#FFFFFF',
   },
 });

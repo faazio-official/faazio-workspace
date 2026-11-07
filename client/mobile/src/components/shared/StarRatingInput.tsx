@@ -24,7 +24,17 @@ const StarRatingInput = memo(function StarRatingInput({
   disabled = false,
 }: StarRatingInputProps) {
   return (
-    <View style={styles.row} accessibilityRole="adjustable" accessibilityLabel="Star rating">
+    <View
+      style={styles.row}
+      accessibilityRole="adjustable"
+      accessibilityLabel="Star rating"
+      accessibilityValue={{
+        min: 0,
+        max: 5,
+        now: value,
+        text: value > 0 ? `${value} of 5 stars` : 'No rating selected',
+      }}
+    >
       {[1, 2, 3, 4, 5].map((star) => {
         const filled = star <= value;
         return (

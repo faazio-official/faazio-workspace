@@ -139,14 +139,31 @@ interface AddressEditorProps {
 function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete }: AddressEditorProps) {
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<SavedAddress>(() => initial ?? blankAddress());
+  const [submitted, setSubmitted] = useState(false);
 
   // Re-seed the form each time the sheet opens (or the target row changes).
   useEffect(() => {
-    if (visible) setDraft(initial ?? blankAddress());
+    if (visible) {
+      setDraft(initial ?? blankAddress());
+      setSubmitted(false);
+    }
   }, [visible, initial]);
 
   const isNew = !initial || initial.id === '';
-  const canSave = draft.name.trim().length > 0 && draft.address.trim().length > 0 && !saving;
+  const nameError = draft.name.trim().length === 0 ? 'Enter the recipient name.' : '';
+  const addressError = draft.address.trim().length === 0 ? 'Enter the full address.' : '';
+  const phoneError =
+    draft.phone.trim().length > 0 && draft.phone.replace(/\D/g, '').length < 6
+      ? 'Enter a valid phone number.'
+      : '';
+  const hasError = Boolean(nameError || addressError || phoneError);
+  const canSave = !saving;
+
+  const handleSavePress = () => {
+    setSubmitted(true);
+    if (hasError) return;
+    onSave(draft);
+  };
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
@@ -199,7 +216,9 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete }: 
               onChangeText={(name) => setDraft((d) => ({ ...d, name }))}
               placeholder="Recipient name"
               placeholderTextColor="#9CA3AF"
+              accessibilityLabel="Recipient name"
             />
+            {submitted && nameError ? <AppText style={styles.fieldError}>{nameError}</AppText> : null}
 
             <AppText style={styles.fieldLabel}>Phone</AppText>
             <AppTextInput
@@ -209,7 +228,9 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete }: 
               placeholder="+91 98765 43210"
               placeholderTextColor="#9CA3AF"
               keyboardType="phone-pad"
+              accessibilityLabel="Contact phone"
             />
+            {submitted && phoneError ? <AppText style={styles.fieldError}>{phoneError}</AppText> : null}
 
             <AppText style={styles.fieldLabel}>Address</AppText>
             <AppTextInput
@@ -220,7 +241,9 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete }: 
               placeholderTextColor="#9CA3AF"
               multiline
               textAlignVertical="top"
+              accessibilityLabel="Full address"
             />
+            {submitted && addressError ? <AppText style={styles.fieldError}>{addressError}</AppText> : null}
 
             <View style={styles.defaultRow}>
               <View style={styles.defaultCopy}>
@@ -249,7 +272,7 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete }: 
               </TouchableOpacity>
             )}
             <TouchableOpacity
-              onPress={() => onSave(draft)}
+              onPress={handleSavePress}
               disabled={!canSave}
               style={[styles.modalSaveBtn, !canSave && styles.modalSaveBtnDisabled]}
               activeOpacity={0.85}
@@ -271,28 +294,43 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete }: 
 
 export function SavedAddressesScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const [addresses, setAddresses] = useState<SavedAddress[]>(savedAddresses);
+  // Server-first: fixtures are only a mock/offline seed, never shown as real rows
+// after a remote read (including an empty one).
+  const [addresses, setAddresses] = useState<SavedAddress[]>(
+    gateway.remoteEnabled ? [] : savedAddresses,
+  );
   const [selectedId, setSelectedId] = useState<string>('');
   const [showBanner, setShowBanner] = useState<boolean>(true);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editing, setEditing] = useState<SavedAddress | null>(null);
   const [saving, setSaving] = useState(false);
+  const [loading, setLoading] = useState(gateway.remoteEnabled);
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
+  const retryLoad = useCallback(() => setReloadKey((n) => n + 1), []);
 
-  // Hydrate the caller's durable addresses; keep the @data fixtures when empty/mock/error.
   useEffect(() => {
     let alive = true;
+    setLoading(true);
+    setLoadError(false);
     gateway
       .getAddresses()
       .then((rows) => {
-        if (alive && rows.length > 0) setAddresses(rows);
+        if (!alive) return;
+        setAddresses(rows);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (alive) setLoadError(true);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   // Explicit selection wins; otherwise default → first.
   const activeId = useMemo(
@@ -388,22 +426,43 @@ export function SavedAddressesScreen({ navigation }: Props) {
         <AppText style={styles.sectionTitle}>Saved Addresses</AppText>
 
         {/* Address cards */}
-        {addresses.map((item) => (
-          <AddressCard
-            key={item.id}
-            item={item}
-            isSelected={activeId === item.id}
-            onSelect={setSelectedId}
-            onEdit={openEdit}
-            onDelete={handleDelete}
-          />
-        ))}
-        {addresses.length === 0 && (
+        {loading && addresses.length === 0 ? (
           <View style={styles.emptyCard}>
-            <MapPin size={ms(24)} color="#9CA3AF" strokeWidth={2.2} />
+            <ActivityIndicator color="#16A34A" />
+            <AppText style={styles.emptySub}>Loading your addresses…</AppText>
+          </View>
+        ) : loadError && addresses.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <MapPin size={ms(24)} color="#9CA3AF" strokeWidth={1.75} />
+            <AppText style={styles.emptyTitle}>Couldn't load addresses</AppText>
+            <AppText style={styles.emptySub}>Check your connection and try again.</AppText>
+            <TouchableOpacity
+              onPress={retryLoad}
+              style={styles.retryBtn}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading addresses"
+            >
+              <AppText style={styles.retryText}>Try again</AppText>
+            </TouchableOpacity>
+          </View>
+        ) : addresses.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <MapPin size={ms(24)} color="#9CA3AF" strokeWidth={1.75} />
             <AppText style={styles.emptyTitle}>No saved addresses yet</AppText>
             <AppText style={styles.emptySub}>Tap “Add New” to save your first delivery address.</AppText>
           </View>
+        ) : (
+          addresses.map((item) => (
+            <AddressCard
+              key={item.id}
+              item={item}
+              isSelected={activeId === item.id}
+              onSelect={setSelectedId}
+              onEdit={openEdit}
+              onDelete={handleDelete}
+            />
+          ))
         )}
 
         {/* Tip banner */}
@@ -691,11 +750,25 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   emptySub: {
-    fontSize: ms(11),
+    fontSize: ms(12),
     fontWeight: '500',
     color: '#6B7280',
     textAlign: 'center',
-    lineHeight: vs(16),
+    lineHeight: vs(17),
+  },
+  retryBtn: {
+    minHeight: 44,
+    paddingHorizontal: hs(20),
+    borderRadius: ms(22),
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: '#16A34A',
   },
 
   /* Address editor sheet */
@@ -775,6 +848,11 @@ const styles = StyleSheet.create({
     fontSize: ms(13),
     color: '#111827',
     backgroundColor: '#FFFFFF',
+  },
+  fieldError: {
+    fontSize: ms(12),
+    color: '#B91C1C',
+    marginTop: vs(4),
   },
   fieldInputMultiline: {
     minHeight: vs(72),

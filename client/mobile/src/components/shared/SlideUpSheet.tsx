@@ -1,5 +1,5 @@
 import React, { memo, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Modal, View, Pressable, StyleSheet, Animated, Easing } from 'react-native';
+import { Modal, View, Pressable, StyleSheet, Animated, Easing, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, ms, vs } from '@/utils/responsive';
 
@@ -25,6 +25,7 @@ const SlideUpSheet = memo(function SlideUpSheet({
   children,
 }: SlideUpSheetProps) {
   const insets = useSafeAreaInsets();
+  const { height: windowHeight } = useWindowDimensions();
   const [rendered, setRendered] = useState(visible);
   const progress = useRef(new Animated.Value(0)).current;
 
@@ -66,9 +67,25 @@ const SlideUpSheet = memo(function SlideUpSheet({
           <Pressable style={styles.backdropPress} onPress={onRequestClose} accessibilityRole="button" accessibilityLabel="Dismiss" />
         </Animated.View>
 
-        <Animated.View style={[styles.sheet, { transform: [{ translateY: cardTranslateY }], paddingBottom: Math.max(insets.bottom, vs(16)) }]}>
+        <Animated.View
+          style={[
+            styles.sheet,
+            {
+              transform: [{ translateY: cardTranslateY }],
+              paddingBottom: Math.max(insets.bottom, vs(16)),
+              maxHeight: windowHeight * 0.85,
+            },
+          ]}
+        >
           {sheetTop}
-          {children}
+          <ScrollView
+            style={styles.body}
+            contentContainerStyle={styles.bodyContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {children}
+          </ScrollView>
         </Animated.View>
       </View>
     </Modal>
@@ -100,5 +117,12 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 24,
     elevation: 8,
+  },
+  body: {
+    alignSelf: 'stretch',
+  },
+  bodyContent: {
+    alignItems: 'center',
+    paddingBottom: vs(8),
   },
 });

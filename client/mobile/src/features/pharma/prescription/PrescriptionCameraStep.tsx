@@ -11,7 +11,7 @@ import { ChevronLeft, Zap, ZapOff, Camera as CameraIcon, Trash2 } from 'lucide-r
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { PHARMA_TEAL, PHARMA_INK } from '../mocks/pharmaHomeFeed';
+import { brandRamp, neutral } from '@/theme/brandTokens';
 
 interface PrescriptionCameraStepProps {
   onBack: () => void;
@@ -56,26 +56,30 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
         <View style={styles.consentWrap}>
           <View style={styles.consentCard}>
             <View style={styles.consentIcon}>
-              <CameraIcon size={ms(28)} color={PHARMA_TEAL} strokeWidth={2} />
+              <CameraIcon size={ms(28)} color={brandRamp.PHARMA.deep} strokeWidth={1.75} />
             </View>
             <AppText style={styles.consentTitle}>Camera Access</AppText>
             <AppText style={styles.consentText}>
-              Faazio needs camera access to capture your prescription pages. Photos stay on your
-              device and are only shared with the pharmacy when you place the order.
+              Faazio needs camera access to capture your prescription pages. Each photo is uploaded
+              securely to the private storage bucket and shared only with the pharmacy you choose.
             </AppText>
             <TouchableOpacity
               style={styles.consentAllowBtn}
               onPress={handleConsentGrant}
               activeOpacity={0.9}
+              accessibilityRole="button"
+              accessibilityLabel="Allow camera access"
             >
-              <AppText style={styles.consentAllowText}>Allow Camera</AppText>
+              <AppText style={styles.consentAllowText}>Allow camera</AppText>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.consentBackBtn}
               onPress={onBack}
               activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
             >
-              <AppText style={styles.consentBackText}>Go Back</AppText>
+              <AppText style={styles.consentBackText}>Go back</AppText>
             </TouchableOpacity>
           </View>
         </View>
@@ -103,7 +107,7 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
               activeOpacity={0.8}
               accessibilityLabel="Back"
             >
-              <ChevronLeft size={ms(20)} color="#FFFFFF" strokeWidth={2.6} />
+              <ChevronLeft size={ms(20)} color="#FFFFFF" strokeWidth={1.75} />
             </TouchableOpacity>
             <AppText style={styles.topTitle}>Upload Prescription</AppText>
             <TouchableOpacity
@@ -113,9 +117,9 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
               accessibilityLabel="Toggle flash"
             >
               {flash === 'off' ? (
-                <ZapOff size={ms(18)} color="#FFFFFF" strokeWidth={2.2} />
+                <ZapOff size={ms(18)} color="#FFFFFF" strokeWidth={1.75} />
               ) : (
-                <Zap size={ms(18)} color="#FFD54F" strokeWidth={2.2} />
+                <Zap size={ms(18)} color="#FFD54F" strokeWidth={1.75} />
               )}
             </TouchableOpacity>
           </View>
@@ -143,7 +147,7 @@ const PrescriptionCameraStep = memo(function PrescriptionCameraStep({
                     activeOpacity={0.8}
                     accessibilityLabel={`Delete photo ${idx + 1}`}
                   >
-                    <Trash2 size={ms(12)} color="#FFFFFF" strokeWidth={2.4} />
+                    <Trash2 size={ms(12)} color="#FFFFFF" strokeWidth={1.75} />
                   </TouchableOpacity>
                 </View>
               ))}
@@ -211,15 +215,15 @@ const styles = StyleSheet.create({
     width: ms(64),
     height: ms(64),
     borderRadius: ms(32),
-    backgroundColor: '#E0F2F1',
+    backgroundColor: brandRamp.PHARMA.tint,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACE.BLOCK,
   },
   consentTitle: {
     fontSize: ms(18),
-    fontWeight: '900',
-    color: PHARMA_INK,
+    fontWeight: '600',
+    color: neutral.ink,
     marginBottom: vs(8),
   },
   consentText: {
@@ -234,14 +238,14 @@ const styles = StyleSheet.create({
     width: '100%',
     height: vs(48),
     borderRadius: ms(12),
-    backgroundColor: PHARMA_TEAL,
+    backgroundColor: brandRamp.PHARMA.deep,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: vs(10),
   },
   consentAllowText: {
     fontSize: ms(14),
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   consentBackBtn: {
@@ -255,7 +259,7 @@ const styles = StyleSheet.create({
   },
   consentBackText: {
     fontSize: ms(13),
-    fontWeight: '700',
+    fontWeight: '500',
     color: '#64748B',
   },
   cameraWrap: {
@@ -269,7 +273,7 @@ const styles = StyleSheet.create({
   },
   noCameraText: {
     fontSize: ms(14),
-    fontWeight: '700',
+    fontWeight: '500',
     color: '#FFFFFF',
   },
   topBar: {
@@ -283,16 +287,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(16),
   },
   roundBtn: {
-    width: ms(38),
-    height: ms(38),
-    borderRadius: ms(19),
+    width: ms(44),
+    height: ms(44),
+    borderRadius: ms(22),
     backgroundColor: 'rgba(0,0,0,0.4)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   topTitle: {
     fontSize: ms(14),
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   counterBadge: {
@@ -306,7 +310,7 @@ const styles = StyleSheet.create({
   },
   counterText: {
     fontSize: ms(11),
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   bottomArea: {
@@ -371,7 +375,7 @@ const styles = StyleSheet.create({
     marginHorizontal: hs(16),
     height: vs(48),
     borderRadius: ms(12),
-    backgroundColor: PHARMA_TEAL,
+    backgroundColor: brandRamp.PHARMA.deep,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -380,7 +384,7 @@ const styles = StyleSheet.create({
   },
   confirmText: {
     fontSize: ms(14),
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
 });

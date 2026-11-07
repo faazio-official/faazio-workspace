@@ -5,12 +5,13 @@ import {
   ScrollView,
   FlatList,
   TouchableOpacity,
+  ActivityIndicator,
   Dimensions,
   type ListRenderItemInfo,
   type ViewToken,
   type ViewabilityConfig,
 } from 'react-native';
-import { ArrowLeft, MapPin, ShieldCheck, ShoppingCart } from 'lucide-react-native';
+import { ArrowLeft, MapPin, ShieldCheck, ShoppingCart, ChevronRight } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
 import { VendorReviewsSection } from '@/components/shared';
@@ -23,6 +24,7 @@ import type { Product, StoreProfile } from '@data/types';
 import VendorHighlights from './VendorHighlights';
 import VendorCategoryChips from './VendorCategoryChips';
 import { VENDOR_YELLOW, GREEN, TEXT_DARK, TEXT_LIGHT } from './theme';
+import { neutral } from '@/theme/brandTokens';
 
 const SCREEN_W = Dimensions.get('window').width;
 const CARD_GAP = hs(12);
@@ -46,6 +48,8 @@ interface VendorProfileViewProps {
   /** Viewability wiring for the "All Products" grid (passive `view` impressions). */
   onViewableItemsChanged?: (info: { viewableItems: ViewToken[]; changed: ViewToken[] }) => void;
   viewabilityConfig?: ViewabilityConfig;
+  /** True while the vendor inventory is still loading — suppresses the empty state. */
+  loading?: boolean;
 }
 
 const ALL = 'All';
@@ -64,6 +68,7 @@ export function VendorProfileView({
   onRateVendor,
   onViewableItemsChanged,
   viewabilityConfig,
+  loading = false,
 }: VendorProfileViewProps) {
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState<string>(ALL);
@@ -110,10 +115,24 @@ export function VendorProfileView({
   return (
     <View style={styles.container}>
       <View style={[styles.topBar, { paddingTop: insets.top + vs(4) }]}>
-        <TouchableOpacity onPress={onBack} style={styles.topBarBtn} activeOpacity={0.8} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+        <TouchableOpacity
+          onPress={onBack}
+          style={styles.topBarBtn}
+          activeOpacity={0.8}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
           <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.6} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={onCartPress} style={styles.topBarBtn} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <TouchableOpacity
+          onPress={onCartPress}
+          style={styles.topBarBtn}
+          activeOpacity={0.8}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={totalQty > 0 ? `Open cart, ${totalQty} items` : 'Open cart'}
+        >
           <ShoppingCart size={ms(20)} color="#1E2022" strokeWidth={2.4} />
           {totalQty > 0 ? (
             <View style={styles.cartBadge}>
@@ -156,11 +175,8 @@ export function VendorProfileView({
                 </AppText>
               </View>
               <View style={styles.timeRow}>
-                <View style={styles.openBadge}>
-                  <AppText style={styles.openText}>Open now</AppText>
-                </View>
                 {vendor.hours ? (
-                  <AppText style={styles.closeText} numberOfLines={1}> · {vendor.hours}</AppText>
+                  <AppText style={styles.closeText} numberOfLines={1}>Hours: {vendor.hours}</AppText>
                 ) : null}
               </View>
             </View>
@@ -178,8 +194,16 @@ export function VendorProfileView({
           <View style={styles.sectionHeader}>
             <AppText style={styles.sectionTitle}>Discounted Products</AppText>
             {onViewAllDiscounts && discountedProducts.length > 0 ? (
-              <TouchableOpacity onPress={onViewAllDiscounts} activeOpacity={0.7} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <AppText style={styles.seeAllText}>View All {'>'}</AppText>
+              <TouchableOpacity
+                onPress={onViewAllDiscounts}
+                activeOpacity={0.7}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel="View all discounted products"
+                style={styles.seeAllBtn}
+              >
+                <AppText style={styles.seeAllText}>View all</AppText>
+                <ChevronRight size={ms(14)} color={GREEN} strokeWidth={2} />
               </TouchableOpacity>
             ) : null}
           </View>
@@ -223,7 +247,11 @@ export function VendorProfileView({
         renderItem={renderGridItem}
         ListEmptyComponent={
           <View style={styles.emptyWrap}>
-            <AppText style={styles.emptyText}>No products in this category.</AppText>
+            {loading ? (
+              <ActivityIndicator color={GREEN} />
+            ) : (
+              <AppText style={styles.emptyText}>No products in this category.</AppText>
+            )}
           </View>
         }
       />
@@ -247,9 +275,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
   },
   topBarBtn: {
-    width: ms(38),
-    height: ms(38),
-    borderRadius: ms(19),
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F1F5F9',
@@ -387,10 +415,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: TEXT_DARK,
   },
+  seeAllBtn: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
   seeAllText: {
     fontSize: ms(12),
     color: '#B45309',
-    fontWeight: '700',
+    fontWeight: '600',
   },
   discountScroll: {
     paddingLeft: hs(16),

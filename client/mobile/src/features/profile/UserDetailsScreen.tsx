@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   StyleSheet,
   View,
   ScrollView,
@@ -73,12 +74,17 @@ export function UserDetailsScreen({ navigation }: Props) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [details, setDetails] = useState<UserDetailsData | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [reloadKey, setReloadKey] = useState(0);
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
+  const retry = useCallback(() => setReloadKey((n) => n + 1), []);
 
   // Hydrate the durable profile + details; on error render an honest "unavailable" shell.
   useEffect(() => {
     let alive = true;
+    setLoading(true);
+    setLoadFailed(false);
     Promise.all([gateway.getProfile(), gateway.getDetails()])
       .then(([p, d]) => {
         if (!alive) return;
@@ -87,11 +93,14 @@ export function UserDetailsScreen({ navigation }: Props) {
       })
       .catch(() => {
         if (alive) setLoadFailed(true);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
       });
     return () => {
       alive = false;
     };
-  }, []);
+  }, [reloadKey]);
 
   return (
     <View style={styles.container}>
@@ -107,7 +116,7 @@ export function UserDetailsScreen({ navigation }: Props) {
             <TouchableOpacity onPress={handleBack} style={styles.backButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Go back">
               <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
             </TouchableOpacity>
-            <AppText style={styles.headerTitle}>My Profile</AppText>
+            <AppText style={styles.headerTitle}>My profile</AppText>
           </View>
         </View>
 
@@ -126,10 +135,26 @@ export function UserDetailsScreen({ navigation }: Props) {
                   <AppText style={styles.profileEmail} numberOfLines={1}>{profile.email}</AppText>
                   <AppText style={styles.profilePhone}>{profile.phone}</AppText>
                 </>
+) : loading ? (
+                <View style={styles.profileLoadingRow}>
+                  <ActivityIndicator size="small" color={semantic.success} />
+                  <AppText style={styles.profileUnavailable}>Loading profile…</AppText>
+                </View>
               ) : (
-                <AppText style={styles.profileUnavailable}>
-                  {loadFailed ? 'Your profile could not be loaded. Please try again later.' : 'Loading profile…'}
-                </AppText>
+                <>
+                  <AppText style={styles.profileUnavailable}>
+                    Your profile could not be loaded.
+                  </AppText>
+                  <TouchableOpacity
+                    onPress={retry}
+                    style={styles.retryBtn}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retry loading profile"
+                  >
+                    <AppText style={styles.retryText}>Try again</AppText>
+                  </TouchableOpacity>
+                </>
               )}
             </View>
           </View>
@@ -208,11 +233,14 @@ const styles = StyleSheet.create({
   },
   backButton: {
     marginRight: hs(8),
-    padding: hs(2),
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   headerTitle: {
     fontSize: ms(18),
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#111827',
   },
   headerActions: {
@@ -307,6 +335,26 @@ const styles = StyleSheet.create({
     fontSize: ms(13),
     fontWeight: '500',
     color: '#94A3B8',
+  },
+  profileLoadingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(8),
+  },
+  retryBtn: {
+    minHeight: 44,
+    alignSelf: 'flex-start',
+    justifyContent: 'center',
+    marginTop: vs(2),
+    paddingHorizontal: hs(12),
+    borderRadius: ms(22),
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+  },
+  retryText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: semantic.success,
   },
   cardDivider: {
     height: 1,

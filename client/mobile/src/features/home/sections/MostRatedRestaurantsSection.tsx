@@ -41,9 +41,16 @@ function toRow(store: RestaurantStore) {
 function MostRatedRestaurantsSection({ stores, onLaunchSubApp }: MostRatedRestaurantsSectionProps) {
   const source: RestaurantStore[] = stores ?? [];
   const topRated = [...source].sort((a, b) => b.rating - a.rating).slice(0, 3);
+  // No stores → no section. An empty "Most Rated" header with a blank rail is
+  // worse than not rendering it.
+  if (topRated.length === 0) return null;
   return (
     <>
-      <SectionHeader title="Most Rated Restaurants" />
+      <SectionHeader
+        title="Most Rated Restaurants"
+        actionLabel="View all"
+        onAction={() => onLaunchSubApp('FOOD')}
+      />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
         {topRated.map((store) => (
           <NearbyRestaurantRow

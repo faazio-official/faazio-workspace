@@ -6,9 +6,10 @@ import type { Coordinates, ReverseGeocodeResult } from '@/services/location';
  * The user's live (foreground-only) location. One store owns the fix so every
  * feed — Mart, Food, Pharma, search, categories — sorts from the same origin.
  *
- * Only the last coordinate + permission flag are persisted (device-local, no
- * address/place fields). Address and accuracy stay in memory. Coordinates are
- * never logged.
+ * The last coordinate, permission flag and the human-readable address label
+ * are persisted (device-local, no reverse-geocode payload). This keeps the
+ * header/checkout address honest across restarts instead of resetting to a
+ * hardcoded string. Coordinates are never logged.
  */
 export type LocationStatus = 'idle' | 'loading' | 'ready' | 'denied';
 
@@ -17,6 +18,7 @@ interface PersistedLocation {
   longitude: number;
   updatedAt: number;
   permissionGranted: boolean;
+  address?: string;
 }
 
 export interface LocationState {
@@ -71,13 +73,14 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
 
   setFix: ({ coordinates, accuracy, place, address }) => {
     const now = Date.now();
+    const nextAddress = address ?? get().address;
     set({
       status: 'ready',
       latitude: coordinates.latitude,
       longitude: coordinates.longitude,
       accuracy: accuracy ?? null,
       place: place ?? get().place,
-      address: address ?? get().address,
+      address: nextAddress,
       updatedAt: now,
       permissionGranted: true,
     });
@@ -86,6 +89,7 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
       longitude: coordinates.longitude,
       updatedAt: now,
       permissionGranted: true,
+      address: nextAddress || undefined,
     });
   },
 
@@ -119,6 +123,7 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
             status: saved.permissionGranted ? 'ready' : 'idle',
             latitude: saved.latitude,
             longitude: saved.longitude,
+            address: typeof saved.address === 'string' ? saved.address : '',
             updatedAt:
               typeof saved.updatedAt === 'number' ? saved.updatedAt : null,
             permissionGranted: Boolean(saved.permissionGranted),

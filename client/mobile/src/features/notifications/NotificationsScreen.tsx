@@ -75,7 +75,7 @@ export function NotificationsScreen({ navigation }: Props) {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
+            <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={1.75} />
           </TouchableOpacity>
           <AppText style={styles.headerTitle}>Notifications</AppText>
           <View style={{ width: ms(34) }} />
@@ -102,9 +102,9 @@ export function NotificationsScreen({ navigation }: Props) {
           <View style={styles.emptyState}>
             <View style={styles.emptyIconBox}>
               {error ? (
-                <Bell size={ms(32)} color="#9CA3AF" strokeWidth={2} />
+                <Bell size={ms(32)} color="#9CA3AF" strokeWidth={1.75} />
               ) : (
-                <PackageOpen size={ms(32)} color="#9CA3AF" strokeWidth={2} />
+                <PackageOpen size={ms(32)} color="#9CA3AF" strokeWidth={1.75} />
               )}
             </View>
             <AppText style={styles.emptyTitle}>
@@ -112,12 +112,38 @@ export function NotificationsScreen({ navigation }: Props) {
             </AppText>
             <AppText style={styles.emptySubtitle}>
               {error
-                ? 'Pull down to try again.'
+                ? 'Check your connection and try again.'
                 : 'Order and prescription updates will appear here.'}
             </AppText>
+            {error ? (
+              <TouchableOpacity
+                style={styles.retryBtn}
+                onPress={() => void load()}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Try loading notifications again"
+              >
+                <AppText style={styles.retryText}>Try again</AppText>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : (
           <View style={styles.list}>
+            {error ? (
+              <View style={styles.errorBanner}>
+                <AppText style={styles.errorBannerText}>
+                  Could not refresh notifications. Showing the last loaded items.
+                </AppText>
+                <TouchableOpacity
+                  onPress={() => void load()}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading notifications"
+                  style={styles.errorBannerAction}
+                >
+                  <AppText style={styles.retryText}>Retry</AppText>
+                </TouchableOpacity>
+              </View>
+            ) : null}
             {items.map((item) => (
               <View key={item.id} style={styles.card}>
                 <View style={styles.cardHeader}>
@@ -171,8 +197,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(16),
     paddingTop: vs(10),
   },
-  backButton: { marginRight: hs(8), padding: hs(2) },
-  headerTitle: { fontSize: ms(18), fontWeight: '800', color: '#111827' },
+  backButton: {
+    marginRight: hs(8),
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitle: { fontSize: ms(18), fontWeight: '600', color: '#111827' },
   scroll: { flex: 1 },
   scrollContent: { paddingBottom: SPACE.LIST_BOTTOM },
   list: { paddingHorizontal: hs(16), paddingTop: SPACE.BLOCK },
@@ -190,7 +222,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: hs(8),
   },
-  cardTitle: { flex: 1, fontSize: ms(14), fontWeight: '800', color: '#111827' },
+  cardTitle: { flex: 1, fontSize: ms(14), fontWeight: '600', color: '#111827' },
   cardBody: {
     fontSize: ms(13),
     color: '#4B5563',
@@ -205,7 +237,7 @@ const styles = StyleSheet.create({
   },
   statusSent: { backgroundColor: '#DCFCE7' },
   statusPending: { backgroundColor: '#FEF3C7' },
-  statusText: { fontSize: ms(10), fontWeight: '700' },
+  statusText: { fontSize: ms(10), fontWeight: '600' },
   statusTextSent: { color: '#16A34A' },
   statusTextPending: { color: semantic.warning },
   emptyState: {
@@ -224,11 +256,47 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: ms(16),
-    fontWeight: '800',
+    fontWeight: '600',
     color: '#111827',
     marginBottom: vs(6),
     textAlign: 'center',
   },
   emptySubtitle: { fontSize: ms(13), color: '#6B7280', textAlign: 'center' },
+  retryBtn: {
+    minHeight: 44,
+    marginTop: vs(16),
+    paddingHorizontal: hs(20),
+    borderRadius: ms(22),
+    borderWidth: 1,
+    borderColor: '#CBD5E1',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  retryText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: parentRamp.base,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(8),
+    paddingVertical: vs(10),
+    paddingHorizontal: hs(12),
+    marginBottom: SPACE.BLOCK,
+    borderRadius: ms(10),
+    backgroundColor: '#FEF3C7',
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: ms(12),
+    lineHeight: vs(17),
+    color: semantic.warning,
+  },
+  errorBannerAction: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: hs(4),
+  },
   bottomSpacer: { height: vs(40) },
 });

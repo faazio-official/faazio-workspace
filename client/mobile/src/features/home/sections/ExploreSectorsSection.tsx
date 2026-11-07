@@ -5,6 +5,8 @@ import { portalSectors } from '@data/home/rails';
 import { subAppIdFor } from './common';
 import type { SectionProps } from './common';
 import { SECTOR_VISUALS } from '@/theme/sectorVisuals';
+import { neutral } from '@/theme/brandTokens';
+import { TOUCH } from '@/theme/tokens';
 import AppText from '@/components/AppText';
 
 function ExploreSectorsSection({ onLaunchSubApp }: SectionProps) {
@@ -21,8 +23,8 @@ function ExploreSectorsSection({ onLaunchSubApp }: SectionProps) {
             accessibilityRole="button"
             accessibilityLabel={`Open ${sector.name}`}
           >
-            <Icon size={ms(16)} color={iconColor} fill={iconColor} strokeWidth={2.2} />
-            <AppText style={[styles.name, { color: '#111827' }]} numberOfLines={1}>
+            <Icon size={ms(16)} color={iconColor} fill={iconColor} strokeWidth={1.5} />
+            <AppText style={[styles.name, { color: neutral.ink }]} numberOfLines={1}>
               {sector.name}
             </AppText>
           </TouchableOpacity>
@@ -42,7 +44,8 @@ const styles = StyleSheet.create({
   },
   sectorButton: {
     width: '30%',
-    height: vs(38),
+    minHeight: TOUCH.min,
+    height: vs(44),
     borderRadius: ms(11),
     flexDirection: 'row',
     alignItems: 'center',
@@ -51,8 +54,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(6),
   },
   name: {
-    fontSize: ms(10),
-    fontWeight: '800',
+    fontSize: ms(12),
+    fontWeight: '600',
     flexShrink: 1,
   },
 });

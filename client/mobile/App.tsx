@@ -16,6 +16,7 @@ import { useAuthStore } from './src/state/authStore';
 import { useRemoteConfigStore } from './src/state/remoteConfigStore';
 import { useLiveLocation } from './src/hooks/useLiveLocation';
 import { useLanguageStore } from './src/state/languageStore';
+import { useOnboardingStore } from './src/state/onboardingStore';
 import { hydrateUserStores } from './src/services/sessionStores';
 import { startCustomerPush } from './src/services/customerPush';
 import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
@@ -106,6 +107,7 @@ export default function App() {
   const mountedAt = useRef(Date.now());
   const hydrateAuth = useAuthStore((s) => s.hydrate);
   const hydrateLanguage = useLanguageStore((s) => s.hydrate);
+  const hydrateOnboarding = useOnboardingStore((s) => s.hydrate);
   const fetchRemoteConfig = useRemoteConfigStore((s) => s.fetchConfig);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isOnline = useConnectivityStore((s) => s.isOnline);
@@ -174,6 +176,7 @@ export default function App() {
         await Promise.all([
           withTimeout(hydrateAuth(), 4000, 'hydrateAuth'),
           withTimeout(hydrateLanguage(), 4000, 'hydrateLanguage'),
+          withTimeout(hydrateOnboarding(), 4000, 'hydrateOnboarding'),
         ]);
       } catch (error) {
         // A hanging/failing storage module must not block startup or become a
@@ -188,7 +191,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [hydrateAuth, hydrateLanguage, fetchRemoteConfig]);
+  }, [hydrateAuth, hydrateLanguage, hydrateOnboarding, fetchRemoteConfig]);
 
   useEffect(() => {
     if (fontsLoaded && ready) {
@@ -257,7 +260,7 @@ export default function App() {
         {isOnline === false ? <OfflineToast /> : null}
         {navigationBlocked && isOnline === false ? (
           <View style={styles.blocker}>
-            <OfflinePage />
+            <OfflinePage reserveBottomInset={false} />
           </View>
         ) : null}
       </AppLayout>

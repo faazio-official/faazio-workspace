@@ -4,6 +4,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  AppState,
   NativeSyntheticEvent,
   NativeScrollEvent,
   type StyleProp,
@@ -15,6 +16,7 @@ import { hs, vs, ms } from '@/utils/responsive';
 import type { AdSlide } from '@data/types';
 import AppText from '@/components/AppText';
 import AdLabelBadge from './AdLabelBadge';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 const SWIPE_INTERVAL = 4500;
 
@@ -47,19 +49,31 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
 }: AdBannerCarouselProps) {
   const [index, setIndex] = useState(0);
   const [width, setWidth] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const [appActive, setAppActive] = useState(true);
   const scrollRef = useRef<ScrollView>(null);
+  const reduceMotion = useReducedMotion();
 
+  // Auto-advance only when it is safe: more than one slide, motion allowed,
+  // the user has not interacted, and the app is foregrounded.
   useEffect(() => {
-    if (slides.length < 2) return;
+    if (slides.length < 2 || reduceMotion || paused || !appActive) return;
     const timer = setInterval(() => {
       setIndex((prev) => {
         const next = (prev + 1) % slides.length;
-        scrollRef.current?.scrollTo({ x: next * width, animated: true });
+        scrollRef.current?.scrollTo({ x: next * width, animated: !reduceMotion });
         return next;
       });
     }, SWIPE_INTERVAL);
     return () => clearInterval(timer);
-  }, [width, slides.length]);
+  }, [width, slides.length, reduceMotion, paused, appActive]);
+
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) =>
+      setAppActive(state === 'active'),
+    );
+    return () => sub.remove();
+  }, []);
 
   const onMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(e.nativeEvent.contentOffset.x / Math.max(width, 1));
@@ -79,6 +93,8 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
             pagingEnabled
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={onMomentumScrollEnd}
+            onScrollBeginDrag={() => setPaused(true)}
+            onTouchStart={() => setPaused(true)}
             style={styles.scroll}
           >
             {slides.map((slide, i) => (
@@ -86,8 +102,9 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
                 key={slideKey ? slideKey(slide, i) : slide.title}
                 style={[styles.slide, { width }]}
                 activeOpacity={0.9}
-                accessibilityRole={accessibilityLabel ? 'button' : undefined}
-                accessibilityLabel={accessibilityLabel}
+                accessibilityRole={onSlidePress ? 'button' : 'image'}
+                accessibilityLabel={accessibilityLabel ? `${accessibilityLabel}. ${slide.title}` : slide.title}
+                accessibilityHint={onSlidePress ? 'Opens the advertised offer' : undefined}
                 onPress={() => onSlidePress?.(slide)}
               >
                 <AppImage
@@ -121,7 +138,13 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
           </ScrollView>
         )}
         {width > 0 && slides.length > 1 && (
-          <View style={styles.dots}>
+          <View
+            style={styles.dots}
+            accessible
+            accessibilityRole="progressbar"
+            accessibilityLabel="Advertisement carousel"
+            accessibilityValue={{ min: 1, max: slides.length, now: index + 1 }}
+          >
             {slides.map((slide, i) => (
               <View key={slideKey ? slideKey(slide, i) : slide.title} style={[styles.dot, i === index && styles.dotActive]} />
             ))}
@@ -176,10 +199,9 @@ const styles = StyleSheet.create({
   },
   badgeText: {
     color: '#ffffff',
-    fontSize: ms(8),
-    fontWeight: '900',
-    textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    fontSize: ms(11),
+    fontWeight: '600',
+    letterSpacing: 0.2,
     marginLeft: hs(4),
   },
   adLabelWrap: {
@@ -195,9 +217,9 @@ const styles = StyleSheet.create({
   },
   title: {
     color: '#ffffff',
-    fontSize: ms(14),
-    fontWeight: '900',
-    lineHeight: ms(18),
+    fontSize: ms(15),
+    fontWeight: '600',
+    lineHeight: ms(19),
   },
   taglineRow: {
     flexDirection: 'row',
@@ -207,8 +229,8 @@ const styles = StyleSheet.create({
   },
   tagline: {
     color: '#cbd5e1',
-    fontSize: ms(10),
-    fontWeight: '600',
+    fontSize: ms(11),
+    fontWeight: '500',
     flex: 1,
   },
   dots: {

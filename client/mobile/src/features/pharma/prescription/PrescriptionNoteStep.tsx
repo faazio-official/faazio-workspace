@@ -1,10 +1,18 @@
 import React, { memo, useState } from 'react';
-import { View, TouchableOpacity, StyleSheet, ScrollView, Image } from 'react-native';
+import {
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+} from 'react-native';
 import { ChevronLeft, FileText } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, ms, vs } from '@/utils/responsive';
-import { PHARMA_TEAL, PHARMA_INK } from '../mocks/pharmaHomeFeed';
+import { brandRamp, neutral } from '@/theme/brandTokens';
 
 interface PrescriptionNoteStepProps {
   initialNote: string;
@@ -25,13 +33,22 @@ const PrescriptionNoteStep = memo(function PrescriptionNoteStep({
   const [note, setNote] = useState(initialNote);
 
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <View style={styles.topBar}>
-        <TouchableOpacity style={styles.backBtn} onPress={onBack} activeOpacity={0.8}>
-          <ChevronLeft size={ms(20)} color={PHARMA_INK} strokeWidth={2.6} />
+        <TouchableOpacity
+          style={styles.backBtn}
+          onPress={onBack}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+        >
+          <ChevronLeft size={ms(20)} color={neutral.ink} strokeWidth={1.75} />
         </TouchableOpacity>
-        <AppText style={styles.topTitle}>Add a Note</AppText>
-        <View style={{ width: ms(32) }} />
+        <AppText style={styles.topTitle}>Add a note</AppText>
+        <View style={{ width: 44 }} />
       </View>
 
       <ScrollView
@@ -53,7 +70,7 @@ const PrescriptionNoteStep = memo(function PrescriptionNoteStep({
         {/* Note input */}
         <View style={styles.noteCard}>
           <View style={styles.noteHeader}>
-            <FileText size={ms(16)} color={PHARMA_TEAL} strokeWidth={2} />
+            <FileText size={ms(16)} color={brandRamp.PHARMA.deep} strokeWidth={1.75} />
             <AppText style={styles.noteTitle}>Add details for the pharmacist</AppText>
           </View>
           <AppTextInput
@@ -65,6 +82,7 @@ const PrescriptionNoteStep = memo(function PrescriptionNoteStep({
             multiline
             numberOfLines={6}
             textAlignVertical="top"
+            accessibilityLabel="Note for the pharmacist"
           />
           <AppText style={styles.noteHint}>Optional — skip if the prescription says it all.</AppText>
         </View>
@@ -75,11 +93,13 @@ const PrescriptionNoteStep = memo(function PrescriptionNoteStep({
           style={styles.continueBtn}
           onPress={() => onNext(note)}
           activeOpacity={0.9}
+          accessibilityRole="button"
+          accessibilityLabel="Continue to choose a pharmacy"
         >
           <AppText style={styles.continueText}>Continue</AppText>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 });
 
@@ -88,7 +108,7 @@ export default PrescriptionNoteStep;
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
   },
   topBar: {
     flexDirection: 'row',
@@ -97,20 +117,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(16),
     paddingVertical: vs(12),
     borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+    borderBottomColor: neutral.border,
   },
   backBtn: {
-    width: ms(32),
-    height: ms(32),
-    borderRadius: ms(16),
-    backgroundColor: '#F1F5F9',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: neutral.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
   },
   topTitle: {
     fontSize: ms(15),
-    fontWeight: '800',
-    color: PHARMA_INK,
+    fontWeight: '600',
+    color: neutral.ink,
   },
   scroll: {
     flex: 1,
@@ -128,24 +148,24 @@ const styles = StyleSheet.create({
     width: ms(48),
     height: ms(48),
     borderRadius: ms(8),
-    backgroundColor: '#F1F5F9',
+    backgroundColor: neutral.surfaceAlt,
   },
   recapCount: {
     paddingHorizontal: hs(10),
     paddingVertical: vs(4),
-    backgroundColor: '#E0F2F1',
+    backgroundColor: brandRamp.PHARMA.tint,
     borderRadius: ms(8),
   },
   recapCountText: {
     fontSize: ms(11),
-    fontWeight: '800',
-    color: PHARMA_TEAL,
+    fontWeight: '600',
+    color: brandRamp.PHARMA.deep,
   },
   noteCard: {
-    backgroundColor: '#F8FAFC',
+    backgroundColor: neutral.surface,
     borderRadius: ms(16),
     borderWidth: 1,
-    borderColor: '#F1F5F9',
+    borderColor: neutral.border,
     padding: hs(16),
   },
   noteHeader: {
@@ -156,42 +176,42 @@ const styles = StyleSheet.create({
   },
   noteTitle: {
     fontSize: ms(13),
-    fontWeight: '800',
-    color: PHARMA_INK,
+    fontWeight: '600',
+    color: neutral.ink,
   },
   noteInput: {
     minHeight: vs(120),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(12),
     borderWidth: 1,
-    borderColor: '#E2E8F0',
+    borderColor: neutral.border,
     padding: hs(12),
     fontSize: ms(13),
     lineHeight: vs(20),
-    color: PHARMA_INK,
+    color: neutral.ink,
   },
   noteHint: {
     fontSize: ms(10),
     fontWeight: '600',
-    color: '#94A3B8',
+    color: neutral.inkMuted,
     marginTop: vs(8),
   },
   footer: {
     paddingHorizontal: hs(16),
     paddingTop: vs(12),
     borderTopWidth: 1,
-    borderTopColor: '#F1F5F9',
+    borderTopColor: neutral.border,
   },
   continueBtn: {
     height: vs(50),
     borderRadius: ms(12),
-    backgroundColor: PHARMA_TEAL,
+    backgroundColor: brandRamp.PHARMA.deep,
     alignItems: 'center',
     justifyContent: 'center',
   },
   continueText: {
     fontSize: ms(14),
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
 });

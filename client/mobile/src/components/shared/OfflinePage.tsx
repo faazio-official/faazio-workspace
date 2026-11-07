@@ -15,6 +15,11 @@ type OfflinePageProps = {
    * connectivity store). Omit to keep the default "re-run the probe" behavior (customer app).
    */
   onRetry?: () => void | Promise<void>;
+  /**
+   * Reserve the bottom safe area. True for the full-screen cold-start page; false
+   * when rendered as a blocker inside `AppLayout`, which already reserves it once.
+   */
+  reserveBottomInset?: boolean;
 };
 
 /**
@@ -23,7 +28,10 @@ type OfflinePageProps = {
  * succeeds the guard's resume effect (App.tsx) either mounts the navigator or replays the pending
  * route, whose screens fire their normal HTTP reads on mount.
  */
-export function OfflinePage({ onRetry: retryHandler }: OfflinePageProps = {}) {
+export function OfflinePage({
+  onRetry: retryHandler,
+  reserveBottomInset = true,
+}: OfflinePageProps = {}) {
   const insets = useSafeAreaInsets();
   const isChecking = useConnectivityStore((s) => s.isChecking);
   const checkConnectivity = useConnectivityStore((s) => s.checkConnectivity);
@@ -45,7 +53,15 @@ export function OfflinePage({ onRetry: retryHandler }: OfflinePageProps = {}) {
   const busy = retrying || isChecking;
 
   return (
-    <View style={[styles.container, { paddingTop: insets.top, paddingBottom: insets.bottom }]}>
+    <View
+      style={[
+        styles.container,
+        {
+          paddingTop: insets.top,
+          paddingBottom: reserveBottomInset ? insets.bottom : vs(24),
+        },
+      ]}
+    >
       <FaazioLogo size={40} />
       <View style={styles.iconCircle}>
         <WifiOff size={26} color={parentRamp.base} />

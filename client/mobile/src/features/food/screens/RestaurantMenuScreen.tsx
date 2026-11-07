@@ -14,6 +14,7 @@ import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { SpecialDish } from '@data/types';
 import { getMenuCategories } from '../utils/menu';
+import { dishToProduct } from '../mocks/specials';
 import { useRestaurantMenu } from '../hooks/useRestaurantMenu';
 import { dishMatches } from '../utils/dietFilter';
 import { useCartStore } from '@/state/cartStore';
@@ -170,6 +171,11 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
                 onAdd={() => handleAdd(item)}
                 onIncrement={() => updateQuantity(item.id, 1)}
                 onDecrement={() => updateQuantity(item.id, -1)}
+                onPress={() =>
+                  navigation
+                    .getParent<NativeStackNavigationProp<RootStackParamList>>()
+                    ?.navigate('ProductDetail', { product: dishToProduct(item) })
+                }
               />
             );
           })}
@@ -205,7 +211,7 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
 export default RestaurantMenuScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
+  container: { flex: 1, backgroundColor: foodTheme.background },
   titleBlock: {
     paddingHorizontal: hs(16),
     paddingTop: vs(8),

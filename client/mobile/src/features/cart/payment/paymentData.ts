@@ -44,7 +44,7 @@ export interface UpiAppPackage {
 }
 
 /** Origin store label for the delivery timeline. */
-export const DELIVERY_ORIGIN = 'Instamart';
+export const DELIVERY_ORIGIN = 'Faazio Mart';
 
 /**
  * Saved cards start empty — the only way a card enters this list is a successful,

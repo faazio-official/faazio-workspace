@@ -14,8 +14,20 @@ interface StepperHeaderProps {
 
 export function StepperHeader({ activeIndex }: StepperHeaderProps) {
   const total = BLOOD_DONOR_STEPS.length;
+  const activeLabel = BLOOD_DONOR_STEPS[activeIndex]?.label ?? '';
   return (
-    <View style={styles.wrap}>
+    <View
+      style={styles.wrap}
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel="Donation progress"
+      accessibilityValue={{
+        min: 1,
+        max: total,
+        now: Math.min(activeIndex + 1, total),
+        text: `Step ${Math.min(activeIndex + 1, total)} of ${total}: ${activeLabel}`,
+      }}
+    >
       <View style={styles.connectorRow}>
         {BLOOD_DONOR_STEPS.map((step: BloodDonorStep, idx) => {
           const isDone = idx < activeIndex;
@@ -64,7 +76,7 @@ export function StepperHeader({ activeIndex }: StepperHeaderProps) {
               numberOfLines={2}
               style={[
                 styles.label,
-                idx <= activeIndex && { color: BLOOD_RED_DARK, fontWeight: '700' },
+                idx <= activeIndex && { color: BLOOD_RED_DARK, fontWeight: '600' },
               ]}
             >
               {step.label}
@@ -112,7 +124,7 @@ const styles = StyleSheet.create({
   },
   circleText: {
     fontSize: ms(13),
-    fontWeight: '800',
+    fontWeight: '600',
     color: BLOOD_TEXT_MUTED,
   },
   circleTextActive: {
@@ -127,10 +139,10 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(2),
   },
   label: {
-    fontSize: ms(8.5),
+    fontSize: ms(11),
     color: BLOOD_TEXT_MUTED,
-    fontWeight: '600',
+    fontWeight: '500',
     textAlign: 'center',
-    lineHeight: vs(11),
+    lineHeight: vs(14),
   },
 });

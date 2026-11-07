@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
-import { Heart, Store } from 'lucide-react-native';
+import { Heart, Store, Plus, Minus, Check } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import type { Product, AppBrand } from '@data/types';
@@ -55,7 +55,11 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
   appBrand,
   showFavorite = false,
   isFavorite = false,
+  quantity = 0,
   onPress,
+  onAdd,
+  onIncrement,
+  onDecrement,
   onFavorite,
   showStoreHeader = true,
 }: SearchProductRowCardProps) {
@@ -104,6 +108,38 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
             {discountPct !== null && (
               <AppText style={styles.discount}>{discountPct}% off</AppText>
             )}
+            <View style={{ flex: 1 }} />
+            {quantity > 0 ? (
+              <View style={styles.stepper}>
+                <TouchableOpacity
+                  onPress={onDecrement}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Remove one ${product.name}`}
+                >
+                  <Minus size={ms(13)} color="#ffffff" strokeWidth={3} />
+                </TouchableOpacity>
+                <AppText style={styles.stepperQty}>{quantity}</AppText>
+                <TouchableOpacity
+                  onPress={onIncrement}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Add one more ${product.name}`}
+                >
+                  <Plus size={ms(13)} color="#ffffff" strokeWidth={3} />
+                </TouchableOpacity>
+              </View>
+            ) : onAdd ? (
+              <TouchableOpacity
+                style={styles.addBtn}
+                onPress={onAdd}
+                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Add ${product.name} to cart`}
+              >
+                <Check size={ms(14)} color="#ffffff" strokeWidth={3} />
+              </TouchableOpacity>
+            ) : null}
           </View>
         </View>
       </View>
@@ -115,6 +151,7 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
           accessibilityLabel={`Toggle favourite for ${product.name}`}
+          accessibilityState={{ selected: isFavorite }}
         >
           <Heart
             size={ms(15)}
@@ -209,7 +246,31 @@ const styles = StyleSheet.create({
   },
   discount: {
     fontSize: ms(11),
-    fontWeight: '700',
+    fontWeight: '600',
     color: GREEN,
+  },
+  addBtn: {
+    width: ms(32),
+    height: ms(32),
+    borderRadius: ms(16),
+    backgroundColor: GREEN,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  stepper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: ms(16),
+    paddingHorizontal: hs(6),
+    height: ms(32),
+    backgroundColor: GREEN,
+  },
+  stepperQty: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: '#ffffff',
+    marginHorizontal: hs(6),
+    minWidth: ms(12),
+    textAlign: 'center',
   },
 });
