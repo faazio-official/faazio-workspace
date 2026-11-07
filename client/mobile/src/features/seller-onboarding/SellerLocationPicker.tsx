@@ -164,7 +164,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderColor: '#e2e8f0',
   },
-  iconBtn: { width: ms(36), height: ms(36), alignItems: 'center', justifyContent: 'center' },
+  iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: ms(15), fontWeight: '800', color: '#0f172a' },
   map: { flex: 1 },
   sheet: {

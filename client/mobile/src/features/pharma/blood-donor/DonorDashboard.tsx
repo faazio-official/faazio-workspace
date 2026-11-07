@@ -367,8 +367,8 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   bellBtn: {
-    width: ms(40),
-    height: ms(40),
+    width: 44,
+    height: 44,
     borderRadius: ms(20),
     backgroundColor: '#ffffff',
     borderWidth: 1,

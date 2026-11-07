@@ -372,7 +372,10 @@ export default function CartView({
   const applyCouponCode = (code: string) => {
     const normalized = code.toUpperCase().trim();
     const coupon = couponList.find((c) => c.code === normalized);
-    if (!coupon) return;
+    if (!coupon) {
+      setCouponError('That code isn’t available for this cart. Check the code and try again.');
+      return;
+    }
     setCouponError(null);
     // Server is the discount authority: validate the code against the cart before applying. The
     // figure shown is the server's (fixture-validated offline), never client-computed % math.
@@ -734,7 +737,12 @@ export default function CartView({
             setPaymentTimedOut(timedOut);
             setStep('PAYMENT_FAILED');
           }}
-          onCancel={() => setStep('PAYMENT')}
+          onCancel={() => {
+            // The order is already placed; returning to PAYMENT would place a second
+            // order. Send the shopper to the retry screen for the *same* order instead.
+            setPaymentTimedOut(true);
+            setStep('PAYMENT_FAILED');
+          }}
         />
       </View>
     );
@@ -755,6 +763,7 @@ export default function CartView({
           onRetry={handleRetryPayment}
           onSwitchToCod={handleSwitchToCod}
           onSelectApp={handleRetryWithApp}
+          error={paymentError}
         />
       </View>
     );
@@ -1143,7 +1152,7 @@ export default function CartView({
             <AppText style={styles.checkoutErrorText}>{checkoutError}</AppText>
           ) : null}
           <TouchableOpacity
-            style={[styles.proceedBtn, (!fulfillment || (fulfillment === 'DELIVERY' && !deliveryAddress.address.trim())) && styles.proceedBtnDisabled]}
+            style={[styles.proceedBtn, !fulfillment && styles.proceedBtnDisabled]}
             onPress={() => {
               if (fulfillment === 'DELIVERY' && !deliveryAddress.address.trim()) {
                 setCheckoutError('Add a delivery address before paying.');
@@ -1154,7 +1163,7 @@ export default function CartView({
               setStep('PAYMENT');
             }}
             activeOpacity={0.88}
-            disabled={!fulfillment || (fulfillment === 'DELIVERY' && !deliveryAddress.address.trim())}
+            disabled={!fulfillment}
             accessibilityRole="button"
             accessibilityLabel={fulfillment ? 'Proceed to payment' : 'Choose pickup or delivery'}
           >

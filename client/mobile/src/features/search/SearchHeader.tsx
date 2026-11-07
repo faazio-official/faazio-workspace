@@ -44,7 +44,7 @@ const SearchHeader = memo(function SearchHeader({
       <TouchableOpacity
         onPress={onBack}
         style={styles.backBtn}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
         accessibilityRole="button"
         accessibilityLabel="Go back"
       >
@@ -69,7 +69,7 @@ const SearchHeader = memo(function SearchHeader({
         <TouchableOpacity
           onPress={() => onChangeText('')}
           disabled={!hasText}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           style={styles.clearBtn}
           accessibilityRole="button"
           accessibilityLabel="Clear search"

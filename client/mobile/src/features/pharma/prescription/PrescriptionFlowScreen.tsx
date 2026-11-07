@@ -52,6 +52,7 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [retryFulfillment, setRetryFulfillment] = useState<FulfillmentMode | null>(null);
 
   const recordOrder = useOrdersStore((s) => s.recordOrder);
 
@@ -97,6 +98,7 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
       const note = draft.note.trim() ? draft.note : undefined;
       setSubmitting(true);
       setSubmitError(null);
+      setRetryFulfillment(fulfillment);
       setUploadProgress(draft.photos.length > 0 ? { done: 0, total: draft.photos.length } : null);
       void (async () => {
         try {
@@ -193,14 +195,26 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
       {submitError ? (
         <View style={styles.errorBanner} accessibilityLiveRegion="polite">
           <AppText style={styles.errorText}>{submitError}</AppText>
-          <TouchableOpacity
-            onPress={() => setSubmitError(null)}
-            accessibilityRole="button"
-            accessibilityLabel="Dismiss error"
-            style={styles.errorDismiss}
-          >
-            <AppText style={styles.errorDismissText}>Dismiss</AppText>
-          </TouchableOpacity>
+          <View style={styles.errorActions}>
+            {retryFulfillment && !submitting ? (
+              <TouchableOpacity
+                onPress={() => handleConfirm(retryFulfillment)}
+                accessibilityRole="button"
+                accessibilityLabel="Try submitting the prescription again"
+                style={styles.errorRetry}
+              >
+                <AppText style={styles.errorRetryText}>Try again</AppText>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              onPress={() => setSubmitError(null)}
+              accessibilityRole="button"
+              accessibilityLabel="Dismiss error"
+              style={styles.errorDismiss}
+            >
+              <AppText style={styles.errorDismissText}>Dismiss</AppText>
+            </TouchableOpacity>
+          </View>
         </View>
       ) : null}
 
@@ -310,6 +324,22 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     lineHeight: vs(17),
     color: '#854D0E',
+  },
+  errorActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(4),
+  },
+  errorRetry: {
+    minHeight: 44,
+    justifyContent: 'center',
+    paddingHorizontal: hs(8),
+  },
+  errorRetryText: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: '#854D0E',
+    textDecorationLine: 'underline',
   },
   errorDismiss: {
     minHeight: 44,

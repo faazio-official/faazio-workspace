@@ -219,11 +219,14 @@ export function LocationScreen({ navigation }: Props) {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [permissionError, setPermissionError] = useState('');
   const [manualError, setManualError] = useState('');
+  const [placesRetry, setPlacesRetry] = useState(0);
   const liveOrigin = useLiveOrigin();
-  const { suggestions, loading: suggestionsLoading, enabled: placesEnabled } = usePlaceAutocomplete(
-    searchQuery,
-    liveOrigin,
-  );
+  const {
+    suggestions,
+    loading: suggestionsLoading,
+    enabled: placesEnabled,
+    error: placesError,
+  } = usePlaceAutocomplete(searchQuery, liveOrigin, placesRetry);
 
   const useMyLocation = async () => {
     setPermissionError('');
@@ -276,8 +279,10 @@ export function LocationScreen({ navigation }: Props) {
     if (step !== 'loader') return;
     const timer = setTimeout(() => {
       const state = useLocationStore.getState();
+      // A valid fix needs both axes; (0, 0) is the "no fix yet" sentinel, while a single
+// legitimate zero (equator/prime meridian) must not be rejected.
       const confirmed =
-        state.status === 'ready' && (state.latitude !== 0 || state.longitude !== 0);
+        state.status === 'ready' && !(state.latitude === 0 && state.longitude === 0);
       if (confirmed) {
         navigation.navigate('MainTabs');
       } else {
@@ -485,6 +490,7 @@ export function LocationScreen({ navigation }: Props) {
                     onPress={() => setSearchQuery('')}
                     accessibilityRole="button"
                     accessibilityLabel="Clear search"
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
                     <X size={ms(10)} color="#64748b" />
                   </Pressable>
@@ -514,6 +520,19 @@ export function LocationScreen({ navigation }: Props) {
                 </View>
                 <ChevronLeft size={ms(14)} color="#3D8CF2" style={{ transform: [{ rotate: '180deg' }] }} />
               </Pressable>
+              {permissionError ? (
+                <View style={styles.permissionErrorBlock}>
+                  <AppText style={styles.permissionError}>{permissionError}</AppText>
+                  <Pressable
+                    onPress={() => void Linking.openSettings()}
+                    accessibilityRole="button"
+                    accessibilityLabel="Open device settings"
+                    style={styles.settingsLink}
+                  >
+                    <AppText style={styles.settingsLinkText}>Open settings</AppText>
+                  </Pressable>
+                </View>
+              ) : null}
             </View>
 
             <View style={styles.separator} />
@@ -555,12 +574,24 @@ export function LocationScreen({ navigation }: Props) {
               ) : suggestionsLoading ? null : (
                 <View style={styles.noResultsContainer}>
                   <AppText style={styles.noResultsText}>
-                    {!placesEnabled
-                      ? 'Search is unavailable right now. Use your current location or try again later.'
-                      : searchQuery.trim()
-                        ? 'No locations found. Try a different area.'
-                        : 'Type an area or apartment name to search.'}
+                    {placesError && searchQuery.trim()
+                      ? 'Search is unavailable right now. Check your connection and try again.'
+                      : !placesEnabled
+                        ? 'Search is unavailable right now. Use your current location or try again later.'
+                        : searchQuery.trim()
+                          ? 'No locations found. Try a different area.'
+                          : 'Type an area or apartment name to search.'}
                   </AppText>
+                  {placesError && searchQuery.trim() ? (
+                    <Pressable
+                      onPress={() => setPlacesRetry((n) => n + 1)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Retry location search"
+                      style={styles.settingsLink}
+                    >
+                      <AppText style={styles.settingsLinkText}>Try again</AppText>
+                    </Pressable>
+                  ) : null}
                 </View>
               )}
             </ScrollView>
@@ -663,6 +694,7 @@ const styles = StyleSheet.create({
     fontSize: ms(14),
   },
   manualBtn: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',

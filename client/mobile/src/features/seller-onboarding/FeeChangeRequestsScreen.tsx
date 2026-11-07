@@ -30,6 +30,13 @@ const FILTERS: { key: string; label: string }[] = [
   { key: '', label: 'All' },
 ];
 
+/** Status is conveyed by text *and* colour (never colour alone). */
+const STATUS_BG: Record<string, string> = {
+  PENDING: '#B45309',
+  APPROVED: '#15803D',
+  REJECTED: '#DC2626',
+};
+
 /**
  * Platform-fee change review queue. A district admin sees only their district (server-scoped);
  * a super admin sees every district. Approval applies the new fee to the seller.
@@ -220,7 +227,7 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
                   </TouchableOpacity>
                 </View>
               ) : (
-                <View style={styles.statusPill}>
+                <View style={[styles.statusPill, { backgroundColor: STATUS_BG[item.status] ?? '#64748B' }]}>
                   <AppText style={styles.statusText}>{item.status}</AppText>
                 </View>
               )}
@@ -284,8 +291,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  headerSpacer: { width: ms(40) },
-  backButton: { width: ms(40), height: ms(40), alignItems: 'center', justifyContent: 'center' },
+  headerSpacer: { width: 44 },
+  backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: ms(18), fontWeight: '900', color: '#0f172a' },
   filterRow: { flexDirection: 'row', gap: hs(8), paddingHorizontal: hs(16), paddingVertical: vs(12) },
   filterChip: {
@@ -325,8 +332,8 @@ const styles = StyleSheet.create({
     gap: hs(10),
   },
   rowIcon: {
-    width: ms(40),
-    height: ms(40),
+    width: 44,
+    height: 44,
     borderRadius: ms(12),
     backgroundColor: '#EFF6FF',
     alignItems: 'center',
@@ -337,11 +344,11 @@ const styles = StyleSheet.create({
   rowSubtitle: { fontSize: ms(11), color: '#94A3B8', marginTop: vs(3), fontWeight: '600' },
   rowReason: { fontSize: ms(11), color: '#64748B', marginTop: vs(3) },
   actions: { flexDirection: 'row', gap: hs(6) },
-  actionBtn: { width: ms(34), height: ms(34), borderRadius: ms(10), alignItems: 'center', justifyContent: 'center' },
+  actionBtn: { width: 44, height: 44, borderRadius: ms(10), alignItems: 'center', justifyContent: 'center' },
   approveBtn: { backgroundColor: '#15803D' },
   rejectBtn: { backgroundColor: '#DC2626' },
   statusPill: { backgroundColor: '#94A3B8', paddingHorizontal: hs(8), paddingVertical: vs(3), borderRadius: ms(10) },
-  statusText: { fontSize: ms(9.5), fontWeight: '800', color: '#FFFFFF' },
+  statusText: { fontSize: ms(11), fontWeight: '800', color: '#FFFFFF' },
   gateTitle: { fontSize: ms(16), fontWeight: '900', color: '#0f172a', textAlign: 'center', marginTop: vs(40) },
   gateBody: {
     fontSize: ms(12),

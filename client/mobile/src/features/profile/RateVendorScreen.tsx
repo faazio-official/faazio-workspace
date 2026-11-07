@@ -1,16 +1,16 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  TextInput,
   Vibration,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ChevronLeft, ShieldCheck } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import AppTextInput from '@/components/AppTextInput';
 import { StarRatingInput } from '@/components/shared';
 import { getVendorById } from '@data/index';
 import { MAX_VENDOR_RATING_COMMENT } from '@/state/vendorRatingStore';
@@ -53,6 +53,14 @@ export function RateVendorScreen({ navigation, route }: Props) {
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const successTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(
+    () => () => {
+      if (successTimer.current) clearTimeout(successTimer.current);
+    },
+    [],
+  );
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
@@ -65,7 +73,7 @@ export function RateVendorScreen({ navigation, route }: Props) {
     if (result.ok) {
       Vibration.vibrate(10);
       setToast(existing ? 'Rating updated' : 'Rating saved');
-      setTimeout(() => navigation.goBack(), 800);
+      successTimer.current = setTimeout(() => navigation.goBack(), 800);
       return;
     }
     setError(
@@ -135,7 +143,7 @@ export function RateVendorScreen({ navigation, route }: Props) {
 
             <View style={styles.card}>
               <AppText style={styles.inputLabel}>Add a comment (optional)</AppText>
-              <TextInput
+              <AppTextInput
                 style={styles.input}
                 value={comment}
                 onChangeText={(text) => setComment(text.slice(0, MAX_VENDOR_RATING_COMMENT))}

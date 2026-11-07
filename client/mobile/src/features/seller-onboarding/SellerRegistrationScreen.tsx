@@ -694,7 +694,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           <ChevronLeft size={ms(26)} color={neutral.ink} strokeWidth={2.2} />
         </TouchableOpacity>
         <AppText style={styles.headerTitle}>Sell with us</AppText>
-        <View style={{ width: ms(40) }} />
+        <View style={{ width: 44 }} />
       </View>
 
       <ScrollView
@@ -1149,7 +1149,7 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  backButton: { width: ms(40), height: ms(40), alignItems: 'center', justifyContent: 'center' },
+  backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: ms(18), fontWeight: '900', color: neutral.ink },
   heroCard: {
     backgroundColor: parentRamp.base,

@@ -38,9 +38,11 @@ interface RawSuggestion {
 export function usePlaceAutocomplete(
   query: string,
   origin: Coordinates | null,
-): { suggestions: PlaceSuggestion[]; loading: boolean; enabled: boolean } {
+  retryKey = 0,
+): { suggestions: PlaceSuggestion[]; loading: boolean; enabled: boolean; error: boolean } {
   const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
   const requestId = useRef(0);
   const placesKey = useRemoteConfigStore(selectPlacesApiKey);
   const enabled = Boolean(placesKey);
@@ -50,10 +52,12 @@ export function usePlaceAutocomplete(
     if (!enabled || trimmed.length < 3) {
       setSuggestions([]);
       setLoading(false);
+      setError(false);
       return;
     }
     const id = ++requestId.current;
     setLoading(true);
+    setError(false);
     const timer = setTimeout(async () => {
       try {
         const body: Record<string, unknown> = {
@@ -90,16 +94,19 @@ export function usePlaceAutocomplete(
           .filter((p) => p.title);
         setSuggestions(mapped);
       } catch {
-        if (id === requestId.current) setSuggestions([]);
+        if (id === requestId.current) {
+          setSuggestions([]);
+          setError(true);
+        }
       } finally {
         if (id === requestId.current) setLoading(false);
       }
     }, DEBOUNCE_MS);
 
     return () => clearTimeout(timer);
-  }, [query, origin, placesKey, enabled]);
+  }, [query, origin, placesKey, enabled, retryKey]);
 
-  return { suggestions, loading, enabled };
+  return { suggestions, loading, enabled, error };
 }
 
 /** Resolve a selected prediction to coordinates + formatted address. */

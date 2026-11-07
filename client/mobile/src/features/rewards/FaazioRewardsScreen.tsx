@@ -109,7 +109,7 @@ export function FaazioRewardsScreen({ navigation }: Props) {
           >
             <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
           </TouchableOpacity>
-          <AppText style={styles.headerTitle}>FaazioRewards</AppText>
+          <AppText style={styles.headerTitle}>FaazioCoins</AppText>
           <View style={{ width: ms(40) }} />
         </View>
 
@@ -262,8 +262,8 @@ const styles = StyleSheet.create({
     paddingVertical: SPACE.ITEM,
   },
   backButton: {
-    width: ms(40),
-    height: ms(40),
+    width: 44,
+    height: 44,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -284,8 +284,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   balanceIcon: {
-    width: ms(40),
-    height: ms(40),
+    width: 44,
+    height: 44,
     borderRadius: ms(12),
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
@@ -342,8 +342,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   streakDot: {
-    width: ms(34),
-    height: ms(34),
+    width: 44,
+    height: 44,
     borderRadius: ms(17),
     borderWidth: 2,
     borderColor: '#E2E8F0',
@@ -367,7 +367,7 @@ const styles = StyleSheet.create({
     marginTop: SPACE.BLOCK,
   },
   streakNote: {
-    fontSize: ms(10.5),
+    fontSize: ms(11),
     color: '#94A3B8',
     marginTop: vs(2),
   },
@@ -379,8 +379,8 @@ const styles = StyleSheet.create({
     padding: hs(12),
   },
   discountIcon: {
-    width: ms(40),
-    height: ms(40),
+    width: 44,
+    height: 44,
     borderRadius: ms(12),
     backgroundColor: '#FFFFFF',
     alignItems: 'center',
@@ -432,8 +432,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#EEF1F5',
   },
   ledgerIcon: {
-    width: ms(34),
-    height: ms(34),
+    width: 44,
+    height: 44,
     borderRadius: ms(10),
     backgroundColor: '#F8FAFC',
     alignItems: 'center',
@@ -449,7 +449,7 @@ const styles = StyleSheet.create({
     color: '#0f172a',
   },
   ledgerDate: {
-    fontSize: ms(10),
+    fontSize: ms(11),
     color: '#94A3B8',
     marginTop: vs(1),
   },

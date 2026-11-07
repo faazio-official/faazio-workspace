@@ -5,6 +5,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Search, X } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
+import AppTextInput from '@/components/AppTextInput';
 import FoodDetailTopBar from '../components/FoodDetailTopBar';
 import DietToggle from '../components/DietToggle';
 import MenuItemRow from '../components/MenuItemRow';
@@ -125,7 +126,7 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
 
       <View style={styles.searchBox}>
         <Search color={foodTheme.textSecondary} size={ms(18)} />
-        <TextInput
+        <AppTextInput
           ref={searchRef}
           placeholder="Search in menu"
           placeholderTextColor={foodTheme.textSecondary}

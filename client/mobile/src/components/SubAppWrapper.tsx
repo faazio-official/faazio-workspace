@@ -28,6 +28,7 @@ import NavbarHomeShortcut from '@/components/shared/NavbarHomeShortcut';
 import { FaMartScreen } from '../features/ecommerce/FaMartScreen';
 import { PharmaScreen } from '../features/pharma/PharmaScreen';
 import AppText from '@/components/AppText';
+import EnterpriseIcon from '@/components/EnterpriseIcon';
 import SubAppHeader from './shared/SubAppHeader';
 import { subAppHeaderH } from './shared/SubAppHeader';
 import HeaderCategoryRail from '@/components/shared/HeaderCategoryRail';
@@ -155,9 +156,9 @@ export default function SubAppWrapper({
   }, [activeTab]);
 
   useEffect(() => {
-    if (activeTab === 'Search' && searchInputRef.current) {
-      setTimeout(() => searchInputRef.current?.focus(), 300);
-    }
+    if (activeTab !== 'Search') return;
+    const timer = setTimeout(() => searchInputRef.current?.focus(), 300);
+    return () => clearTimeout(timer);
   }, [activeTab]);
 
   const handleBack = useCallback(() => {
@@ -303,7 +304,7 @@ export default function SubAppWrapper({
             {cartItems.map((item) => (
               <View key={item.id} style={styles.basketRow}>
                 <View style={styles.basketRowLeft}>
-                  <AppText style={styles.basketRowEmoji}>{item.emoji}</AppText>
+                  <EnterpriseIcon emoji={item.emoji} size={28} variant="square" />
                   <AppText style={styles.basketRowName} numberOfLines={1}>{item.name}</AppText>
                 </View>
                 <View style={styles.basketStepper}>
@@ -449,10 +450,6 @@ const styles = StyleSheet.create({
     paddingVertical: vs(50),
     paddingHorizontal: hs(24),
   },
-  noDataEmoji: {
-    fontSize: ms(32),
-    marginBottom: SPACE.BLOCK,
-  },
   noDataTitle: {
     fontSize: ms(12),
     fontWeight: '900',
@@ -589,17 +586,14 @@ const styles = StyleSheet.create({
     gap: hs(8),
     flex: 1,
   },
-  basketRowEmoji: {
-    fontSize: ms(16),
-  },
   basketRowName: {
-    fontSize: ms(10),
-    fontWeight: '700',
+    fontSize: ms(11),
+    fontWeight: '600',
     color: '#334155',
     flex: 1,
   },
   basketRowPrice: {
-    fontSize: ms(9),
+    fontSize: ms(11),
     color: '#94a3b8',
   },
   basketStepper: {
@@ -608,16 +602,16 @@ const styles = StyleSheet.create({
     gap: hs(6),
   },
   basketStepperBtn: {
-    width: ms(24),
-    height: ms(24),
-    borderRadius: ms(6),
+    width: 44,
+    height: 44,
+    borderRadius: ms(10),
     backgroundColor: '#f1f5f9',
     alignItems: 'center',
     justifyContent: 'center',
   },
   basketStepperText: {
     fontSize: ms(11),
-    fontWeight: '900',
+    fontWeight: '600',
     color: '#334155',
   },
   basketTotalCard: {

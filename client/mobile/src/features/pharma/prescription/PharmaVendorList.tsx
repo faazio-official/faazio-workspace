@@ -146,8 +146,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#F1F5F9',
   },
   backBtn: {
-    width: ms(32),
-    height: ms(32),
+    width: 44,
+    height: 44,
     borderRadius: ms(16),
     backgroundColor: '#F1F5F9',
     alignItems: 'center',

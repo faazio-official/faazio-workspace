@@ -163,7 +163,7 @@ export function SellerRequestsScreen({ navigation }: Props) {
                 <View
                   style={[styles.statusPill, { backgroundColor: STATUS_COLORS[item.status] ?? '#94A3B8' }]}
                 >
-                  <AppText style={styles.statusText}>{item.status.replace('_', ' ')}</AppText>
+                  <AppText style={styles.statusText}>{item.status.replace(/_/g, ' ')}</AppText>
                 </View>
                 <ChevronRight size={ms(18)} color="#94A3B8" strokeWidth={2.2} />
               </View>
@@ -191,8 +191,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  headerSpacer: { width: ms(40) },
-  backButton: { width: ms(40), height: ms(40), alignItems: 'center', justifyContent: 'center' },
+  headerSpacer: { width: 44 },
+  backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: ms(18), fontWeight: '900', color: '#0f172a' },
   filterRow: {
     flexDirection: 'row',
@@ -234,8 +234,8 @@ const styles = StyleSheet.create({
     gap: hs(10),
   },
   rowIcon: {
-    width: ms(40),
-    height: ms(40),
+    width: 44,
+    height: 44,
     borderRadius: ms(12),
     backgroundColor: '#EFF6FF',
     alignItems: 'center',
@@ -246,7 +246,7 @@ const styles = StyleSheet.create({
   rowSubtitle: { fontSize: ms(11), color: '#94A3B8', marginTop: vs(3), fontWeight: '600' },
   rowRight: { alignItems: 'flex-end', gap: vs(6) },
   statusPill: { paddingHorizontal: hs(8), paddingVertical: vs(3), borderRadius: ms(10) },
-  statusText: { fontSize: ms(9.5), fontWeight: '800', color: '#FFFFFF', textTransform: 'uppercase' },
+  statusText: { fontSize: ms(11), fontWeight: '800', color: '#FFFFFF', textTransform: 'uppercase' },
   gate: { flex: 1 },
   gateTitle: {
     fontSize: ms(16),

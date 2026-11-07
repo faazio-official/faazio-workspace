@@ -279,6 +279,8 @@ export function DeleteAccountScreen({ navigation }: Props) {
               placeholder="••••••"
               maxLength={6}
               editable={!submitting}
+              accessibilityLabel="Six-digit verification code"
+              accessibilityHint="Enter the code sent to your registered phone number"
             />
             {otpError ? <AppText style={styles.errorText}>{otpError}</AppText> : null}
             <TouchableOpacity

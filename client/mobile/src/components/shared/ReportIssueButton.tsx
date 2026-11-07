@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Alert, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { Flag } from 'lucide-react-native';
 import AppText from '@/components/AppText';
@@ -14,6 +14,13 @@ import { parentRamp } from '@/theme/brandTokens';
 export function ReportIssueButton({ context }: { context: string }) {
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const doneTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (doneTimer.current) clearTimeout(doneTimer.current);
+    },
+    [],
+  );
 
   const onPress = async () => {
     if (busy) return;
@@ -21,7 +28,8 @@ export function ReportIssueButton({ context }: { context: string }) {
     const ok = await reportIssue('Item could not be loaded', context);
     setBusy(false);
     setDone(true);
-    setTimeout(() => setDone(false), 4000);
+    if (doneTimer.current) clearTimeout(doneTimer.current);
+    doneTimer.current = setTimeout(() => setDone(false), 4000);
     Alert.alert(
       ok ? 'Logged. Thank you.' : 'Could not send the report right now.',
       ok

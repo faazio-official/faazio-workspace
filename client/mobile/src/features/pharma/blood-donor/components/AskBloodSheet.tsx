@@ -205,7 +205,7 @@ export default AskBloodSheet;
 const styles = StyleSheet.create({
   kav: { width: '100%', maxHeight: '86%' },
   header: { width: '100%', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  headerAction: { width: ms(28), height: ms(28), alignItems: 'center', justifyContent: 'center' },
+  headerAction: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: ms(18), fontWeight: '900', color: BLOOD_TEXT },
   subtitle: { width: '100%', marginTop: vs(5), color: BLOOD_TEXT_MUTED, fontSize: ms(12), lineHeight: vs(17) },
   scroll: { width: '100%' },

@@ -44,7 +44,7 @@ const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
         <View style={styles.logoWrap}>
           <PharmaImage uri={store.coverImage} style={styles.logo} contentFit="cover" />
           <View style={styles.ratingBadge}>
-            <Star size={ms(10)} color="#FFFFFF" fill="#FFFFFF" strokeWidth={1.5} />
+            <Star size={ms(10)} color={neutral.card} fill={neutral.card} strokeWidth={1.5} />
             <AppText style={styles.ratingText}>{store.rating}</AppText>
           </View>
         </View>
@@ -206,7 +206,7 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
             value={query}
             onChangeText={setQuery}
             placeholder="Search this medical"
-            placeholderTextColor="#94A3B8"
+            placeholderTextColor={neutral.inkSubtle}
             returnKeyType="search"
             accessibilityLabel="Search products in this medical"
             autoCorrect={false}
@@ -275,7 +275,7 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
 export default MedicalShopDetailsScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#FFFFFF' },
+  container: { flex: 1, backgroundColor: neutral.card },
   center: { alignItems: 'center', justifyContent: 'center', padding: hs(24) },
   topBar: {
     flexDirection: 'row',
@@ -283,16 +283,16 @@ const styles = StyleSheet.create({
     gap: hs(10),
     paddingHorizontal: hs(16),
     paddingBottom: SPACE.BLOCK,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderBottomWidth: 1,
-    borderBottomColor: '#E6F2F1',
+    borderBottomColor: neutral.border,
   },
   backBtn: {
     width: 44, height: 44, borderRadius: 22,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: '#E8F6F4',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: brandRamp.PHARMA.tint,
   },
   searchWrap: {
-    flex: 1, height: 44, borderRadius: 22, backgroundColor: '#F1FAF9',
+    flex: 1, height: 44, borderRadius: 22, backgroundColor: brandRamp.PHARMA.tint,
     flexDirection: 'row', alignItems: 'center', gap: hs(8), paddingHorizontal: hs(14),
   },
   searchInput: { flex: 1, fontSize: ms(12), color: PHARMA_INK, paddingVertical: 0 },
@@ -305,7 +305,7 @@ const styles = StyleSheet.create({
     position: 'absolute', bottom: -ms(6), alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: hs(2),
     paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(7), backgroundColor: PHARMA_TEAL_DEEP,
   },
-  ratingText: { fontSize: ms(11), fontWeight: '600', color: '#FFFFFF' },
+  ratingText: { fontSize: ms(11), fontWeight: '600', color: neutral.card },
   identityBody: { flex: 1, gap: vs(5) },
   storeName: { fontSize: ms(17), fontWeight: '600', color: PHARMA_INK },
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: hs(5) },

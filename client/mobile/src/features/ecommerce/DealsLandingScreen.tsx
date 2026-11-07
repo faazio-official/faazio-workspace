@@ -79,10 +79,38 @@ export function DealsLandingScreen({ navigation, route }: Props) {
     () => campaignView?.store ?? (campaign ? getCampaignStore(campaign) : undefined),
     [campaignView, campaign],
   );
-  const store = useMemo(
+  // Prefer the bundled fixture (offline); otherwise resolve the store from the server directory so
+  // a server-only vendor's "View all" does not dead-end on "Store not found".
+  const localStore = useMemo(
     () => (mode === 'discounts' ? getStoreById(storeId ?? '') : undefined),
     [mode, storeId],
   );
+  const [remoteStore, setRemoteStore] = useState<{ id: string; name: string } | null>(null);
+  const [storeResolving, setStoreResolving] = useState(false);
+  useEffect(() => {
+    if (mode !== 'discounts' || localStore || !storeId) {
+      setRemoteStore(null);
+      setStoreResolving(false);
+      return;
+    }
+    let active = true;
+    setStoreResolving(true);
+    gateway
+      .getStore(storeId)
+      .then((s) => {
+        if (active) setRemoteStore(s ? { id: s.id, name: s.name } : null);
+      })
+      .catch(() => {
+        if (active) setRemoteStore(null);
+      })
+      .finally(() => {
+        if (active) setStoreResolving(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [mode, localStore, storeId]);
+  const store = localStore ?? remoteStore;
 
   // `discounts` mode reads the vendor's ACTIVE catalog rows from the server (the same
   // `GET /stores/{id}/products` the vendor drill-in uses); `martDeals`/`martEssentials` resolve the
@@ -203,7 +231,7 @@ export function DealsLandingScreen({ navigation, route }: Props) {
 
   const notFound =
     (mode === 'campaign' && !campaign && !campaignView && !campaignLoading) ||
-    (mode === 'discounts' && !store);
+    (mode === 'discounts' && !store && !storeResolving);
 
   if (notFound) {
     return (

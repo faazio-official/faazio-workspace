@@ -149,7 +149,7 @@ const styles = StyleSheet.create({
     gap: hs(8),
   },
   backBtn: {
-    width: ms(40),
+    width: 44,
     height: SUB_HEADER_SEARCH_H,
     borderRadius: ms(12),
     alignItems: 'center',

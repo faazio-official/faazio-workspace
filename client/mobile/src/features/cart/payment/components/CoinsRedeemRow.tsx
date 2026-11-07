@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
-import { Coins, Info } from 'lucide-react-native';
+import { Check, Coins, Info } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
@@ -68,10 +68,11 @@ export default function CoinsRedeemRow({ coinBalance, onToggle }: CoinsRedeemRow
           style={[styles.checkbox, checked && styles.checkboxChecked]}
           activeOpacity={0.7}
           disabled={!canRedeem}
+          hitSlop={{ top: 11, bottom: 11, left: 11, right: 11 }}
           accessibilityRole="checkbox"
           accessibilityState={{ checked }}
         >
-          {checked && <AppText style={styles.checkboxCheck}>✓</AppText>}
+          {checked && <Check size={ms(13)} color="#ffffff" strokeWidth={3} />}
         </TouchableOpacity>
       </View>
 
@@ -147,11 +148,7 @@ const styles = StyleSheet.create({
     backgroundColor: BRAND.green,
     borderColor: BRAND.green,
   },
-  checkboxCheck: {
-    fontSize: ms(13),
-    fontWeight: '900',
-    color: '#ffffff',
-  },
+  
   savingRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',

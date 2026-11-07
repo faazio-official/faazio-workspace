@@ -115,6 +115,9 @@ export function FaMartScreen({
       return;
     }
     let active = true;
+    // Drop stale rows so the skeleton is actually visible while the new query resolves,
+    // instead of leaving the previous query's results on screen.
+    setSearchResults([]);
     setSearchLoading(true);
     setSearchError(false);
     gateway

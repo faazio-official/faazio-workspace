@@ -69,7 +69,13 @@ const StoreCardBase = memo(function StoreCardBase({ store, variant = 'vendor', w
         <AppText style={styles.storeName}>{store.name}</AppText>
         {store.isVeg !== undefined && (
           <View style={styles.vegBadge}>
-            <AppText style={styles.vegText}>{store.isVeg ? '🟢 VEG' : '🔴 NON-VEG'}</AppText>
+            <View
+              style={[
+                styles.vegDot,
+                { backgroundColor: store.isVeg ? '#15803D' : '#B91C1C' },
+              ]}
+            />
+            <AppText style={styles.vegText}>{store.isVeg ? 'VEG' : 'NON-VEG'}</AppText>
           </View>
         )}
       </View>
@@ -128,7 +134,15 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.1, shadowRadius: 4, elevation: 2,
   },
   storeName: { fontSize: ms(15), fontWeight: '900', color: '#ffffff', marginTop: vs(4) },
-  vegBadge: { position: 'absolute', top: vs(10), right: hs(12) },
+  vegBadge: {
+    position: 'absolute',
+    top: vs(10),
+    right: hs(12),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(3),
+  },
+  vegDot: { width: ms(6), height: ms(6), borderRadius: ms(3) },
   vegText: { fontSize: ms(8), fontWeight: '900', color: '#ffffff' },
   adLabelWrap: { position: 'absolute', bottom: vs(4), right: hs(4) },
   railAdLabelWrap: { position: 'absolute', bottom: vs(4), right: hs(4) },

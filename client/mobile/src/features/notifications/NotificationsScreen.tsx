@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
   },
   statusSent: { backgroundColor: '#DCFCE7' },
   statusPending: { backgroundColor: '#FEF3C7' },
-  statusText: { fontSize: ms(10), fontWeight: '600' },
+  statusText: { fontSize: ms(11), fontWeight: '600' },
   statusTextSent: { color: '#16A34A' },
   statusTextPending: { color: semantic.warning },
   emptyState: {

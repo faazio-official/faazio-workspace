@@ -145,6 +145,7 @@ const ProductCardBase = memo(function ProductCardBase({
               <View style={[styles.stepper, { backgroundColor: tokens.btnAdded }]}>
                 <TouchableOpacity
                   onPress={onDecrement}
+                  style={styles.stepperBtn}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   accessibilityRole="button"
                   accessibilityLabel={`Remove one ${product.name}`}
@@ -154,6 +155,7 @@ const ProductCardBase = memo(function ProductCardBase({
                 <AppText style={styles.stepperQty}>{quantity}</AppText>
                 <TouchableOpacity
                   onPress={onIncrement}
+                  style={styles.stepperBtn}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   accessibilityRole="button"
                   accessibilityLabel={`Add one more ${product.name}`}
@@ -204,7 +206,8 @@ const styles = StyleSheet.create({
   priceRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(4) },
   price: { fontSize: ms(13), fontWeight: '600' },
   originalPrice: { fontSize: ms(11), fontWeight: '400', color: '#94a3b8', textDecorationLine: 'line-through', marginLeft: hs(4) },
-  addBtn: { width: ms(32), height: ms(32), borderRadius: ms(16), alignItems: 'center', justifyContent: 'center' },
-  stepper: { flexDirection: 'row', alignItems: 'center', borderRadius: ms(16), paddingHorizontal: hs(6), height: ms(32) },
+  addBtn: { width: Math.max(32, ms(32)), height: Math.max(32, ms(32)), borderRadius: ms(16), alignItems: 'center', justifyContent: 'center' },
+  stepper: { flexDirection: 'row', alignItems: 'center', borderRadius: ms(16), paddingHorizontal: hs(6), height: Math.max(32, ms(32)) },
+  stepperBtn: { width: Math.max(32, ms(32)), height: Math.max(32, ms(32)), alignItems: 'center', justifyContent: 'center' },
   stepperQty: { fontSize: ms(12), fontWeight: '600', color: '#ffffff', marginHorizontal: hs(6), minWidth: ms(12), textAlign: 'center' },
 });

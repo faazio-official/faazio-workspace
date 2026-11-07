@@ -24,6 +24,8 @@ export interface PaymentFailedScreenProps {
   onSwitchToCod: () => void;
   /** Retry the existing order with a different UPI app. */
   onSelectApp?: (appId: string, label: string) => void;
+  /** Inline retry / COD-switch failure from the parent (never a blocking alert). */
+  error?: string | null;
 }
 
 /**
@@ -41,6 +43,7 @@ export default function PaymentFailedScreen({
   onRetry,
   onSwitchToCod,
   onSelectApp,
+  error,
 }: PaymentFailedScreenProps) {
   const insets = useSafeAreaInsets();
   const [showApps, setShowApps] = useState(false);
@@ -61,19 +64,27 @@ export default function PaymentFailedScreen({
         </AppText>
         <AppText style={styles.order}>Order {orderId} — you can retry the same amount.</AppText>
 
+        {error ? (
+          <View style={styles.errorWrap} accessibilityLiveRegion="polite">
+            <AppText style={styles.errorText}>{error}</AppText>
+          </View>
+        ) : null}
+
         <TouchableOpacity
           style={[styles.primaryBtn, busy && styles.btnDisabled]}
           onPress={onRetry}
           disabled={busy}
           activeOpacity={0.85}
           accessibilityRole="button"
+          accessibilityLabel={`Retry payment with ${upiLabel}`}
+          accessibilityState={{ disabled: busy, busy }}
         >
           {busy ? (
             <ActivityIndicator color="#ffffff" />
           ) : (
             <>
               <RefreshCw size={ms(17)} color="#ffffff" strokeWidth={2.6} />
-              <AppText style={styles.primaryText}>Click here to continue</AppText>
+              <AppText style={styles.primaryText}>Retry payment with {upiLabel}</AppText>
             </>
           )}
         </TouchableOpacity>
@@ -174,6 +185,21 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: vs(6),
     marginBottom: vs(24),
+  },
+  errorWrap: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+    borderRadius: ms(12),
+    paddingVertical: vs(10),
+    paddingHorizontal: hs(12),
+    marginBottom: vs(16),
+  },
+  errorText: {
+    fontSize: ms(13),
+    color: '#B91C1C',
+    textAlign: 'center',
+    lineHeight: ms(18),
   },
   primaryBtn: {
     height: Math.max(52, vs(52)),

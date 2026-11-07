@@ -85,9 +85,11 @@ export default function CommonProductDetailView({
 
   const [imageFailed, setImageFailed] = useState(false);
   const [foodImageFailed, setFoodImageFailed] = useState(false);
+  const [storeImageFailed, setStoreImageFailed] = useState(false);
   useEffect(() => {
     setImageFailed(false);
     setFoodImageFailed(false);
+    setStoreImageFailed(false);
   }, [product?.image]);
 
   const brand =
@@ -221,7 +223,18 @@ export default function CommonProductDetailView({
       <View style={styles.storeCard}>
         <View style={styles.storeInfoRow}>
           <View style={styles.storeLogoContainer}>
-            <Image source={{ uri: store.coverImage }} style={styles.storeCover} resizeMode="cover" />
+            {store.coverImage && !storeImageFailed ? (
+              <Image
+                source={{ uri: store.coverImage }}
+                style={styles.storeCover}
+                resizeMode="cover"
+                onError={() => setStoreImageFailed(true)}
+              />
+            ) : (
+              <View style={[styles.storeCover, styles.storeCoverFallback]}>
+                <Package size={ms(26)} color="#94a3b8" strokeWidth={1.8} />
+              </View>
+            )}
             <View style={styles.storeRatingBadge}>
               <AppText style={styles.storeRatingText}>{store.rating}</AppText>
             </View>
@@ -671,31 +684,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#0f172a',
     marginBottom: vs(8),
-  },
-  variantRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: hs(8),
-  },
-  variantPill: {
-    paddingVertical: vs(7),
-    paddingHorizontal: hs(14),
-    borderRadius: ms(20),
-    borderWidth: 1.5,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#ffffff',
-  },
-  variantPillActive: {
-    borderColor: '#0f172a',
-    backgroundColor: '#0f172a',
-  },
-  variantPillText: {
-    fontSize: ms(12),
-    fontWeight: '700',
-    color: '#334155',
-  },
-  variantPillTextActive: {
-    color: '#ffffff',
   },
   descText: {
     fontSize: ms(13),

@@ -36,6 +36,9 @@ export default function PaymentCallbackScreen() {
   const cancelled = useRef(false);
 
   const verify = useCallback(async (id: string) => {
+    // A manual "Verify again" after cancelling must restart polling; only unmount
+    // should leave this flag latched (the effect cleanup sets it).
+    cancelled.current = false;
     setPhase('verifying');
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt += 1) {
       if (cancelled.current) return;

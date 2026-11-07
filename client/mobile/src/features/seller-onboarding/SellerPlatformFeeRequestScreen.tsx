@@ -48,6 +48,7 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   const activeVendor = vendors.find((v) => v.id === storeId) ?? null;
 
@@ -56,11 +57,13 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
       setLoading(false);
       return;
     }
+    setLoadError(false);
     try {
       setHistory(await gateway.listSellerFeeChangeRequests(sellerId));
     } catch {
       // history is a convenience; submission still works
     }
+    let storesOk = true;
     try {
       const rows = await gateway.listSellerStores();
       setVendors(rows);
@@ -78,7 +81,9 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
       }
     } catch {
       // stores stay unknown; validation still guards the submitted value
+      storesOk = false;
     }
+    setLoadError(!storesOk);
     setLoading(false);
   }, [route.params?.currentFeePct, sellerId, storeId]);
 
@@ -172,6 +177,21 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
 
           {loading ? (
             <ActivityIndicator color={parentRamp.base} style={styles.loader} />
+          ) : loadError ? (
+            <>
+              <AppText style={styles.muted}>
+                Could not load your vendor stores. Check your connection and try again.
+              </AppText>
+              <TouchableOpacity
+                style={styles.retryBtn}
+                onPress={() => void load()}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading vendor stores"
+              >
+                <AppText style={styles.retryText}>Try again</AppText>
+              </TouchableOpacity>
+            </>
           ) : vendors.length === 0 ? (
             <AppText style={styles.muted}>No vendor stores are linked to this account yet.</AppText>
           ) : (
@@ -285,8 +305,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  headerSpacer: { width: ms(40) },
-  backButton: { width: ms(40), height: ms(40), alignItems: 'center', justifyContent: 'center' },
+  headerSpacer: { width: 44 },
+  backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: ms(18), fontWeight: '900', color: '#0f172a' },
   content: { padding: hs(16), paddingBottom: SPACE.LIST_BOTTOM },
   card: { backgroundColor: '#FFFFFF', borderRadius: ms(18), padding: hs(16) },
@@ -331,6 +351,8 @@ const styles = StyleSheet.create({
   },
   pendingNote: { marginTop: vs(10), fontSize: ms(12), color: '#B45309', fontWeight: '700' },
   error: { marginTop: vs(10), fontSize: ms(12), color: '#DC2626', fontWeight: '700' },
+  retryBtn: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', marginTop: vs(8) },
+  retryText: { fontSize: ms(13), fontWeight: '600', color: parentRamp.base, textDecorationLine: 'underline' },
   notice: { marginTop: vs(10), fontSize: ms(12), color: '#15803D', fontWeight: '700' },
   primaryBtn: {
     marginTop: vs(16),
@@ -362,7 +384,7 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: ms(14), fontWeight: '800', color: '#0f172a' },
   rowSubtitle: { fontSize: ms(11), color: '#94A3B8', marginTop: vs(3), fontWeight: '600' },
   statusPill: { paddingHorizontal: hs(8), paddingVertical: vs(3), borderRadius: ms(10) },
-  statusText: { fontSize: ms(9.5), fontWeight: '800', color: '#FFFFFF' },
+  statusText: { fontSize: ms(11), fontWeight: '800', color: '#FFFFFF' },
   gateTitle: { fontSize: ms(16), fontWeight: '900', color: '#0f172a', textAlign: 'center', marginTop: vs(40) },
   gateBody: {
     fontSize: ms(12),

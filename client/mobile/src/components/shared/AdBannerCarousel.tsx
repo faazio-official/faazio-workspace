@@ -78,6 +78,8 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
   const onMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(e.nativeEvent.contentOffset.x / Math.max(width, 1));
     setIndex(Math.min(Math.max(next, 0), slides.length - 1));
+    // Interaction pauses autoplay; resume once the gesture settles.
+    setPaused(false);
   };
 
   return (
@@ -94,7 +96,9 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
             showsHorizontalScrollIndicator={false}
             onMomentumScrollEnd={onMomentumScrollEnd}
             onScrollBeginDrag={() => setPaused(true)}
+            onScrollEndDrag={() => setPaused(false)}
             onTouchStart={() => setPaused(true)}
+            onTouchEnd={() => setPaused(false)}
             style={styles.scroll}
           >
             {slides.map((slide, i) => (
@@ -143,7 +147,12 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
             accessible
             accessibilityRole="progressbar"
             accessibilityLabel="Advertisement carousel"
-            accessibilityValue={{ min: 1, max: slides.length, now: index + 1 }}
+            accessibilityValue={{
+              min: 1,
+              max: slides.length,
+              now: index + 1,
+              text: `Slide ${index + 1} of ${slides.length}`,
+            }}
           >
             {slides.map((slide, i) => (
               <View key={slideKey ? slideKey(slide, i) : slide.title} style={[styles.dot, i === index && styles.dotActive]} />

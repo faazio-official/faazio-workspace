@@ -109,8 +109,8 @@ const styles = StyleSheet.create({
     color: BLOOD_TEXT,
   },
   editBtn: {
-    width: ms(34),
-    height: ms(34),
+    width: 44,
+    height: 44,
     borderRadius: ms(17),
     backgroundColor: BLOOD_RED,
     alignItems: 'center',

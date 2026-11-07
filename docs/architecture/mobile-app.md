@@ -1034,9 +1034,16 @@ Shared, token-based primitives introduced by the UI-craft pass, all under `src/t
 - `scripts/check-ui.mjs` (`npm run check:ui`) — a ratchet baseline (`.ui-baseline.json`) that
   fails when hardcoded hex literals, sub-11pt type, 700–900 weights or emoji counts regress.
 
-`FavouritesView` (fixture-backed tab duplicate) and the orphan `AddCard` route/screen were
-deleted; the Pharma category grid now opens the shared `CommonProductDetailView` instead of an
-inline PDP. Favourites is **one** server-backed surface.
+The second pass closed the remaining behavioural gaps without widening scope: payment retry after
+cancel no longer dead-locks or risks a duplicate order, failed retry/COD states show inline errors,
+`MyOrders` is virtualised with an honest read-error state, `OrderDetails` has support/cancellation
+actions, server-only vendors resolve in the deals page, and the UI baseline ratcheted to
+`hex 2035 / tiny 166 / heavy 583 / emoji 61`.
+
+`FavouritesView` (fixture-backed tab duplicate), the orphan `AddCard` route/screen and the unused
+`FloatingCartBar` were deleted; the Pharma category grid now opens the shared
+`CommonProductDetailView` instead of an inline PDP. Favourites is **one** server-backed surface.
+`EnterpriseIcon` never renders a raw emoji fallback (unmapped keys render a neutral tag icon).
 
 ## Favourites page (from My Account)
 
@@ -1574,8 +1581,11 @@ history; the history is the hydrated `ordersStore.serverOrders` (refreshed on fo
 state, with a loading state until the first read settles. Rows already present as an in-session
 placement are dropped (deduped by order id) and the placed card renders the order's real status
 (server status wins). The sub-app rail counts recompute from the merged list. Prescription placed
-orders render a distinct 📄 card, and a `highlightOrderId` route param auto-selects that order's
-sub-app in the rail and rings its card.
+orders render a distinct prescription card (`FileText` icon), and a `highlightOrderId` route param
+auto-selects that order's sub-app in the rail and rings its card. The merged list is one virtualised
+`FlatList` (the rail/filter bar are its `ListHeaderComponent`), and a failed history read sets
+`ordersStore.ordersError` so the empty state reads "Could not load your orders" with retry instead
+of "No orders here yet".
 
 ## Vendor ratings & reviews (phase 1)
 

@@ -30,7 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 function statusLabel(s: string): string {
-  return s.replace('_', ' ');
+  return s.replace(/_/g, ' ');
 }
 
 /**
@@ -345,7 +345,13 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
                       {verified ? 'Verified' : 'Pending verification'}
                     </AppText>
                   </View>
-                  <TouchableOpacity style={styles.docButton} onPress={() => openDoc(doc)} activeOpacity={0.8}>
+                  <TouchableOpacity
+                      style={styles.docButton}
+                      onPress={() => openDoc(doc)}
+                      activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`View ${doc.docType ?? 'document'}`}
+                    >
                     <Eye size={ms(14)} color={parentRamp.base} strokeWidth={2.2} />
                     <AppText style={styles.docButtonText}>View</AppText>
                   </TouchableOpacity>
@@ -355,6 +361,9 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
                       onPress={() => verifyDoc(doc)}
                       disabled={busy}
                       activeOpacity={0.8}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Verify ${doc.docType ?? 'document'}`}
+                      accessibilityState={{ disabled: busy }}
                     >
                       <BadgeCheck size={ms(14)} color="#FFFFFF" strokeWidth={2.4} />
                       <AppText style={styles.docButtonTextPrimary}>Verify</AppText>
@@ -366,7 +375,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
           )}
         </View>
 
-        {d.status !== 'ACTIVE' ? (
+        {d.status !== 'ACTIVE' && d.status !== 'REJECTED' ? (
           <>
             <TouchableOpacity
               style={[styles.activateBtn, busy && styles.btnDisabled]}
@@ -490,8 +499,8 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
   },
-  headerSpacer: { width: ms(40) },
-  backButton: { width: ms(40), height: ms(40), alignItems: 'center', justifyContent: 'center' },
+  headerSpacer: { width: 44 },
+  backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: ms(18), fontWeight: '900', color: '#0f172a' },
   scroll: { flex: 1 },
   scrollContent: { paddingTop: SPACE.SECTION, paddingHorizontal: hs(16), paddingBottom: SPACE.LIST_BOTTOM },
@@ -513,7 +522,7 @@ const styles = StyleSheet.create({
   heroTitle: { fontSize: ms(16), fontWeight: '900', color: '#0f172a' },
   heroSub: { fontSize: ms(11), color: '#94A3B8', marginTop: vs(3), fontWeight: '700' },
   statusPill: { paddingHorizontal: hs(8), paddingVertical: vs(3), borderRadius: ms(10) },
-  statusText: { fontSize: ms(9.5), fontWeight: '800', color: '#FFFFFF', textTransform: 'uppercase' },
+  statusText: { fontSize: ms(11), fontWeight: '800', color: '#FFFFFF', textTransform: 'uppercase' },
   sectionCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: ms(18),
@@ -582,7 +591,7 @@ const styles = StyleSheet.create({
   },
   docIconDone: { backgroundColor: '#DCFCE7' },
   docLabel: { fontSize: ms(13), fontWeight: '800', color: '#0f172a' },
-  docStatus: { fontSize: ms(10.5), color: '#94A3B8', marginTop: vs(2) },
+  docStatus: { fontSize: ms(11), color: '#94A3B8', marginTop: vs(2) },
   vendorText: { flex: 1 },
   vendorApp: { color: parentRamp.base },
   feeBlock: {
@@ -594,10 +603,12 @@ const styles = StyleSheet.create({
   },
   feeVendorLabel: { fontSize: ms(12), fontWeight: '800', color: '#0f172a', marginBottom: vs(6) },
   docButton: {
+    minHeight: 44,
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
     gap: hs(4),
-    paddingHorizontal: hs(10),
+    paddingHorizontal: hs(12),
     paddingVertical: vs(8),
     borderRadius: ms(10),
     borderWidth: 1,

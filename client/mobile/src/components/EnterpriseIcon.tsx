@@ -4,7 +4,7 @@ import {
   ShoppingBag, Utensils, Apple, BriefcaseMedical, Dumbbell, Shirt,
   Car, Baby, Book, Dog, Gem, Wine, Gamepad2, Headphones, Camera,
   Watch, Lamp, TreePine, Plane, Palette, Music, Sparkles, Star,
-  Zap, Heart, Award,
+  Zap, Heart, Award, Keyboard, Tag,
 } from 'lucide-react-native';
 import { ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
@@ -31,7 +31,9 @@ const iconMap: Record<string, { icon: React.ComponentType<any>; color: string }>
   // 🍏 / 💎 / ⌚ used to be three near-identical greens; they are now
   // green / cyan / amber so they read as three different categories.
   '🍏': { icon: Apple, color: categorical.green },
-  '⌨️': { icon: Dumbbell, color: categorical.blue },
+  '⌨️': { icon: Keyboard, color: categorical.blue },
+  '🏋️': { icon: Dumbbell, color: categorical.red },
+  '💪': { icon: Dumbbell, color: categorical.orange },
   '👕': { icon: Shirt, color: categorical.violet },
   '🚗': { icon: Car, color: categorical.red },
   '👶': { icon: Baby, color: categorical.pink },
@@ -64,7 +66,8 @@ interface EnterpriseIconProps {
 
 export default function EnterpriseIcon({ emoji, size = 36, variant = 'circle', bgColor }: EnterpriseIconProps) {
   const mapped = iconMap[emoji];
-  const Icon = mapped?.icon;
+  // Never render a raw emoji: an unmapped key falls back to a neutral tag icon.
+  const Icon = mapped?.icon ?? Tag;
   const defaultColor = mapped?.color || categorical.slate;
   const iconSize = ms(size * 0.5);
 

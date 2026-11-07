@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Product } from '@data/types';
 import { gateway, type ActiveDiscount } from '@/services/api/GatewayClient';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
@@ -12,6 +12,10 @@ export interface VendorProducts {
   /** Raw catalog ids (pre-overlay) so a host can share one `useActiveDiscounts` batch. */
   ids: string[];
   loading: boolean;
+  /** True when the server read failed and there is no cached inventory. */
+  error: boolean;
+  /** Re-run the inventory read. */
+  retry: () => void;
 }
 
 /**
@@ -29,6 +33,9 @@ export function useVendorProducts(
 ): VendorProducts {
   const [raw, setRaw] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+  const retry = useCallback(() => setReloadKey((n) => n + 1), []);
 
   useEffect(() => {
     if (!storeId) {
@@ -37,19 +44,25 @@ export function useVendorProducts(
     }
     let active = true;
     setLoading(true);
+    setError(false);
     gateway
       .getStoreProducts(storeId)
       .then((rows) => {
         if (active) setRaw(rows as unknown as Product[]);
       })
-      .catch(() => undefined)
+      .catch(() => {
+        if (active) {
+          setRaw([]);
+          setError(true);
+        }
+      })
       .finally(() => {
         if (active) setLoading(false);
       });
     return () => {
       active = false;
     };
-  }, [storeId]);
+  }, [storeId, reloadKey]);
 
   const ids = useMemo(() => raw.map((p) => p.id), [raw]);
   // When the host owns the batch (`discounts` provided) the hook skips its own fetch (empty id set
@@ -59,5 +72,5 @@ export function useVendorProducts(
   const products = useMemo(() => applyActiveDiscounts(raw, map), [raw, map]);
   const discounted = useMemo(() => products.filter(isDiscounted), [products]);
 
-  return { products, discounted, ids, loading };
+  return { products, discounted, ids, loading, error, retry };
 }

@@ -22,7 +22,6 @@ export const RADIUS = {
  */
 export const TOUCH = {
   min: 44,
-  compact: 36,
   icon: 44,
 } as const;
 

@@ -143,7 +143,7 @@ export function UserDetailsScreen({ navigation }: Props) {
               ) : (
                 <>
                   <AppText style={styles.profileUnavailable}>
-                    Your profile could not be loaded.
+                    {loadFailed ? 'Your profile could not be loaded.' : 'Your profile details are not available yet.'}
                   </AppText>
                   <TouchableOpacity
                     onPress={retry}
@@ -243,45 +243,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#111827',
   },
-  headerActions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(8),
-  },
-  headerIconBtn: {
-    width: ms(40),
-    height: ms(40),
-    borderRadius: ms(20),
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    position: 'relative',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 1,
-  },
-  notifBadge: {
-    position: 'absolute',
-    top: vs(-3),
-    right: hs(-3),
-    minWidth: ms(18),
-    height: ms(18),
-    borderRadius: ms(9),
-    backgroundColor: '#EF4444',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: hs(4),
-    borderWidth: 2,
-    borderColor: '#ffffff',
-  },
-  notifBadgeText: {
-    color: '#ffffff',
-    fontSize: ms(9),
-    fontWeight: '900',
-  },
-
   /* Profile Card */
   profileCard: {
     backgroundColor: '#FFFFFF',
@@ -356,37 +317,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: semantic.success,
   },
-  cardDivider: {
-    height: 1,
-    backgroundColor: '#F3F4F6',
-    marginHorizontal: hs(16),
-  },
-  accountIdRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: hs(16),
-  },
-  accountIdLabel: {
-    fontSize: ms(13),
-    fontWeight: '600',
-    color: '#4B5563',
-  },
-  accountIdRight: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  accountIdValue: {
-    fontSize: ms(13),
-    fontWeight: '600',
-    color: '#4B5563',
-    marginRight: hs(10),
-    letterSpacing: 0.5,
-  },
-  copyBtn: {
-    padding: hs(2),
-  },
-
   /* Sections */
   sectionTitle: {
     fontSize: ms(15),

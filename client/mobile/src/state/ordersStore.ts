@@ -71,6 +71,8 @@ interface OrdersState {
   serverOrders: PlacedOrder[];
   /** True once the durable history read has settled (success or empty), remote mode only. */
   ordersHydrated: boolean;
+  /** True when the last durable history read failed and there is no cached history to show. */
+  ordersError: boolean;
   /** Local transient placement (only for flows that do not yet return a server order row). */
   recordOrder: (order: PlacedOrderInput) => void;
   /** Adopt a server order returned by POST /orders (authoritative id + status). */
@@ -88,6 +90,7 @@ export const useOrdersStore = create<OrdersState>()((set, get) => ({
   orders: [],
   serverOrders: [],
   ordersHydrated: false,
+  ordersError: false,
 
   recordOrder: (input) => {
     const order: PlacedOrder = {
@@ -111,19 +114,23 @@ export const useOrdersStore = create<OrdersState>()((set, get) => ({
 
   refresh: async () => {
     if (!gateway.remoteEnabled) {
-      set({ ordersHydrated: true });
+      set({ ordersHydrated: true, ordersError: false });
       return;
     }
     try {
       const rows = await gateway.getOrders();
-      set({ serverOrders: rows.map(orderRowToPlaced), ordersHydrated: true });
+      set({ serverOrders: rows.map(orderRowToPlaced), ordersHydrated: true, ordersError: false });
     } catch {
-      // Keep the previous live history (stale-but-honest) instead of showing fixtures.
-      set({ ordersHydrated: true });
+      // Keep any previous live history (stale-but-honest) instead of showing fixtures, but
+      // surface the failure so an empty screen is not mistaken for "no orders".
+      set((state) => ({
+        ordersHydrated: true,
+        ordersError: state.serverOrders.length === 0,
+      }));
     }
   },
 
-  reset: () => set({ orders: [], serverOrders: [], ordersHydrated: false }),
+  reset: () => set({ orders: [], serverOrders: [], ordersHydrated: false, ordersError: false }),
 
   // Server history wins over a same-id in-session placement (fresh status), but keep
   // in-session placements the server hasn't adopted yet (e.g. a prescription draft).

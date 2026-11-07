@@ -14,9 +14,40 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ## W83 — UI-craft pass (partial; honest status)
 
-**Status:** 🟡 Shipped in parts. Foundations + many screens fixed; five items remain open (below).
+**Status:** 🟡 Shipped in parts. Foundations + many screens fixed; four items remain open (below).
+A second pass landed the remaining functional bugs and closed the order-list gap (see "Second pass").
 
-Shipped:
+Second pass (behavioural + a11y fixes):
+- **Payments:** `PaymentCallback` "Verify again" no longer dead-locks after a cancel
+  (`cancelled` resets on retry); `PaymentFailedScreen` surfaces inline retry/COD errors (was
+  invisible); cancelling the waiting screen routes to the *existing* order's retry screen instead
+  of back to checkout, so a second order can no longer be placed; coupon "code not found" now
+  explains itself; the FULFILLMENT address error is reachable (button no longer disables before the
+  message can show).
+- **Orders:** `MyOrders` converted to `FlatList`; store gains `ordersError` and the list shows an
+  honest "Could not load your orders" + retry instead of "No orders here yet" on a failed read.
+  `OrderDetails` gained a "Need help?" block (contact support + request-cancellation mailto) and a
+  broader tax-invoice status gate; dead `emoji` field removed.
+- **Discovery:** `DealsLanding` discounts mode resolves server-only vendors via `GET /store/:id`
+  (no more false "Store not found"); `FaMart` clears stale results so the search skeleton shows;
+  Food "Snacks & Beverages" tiles are tappable (open search); `RestaurantOffers` shows a spinner
+  (not a false empty), a price sort and a live-menu note; `CategoryTitleRail` chips are radios;
+  `AdBannerCarousel`/`BrandCampaignsSection` resume autoplay after a gesture; `LocationScreen`
+  surfaces a search-unavailable state with retry, permission error in the manual step, and fixes the
+  `(0,0)` fix check + sub-44pt controls.
+- **Pharma/prescription:** dead inline-PDP styles removed; failed page upload gets an inline
+  "Try again"; medical-shop hero/search tokenised.
+- **Seller-onboarding:** header/back/doc/action buttons raised to 44pt, status text to the 11pt
+  floor, `FeeChangeRequests` status coloured by value, fee-change store read failure now shows a
+  retry, and the Verify-KYC action is hidden for REJECTED applications.
+- **System-wide:** `EnterpriseIcon` no longer falls back to a raw emoji and maps ⌨️/🏋️/💪
+  correctly; veg badges, basket rows and coin checkbox use real icons; timers (pharma add feedback,
+  sponsored add, report-issue, search focus, rating submit) are cleaned up on unmount;
+  `usePlaceAutocomplete`/`useVendorProducts` expose errors; `SlideUpSheet` uses motion tokens +
+  Reduce Motion; dead `FloatingCartBar` removed. The UI baseline ratcheted down
+  (`hex 2075→2035`, `tiny 182→166`, `heavy 597→583`, `emoji 65→61`).
+
+Shipped (first pass):
 - Foundations: `theme/tokens.ts`, `theme/motion.ts`, `useReducedMotion`, `components/Button.tsx`,
   shared `AppText` variants; `scripts/check-ui.mjs` + `.ui-baseline.json` (`npm run check:ui`)
   wired into the mobile CI checks.
@@ -47,11 +78,11 @@ Open (not done — do not mark this entry complete):
    today).
 2. **Medical shop computed open/closed** — `StoreProfile.hours` is free text; no structured
    open-hours field exists, so only the real hours string is shown.
-3. **MyOrders virtualisation** — still a `ScrollView` + `.map`; convert to `FlatList` when order
-   history grows.
-4. **Seller-onboarding token sweep** — `SellerRequestDetail`/`PlatformFee`/`SellerRequests`/
-   `FeeChangeRequests` still carry ~169 hex literals; behaviour/a11y/empty states are fixed.
-5. **Notification read/unread** — the server has no `read_at`; badges count items, not unread.
+3. **Seller-onboarding colour-literal sweep** — `SellerRequestDetail`/`PlatformFee`/
+   `SellerRequests`/`FeeChangeRequests` still carry ~150 hex literals; behaviour, a11y, 44pt
+   targets, empty/error states and status colours are fixed, but the repo rule forbids a big-bang
+   colour sweep, so the literals are moved only as those screens are touched.
+4. **Notification read/unread** — the server has no `read_at`; badges count items, not unread.
 
 ---
 

@@ -32,6 +32,7 @@ const CategoryTitleRail = memo(function CategoryTitleRail({
       horizontal
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.content}
+      accessibilityRole="radiogroup"
     >
       {options.map((opt) => {
         const active = opt.id === activeId;
@@ -41,7 +42,7 @@ const CategoryTitleRail = memo(function CategoryTitleRail({
             onPress={() => onSelect(opt.id)}
             activeOpacity={0.7}
             style={[styles.chip, active && { backgroundColor: accent }]}
-            accessibilityRole="button"
+            accessibilityRole="radio"
             accessibilityState={{ selected: active }}
             accessibilityLabel={opt.title}
           >

@@ -52,11 +52,7 @@ function AddressCard({ item, isSelected, onSelect, onEdit, onDelete }: AddressCa
   const handleSelect = useCallback(() => onSelect(item.id), [item.id, onSelect]);
 
   return (
-    <TouchableOpacity
-      onPress={handleSelect}
-      activeOpacity={0.9}
-      style={[styles.addressCard, isSelected ? styles.selectedCard : styles.unselectedCard]}
-    >
+    <View style={[styles.addressCard, isSelected ? styles.selectedCard : styles.unselectedCard]}>
       {/* Card Header — badges & actions */}
       <View style={styles.cardHeader}>
         <View style={styles.badgeRow}>
@@ -103,20 +99,36 @@ function AddressCard({ item, isSelected, onSelect, onEdit, onDelete }: AddressCa
           <AppText style={styles.userPhone}>{item.phone}</AppText>
           <AppText style={styles.addressText}>{item.address}</AppText>
 
-          <TouchableOpacity onPress={handleSelect} style={styles.deliverHereRow} activeOpacity={0.7}>
+          <TouchableOpacity
+            onPress={handleSelect}
+            style={styles.deliverHereRow}
+            activeOpacity={0.7}
+            accessibilityRole="radio"
+            accessibilityState={{ selected: isSelected }}
+            accessibilityLabel={`Deliver to ${item.name}, ${item.tag} address`}
+          >
             <MapPin size={ms(14)} color="#16A34A" strokeWidth={2.2} />
-            <AppText style={styles.deliverHereText}>Deliver here</AppText>
+            <AppText style={styles.deliverHereText}>
+              {isSelected ? 'Delivering here' : 'Deliver here'}
+            </AppText>
           </TouchableOpacity>
         </View>
 
         {/* Radio */}
-        <TouchableOpacity onPress={handleSelect} style={styles.radioContainer} activeOpacity={0.8}>
+        <TouchableOpacity
+          onPress={handleSelect}
+          style={styles.radioContainer}
+          activeOpacity={0.8}
+          accessibilityRole="radio"
+          accessibilityState={{ selected: isSelected }}
+          accessibilityLabel={`Select ${item.tag} address`}
+        >
           <View style={[styles.radioOuter, isSelected && styles.radioOuterSelected]}>
             {isSelected && <View style={styles.radioInner} />}
           </View>
         </TouchableOpacity>
       </View>
-    </TouchableOpacity>
+    </View>
   );
 }
 
@@ -133,10 +145,12 @@ interface AddressEditorProps {
   onClose: () => void;
   onSave: (draft: SavedAddress) => void;
   onDelete: (item: SavedAddress) => void;
+  /** Server write failure, shown inline instead of a blocking alert. */
+  error?: string | null;
 }
 
 /** Add / edit sheet for a saved address. Purely presentational — the screen owns the gateway write. */
-function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete }: AddressEditorProps) {
+function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, error }: AddressEditorProps) {
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<SavedAddress>(() => initial ?? blankAddress());
   const [submitted, setSubmitted] = useState(false);
@@ -259,6 +273,12 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete }: 
             </View>
           </ScrollView>
 
+          {error ? (
+            <AppText style={[styles.fieldError, styles.modalError]} accessibilityLiveRegion="polite">
+              {error}
+            </AppText>
+          ) : null}
+
           <View style={styles.modalActions}>
             {!isNew && (
               <TouchableOpacity
@@ -304,6 +324,7 @@ export function SavedAddressesScreen({ navigation }: Props) {
   const [editorVisible, setEditorVisible] = useState(false);
   const [editing, setEditing] = useState<SavedAddress | null>(null);
   const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [loading, setLoading] = useState(gateway.remoteEnabled);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
@@ -340,10 +361,12 @@ export function SavedAddressesScreen({ navigation }: Props) {
 
   const openAdd = useCallback(() => {
     setEditing(null);
+    setSaveError(null);
     setEditorVisible(true);
   }, []);
   const openEdit = useCallback((item: SavedAddress) => {
     setEditing(item);
+    setSaveError(null);
     setEditorVisible(true);
   }, []);
   const closeEditor = useCallback(() => {
@@ -373,6 +396,7 @@ export function SavedAddressesScreen({ navigation }: Props) {
 
   const handleSave = useCallback(async (draft: SavedAddress) => {
     setSaving(true);
+    setSaveError(null);
     try {
       const saved = await gateway.saveAddress(draft);
       // The server mints the id for a new address; mock mode echoes an empty id — assign a local one.
@@ -389,7 +413,7 @@ export function SavedAddressesScreen({ navigation }: Props) {
       setSelectedId(withId.id);
       setEditorVisible(false);
     } catch {
-      Alert.alert('Could not save', 'Please check the address and try again.');
+      setSaveError('Could not save this address. Check your connection and try again.');
     } finally {
       setSaving(false);
     }
@@ -493,6 +517,7 @@ export function SavedAddressesScreen({ navigation }: Props) {
         onClose={closeEditor}
         onSave={handleSave}
         onDelete={handleDelete}
+        error={saveError}
       />
     </View>
   );
@@ -853,6 +878,12 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     color: '#B91C1C',
     marginTop: vs(4),
+  },
+  modalError: {
+    marginHorizontal: hs(20),
+    marginBottom: vs(8),
+    fontSize: ms(13),
+    lineHeight: ms(18),
   },
   fieldInputMultiline: {
     minHeight: vs(72),

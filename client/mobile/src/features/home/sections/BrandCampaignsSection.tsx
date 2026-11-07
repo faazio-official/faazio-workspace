@@ -63,6 +63,8 @@ const CampaignCarousel = memo(function CampaignCarousel({
   const onMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
     const next = Math.round(e.nativeEvent.contentOffset.x / Math.max(width, 1));
     setIndex(Math.min(Math.max(next, 0), campaigns.length - 1));
+    // Interaction pauses autoplay; resume once the gesture settles.
+    setPaused(false);
   };
 
   return (
@@ -75,7 +77,9 @@ const CampaignCarousel = memo(function CampaignCarousel({
           showsHorizontalScrollIndicator={false}
           onMomentumScrollEnd={onMomentumScrollEnd}
           onScrollBeginDrag={() => setPaused(true)}
+          onScrollEndDrag={() => setPaused(false)}
           onTouchStart={() => setPaused(true)}
+          onTouchEnd={() => setPaused(false)}
         >
           {campaigns.map((campaign) => (
             <View key={campaign.id} style={[styles.slide, { width }]}>

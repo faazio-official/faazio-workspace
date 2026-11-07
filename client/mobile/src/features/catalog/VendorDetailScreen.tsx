@@ -79,7 +79,12 @@ export function VendorDetailScreen({ navigation, route }: Props) {
 
   // Vendor inventory: one shared hook (server `GET /stores/{id}/products` + approved festival
   // discounts), so this page, the in-wrapper drill-in and the deals landing can never diverge.
-  const { products: pricedProducts, loading: productsLoading } = useVendorProducts(storeId);
+  const {
+    products: pricedProducts,
+    loading: productsLoading,
+    error: productsError,
+    retry: retryProducts,
+  } = useVendorProducts(storeId);
 
   const filtered = useMemo(() => {
     if (!query.trim()) return pricedProducts;
@@ -152,7 +157,7 @@ export function VendorDetailScreen({ navigation, route }: Props) {
             value={query}
             onChangeText={setQuery}
             placeholder="Search this store"
-            placeholderTextColor="#94a3b8"
+            placeholderTextColor={neutral.inkSubtle}
             returnKeyType="search"
             clearButtonMode="never"
             accessibilityLabel="Search within this store"
@@ -227,10 +232,29 @@ export function VendorDetailScreen({ navigation, route }: Props) {
           <View style={styles.emptyWrap}>
             {productsLoading ? (
               <ActivityIndicator color={parentRamp.base} />
-            ) : (
+            ) : productsError ? (
+              <>
+                <AppText style={styles.emptyTitle}>Could not load products</AppText>
+                <AppText style={styles.emptySub}>Check your connection and try again.</AppText>
+                <TouchableOpacity
+                  onPress={retryProducts}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Retry loading store products"
+                  style={styles.retryBtn}
+                >
+                  <AppText style={styles.retryText}>Try again</AppText>
+                </TouchableOpacity>
+              </>
+            ) : query.trim() ? (
               <>
                 <AppText style={styles.emptyTitle}>No matches found</AppText>
                 <AppText style={styles.emptySub}>Try a different search for this store.</AppText>
+              </>
+            ) : (
+              <>
+                <AppText style={styles.emptyTitle}>No products yet</AppText>
+                <AppText style={styles.emptySub}>This store hasn’t listed any products.</AppText>
               </>
             )}
           </View>
@@ -388,5 +412,17 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: vs(4),
     textAlign: 'center',
+  },
+  retryBtn: {
+    minHeight: 44,
+    justifyContent: 'center',
+    marginTop: vs(10),
+    paddingHorizontal: hs(16),
+  },
+  retryText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: parentRamp.base,
+    textDecorationLine: 'underline',
   },
 });

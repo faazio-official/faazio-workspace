@@ -85,11 +85,23 @@ function SponsoredRail({
     }
   }, [products]);
 
+  const addTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (addTimer.current) clearTimeout(addTimer.current);
+    },
+    [],
+  );
+
   const handleAdd = useCallback(
     (product: SponsoredProduct) => {
       addToCart?.(product.id, product.name, product.price, product.emoji);
       setAddedId(product.id);
-      setTimeout(() => setAddedId((cur) => (cur === product.id ? null : cur)), 1500);
+      if (addTimer.current) clearTimeout(addTimer.current);
+      addTimer.current = setTimeout(
+        () => setAddedId((cur) => (cur === product.id ? null : cur)),
+        1500,
+      );
     },
     [addToCart],
   );

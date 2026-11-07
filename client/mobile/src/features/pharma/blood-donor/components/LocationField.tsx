@@ -127,8 +127,8 @@ const styles = StyleSheet.create({
     paddingVertical: 0,
   },
   locateBtn: {
-    width: ms(36),
-    height: ms(36),
+    width: 44,
+    height: 44,
     borderRadius: ms(18),
     backgroundColor: BLOOD_RED,
     alignItems: 'center',

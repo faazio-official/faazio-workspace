@@ -22,6 +22,7 @@ import { useOrdersStore } from '@/state/ordersStore';
 import { useAuthStore } from '@/state/authStore';
 import { useCanRateVendor } from '@/hooks/useVendorRating';
 import { gateway, type OrderInvoice } from '@/services/api/GatewayClient';
+import { SUPPORT_EMAIL } from '@/lib/site';
 import { usePrescriptionDetail } from '@/features/pharma/prescription/usePrescriptionDetail';
 import type { MyOrder } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
@@ -73,7 +74,6 @@ interface OrderView {
   statusDate: string;
   fulfillment: 'PICKUP' | 'DELIVERY';
   app: 'FOOD' | 'MART' | 'PHARMA';
-  emoji: string;
   productName: string;
   variant: string;
   price: number;
@@ -128,7 +128,6 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
         }),
         fulfillment: placedOrder.fulfillment,
         app: inferOrderApp(placedOrder.kind, first?.id),
-        emoji: first?.emoji ?? '🛍️',
         productName: placedOrder.vendorName,
         variant: first?.name ?? 'Order',
         price: first?.price ?? placedOrder.total,
@@ -184,6 +183,20 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
       setInvoiceBusy(false);
     }
   }, [route.params.orderId]);
+
+  const supportOrderId = order?.id ?? route.params.orderId;
+  const handleContactSupport = useCallback(() => {
+    void Linking.openURL(
+      `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Help with order ${supportOrderId}`)}`,
+    );
+  }, [supportOrderId]);
+  const handleRequestCancellation = useCallback(() => {
+    void Linking.openURL(
+      `mailto:${SUPPORT_EMAIL}?subject=${encodeURIComponent(`Cancel order ${supportOrderId}`)}&body=${encodeURIComponent(
+        'Please cancel this order if it has not been packed yet.',
+      )}`,
+    );
+  }, [supportOrderId]);
 
   if (!order) {
     return (
@@ -373,7 +386,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
         ) : null}
 
         {/* Tax invoice — only meaningful once the order is paid/delivered (server record). */}
-        {invoice !== null || (order && /deliver|complet|paid/i.test(order.status)) ? (
+        {invoice !== null || (order && /deliver|complet|fulfil|paid|ready|dispatch|packed/i.test(order.status)) ? (
         <View style={styles.card}>
           <AppText style={styles.sectionTitle}>Tax invoice</AppText>
           <AppText style={styles.invoiceHint}>
@@ -421,6 +434,33 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
             <ExternalLink size={ms(15)} color="#16A34A" strokeWidth={2.2} />
           </TouchableOpacity>
         ) : null}
+
+        <View style={styles.card}>
+          <AppText style={styles.sectionTitle}>Need help?</AppText>
+          <AppText style={styles.helpText}>
+            Contact support with your order number and we’ll look into it.
+          </AppText>
+          <TouchableOpacity
+            onPress={handleContactSupport}
+            style={styles.helpBtn}
+            activeOpacity={0.85}
+            accessibilityRole="button"
+            accessibilityLabel="Contact support about this order"
+          >
+            <AppText style={styles.helpBtnText}>Contact support</AppText>
+          </TouchableOpacity>
+          {order.status === 'Processing' ? (
+            <TouchableOpacity
+              onPress={handleRequestCancellation}
+              style={styles.helpSecondaryBtn}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Request cancellation of this order"
+            >
+              <AppText style={styles.helpSecondaryText}>Request cancellation</AppText>
+            </TouchableOpacity>
+          ) : null}
+        </View>
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
@@ -521,9 +561,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: hs(12),
-  },
-  productEmoji: {
-    fontSize: ms(30),
   },
   itemInfo: {
     flex: 1,
@@ -712,6 +749,36 @@ const styles = StyleSheet.create({
     fontSize: ms(14),
     fontWeight: '700',
     color: '#16A34A',
+  },
+
+  helpText: {
+    fontSize: ms(13),
+    color: '#6B7280',
+    lineHeight: ms(18),
+    marginBottom: vs(12),
+  },
+  helpBtn: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: ms(10),
+    backgroundColor: '#16A34A',
+  },
+  helpBtnText: {
+    fontSize: ms(14),
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  helpSecondaryBtn: {
+    minHeight: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: vs(8),
+  },
+  helpSecondaryText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: '#B91C1C',
   },
 
   missing: {

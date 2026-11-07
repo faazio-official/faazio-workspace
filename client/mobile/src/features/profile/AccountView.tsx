@@ -199,9 +199,11 @@ export function AccountView({
         <TouchableOpacity
           style={styles.coinsCard}
           activeOpacity={0.85}
-          onPress={onOpenRewards}
+          onPress={() => onOpenRewards?.()}
+          disabled={!onOpenRewards}
           accessibilityRole="button"
           accessibilityLabel="Open FaazioCoins"
+          accessibilityState={{ disabled: !onOpenRewards }}
         >
           <View style={styles.coinsHeader}>
             <View style={styles.coinsTitleRow}>

@@ -24,7 +24,7 @@ import type { Product, StoreProfile } from '@data/types';
 import VendorHighlights from './VendorHighlights';
 import VendorCategoryChips from './VendorCategoryChips';
 import { VENDOR_YELLOW, GREEN, TEXT_DARK, TEXT_LIGHT } from './theme';
-import { neutral } from '@/theme/brandTokens';
+import { neutral, semantic, semanticTint } from '@/theme/brandTokens';
 
 const SCREEN_W = Dimensions.get('window').width;
 const CARD_GAP = hs(12);
@@ -165,7 +165,7 @@ export function VendorProfileView({
                 <AppText style={styles.storeName} numberOfLines={1}>
                   {vendor.name}
                 </AppText>
-                <ShieldCheck size={ms(16)} color="#3B82F6" fill="#DBEAFE" />
+                <ShieldCheck size={ms(16)} color={semantic.info} fill={semanticTint.info} />
               </View>
               <AppText style={styles.storeSub}>Your Local Store</AppText>
               <View style={styles.locationRow}>
@@ -264,7 +264,7 @@ export default VendorProfileView;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#fff',
+    backgroundColor: neutral.card,
   },
   topBar: {
     flexDirection: 'row',
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: hs(16),
     paddingBottom: vs(8),
-    backgroundColor: '#fff',
+    backgroundColor: neutral.card,
   },
   topBarBtn: {
     width: 44,
@@ -280,7 +280,7 @@ const styles = StyleSheet.create({
     borderRadius: 22,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: neutral.surfaceAlt,
     position: 'relative',
   },
   cartBadge: {
@@ -298,7 +298,7 @@ const styles = StyleSheet.create({
   cartBadgeText: {
     fontSize: ms(9),
     fontWeight: '900',
-    color: '#fff',
+    color: neutral.card,
   },
   scrollContent: {
     paddingBottom: SPACE.SECTION,
@@ -308,7 +308,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   board: {
-    backgroundColor: '#fff',
+    backgroundColor: neutral.card,
     borderTopLeftRadius: ms(24),
     borderTopRightRadius: ms(24),
     paddingTop: vs(12),
@@ -342,7 +342,7 @@ const styles = StyleSheet.create({
     borderRadius: ms(8),
   },
   ratingText: {
-    color: '#fff',
+    color: neutral.card,
     fontSize: ms(10),
     fontWeight: '800',
   },
@@ -423,7 +423,7 @@ const styles = StyleSheet.create({
   },
   seeAllText: {
     fontSize: ms(12),
-    color: '#B45309',
+    color: semantic.warning,
     fontWeight: '600',
   },
   discountScroll: {

@@ -1,8 +1,8 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { View, StyleSheet, FlatList } from 'react-native';
+import { View, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Search } from 'lucide-react-native';
+import { ArrowDownWideNarrow, ArrowUpNarrowWide, Search } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
@@ -31,6 +31,7 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantOffers'>;
 export function RestaurantOffersScreen({ navigation, route }: Props) {
   const { restaurant, offers } = route.params;
   const [searchQuery, setSearchQuery] = useState('');
+  const [priceAsc, setPriceAsc] = useState(true);
   const { menu, loading } = useRestaurantMenu(restaurant);
   const seedOffers = offers ?? [];
 
@@ -44,13 +45,15 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
 
   const filteredOffers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return offerDishes;
-    return offerDishes.filter(
-      (d) =>
-        d.dishName.toLowerCase().includes(q) ||
-        (d.description ?? '').toLowerCase().includes(q),
-    );
-  }, [offerDishes, searchQuery]);
+    const rows = !q
+      ? offerDishes
+      : offerDishes.filter(
+          (d) =>
+            d.dishName.toLowerCase().includes(q) ||
+            (d.description ?? '').toLowerCase().includes(q),
+        );
+    return [...rows].sort((a, b) => (priceAsc ? a.price - b.price : b.price - a.price));
+  }, [offerDishes, searchQuery, priceAsc]);
 
   const openDish = useCallback(
     (dish: SpecialDish) => {
@@ -80,10 +83,38 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
         />
       </View>
 
-      {offerDishes.length === 0 ? (
-        <View style={styles.emptyWrap}>
-          <AppText style={styles.emptyText}>No discounted dishes right now</AppText>
+      {offerDishes.length > 0 ? (
+        <View style={styles.metaRow}>
+          <AppText style={styles.metaText}>
+            Discounts reflect the restaurant’s live menu; availability can change.
+          </AppText>
+          <TouchableOpacity
+            style={styles.sortBtn}
+            onPress={() => setPriceAsc((v) => !v)}
+            accessibilityRole="button"
+            accessibilityLabel={priceAsc ? 'Sort offers by price, high to low' : 'Sort offers by price, low to high'}
+          >
+            {priceAsc ? (
+              <ArrowUpNarrowWide size={ms(15)} color={foodTheme.primary} strokeWidth={2.2} />
+            ) : (
+              <ArrowDownWideNarrow size={ms(15)} color={foodTheme.primary} strokeWidth={2.2} />
+            )}
+            <AppText style={styles.sortText}>{priceAsc ? 'Price ↑' : 'Price ↓'}</AppText>
+          </TouchableOpacity>
         </View>
+      ) : null}
+
+      {offerDishes.length === 0 ? (
+        loading ? (
+          <View style={styles.emptyWrap}>
+            <ActivityIndicator color={foodTheme.primary} />
+            <AppText style={styles.emptyText}>Loading offers…</AppText>
+          </View>
+        ) : (
+          <View style={styles.emptyWrap}>
+            <AppText style={styles.emptyText}>No discounted dishes right now</AppText>
+          </View>
+        )
       ) : (
         <FlatList
           data={filteredOffers}
@@ -149,5 +180,33 @@ const styles = StyleSheet.create({
     color: foodTheme.textSecondary,
     fontSize: ms(14),
     textAlign: 'center',
+    marginTop: vs(10),
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: hs(12),
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(6),
+  },
+  metaText: {
+    flex: 1,
+    color: foodTheme.textSecondary,
+    fontSize: ms(11),
+    lineHeight: ms(16),
+  },
+  sortBtn: {
+    minHeight: 44,
+    minWidth: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    gap: hs(4),
+  },
+  sortText: {
+    color: foodTheme.primary,
+    fontSize: ms(12),
+    fontWeight: '600',
   },
 });

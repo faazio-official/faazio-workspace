@@ -3,7 +3,7 @@ import {
   Linking,
   StyleSheet,
   View,
-  ScrollView,
+  FlatList,
   TouchableOpacity,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -94,6 +94,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
   const placedOrders = useOrdersStore((s) => s.orders);
   const serverOrders = useOrdersStore((s) => s.serverOrders);
   const ordersHydrated = useOrdersStore((s) => s.ordersHydrated);
+  const ordersError = useOrdersStore((s) => s.ordersError);
   const refreshOrders = useOrdersStore((s) => s.refresh);
   const highlightOrderId = route.params?.highlightOrderId;
   const [activeApp, setActiveApp] = useState<AppFilter>('ALL');
@@ -253,6 +254,149 @@ export function MyOrdersScreen({ navigation, route }: Props) {
     [navigation],
   );
 
+  const renderOrderCard = useCallback(
+    ({ item: vo }: { item: ViewOrder }) => {
+      const highlighted = !!highlightOrderId && viewOrderRefId(vo) === highlightOrderId;
+      const po = vo.order;
+
+      // Prescription placed order — distinct card; opens OrderDetails for the durable Rx
+      // status + seller quote (same route as item orders).
+      if (po.kind === 'prescription') {
+        return (
+          <TouchableOpacity
+            style={[styles.orderCard, highlighted && styles.orderCardHighlighted]}
+            activeOpacity={0.9}
+            onPress={() => handleOpenOrder(po.orderId)}
+            accessibilityRole="button"
+            accessibilityLabel={`Open prescription order ${po.orderId}`}
+          >
+            <View style={styles.cardHeader}>
+              <AppText style={styles.orderDate}>
+                {new Date(po.placedAt).toLocaleDateString('en-IN', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric',
+                })}
+              </AppText>
+              <View style={styles.headerPills}>
+                <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG.Processing }]}>
+                  <AppText style={[styles.statusText, { color: STATUS_COLORS.Processing }]}>
+                    Processing
+                  </AppText>
+                </View>
+                {po.fulfillment === 'PICKUP' ? (
+                  <View style={[styles.fulfillmentPill, styles.fulfillmentPillPickup]}>
+                    <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextPickup]}>Self Pickup</AppText>
+                  </View>
+                ) : (
+                  <View style={[styles.fulfillmentPill, styles.fulfillmentPillDelivery]}>
+                    <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextDelivery]}>Delivery</AppText>
+                  </View>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.cardBody}>
+              <View style={styles.productImagePlaceholder}>
+                <FileText size={ms(22)} color={semantic.info} strokeWidth={1.5} />
+              </View>
+              <View style={styles.productInfo}>
+                <AppText style={styles.productName} numberOfLines={1}>Prescription order</AppText>
+                <AppText style={styles.productMeta} numberOfLines={1}>
+                  {po.pages ?? 0} pages • {po.vendorName}
+                </AppText>
+              </View>
+              <AppText style={styles.priceText}>₹{po.total}</AppText>
+            </View>
+          </TouchableOpacity>
+        );
+      }
+
+      // Placed items order (in-session + server history) — standard card from store data.
+      const first = po.items?.[0];
+      const orderApp = inferPlacedApp(po);
+      const OrderIcon =
+        orderApp === 'PHARMA' ? Pill : orderApp === 'FOOD' ? Utensils : ShoppingBag;
+      const qtyTotal = po.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
+      return (
+        <TouchableOpacity
+          style={[styles.orderCard, highlighted && styles.orderCardHighlighted]}
+          activeOpacity={0.9}
+          onPress={() => handleOpenOrder(po.orderId)}
+          accessibilityRole="button"
+          accessibilityLabel={`Open order ${po.orderId}`}
+        >
+          <View style={styles.cardHeader}>
+            <AppText style={styles.orderDate}>
+              {new Date(po.placedAt).toLocaleDateString('en-IN', {
+                day: '2-digit',
+                month: 'short',
+                year: 'numeric',
+              })}
+            </AppText>
+            <View style={styles.headerPills}>
+              <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG[po.status] }]}>
+                <AppText style={[styles.statusText, { color: STATUS_COLORS[po.status] }]}>
+                  {po.status}
+                </AppText>
+              </View>
+              {po.fulfillment === 'PICKUP' ? (
+                <View style={[styles.fulfillmentPill, styles.fulfillmentPillPickup]}>
+                  <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextPickup]}>Self Pickup</AppText>
+                </View>
+              ) : (
+                <View style={[styles.fulfillmentPill, styles.fulfillmentPillDelivery]}>
+                  <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextDelivery]}>Delivery</AppText>
+                </View>
+              )}
+            </View>
+          </View>
+
+          <View style={styles.cardBody}>
+            <View style={styles.productImagePlaceholder}>
+              <OrderIcon size={ms(22)} color={semantic.neutral} strokeWidth={1.5} />
+            </View>
+            <View style={styles.productInfo}>
+              <AppText style={styles.productName} numberOfLines={1}>{po.vendorName}</AppText>
+              <AppText style={styles.productMeta} numberOfLines={1}>
+                {first?.name ?? 'Order'} • Qty {qtyTotal}
+              </AppText>
+            </View>
+            <AppText style={styles.priceText}>₹{po.total}</AppText>
+          </View>
+
+          <View style={styles.cardFooter}>
+            <VendorRateButton
+              vendorId={po.storeIds?.[0]}
+              variant="compact"
+              onPress={handleRateVendor}
+            />
+            {po.status === 'Delivered' ? (
+              <TouchableOpacity
+                style={styles.invoiceBtn}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={`Download invoice for order ${po.orderId}`}
+                onPress={() => void handleDownloadInvoice(po.orderId)}
+              >
+                <AppText style={styles.invoiceBtnText}>Invoice</AppText>
+              </TouchableOpacity>
+            ) : null}
+            <TouchableOpacity
+              style={styles.viewDetailsBtn}
+              activeOpacity={0.7}
+              accessibilityRole="button"
+              onPress={() => handleOpenOrder(po.orderId)}
+            >
+              <AppText style={styles.viewDetailsText}>View Details &gt;</AppText>
+            </TouchableOpacity>
+          </View>
+        </TouchableOpacity>
+      );
+    },
+    [highlightOrderId, handleOpenOrder, handleRateVendor, handleDownloadInvoice],
+  );
+
   return (
     <View style={styles.container}>
       {/* 1. Fixed header — stays pinned while the list scrolls (mirrors AccountView). */}
@@ -289,12 +433,16 @@ export function MyOrdersScreen({ navigation, route }: Props) {
         </View>
       </View>
 
-      <ScrollView
+      <FlatList
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         bounces={false}
-      >
+        data={visibleOrders}
+        keyExtractor={(vo) => vo.order.id}
+        renderItem={renderOrderCard}
+        ListHeaderComponent={
+          <>
         {invoiceNotice ? (
           <View style={styles.invoiceNotice}>
             <AppText style={styles.invoiceNoticeText}>{invoiceNotice}</AppText>
@@ -343,178 +491,49 @@ export function MyOrdersScreen({ navigation, route }: Props) {
           </TouchableOpacity>
         </View>
 
-        {/* 4. Order Cards / Empty State */}
-        {visibleOrders.length === 0 ? (
+        </>
+        }
+        ListEmptyComponent={
           <View style={styles.emptyState}>
             <View style={styles.emptyIconBox}>
               <PackageOpen size={ms(34)} color="#9CA3AF" strokeWidth={2} />
             </View>
             <AppText style={styles.emptyTitle}>
-              {ordersHydrated ? 'No orders here yet' : 'Loading your orders...'}
+              {!ordersHydrated
+                ? 'Loading your orders...'
+                : ordersError
+                  ? 'Could not load your orders'
+                  : 'No orders here yet'}
             </AppText>
             <AppText style={styles.emptySubtitle}>
-              {ordersHydrated
-                ? 'Try a different sub-app or clear your filters.'
-                : 'Fetching your server order history.'}
+              {!ordersHydrated
+                ? 'Fetching your server order history.'
+                : ordersError
+                  ? 'Check your connection and try again.'
+                  : 'Try a different sub-app or clear your filters.'}
             </AppText>
             {ordersHydrated ? (
               <TouchableOpacity
-                onPress={handleClearFilters}
+                onPress={() => {
+                  if (ordersError) {
+                    void refreshOrders();
+                    return;
+                  }
+                  handleClearFilters();
+                }}
                 style={styles.emptyBtn}
                 activeOpacity={0.85}
                 accessibilityRole="button"
               >
-                <AppText style={styles.emptyBtnText}>Clear filters</AppText>
+                <AppText style={styles.emptyBtnText}>
+                  {ordersError ? 'Try again' : 'Clear filters'}
+                </AppText>
               </TouchableOpacity>
             ) : null}
           </View>
-        ) : (
-          <View style={styles.list}>
-            {visibleOrders.map((vo) => {
-              const highlighted = !!highlightOrderId && viewOrderRefId(vo) === highlightOrderId;
-              const po = vo.order;
-
-              // Prescription placed order — distinct card; opens OrderDetails for the durable Rx
-              // status + seller quote (same route as item orders).
-              if (po.kind === 'prescription') {
-                return (
-                  <TouchableOpacity
-                    key={po.id}
-                    style={[styles.orderCard, highlighted && styles.orderCardHighlighted]}
-                    activeOpacity={0.9}
-                    onPress={() => handleOpenOrder(po.orderId)}
-                    accessibilityRole="button"
-                    accessibilityLabel={`Open prescription order ${po.orderId}`}
-                  >
-                    <View style={styles.cardHeader}>
-                      <AppText style={styles.orderDate}>
-                        {new Date(po.placedAt).toLocaleDateString('en-IN', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </AppText>
-                      <View style={styles.headerPills}>
-                        <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG.Processing }]}>
-                          <AppText style={[styles.statusText, { color: STATUS_COLORS.Processing }]}>
-                            Processing
-                          </AppText>
-                        </View>
-                        {po.fulfillment === 'PICKUP' ? (
-                          <View style={[styles.fulfillmentPill, styles.fulfillmentPillPickup]}>
-                            <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextPickup]}>Self Pickup</AppText>
-                          </View>
-                        ) : (
-                          <View style={[styles.fulfillmentPill, styles.fulfillmentPillDelivery]}>
-                            <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextDelivery]}>Delivery</AppText>
-                          </View>
-                        )}
-                      </View>
-                    </View>
-
-                    <View style={styles.cardBody}>
-                      <View style={styles.productImagePlaceholder}>
-                        <FileText size={ms(22)} color={semantic.info} strokeWidth={1.5} />
-                      </View>
-                      <View style={styles.productInfo}>
-                        <AppText style={styles.productName} numberOfLines={1}>Prescription order</AppText>
-                        <AppText style={styles.productMeta} numberOfLines={1}>
-                          {po.pages ?? 0} pages • {po.vendorName}
-                        </AppText>
-                      </View>
-                      <AppText style={styles.priceText}>₹{po.total}</AppText>
-                    </View>
-                  </TouchableOpacity>
-                );
-              }
-
-              // Placed items order (in-session + server history) — standard card from store data.
-              const first = po.items?.[0];
-              const orderApp = inferPlacedApp(po);
-              const OrderIcon =
-                orderApp === 'PHARMA' ? Pill : orderApp === 'FOOD' ? Utensils : ShoppingBag;
-              const qtyTotal = po.items?.reduce((s, i) => s + i.quantity, 0) ?? 0;
-              return (
-                <TouchableOpacity
-                  key={po.id}
-                  style={[styles.orderCard, highlighted && styles.orderCardHighlighted]}
-                  activeOpacity={0.9}
-                  onPress={() => handleOpenOrder(po.orderId)}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Open order ${po.orderId}`}
-                >
-                  <View style={styles.cardHeader}>
-                    <AppText style={styles.orderDate}>
-                      {new Date(po.placedAt).toLocaleDateString('en-IN', {
-                        day: '2-digit',
-                        month: 'short',
-                        year: 'numeric',
-                      })}
-                    </AppText>
-                    <View style={styles.headerPills}>
-                      <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG[po.status] }]}>
-                        <AppText style={[styles.statusText, { color: STATUS_COLORS[po.status] }]}>
-                          {po.status}
-                        </AppText>
-                      </View>
-                      {po.fulfillment === 'PICKUP' ? (
-                        <View style={[styles.fulfillmentPill, styles.fulfillmentPillPickup]}>
-                          <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextPickup]}>Self Pickup</AppText>
-                        </View>
-                      ) : (
-                        <View style={[styles.fulfillmentPill, styles.fulfillmentPillDelivery]}>
-                          <AppText style={[styles.fulfillmentPillText, styles.fulfillmentPillTextDelivery]}>Delivery</AppText>
-                        </View>
-                      )}
-                    </View>
-                  </View>
-
-                  <View style={styles.cardBody}>
-                    <View style={styles.productImagePlaceholder}>
-                      <OrderIcon size={ms(22)} color={semantic.neutral} strokeWidth={1.5} />
-                    </View>
-                    <View style={styles.productInfo}>
-                      <AppText style={styles.productName} numberOfLines={1}>{po.vendorName}</AppText>
-                      <AppText style={styles.productMeta} numberOfLines={1}>
-                        {first?.name ?? 'Order'} • Qty {qtyTotal}
-                      </AppText>
-                    </View>
-                    <AppText style={styles.priceText}>₹{po.total}</AppText>
-                  </View>
-
-                  <View style={styles.cardFooter}>
-                    <VendorRateButton
-                      vendorId={po.storeIds?.[0]}
-                      variant="compact"
-                      onPress={handleRateVendor}
-                    />
-                    {po.status === 'Delivered' ? (
-                      <TouchableOpacity
-                        style={styles.invoiceBtn}
-                        activeOpacity={0.7}
-                        accessibilityRole="button"
-                        accessibilityLabel={`Download invoice for order ${po.orderId}`}
-                        onPress={() => void handleDownloadInvoice(po.orderId)}
-                      >
-                        <AppText style={styles.invoiceBtnText}>Invoice</AppText>
-                      </TouchableOpacity>
-                    ) : null}
-                    <TouchableOpacity
-                      style={styles.viewDetailsBtn}
-                      activeOpacity={0.7}
-                      accessibilityRole="button"
-                      onPress={() => handleOpenOrder(po.orderId)}
-                    >
-                      <AppText style={styles.viewDetailsText}>View Details &gt;</AppText>
-                    </TouchableOpacity>
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-            <View style={styles.listBottomSpacer} />
-          </View>
-        )}
-      </ScrollView>
+        }
+        ListFooterComponent={<View style={styles.listBottomSpacer} />}
+      />
 
       <MyOrdersFilterSheet
         visible={filterSheetVisible}
@@ -578,8 +597,8 @@ const styles = StyleSheet.create({
     gap: hs(8),
   },
   headerIconBtn: {
-    width: ms(40),
-    height: ms(40),
+    width: 44,
+    height: 44,
     borderRadius: ms(20),
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
@@ -602,7 +621,7 @@ const styles = StyleSheet.create({
   },
   notifBadgeText: {
     color: '#ffffff',
-    fontSize: ms(9),
+    fontSize: ms(11),
     fontWeight: '900',
   },
 
@@ -750,9 +769,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: hs(12),
   },
-  productEmoji: {
-    fontSize: ms(32),
-  },
   productInfo: {
     flex: 1,
     paddingRight: hs(8),
@@ -794,7 +810,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#EEF2FF',
   },
   fulfillmentPillText: {
-    fontSize: ms(10),
+    fontSize: ms(11),
     fontWeight: '700',
   },
   fulfillmentPillTextDelivery: {

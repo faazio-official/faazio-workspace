@@ -110,6 +110,7 @@ export function FoodHomeScreen({ navigation }: Props) {
   );
 
   const openMindSearch = useCallback((item: FoodType) => openSearch(item.name), [openSearch]);
+  const openSnackSearch = useCallback((snack: { name: string }) => openSearch(snack.name), [openSearch]);
 
   const handleTabChange = useCallback(
     (tab: FoodTab) => {
@@ -196,14 +197,14 @@ export function FoodHomeScreen({ navigation }: Props) {
         <Animated.View entering={FadeInDown.duration(400)}>
           <FoodSectionHeader title="Snacks & Beverages" />
           {snacks.length > 0 ? (
-            <SnacksRail snacks={snacks} />
+            <SnacksRail snacks={snacks} onPress={openSnackSearch} />
           ) : (
             <DietEmptyNote />
           )}
         </Animated.View>
       </>
     );
-  }, [feed, dietFilter, openRestaurant, openDishProduct, openSearch, openMindSearch, goBack, openVenue, navigation]);
+  }, [feed, dietFilter, openRestaurant, openDishProduct, openSearch, openMindSearch, openSnackSearch, goBack, openVenue, navigation]);
 
   if (!feed) {
     return (

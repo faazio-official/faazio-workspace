@@ -113,8 +113,8 @@ export const brandTokens: Record<AppBrand, BrandTokens> = {
  *
  * `tint` is a card/pill background and always pairs with `onTint` text.
  *
- * These are additive: nothing in the app consumes them yet. `brandTokens`
- * above is unchanged apart from Pharma's `btnBg` contrast fix.
+ * `brandRamp` is the single source for per-sub-app colour; `brandTokens`
+ * projects its values for the legacy per-brand objects.
  */
 export interface BrandRamp {
   /** Bright anchor. Fills, icons, chips, badges, accents. Never white text. */

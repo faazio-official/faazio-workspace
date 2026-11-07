@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StyleSheet, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -40,7 +40,7 @@ import PharmaHomeSkeleton from './components/skeletons/PharmaHomeSkeleton';
 import { DonorDashboard } from './blood-donor/DonorDashboard';
 import { useOrdersStore, type PlacedOrder } from '@/state/ordersStore';
 import { brandRamp } from '@/theme/brandTokens';
-import { semantic } from '@/theme/brandTokens';
+import { neutral, semantic } from '@/theme/brandTokens';
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -175,10 +175,19 @@ export function PharmaScreen({
     return eff < p.price ? p.price : undefined;
   };
 
+  const addedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (addedTimer.current) clearTimeout(addedTimer.current);
+    },
+    [],
+  );
+
   const handleAddWithFeedback = (id: string, name: string, price: number, emoji: string) => {
     if (addToCart) addToCart(id, name, price, emoji);
     setAddedAnimationId(id);
-    setTimeout(() => setAddedAnimationId(null), 1200);
+    if (addedTimer.current) clearTimeout(addedTimer.current);
+    addedTimer.current = setTimeout(() => setAddedAnimationId(null), 1200);
   };
 
   const goBack = () => {
@@ -608,7 +617,7 @@ const styles = StyleSheet.create({
   emptyText: {
     fontSize: ms(13),
     fontWeight: '600',
-    color: '#666666',
+    color: neutral.inkMuted,
   },
   sectionHeader: {
     flexDirection: 'row',
@@ -700,161 +709,6 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     fontWeight: '900',
     color: '#64748b',
-  },
-  detailHero: {
-    height: vs(320),
-    position: 'relative',
-  },
-  detailTopBar: {
-    position: 'absolute',
-    top: vs(48),
-    left: 0,
-    right: 0,
-    zIndex: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: hs(20),
-  },
-  detailBackBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(0,0,0,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  detailHeartBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255,255,255,0.9)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  detailImageContainer: {
-    position: 'absolute',
-    top: vs(80),
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    height: vs(192),
-    justifyContent: 'center',
-  },
-  detailImage: {
-    width: ms(192),
-    height: ms(192),
-    resizeMode: 'contain',
-  },
-  detailContent: {
-    paddingHorizontal: hs(20),
-    paddingTop: SPACE.BLOCK,
-  },
-  detailName: {
-    fontSize: ms(18),
-    fontWeight: '900',
-    color: '#0f172a',
-    marginBottom: vs(8),
-  },
-  detailStarsRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(4),
-    marginBottom: vs(16),
-  },
-  detailReviewCount: {
-    fontSize: ms(10),
-    fontWeight: '600',
-    color: '#94a3b8',
-    marginLeft: hs(4),
-  },
-  quantityRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(12),
-    marginBottom: vs(16),
-  },
-  qtyBtn: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#ffffff',
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  qtyValue: {
-    fontSize: ms(14),
-    fontWeight: '900',
-    color: '#0f172a',
-    minWidth: ms(24),
-    textAlign: 'center',
-  },
-  detailDesc: {
-    fontSize: ms(11),
-    fontWeight: '600',
-    color: '#64748b',
-    lineHeight: vs(16),
-    marginBottom: vs(16),
-  },
-  bulletsContainer: {
-    gap: vs(10),
-    marginBottom: SPACE.SECTION,
-  },
-  bulletRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(10),
-  },
-  bulletCircle: {
-    width: ms(16),
-    height: ms(16),
-    borderRadius: ms(8),
-    backgroundColor: '#FFEAE5',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bulletText: {
-    fontSize: ms(11),
-    fontWeight: '700',
-    color: '#334155',
-  },
-  totalBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: SPACE.ITEM,
-    borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
-    gap: hs(12),
-  },
-  totalLabel: {
-    fontSize: ms(9),
-    fontWeight: '800',
-    color: '#94a3b8',
-    letterSpacing: 0.5,
-  },
-  totalAmount: {
-    fontSize: ms(16),
-    fontWeight: '900',
-    color: '#0f172a',
-    marginTop: vs(2),
-  },
-  addToCartBtn: {
-    flex: 1,
-    backgroundColor: '#0f172a',
-    height: vs(44),
-    borderRadius: ms(12),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  addToCartBtnAdded: {
-    backgroundColor: semantic.success,
-  },
-  addToCartBtnText: {
-    fontSize: ms(11),
-    fontWeight: '900',
-    color: '#ffffff',
   },
   historyHeader: {
     paddingHorizontal: hs(20),

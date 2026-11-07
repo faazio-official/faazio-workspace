@@ -1,7 +1,9 @@
 import React, { memo, useEffect, useRef, useState, type ReactNode } from 'react';
-import { Modal, View, Pressable, StyleSheet, Animated, Easing, ScrollView, useWindowDimensions } from 'react-native';
+import { Modal, View, Pressable, StyleSheet, Animated, ScrollView, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, ms, vs } from '@/utils/responsive';
+import { DURATION, EASING } from '@/theme/motion';
+import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 interface SlideUpSheetProps {
   visible: boolean;
@@ -28,6 +30,7 @@ const SlideUpSheet = memo(function SlideUpSheet({
   const { height: windowHeight } = useWindowDimensions();
   const [rendered, setRendered] = useState(visible);
   const progress = useRef(new Animated.Value(0)).current;
+  const reduceMotion = useReducedMotion();
 
   useEffect(() => {
     if (visible) {
@@ -35,9 +38,9 @@ const SlideUpSheet = memo(function SlideUpSheet({
     } else if (rendered) {
       Animated.timing(progress, {
         toValue: 0,
-        duration: 200,
+        duration: reduceMotion ? 0 : DURATION.fast,
         useNativeDriver: true,
-        easing: Easing.in(Easing.quad),
+        easing: EASING,
       }).start(() => setRendered(false));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -47,9 +50,9 @@ const SlideUpSheet = memo(function SlideUpSheet({
     if (rendered) {
       Animated.timing(progress, {
         toValue: 1,
-        duration: 260,
+        duration: reduceMotion ? 0 : DURATION.base,
         useNativeDriver: true,
-        easing: Easing.out(Easing.cubic),
+        easing: EASING,
       }).start();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

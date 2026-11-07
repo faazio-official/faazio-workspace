@@ -111,7 +111,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0,0,0,0.65)',
     zIndex: 2,
   },
-  iconButton: { width: ms(40), height: ms(40), alignItems: 'center', justifyContent: 'center' },
+  iconButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: ms(14), fontWeight: '800', color: '#ffffff' },
   consentWrap: {
     flex: 1,

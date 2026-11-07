@@ -34,6 +34,15 @@ const StarRatingInput = memo(function StarRatingInput({
         now: value,
         text: value > 0 ? `${value} of 5 stars` : 'No rating selected',
       }}
+      accessibilityActions={[
+        { name: 'increment', label: 'Increase rating' },
+        { name: 'decrement', label: 'Decrease rating' },
+      ]}
+      onAccessibilityAction={(event) => {
+        if (disabled) return;
+        if (event.nativeEvent.actionName === 'increment') onChange(Math.min(5, value + 1));
+        else if (event.nativeEvent.actionName === 'decrement') onChange(Math.max(1, value - 1));
+      }}
     >
       {[1, 2, 3, 4, 5].map((star) => {
         const filled = star <= value;
@@ -43,7 +52,7 @@ const StarRatingInput = memo(function StarRatingInput({
             onPress={() => onChange(star)}
             disabled={disabled}
             activeOpacity={0.7}
-            hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             accessibilityRole="button"
             accessibilityLabel={`${star} star${star === 1 ? '' : 's'}`}
             accessibilityState={{ selected: filled }}

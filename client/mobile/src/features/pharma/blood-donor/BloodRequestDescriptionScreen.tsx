@@ -378,7 +378,7 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
               <Bookmark size={ms(16)} color={BLOOD_RED} strokeWidth={2.4} />
             )}
             <AppText style={[styles.interestedText, isInterested && styles.interestedTextActive]}>
-              {isInterested ? 'Interested ✓' : 'Mark Interested'}
+              {isInterested ? 'Interested' : 'Mark Interested'}
             </AppText>
           </TouchableOpacity>
 
@@ -392,7 +392,7 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
           >
             <CircleCheck size={ms(17)} color="#ffffff" strokeWidth={2.4} />
             <AppText style={styles.acceptText}>
-              {isAccepted ? 'Accepted ✓' : 'Accept & Proceed'}
+              {isAccepted ? 'Accepted' : 'Accept & Proceed'}
             </AppText>
           </TouchableOpacity>
         </View>
@@ -552,8 +552,8 @@ const styles = StyleSheet.create({
     flexShrink: 1,
   },
   phoneFab: {
-    width: ms(42),
-    height: ms(42),
+    width: 44,
+    height: 44,
     borderRadius: ms(21),
     backgroundColor: BLOOD_RED,
     alignItems: 'center',

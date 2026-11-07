@@ -113,8 +113,8 @@ const styles = StyleSheet.create({
     color: '#111827',
   },
   closeBtn: {
-    width: ms(36),
-    height: ms(36),
+    width: 44,
+    height: 44,
     borderRadius: ms(18),
     backgroundColor: '#F3F4F6',
     alignItems: 'center',
@@ -145,8 +145,8 @@ const styles = StyleSheet.create({
     borderBottomColor: '#EEF1F5',
   },
   radio: {
-    width: ms(20),
-    height: ms(20),
+    width: 44,
+    height: 44,
     borderRadius: ms(10),
     borderWidth: 1.5,
     borderColor: '#D1D5DB',
