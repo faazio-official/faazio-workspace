@@ -552,9 +552,11 @@ through `useHomeFeed` → `GatewayClient.getHomeFeed` (`GET /sdui/home`); the ol
     at ~88dp max radius against the 96dp mask.
   - **The iOS storyboard sizes the image view from the asset.** `SplashScreen.storyboard` sets
     `translatesAutoresizingMaskIntoConstraints="false"` on the image view, so without explicit
-    constraints Auto Layout uses the asset's *intrinsic* size — a 2171pt-wide 1x asset would
-    render far off-screen. The storyboard therefore carries an explicit `width = 220` plus a
-    `width:height = 3.7231` aspect constraint, and the 1x asset is 220×59 pt.
+    constraints Auto Layout uses the asset's *intrinsic* size. The iOS splash now mirrors Android:
+    the imageset carries the same square 288dp canvas at 1x/2x/3x (288/576/864 px, mapped to
+    Android mdpi/xhdpi/xxhdpi), and the storyboard carries an explicit `width = 200` plus a
+    `width:height = 1.0` square constraint. All three iOS apps share the `#4250FF` splash
+    background.
   The source PNG is opaque RGB with a non-flat blue field, so the script keys the field out to
   transparency (luma key with a dead zone) and keeps only the white wordmark. That makes the
   native assets background-independent on both platforms.

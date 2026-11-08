@@ -89,7 +89,9 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
     `ic_launcher_round.xml` (in `src/main`), using the flavor's `@color/iconBackground` and
     `res/drawable/ic_launcher_foreground_inset.xml` — a 20dp safe-zone inset around
     `@mipmap/ic_launcher_foreground` so the knot is never clipped by the launcher mask.
-  - iOS: single 1024×1024 universal icon, RGB with no alpha.
+  - iOS: full app-icon set per variant (iPhone + iPad legacy sizes plus the 1024×1024
+    App Store icon), flattened from the same per-variant artwork as Android, RGB with no alpha.
+    iOS does not support adaptive icons, so the variant background colour is baked into each PNG.
 - Each flavor manifest declares its own `android:icon`/`android:roundIcon`; the resources resolve
   from the flavor source set (overriding `src/main`), and the launcher label comes from the
   per-flavor `resValue app_name`. The iOS build setting `ASSETCATALOG_COMPILER_APPICON_NAME` selects

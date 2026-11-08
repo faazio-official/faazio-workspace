@@ -16,7 +16,8 @@ Outputs, per variant:
       ic_launcher_round.webp       legacy round
       ic_launcher_foreground.webp  adaptive foreground (API 26+)
   android/app/src/<flavor>/res/values/colors.xml   iconBackground matching the tile
-  ios/Faazio/Images.xcassets/<Variant>-AppIcon.appiconset/App-Icon-1024x1024@1x.png
+  ios/Faazio/Images.xcassets/<Variant>-AppIcon.appiconset/Icon-*.png
+      full iOS app-icon set (iPhone + iPad + 1024 App Store), flattened
 
 The adaptive foreground is drawn full-bleed; the shared drawable
 `res/drawable/ic_launcher_foreground_inset.xml` applies the 20dp safe-zone inset
@@ -46,6 +47,28 @@ VARIANTS = [
 ]
 
 RESAMPLE = Image.LANCZOS
+
+# (filename, point size, scale, idiom, platform) for the flattened iOS icon set.
+IOS_SIZES = [
+    ("Icon-20.png", "20x20", "1x", "ipad", None),
+    ("Icon-20@2x.png", "20x20", "2x", "iphone", None),
+    ("Icon-20@2x-ipad.png", "20x20", "2x", "ipad", None),
+    ("Icon-20@3x.png", "20x20", "3x", "iphone", None),
+    ("Icon-29.png", "29x29", "1x", "ipad", None),
+    ("Icon-29@2x.png", "29x29", "2x", "iphone", None),
+    ("Icon-29@2x-ipad.png", "29x29", "2x", "ipad", None),
+    ("Icon-29@3x.png", "29x29", "3x", "iphone", None),
+    ("Icon-40.png", "40x40", "1x", "ipad", None),
+    ("Icon-40@2x.png", "40x40", "2x", "iphone", None),
+    ("Icon-40@2x-ipad.png", "40x40", "2x", "ipad", None),
+    ("Icon-40@3x.png", "40x40", "3x", "iphone", None),
+    ("Icon-60@2x.png", "60x60", "2x", "iphone", None),
+    ("Icon-60@3x.png", "60x60", "3x", "iphone", None),
+    ("Icon-76.png", "76x76", "1x", "ipad", None),
+    ("Icon-76@2x.png", "76x76", "2x", "ipad", None),
+    ("Icon-83.5@2x.png", "83.5x83.5", "2x", "ipad", None),
+    ("Icon-1024.png", "1024x1024", "1x", "universal", "ios"),
+]
 
 
 def full_bleed(art: Image.Image, size: int) -> Image.Image:
@@ -111,18 +134,22 @@ def generate(values: dict) -> None:
         background.paste(icon, (0, 0), icon)
         appicon_dir = os.path.join(XCASSETS, f"{ios_name}.appiconset")
         os.makedirs(appicon_dir, exist_ok=True)
-        background.save(os.path.join(appicon_dir, "App-Icon-1024x1024@1x.png"), "PNG", optimize=True)
-        contents = {
-            "images": [
-                {
-                    "filename": "App-Icon-1024x1024@1x.png",
-                    "idiom": "universal",
-                    "platform": "ios",
-                    "size": "1024x1024",
-                }
-            ],
-            "info": {"version": 1, "author": "Faazio"},
-        }
+        images = []
+        for filename, size, scale, idiom, platform in IOS_SIZES:
+            px = int(round(float(size.split("x")[0]) * float(scale.rstrip("x"))))
+            entry = {
+                "filename": filename,
+                "idiom": idiom,
+                "scale": scale,
+                "size": size,
+            }
+            if platform:
+                entry["platform"] = platform
+            images.append(entry)
+            background.resize((px, px), RESAMPLE).save(
+                os.path.join(appicon_dir, filename), "PNG", optimize=True
+            )
+        contents = {"images": images, "info": {"version": 1, "author": "Faazio"}}
         with open(os.path.join(appicon_dir, "Contents.json"), "w") as fh:
             json.dump(contents, fh, indent=2)
             fh.write("\n")

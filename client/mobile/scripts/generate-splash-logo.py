@@ -69,9 +69,9 @@ ANDROID_MASK_RADIUS_DP = 96.0
 # antialiased edges never touch the clip boundary.
 ANDROID_INK_FILL = 0.92
 
-# iOS: the 1x asset defines the intrinsic point size. 220pt matches the JS
-# SplashFallback width so the native -> JS hand-off does not change logo size.
-IOS_BASE_WIDTH_PT = 220.0
+# iOS uses the same square 288dp canvas as Android. The iOS 1x/2x/3x slices
+# map exactly to Android mdpi/xhdpi/xxhdpi (288/576/864 px), so the storyboard
+# can present a square logo identical to the Android splash artwork.
 IOS_SCALES = {"": 1.0, "@2x": 2.0, "@3x": 3.0}
 
 
@@ -151,13 +151,6 @@ def render_android(ink: Image.Image, density: float) -> Image.Image:
     return out
 
 
-def render_ios(ink: Image.Image, scale: float) -> Image.Image:
-    """Render at IOS_BASE_WIDTH_PT * scale, preserving the wordmark aspect."""
-    width = round(IOS_BASE_WIDTH_PT * scale)
-    height = round(width * ink.height / ink.width)
-    return ink.resize((width, height), Image.LANCZOS)
-
-
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="verify only, write nothing")
@@ -182,7 +175,7 @@ def main() -> int:
         print(f"android     {path.relative_to(ROOT)}  {img.width}x{img.height}")
 
     for suffix, scale in IOS_SCALES.items():
-        img = render_ios(ink, scale)
+        img = render_android(ink, scale)
         path = IOS_IMAGESET / f"image{suffix}.png"
         if not args.check:
             path.parent.mkdir(parents=True, exist_ok=True)
