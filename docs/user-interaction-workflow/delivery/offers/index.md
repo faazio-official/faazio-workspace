@@ -1,6 +1,7 @@
 # Delivery offers — domain index
 
-**Status:** Shipped
+**Status:** Partial (offer accept/reject modal is reachable only by push/deep link, not from an
+in-app screen)
 **Routes:** `AcceptReject` (modal, push/deep link), `Route` (`RouteScreen.tsx`), `Dashboard`
 **Trigger:** Push/deep link for a new offer, or the dashboard's active list.
 

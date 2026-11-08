@@ -30,7 +30,9 @@ search extraction is a pure index-replica swap.
 ## 1. Context → package → schema → cache → future-service ownership
 
 1:1 with `db-schema.md` §1–§8 and `data/DATA_CONTROL.md`. **This table is the ownership authority for
-`server/gateway/internal/*`.**
+`server/gateway/internal/*`.** End-to-end user flows per app (trigger → screens → `GatewayClient` →
+endpoint → table) are in `docs/user-interaction-workflow/`; keep that folder in sync when a row here
+changes.
 
 | Context (scaling-stage service) | Production package | Schema(s) | Cache keys / TTL | `GatewayClient` method(s) | Scaling-stage service |
 |---|---|---|---|---|---|

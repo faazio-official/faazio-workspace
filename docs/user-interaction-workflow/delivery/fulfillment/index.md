@@ -1,6 +1,7 @@
 # Delivery fulfillment — domain index
 
-**Status:** Shipped
+**Status:** Partial (pickup shipped; OTP handover is unreachable for normal checkout orders because
+checkout dispatch does not set `RequireOTP`)
 **Route:** `Route` (`features/delivery-partner/screens/RouteScreen.tsx`)
 **Trigger:** Rider has an accepted order and opens the route.
 
@@ -38,7 +39,9 @@ forward-only; the server owns the route state.
 
 ## Known gaps
 
-- See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- The customer-handover OTP branch never renders for normal checkout orders; see
+  [`customer-handover.md`](./customer-handover.md) and [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- COD + OTP ordering bug: see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

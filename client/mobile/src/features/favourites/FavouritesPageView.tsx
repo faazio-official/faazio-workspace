@@ -62,22 +62,31 @@ const FavouritesPageView = memo(function FavouritesPageView({
   const [activeKey, setActiveKey] = useState('ALL');
   const [activeSortId, setActiveSortId] = useState('relevance');
 
-  // Progressive enhancement: resolve the shelf from the local catalog index immediately,
-  // then upgrade to the server projection (`/products/batch`) when it arrives. The
-  // GatewayClient falls back to the local index offline, so this never regresses.
-  const [entries, setEntries] = useState<CatalogEntry[]>(() => getCatalogEntriesByIds(favorites));
+  // Server projection (`/products/batch`) resolves the shelf while the gateway is
+  // enabled; the local catalog index is used only as an explicit offline shell. A failed
+  // live read shows an honest empty/offline state — never fixture rows as live data.
+  const [entries, setEntries] = useState<CatalogEntry[]>(() =>
+    gateway.remoteEnabled ? [] : getCatalogEntriesByIds(favorites),
+  );
   useEffect(() => {
     if (favorites.length === 0) {
       setEntries([]);
       return;
     }
+    if (!gateway.remoteEnabled) {
+      setEntries(getCatalogEntriesByIds(favorites));
+      return;
+    }
     let active = true;
+    setEntries([]);
     gateway
       .getProductsByIds(favorites)
       .then((rows) => {
         if (active) setEntries(rows as CatalogEntry[]);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (active) setEntries([]);
+      });
     return () => {
       active = false;
     };

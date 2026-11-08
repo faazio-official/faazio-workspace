@@ -58,8 +58,10 @@
 
 ## Known gaps
 
-- `StepPlaceholder` is defensive dead code for an unknown step id; all current steps are
-  implemented. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- The donor-detail and request-description screens are documented separately in
+  [`blood-donor-details.md`](./blood-donor-details.md).
+- `StepPlaceholder` is defensive dead code (code hygiene only, not a partial user flow); see
+  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md) → "Code hygiene".
 
 ## Linked docs
 

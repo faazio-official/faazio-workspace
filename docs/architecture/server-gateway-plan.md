@@ -413,8 +413,9 @@ lightweight-superapp playbook on two of three axes:
 
 - **Server-driven widget layouts — aligned, data-driven first.** The gateway serves the render
   tree contract in `data/schema.ts` (`SDUINode`); the client composes typed entity arrays from a
-  fixed component bank (`src/components/shared/`, 14 primitives) through repository seams
-  (`src/services/homeFeed.ts`, `categoryVendors.ts`). That is the "backend sends a payload, app
+  fixed component bank (`src/components/shared/`, 14 primitives) through the `useHomeFeed` →
+  `GatewayClient.getHomeFeed` seam (`categoryVendors.ts` remains a client helper). That is the
+  "backend sends a payload, app
   pulls pre-existing components" model. **Nuance:** the widget-tree half of `SDUINode` is tagged
   `@aspirational` — layout composition (section order/registry) is still client-side (`@static`),
   so today this is **server-driven data, not full server-driven layout**. The chosen trajectory is

@@ -3,6 +3,9 @@
 Scoped, dated backlog entries for features intentionally deferred until their
 dependencies exist. Do not build the backend/seller flows until told to.
 
+> End-to-end user-flow gaps and the no-mocks audit live in
+> `docs/user-interaction-workflow/KNOWN_GAPS.md`; this file is the app-only backlog.
+
 > **Dinner/table bookings were removed** (mobile, web portal, gateway, migrations `0011`/`0020`).
 > Older W28/W29 booking entries below are historical and superseded; there is no booking screen,
 > store, route, cache key or client method. The seller app now accepts/rejects orders.
@@ -3318,11 +3321,9 @@ the status bar, rail pinned) — see the on-device checklist below.
 - **Images:** shared `ProductCardBase` + `AdBannerSection` render network images through
   `AppImage` (`resizeMode="cover"`, native HTTP cache, neutral loading bg) instead of a raw
   per-component `Image` — matches the existing `HeaderCategoryRail` convention.
-- **Repository seam:** `src/services/homeFeed.ts` exposes `getHomeSections()` /
-  `getFilterFeedPage(chip, page)` / `getFilterChips()` as promise-based, paginated reads from
-  `@data/*` — the contract the future Go Chi gateway will fulfil (one-file backend swap). Not
-  wired into the hot synchronous path yet: in-memory fixtures resolve in microseconds and an
-  async first frame would add skeletons without rendering benefit.
+- **Repository seam (historical):** `src/services/homeFeed.ts` exposed `getHomeSections()` /
+  `getFilterFeedPage(chip, page)` / `getFilterChips()` as fixture-backed reads. It has been
+  **removed** (zero live importers); Home now reads `useHomeFeed` → `GatewayClient.getHomeFeed`.
 - **Startup deferral:** non-initial routes are `React.lazy` (eager kept: `Onboarding`, `Login`,
   `MainTabs`/`Home`; lazy: Categories/Favourites/You tabs + all pushed screens). Fonts trimmed to
   the used Roboto weights `400`–`900` and gated to Android (iOS uses `System`, `useAppFonts`).

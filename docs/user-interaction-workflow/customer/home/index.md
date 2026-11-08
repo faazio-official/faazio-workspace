@@ -46,11 +46,10 @@
 ## Known gaps
 
 - Some rails (`recentlyViewed*`, `nearbyOffers`, `mens`/`womens`/`childrens`/`hairSkinCare`,
-  `filterFeed`) substitute `@data/home` `@mock` fixtures when the server section has no rows, even
-  while the gateway answers. This violates the no-mocks rule and must be removed or relabelled; see
-  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
-- `src/services/homeFeed.ts` was a fixture-backed repository seam and is not used by the live
-  screen; removal is tracked in `KNOWN_GAPS.md`.
+  `filterFeed`, `dealsOfDay` via `MART_DEALS`, `todaysSpecials`, `hotBrandDeals` via
+  `adCampaigns`) substitute `@data/home` `@mock`/`@static-editorial` fixtures when the server
+  section has no rows, even while the gateway answers. This violates the no-mocks rule and must be
+  removed or relabelled; see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

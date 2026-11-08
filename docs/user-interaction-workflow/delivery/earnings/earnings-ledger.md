@@ -1,7 +1,7 @@
 # Earnings ledger (rider payouts)
 
 **App / route:** delivery · `Payouts` (`PayoutScreen.tsx`)
-**Status:** Shipped
+**Status:** Partial (manual settlement; no automated payout split)
 **Trigger:** Dashboard → Earnings.
 
 ## Steps
@@ -35,6 +35,8 @@
 ## Known gaps
 
 - Manual settlement means bank credit timing is an ops concern, not a real-time app state.
+- Payout splitting is not implemented; `payout_amount_paisa` is display-only until marked paid. See
+  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

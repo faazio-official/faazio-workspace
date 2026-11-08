@@ -57,6 +57,8 @@ application (POST /sellers, mobile)
 
 ## Known gaps
 
+- The seller application is mobile-only: `POST /sellers` is called only from the customer app's
+  `SellWithUs`; the portal has no application form.
 - Mobile seller onboarding OTP is unavailable when Firebase Auth is unconfigured
   (`SellerRegistrationScreen.tsx` reports it).
 - See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).

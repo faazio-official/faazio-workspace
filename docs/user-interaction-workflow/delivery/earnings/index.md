@@ -1,6 +1,6 @@
 # Delivery earnings — domain index
 
-**Status:** Shipped (manual settlement)
+**Status:** Partial (manual settlement; no automated payout split)
 **Route:** `Payouts` (`features/delivery-partner/screens/PayoutScreen.tsx`)
 **Trigger:** Rider taps Earnings on the dashboard.
 

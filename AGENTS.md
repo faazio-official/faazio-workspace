@@ -20,7 +20,7 @@ faazio-workspace/
 ├── client/web/     Partner Portal — Next.js App Router console (`platform/`, shipping) + the Vite/TanStack reference (`vite-reference/`, read-only diff baseline) + the marketing landing page (`landingpage/`, TanStack Start + Nitro, deployed on Vercel — see its README.md). See docs/architecture/web-portal.md.
 ├── server/         Production Go Chi modular monolith `gateway/` + Supabase migrations/seed (active) + documented scaling-stage microservices (see docs/architecture/mvp-backend.md, monolith-breakdown.md).
 ├── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
-├── docs/           Documentation system — architecture deep-dives + runbooks + UI_DESIGN_SYSTEM.md (see "Documentation map").
+├── docs/           Documentation system — architecture deep-dives + user-interaction-workflow/ (end-to-end flow authority) + runbooks + UI_DESIGN_SYSTEM.md (see "Documentation map").
 └── security/       Security hardening scripts + remediation guide (see "Security").
 ```
 See `ARCHITECTURE.md` (root) for the full mobile + backend design. Data ownership lives in `data/DATA_CONTROL.md`.

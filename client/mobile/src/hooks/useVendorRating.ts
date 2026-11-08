@@ -36,8 +36,9 @@ export function useUserVendorRating(vendorId?: string): UserVendorRating | undef
  * Combined public reviews + aggregate summary for a vendor.
  *
  * Remote mode upgrades to the durable list + server aggregate (`reviews.vendor_reviews` /
- * `reviews.vendor_summary`); the user's own live rating is kept first. Mock mode (and any
- * fetch failure) falls back to the fully local derivation, so the surface never regresses.
+ * `reviews.vendor_summary`); the user's own live rating is kept first. Any fetch failure
+ * falls back to the local derivation containing only the user's own rating — never to
+ * fixture reviews presented as live.
  */
 export function useVendorReviews(vendorId?: string): {
   reviews: VendorReview[];

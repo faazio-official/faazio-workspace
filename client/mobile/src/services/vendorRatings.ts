@@ -1,9 +1,3 @@
-import {
-  MOCK_USER_ID,
-  hasPurchasedFromVendor,
-  getVendorOrderIds,
-  getReviewsByVendorId,
-} from '@data/index';
 import { useAuthStore } from '@/state/authStore';
 import { useOrdersStore } from '@/state/ordersStore';
 import { gateway, type VendorRatingOutcome } from '@/services/api/GatewayClient';
@@ -34,7 +28,7 @@ export interface VendorReviewSummary {
 const EMPTY_SUMMARY: VendorReviewSummary = { average: 0, count: 0, distribution: [0, 0, 0, 0, 0] };
 
 function currentUserId(): string {
-  return useAuthStore.getState().user?.id ?? MOCK_USER_ID;
+  return useAuthStore.getState().user?.id ?? '';
 }
 
 /**
@@ -51,15 +45,14 @@ function sessionOrderIdsForVendor(vendorId: string): string[] {
 
 /**
  * The single owner of the rating gate, reused by every entry point and
- * re-checked inside the rating screen. Derived (fixture orders + in-session
- * orders), never a stored flag; permanently true once a purchase exists.
+ * re-checked inside the rating screen. Derived only from real placed orders
+ * (in-session + durable server orders), never a stored flag and never a
+ * fixture purchase; permanently true once a real purchase exists.
  */
 export function canRateVendor(vendorId: string): boolean {
   if (!vendorId) return false;
-  return (
-    hasPurchasedFromVendor(MOCK_USER_ID, vendorId) ||
-    sessionOrderIdsForVendor(vendorId).length > 0
-  );
+  if (!currentUserId()) return false;
+  return sessionOrderIdsForVendor(vendorId).length > 0;
 }
 
 /** The signed-in user's current rating for a vendor, if any. */
@@ -91,10 +84,7 @@ export async function submitVendorRating(
   const value = Math.round(rating);
   if (value < 1 || value > 5) return { ok: false, status: 'invalid' };
 
-  const orderIds = [
-    ...getVendorOrderIds(MOCK_USER_ID, vendorId),
-    ...sessionOrderIdsForVendor(vendorId),
-  ];
+  const orderIds = sessionOrderIdsForVendor(vendorId);
   useVendorRatingStore.getState().submitRating({
     vendorId,
     userId: currentUserId(),
@@ -113,19 +103,15 @@ export async function submitVendorRating(
   return { ok: status === 'synced' || status === 'offline', status };
 }
 
-/** Public review list for a vendor: the user's live rating first, then seeded rows. */
+/**
+ * Offline review list for a vendor: only the signed-in user's own live rating.
+ * Public reviews are server-owned (`GET /vendors/{id}/reviews`); no seeded or
+ * fixture rows are ever presented as live. Online surfaces read the durable list
+ * through `useVendorReviews`.
+ */
 export function getVendorReviews(vendorId: string): VendorReview[] {
-  const seeded: VendorReview[] = getReviewsByVendorId(vendorId).map((row) => ({
-    id: row.id,
-    userName: row.userName,
-    rating: row.rating,
-    comment: row.comment,
-    date: row.date,
-  }));
-
   const mine = getUserVendorRating(vendorId);
-  if (!mine) return seeded;
-
+  if (!mine) return [];
   return [
     {
       id: `mine-${vendorId}`,
@@ -135,7 +121,6 @@ export function getVendorReviews(vendorId: string): VendorReview[] {
       date: 'Just now',
       isMine: true,
     },
-    ...seeded,
   ];
 }
 

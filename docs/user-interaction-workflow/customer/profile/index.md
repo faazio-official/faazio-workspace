@@ -1,14 +1,17 @@
 # Customer profile — domain index
 
-**Status:** Shipped
+**Status:** Partial (core profile + addresses + rewards shipped; `RateVendor`, `DeleteAccount`,
+`RequestDataDeletion`, `Notifications` are documented only as coverage gaps)
 **Routes:** `MainTabs` → `You` (`AccountScreen.tsx`), `You` pushed (`YouScreen.tsx`), `UserDetails`,
-`SavedAddresses`, `DeleteAccount`, `RequestDataDeletion`, `Notifications`, `FaazioRewards`
+`SavedAddresses`, `DeleteAccount`, `RequestDataDeletion`, `Notifications`, `FaazioRewards`,
+`RateVendor`
 **Trigger:** Tapping the You tab or an account row.
 
 ## Flows
 
 | Flow | Doc |
 |---|---|
+| Profile details | [user-details.md](./user-details.md) |
 | Saved addresses | [saved-addresses.md](./saved-addresses.md) |
 | Rewards ledger | [rewards-ledger.md](./rewards-ledger.md) |
 
@@ -16,8 +19,8 @@
 
 - `AccountView.tsx` is shared by the tab (`AccountScreen`) and pushed (`YouScreen`).
 - Account nav rows come from `useAccountNav` → `GET /account-nav` → `accounts.nav`.
-- Profile details: `UserDetailsScreen` → `getProfile` / `getDetails` → `accounts.profile` /
-  `accounts.details`.
+- Profile details: [`UserDetailsScreen` → `getProfile` / `getDetails`](./user-details.md) →
+  `accounts.profile` / `accounts.details`.
 - Delete account / partial data deletion: `DeleteAccountScreen` / `RequestDataDeletionScreen` →
   `DELETE /users/me`, `POST /users/me/data-deletion` → `checkout`/`accounts` erasure paths.
 - Notifications: `NotificationsScreen` → `GET /notifications`, `POST /notifications/{id}/read`,
@@ -44,6 +47,9 @@
 
 ## Known gaps
 
+- `RateVendor`, `DeleteAccount`, `RequestDataDeletion` and `Notifications` exist in code but have no
+  dedicated flow page yet; they are tracked in [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md) →
+  "Documentation coverage gaps". This is why the domain index is **Partial**.
 - See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs

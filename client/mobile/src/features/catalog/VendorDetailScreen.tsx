@@ -56,10 +56,12 @@ export function VendorDetailScreen({ navigation, route }: Props) {
   const insets = useSafeAreaInsets();
   const [query, setQuery] = useState(initialQuery ?? '');
 
-  // Progressive enhancement: render the local directory fixture immediately, then
-  // upgrade to the server row (directory.stores) when it arrives. `GatewayClient`
-  // falls back to the fixture offline, so this never regresses.
-  const [store, setStore] = useState<StoreRecord | undefined>(() => getStoreById(storeId));
+  // The server row (directory.stores) is the origin while the gateway is enabled; the
+  // local directory entry is used only as an explicit offline shell. A failed live read
+  // resolves to the "Store not found" empty state — never a fixture store shown as live.
+  const [store, setStore] = useState<StoreRecord | undefined>(() =>
+    gateway.remoteEnabled ? undefined : getStoreById(storeId),
+  );
   const [resolved, setResolved] = useState(false);
   useEffect(() => {
     let active = true;

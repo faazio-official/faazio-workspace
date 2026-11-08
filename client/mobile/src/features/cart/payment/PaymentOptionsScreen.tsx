@@ -7,7 +7,6 @@ import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/cartStore';
 import { useRewardsStore } from '@/state/rewardsStore';
-import { defaultAddresses } from '@data/cart/addresses';
 import DeliveryInfoCard from './components/DeliveryInfoCard';
 import PaymentSectionCard from './components/PaymentSectionCard';
 import PaymentRow from './components/PaymentRow';
@@ -101,10 +100,7 @@ export default function PaymentOptionsScreen({
   const total = totalProp ?? totals.finalTotal;
   const subtotal = subtotalProp ?? totals.subtotal;
   const deliveryFee = deliveryFeeProp ?? totals.deliveryFee;
-  const address = deliveryAddress ?? {
-    label: defaultAddresses[0]?.label ?? 'Home',
-    address: defaultAddresses[0]?.address ?? '',
-  };
+  const address = deliveryAddress ?? { label: '', address: '' };
 
   const [installedUpiApps, setInstalledUpiApps] = useState<UpiApp[]>([]);
   const [selected, setSelected] = useState<SelectedMethod>(null);

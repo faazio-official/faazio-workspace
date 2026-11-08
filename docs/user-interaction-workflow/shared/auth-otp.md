@@ -77,7 +77,8 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
 6. `RoleGate` + `homeFor()` route to `/seller`, `/admin/district`, or `/admin/super`.
 7. Logout calls `POST /api/auth/portal/logout`, revokes the refresh family, and clears cookies.
 8. The seller partner app is a WebView over the same portal (`SellerPartnerNavigator.tsx` →
-   `SellerWebViewScreen.tsx`); the portal owns the session, so there is no native seller auth gate.
+   `src/features/seller-partner/screens/SellerWebViewScreen.tsx`); the portal owns the session, so
+   there is no native seller auth gate.
 
 ### State
 

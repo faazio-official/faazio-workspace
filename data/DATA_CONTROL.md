@@ -49,7 +49,7 @@ writes the dropped columns. `@data/*` stays seed input + types only, never a run
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@server` (fixtures are type seeds) |
 | `categories` | `features/catalog` | `searchDatabase.ts` | `@static` taxonomy |
 | `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@server` (fixture `@unused`) |
-| `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@server` (`coupons.ts` hydrates from `GET /coupons`; fixture seeds `promo.coupons`, no runtime fallback) |
+| `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@server` + `@mock` (`coupons.ts` hydrates from `GET /coupons`; `pickup-resolver.ts` is client-side `@mock` — a no-mocks gap tracked in `docs/user-interaction-workflow/KNOWN_GAPS.md`) |
 | `account` | `features/profile` | `orders.ts` | `@server` |
 | `directory` / `reviews` (vendor) | `features/profile` (rating form/CTA) + every vendor surface | `directory/vendors.ts`, `food/diningVenues.ts`, `reviews/vendorReviews.ts` | `@server` (fixtures are type seeds) |
 | `home` | `features/home` | `sections.ts`, `rails.ts`, `campaigns.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | `@server` + `@seed`/`@static` registry |
@@ -320,8 +320,11 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `getPickupPointsForItems` | `(items) => PickupPoint[]` | `CartView` (order placement — auto-derives one pickup point per distinct vendor for self-pickup orders) | `@mock` |
 | `NEUTRAL_PICKUP` | `PickupPoint` | fallback hub for cart items whose store can't be determined | `@mock` |
 
-> **Self-pickup contract:** `FulfillmentMode` / `PickupPoint` are the typed contract the future Go
-> Chi backend will serve via a real store/geolocation API. Self-pickup points are **store-backed**,
+> **Self-pickup contract:** `FulfillmentMode` / `PickupPoint` are the typed contract. The production
+> gateway already exposes `GET /pickup-points` (`GatewayClient.getPickupPoints`, backed by
+> `directory.stores`), but `CartView` still resolves pickup points on the client via the `@mock`
+> `getPickupPointsForItems` — a no-mocks gap tracked in
+> `docs/user-interaction-workflow/KNOWN_GAPS.md`. Self-pickup points are **store-backed**,
 > not a hardcoded Faazio hub: `getPickupPointsForItems` resolves each cart item → product
 > (`getProductById`) → its `storeId` (or `shop` matched to a store name, or the app's single outlet
 > for PHARMA) and returns **one pickup point per distinct store** (a cart spanning several
@@ -477,6 +480,9 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
   `.dependency-cruiser.cjs`. A violation fails CI.
 
 ## Known Gaps (honest inventory)
+
+> End-to-end user-flow gaps and no-mocks violations are tracked per app in
+> `docs/user-interaction-workflow/KNOWN_GAPS.md`; this section covers data-layer ownership only.
 
 1. **Duplicated mock data in screens.** `PharmaScreen` (home feed arrays in `mocks/pharmaHomeFeed.ts`),
    `FaMartScreen` (mart home feed in `mocks/martHomeFeed.ts`), and

@@ -11,7 +11,7 @@ Sellers sign in to the seller app with the same credentials as the portal.
 > The mobile seller app is intentionally a **WebView shell** over the portal. It is not a partial
 > native flow; the real seller flows live in `client/web/platform/app/seller/*`. Admin-only portal
 > paths are blocked inside the app with a "Not available in the Faazio Seller app" state
-> (`SellerWebViewScreen.tsx`).
+> (`src/features/seller-partner/screens/SellerWebViewScreen.tsx`).
 
 ## Flow inventory
 

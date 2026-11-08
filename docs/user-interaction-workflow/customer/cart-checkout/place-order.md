@@ -2,7 +2,8 @@
 
 **App / route:** customer · `Cart` (`CartView.tsx`), `PaymentCallback`
 (`features/cart/payment/PaymentCallbackScreen.tsx`), `PaymentStatusScreen`
-**Status:** Shipped
+**Status:** Partial (self-pickup placement submits client-resolved `@mock` pickup points; card
+payment/COD placement is shipped)
 **Trigger:** Tapping **Place Order** on the PAYMENT step.
 
 ## Steps
@@ -53,6 +54,9 @@
 ## Known gaps
 
 - `PaymentOptions` route is registered but never navigated; payment UI is inline in `CartView`.
+- Self-pickup orders submit pickup points built client-side by the `@mock`
+  `data/cart/pickup-resolver.ts` (`CartView.tsx:29,431`) instead of a gateway pickup-point read —
+  a no-mocks gap.
 - Invoice PDF may return "not available yet" if the PDF renderer has not generated it.
 - See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 

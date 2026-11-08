@@ -41,9 +41,7 @@
 ## Known gaps
 
 - Live `@data/home` rail/filter fixture substitution while the gateway answers (no-mocks violation).
-- `src/services/homeFeed.ts` still exposes fixture-backed `getHomeSections` /
-  `getFilterFeedPage` / `getFilterChips`, but no live screen imports it. It is a stale mock seam;
-  see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+  See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

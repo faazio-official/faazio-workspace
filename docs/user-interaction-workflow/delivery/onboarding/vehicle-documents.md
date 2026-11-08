@@ -44,7 +44,8 @@
 ## Known gaps
 
 - The rider-side re-upload request endpoint is retired (`410 Gone`); only admins can attach a
-  replacement document. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+  replacement document. This affects old clients only (current clients use the admin path) and is
+  tracked as code hygiene in [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md) → "Code hygiene".
 
 ## Linked docs
 

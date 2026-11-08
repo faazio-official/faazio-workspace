@@ -1,6 +1,7 @@
 # Pharma — domain index
 
-**Status:** Shipped
+**Status:** Partial (pharmacy discovery renders the authored offline shell on a failed category
+read — a no-mocks gap; prescription and blood flows are shipped)
 **Routes:** `SubApp` `PHARMA` (`PharmaScreen.tsx`), `MedicalShopDetails`, `ProductDetail`,
 `PrescriptionFlow`, `BloodDonor`, `BloodDonorDetails`, `BloodRequestDescription`
 **Trigger:** Home → Pharma, pharmacy card, prescription entry, or blood-donor entry.
@@ -11,6 +12,7 @@
 |---|---|
 | Prescription upload + quote | [prescription-upload.md](./prescription-upload.md) |
 | Blood donor / request board | [blood-donor.md](./blood-donor.md) |
+| Blood donor detail + request description | [blood-donor-details.md](./blood-donor-details.md) |
 
 ## Pharmacy discovery
 
@@ -37,13 +39,18 @@
 
 - **Success:** pharmacy rail/detail render server rows; prescription submits with a server Rx id;
   donor profile/request writes return a sync outcome.
-- **Error:** inline error on the failing step; no fixture pharmacy, prescription, donor, or match.
+- **Error:** inline error on the failing step; prescription/donor/match reads never fabricate rows.
+  The category grid does fall back to its authored `PHARMA_PRODUCTS_DB` shell after a failed
+  category read (a no-mocks gap — see Known gaps).
 - **Empty:** no nearby pharmacies / no blood requests → honest empty state.
 
 ## Known gaps
 
-- Blood-donor `StepPlaceholder` is defensive dead code today; adding a step without a `case` would
-  surface "coming next". See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- The category grid renders the authored `PHARMA_PRODUCTS_DB` rows when the batch read fails
+  (`PharmaScreen.tsx:149-160,242`) even while the gateway is enabled — a no-mocks gap. See
+  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- `MedicalShopDetails` has no dedicated page yet (described here only); tracked as a coverage gap.
+- See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

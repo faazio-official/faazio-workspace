@@ -42,13 +42,18 @@ export function DealsLandingScreen({ navigation, route }: Props) {
 
   const isListMode = mode === 'martDeals' || mode === 'martEssentials';
 
+  // Local campaign fixture is the explicit offline shell only; while the gateway is enabled the
+  // server-backed drill-in below is the sole origin. It is never used as an error fallback.
   const campaign = useMemo(
-    () => (mode === 'campaign' ? adCampaigns.find((c) => c.id === campaignId) : undefined),
+    () =>
+      mode === 'campaign' && !gateway.remoteEnabled
+        ? adCampaigns.find((c) => c.id === campaignId)
+        : undefined,
     [mode, campaignId],
   );
   // Server-backed campaign drill-in (`GET /home/campaigns/{id}`, portal-published on the SDUI
-  // `hotBrandDeals` section). `getHomeCampaign` falls back to the `@data` fixture offline, so this
-  // resolves even without the gateway; the local `campaign` above is the last-resort fallback.
+  // `hotBrandDeals` section). When it returns nothing or fails, the honest empty state renders;
+  // the local `campaign` above only applies offline.
   const [campaignView, setCampaignView] = useState<HomeCampaignDetail | null>(null);
   const [campaignLoading, setCampaignLoading] = useState(false);
   useEffect(() => {
