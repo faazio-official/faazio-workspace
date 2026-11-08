@@ -129,20 +129,36 @@ func TestSellerProductManagement(t *testing.T) {
 	if items, err := repo.SellerProducts(ctx, "", "TCO", ""); err != nil || len(items) != 0 {
 		t.Fatalf("cross-district list must be empty: err=%v n=%d", err, len(items))
 	}
-	if _, ok, err := repo.SetProductStatus(ctx, pid, "", "TCO", "PENDING_REVIEW"); err != nil || ok {
+	if _, ok, err := repo.SetProductStatus(ctx, pid, "", "TCO", "PENDING_REVIEW", ""); err != nil || ok {
 		t.Fatalf("cross-district write must be denied: ok=%v err=%v", ok, err)
 	}
 
 	// A seller cannot touch another seller's product.
-	if _, ok, err := repo.SetProductStatus(ctx, pid, "sel-other", "", "PENDING_REVIEW"); err != nil || ok {
+	if _, ok, err := repo.SetProductStatus(ctx, pid, "sel-other", "", "PENDING_REVIEW", ""); err != nil || ok {
 		t.Fatalf("cross-seller write must be denied: ok=%v err=%v", ok, err)
 	}
 	// The owner can submit for review; admin can activate.
-	if p, ok, err := repo.SetProductStatus(ctx, pid, sellerID, "", "PENDING_REVIEW"); err != nil || !ok || p.Status != "PENDING_REVIEW" {
+	if p, ok, err := repo.SetProductStatus(ctx, pid, sellerID, "", "PENDING_REVIEW", ""); err != nil || !ok || p.Status != "PENDING_REVIEW" {
 		t.Fatalf("owner submit: ok=%v err=%v status=%q", ok, err, p.Status)
 	}
-	if p, ok, err := repo.SetProductStatus(ctx, pid, "", "", "ACTIVE"); err != nil || !ok || p.Status != "ACTIVE" {
+	if p, ok, err := repo.SetProductStatus(ctx, pid, "", "", "ACTIVE", ""); err != nil || !ok || p.Status != "ACTIVE" {
 		t.Fatalf("admin activate: ok=%v err=%v status=%q", ok, err, p.Status)
+	}
+
+	// A rejection persists the admin's message and surfaces it on read.
+	const reason = "Blurred product photo"
+	if p, ok, err := repo.SetProductStatus(ctx, pid, "", "", "REJECTED", reason); err != nil || !ok || p.Status != "REJECTED" || p.ReviewReason != reason {
+		t.Fatalf("admin reject: ok=%v err=%v status=%q reason=%q", ok, err, p.Status, p.ReviewReason)
+	}
+	if items, err := repo.SellerProducts(ctx, sellerID, "", ""); err != nil || len(items) != 1 || items[0].ReviewReason != reason {
+		if err != nil || len(items) != 1 {
+			t.Fatalf("read rejected reason: err=%v n=%d", err, len(items))
+		}
+		t.Fatalf("read rejected reason = %q, want %q", items[0].ReviewReason, reason)
+	}
+	// Approving clears the stale reason so it never lingers on a live listing.
+	if p, ok, err := repo.SetProductStatus(ctx, pid, "", "", "ACTIVE", ""); err != nil || !ok || p.ReviewReason != "" {
+		t.Fatalf("re-approve clears reason: ok=%v err=%v reason=%q", ok, err, p.ReviewReason)
 	}
 }
 

@@ -1,10 +1,21 @@
 "use client";
+import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { SectorPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -16,16 +27,34 @@ import {
 import { formatDate, formatINR } from "@/lib/format";
 import { setProductStatus } from "@/lib/api";
 import { usePortalLoading, useProducts } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
+const MAX_REASON = 500;
 
 function ListingQueue() {
-  const session = useSession();
-  const stateCode = session?.stateCode ?? "MH";
   const loading = usePortalLoading();
-  const pending = useProducts({ stateCode, status: "PENDING_REVIEW" });
+  const pending = useProducts({ status: "PENDING_REVIEW" });
+  const [rejecting, setRejecting] = useState<{ id: string; name: string } | null>(null);
+  const [reason, setReason] = useState("");
+
+  function openReject(product: { productId: string; name: string }) {
+    setRejecting({ id: product.productId, name: product.name });
+    setReason("");
+  }
+
+  function confirmReject() {
+    if (!rejecting) return;
+    const message = reason.trim();
+    if (!message) {
+      toast.error("Add a reason so the seller knows what to fix");
+      return;
+    }
+    setProductStatus(rejecting.id, "REJECTED", message);
+    toast.success("Listing rejected", { description: "The seller will see your note." });
+    setRejecting(null);
+    setReason("");
+  }
 
   return (
     <div className="space-y-4">
@@ -82,20 +111,13 @@ function ListingQueue() {
                       <Button
                         size="sm"
                         onClick={() => {
-                          setProductStatus(product.productId, "ACTIVE", "Listing approved");
+                          setProductStatus(product.productId, "ACTIVE");
                           toast.success("Listing approved");
                         }}
                       >
                         Approve
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setProductStatus(product.productId, "REJECTED", "Listing rejected in review");
-                          toast.success("Listing rejected");
-                        }}
-                      >
+                      <Button size="sm" variant="outline" onClick={() => openReject(product)}>
                         Reject
                       </Button>
                     </div>
@@ -106,6 +128,39 @@ function ListingQueue() {
           </Table>
         </DataShell>
       </SectionCard>
+
+      <Dialog open={rejecting !== null} onOpenChange={(open) => !open && setRejecting(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject this listing?</DialogTitle>
+            <DialogDescription>
+              {rejecting?.name} will stay hidden from shoppers. Tell the seller what to fix so they
+              can submit it again.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="reject-reason">Reason</Label>
+            <Textarea
+              id="reject-reason"
+              value={reason}
+              onChange={(e) => setReason(e.target.value.slice(0, MAX_REASON))}
+              placeholder="e.g. Product photo is blurred and the name is missing the pack size."
+              rows={4}
+            />
+            <p className="text-right text-[11px] text-muted-foreground">
+              {reason.length}/{MAX_REASON}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejecting(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmReject} disabled={reason.trim().length === 0}>
+              Reject listing
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

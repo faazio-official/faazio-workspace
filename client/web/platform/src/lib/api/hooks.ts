@@ -138,6 +138,66 @@ export function useSellerStores(): {
   return { stores, loading, reload };
 }
 
+/**
+ * The signed-in portal user's notification inbox (`GET /notifications`, notifications.outbox).
+ * Read state persists through `POST /notifications/{id}/read` and `/notifications/read-all`.
+ */
+export function useNotifications(): {
+  items: api.PortalNotification[];
+  loading: boolean;
+  markRead: (id: string) => void;
+  markAllRead: () => void;
+  reload: () => void;
+} {
+  const [items, setItems] = useState<api.PortalNotification[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState(0);
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
+
+  useEffect(() => {
+    if (!remoteConfigured()) {
+      setItems([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .fetchNotifications()
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [version]);
+
+  const markRead = useCallback((id: string) => {
+    setItems((current) =>
+      current.map((n) => (n.id === id && !n.readAt ? { ...n, readAt: new Date().toISOString() } : n)),
+    );
+    api.markNotificationRead(id).catch(() => {
+      /* keep the optimistic row; the next reload reconciles with the server */
+    });
+  }, []);
+
+  const markAllRead = useCallback(() => {
+    setItems((current) =>
+      current.map((n) => (n.readAt ? n : { ...n, readAt: new Date().toISOString() })),
+    );
+    api.markAllNotificationsRead().catch(() => {
+      /* keep the optimistic rows; the next reload reconciles with the server */
+    });
+  }, []);
+
+  return { items, loading, markRead, markAllRead, reload };
+}
+
 /** States/UTs from `admins.states` (the DB is the authority). */
 export function useStates(): api.StateSummary[] {
   const [items, setItems] = useState<api.StateSummary[]>([]);

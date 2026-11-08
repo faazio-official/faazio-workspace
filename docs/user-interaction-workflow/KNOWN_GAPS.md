@@ -25,10 +25,9 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 
 | Gap | Evidence | Impact |
 |---|---|---|
-| Seller application is mobile-only | `POST /sellers` is called only from the customer app's `SellWithUs` (`SellerRegistrationScreen.tsx`); the portal has no application form | A seller cannot apply without installing the customer app (see `seller/onboarding/index.md`) |
 | Toast-only settings actions | `client/web/platform/app/seller/settings/page.client.tsx:62` ("Request update") and `:139` (sub-user "Invite") only toast | Account/sub-user changes are not persisted; partial flow |
 | Store fee/cover have no seller UI | `PUT /seller/stores/{id}/fee` is admin-only (`server/gateway/internal/directory/handler.go:500-503`); no client calls `PUT /seller/stores/{id}/cover` | Sellers can only file a fee-change request; cover image cannot be set from the console |
-| Local-only seller surfaces | `app/seller/notifications/page.client.tsx:12` (`INITIAL` list), `app/seller/support` (local tickets), `hub` checklist, `restaurant-status`, `rush-hour` (client-only store in `src/lib/sellerUi.ts`) | These screens are not persisted/DB-backed yet |
+| Local-only seller surfaces | `app/seller/support` (local tickets), `hub` checklist, `restaurant-status`, `rush-hour` (client-only store in `src/lib/sellerUi.ts`) | These screens are not persisted/DB-backed yet |
 | "Simulate scan" toast | `client/web/platform/app/seller/orders/page.client.tsx:264` | Demo affordance, not a real scan/handover flow |
 | Toast-only admin actions | District `content` publish, `orders` escalate, `pricing-audit` contact, super `settings` save | UI reports success without a gateway write |
 | District-admins page is district-locked | `app/admin/super/district-admins/page.client.tsx:64` (`TTC_CODE = "TTC"`, used through `:124`) | Cannot provision admins outside Tiruchirappalli |
@@ -36,6 +35,14 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | Product name/description edit and delete are local-only | `client/web/platform/src/lib/api/index.ts:468-481` (`updateProduct`) and `:520-530` (`deleteProduct`) mutate the Zustand store/audit only; there is no `DELETE /seller/products/{id}` route. The same local-only helpers back the admin product pages (`app/admin/district/products/page.client.tsx:175,191`, `app/admin/super/products/page.client.tsx:120`) and super-admin sector rename/merge (`app/admin/super/sectors/page.client.tsx:113,168`) | Edits/deletes do not persist to the gateway (price/image updates do) |
 | Admin dispatch boards have no dedicated flow page | Manual allocation (`app/admin/district/delivery/manual-allocation/page.client.tsx`, `app/admin/super/delivery/manual-allocation/page.client.tsx`) and delivery-boy boards (`app/admin/*/delivery-boys/page.client.tsx`) write through `server/gateway/internal/delivery/handler.go:90-99` but are only mentioned in passing | Flow under-documented; add a delivery-admin page before changing it |
 | Hardcoded tax constants on new-product display | New-product page shows GST/TCS/TDS constants | Display-only; the server remains the money authority |
+
+**By design — not gaps:** seller registration is intentionally mobile-only (`POST /sellers` from
+the customer app's `SellWithUs`); portal login credentials are issued by a superadmin at
+`/admin/super/credentials` (role `SELLER`, scoped to `seller_id`, HS256 JWT in HttpOnly cookies);
+and the seller app is a WebView shell over the same portal. This is the completed design, not a
+partial flow — see [`seller/onboarding/index.md`](./seller/onboarding/index.md) and
+[`shared/auth-otp.md`](./shared/auth-otp.md). Native seller auth is likewise intentionally unused
+while the WebView owns the session.
 
 ## Delivery
 
@@ -116,7 +123,7 @@ here so the folder never claims full coverage it does not have. Add a page befor
 | Hub / explore | `/seller/hub`, `/seller/explore` | Checklist + discovery surfaces (partly local-only) |
 | Order history / returns | `/seller/order-history`, `/seller/returns` | Referenced from `seller/orders/index.md`; no dedicated page |
 | Product list / edit | `/seller/products`, `/seller/products/[id]/edit` | Product list and edit surface; no dedicated page |
-| Local-only seller surfaces | `/seller/notifications`, `/seller/support`, `/seller/restaurant-status`, `/seller/rush-hour` | Client-local; see the seller gaps table above |
+| Local-only seller surfaces | `/seller/support`, `/seller/restaurant-status`, `/seller/rush-hour` | Client-local; see the seller gaps table above |
 | District admin | `/admin/district/*` | Documented only where a seller flow references it (KYC review, payouts) |
 | Super admin | `/admin/super/*` | Documented only where a seller flow references it |
 

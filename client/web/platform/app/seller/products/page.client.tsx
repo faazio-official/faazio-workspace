@@ -199,6 +199,11 @@ function ProductRow({ product }: { product: ProductRecord }) {
               {product.status.replace(/_/g, " ")}
             </span>
           </div>
+          {product.status === "REJECTED" && product.reviewReason ? (
+            <p className="mt-1 rounded bg-brand-soft px-2 py-1 text-[11px] text-brand">
+              {product.reviewReason}
+            </p>
+          ) : null}
         </div>
         <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
       </Card>

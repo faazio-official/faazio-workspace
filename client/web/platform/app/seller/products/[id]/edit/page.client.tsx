@@ -70,6 +70,15 @@ function EditProduct() {
       />
 
       <div className="space-y-3 px-4 pt-3 pb-36">
+        {product.status === "REJECTED" ? (
+          <Card className="border-brand/30 bg-brand-soft">
+            <p className="text-sm font-bold text-brand">This listing was rejected</p>
+            <p className="mt-1 text-[12px] text-brand">
+              {product.reviewReason?.trim() ||
+                "An admin asked for changes. Update the listing and submit it for review again."}
+            </p>
+          </Card>
+        ) : null}
         <Card>
           <p className="mb-2 text-sm font-bold">Photos</p>
           <p className="mb-3 text-[11px] text-muted-foreground">

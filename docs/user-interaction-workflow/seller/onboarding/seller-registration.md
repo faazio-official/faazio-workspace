@@ -1,7 +1,7 @@
 # Seller registration / application
 
 **App / route:** customer app `SellWithUs` (`features/seller-onboarding/SellerRegistrationScreen.tsx`)
-**Status:** Shipped (mobile-only; the portal has no seller-application form)
+**Status:** Shipped (mobile-only by design; the portal deliberately has no seller-application form. Portal login creds are issued separately by a superadmin at `/admin/super/credentials` — role `SELLER`, scoped to `seller_id`; the seller app is a WebView over the portal.)
 **Trigger:** "Sell with us" entry in the customer app.
 
 ## Steps

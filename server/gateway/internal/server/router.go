@@ -28,6 +28,7 @@ import (
 	"github.com/faazio/server/gateway/internal/festival"
 	"github.com/faazio/server/gateway/internal/media"
 	"github.com/faazio/server/gateway/internal/notifications"
+	"github.com/faazio/server/gateway/internal/payouts"
 	"github.com/faazio/server/gateway/internal/pharma"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
@@ -37,7 +38,6 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/r2"
 	"github.com/faazio/server/gateway/internal/platform/razorpaypay"
 	"github.com/faazio/server/gateway/internal/portal"
-	"github.com/faazio/server/gateway/internal/payouts"
 	"github.com/faazio/server/gateway/internal/promo"
 	"github.com/faazio/server/gateway/internal/reco"
 	"github.com/faazio/server/gateway/internal/reference"
@@ -172,7 +172,7 @@ func NewRouter(d Deps) http.Handler {
 	sduiService := sdui.NewService(recoRepo, recoRepo, catalogRepo, directoryRepo, d.Cache)
 	recoService := reco.NewService(recoRepo, catalogRepo, d.Cache)
 
-	catalog.NewHandler(catalogRepo, d.Cache, adminsRepo, mediaRepo).Register(r)
+	catalog.NewHandler(catalogRepo, d.Cache, adminsRepo, mediaRepo, notificationsRepo).Register(r)
 	search.NewHandler(catalogRepo, d.Cache).Register(r)
 	directory.NewHandler(directoryRepo, d.Cache, adminsRepo, mediaRepo).Register(r)
 	cartstock.NewHandler(cartRepo, d.Cache).Register(r)

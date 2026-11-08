@@ -220,7 +220,7 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | --- | --- | --- |
 | `seller` | redirect → `seller/orders` (orders-first landing) | all |
 | `seller/hub` | Business Hub — feed / sales / funnel / service quality / kitchen tabs, "Today so far", shop health, promo banner, setup checklist | all |
-| `seller/notifications` | notification list with mark-all-read; rows deep-link to payments/reviews/ads | all |
+| `seller/notifications` | live inbox from `GET /notifications` (`useNotifications`) with persisted read/mark-all-read; rows deep-link via `data.deepLink` or kind (orders, products, prescriptions) | all |
 | `seller/outlet-info` | read-only shop profile from `GET /seller/stores` (address + map link, hours, delivery time, links to stores/reviews/settings) | all |
 | `seller/ads` | hero CampaignWizard (what→where→creative→when→review) + campaign list/KPIs — includes the `PHARMA_HERO` (Pharma home), `CATEGORY_TOP` (Pharma/mart category drill-in) and `STORE_TOP` (Pharma medical shop / mart vendor) placements | all |
 | `seller/products` | catalog list — seller products+stock hydrate from `GET /seller/pricing` + `GET /seller/inventory` | all |
@@ -486,10 +486,13 @@ the local row + stock, so a rejected listing never lingers. The seller listing
 editor (`seller/products/[id]/edit`) persists name/description/photos through `updateProduct` but
 routes **price through `upsertPrice`** (`PUT /seller/pricing/{id}`) so money edits reach
 `catalog.products` + `inventory.stock` instead of staying local-only; the inventory console writes
-stock/ETA through `PUT /seller/inventory/{id}`. The seller **products + stock** slices hydrate for the
-`SELLER` role from `GET /seller/pricing` (price + identity) and `GET /seller/inventory`
-(qty/ETA), so the Products, Inventory, Pricing, Ads and Analytics pages read live gateway rows
-instead of seed fixtures. The Food menu editor
+stock/ETA through `PUT /seller/inventory/{id}`. The **products + stock** slices hydrate from
+`GET /seller/pricing` (price + identity) and `GET /seller/inventory` (qty/ETA) for the `SELLER`
+role **and for admins** (the gateway scopes those reads to the admin's district), so the seller
+console and the admin catalog/review queues read live gateway rows instead of seed fixtures.
+Rejecting a listing from `admin/*/products/queue` collects a required note and sends
+`{ status: "REJECTED", reason }`; the gateway persists it in `catalog.products.review_reason`
+(`0087`) and the seller sees the note on their product list and edit screen. The Food menu editor
 (`seller/menus`) likewise writes an optional **MRP** (list price, rupees) alongside the selling price
 through `upsertMenu` → `POST`/`PUT /seller/menus/{venueId}/{dishId}`; the gateway rejects `mrp < price`
 (400) so the authored strike is always `mrp_paisa > price_paisa` and the mobile "Recommended & Offers"

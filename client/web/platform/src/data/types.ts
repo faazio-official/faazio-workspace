@@ -161,6 +161,8 @@ export interface ProductRecord {
   isVeg: boolean;
   isPrescription: boolean;
   status: ProductStatus;
+  /** Admin moderation note when status is REJECTED (migration 0087). */
+  reviewReason?: string | undefined;
   createdAt: string;
 }
 

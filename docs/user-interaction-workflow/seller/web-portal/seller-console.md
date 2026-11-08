@@ -44,9 +44,9 @@
 
 ## Known gaps
 
-- Local-only seller surfaces: `notifications` (`INITIAL` list), `support` (local tickets),
-  `hub` checklist, `restaurant-status`, `rush-hour` (client-only zustand store), and the
-  "Simulate scan" toast.
+- Local-only seller surfaces: `support` (local tickets), `hub` checklist, `restaurant-status`,
+  `rush-hour` (client-only zustand store), and the "Simulate scan" toast. Notifications are now
+  gateway-backed (see [notifications.md](./notifications.md)).
 - Toast-only admin actions: district `content` publish, `orders` escalate, `pricing-audit` contact,
   super `settings` save.
 - `/admin/super/district-admins` is hardcoded to TTC.

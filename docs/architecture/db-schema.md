@@ -179,6 +179,7 @@ CREATE TABLE catalog.products (
   shop          TEXT,
   unit          TEXT,
   attributes    JSONB,                        -- sparse facets
+  review_reason TEXT CHECK (review_reason IS NULL OR octet_length(review_reason) <= 500), -- admin note on REJECTED (0087)
   store_id      TEXT REFERENCES directory.stores(id),
   is_prescription BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -200,6 +201,7 @@ CREATE TABLE catalog.products (
 | `desc_text` | TEXT | var | detail page (Tantivy NOT-stored) — **not fetched by list/search reads** | — |
 | `badge`/`shop`/`unit` | TEXT | var | display | — |
 | `attributes` | JSONB | var | facets — **not fetched by list/search reads** | GIN |
+| `review_reason` | TEXT | var | admin moderation note on a `REJECTED` listing, bounded to 500 bytes; cleared on approve/delist (`0087`) | — |
 | `store_id` | TEXT | ~8 | FK to stores | btree |
 | `is_prescription` | BOOL | 1 | pharma gating | — |
 | `created_at`/`updated_at` | TIMESTAMPTZ | 8 each | audit | — |

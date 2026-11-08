@@ -27,6 +27,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Orders | Seller order board + lifecycle | portal `/seller/orders`, `/seller/orders/[id]` | [orders/index.md](./orders/index.md) · [order-lifecycle.md](./orders/order-lifecycle.md) |
 | Orders | Payouts / ledger / invoices | portal `/seller/payments` | [payouts-ledger.md](./orders/payouts-ledger.md) |
 | Web portal | Console shell + auth | `/seller/*` | [web-portal/index.md](./web-portal/index.md) · [seller-console.md](./web-portal/seller-console.md) |
+| Web portal | Notifications inbox | `/seller/notifications` | [web-portal/notifications.md](./web-portal/notifications.md) |
 
 ## Cross-cutting rules
 
@@ -34,14 +35,14 @@ Domain indexes are the entry point for each area; every flow page is linked from
   `/api/gateway/[...path]`; there are no Server Actions. No bundled demo rows.
 - **No fake latency:** portal loading comes from `usePortalLoading()` (real gateway hydration);
   fabricated `useMockLoading` timers are removed.
-- **Honest local-only states:** notifications/support/rush-hour/restaurant-status are currently
-  client-local; they are documented as gaps, not live flows.
+- **Honest local-only states:** support/rush-hour/restaurant-status are currently client-local;
+  they are documented as gaps, not live flows. Notifications are gateway-backed.
 
 ## Known gaps
 
-See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Seller-specific gaps include local-only notifications
-and support, the "Simulate scan" toast, toast-only admin/settings actions, and the district-admins
-page being hardcoded to TTC.
+See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Seller-specific gaps include local-only support, the
+"Simulate scan" toast, toast-only admin/settings actions, and the district-admins page being
+hardcoded to TTC.
 
 ## Linked docs
 

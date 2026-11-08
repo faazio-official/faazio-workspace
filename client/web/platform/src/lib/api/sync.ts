@@ -178,6 +178,7 @@ function mapSellerProductRow(raw: SellerConsoleRow): ProductRecord {
     isVeg: raw.isVeg === true,
     isPrescription: raw.isPrescription === true,
     status: raw.status as ProductRecord["status"],
+    reviewReason: raw.reviewReason || undefined,
     createdAt: raw.updatedAt,
   };
 }
@@ -262,14 +263,16 @@ export async function hydrateFromGateway(): Promise<boolean> {
       ),
       safe(() => remote.get<Raw[]>("/seller/orders").then(toCamel)),
       // Seller console: pricing feeds the products slice, inventory feeds the stock slice. Both carry
-      // the shared seller-product projection, so either could hydrate products; keep the split semantic.
+      // the shared seller-product projection, so either could hydrate products; keep the split
+      // semantic. Admins read the same routes (the gateway scopes them to their district), which is
+      // what populates the admin product/moderation queues.
       safe(() =>
-        role === "SELLER"
+        role === "SELLER" || isAdmin
           ? fetchSellerPricing()
           : Promise.resolve<SellerConsoleRow[] | undefined>(undefined),
       ),
       safe(() =>
-        role === "SELLER"
+        role === "SELLER" || isAdmin
           ? fetchSellerInventory()
           : Promise.resolve<SellerConsoleRow[] | undefined>(undefined),
       ),
