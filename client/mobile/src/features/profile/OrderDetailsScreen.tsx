@@ -1,4 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
+import { neutral } from '@/theme/brandTokens';
+import { semanticTint } from '@/theme/brandTokens';
 import { Linking, StyleSheet, View, ScrollView, TouchableOpacity } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
@@ -26,31 +28,30 @@ import { SUPPORT_EMAIL } from '@/lib/site';
 import { usePrescriptionDetail } from '@/features/pharma/prescription/usePrescriptionDetail';
 import { usePrescriptionPayment } from '@/features/pharma/prescription/usePrescriptionPayment';
 import PrescriptionPaymentSheet from '@/features/pharma/prescription/PrescriptionPaymentSheet';
-import type { MyOrder } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
 
 const STATUS_COLORS: Record<string, string> = {
-  Delivered: '#16A34A',
+  Delivered: semantic.success,
   Shipped: semantic.info,
   Processing: semantic.warning,
-  Cancelled: '#EF4444',
+  Cancelled: semantic.danger,
   'Awaiting quote': semantic.warning,
   'Quote ready': semantic.info,
-  Ready: '#16A34A',
-  Fulfilled: '#16A34A',
+  Ready: semantic.success,
+  Fulfilled: semantic.success,
 };
 
 const STATUS_BADGE_BG: Record<string, string> = {
-  Delivered: '#DCFCE7',
-  Shipped: '#DBEAFE',
-  Processing: '#FEF3C7',
-  Cancelled: '#FEE2E2',
-  'Awaiting quote': '#FEF3C7',
-  'Quote ready': '#DBEAFE',
-  Ready: '#DCFCE7',
-  Fulfilled: '#DCFCE7',
+  Delivered: semanticTint.success,
+  Shipped: semanticTint.info,
+  Processing: semanticTint.warning,
+  Cancelled: semanticTint.danger,
+  'Awaiting quote': semanticTint.warning,
+  'Quote ready': semanticTint.info,
+  Ready: semanticTint.success,
+  Fulfilled: semanticTint.success,
 };
 
 /** Server Rx status → customer-facing label (pharma.prescription_status). */
@@ -217,7 +218,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
+            <ChevronLeft size={ms(26)} color={neutral.ink} strokeWidth={2.2} />
           </TouchableOpacity>
           <AppText style={styles.headerTitle}>Order Details</AppText>
         </View>
@@ -231,8 +232,8 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
   const sector = portalSectors.find((s) => s.app === order.app);
   const visual = SECTOR_VISUALS[order.app];
   const statusLabel = rx ? RX_STATUS_LABEL[rx.status] ?? rx.status : order.status;
-  const statusColor = STATUS_COLORS[statusLabel] ?? '#374151';
-  const statusBg = STATUS_BADGE_BG[statusLabel] ?? '#F3F4F6';
+  const statusColor = STATUS_COLORS[statusLabel] ?? neutral.inkMuted;
+  const statusBg = STATUS_BADGE_BG[statusLabel] ?? neutral.surfaceAlt;
 
   const rxQuoteTotal = rx?.quote && rx.quote.length > 0 ? rx.quotedTotal ?? 0 : 0;
   const rxPaid = rxPayment.state === 'PAID';
@@ -258,7 +259,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
+            <ChevronLeft size={ms(26)} color={neutral.ink} strokeWidth={2.2} />
           </TouchableOpacity>
           <AppText style={styles.headerTitle}>Order Details</AppText>
         </View>
@@ -490,9 +491,9 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
             activeOpacity={0.85}
             accessibilityRole="button"
           >
-            <PackageOpen size={ms(18)} color="#16A34A" strokeWidth={2.2} />
+            <PackageOpen size={ms(18)} color={semantic.success} strokeWidth={2.2} />
             <AppText style={styles.viewProductText}>View Product</AppText>
-            <ExternalLink size={ms(15)} color="#16A34A" strokeWidth={2.2} />
+            <ExternalLink size={ms(15)} color={semantic.success} strokeWidth={2.2} />
           </TouchableOpacity>
         ) : null}
 
@@ -556,7 +557,7 @@ function InvoiceRow({ label, value, strong }: { label: string; value: string; st
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: neutral.surface,
   },
   scroll: {
     flex: 1,
@@ -577,18 +578,18 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: ms(18),
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
   },
 
   statusCard: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(12),
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: neutral.border,
     padding: hs(16),
     marginBottom: SPACE.BLOCK,
   },
@@ -599,25 +600,25 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: ms(12),
-    fontWeight: '700',
+    fontWeight: '600',
   },
   statusDate: {
     fontSize: ms(12),
-    color: '#6B7280',
+    color: neutral.inkMuted,
   },
 
   card: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(12),
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: neutral.border,
     padding: hs(16),
     marginBottom: SPACE.BLOCK,
   },
   sectionTitle: {
     fontSize: ms(11),
-    fontWeight: '800',
-    color: '#9CA3AF',
+    fontWeight: '600',
+    color: neutral.inkSubtle,
     textTransform: 'uppercase',
     letterSpacing: ms(0.6),
     marginBottom: SPACE.BLOCK,
@@ -631,7 +632,7 @@ const styles = StyleSheet.create({
     width: ms(56),
     height: ms(56),
     borderRadius: ms(8),
-    backgroundColor: '#F3F4F6',
+    backgroundColor: neutral.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: hs(12),
@@ -642,23 +643,23 @@ const styles = StyleSheet.create({
   },
   productName: {
     fontSize: ms(14),
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
     marginBottom: vs(3),
   },
   productVariant: {
     fontSize: ms(12),
-    color: '#6B7280',
+    color: neutral.inkMuted,
     marginBottom: vs(3),
   },
   lineMeta: {
     fontSize: ms(12),
-    color: '#374151',
+    color: neutral.inkMuted,
   },
   lineTotal: {
     fontSize: ms(15),
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
   },
 
   metaRow: {
@@ -669,12 +670,12 @@ const styles = StyleSheet.create({
   },
   metaLabel: {
     fontSize: ms(13),
-    color: '#6B7280',
+    color: neutral.inkMuted,
   },
   metaValue: {
     fontSize: ms(13),
     fontWeight: '600',
-    color: '#111827',
+    color: neutral.ink,
     flexShrink: 1,
     textAlign: 'right',
   },
@@ -685,22 +686,22 @@ const styles = StyleSheet.create({
     paddingVertical: vs(4),
     paddingHorizontal: hs(10),
     borderRadius: ms(6),
-    backgroundColor: '#F3F4F6',
+    backgroundColor: neutral.surfaceAlt,
   },
   sectorText: {
     fontSize: ms(12),
-    fontWeight: '700',
-    color: '#374151',
+    fontWeight: '600',
+    color: neutral.inkMuted,
   },
   pickupAddress: {
     fontSize: ms(13),
-    color: '#6B7280',
+    color: neutral.inkMuted,
     lineHeight: ms(19),
     marginBottom: vs(4),
   },
   pickupHours: {
     fontSize: ms(12),
-    color: '#374151',
+    color: neutral.inkMuted,
     marginBottom: vs(4),
   },
   pickupContactRow: {
@@ -710,50 +711,50 @@ const styles = StyleSheet.create({
   pickupContactLabel: {
     fontSize: ms(12),
     fontWeight: '600',
-    color: '#6B7280',
+    color: neutral.inkMuted,
   },
   pickupContactValue: {
     fontSize: ms(12),
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   pickupDivider: {
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: neutral.border,
     paddingTop: SPACE.ITEM,
     marginTop: SPACE.ITEM,
   },
 
   rateIntro: {
     fontSize: ms(13),
-    color: '#6B7280',
+    color: neutral.inkMuted,
     lineHeight: ms(19),
     marginBottom: SPACE.BLOCK,
   },
   quoteHint: {
     fontSize: ms(13),
-    color: '#6B7280',
+    color: neutral.inkMuted,
     lineHeight: ms(19),
   },
   quoteTotalRow: {
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
+    borderTopColor: neutral.border,
     marginTop: SPACE.ITEM,
     paddingTop: SPACE.ITEM,
   },
   quoteTotalLabel: {
     fontSize: ms(14),
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   paidValue: {
     fontSize: ms(13),
-    fontWeight: '800',
-    color: '#16A34A',
+    fontWeight: '600',
+    color: semantic.success,
   },
   payPendingHint: {
     fontSize: ms(12),
-    color: '#6B7280',
+    color: neutral.inkMuted,
     marginTop: SPACE.ITEM,
     lineHeight: ms(17),
   },
@@ -767,32 +768,32 @@ const styles = StyleSheet.create({
   },
   payBtnText: {
     fontSize: ms(15),
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: '600',
+    color: neutral.card,
   },
   refillBtn: {
     marginTop: vs(8),
     minHeight: 44,
     borderRadius: ms(10),
     borderWidth: 1,
-    borderColor: '#16A34A',
+    borderColor: semantic.success,
     alignItems: 'center',
     justifyContent: 'center',
   },
   refillBtnText: {
     fontSize: ms(14),
-    fontWeight: '700',
-    color: '#16A34A',
+    fontWeight: '600',
+    color: semantic.success,
   },
   historyWrap: {
     marginTop: SPACE.ITEM,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: neutral.surfaceAlt,
     paddingTop: SPACE.ITEM,
   },
   historyLine: {
     fontSize: ms(12),
-    color: '#6B7280',
+    color: neutral.inkMuted,
     marginBottom: vs(2),
   },
   rateBtnWrap: {
@@ -801,30 +802,30 @@ const styles = StyleSheet.create({
 
   invoiceHint: {
     fontSize: ms(12),
-    color: '#6B7280',
+    color: neutral.inkMuted,
     lineHeight: ms(17),
     marginBottom: vs(8),
   },
   invoiceBtn: {
     paddingVertical: vs(11),
     borderRadius: ms(10),
-    backgroundColor: '#111827',
+    backgroundColor: neutral.ink,
     alignItems: 'center',
   },
   invoiceBtnText: {
     fontSize: ms(13),
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: '600',
+    color: neutral.card,
   },
   invoiceError: {
     marginTop: vs(6),
     fontSize: ms(12),
-    color: '#B91C1C',
+    color: semantic.danger,
   },
   invoiceBody: {
     marginTop: vs(10),
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
+    borderTopColor: neutral.surfaceAlt,
     paddingTop: vs(8),
   },
   invoiceRow: {
@@ -835,16 +836,16 @@ const styles = StyleSheet.create({
   },
   invoiceRowLabel: {
     fontSize: ms(12),
-    color: '#6B7280',
+    color: neutral.inkMuted,
     flex: 1,
   },
   invoiceRowValue: {
     fontSize: ms(12),
-    color: '#111827',
+    color: neutral.ink,
     fontWeight: '600',
   },
   invoiceRowStrong: {
-    fontWeight: '800',
+    fontWeight: '600',
   },
   viewProductBtn: {
     flexDirection: 'row',
@@ -853,19 +854,19 @@ const styles = StyleSheet.create({
     gap: hs(8),
     paddingVertical: vs(14),
     borderRadius: ms(10),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderWidth: 1,
-    borderColor: '#16A34A',
+    borderColor: semantic.success,
   },
   viewProductText: {
     fontSize: ms(14),
-    fontWeight: '700',
-    color: '#16A34A',
+    fontWeight: '600',
+    color: semantic.success,
   },
 
   helpText: {
     fontSize: ms(13),
-    color: '#6B7280',
+    color: neutral.inkMuted,
     lineHeight: ms(18),
     marginBottom: vs(12),
   },
@@ -874,12 +875,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: ms(10),
-    backgroundColor: '#16A34A',
+    backgroundColor: semantic.success,
   },
   helpBtnText: {
     fontSize: ms(14),
     fontWeight: '600',
-    color: '#FFFFFF',
+    color: neutral.card,
   },
   helpSecondaryBtn: {
     minHeight: 44,
@@ -890,7 +891,7 @@ const styles = StyleSheet.create({
   helpSecondaryText: {
     fontSize: ms(13),
     fontWeight: '600',
-    color: '#B91C1C',
+    color: semantic.danger,
   },
 
   missing: {
@@ -899,7 +900,7 @@ const styles = StyleSheet.create({
   },
   missingText: {
     fontSize: ms(14),
-    color: '#6B7280',
+    color: neutral.inkMuted,
   },
   bottomSpacer: {
     height: vs(40),

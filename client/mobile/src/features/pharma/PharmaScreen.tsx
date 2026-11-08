@@ -248,7 +248,7 @@ export function PharmaScreen({
   }, [selectedCategoryId, categorySearchQuery, categorySource, categoryServerById]);
 
   const handleFeedAdd = (item: PharmaQuickReorderItem | PharmaPopularMedicine) => {
-    if (addToCart) addToCart(item.id, item.name, item.price, '💊');
+    if (addToCart) addToCart(item.id, item.name, item.price, 'pharma');
     setFeedAddedIds(prev => new Set(prev).add(item.id));
   };
 
@@ -257,7 +257,7 @@ export function PharmaScreen({
       id: item.id,
       name: item.name,
       price: item.price,
-      emoji: '💊',
+      emoji: 'pharma',
       image: item.imageUrl,
       desc: item.details,
       rating: item.rating,

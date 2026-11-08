@@ -1,4 +1,9 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { neutral } from '@/theme/brandTokens';
+import { semanticTint } from '@/theme/brandTokens';
+import { categorical } from '@/theme/categorical';
+import { parentRamp } from '@/theme/brandTokens';
+import { SHADOW_COLOR } from '@/theme/tokens';
 import {
   StyleSheet,
   View,
@@ -106,7 +111,7 @@ export default function CommonProductDetailView({
   };
 
   const confirmAdd = (p: Product) => {
-    addToCart(p.id, p.name, Number(p.price) || 0, p.emoji ?? '🍽️', restaurantId);
+    addToCart(p.id, p.name, Number(p.price) || 0, p.emoji ?? 'dining', restaurantId);
   };
 
   const handleAddToCart = () => {
@@ -203,7 +208,7 @@ export default function CommonProductDetailView({
       <SafeAreaView edges={['top']} style={styles.root}>
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={styles.headerBtn} activeOpacity={0.7}>
-            <ArrowLeft size={ms(22)} color="#0f172a" strokeWidth={2.2} />
+            <ArrowLeft size={ms(22)} color={neutral.ink} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
         <View style={styles.unavailable}>
@@ -232,7 +237,7 @@ export default function CommonProductDetailView({
               />
             ) : (
               <View style={[styles.storeCover, styles.storeCoverFallback]}>
-                <Package size={ms(26)} color="#94a3b8" strokeWidth={1.8} />
+                <Package size={ms(26)} color={neutral.inkSubtle} strokeWidth={1.8} />
               </View>
             )}
             <View style={styles.storeRatingBadge}>
@@ -242,10 +247,10 @@ export default function CommonProductDetailView({
           <View style={styles.storeDetails}>
             <View style={styles.storeNameRow}>
               <AppText style={styles.storeName} numberOfLines={1}>{store.name}</AppText>
-              <ShieldCheck size={ms(16)} color="#3B82F6" fill="#DBEAFE" />
+              <ShieldCheck size={ms(16)} color={parentRamp.base} fill={semanticTint.info} />
             </View>
             <View style={styles.storeLocationRow}>
-              <MapPin size={ms(14)} color="#94a3b8" />
+              <MapPin size={ms(14)} color={neutral.inkSubtle} />
               <AppText style={styles.storeLocationText} numberOfLines={1}>
                 {store.address ? `${store.address.split(',').slice(0, 2).join(',')} · ` : ''}
                 {store.distance} away
@@ -277,7 +282,7 @@ export default function CommonProductDetailView({
                     quantity={qty}
                     isAdded={qty > 0}
                     onPress={onOpenProduct}
-                    onAdd={() => addToCart(p.id, p.name, Number(p.price) || 0, p.emoji ?? '🛍️')}
+                    onAdd={() => addToCart(p.id, p.name, Number(p.price) || 0, p.emoji ?? 'mart')}
                     onIncrement={() => updateCartQuantity(p.id, 1)}
                     onDecrement={() => updateCartQuantity(p.id, -1)}
                   />
@@ -311,7 +316,7 @@ export default function CommonProductDetailView({
             <View style={styles.storeLogoContainer}>
               {foodImageFailed || !product.image ? (
                 <View style={[styles.storeCover, styles.storeCoverFallback]}>
-                  <Package size={ms(28)} color="#94a3b8" strokeWidth={1.25} />
+                  <Package size={ms(28)} color={neutral.inkSubtle} strokeWidth={1.25} />
                 </View>
               ) : (
                 <Image
@@ -325,7 +330,7 @@ export default function CommonProductDetailView({
             <View style={styles.storeDetails}>
               <View style={styles.storeNameRow}>
                 <AppText style={styles.storeName} numberOfLines={1}>{product.shop}</AppText>
-                <ShieldCheck size={ms(16)} color="#3B82F6" fill="#DBEAFE" />
+                <ShieldCheck size={ms(16)} color={parentRamp.base} fill={semanticTint.info} />
               </View>
               </View>
           </TouchableOpacity>
@@ -378,7 +383,7 @@ export default function CommonProductDetailView({
     />
   ) : (
     <View style={styles.heroEmojiTile}>
-      <Package size={ms(64)} color="#94a3b8" strokeWidth={1.25} />
+      <Package size={ms(64)} color={neutral.inkSubtle} strokeWidth={1.25} />
     </View>
   );
 
@@ -392,7 +397,7 @@ export default function CommonProductDetailView({
           accessibilityRole="button"
           accessibilityLabel="Close product details"
         >
-          <ArrowLeft size={ms(22)} color="#0f172a" strokeWidth={2.2} />
+          <ArrowLeft size={ms(22)} color={neutral.ink} strokeWidth={2.2} />
         </TouchableOpacity>
         <View style={styles.headerRight}>
           <TouchableOpacity
@@ -402,7 +407,7 @@ export default function CommonProductDetailView({
             accessibilityRole="button"
             accessibilityLabel="Search"
           >
-            <Search size={ms(23)} color="#0f172a" strokeWidth={2.2} />
+            <Search size={ms(23)} color={neutral.ink} strokeWidth={2.2} />
           </TouchableOpacity>
           <TouchableOpacity
             onPress={onCart}
@@ -411,7 +416,7 @@ export default function CommonProductDetailView({
             accessibilityRole="button"
             accessibilityLabel="Open cart"
           >
-            <ShoppingCart size={ms(20)} color="#0f172a" strokeWidth={2.2} />
+            <ShoppingCart size={ms(20)} color={neutral.ink} strokeWidth={2.2} />
           </TouchableOpacity>
         </View>
       </View>
@@ -434,8 +439,8 @@ export default function CommonProductDetailView({
           >
             <Heart
               size={ms(20)}
-              color={isFavorite ? '#f43f5e' : '#334155'}
-              fill={isFavorite ? '#f43f5e' : 'none'}
+              color={isFavorite ? categorical.rose : neutral.inkMuted}
+              fill={isFavorite ? categorical.rose : 'none'}
             />
           </TouchableOpacity>
         </View>
@@ -449,7 +454,7 @@ export default function CommonProductDetailView({
             <View style={styles.ratingRow}>
               <View style={styles.ratingPill}>
                 <AppText style={styles.ratingPillText}>{safeRating.toFixed(1)}</AppText>
-                <Star size={ms(11)} color="#f59e0b" fill="#f59e0b" strokeWidth={1.5} />
+                <Star size={ms(11)} color={categorical.amber} fill={categorical.amber} strokeWidth={1.5} />
               </View>
               {product.reviewsCount ? (
                 <AppText style={styles.ratingMeta}>{product.reviewsCount} ratings</AppText>
@@ -502,11 +507,11 @@ export default function CommonProductDetailView({
           <>
             <View style={styles.stepper}>
               <TouchableOpacity onPress={handleDecrement} style={styles.stepBtn} activeOpacity={0.8}>
-                <Minus size={ms(18)} strokeWidth={2.5} color="#0f172a" />
+                <Minus size={ms(18)} strokeWidth={2.5} color={neutral.ink} />
               </TouchableOpacity>
               <AppText style={styles.stepValue}>{cartQty}</AppText>
               <TouchableOpacity onPress={handleIncrement} style={styles.stepBtn} activeOpacity={0.8}>
-                <Plus size={ms(18)} strokeWidth={2.5} color="#0f172a" />
+                <Plus size={ms(18)} strokeWidth={2.5} color={neutral.ink} />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -514,7 +519,7 @@ export default function CommonProductDetailView({
               style={[styles.footerBtn, styles.goToCartBtn]}
               activeOpacity={0.85}
             >
-              <ShoppingCart size={ms(18)} color="#ffffff" strokeWidth={2.2} />
+              <ShoppingCart size={ms(18)} color={neutral.card} strokeWidth={2.2} />
               <AppText style={styles.goToCartText}>Go to Cart</AppText>
             </TouchableOpacity>
           </>
@@ -527,7 +532,7 @@ export default function CommonProductDetailView({
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
   },
   header: {
     flexDirection: 'row',
@@ -535,9 +540,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: hs(12),
     paddingVertical: vs(6),
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
+    borderBottomColor: neutral.surfaceAlt,
   },
   headerRight: {
     flexDirection: 'row',
@@ -560,13 +565,13 @@ const styles = StyleSheet.create({
   },
   unavailableTitle: {
     fontSize: ms(16),
-    fontWeight: '800',
-    color: '#0f172a',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   unavailableSub: {
     fontSize: ms(12),
     fontWeight: '500',
-    color: '#94a3b8',
+    color: neutral.inkSubtle,
     textAlign: 'center',
   },
   scroll: {
@@ -578,7 +583,7 @@ const styles = StyleSheet.create({
   hero: {
     width: SCREEN_W,
     height: Math.min(SCREEN_W, vs(320)),
-    backgroundColor: '#f8fafc',
+    backgroundColor: neutral.surface,
     position: 'relative',
   },
   heroImage: {
@@ -589,7 +594,7 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: neutral.surface,
   },
   heroEmoji: {
     fontSize: ms(80),
@@ -604,7 +609,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.92)',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 4,
@@ -616,14 +621,14 @@ const styles = StyleSheet.create({
   },
   brandText: {
     fontSize: ms(13),
-    color: '#64748b',
+    color: neutral.inkMuted,
     fontWeight: '600',
     marginBottom: vs(2),
   },
   titleText: {
     fontSize: ms(20),
-    fontWeight: '800',
-    color: '#0f172a',
+    fontWeight: '600',
+    color: neutral.ink,
     lineHeight: ms(26),
   },
   ratingRow: {
@@ -642,13 +647,13 @@ const styles = StyleSheet.create({
     gap: 3,
   },
   ratingPillText: {
-    color: '#ffffff',
+    color: neutral.card,
     fontSize: ms(11),
-    fontWeight: '800',
+    fontWeight: '600',
   },
   ratingMeta: {
     fontSize: ms(11),
-    color: '#94a3b8',
+    color: neutral.inkSubtle,
     fontWeight: '600',
   },
   priceRow: {
@@ -659,41 +664,41 @@ const styles = StyleSheet.create({
   },
   finalPrice: {
     fontSize: ms(26),
-    fontWeight: '900',
-    color: '#0f172a',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   mrp: {
     fontSize: ms(14),
-    color: '#94a3b8',
+    color: neutral.inkSubtle,
     textDecorationLine: 'line-through',
     fontWeight: '500',
   },
   discount: {
     fontSize: ms(14),
-    color: '#16a34a',
-    fontWeight: '800',
+    color: semantic.success,
+    fontWeight: '600',
   },
   inclTax: {
     fontSize: ms(11),
-    color: '#16a34a',
+    color: semantic.success,
     fontWeight: '600',
     marginTop: vs(3),
   },
   sectionLabel: {
     fontSize: ms(13),
     fontWeight: '600',
-    color: '#0f172a',
+    color: neutral.ink,
     marginBottom: vs(8),
   },
   descText: {
     fontSize: ms(13),
-    color: '#475569',
+    color: neutral.inkMuted,
     fontWeight: '400',
     lineHeight: ms(19),
   },
   unitText: {
     fontSize: ms(13),
-    color: '#64748b',
+    color: neutral.inkMuted,
     fontWeight: '500',
     marginTop: vs(8),
   },
@@ -714,14 +719,14 @@ const styles = StyleSheet.create({
   },
   highlightText: {
     fontSize: ms(12),
-    color: '#334155',
+    color: neutral.inkMuted,
     fontWeight: '500',
     flex: 1,
   },
   storeCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     borderRadius: ms(16),
     padding: hs(14),
   },
@@ -738,12 +743,12 @@ const styles = StyleSheet.create({
     height: ms(64),
     borderRadius: ms(12),
     borderWidth: 1,
-    borderColor: '#eee',
+    borderColor: neutral.border,
   },
   storeCoverFallback: {
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#F1F5F9',
+    backgroundColor: neutral.surfaceAlt,
   },
   storeRatingBadge: {
     position: 'absolute',
@@ -757,9 +762,9 @@ const styles = StyleSheet.create({
     borderRadius: ms(8),
   },
   storeRatingText: {
-    color: '#ffffff',
+    color: neutral.card,
     fontSize: ms(10),
-    fontWeight: '800',
+    fontWeight: '600',
   },
   storeDetails: {
     flex: 1,
@@ -771,8 +776,8 @@ const styles = StyleSheet.create({
   },
   storeName: {
     fontSize: ms(16),
-    fontWeight: '800',
-    color: '#0f172a',
+    fontWeight: '600',
+    color: neutral.ink,
     flexShrink: 1,
   },
   storeLocationRow: {
@@ -782,7 +787,7 @@ const styles = StyleSheet.create({
   },
   storeLocationText: {
     fontSize: ms(12),
-    color: '#475569',
+    color: neutral.inkMuted,
     marginLeft: hs(4),
     flexShrink: 1,
   },
@@ -792,7 +797,7 @@ const styles = StyleSheet.create({
     marginTop: vs(4),
   },
   storeOpenBadge: {
-    backgroundColor: '#DCFCE7',
+    backgroundColor: semanticTint.success,
     paddingHorizontal: hs(6),
     paddingVertical: vs(2),
     borderRadius: ms(4),
@@ -800,16 +805,16 @@ const styles = StyleSheet.create({
   storeOpenText: {
     color: semantic.success,
     fontSize: ms(10),
-    fontWeight: '700',
+    fontWeight: '600',
   },
   storeCloseText: {
     fontSize: ms(12),
-    color: '#94a3b8',
+    color: neutral.inkSubtle,
   },
   relatedTitle: {
     fontSize: ms(14),
-    fontWeight: '800',
-    color: '#0f172a',
+    fontWeight: '600',
+    color: neutral.ink,
     marginTop: SPACE.BLOCK,
     marginBottom: SPACE.BLOCK,
   },
@@ -822,28 +827,28 @@ const styles = StyleSheet.create({
   viewVendorBtn: {
     height: Math.max(46, vs(46)),
     borderRadius: ms(12),
-    backgroundColor: '#B45309',
+    backgroundColor: categorical.amber,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: SPACE.BLOCK,
   },
   viewVendorBtnText: {
-    color: '#ffffff',
+    color: neutral.card,
     fontSize: ms(14),
-    fontWeight: '800',
+    fontWeight: '600',
   },
   viewRestaurantBtn: {
     height: Math.max(46, vs(46)),
     borderRadius: ms(12),
-    backgroundColor: '#B45309',
+    backgroundColor: categorical.amber,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: SPACE.BLOCK,
   },
   viewRestaurantBtnText: {
-    color: '#ffffff',
+    color: neutral.card,
     fontSize: ms(14),
-    fontWeight: '800',
+    fontWeight: '600',
   },
   footer: {
     flexDirection: 'row',
@@ -851,9 +856,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(16),
     paddingTop: vs(12),
     paddingBottom: vs(8),
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: neutral.surfaceAlt,
   },
   footerBtn: {
     flex: 1,
@@ -863,20 +868,20 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   addToCartBtn: {
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderWidth: 1.5,
-    borderColor: '#0f172a',
+    borderColor: neutral.ink,
   },
   addToCartText: {
-    color: '#0f172a',
+    color: neutral.ink,
     fontSize: ms(14),
-    fontWeight: '800',
+    fontWeight: '600',
   },
   stepper: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    backgroundColor: '#f1f5f9',
+    backgroundColor: neutral.surfaceAlt,
     borderRadius: ms(14),
     padding: vs(4),
     minWidth: hs(120),
@@ -885,10 +890,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
     shadowRadius: 2,
@@ -896,19 +901,19 @@ const styles = StyleSheet.create({
   },
   stepValue: {
     fontSize: ms(15),
-    fontWeight: '800',
-    color: '#0f172a',
+    fontWeight: '600',
+    color: neutral.ink,
     minWidth: ms(28),
     textAlign: 'center',
   },
   goToCartBtn: {
     flexDirection: 'row',
     gap: hs(8),
-    backgroundColor: '#0f172a',
+    backgroundColor: neutral.ink,
   },
   goToCartText: {
-    color: '#ffffff',
+    color: neutral.card,
     fontSize: ms(14),
-    fontWeight: '800',
+    fontWeight: '600',
   },
 });

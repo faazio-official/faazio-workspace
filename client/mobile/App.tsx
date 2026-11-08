@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { neutral } from '@/theme/brandTokens';
 import { StatusBar, View, StyleSheet, AppState } from 'react-native';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -58,7 +59,7 @@ const navigationTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    background: '#ffffff',
+    background: neutral.card,
   },
   fonts: {
     regular: {
@@ -70,16 +71,16 @@ const navigationTheme = {
       fontWeight: '500' as const,
     },
     bold: {
-      fontFamily: resolveFontFamily('700'),
-      fontWeight: '700' as const,
+      fontFamily: resolveFontFamily('600'),
+      fontWeight: '600' as const,
     },
     heavy: {
-      fontFamily: resolveFontFamily('800'),
-      fontWeight: '800' as const,
+      fontFamily: resolveFontFamily('600'),
+      fontWeight: '600' as const,
     },
     heading: {
-      fontFamily: resolveFontFamily('900'),
-      fontWeight: '900' as const,
+      fontFamily: resolveFontFamily('600'),
+      fontWeight: '600' as const,
     },
   },
 };
@@ -271,7 +272,7 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
   },
   blocker: {
     position: 'absolute',
@@ -279,6 +280,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
   },
 });

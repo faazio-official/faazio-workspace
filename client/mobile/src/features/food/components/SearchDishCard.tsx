@@ -18,10 +18,10 @@ interface SearchDishCardProps {
 }
 
 /**
- * Cart thumbnails currently render an emoji tile, so dish items use a neutral
- * plate emoji until the cart store gains image support.
+ * Cart thumbnails render an icon tile; dish items use the dining icon key
+ * until the cart store gains image support.
  */
-const CART_EMOJI = '🍽️';
+const CART_ICON_KEY = 'dining';
 
 /**
  * Search result dish card — row layout per the Dishes view spec: square
@@ -37,7 +37,7 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, r
   const quantity = cart.find((i) => i.id === dish.id)?.quantity ?? 0;
 
   const handleAdd = () => {
-    addToCart(dish.id, dish.dishName, dish.price, CART_EMOJI, restaurantId);
+    addToCart(dish.id, dish.dishName, dish.price, CART_ICON_KEY, restaurantId);
   };
 
   return (

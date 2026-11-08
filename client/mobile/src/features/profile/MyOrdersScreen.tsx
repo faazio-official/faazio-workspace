@@ -1,4 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { neutral } from '@/theme/brandTokens';
+import { semanticTint } from '@/theme/brandTokens';
+import { categorical } from '@/theme/categorical';
+import { SHADOW_COLOR } from '@/theme/tokens';
 import {
   Linking,
   StyleSheet,
@@ -38,17 +42,17 @@ import MyOrdersFilterSheet from './MyOrdersFilterSheet';
 type Props = NativeStackScreenProps<RootStackParamList, 'MyOrders'>;
 
 const STATUS_COLORS: Record<OrderStatus, string> = {
-  Delivered: '#16A34A',
+  Delivered: semantic.success,
   Shipped: semantic.info,
   Processing: semantic.warning,
-  Cancelled: '#EF4444',
+  Cancelled: semantic.danger,
 };
 
 const STATUS_BADGE_BG: Record<OrderStatus, string> = {
-  Delivered: '#DCFCE7',
-  Shipped: '#DBEAFE',
-  Processing: '#FEF3C7',
-  Cancelled: '#FEE2E2',
+  Delivered: semanticTint.success,
+  Shipped: semanticTint.info,
+  Processing: semanticTint.warning,
+  Cancelled: semanticTint.danger,
 };
 
 /** Durable pharma status → list label + pill colours (mirrors Order Details). */
@@ -62,12 +66,12 @@ const RX_STATUS_LABEL: Record<string, string> = {
 };
 
 const RX_PILL: Record<string, { bg: string; color: string }> = {
-  'Awaiting quote': { bg: '#FEF3C7', color: semantic.warning },
-  Processing: { bg: '#FEF3C7', color: semantic.warning },
-  'Quote ready': { bg: '#DBEAFE', color: semantic.info },
-  Ready: { bg: '#DCFCE7', color: '#16A34A' },
-  Fulfilled: { bg: '#DCFCE7', color: '#16A34A' },
-  Cancelled: { bg: '#FEE2E2', color: '#EF4444' },
+  'Awaiting quote': { bg: semanticTint.warning, color: semantic.warning },
+  Processing: { bg: semanticTint.warning, color: semantic.warning },
+  'Quote ready': { bg: semanticTint.info, color: semantic.info },
+  Ready: { bg: semanticTint.success, color: semantic.success },
+  Fulfilled: { bg: semanticTint.success, color: semantic.success },
+  Cancelled: { bg: semanticTint.danger, color: semantic.danger },
 };
 
 /**
@@ -433,7 +437,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
               accessibilityRole="button"
               accessibilityLabel="Go back"
             >
-              <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
+              <ChevronLeft size={ms(26)} color={neutral.ink} strokeWidth={2.2} />
             </TouchableOpacity>
             <AppText style={styles.headerTitle}>My Orders</AppText>
           </View>
@@ -445,7 +449,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
               accessibilityRole="button"
               accessibilityLabel="Notifications"
             >
-              <Bell size={ms(22)} color="#0f172a" strokeWidth={2} />
+              <Bell size={ms(22)} color={neutral.ink} strokeWidth={2} />
               {notificationCount > 0 ? (
                 <View style={styles.notifBadge}>
                   <AppText style={styles.notifBadgeText}>{notificationCount > 9 ? '9+' : notificationCount}</AppText>
@@ -475,7 +479,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
               accessibilityLabel="Dismiss"
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             >
-              <X size={ms(14)} color="#854D0E" strokeWidth={2.4} />
+              <X size={ms(14)} color={semantic.warning} strokeWidth={2.4} />
             </TouchableOpacity>
           </View>
         ) : null}
@@ -494,7 +498,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
               accessibilityLabel={`Clear ${statusFilter} filter`}
             >
               <AppText style={styles.statusChipText}>{statusFilter}</AppText>
-              <X size={ms(13)} color="#16A34A" strokeWidth={2.4} />
+              <X size={ms(13)} color={semantic.success} strokeWidth={2.4} />
             </TouchableOpacity>
           ) : (
             <AppText style={styles.summaryText}>
@@ -508,7 +512,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
             accessibilityRole="button"
             accessibilityLabel="Filter orders"
           >
-            <SlidersHorizontal size={ms(15)} color="#374151" strokeWidth={2.2} />
+            <SlidersHorizontal size={ms(15)} color={neutral.inkMuted} strokeWidth={2.2} />
             <AppText style={styles.filterText}>Filter</AppText>
             {hasActiveStatus ? <View style={styles.filterActiveDot} /> : null}
           </TouchableOpacity>
@@ -519,7 +523,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
         ListEmptyComponent={
           <View style={styles.emptyState}>
             <View style={styles.emptyIconBox}>
-              <PackageOpen size={ms(34)} color="#9CA3AF" strokeWidth={2} />
+              <PackageOpen size={ms(34)} color={neutral.inkSubtle} strokeWidth={2} />
             </View>
             <AppText style={styles.emptyTitle}>
               {!ordersHydrated
@@ -574,7 +578,7 @@ export function MyOrdersScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: neutral.surface,
   },
   scroll: {
     flex: 1,
@@ -585,10 +589,10 @@ const styles = StyleSheet.create({
 
   /* Header */
   header: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     paddingBottom: SPACE.BLOCK,
     zIndex: 10,
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.05,
     shadowRadius: 8,
@@ -611,8 +615,8 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: ms(18),
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   headerActions: {
     flexDirection: 'row',
@@ -623,7 +627,7 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: ms(20),
-    backgroundColor: '#F3F4F6',
+    backgroundColor: neutral.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
@@ -635,17 +639,17 @@ const styles = StyleSheet.create({
     minWidth: ms(18),
     height: ms(18),
     borderRadius: ms(9),
-    backgroundColor: '#EF4444',
+    backgroundColor: semantic.danger,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: hs(4),
     borderWidth: 2,
-    borderColor: '#ffffff',
+    borderColor: neutral.card,
   },
   notifBadgeText: {
-    color: '#ffffff',
+    color: neutral.card,
     fontSize: ms(11),
-    fontWeight: '900',
+    fontWeight: '600',
   },
 
   /* Filter bar */
@@ -658,7 +662,7 @@ const styles = StyleSheet.create({
   },
   summaryText: {
     fontSize: ms(13),
-    color: '#6B7280',
+    color: neutral.inkMuted,
   },
   statusChip: {
     flexDirection: 'row',
@@ -667,12 +671,12 @@ const styles = StyleSheet.create({
     paddingVertical: vs(5),
     paddingHorizontal: hs(10),
     borderRadius: ms(14),
-    backgroundColor: '#DCFCE7',
+    backgroundColor: semanticTint.success,
   },
   statusChipText: {
     fontSize: ms(12),
-    fontWeight: '700',
-    color: '#16A34A',
+    fontWeight: '600',
+    color: semantic.success,
   },
   filterBtn: {
     flexDirection: 'row',
@@ -683,7 +687,7 @@ const styles = StyleSheet.create({
   filterText: {
     fontSize: ms(13),
     fontWeight: '600',
-    color: '#374151',
+    color: neutral.inkMuted,
   },
   filterActiveDot: {
     position: 'absolute',
@@ -692,7 +696,7 @@ const styles = StyleSheet.create({
     width: ms(8),
     height: ms(8),
     borderRadius: ms(4),
-    backgroundColor: '#16A34A',
+    backgroundColor: semantic.success,
   },
 
   /* Empty state */
@@ -705,20 +709,20 @@ const styles = StyleSheet.create({
     width: ms(72),
     height: ms(72),
     borderRadius: ms(36),
-    backgroundColor: '#F3F4F6',
+    backgroundColor: neutral.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: SPACE.BLOCK,
   },
   emptyTitle: {
     fontSize: ms(16),
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
     marginBottom: vs(6),
   },
   emptySubtitle: {
     fontSize: ms(13),
-    color: '#6B7280',
+    color: neutral.inkMuted,
     textAlign: 'center',
     marginBottom: SPACE.SECTION,
   },
@@ -727,13 +731,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(20),
     borderRadius: ms(10),
     borderWidth: 1,
-    borderColor: '#16A34A',
-    backgroundColor: '#FFFFFF',
+    borderColor: semantic.success,
+    backgroundColor: neutral.card,
   },
   emptyBtnText: {
     fontSize: ms(13),
-    fontWeight: '700',
-    color: '#16A34A',
+    fontWeight: '600',
+    color: semantic.success,
   },
 
   /* List */
@@ -742,17 +746,17 @@ const styles = StyleSheet.create({
     paddingTop: vs(4),
   },
   orderCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(12),
     padding: hs(16),
     marginBottom: SPACE.BLOCK,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: neutral.border,
   },
   orderCardHighlighted: {
-    borderColor: '#F59E0B',
+    borderColor: categorical.amber,
     borderWidth: 2,
-    shadowColor: '#F59E0B',
+    shadowColor: categorical.amber,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.25,
     shadowRadius: 8,
@@ -768,7 +772,7 @@ const styles = StyleSheet.create({
   },
   orderDate: {
     fontSize: ms(12),
-    color: '#6B7280',
+    color: neutral.inkMuted,
     flexShrink: 1,
   },
   headerPills: {
@@ -787,7 +791,7 @@ const styles = StyleSheet.create({
     width: ms(60),
     height: ms(60),
     borderRadius: ms(8),
-    backgroundColor: '#F3F4F6',
+    backgroundColor: neutral.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: hs(12),
@@ -798,18 +802,18 @@ const styles = StyleSheet.create({
   },
   productName: {
     fontSize: ms(13),
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
     marginBottom: vs(3),
   },
   productMeta: {
     fontSize: ms(12),
-    color: '#6B7280',
+    color: neutral.inkMuted,
   },
   priceText: {
     fontSize: ms(15),
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
     alignSelf: 'flex-start',
   },
   statusPill: {
@@ -821,16 +825,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(8),
     paddingVertical: vs(2),
     borderRadius: ms(6),
-    backgroundColor: '#FEF3C7',
+    backgroundColor: semanticTint.warning,
   },
   actionPillText: {
     fontSize: ms(11),
-    fontWeight: '800',
-    color: '#854D0E',
+    fontWeight: '600',
+    color: semantic.warning,
   },
   statusText: {
     fontSize: ms(11),
-    fontWeight: '700',
+    fontWeight: '600',
   },
   fulfillmentPill: {
     paddingHorizontal: hs(8),
@@ -838,20 +842,20 @@ const styles = StyleSheet.create({
     borderRadius: ms(6),
   },
   fulfillmentPillDelivery: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: neutral.surfaceAlt,
   },
   fulfillmentPillPickup: {
-    backgroundColor: '#EEF2FF',
+    backgroundColor: semanticTint.info,
   },
   fulfillmentPillText: {
     fontSize: ms(11),
-    fontWeight: '700',
+    fontWeight: '600',
   },
   fulfillmentPillTextDelivery: {
-    color: '#6B7280',
+    color: neutral.inkMuted,
   },
   fulfillmentPillTextPickup: {
-    color: '#4F46E5',
+    color: categorical.indigo,
   },
 
   /* Card Footer */
@@ -867,25 +871,25 @@ const styles = StyleSheet.create({
     paddingVertical: vs(6),
     borderRadius: ms(8),
     borderWidth: 1,
-    borderColor: '#111827',
+    borderColor: neutral.ink,
   },
   invoiceBtnText: {
     fontSize: ms(12),
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   viewDetailsBtn: {
     paddingVertical: vs(6),
     paddingHorizontal: hs(12),
     borderRadius: ms(6),
     borderWidth: 1,
-    borderColor: '#16A34A',
-    backgroundColor: '#FFFFFF',
+    borderColor: semantic.success,
+    backgroundColor: neutral.card,
   },
   viewDetailsText: {
     fontSize: ms(12),
     fontWeight: '600',
-    color: '#16A34A',
+    color: semantic.success,
   },
 
   listBottomSpacer: {
@@ -902,11 +906,11 @@ const styles = StyleSheet.create({
     paddingVertical: vs(10),
     paddingHorizontal: hs(12),
     borderRadius: ms(10),
-    backgroundColor: '#FEF3C7',
+    backgroundColor: semanticTint.warning,
   },
   invoiceNoticeText: {
     flex: 1,
     fontSize: ms(12),
-    color: '#854D0E',
+    color: semantic.warning,
   },
 });

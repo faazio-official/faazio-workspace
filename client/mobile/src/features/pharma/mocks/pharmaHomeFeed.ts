@@ -26,14 +26,14 @@ const PHARMA_PLACEHOLDER_IMG =
   'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?fm=jpg&fit=crop&q=80&w=400&h=400';
 
 /** Map a Quick Reorder medicine to a unified Product. Quick Reorder items carry
- *  no image/rating, so a 💊 emoji placeholder and a default rating are used. */
+ *  no image/rating, so a medicine icon placeholder and a default rating are used. */
 export const quickReorderToProduct = (item: PharmaQuickReorderItem): Product => ({
   id: item.id,
   app: 'PHARMA',
   category: 'medicine',
   name: item.name,
   price: item.price,
-  emoji: '💊',
+  emoji: 'pharma',
   rating: 4.5,
   desc: item.stripDetails,
   image: PHARMA_PLACEHOLDER_IMG,

@@ -1,4 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
+import { neutral } from '@/theme/brandTokens';
+import { semantic } from '@/theme/brandTokens';
+import { semanticTint } from '@/theme/brandTokens';
+import { categorical } from '@/theme/categorical';
+import { parentRamp } from '@/theme/brandTokens';
+import { brandRamp } from '@/theme/brandTokens';
+import { SHADOW_COLOR } from '@/theme/tokens';
 import { StyleSheet, View, TouchableOpacity, Pressable, Platform, Image, Keyboard, KeyboardAvoidingView, Animated, Easing, BackHandler, ActivityIndicator } from 'react-native';
 import type { TextInput } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -58,9 +65,9 @@ function BrandGradient({ borderRadius = 0, diagonal = false, startOffset = '0%' 
           x2={diagonal ? '100%' : '0%'}
           y2="100%"
         >
-          <Stop offset="0%" stopColor="#2c56f6" />
-          <Stop offset={startOffset} stopColor="#2c56f6" />
-          <Stop offset="100%" stopColor="#122bb3" />
+          <Stop offset="0%" stopColor={parentRamp.base} />
+          <Stop offset={startOffset} stopColor={parentRamp.base} />
+          <Stop offset="100%" stopColor={parentRamp.deep} />
         </LinearGradient>
       </Defs>
       <Rect width="100%" height="100%" fill={`url(#${GRADIENT_ID})`} rx={borderRadius} ry={borderRadius} />
@@ -87,21 +94,21 @@ function ScalePressable({ onPress, style, children, ...rest }: any) {
 
 const SmilingCoinHandIllustration = () => (
   <Svg viewBox="0 0 100 100" width={ms(88)} height={ms(88)}>
-    <Circle cx="50" cy="50" r="45" fill="#ffd037" />
-    <Circle cx="50" cy="50" r="41" fill="#ffc107" />
-    <Circle cx="50" cy="50" r="38" fill="#ffd037" />
-    <Circle cx="36" cy="42" r="5" fill="#1e293b" />
-    <Circle cx="64" cy="42" r="5" fill="#1e293b" />
-    <Circle cx="34" cy="40" r="1.5" fill="#ffffff" />
-    <Circle cx="62" cy="40" r="1.5" fill="#ffffff" />
-    <Ellipse cx="26" cy="54" rx="7" ry="4" fill="#ff8a80" opacity={0.6} />
-    <Ellipse cx="74" cy="54" rx="7" ry="4" fill="#ff8a80" opacity={0.6} />
-    <Path d="M 30 60 Q 50 80 70 60" fill="none" stroke="#1e293b" strokeWidth={4} strokeLinecap="round" />
-    <Path d="M 40 68 Q 50 78 60 68" fill="none" stroke="#ef4444" strokeWidth={3} strokeLinecap="round" />
+    <Circle cx="50" cy="50" r="45" fill={brandRamp.MART.base} />
+    <Circle cx="50" cy="50" r="41" fill={brandRamp.MART.base} />
+    <Circle cx="50" cy="50" r="38" fill={brandRamp.MART.base} />
+    <Circle cx="36" cy="42" r="5" fill={neutral.ink} />
+    <Circle cx="64" cy="42" r="5" fill={neutral.ink} />
+    <Circle cx="34" cy="40" r="1.5" fill={neutral.card} />
+    <Circle cx="62" cy="40" r="1.5" fill={neutral.card} />
+    <Ellipse cx="26" cy="54" rx="7" ry="4" fill={categorical.rose} opacity={0.6} />
+    <Ellipse cx="74" cy="54" rx="7" ry="4" fill={categorical.rose} opacity={0.6} />
+    <Path d="M 30 60 Q 50 80 70 60" fill="none" stroke={neutral.ink} strokeWidth={4} strokeLinecap="round" />
+    <Path d="M 40 68 Q 50 78 60 68" fill="none" stroke={semantic.danger} strokeWidth={3} strokeLinecap="round" />
   </Svg>
 );
 
-function RotatingSpinner({ size = 14, borderWidth = 2, color = '#212121' }) {
+function RotatingSpinner({ size = 14, borderWidth = 2, color = neutral.ink }) {
   const spinAnim = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(
@@ -527,7 +534,7 @@ export function LoginScreen({ navigation }: Props) {
               accessibilityRole="button"
               accessibilityLabel="Go back"
             >
-              <ChevronLeft size={ms(20)} color="#1e293b" strokeWidth={2.5} />
+              <ChevronLeft size={ms(20)} color={neutral.ink} strokeWidth={2.5} />
             </ScalePressable>
           ) : null}
 
@@ -576,7 +583,7 @@ export function LoginScreen({ navigation }: Props) {
                     ref={phoneInputRef}
                     style={styles.textInput}
                     placeholder="Enter your mobile number"
-                    placeholderTextColor="#e2e8f0"
+                    placeholderTextColor={neutral.border}
                     keyboardType="phone-pad"
                     maxLength={15}
                     value={phone}
@@ -601,7 +608,7 @@ export function LoginScreen({ navigation }: Props) {
                 <View style={styles.loaderContainer}>
                   {isSending ? (
                     <View style={styles.loadingPill}>
-                      <RotatingSpinner size={14} borderWidth={2} color="#212121" />
+                      <RotatingSpinner size={14} borderWidth={2} color={neutral.ink} />
                       <AppText style={styles.loadingText}>Sending code…</AppText>
                     </View>
                   ) : (
@@ -643,7 +650,7 @@ export function LoginScreen({ navigation }: Props) {
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <ChevronLeft size={ms(20)} color="#1e293b" strokeWidth={2.5} />
+            <ChevronLeft size={ms(20)} color={neutral.ink} strokeWidth={2.5} />
           </ScalePressable>
 
           <View style={styles.otpHeaderContainer}>
@@ -655,7 +662,7 @@ export function LoginScreen({ navigation }: Props) {
             <Svg viewBox="0 0 24 24" fill="none" width="100%" height="100%">
               <Polyline
                 points="20 6 9 17 4 12"
-                stroke="#ffffff"
+                stroke={neutral.card}
                 strokeWidth={3.5}
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -759,7 +766,7 @@ export function LoginScreen({ navigation }: Props) {
                       <Svg width={ms(16)} height={ms(16)} viewBox="0 0 24 24" fill="none">
                         <Path
                           d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
-                          stroke="#ffffff"
+                          stroke={neutral.card}
                           strokeWidth={3}
                           strokeLinecap="round"
                           strokeLinejoin="round"
@@ -783,7 +790,7 @@ export function LoginScreen({ navigation }: Props) {
                   ]}
                 >
                   {isVerifying ? (
-                    <ActivityIndicator size="small" color="#ffffff" />
+                    <ActivityIndicator size="small" color={neutral.card} />
                   ) : (
                     <AppText style={styles.verifyBtnText}>Verify</AppText>
                   )}
@@ -815,7 +822,7 @@ export function LoginScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#1f40d4' },
+  container: { flex: 1, backgroundColor: parentRamp.base },
   avoiding: { flex: 1 },
   phoneStateContainer: { flex: 1, position: 'relative' },
   backBtn: {
@@ -825,10 +832,10 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -836,14 +843,14 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(241, 245, 249, 0.1)',
   },
-  topImageContainer: { width: '100%', backgroundColor: '#ffffff', zIndex: 1, height: hp(20) + DOME_RADIUS },
+  topImageContainer: { width: '100%', backgroundColor: neutral.card, zIndex: 1, height: hp(20) + DOME_RADIUS },
   topImage: { width: '100%', height: '100%' },
   bottomSheet: {
     flex: 1,
     backgroundColor: 'transparent',
     borderTopLeftRadius: DOME_RADIUS,
     borderTopRightRadius: DOME_RADIUS,
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: -15 },
     shadowOpacity: 0.18,
     shadowRadius: 35,
@@ -894,10 +901,10 @@ const styles = StyleSheet.create({
     width: ms(88),
     height: ms(88),
     borderRadius: DOME_RADIUS,
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.1,
     shadowRadius: 15,
@@ -908,7 +915,7 @@ const styles = StyleSheet.create({
   },
   headerBlock: { alignItems: 'center' },
   exploreTitle: {
-    color: '#ffffff',
+    color: neutral.card,
     fontWeight: '600',
     fontSize: ms(28),
   },
@@ -916,12 +923,12 @@ const styles = StyleSheet.create({
   phoneInputRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderRadius: ms(30),
     paddingHorizontal: hs(20),
     paddingVertical: vs(12),
     width: '100%',
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.16,
     shadowRadius: 25,
@@ -930,15 +937,15 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255, 255, 255, 0.1)',
   },
   phoneInputRowFocused: {
-    borderColor: '#41E68F',
-    shadowColor: '#41E68F',
+    borderColor: categorical.green,
+    shadowColor: categorical.green,
     shadowOpacity: 0.3,
     shadowRadius: 12,
     elevation: 8,
   },
-  countryCode: { fontSize: ms(14), fontWeight: '600', color: '#212121' },
-  separator: { width: 1, height: vs(16), backgroundColor: '#e2e8f0', marginHorizontal: hs(10) },
-  textInput: { flex: 1, fontSize: ms(14), fontWeight: '600', color: '#212121' },
+  countryCode: { fontSize: ms(14), fontWeight: '600', color: neutral.ink },
+  separator: { width: 1, height: vs(16), backgroundColor: neutral.border, marginHorizontal: hs(10) },
+  textInput: { flex: 1, fontSize: ms(14), fontWeight: '600', color: neutral.ink },
   termsText: {
     fontSize: ms(10),
     color: 'rgba(255, 255, 255, 0.9)',
@@ -952,45 +959,45 @@ const styles = StyleSheet.create({
   loadingPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#41E68F',
+    backgroundColor: categorical.green,
     paddingHorizontal: hs(40),
     paddingVertical: vs(14),
     borderRadius: ms(30),
-    shadowColor: '#41E68F',
+    shadowColor: categorical.green,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 6,
     gap: hs(10),
   },
-  loadingText: { color: '#212121', fontWeight: '600', fontSize: ms(12) },
+  loadingText: { color: neutral.ink, fontWeight: '600', fontSize: ms(12) },
   sendBtn: {
     minHeight: Math.max(48, vs(48)),
     minWidth: hs(200),
     alignItems: 'center',
     justifyContent: 'center',
     borderRadius: ms(30),
-    backgroundColor: '#41E68F',
-    shadowColor: '#41E68F',
+    backgroundColor: categorical.green,
+    shadowColor: categorical.green,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.25,
     shadowRadius: 10,
     elevation: 6,
   },
   sendBtnDisabled: { backgroundColor: 'rgba(255,255,255,0.35)', shadowOpacity: 0, elevation: 0 },
-  sendBtnText: { color: '#0f172a', fontWeight: '600', fontSize: ms(14) },
+  sendBtnText: { color: neutral.ink, fontWeight: '600', fontSize: ms(14) },
   phoneErrorText: {
     marginTop: SPACE.BLOCK,
     fontSize: ms(12),
-    color: '#fecdd3',
+    color: semanticTint.danger,
     fontWeight: '600',
     textAlign: 'center',
     paddingHorizontal: hs(12),
   },
-  otpStateContainer: { flex: 1, backgroundColor: '#1f40d4', position: 'relative' },
+  otpStateContainer: { flex: 1, backgroundColor: parentRamp.base, position: 'relative' },
   otpTopDismissArea: { position: 'absolute', top: 0, left: 0, right: 0, height: '24.2%', zIndex: 30 },
   otpHeaderContainer: { position: 'absolute', top: '9%', left: 0, right: 0, alignItems: 'center', zIndex: 10 },
-  otpHeaderTitle: { color: '#ffffff', fontWeight: '600', fontSize: ms(24) },
+  otpHeaderTitle: { color: neutral.card, fontWeight: '600', fontSize: ms(24) },
   checkCircleBg: {
     position: 'absolute',
     top: '14%',
@@ -1017,9 +1024,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     top: hp(13.7),
-    backgroundColor: '#2b51db',
+    backgroundColor: parentRamp.base,
     zIndex: 10,
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: -24 },
     shadowOpacity: 0.08,
     shadowRadius: 33,
@@ -1033,9 +1040,9 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
     top: hp(15.2),
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     zIndex: 20,
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: -24 },
     shadowOpacity: 0.08,
     shadowRadius: 33,
@@ -1045,32 +1052,32 @@ const styles = StyleSheet.create({
   },
   otpWhiteContent: { flex: 1, paddingVertical: SPACE.SECTION, paddingHorizontal: hs(24), alignItems: 'center' },
   otpPromptContainer: { alignItems: 'center', marginBottom: SPACE.SECTION },
-  securePromptSub: { fontSize: ms(11), fontWeight: '600', color: '#94a3b8', marginBottom: vs(6) },
-  securePromptMain: { fontSize: ms(18), fontWeight: '600', color: '#1e293b', marginBottom: vs(2) },
-  securePromptPhone: { fontSize: ms(20), fontWeight: '600', color: '#2f80ed', letterSpacing: 0.5 },
+  securePromptSub: { fontSize: ms(11), fontWeight: '600', color: neutral.inkSubtle, marginBottom: vs(6) },
+  securePromptMain: { fontSize: ms(18), fontWeight: '600', color: neutral.ink, marginBottom: vs(2) },
+  securePromptPhone: { fontSize: ms(20), fontWeight: '600', color: parentRamp.base, letterSpacing: 0.5 },
   otpSegmentsContainer: { flex: 1, justifyContent: 'flex-start', alignItems: 'center', width: '100%', position: 'relative', paddingTop: vs(8) },
   hiddenOtpInput: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: 0, zIndex: 40, color: 'transparent' },
   segmentsRow: { flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: hs(12), width: '100%', maxWidth: hs(320), zIndex: 30 },
   segmentColumn: { alignItems: 'center', width: Math.max(44, vs(44)) },
   segmentDigitContainer: { height: vs(48), justifyContent: 'center', alignItems: 'center' },
-  segmentDigit: { fontSize: ms(30), fontWeight: '600', color: '#1e293b', letterSpacing: -1 },
-  segmentDot: { fontSize: ms(12), fontWeight: '600', color: '#cbd5e1', opacity: 0.7 },
+  segmentDigit: { fontSize: ms(30), fontWeight: '600', color: neutral.ink, letterSpacing: -1 },
+  segmentDot: { fontSize: ms(12), fontWeight: '600', color: neutral.border, opacity: 0.7 },
   segmentTrack: { height: vs(6), borderRadius: ms(3), width: '100%', marginTop: vs(4) },
-  segmentTrackDefault: { backgroundColor: '#cbd5e1', opacity: 0.7 },
-  segmentTrackCurrent: { backgroundColor: '#3b82f6', height: vs(5) },
+  segmentTrackDefault: { backgroundColor: neutral.border, opacity: 0.7 },
+  segmentTrackCurrent: { backgroundColor: parentRamp.base, height: vs(5) },
   segmentTrackFilled: {
-    backgroundColor: '#2f80ed',
+    backgroundColor: parentRamp.base,
     height: vs(5),
-    shadowColor: '#2f80ed',
+    shadowColor: parentRamp.base,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.3,
     shadowRadius: 4,
     elevation: 3,
   },
   segmentTrackError: {
-    backgroundColor: '#f43f5e',
+    backgroundColor: categorical.rose,
     height: vs(5),
-    shadowColor: '#f43f5e',
+    shadowColor: categorical.rose,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.35,
     shadowRadius: 4,
@@ -1080,15 +1087,15 @@ const styles = StyleSheet.create({
   errorToast: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff1f2',
+    backgroundColor: semanticTint.danger,
     borderWidth: 1,
-    borderColor: '#ffe4e6',
+    borderColor: semanticTint.danger,
     borderRadius: ms(16),
     paddingHorizontal: hs(16),
     paddingVertical: vs(12),
     maxWidth: hs(290),
     gap: hs(12),
-    shadowColor: '#f43f5e',
+    shadowColor: categorical.rose,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 12,
@@ -1098,35 +1105,35 @@ const styles = StyleSheet.create({
     width: ms(32),
     height: ms(32),
     borderRadius: ms(16),
-    backgroundColor: '#f43f5e',
+    backgroundColor: categorical.rose,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#f43f5e',
+    shadowColor: categorical.rose,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
     elevation: 3,
   },
   errorToastTextContainer: { flexShrink: 1 },
-  errorToastTitle: { fontSize: ms(11), fontWeight: '600', color: '#9f1239', lineHeight: ms(14) },
-  errorToastMessage: { fontSize: ms(10), fontWeight: '700', color: '#e11d48', marginTop: vs(2), lineHeight: ms(14) },
+  errorToastTitle: { fontSize: ms(11), fontWeight: '600', color: semantic.danger, lineHeight: ms(14) },
+  errorToastMessage: { fontSize: ms(10), fontWeight: '600', color: semantic.danger, marginTop: vs(2), lineHeight: ms(14) },
   verifyBtn: {
     width: '100%',
     maxWidth: hs(290),
     height: vs(48),
     borderRadius: ms(24),
-    backgroundColor: '#2f80ed',
+    backgroundColor: parentRamp.base,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#2f80ed',
+    shadowColor: parentRamp.base,
     shadowOffset: { width: 0, height: 6 },
     shadowOpacity: 0.28,
     shadowRadius: 12,
     elevation: 6,
   },
-  verifyBtnDisabled: { backgroundColor: '#cbd5e1', shadowOpacity: 0, elevation: 0 },
-  verifyBtnText: { color: '#ffffff', fontWeight: '600', fontSize: ms(15), letterSpacing: 0.5 },
+  verifyBtnDisabled: { backgroundColor: neutral.border, shadowOpacity: 0, elevation: 0 },
+  verifyBtnText: { color: neutral.card, fontWeight: '600', fontSize: ms(15), letterSpacing: 0.5 },
   resendRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center' },
-  resendTextSub: { fontSize: ms(12), color: '#64748b', fontWeight: '600' },
-  resendTextAction: { fontSize: ms(12), color: '#2f80ed', fontWeight: '600' },
+  resendTextSub: { fontSize: ms(12), color: neutral.inkMuted, fontWeight: '600' },
+  resendTextAction: { fontSize: ms(12), color: parentRamp.base, fontWeight: '600' },
 });

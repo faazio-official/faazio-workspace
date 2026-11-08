@@ -100,7 +100,7 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
 
   const handleAdd = useCallback(
     (dish: SpecialDish) => {
-      addToCart(dish.id, dish.dishName, dish.price, '🍽️', restaurant.id);
+      addToCart(dish.id, dish.dishName, dish.price, 'dining', restaurant.id);
     },
     [addToCart, restaurant.id],
   );

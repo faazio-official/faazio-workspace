@@ -1,4 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { neutral } from '@/theme/brandTokens';
+import { semanticTint } from '@/theme/brandTokens';
+import { SHADOW_COLOR } from '@/theme/tokens';
 import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing, Linking } from 'react-native';
 import { hs, vs, ms, wp, hp } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
@@ -39,20 +42,20 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Location'>;
 function StreetMapSVG() {
   return (
     <Svg width="100%" height="100%" style={StyleSheet.absoluteFill} viewBox="0 0 500 700">
-      <Rect width="100%" height="100%" fill="#FDFBF7" />
-      <Path d="M -20,100 C 100,120 180,60 300,110 L 500,150 L 500,-50 L -20,-50 Z" fill="#EBF3FC" />
-      <Rect x={250} y={30} width={120} height={80} rx={16} fill="#E6F4EA" opacity={0.8} />
-      <Rect x={-40} y={480} width={180} height={150} rx={24} fill="#E6F4EA" opacity={0.6} />
-      <Rect x={280} y={550} width={200} height={180} rx={24} fill="#E6F4EA" opacity={0.6} />
-      <G stroke="#F2E6D0" strokeWidth={6} strokeLinecap="round">
+      <Rect width="100%" height="100%" fill={neutral.surface} />
+      <Path d="M -20,100 C 100,120 180,60 300,110 L 500,150 L 500,-50 L -20,-50 Z" fill={parentRamp.tint} />
+      <Rect x={250} y={30} width={120} height={80} rx={16} fill={semanticTint.success} opacity={0.8} />
+      <Rect x={-40} y={480} width={180} height={150} rx={24} fill={semanticTint.success} opacity={0.6} />
+      <Rect x={280} y={550} width={200} height={180} rx={24} fill={semanticTint.success} opacity={0.6} />
+      <G stroke={neutral.surfaceAlt} strokeWidth={6} strokeLinecap="round">
         <Line x1={-50} y1={200} x2={500} y2={200} />
-        <Line x1={-50} y1={360} x2={500} y2={360} stroke="#FCECD4" strokeWidth={12} />
+        <Line x1={-50} y1={360} x2={500} y2={360} stroke={neutral.surfaceAlt} strokeWidth={12} />
         <Line x1={-50} y1={520} x2={500} y2={520} />
         <Line x1={80} y1={-50} x2={80} y2={900} />
-        <Line x1={240} y1={-50} x2={240} y2={900} stroke="#FCECD4" strokeWidth={10} />
+        <Line x1={240} y1={-50} x2={240} y2={900} stroke={neutral.surfaceAlt} strokeWidth={10} />
         <Line x1={400} y1={-50} x2={400} y2={900} />
       </G>
-      <G stroke="#F4ECE1" strokeWidth={3} strokeLinecap="round">
+      <G stroke={neutral.surface} strokeWidth={3} strokeLinecap="round">
         <Line x1={-50} y1={120} x2={500} y2={120} />
         <Line x1={-50} y1={280} x2={500} y2={280} />
         <Line x1={-50} y1={440} x2={500} y2={440} />
@@ -61,8 +64,8 @@ function StreetMapSVG() {
         <Line x1={320} y1={-50} x2={320} y2={900} />
         <Line x1={460} y1={-50} x2={460} y2={900} />
       </G>
-      <Path d="M -50,60 Q 180,320 500,480" fill="none" stroke="#F5EDE4" strokeWidth={6} />
-      <Path d="M -50,300 C 150,150 350,450 500,280" fill="none" stroke="#F2E6D0" strokeWidth={5} />
+      <Path d="M -50,60 Q 180,320 500,480" fill="none" stroke={neutral.surfaceAlt} strokeWidth={6} />
+      <Path d="M -50,300 C 150,150 350,450 500,280" fill="none" stroke={neutral.surfaceAlt} strokeWidth={5} />
     </Svg>
   );
 }
@@ -146,7 +149,7 @@ function PulsingLocator() {
               justifyContent: 'center',
             }}
           >
-            <View style={{ width: ms(10), height: ms(10), borderRadius: ms(5), backgroundColor: '#ffffff' }} />
+            <View style={{ width: ms(10), height: ms(10), borderRadius: ms(5), backgroundColor: neutral.card }} />
           </View>
         </View>
       </View>
@@ -197,9 +200,9 @@ function BouncingPin() {
       <Svg viewBox="0 0 100 120" width={ms(56)} height={ms(64)}>
         <Path
           d="M 50,115 C 50,115 20,75 12,58 C 4,40 10,12 40,4 C 70,-4 92,10 92,34 C 92,54 75,75 50,115 Z"
-          fill="#111111"
+          fill={neutral.ink}
         />
-        <Circle cx="50" cy="38" r="14" fill="#FFFFFF" />
+        <Circle cx="50" cy="38" r="14" fill={neutral.card} />
         <Circle cx="50" cy="38" r="7" fill={semantic.success} />
       </Svg>
     </Animated.View>
@@ -430,7 +433,7 @@ export function LocationScreen({ navigation }: Props) {
               <AppText style={styles.manualBtnText}>
                 Enter location manually
               </AppText>
-              <ArrowRight size={ms(11)} color="#1e293b" />
+              <ArrowRight size={ms(11)} color={neutral.ink} />
             </Pressable>
           </View>
         </Animated.View>
@@ -457,7 +460,7 @@ export function LocationScreen({ navigation }: Props) {
                 accessibilityRole="button"
                 accessibilityLabel="Go back"
               >
-                <ChevronLeft size={ms(20)} color="#334155" />
+                <ChevronLeft size={ms(20)} color={neutral.inkMuted} />
               </Pressable>
               <AppText style={styles.manualHeaderTitle}>
                 Enter your area or apartment name
@@ -471,11 +474,11 @@ export function LocationScreen({ navigation }: Props) {
                   isSearchFocused && styles.searchInputContainerFocused,
                 ]}
               >
-                <Search size={ms(19)} color="#94a3b8" style={styles.searchIcon} />
+                <Search size={ms(19)} color={neutral.inkSubtle} style={styles.searchIcon} />
                 <AppTextInput
                   style={styles.searchInput}
                   placeholder="Try Golden Nagar, Church Street, etc."
-                  placeholderTextColor="#94a3b8"
+                  placeholderTextColor={neutral.inkSubtle}
                   value={searchQuery}
                   onChangeText={setSearchQuery}
                   onFocus={() => setIsSearchFocused(true)}
@@ -485,14 +488,14 @@ export function LocationScreen({ navigation }: Props) {
                   <Pressable
                     style={({ pressed }) => [
                       styles.clearBtn,
-                      pressed && { backgroundColor: '#cbd5e1' },
+                      pressed && { backgroundColor: neutral.border },
                     ]}
                     onPress={() => setSearchQuery('')}
                     accessibilityRole="button"
                     accessibilityLabel="Clear search"
                     hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
-                    <X size={ms(10)} color="#64748b" />
+                    <X size={ms(10)} color={neutral.inkMuted} />
                   </Pressable>
                 )}
               </View>
@@ -510,7 +513,7 @@ export function LocationScreen({ navigation }: Props) {
                   <View style={styles.currentLocationIconBg}>
                     <NavigationIcon
                       size={ms(14)}
-                      color="#3D8CF2"
+                      color={parentRamp.base}
                       style={{ transform: [{ rotate: '135deg' }] }}
                     />
                   </View>
@@ -518,7 +521,7 @@ export function LocationScreen({ navigation }: Props) {
                     Use my current location
                   </AppText>
                 </View>
-                <ChevronLeft size={ms(14)} color="#3D8CF2" style={{ transform: [{ rotate: '180deg' }] }} />
+                <ChevronLeft size={ms(14)} color={parentRamp.base} style={{ transform: [{ rotate: '180deg' }] }} />
               </Pressable>
               {permissionError ? (
                 <View style={styles.permissionErrorBlock}>
@@ -550,14 +553,14 @@ export function LocationScreen({ navigation }: Props) {
                     key={item.placeId}
                     style={({ pressed }) => [
                       styles.resultItem,
-                      { backgroundColor: pressed ? '#f1f5f9' : 'transparent' },
+                      { backgroundColor: pressed ? neutral.surfaceAlt : 'transparent' },
                     ]}
                     onPress={() => void pickSuggestion(item)}
                   >
                     <View style={styles.resultIconBg}>
                       <NavigationIcon
                         size={ms(13)}
-                        color="#94a3b8"
+                        color={neutral.inkSubtle}
                         style={{ transform: [{ rotate: '135deg' }] }}
                       />
                     </View>
@@ -655,7 +658,7 @@ const styles = StyleSheet.create({
   titleWrapper: { alignItems: 'center' },
   titleText: {
     fontWeight: '600',
-    color: '#0f172a',
+    color: neutral.ink,
     fontSize: ms(24),
     textAlign: 'center',
     letterSpacing: -0.5,
@@ -689,7 +692,7 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   allowBtnText: {
-    color: '#ffffff',
+    color: neutral.card,
     fontWeight: '600',
     fontSize: ms(14),
   },
@@ -701,7 +704,7 @@ const styles = StyleSheet.create({
     gap: hs(6),
     marginTop: vs(18),
   },
-  manualBtnText: { fontSize: ms(12), fontWeight: '600', color: '#1e293b' },
+  manualBtnText: { fontSize: ms(12), fontWeight: '600', color: neutral.ink },
   permissionErrorBlock: {
     alignItems: 'center',
     marginTop: vs(8),
@@ -709,7 +712,7 @@ const styles = StyleSheet.create({
   permissionError: {
     fontSize: ms(12),
     lineHeight: ms(17),
-    color: '#b91c1c',
+    color: semantic.danger,
     textAlign: 'center',
     paddingHorizontal: hs(8),
   },
@@ -725,14 +728,14 @@ const styles = StyleSheet.create({
     color: parentRamp.base,
     textDecorationLine: 'underline',
   },
-  manualContainer: { flex: 1, backgroundColor: '#ffffff' },
+  manualContainer: { flex: 1, backgroundColor: neutral.card },
   manualHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: hs(16),
     paddingBottom: vs(12),
     borderBottomWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     gap: hs(12),
   },
   backBtn: {
@@ -742,29 +745,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  manualHeaderTitle: { fontWeight: '600', fontSize: ms(14), color: '#0f172a' },
+  manualHeaderTitle: { fontWeight: '600', fontSize: ms(14), color: neutral.ink },
   searchSection: { paddingHorizontal: hs(16), paddingVertical: vs(16) },
   searchInputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: neutral.surface,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: neutral.border,
     borderRadius: ms(12),
     height: Math.max(44, vs(44)),
     paddingHorizontal: hs(14),
   },
   searchInputContainerFocused: {
-    borderColor: '#3D8CF2',
-    backgroundColor: '#ffffff',
+    borderColor: parentRamp.base,
+    backgroundColor: neutral.card,
   },
   searchIcon: { marginRight: hs(10) },
-  searchInput: { flex: 1, fontSize: ms(12), fontWeight: '600', color: '#0f172a' },
+  searchInput: { flex: 1, fontSize: ms(12), fontWeight: '600', color: neutral.ink },
   clearBtn: {
     width: ms(20),
     height: ms(20),
     borderRadius: ms(10),
-    backgroundColor: '#e2e8f0',
+    backgroundColor: neutral.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -785,17 +788,17 @@ const styles = StyleSheet.create({
     width: ms(32),
     height: ms(32),
     borderRadius: ms(16),
-    backgroundColor: '#eff6ff',
+    backgroundColor: parentRamp.tint,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  currentLocationText: { fontSize: ms(13), fontWeight: '600', color: '#3D8CF2' },
+  currentLocationText: { fontSize: ms(13), fontWeight: '600', color: parentRamp.base },
   separator: {
     height: vs(8),
-    backgroundColor: '#f8fafc',
+    backgroundColor: neutral.surface,
     borderTopWidth: 1,
     borderBottomWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
   },
   resultsList: {
     flex: 1,
@@ -804,7 +807,7 @@ const styles = StyleSheet.create({
   },
 resultsHeader: {
     fontSize: ms(12),
-    color: '#94a3b8',
+    color: neutral.inkSubtle,
     fontWeight: '600',
     marginBottom: SPACE.BLOCK,
     paddingHorizontal: hs(4),
@@ -821,7 +824,7 @@ resultsHeader: {
     width: ms(32),
     height: ms(32),
     borderRadius: ms(16),
-    backgroundColor: '#f1f5f9',
+    backgroundColor: neutral.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: vs(2),
@@ -830,15 +833,15 @@ resultsHeader: {
   resultTitle: {
     fontSize: ms(12),
     fontWeight: '600',
-    color: '#0f172a',
+    color: neutral.ink,
     marginBottom: vs(2),
   },
-  resultSubtitle: { fontSize: ms(10), color: '#94a3b8', fontWeight: '600' },
+  resultSubtitle: { fontSize: ms(10), color: neutral.inkSubtle, fontWeight: '600' },
   noResultsContainer: { alignItems: 'center', paddingVertical: vs(32) },
-  noResultsText: { fontSize: ms(12), fontWeight: '600', color: '#94a3b8' },
+  noResultsText: { fontSize: ms(12), fontWeight: '600', color: neutral.inkSubtle },
   loaderContainer: {
     flex: 1,
-    backgroundColor: '#F9F6F0',
+    backgroundColor: neutral.surface,
     position: 'relative',
   },
   loaderLocatorArea: {
@@ -862,17 +865,17 @@ resultsHeader: {
     zIndex: 10,
   },
   deliveringCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     paddingHorizontal: hs(20),
     paddingVertical: vs(20),
     borderRadius: ms(16),
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     alignItems: 'center',
     maxWidth: hs(340),
     alignSelf: 'center',
     width: '100%',
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 12 },
     shadowOpacity: 0.08,
     shadowRadius: 36,
@@ -881,7 +884,7 @@ resultsHeader: {
   deliveringLabel: {
     fontSize: ms(11),
     fontWeight: '600',
-    color: '#94a3b8',
+    color: neutral.inkSubtle,
   },
   deliveringLocationRow: {
     flexDirection: 'row',
@@ -898,13 +901,13 @@ resultsHeader: {
   deliveringTitle: {
     fontSize: ms(14),
     fontWeight: '600',
-    color: '#0f172a',
+    color: neutral.ink,
     maxWidth: hs(240),
   },
   deliveringAddress: {
     fontSize: ms(10),
-    fontWeight: '700',
-    color: '#94a3b8',
+    fontWeight: '600',
+    color: neutral.inkSubtle,
     marginTop: vs(4),
   },
 });

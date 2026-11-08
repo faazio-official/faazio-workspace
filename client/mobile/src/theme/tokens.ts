@@ -42,6 +42,13 @@ export const TEXT = {
 export type TextTone = keyof typeof TEXT;
 
 /**
+ * Shadow colour. Shadows are the one place a literal black is still correct
+ * (they are not text or surfaces), so the value lives here instead of being
+ * repeated across screens.
+ */
+export const SHADOW_COLOR = '#000000';
+
+/**
  * Type scale. Sizes are in dp; 11 is the floor. Hierarchy comes from size and
  * colour, not from 800/900 weights.
  */

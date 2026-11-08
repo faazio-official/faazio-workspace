@@ -15,6 +15,30 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W85 — UI token migration + emoji elimination
+
+**Status:** 🟢 Shipped. Applies the existing design system to the worst-offender customer screens,
+removes every emoji glyph from `src/`, and re-locks the UI-hygiene ratchet.
+
+- **Colour tokens:** `CartView`, `LoginScreen`, `SavedAddressesScreen`, `CommonProductDetailView`,
+  `OrderDetailsScreen`, `MyOrdersScreen`, `LocationScreen`, `HomeTabScreen`, `HomeView` and the
+  `App.tsx` navigation theme now resolve through `neutral`, `semantic`, `semanticTint`,
+  `categorical`, `brandRamp`/`parentRamp` and the new `SHADOW_COLOR` token. No hardcoded hex remains
+  in the migrated screens.
+- **Weights:** all 700/800/900 styles in those screens and the navigation `fonts` theme are now
+  400–600; `resolveFontFamily` calls match the declared weight.
+- **Emoji → icon keys:** `EnterpriseIcon` is keyed by semantic strings (`mart`, `food`, `pharma`,
+  `dining`, `cart`, `dairy`, …). A legacy emoji alias table (unicode escapes) keeps `@data/*` and
+  server product emoji resolving. Cart/order defaults, food dish adds, pharma adds, mart/pharma
+  offline shells, the delivery rating star and the vendor rating text no longer use glyphs.
+- **Contrast fix:** `HomeView` retry button now pairs `brandRamp.MART.deep` with `onDeep`.
+- **Guard:** `.ui-baseline.json` re-locked at `hex 1280 / tiny 166 / heavy 475 / emoji 0`.
+
+Docs touched: `docs/architecture/mobile-app.md`,
+`docs/user-interaction-workflow/customer/cart-checkout/add-to-cart.md`.
+
+---
+
 ## W84 — Pharma Rx end-to-end: pay a quoted prescription
 
 **Status:** 🟢 Shipped. Closes the last open pharma gap: a quoted prescription is payable, the Rx

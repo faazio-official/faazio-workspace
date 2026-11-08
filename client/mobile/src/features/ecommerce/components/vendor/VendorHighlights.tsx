@@ -39,7 +39,7 @@ const VendorHighlights = memo(function VendorHighlights({ vendor }: VendorHighli
       items.push({
         icon: <Star color={VENDOR_INK} size={ms(20)} strokeWidth={2.4} />,
         title: vendor.rating >= 4.5 ? 'Top Rated' : 'Rated',
-        sub: `${vendor.rating} ★ Rating`,
+        sub: `${vendor.rating} Rating`,
       });
     }
     return items;

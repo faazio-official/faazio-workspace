@@ -1040,8 +1040,17 @@ A FaazioCoins streak card (title + balance + a row of 7 flame icons, filled per
 Shared, token-based primitives introduced by the UI-craft pass, all under `src/theme/` and
 `src/components/`:
 
-- `theme/tokens.ts` — `RADIUS`, `TOUCH` (44pt min), `ICON`, `TEXT` (three text roles) and the
-  `TYPE` scale (11pt floor, weights 400/500/600). Colours still come from `brandTokens.ts`.
+- `theme/tokens.ts` — `RADIUS`, `TOUCH` (44pt min), `ICON`, `TEXT` (three text roles), the
+  `TYPE` scale (11pt floor, weights 400/500/600) and `SHADOW_COLOR` (the one literal black that
+  belongs to shadows rather than surfaces). Colours resolve through `brandTokens.ts`
+  (`brandRamp`, `parentRamp`, `neutral`, `semantic`, `semanticTint`) and `categorical.ts`.
+- **UI tokens & craft:** screens do not carry colour literals when a token exists. The token
+  migration covered `CartView`, `LoginScreen`, `SavedAddressesScreen`, `CommonProductDetailView`,
+  `OrderDetailsScreen`, `MyOrdersScreen`, `LocationScreen`, `HomeTabScreen`, `HomeView` and the
+  `App.tsx` navigation theme; weights are 400–600 only (hierarchy comes from size and colour).
+  `EnterpriseIcon` is keyed by semantic strings (`mart`, `food`, `pharma`, `dining`, `dairy`, …)
+  and resolves legacy `@data/*`/server emoji through an escaped alias table, so no emoji glyph is
+  rendered or stored in source.
 - `theme/motion.ts` — one easing curve + durations; `hooks/useReducedMotion.ts` gates animation.
 - `components/Button.tsx` and `components/AppText.tsx` (`variant`/`tone`/`weight` props).
 - `scripts/check-ui.mjs` (`npm run check:ui`) — a ratchet baseline (`.ui-baseline.json`) that
@@ -1050,13 +1059,14 @@ Shared, token-based primitives introduced by the UI-craft pass, all under `src/t
 The second pass closed the remaining behavioural gaps without widening scope: payment retry after
 cancel no longer dead-locks or risks a duplicate order, failed retry/COD states show inline errors,
 `MyOrders` is virtualised with an honest read-error state, `OrderDetails` has support/cancellation
-actions, server-only vendors resolve in the deals page, and the UI baseline ratcheted to
-`hex 2035 / tiny 166 / heavy 583 / emoji 61`.
+actions, server-only vendors resolve in the deals page, and the UI baseline ratcheted. The token
+migration pass re-locked it at `hex 1280 / tiny 166 / heavy 475 / emoji 0`.
 
 `FavouritesView` (fixture-backed tab duplicate), the orphan `AddCard` route/screen and the unused
 `FloatingCartBar` were deleted; the Pharma category grid now opens the shared
 `CommonProductDetailView` instead of an inline PDP. Favourites is **one** server-backed surface.
-`EnterpriseIcon` never renders a raw emoji fallback (unmapped keys render a neutral tag icon).
+`EnterpriseIcon` never renders a raw emoji fallback: keys are semantic strings and an unmapped key
+renders a neutral tag icon.
 
 ## Favourites page (from My Account)
 
@@ -1393,7 +1403,7 @@ The cart BAG step (`features/cart/CartView.tsx`) lets the user tick/untick items
 before paying. Selection is screen-scoped checkout UI, held in `CartView` local state as a
 **deselection set** (`deselectedIds`) so new items are ticked by default with no sync
 effects. A shared `Checkbox` primitive (`components/shared/Checkbox.tsx`) renders the
-22px rounded square (grey border → green `#118C4F` with white check) used by both item
+22px rounded square (grey border → `semantic.success` with `neutral.card` check) used by both item
 rows and category-group headers. Each category header (Mart/Food/Pharma) shows a
 tri-state **group checkbox** (all-ticked / partial `indeterminate` / none) that checks or
 unchecks the whole category; unticked categories stay visible but dimmed so items can be

@@ -10,8 +10,10 @@ import {
   View,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
+import { categorical } from '@/theme/categorical';
 import {
   gateway,
   type DeliveryOrder,
@@ -321,9 +323,12 @@ export function DashboardScreen({ navigation }: Props) {
             <AppText style={styles.loadText}>
               Load {rider?.currentLoad ?? 0} / {rider?.maxCapacity ?? 0}
             </AppText>
-            <AppText style={styles.loadText}>
-              {rider?.completedOrders ?? 0} deliveries · {rider?.rating ? rider.rating.toFixed(1) : '—'}★
-            </AppText>
+            <View style={styles.ratingRow}>
+              <AppText style={styles.loadText}>
+                {rider?.completedOrders ?? 0} deliveries · {rider?.rating ? rider.rating.toFixed(1) : '—'}
+              </AppText>
+              <Star size={ms(12)} color={categorical.amber} fill={categorical.amber} />
+            </View>
           </View>
         </Card>
 
@@ -448,7 +453,8 @@ const styles = StyleSheet.create({
   knob: { width: ms(24), height: ms(24), borderRadius: ms(999), backgroundColor: '#ffffff' },
   knobOn: { alignSelf: 'flex-end' },
   loadRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: vs(14), borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: DP.line, paddingTop: vs(10) },
-  loadText: { fontSize: ms(11), fontWeight: '800', color: DP.muted },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: ms(3) },
+  loadText: { fontSize: ms(11), fontWeight: '600', color: DP.muted },
   sectionTitle: { fontSize: ms(13), fontWeight: '900', color: DP.ink, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: vs(8), marginBottom: vs(8) },
   earningsCard: { marginBottom: vs(12), flexDirection: 'row', alignItems: 'center', gap: hs(10) },
   earningsTitle: { fontSize: ms(14), fontWeight: '900', color: DP.ink },

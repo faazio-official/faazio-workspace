@@ -1,4 +1,6 @@
 import React, { useCallback, useState } from 'react';
+import { neutral } from '@/theme/brandTokens';
+import { categorical } from '@/theme/categorical';
 import { StyleSheet, View, TouchableOpacity, StatusBar } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -152,7 +154,7 @@ export function HomeTabScreen({ navigation }: Props) {
                       accessibilityRole="button"
                       accessibilityLabel={`Change delivery location. Current: ${addressLabel}`}
                     >
-                      <MapPin size={ms(12)} color="#7CE045" />
+                      <MapPin size={ms(12)} color={categorical.green} />
                       <AppText style={styles.locationText} numberOfLines={1}>
                         {addressLabel}
                       </AppText>
@@ -176,7 +178,7 @@ export function HomeTabScreen({ navigation }: Props) {
               accessibilityRole="button"
               accessibilityLabel="Search"
             >
-              <Search size={ms(16)} color="#94a3b8" strokeWidth={2.2} />
+              <Search size={ms(16)} color={neutral.inkSubtle} strokeWidth={2.2} />
               <AppText style={styles.searchText} numberOfLines={1}>
                 Search for food, groceries or more...
               </AppText>
@@ -210,7 +212,7 @@ export function HomeTabScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#ffffff' },
+  container: { flex: 1, backgroundColor: neutral.card },
   viewport: { flex: 1 },
   headerOuter: {
     position: 'absolute',
@@ -255,7 +257,7 @@ const styles = StyleSheet.create({
   searchBar: {
     height: HEADER_SEARCH_H,
     borderRadius: ms(22),
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(8),
@@ -267,6 +269,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontSize: ms(12),
     fontWeight: '600',
-    color: '#94a3b8',
+    color: neutral.inkSubtle,
   },
 });

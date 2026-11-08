@@ -39,7 +39,7 @@ export function orderRowToPlaced(row: OrderRow): PlacedOrder {
     name: li.name,
     price: li.unitPrice,
     quantity: li.qty,
-    emoji: li.emoji ?? '🛍️',
+    emoji: li.emoji ?? 'mart',
   }));
   const lineTotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
   // Prefer the server's charged total: it includes delivery/tax/coupon and matches the invoice.

@@ -12,8 +12,9 @@
  *    `EnterpriseIcon.tsx`), so a product icon in the same hue would read as
  *    branding.
  * 2. The three that used to collide as near-identical greens are now separated
- *    across green / cyan / amber: 🍏 is green, 💎 is cyan, ⌚ is amber. They were
- *    #10B981, #0d9488 and #0f766e — three greens within dE 25 of each other.
+ *    across green / cyan / amber: produce is green, gems is cyan, watches is
+ *    amber. They were #10B981, #0d9488 and #0f766e — three greens within dE 25
+ *    of each other.
  *
  * Every value clears 3:1 against white, which is the non-text contrast minimum
  * for a meaningful icon. They are not required to clear 4.5:1 because they are

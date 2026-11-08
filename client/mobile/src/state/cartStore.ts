@@ -206,7 +206,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
           name: p?.name ?? ci.productId,
           price: p?.price ?? 0,
           quantity: ci.qty,
-          emoji: p?.emoji ?? '🛒',
+          emoji: p?.emoji ?? 'cart',
           imageUrl: p?.image || undefined,
           originalPrice: p?.originalPrice,
           category: p?.app,

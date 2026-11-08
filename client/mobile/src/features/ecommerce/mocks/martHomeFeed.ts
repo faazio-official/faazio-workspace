@@ -28,11 +28,11 @@ export interface MartEssential {
 }
 
 export const MART_DAILY_ESSENTIALS: MartEssential[] = [
-  { id: 'gr-p3', brand: 'Faazio Fresh', name: 'Fresh Farm Whole Milk', size: '1 L', price: 75, originalPrice: 95, discountTag: '21% OFF', rating: 4.9, imageUrl: squareImg('photo-1550583724-b2692b85b150', 300), emoji: '🥛' },
-  { id: 'gr-p4', brand: 'Faazio Fresh', name: 'Artisan Sourdough Loaf', size: '450g', price: 150, originalPrice: 190, discountTag: '21% OFF', rating: 4.8, imageUrl: squareImg('photo-1509440159596-0249088772ff', 300), emoji: '🍞' },
-  { id: 'gr-p5', brand: 'Faazio Fresh', name: 'Almond Milk Unsweetened', size: '1 L', price: 190, originalPrice: 250, discountTag: '24% OFF', rating: 4.7, imageUrl: squareImg('photo-1553456558-aff63285bdd1', 300), emoji: '🥛' },
-  { id: 'gr-p6', brand: 'Faazio Fresh', name: 'Sea Salt Multigrain Crisps', size: '150g', price: 95, originalPrice: 130, discountTag: '27% OFF', rating: 4.6, imageUrl: squareImg('photo-1599490659213-e2b9527bb087', 300), emoji: '🍿' },
-  { id: 'gr-p7', brand: 'Faazio Fresh', name: 'Arabica Coffee Beans Medium', size: '250g', price: 450, originalPrice: 580, discountTag: '22% OFF', rating: 4.9, imageUrl: squareImg('photo-1514432324607-a09d9b4aefdd', 300), emoji: '☕' },
+  { id: 'gr-p3', brand: 'Faazio Fresh', name: 'Fresh Farm Whole Milk', size: '1 L', price: 75, originalPrice: 95, discountTag: '21% OFF', rating: 4.9, imageUrl: squareImg('photo-1550583724-b2692b85b150', 300), emoji: 'dairy' },
+  { id: 'gr-p4', brand: 'Faazio Fresh', name: 'Artisan Sourdough Loaf', size: '450g', price: 150, originalPrice: 190, discountTag: '21% OFF', rating: 4.8, imageUrl: squareImg('photo-1509440159596-0249088772ff', 300), emoji: 'bakery' },
+  { id: 'gr-p5', brand: 'Faazio Fresh', name: 'Almond Milk Unsweetened', size: '1 L', price: 190, originalPrice: 250, discountTag: '24% OFF', rating: 4.7, imageUrl: squareImg('photo-1553456558-aff63285bdd1', 300), emoji: 'dairy' },
+  { id: 'gr-p6', brand: 'Faazio Fresh', name: 'Sea Salt Multigrain Crisps', size: '150g', price: 95, originalPrice: 130, discountTag: '27% OFF', rating: 4.6, imageUrl: squareImg('photo-1599490659213-e2b9527bb087', 300), emoji: 'snack' },
+  { id: 'gr-p7', brand: 'Faazio Fresh', name: 'Arabica Coffee Beans Medium', size: '250g', price: 450, originalPrice: 580, discountTag: '22% OFF', rating: 4.9, imageUrl: squareImg('photo-1514432324607-a09d9b4aefdd', 300), emoji: 'beverage' },
 ];
 
 export const essentialToProduct = (item: MartEssential): Product => ({

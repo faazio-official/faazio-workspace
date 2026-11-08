@@ -1,10 +1,13 @@
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { neutral } from '@/theme/brandTokens';
+import { semanticTint } from '@/theme/brandTokens';
+import { categorical } from '@/theme/categorical';
+import { parentRamp } from '@/theme/brandTokens';
+import { SHADOW_COLOR } from '@/theme/tokens';
 import { StyleSheet, View, ScrollView, TouchableOpacity, Animated, Image } from 'react-native';
 import {
   ArrowLeft,
   ShoppingBag,
-  ArrowRight,
-  ChevronLeft,
   ChevronDown,
   ChevronRight,
   Minus,
@@ -103,7 +106,7 @@ function ItemThumb({ item, size = 64 }: { item: CartItem; size?: number }) {
           onError={() => setErrored(true)}
         />
       ) : (
-        <EnterpriseIcon emoji={item.emoji} variant="square" size={ms(size * 0.62)} bgColor="#F3F4F6" />
+        <EnterpriseIcon emoji={item.emoji} variant="square" size={ms(size * 0.62)} bgColor={neutral.surfaceAlt} />
       )}
     </View>
   );
@@ -824,7 +827,7 @@ export default function CartView({
       <View style={styles.bagRoot}>
         <View style={[styles.bagTopBar, { paddingTop: insets.top + vs(12) }]}>
           <TouchableOpacity onPress={onBack} style={styles.bagBackBtn} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.4} />
+            <ArrowLeft size={ms(20)} color={neutral.ink} strokeWidth={2.4} />
           </TouchableOpacity>
           <AppText style={styles.bagTitle} numberOfLines={1}>
             {restaurantName ? `${restaurantName} Cart` : 'Your Cart'}
@@ -854,7 +857,7 @@ export default function CartView({
           {cartItems.length === 0 ? (
             <View style={styles.bagEmpty}>
               <Animated.View style={[styles.emptyIconCircle, { transform: [{ translateY: bounceAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}>
-                <ShoppingBag size={ms(22)} color="#94a3b8" />
+                <ShoppingBag size={ms(22)} color={neutral.inkSubtle} />
               </Animated.View>
               <AppText style={styles.emptyTitle}>
                 {restaurantName ? `No items from ${restaurantName} yet` : 'Your cart is empty'}
@@ -873,7 +876,7 @@ export default function CartView({
               {/* Savings & Coupon Card */}
               <View style={styles.savingsCard}>
                 <View style={styles.savingsStrip}>
-                  <Tag size={ms(14)} color="#118C4F" strokeWidth={2.4} />
+                  <Tag size={ms(14)} color={semantic.success} strokeWidth={2.4} />
                   <AppText style={styles.savingsText}>
                     ₹{savings} savings on this order
                   </AppText>
@@ -881,14 +884,14 @@ export default function CartView({
                 <TouchableOpacity style={styles.couponRow} onPress={() => setShowCouponSheet(true)} activeOpacity={0.7}>
                   <View style={styles.couponRowLeft}>
                     <View style={styles.couponRowTitleRow}>
-                      <Ticket size={ms(16)} color="#118C4F" strokeWidth={2.2} style={{ marginRight: hs(6) }} />
+                      <Ticket size={ms(16)} color={semantic.success} strokeWidth={2.2} style={{ marginRight: hs(6) }} />
                       <AppText style={styles.couponRowTitle}>Apply Coupon</AppText>
                     </View>
                     <AppText style={styles.couponRowSub} numberOfLines={1}>
                       {appliedDiscount ? `Applied: ${appliedDiscount.code}` : 'Save more with coupons available for you'}
                     </AppText>
                   </View>
-                  <ChevronRight size={ms(18)} color="#118C4F" strokeWidth={2.4} />
+                  <ChevronRight size={ms(18)} color={semantic.success} strokeWidth={2.4} />
                 </TouchableOpacity>
                 {appliedDiscount && (
                   <TouchableOpacity style={styles.appliedChipRow} onPress={removeCoupon} activeOpacity={0.8}>
@@ -927,7 +930,7 @@ export default function CartView({
                       </View>
                       <ChevronDown
                         size={ms(18)}
-                        color="#118C4F"
+                        color={semantic.success}
                         strokeWidth={2.4}
                         style={expanded ? { transform: [{ rotate: '180deg' }] } : undefined}
                       />
@@ -955,11 +958,11 @@ export default function CartView({
                               {item.qtyDesc ? <AppText style={styles.itemQtyDesc}>{item.qtyDesc}</AppText> : null}
                               <View style={styles.stepperPill}>
                                 <TouchableOpacity onPress={() => updateCartQuantity(item.id, -1)} style={styles.stepperBtn} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                  <Minus size={ms(12)} color="#118C4F" strokeWidth={2.6} />
+                                  <Minus size={ms(12)} color={semantic.success} strokeWidth={2.6} />
                                 </TouchableOpacity>
                                 <AppText style={styles.stepperValue}>{item.quantity}</AppText>
                                 <TouchableOpacity onPress={() => updateCartQuantity(item.id, 1)} style={styles.stepperBtn} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                                  <Plus size={ms(12)} color="#118C4F" strokeWidth={2.6} />
+                                  <Plus size={ms(12)} color={semantic.success} strokeWidth={2.6} />
                                 </TouchableOpacity>
                               </View>
                             </View>
@@ -978,7 +981,7 @@ export default function CartView({
                                 accessibilityLabel={`Remove ${item.name}`}
                                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                               >
-                                <Trash2 size={ms(16)} color="#ef4444" strokeWidth={2.2} />
+                                <Trash2 size={ms(16)} color={semantic.danger} strokeWidth={2.2} />
                               </TouchableOpacity>
                             ) : null}
                           </View>
@@ -995,7 +998,7 @@ export default function CartView({
           <View style={styles.bottomBar}>
             {estimatedCoins > 0 && (
               <View style={styles.coinEstimatePill}>
-                <Coins size={ms(12)} color="#B45309" strokeWidth={2.2} />
+                <Coins size={ms(12)} color={categorical.amber} strokeWidth={2.2} />
                 <AppText style={styles.coinEstimateText}>You'll earn ~{estimatedCoins} coins on this order</AppText>
               </View>
             )}
@@ -1033,7 +1036,7 @@ export default function CartView({
               onPress={applyStreakCard}
             >
               <View style={styles.couponOptionLeft}>
-                <Ticket size={ms(18)} color="#7C3AED" strokeWidth={2.2} />
+                <Ticket size={ms(18)} color={categorical.violet} strokeWidth={2.2} />
                 <View style={styles.couponOptionText}>
                   <AppText style={styles.couponOptionCode}>Faazio Streak — {discountCard.percent}% OFF</AppText>
                   <AppText style={styles.couponOptionDesc}>
@@ -1047,7 +1050,7 @@ export default function CartView({
                 </View>
               ) : (
                 <View style={styles.couponSelectCircle}>
-                  <Check size={ms(12)} color="#118C4F" strokeWidth={3} />
+                  <Check size={ms(12)} color={semantic.success} strokeWidth={3} />
                 </View>
               )}
             </TouchableOpacity>
@@ -1062,7 +1065,7 @@ export default function CartView({
                 onPress={() => applyCouponCode(coupon.code)}
               >
                 <View style={styles.couponOptionLeft}>
-                  <Ticket size={ms(18)} color="#118C4F" strokeWidth={2.2} />
+                  <Ticket size={ms(18)} color={semantic.success} strokeWidth={2.2} />
                   <View style={styles.couponOptionText}>
                     <AppText style={styles.couponOptionCode}>{coupon.code}</AppText>
                     <AppText style={styles.couponOptionDesc} numberOfLines={1}>
@@ -1076,7 +1079,7 @@ export default function CartView({
                   </View>
                 ) : (
                   <View style={styles.couponSelectCircle}>
-                    <Check size={ms(12)} color="#118C4F" strokeWidth={3} />
+                    <Check size={ms(12)} color={semantic.success} strokeWidth={3} />
                   </View>
                 )}
               </TouchableOpacity>
@@ -1097,7 +1100,7 @@ export default function CartView({
       <View style={styles.fulfillmentRoot}>
         <View style={[styles.bagTopBar, { paddingTop: insets.top + vs(12) }]}>
           <TouchableOpacity onPress={() => setStep('BAG')} style={styles.bagBackBtn} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <ArrowLeft size={ms(20)} color="#1E2022" strokeWidth={2.4} />
+            <ArrowLeft size={ms(20)} color={neutral.ink} strokeWidth={2.4} />
           </TouchableOpacity>
           <AppText style={styles.bagTitle} numberOfLines={1}>
             How do you want your order?
@@ -1129,7 +1132,7 @@ export default function CartView({
                 accessibilityRole="button"
                 accessibilityState={{ selected: fulfillment === 'DELIVERY' }}
               >
-                <Send size={ms(14)} color={fulfillment === 'DELIVERY' ? '#ffffff' : '#6B7280'} strokeWidth={2.2} />
+                <Send size={ms(14)} color={fulfillment === 'DELIVERY' ? neutral.card : neutral.inkMuted} strokeWidth={2.2} />
                 <AppText style={[styles.fulfillmentToggleText, fulfillment === 'DELIVERY' && styles.fulfillmentToggleTextActive]}>
                   Delivery
                 </AppText>
@@ -1141,7 +1144,7 @@ export default function CartView({
                 accessibilityRole="button"
                 accessibilityState={{ selected: fulfillment === 'PICKUP' }}
               >
-                <Store size={ms(14)} color={fulfillment === 'PICKUP' ? '#ffffff' : '#6B7280'} strokeWidth={2.2} />
+                <Store size={ms(14)} color={fulfillment === 'PICKUP' ? neutral.card : neutral.inkMuted} strokeWidth={2.2} />
                 <AppText style={[styles.fulfillmentToggleText, fulfillment === 'PICKUP' && styles.fulfillmentToggleTextActive]}>
                   Self Pickup
                 </AppText>
@@ -1154,7 +1157,7 @@ export default function CartView({
           {fulfillment === 'DELIVERY' ? (
             <View style={styles.fulfillmentAddressCard}>
               <View style={styles.liveAddressIcon}>
-                <Send size={ms(14)} color="#F97316" strokeWidth={2.2} />
+                <Send size={ms(14)} color={brandRamp.FOOD.base} strokeWidth={2.2} />
               </View>
               <View style={styles.liveAddressBody}>
                 <AppText style={styles.addrLabel} numberOfLines={1}>
@@ -1203,7 +1206,7 @@ export default function CartView({
                 pickupPoints.map((p) => (
                   <View key={p.id} style={styles.fulfillmentPickupCard}>
                     <View style={styles.pickupCardHeader}>
-                      <Store size={ms(14)} color="#0F4C81" strokeWidth={2.2} />
+                      <Store size={ms(14)} color={categorical.blue} strokeWidth={2.2} />
                       <AppText style={styles.pickupCardName} numberOfLines={1}>
                         {p.name}
                       </AppText>
@@ -1301,7 +1304,7 @@ export default function CartView({
         {/* Receipt Success */}
         <View style={styles.receiptHeader}>
           <View style={styles.receiptCheckCircle}>
-            <CheckCircle size={ms(24)} color="#56B821" strokeWidth={2.5} />
+            <CheckCircle size={ms(24)} color={semantic.success} strokeWidth={2.5} />
           </View>
           <AppText style={styles.receiptTitle}>Order confirmed</AppText>
           <AppText style={styles.receiptOrderId}>ID: {placedOrderDetails?.orderId}</AppText>
@@ -1311,7 +1314,7 @@ export default function CartView({
         <View style={styles.liveTrackingBox}>
           <View style={styles.liveTrackingHeader}>
             <View style={styles.liveTrackingHeaderLeft}>
-              <Store size={ms(12)} color="#475569" style={{ marginRight: hs(4) }} />
+              <Store size={ms(12)} color={neutral.inkMuted} style={{ marginRight: hs(4) }} />
               <AppText style={styles.liveTrackingLabel}>Order status</AppText>
             </View>
           </View>
@@ -1386,8 +1389,8 @@ export default function CartView({
                 <View key={p.id} style={styles.vendorPickupCard}>
                   <AppText style={styles.vendorPickupName}>{p.name}</AppText>
                   <AppText style={styles.vendorPickupText}>{p.address}</AppText>
-                  <AppText style={styles.vendorPickupText}>Open {p.hours}</AppText>
-                  <AppText style={styles.vendorPickupText}>Contact: {p.phone}</AppText>
+                  {p.hours ? <AppText style={styles.vendorPickupText}>Open {p.hours}</AppText> : null}
+                  {p.phone ? <AppText style={styles.vendorPickupText}>Contact: {p.phone}</AppText> : null}
                 </View>
               ))
             : (
@@ -1455,24 +1458,24 @@ export default function CartView({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
   },
   paymentRoot: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: neutral.surfaceAlt,
   },
   scrollContent: {
     paddingHorizontal: hs(16),
     paddingBottom: SPACE.LIST_BOTTOM,
   },
   cardBox: {
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderRadius: ms(24),
     padding: hs(16),
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     marginTop: vs(14),
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.02,
     shadowRadius: 10,
@@ -1484,20 +1487,20 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: ms(11.5),
-    fontWeight: '900',
-    color: '#0f172a',
+    fontWeight: '600',
+    color: neutral.ink,
     textTransform: 'uppercase',
   },
   badgeWrap: {
-    backgroundColor: '#f1f5f9',
+    backgroundColor: neutral.surfaceAlt,
     paddingVertical: vs(2),
     paddingHorizontal: hs(8),
     borderRadius: ms(12),
   },
   badgeText: {
     fontSize: ms(8.5),
-    color: '#64748b',
-    fontWeight: '700',
+    color: neutral.inkMuted,
+    fontWeight: '600',
   },
   emptyContainer: {
     alignItems: 'center',
@@ -1530,18 +1533,18 @@ const styles = StyleSheet.create({
   },
   appOriginName: {
     fontSize: ms(8),
-    fontWeight: '900',
+    fontWeight: '600',
     textTransform: 'uppercase',
   },
   groupCountText: {
     fontSize: ms(8),
-    color: '#94a3b8',
+    color: neutral.inkSubtle,
     fontWeight: '600',
   },
   appItemsBox: {
     backgroundColor: 'rgba(248,250,252,0.2)',
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     borderRadius: ms(16),
     padding: hs(10),
   },
@@ -1551,7 +1554,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: vs(8),
     borderBottomWidth: 0.5,
-    borderBottomColor: '#e2e8f0',
+    borderBottomColor: neutral.border,
   },
   cartItemLeft: {
     flexDirection: 'row',
@@ -1561,9 +1564,9 @@ const styles = StyleSheet.create({
   },
   cartItemIconWrap: {
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     borderRadius: ms(8),
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
     shadowRadius: 2,
@@ -1575,21 +1578,21 @@ const styles = StyleSheet.create({
   },
   cartItemName: {
     fontSize: ms(11),
-    fontWeight: '900',
-    color: '#0f172a',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   cartItemPrice: {
     fontSize: ms(8),
-    color: '#94a3b8',
-    fontWeight: '700',
+    color: neutral.inkSubtle,
+    fontWeight: '600',
     marginTop: vs(2),
   },
   quantityWidget: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: neutral.border,
     padding: vs(2),
     borderRadius: ms(6),
   },
@@ -1601,33 +1604,33 @@ const styles = StyleSheet.create({
   },
   qtyBtnText: {
     fontSize: ms(10),
-    fontWeight: '900',
-    color: '#64748b',
+    fontWeight: '600',
+    color: neutral.inkMuted,
   },
   qtyValue: {
     fontSize: ms(9),
-    fontWeight: '900',
-    color: '#1e293b',
+    fontWeight: '600',
+    color: neutral.ink,
     marginHorizontal: hs(4),
     minWidth: ms(10),
     textAlign: 'center',
   },
   couponContainer: {
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: neutral.surfaceAlt,
     paddingTop: vs(12),
     marginBottom: SPACE.BLOCK,
   },
   sectionLabel: {
     fontSize: ms(8.5),
-    fontWeight: '900',
-    color: '#94a3b8',
+    fontWeight: '600',
+    color: neutral.inkSubtle,
     textTransform: 'uppercase',
     marginBottom: vs(6),
   },
   pricingContainer: {
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: neutral.surfaceAlt,
     paddingTop: vs(12),
     marginBottom: SPACE.BLOCK,
   },
@@ -1638,65 +1641,65 @@ const styles = StyleSheet.create({
     marginBottom: vs(6),
   },
   tipBox: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: neutral.surface,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     padding: hs(8),
     borderRadius: ms(8),
     marginVertical: vs(4),
   },
   tipText: {
     fontSize: ms(7.5),
-    color: '#64748b',
+    color: neutral.inkMuted,
     fontWeight: '500',
     lineHeight: ms(11),
   },
   grandTotalRow: {
     borderTopWidth: 1,
-    borderTopColor: '#f8fafc',
+    borderTopColor: neutral.surface,
     paddingTop: vs(8),
     marginTop: vs(4),
   },
   mainActionBtn: {
     width: '100%',
     height: Math.max(44, vs(44)),
-    backgroundColor: '#020617',
+    backgroundColor: neutral.ink,
     borderRadius: ms(16),
     alignItems: 'center',
     justifyContent: 'center',
     flexDirection: 'row',
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
   mainActionBtnText: {
-    color: '#ffffff',
+    color: neutral.card,
     fontSize: ms(12),
-    fontWeight: '900',
+    fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   fulfillmentToggle: {
     flexDirection: 'row',
-    backgroundColor: '#F3F4F6',
+    backgroundColor: neutral.surfaceAlt,
     borderRadius: ms(12),
     padding: vs(4),
     marginTop: vs(4),
   },
   fulfilmentCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderRadius: ms(16),
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     padding: hs(14),
     marginBottom: vs(12),
   },
   fulfilmentTitle: {
     fontSize: ms(11),
-    fontWeight: '900',
-    color: '#0f172a',
+    fontWeight: '600',
+    color: neutral.ink,
     textTransform: 'uppercase',
     marginBottom: vs(4),
   },
@@ -1704,7 +1707,7 @@ const styles = StyleSheet.create({
     width: ms(32),
     height: ms(32),
     borderRadius: ms(12),
-    backgroundColor: '#FDEDE8',
+    backgroundColor: semanticTint.danger,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: hs(10),
@@ -1714,7 +1717,7 @@ const styles = StyleSheet.create({
   },
   fulfillmentRoot: {
     flex: 1,
-    backgroundColor: '#F3F4F6',
+    backgroundColor: neutral.surfaceAlt,
   },
   fulfillmentScroll: {
     flex: 1,
@@ -1726,17 +1729,17 @@ const styles = StyleSheet.create({
   },
   fulfillmentSectionLabel: {
     fontSize: ms(11),
-    fontWeight: '900',
-    color: '#94a3b8',
+    fontWeight: '600',
+    color: neutral.inkSubtle,
     textTransform: 'uppercase',
     marginBottom: vs(8),
   },
   fulfillmentAddressCard: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     borderRadius: ms(16),
     padding: hs(14),
     marginBottom: vs(12),
@@ -1745,21 +1748,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(10),
     paddingVertical: vs(6),
     borderRadius: ms(8),
-    backgroundColor: '#E3F2FD',
+    backgroundColor: parentRamp.tint,
   },
   changeText: {
     fontSize: ms(11),
-    fontWeight: '800',
-    color: '#0F4C81',
+    fontWeight: '600',
+    color: categorical.blue,
   },
   fulfillmentPickupWrap: {
     gap: vs(10),
     marginBottom: vs(12),
   },
   fulfillmentPickupCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     borderRadius: ms(16),
     padding: hs(14),
   },
@@ -1772,12 +1775,12 @@ const styles = StyleSheet.create({
   pickupCardName: {
     flex: 1,
     fontSize: ms(13),
-    fontWeight: '800',
-    color: '#0F4C81',
+    fontWeight: '600',
+    color: categorical.blue,
   },
   fulfillmentPickupText: {
     fontSize: ms(11),
-    color: '#4B5563',
+    color: neutral.inkMuted,
     fontWeight: '600',
     lineHeight: ms(17),
     marginTop: vs(1),
@@ -1785,26 +1788,26 @@ const styles = StyleSheet.create({
   fulfillmentBottomBar: {
     paddingHorizontal: hs(16),
     paddingVertical: vs(10),
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: neutral.surfaceAlt,
   },
   vendorPickupCard: {
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     borderRadius: ms(12),
     padding: hs(12),
     marginTop: vs(8),
   },
   vendorPickupName: {
     fontSize: ms(12),
-    fontWeight: '800',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
     marginBottom: vs(2),
   },
   vendorPickupText: {
     fontSize: ms(10.5),
-    color: '#666666',
+    color: neutral.inkMuted,
     fontWeight: '600',
     lineHeight: ms(15),
     marginTop: vs(1),
@@ -1819,15 +1822,15 @@ const styles = StyleSheet.create({
     borderRadius: ms(9),
   },
   fulfillmentToggleOptionActive: {
-    backgroundColor: '#0f172a',
+    backgroundColor: neutral.ink,
   },
   fulfillmentToggleText: {
     fontSize: ms(11),
-    fontWeight: '800',
-    color: '#6B7280',
+    fontWeight: '600',
+    color: neutral.inkMuted,
   },
   fulfillmentToggleTextActive: {
-    color: '#ffffff',
+    color: neutral.card,
   },
   pickupContactRow: {
     flexDirection: 'row',
@@ -1835,13 +1838,13 @@ const styles = StyleSheet.create({
   },
   pickupContactLabel: {
     fontSize: ms(10),
-    fontWeight: '700',
-    color: '#6B7280',
+    fontWeight: '600',
+    color: neutral.inkMuted,
   },
   pickupContactValue: {
     fontSize: ms(10),
-    fontWeight: '800',
-    color: '#0f172a',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   paymentSelectorGrid: {
     flexDirection: 'row',
@@ -1852,28 +1855,28 @@ const styles = StyleSheet.create({
   paymentGridCard: {
     width: '31%',
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     borderRadius: ms(16),
     paddingVertical: vs(12),
     alignItems: 'center',
     justifyContent: 'center',
   },
   paymentGridCardActive: {
-    borderColor: '#0f172a',
-    backgroundColor: '#f8fafc',
+    borderColor: neutral.ink,
+    backgroundColor: neutral.surface,
   },
   paymentGridCardText: {
     fontSize: ms(9),
-    fontWeight: '900',
-    color: '#1e293b',
+    fontWeight: '600',
+    color: neutral.ink,
     textTransform: 'uppercase',
     marginTop: vs(6),
     letterSpacing: 0.5,
   },
   paymentDetailPanel: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: neutral.surface,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     borderRadius: ms(16),
     padding: hs(12),
     marginBottom: vs(12),
@@ -1886,14 +1889,14 @@ const styles = StyleSheet.create({
   upiInput: {
     flex: 1,
     height: Math.max(32, vs(32)),
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: neutral.border,
     borderRadius: ms(8),
     paddingHorizontal: hs(10),
     fontSize: ms(9.5),
-    fontWeight: '700',
-    color: '#1e293b',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   upiVerifiedLabel: {
     backgroundColor: 'rgba(226,232,240,0.5)',
@@ -1903,13 +1906,13 @@ const styles = StyleSheet.create({
   },
   upiVerifiedText: {
     fontSize: ms(7.5),
-    color: '#64748b',
-    fontWeight: '900',
+    color: neutral.inkMuted,
+    fontWeight: '600',
     textTransform: 'uppercase',
   },
   securePanelText: {
     fontSize: ms(7.5),
-    color: '#94a3b8',
+    color: neutral.inkSubtle,
     fontWeight: '500',
     marginTop: vs(6),
   },
@@ -1918,14 +1921,14 @@ const styles = StyleSheet.create({
   },
   cardNumberInput: {
     height: Math.max(32, vs(32)),
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: neutral.border,
     borderRadius: ms(8),
     paddingHorizontal: hs(10),
     fontSize: ms(10),
-    fontWeight: '700',
-    color: '#1e293b',
+    fontWeight: '600',
+    color: neutral.ink,
     marginTop: vs(4),
   },
   cardTwoColRow: {
@@ -1937,20 +1940,20 @@ const styles = StyleSheet.create({
   },
   cardCenterInput: {
     height: Math.max(32, vs(32)),
-    backgroundColor: '#ffffff',
+    backgroundColor: neutral.card,
     borderWidth: 1,
-    borderColor: '#e2e8f0',
+    borderColor: neutral.border,
     borderRadius: ms(8),
     fontSize: ms(10),
-    fontWeight: '700',
-    color: '#1e293b',
+    fontWeight: '600',
+    color: neutral.ink,
     textAlign: 'center',
     marginTop: vs(4),
   },
   codBox: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: neutral.surface,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     borderRadius: ms(16),
     padding: hs(12),
     flexDirection: 'row',
@@ -1966,12 +1969,12 @@ const styles = StyleSheet.create({
   },
   codBoxTitle: {
     fontSize: ms(9),
-    fontWeight: '900',
-    color: '#1e293b',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   codBoxDesc: {
     fontSize: ms(7.5),
-    color: '#94a3b8',
+    color: neutral.inkSubtle,
     fontWeight: '500',
     marginTop: vs(2),
     lineHeight: ms(11),
@@ -1981,7 +1984,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'rgba(236,253,245,0.5)',
     borderWidth: 0.5,
-    borderColor: '#d1fae5',
+    borderColor: semanticTint.success,
     padding: hs(8),
     borderRadius: ms(10),
     marginBottom: vs(12),
@@ -1989,13 +1992,13 @@ const styles = StyleSheet.create({
   secureDetailsText: {
     fontSize: ms(7.5),
     color: brandRamp.PHARMA.deep,
-    fontWeight: '900',
+    fontWeight: '600',
     textTransform: 'uppercase',
   },
   paymentPriceSummary: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: neutral.surface,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     borderRadius: ms(16),
     padding: hs(12),
     flexDirection: 'row',
@@ -2005,14 +2008,14 @@ const styles = StyleSheet.create({
   },
   summaryLabel: {
     fontSize: ms(7.5),
-    color: '#94a3b8',
-    fontWeight: '900',
+    color: neutral.inkSubtle,
+    fontWeight: '600',
     textTransform: 'uppercase',
   },
   summaryValue: {
     fontSize: ms(8.5),
-    color: '#1e293b',
-    fontWeight: '900',
+    color: neutral.ink,
+    fontWeight: '600',
     marginTop: vs(2),
   },
   summaryRight: {
@@ -2021,8 +2024,8 @@ const styles = StyleSheet.create({
   },
   summaryPriceValue: {
     fontSize: ms(11),
-    fontWeight: '900',
-    color: '#0f172a',
+    fontWeight: '600',
+    color: neutral.ink,
     marginTop: vs(2),
   },
   loadingRow: {
@@ -2037,11 +2040,11 @@ const styles = StyleSheet.create({
     width: ms(48),
     height: ms(48),
     borderRadius: ms(24),
-    backgroundColor: '#EBFBE5',
+    backgroundColor: semanticTint.success,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: vs(10),
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.08,
     shadowRadius: 6,
@@ -2049,21 +2052,21 @@ const styles = StyleSheet.create({
   },
   receiptTitle: {
     fontSize: ms(13),
-    fontWeight: '900',
-    color: '#1e293b',
+    fontWeight: '600',
+    color: neutral.ink,
     textTransform: 'uppercase',
   },
   receiptOrderId: {
     fontSize: ms(8.5),
-    color: '#94a3b8',
-    fontWeight: '900',
+    color: neutral.inkSubtle,
+    fontWeight: '600',
     textTransform: 'uppercase',
     marginTop: vs(4),
   },
   liveTrackingBox: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: neutral.surface,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     borderRadius: ms(16),
     padding: hs(12),
     marginBottom: vs(14),
@@ -2073,7 +2076,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     borderBottomWidth: 0.5,
-    borderBottomColor: '#cbd5e1',
+    borderBottomColor: neutral.border,
     paddingBottom: vs(8),
     marginBottom: vs(10),
   },
@@ -2083,22 +2086,22 @@ const styles = StyleSheet.create({
   },
   liveTrackingLabel: {
     fontSize: ms(8),
-    fontWeight: '900',
-    color: '#64748b',
+    fontWeight: '600',
+    color: neutral.inkMuted,
     textTransform: 'uppercase',
   },
   etaBadge: {
-    backgroundColor: '#EBFBE5',
+    backgroundColor: semanticTint.success,
     borderWidth: 0.5,
-    borderColor: '#a7f3d0',
+    borderColor: semanticTint.success,
     borderRadius: ms(6),
     paddingVertical: vs(1),
     paddingHorizontal: hs(6),
   },
   etaBadgeText: {
     fontSize: ms(7.5),
-    color: '#56B821',
-    fontWeight: '900',
+    color: semantic.success,
+    fontWeight: '600',
     textTransform: 'uppercase',
   },
   liveStepsContainer: {
@@ -2116,7 +2119,7 @@ const styles = StyleSheet.create({
     top: vs(10),
     width: 1,
     height: vs(18),
-    backgroundColor: '#cbd5e1',
+    backgroundColor: neutral.border,
   },
   liveStepDotOuter: {
     position: 'absolute',
@@ -2125,7 +2128,7 @@ const styles = StyleSheet.create({
     width: ms(14),
     height: ms(14),
     borderRadius: ms(7),
-    backgroundColor: '#d1fae5',
+    backgroundColor: semanticTint.success,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2133,17 +2136,17 @@ const styles = StyleSheet.create({
     width: ms(10),
     height: ms(10),
     borderRadius: ms(5),
-    backgroundColor: '#56B821',
+    backgroundColor: semantic.success,
     borderWidth: 2,
-    borderColor: '#ffffff',
+    borderColor: neutral.card,
   },
   liveStepActiveDotPulse: {
     width: ms(10),
     height: ms(10),
     borderRadius: ms(5),
-    backgroundColor: '#56B821',
+    backgroundColor: semantic.success,
     borderWidth: 2,
-    borderColor: '#ffffff',
+    borderColor: neutral.card,
   },
   liveStepTextCol: {
     marginLeft: hs(8),
@@ -2151,18 +2154,18 @@ const styles = StyleSheet.create({
   },
   liveStepTitle: {
     fontSize: ms(9),
-    fontWeight: '900',
-    color: '#1e293b',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   liveStepDesc: {
     fontSize: ms(7.5),
-    color: '#94a3b8',
-    fontWeight: '700',
+    color: neutral.inkSubtle,
+    fontWeight: '600',
     marginTop: vs(2),
   },
   purchasedItemsSection: {
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: neutral.surfaceAlt,
     paddingTop: vs(10),
   },
   purchasedItemsList: {
@@ -2183,23 +2186,23 @@ const styles = StyleSheet.create({
   },
   purchasedItemName: {
     fontSize: ms(9),
-    fontWeight: '900',
-    color: '#334155',
+    fontWeight: '600',
+    color: neutral.inkMuted,
     maxWidth: '75%',
   },
   purchasedItemQty: {
     fontSize: ms(9),
-    fontWeight: '700',
-    color: '#94a3b8',
+    fontWeight: '600',
+    color: neutral.inkSubtle,
   },
   purchasedItemPrice: {
     fontSize: ms(9),
-    fontWeight: '900',
-    color: '#1e293b',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   receiptRewardsSection: {
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: neutral.surfaceAlt,
     paddingTop: vs(10),
   },
   receiptRewardsRow: {
@@ -2210,27 +2213,27 @@ const styles = StyleSheet.create({
   },
   receiptRewardsLabel: {
     fontSize: ms(9),
-    fontWeight: '700',
-    color: '#64748b',
+    fontWeight: '600',
+    color: neutral.inkMuted,
   },
   receiptRewardsEarn: {
     fontSize: ms(9),
-    fontWeight: '900',
-    color: '#7C3AED',
+    fontWeight: '600',
+    color: categorical.violet,
   },
   receiptRewardsRedeem: {
     fontSize: ms(9),
-    fontWeight: '900',
+    fontWeight: '600',
     color: semantic.warning,
   },
   deliveryLocationSection: {
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: neutral.surfaceAlt,
     paddingTop: vs(10),
   },
   deliveryLocationAddress: {
     fontSize: ms(8.5),
-    color: '#64748b',
+    color: neutral.inkMuted,
     fontWeight: '600',
     lineHeight: ms(12),
     marginTop: vs(4),
@@ -2239,30 +2242,30 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
+    backgroundColor: neutral.surface,
     borderWidth: 1,
-    borderColor: '#f1f5f9',
+    borderColor: neutral.surfaceAlt,
     padding: hs(8),
     borderRadius: ms(10),
     marginTop: vs(10),
   },
   paymentProtocolLabel: {
     fontSize: ms(8),
-    fontWeight: '900',
-    color: '#64748b',
+    fontWeight: '600',
+    color: neutral.inkMuted,
     textTransform: 'uppercase',
   },
   paymentProtocolValue: {
     fontSize: ms(8),
-    fontWeight: '900',
-    color: '#1e293b',
+    fontWeight: '600',
+    color: neutral.ink,
     textTransform: 'uppercase',
   },
   receiptActionBtnRow: {
     flexDirection: 'row',
     gap: hs(10),
     borderTopWidth: 1,
-    borderTopColor: '#f1f5f9',
+    borderTopColor: neutral.surfaceAlt,
     paddingTop: vs(14),
     marginTop: vs(12),
   },
@@ -2270,10 +2273,10 @@ const styles = StyleSheet.create({
     flex: 1,
     height: Math.max(40, vs(40)),
     borderRadius: ms(10),
-    backgroundColor: '#56B821',
+    backgroundColor: semantic.success,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -2281,8 +2284,8 @@ const styles = StyleSheet.create({
   },
   receiptTrackOrderBtnText: {
     fontSize: ms(9),
-    fontWeight: '900',
-    color: '#ffffff',
+    fontWeight: '600',
+    color: neutral.card,
     textTransform: 'uppercase',
   },
   receiptNewOrderBtn: {
@@ -2290,24 +2293,24 @@ const styles = StyleSheet.create({
     height: Math.max(40, vs(40)),
     borderRadius: ms(10),
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: neutral.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   receiptNewOrderBtnText: {
     fontSize: ms(9),
-    fontWeight: '900',
-    color: '#475569',
+    fontWeight: '600',
+    color: neutral.inkMuted,
     textTransform: 'uppercase',
   },
   receiptGoToHubBtn: {
     flex: 1,
     height: Math.max(40, vs(40)),
-    backgroundColor: '#0f172a',
+    backgroundColor: neutral.ink,
     borderRadius: ms(10),
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -2315,21 +2318,21 @@ const styles = StyleSheet.create({
   },
   receiptGoToHubBtnText: {
     fontSize: ms(9),
-    fontWeight: '900',
-    color: '#ffffff',
+    fontWeight: '600',
+    color: neutral.card,
     textTransform: 'uppercase',
   },
   // ---- New "Your Cart" (BAG) UI styles ----
   bagRoot: {
     flex: 1,
-    backgroundColor: '#F8F9FA',
+    backgroundColor: neutral.surface,
   },
   bagTopBar: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: hs(16),
     paddingBottom: vs(12),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
   },
   bagBackBtn: {
     width: ms(32),
@@ -2340,8 +2343,8 @@ const styles = StyleSheet.create({
   bagTitle: {
     flex: 1,
     fontSize: ms(18),
-    fontWeight: '900',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
     marginLeft: hs(12),
   },
   clearBtn: {
@@ -2350,8 +2353,8 @@ const styles = StyleSheet.create({
   },
   clearText: {
     fontSize: ms(13),
-    fontWeight: '800',
-    color: '#ef4444',
+    fontWeight: '600',
+    color: semantic.danger,
   },
   bagScroll: {
     flex: 1,
@@ -2368,19 +2371,19 @@ const styles = StyleSheet.create({
     width: ms(64),
     height: ms(64),
     borderRadius: ms(32),
-    backgroundColor: '#f1f5f9',
+    backgroundColor: neutral.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: vs(16),
   },
   emptyTitle: {
     fontSize: ms(15),
-    fontWeight: '900',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   emptyDesc: {
     fontSize: ms(11),
-    color: '#666666',
+    color: neutral.inkMuted,
     textAlign: 'center',
     lineHeight: vs(16),
     marginTop: vs(8),
@@ -2391,35 +2394,35 @@ const styles = StyleSheet.create({
     height: Math.max(44, vs(44)),
     borderRadius: ms(12),
     paddingHorizontal: hs(24),
-    backgroundColor: '#118C4F',
+    backgroundColor: semantic.success,
     alignItems: 'center',
     justifyContent: 'center',
   },
   goToHubBtnText: {
     fontSize: ms(13),
-    fontWeight: '900',
-    color: '#ffffff',
+    fontWeight: '600',
+    color: neutral.card,
   },
   savingsCard: {
     marginHorizontal: hs(16),
     marginBottom: vs(12),
     borderRadius: ms(16),
     overflow: 'hidden',
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderWidth: 1,
-    borderColor: '#EFEFEF',
+    borderColor: neutral.border,
   },
   savingsStrip: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#D8F3E5',
+    backgroundColor: semanticTint.success,
     padding: 12,
     gap: hs(8),
   },
   savingsText: {
     fontSize: ms(11.5),
-    fontWeight: '700',
-    color: '#118C4F',
+    fontWeight: '600',
+    color: semantic.success,
     flex: 1,
   },
   couponRow: {
@@ -2438,12 +2441,12 @@ const styles = StyleSheet.create({
   },
   couponRowTitle: {
     fontSize: ms(13),
-    fontWeight: '900',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   couponRowSub: {
     fontSize: ms(10.5),
-    color: '#666666',
+    color: neutral.inkMuted,
     marginTop: vs(4),
   },
   appliedChipRow: {
@@ -2454,16 +2457,16 @@ const styles = StyleSheet.create({
   },
   appliedDiscountText: {
     fontSize: ms(10.5),
-    fontWeight: '800',
+    fontWeight: '600',
     color: semantic.success,
   },
   removeCouponText: {
     fontSize: ms(10.5),
-    fontWeight: '800',
-    color: '#ef4444',
+    fontWeight: '600',
+    color: semantic.danger,
   },
   catCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     paddingHorizontal: hs(16),
     paddingTop: vs(16),
     paddingBottom: vs(4),
@@ -2485,12 +2488,12 @@ const styles = StyleSheet.create({
   },
   catTitle: {
     fontSize: ms(13.5),
-    fontWeight: '900',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   catCount: {
     fontSize: ms(10.5),
-    color: '#666666',
+    color: neutral.inkMuted,
     marginTop: vs(2),
   },
   itemRow: {
@@ -2500,13 +2503,13 @@ const styles = StyleSheet.create({
     gap: hs(10),
     paddingVertical: vs(10),
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: neutral.border,
   },
   itemRowDeselected: {
     opacity: 0.45,
   },
   itemThumb: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: neutral.surfaceAlt,
     overflow: 'hidden',
   },
   itemDetails: {
@@ -2514,19 +2517,19 @@ const styles = StyleSheet.create({
   },
   itemName: {
     fontSize: ms(13),
-    fontWeight: '800',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   itemQtyDesc: {
     fontSize: ms(11),
-    color: '#666666',
+    color: neutral.inkMuted,
     marginTop: vs(2),
   },
   stepperPill: {
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E0E0E0',
+    borderColor: neutral.border,
     borderRadius: ms(8),
     paddingHorizontal: hs(10),
     paddingVertical: vs(4),
@@ -2541,8 +2544,8 @@ const styles = StyleSheet.create({
   },
   stepperValue: {
     fontSize: ms(12),
-    fontWeight: '900',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
     marginHorizontal: hs(8),
   },
   itemPriceCol: {
@@ -2550,13 +2553,13 @@ const styles = StyleSheet.create({
   },
   itemOrigPrice: {
     fontSize: ms(10.5),
-    color: '#9CA3AF',
+    color: neutral.inkSubtle,
     textDecorationLine: 'line-through',
   },
   itemPrice: {
     fontSize: ms(14),
-    fontWeight: '900',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
     marginTop: vs(2),
   },
   deleteItemBtn: {
@@ -2564,13 +2567,13 @@ const styles = StyleSheet.create({
     padding: vs(4),
   },
   bottomBar: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderTopWidth: 1,
-    borderTopColor: '#EFEFEF',
+    borderTopColor: neutral.border,
     paddingHorizontal: hs(16),
     paddingTop: vs(10),
     paddingBottom: vs(20),
-    shadowColor: '#000',
+    shadowColor: SHADOW_COLOR,
     shadowOffset: { width: 0, height: -4 },
     shadowOpacity: 0.05,
     shadowRadius: 12,
@@ -2580,7 +2583,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     alignSelf: 'flex-start',
-    backgroundColor: '#FEF3C7',
+    backgroundColor: semanticTint.warning,
     borderRadius: ms(8),
     paddingHorizontal: hs(10),
     paddingVertical: vs(4),
@@ -2589,14 +2592,14 @@ const styles = StyleSheet.create({
   },
   coinEstimateText: {
     fontSize: ms(10.5),
-    fontWeight: '800',
-    color: '#92400E',
+    fontWeight: '600',
+    color: categorical.brown,
   },
   billBanner: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    backgroundColor: '#FFF6E5',
+    backgroundColor: semanticTint.warning,
     padding: hs(10),
     borderRadius: ms(8),
     marginBottom: vs(12),
@@ -2607,67 +2610,67 @@ const styles = StyleSheet.create({
   },
   toPayLabel: {
     fontSize: ms(12),
-    fontWeight: '700',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   toPayValue: {
     fontSize: ms(14),
-    fontWeight: '900',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   origTotal: {
     fontSize: ms(11),
-    color: '#9CA3AF',
+    color: neutral.inkSubtle,
     textDecorationLine: 'line-through',
     marginLeft: hs(6),
   },
   addrLabel: {
     fontSize: ms(12.5),
-    fontWeight: '800',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   addrSub: {
     fontSize: ms(10.5),
-    color: '#666666',
+    color: neutral.inkMuted,
     marginTop: vs(2),
   },
   proceedBtn: {
     height: Math.max(48, vs(48)),
     borderRadius: ms(12),
-    backgroundColor: '#118C4F',
+    backgroundColor: semantic.success,
     alignItems: 'center',
     justifyContent: 'center',
   },
   checkoutErrorText: {
-    color: '#B91C1C',
+    color: semantic.danger,
     fontSize: ms(13),
     fontWeight: '500',
     textAlign: 'center',
     marginBottom: vs(8),
   },
   proceedBtnDisabled: {
-    backgroundColor: '#94A3B8',
+    backgroundColor: neutral.inkSubtle,
   },
   proceedText: {
     fontSize: ms(16),
-    fontWeight: '900',
-    color: '#ffffff',
+    fontWeight: '600',
+    color: neutral.card,
   },
   sheetTitle: {
     fontSize: ms(16),
-    fontWeight: '900',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   sheetSubtitle: {
     fontSize: ms(11),
-    color: '#666666',
+    color: neutral.inkMuted,
     marginTop: vs(4),
     marginBottom: SPACE.BLOCK,
   },
   couponErrorText: {
     fontSize: ms(11),
     fontWeight: '600',
-    color: '#DC2626',
+    color: semantic.danger,
     marginBottom: SPACE.BLOCK,
   },
   couponOption: {
@@ -2676,7 +2679,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingVertical: vs(12),
     borderWidth: 1,
-    borderColor: '#EFEFEF',
+    borderColor: neutral.border,
     borderRadius: ms(12),
     paddingHorizontal: hs(12),
     marginBottom: vs(10),
@@ -2692,31 +2695,31 @@ const styles = StyleSheet.create({
   },
   couponOptionCode: {
     fontSize: ms(13),
-    fontWeight: '900',
-    color: '#1E2022',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   couponOptionDesc: {
     fontSize: ms(10.5),
-    color: '#666666',
+    color: neutral.inkMuted,
     marginTop: vs(2),
   },
   couponAppliedBadge: {
-    backgroundColor: '#D8F3E5',
+    backgroundColor: semanticTint.success,
     borderRadius: ms(6),
     paddingHorizontal: hs(8),
     paddingVertical: vs(4),
   },
   couponAppliedBadgeText: {
     fontSize: ms(9),
-    fontWeight: '900',
-    color: '#118C4F',
+    fontWeight: '600',
+    color: semantic.success,
   },
   couponSelectCircle: {
     width: ms(22),
     height: ms(22),
     borderRadius: ms(11),
     borderWidth: 1.5,
-    borderColor: '#118C4F',
+    borderColor: semantic.success,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -2727,7 +2730,7 @@ const styles = StyleSheet.create({
   },
   couponRemoveActionText: {
     fontSize: ms(12),
-    fontWeight: '900',
-    color: '#ef4444',
+    fontWeight: '600',
+    color: semantic.danger,
   },
 });

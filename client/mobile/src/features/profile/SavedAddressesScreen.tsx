@@ -1,4 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { neutral } from '@/theme/brandTokens';
+import { semantic } from '@/theme/brandTokens';
+import { semanticTint } from '@/theme/brandTokens';
 import {
   StyleSheet,
   View,
@@ -57,7 +60,7 @@ function AddressCard({ item, isSelected, onSelect, onEdit, onDelete }: AddressCa
       <View style={styles.cardHeader}>
         <View style={styles.badgeRow}>
           <View style={styles.tagBadge}>
-            <TagIcon size={ms(11)} color="#166534" strokeWidth={2.4} />
+            <TagIcon size={ms(11)} color={semantic.success} strokeWidth={2.4} />
             <AppText style={styles.tagText}>{item.tag}</AppText>
           </View>
           {item.isDefault && (
@@ -75,7 +78,7 @@ function AddressCard({ item, isSelected, onSelect, onEdit, onDelete }: AddressCa
             accessibilityRole="button"
             accessibilityLabel={`Edit ${item.tag} address`}
           >
-            <Pencil size={ms(11)} color="#374151" strokeWidth={2.2} />
+            <Pencil size={ms(11)} color={neutral.inkMuted} strokeWidth={2.2} />
             <AppText style={styles.actionText}>Edit</AppText>
           </TouchableOpacity>
           <View style={styles.actionDivider} />
@@ -86,7 +89,7 @@ function AddressCard({ item, isSelected, onSelect, onEdit, onDelete }: AddressCa
             accessibilityRole="button"
             accessibilityLabel={`Delete ${item.tag} address`}
           >
-            <Trash2 size={ms(11)} color="#374151" strokeWidth={2.2} />
+            <Trash2 size={ms(11)} color={neutral.inkMuted} strokeWidth={2.2} />
             <AppText style={styles.actionText}>Delete</AppText>
           </TouchableOpacity>
         </View>
@@ -107,7 +110,7 @@ function AddressCard({ item, isSelected, onSelect, onEdit, onDelete }: AddressCa
             accessibilityState={{ selected: isSelected }}
             accessibilityLabel={`Deliver to ${item.name}, ${item.tag} address`}
           >
-            <MapPin size={ms(14)} color="#16A34A" strokeWidth={2.2} />
+            <MapPin size={ms(14)} color={semantic.success} strokeWidth={2.2} />
             <AppText style={styles.deliverHereText}>
               {isSelected ? 'Delivering here' : 'Deliver here'}
             </AppText>
@@ -192,7 +195,7 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
               accessibilityRole="button"
               accessibilityLabel="Close"
             >
-              <X size={ms(18)} color="#6B7280" strokeWidth={2.4} />
+              <X size={ms(18)} color={neutral.inkMuted} strokeWidth={2.4} />
             </TouchableOpacity>
           </View>
 
@@ -216,7 +219,7 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
                     accessibilityRole="button"
                     accessibilityState={{ selected: active }}
                   >
-                    <TagIcon size={ms(13)} color={active ? '#166534' : '#6B7280'} strokeWidth={2.4} />
+                    <TagIcon size={ms(13)} color={active ? semantic.success : neutral.inkMuted} strokeWidth={2.4} />
                     <AppText style={[styles.tagOptionText, active && styles.tagOptionTextActive]}>{tag}</AppText>
                   </TouchableOpacity>
                 );
@@ -229,7 +232,7 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
               value={draft.name}
               onChangeText={(name) => setDraft((d) => ({ ...d, name }))}
               placeholder="Recipient name"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={neutral.inkSubtle}
               accessibilityLabel="Recipient name"
             />
             {submitted && nameError ? <AppText style={styles.fieldError}>{nameError}</AppText> : null}
@@ -240,7 +243,7 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
               value={draft.phone}
               onChangeText={(phone) => setDraft((d) => ({ ...d, phone }))}
               placeholder="+91 98765 43210"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={neutral.inkSubtle}
               keyboardType="phone-pad"
               accessibilityLabel="Contact phone"
             />
@@ -252,7 +255,7 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
               value={draft.address}
               onChangeText={(address) => setDraft((d) => ({ ...d, address }))}
               placeholder="House / street / area / city / PIN"
-              placeholderTextColor="#9CA3AF"
+              placeholderTextColor={neutral.inkSubtle}
               multiline
               textAlignVertical="top"
               accessibilityLabel="Full address"
@@ -267,8 +270,8 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
               <Switch
                 value={!!draft.isDefault}
                 onValueChange={(isDefault) => setDraft((d) => ({ ...d, isDefault }))}
-                trackColor={{ false: '#D1D5DB', true: '#86EFAC' }}
-                thumbColor={draft.isDefault ? '#16A34A' : '#F3F4F6'}
+                trackColor={{ false: neutral.border, true: semanticTint.success }}
+                thumbColor={draft.isDefault ? semantic.success : neutral.surfaceAlt}
               />
             </View>
           </ScrollView>
@@ -288,7 +291,7 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
                 accessibilityRole="button"
                 accessibilityLabel="Delete address"
               >
-                <Trash2 size={ms(15)} color="#DC2626" strokeWidth={2.3} />
+                <Trash2 size={ms(15)} color={semantic.danger} strokeWidth={2.3} />
               </TouchableOpacity>
             )}
             <TouchableOpacity
@@ -300,7 +303,7 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
               accessibilityState={{ disabled: !canSave }}
             >
               {saving ? (
-                <ActivityIndicator color="#ffffff" size="small" />
+                <ActivityIndicator color={neutral.card} size="small" />
               ) : (
                 <AppText style={styles.modalSaveText}>{isNew ? 'Add Address' : 'Save Changes'}</AppText>
               )}
@@ -433,7 +436,7 @@ export function SavedAddressesScreen({ navigation }: Props) {
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <TouchableOpacity onPress={handleBack} style={styles.backButton} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Go back">
-              <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
+              <ChevronLeft size={ms(26)} color={neutral.ink} strokeWidth={2.2} />
             </TouchableOpacity>
             <View>
               <AppText style={styles.headerTitle}>Addresses</AppText>
@@ -441,7 +444,7 @@ export function SavedAddressesScreen({ navigation }: Props) {
             </View>
           </View>
           <TouchableOpacity onPress={openAdd} style={styles.addNewBtn} activeOpacity={0.7}>
-            <Plus size={ms(14)} color="#16A34A" strokeWidth={2.6} />
+            <Plus size={ms(14)} color={semantic.success} strokeWidth={2.6} />
             <AppText style={styles.addNewText}>Add New</AppText>
           </TouchableOpacity>
         </View>
@@ -452,12 +455,12 @@ export function SavedAddressesScreen({ navigation }: Props) {
         {/* Address cards */}
         {loading && addresses.length === 0 ? (
           <View style={styles.emptyCard}>
-            <ActivityIndicator color="#16A34A" />
+            <ActivityIndicator color={semantic.success} />
             <AppText style={styles.emptySub}>Loading your addresses…</AppText>
           </View>
         ) : loadError && addresses.length === 0 ? (
           <View style={styles.emptyCard}>
-            <MapPin size={ms(24)} color="#9CA3AF" strokeWidth={1.75} />
+            <MapPin size={ms(24)} color={neutral.inkSubtle} strokeWidth={1.75} />
             <AppText style={styles.emptyTitle}>Couldn't load addresses</AppText>
             <AppText style={styles.emptySub}>Check your connection and try again.</AppText>
             <TouchableOpacity
@@ -472,7 +475,7 @@ export function SavedAddressesScreen({ navigation }: Props) {
           </View>
         ) : addresses.length === 0 ? (
           <View style={styles.emptyCard}>
-            <MapPin size={ms(24)} color="#9CA3AF" strokeWidth={1.75} />
+            <MapPin size={ms(24)} color={neutral.inkSubtle} strokeWidth={1.75} />
             <AppText style={styles.emptyTitle}>No saved addresses yet</AppText>
             <AppText style={styles.emptySub}>Tap “Add New” to save your first delivery address.</AppText>
           </View>
@@ -493,7 +496,7 @@ export function SavedAddressesScreen({ navigation }: Props) {
         {showBanner && (
           <View style={styles.tipBanner}>
             <View style={styles.tipIconBox}>
-              <MapPin size={ms(24)} color="#16A34A" strokeWidth={2.2} />
+              <MapPin size={ms(24)} color={semantic.success} strokeWidth={2.2} />
             </View>
             <View style={styles.tipTextContainer}>
               <AppText style={styles.tipTitle}>Add accurate addresses</AppText>
@@ -502,7 +505,7 @@ export function SavedAddressesScreen({ navigation }: Props) {
               </AppText>
             </View>
             <TouchableOpacity onPress={handleCloseBanner} style={styles.closeBannerBtn} activeOpacity={0.7} accessibilityRole="button" accessibilityLabel="Dismiss">
-              <X size={ms(16)} color="#9CA3AF" strokeWidth={2.2} />
+              <X size={ms(16)} color={neutral.inkSubtle} strokeWidth={2.2} />
             </TouchableOpacity>
           </View>
         )}
@@ -526,7 +529,7 @@ export function SavedAddressesScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
+    backgroundColor: neutral.surface,
   },
   scroll: {
     flex: 1,
@@ -556,13 +559,13 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: ms(18),
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   headerSubtitle: {
     fontSize: ms(12),
     fontWeight: '500',
-    color: '#6B7280',
+    color: neutral.inkMuted,
     marginTop: vs(2),
   },
   addNewBtn: {
@@ -573,16 +576,16 @@ const styles = StyleSheet.create({
   },
   addNewText: {
     fontSize: ms(14),
-    fontWeight: '700',
-    color: '#16A34A',
+    fontWeight: '600',
+    color: semantic.success,
     marginLeft: hs(3),
   },
 
   /* Section */
   sectionTitle: {
     fontSize: ms(15),
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
     marginBottom: SPACE.BLOCK,
     marginLeft: hs(2),
   },
@@ -595,12 +598,12 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   selectedCard: {
-    backgroundColor: '#F0FDF4',
-    borderColor: '#BBF7D0',
+    backgroundColor: semanticTint.success,
+    borderColor: semanticTint.success,
   },
   unselectedCard: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#E5E7EB',
+    backgroundColor: neutral.card,
+    borderColor: neutral.border,
   },
 
   cardHeader: {
@@ -616,7 +619,7 @@ const styles = StyleSheet.create({
   tagBadge: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#DCFCE7',
+    backgroundColor: semanticTint.success,
     paddingHorizontal: hs(8),
     paddingVertical: vs(4),
     borderRadius: ms(6),
@@ -625,11 +628,11 @@ const styles = StyleSheet.create({
   },
   tagText: {
     fontSize: ms(10),
-    fontWeight: '700',
-    color: '#166534',
+    fontWeight: '600',
+    color: semantic.success,
   },
   defaultBadge: {
-    backgroundColor: '#F3F4F6',
+    backgroundColor: neutral.surfaceAlt,
     paddingHorizontal: hs(8),
     paddingVertical: vs(4),
     borderRadius: ms(6),
@@ -637,7 +640,7 @@ const styles = StyleSheet.create({
   defaultText: {
     fontSize: ms(10),
     fontWeight: '600',
-    color: '#4B5563',
+    color: neutral.inkMuted,
   },
 
   actionButtons: {
@@ -653,12 +656,12 @@ const styles = StyleSheet.create({
   actionText: {
     fontSize: ms(12),
     fontWeight: '600',
-    color: '#374151',
+    color: neutral.inkMuted,
   },
   actionDivider: {
     width: 1,
     height: vs(12),
-    backgroundColor: '#D1D5DB',
+    backgroundColor: neutral.border,
     marginHorizontal: hs(8),
   },
 
@@ -672,20 +675,20 @@ const styles = StyleSheet.create({
   },
   userName: {
     fontSize: ms(14),
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
     marginBottom: vs(2),
   },
   userPhone: {
     fontSize: ms(12),
     fontWeight: '500',
-    color: '#4B5563',
+    color: neutral.inkMuted,
     marginBottom: vs(8),
   },
   addressText: {
     fontSize: ms(12),
     fontWeight: '500',
-    color: '#4B5563',
+    color: neutral.inkMuted,
     lineHeight: vs(18),
     marginBottom: SPACE.ITEM,
   },
@@ -697,8 +700,8 @@ const styles = StyleSheet.create({
   },
   deliverHereText: {
     fontSize: ms(12),
-    fontWeight: '700',
-    color: '#16A34A',
+    fontWeight: '600',
+    color: semantic.success,
   },
 
   radioContainer: {
@@ -709,26 +712,26 @@ const styles = StyleSheet.create({
     height: ms(20),
     borderRadius: ms(10),
     borderWidth: 2,
-    borderColor: '#D1D5DB',
+    borderColor: neutral.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   radioOuterSelected: {
-    borderColor: '#16A34A',
+    borderColor: semantic.success,
   },
   radioInner: {
     width: ms(10),
     height: ms(10),
     borderRadius: ms(5),
-    backgroundColor: '#16A34A',
+    backgroundColor: semantic.success,
   },
 
   /* Tip Banner */
   tipBanner: {
-    backgroundColor: '#F0FDF4',
+    backgroundColor: semanticTint.success,
     borderRadius: ms(12),
     borderWidth: 1,
-    borderColor: '#DCFCE7',
+    borderColor: semanticTint.success,
     padding: hs(12),
     flexDirection: 'row',
     alignItems: 'center',
@@ -743,14 +746,14 @@ const styles = StyleSheet.create({
   },
   tipTitle: {
     fontSize: ms(12),
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
     marginBottom: vs(2),
   },
   tipSubtitle: {
     fontSize: ms(11),
     fontWeight: '500',
-    color: '#6B7280',
+    color: neutral.inkMuted,
     lineHeight: vs(15),
   },
   closeBannerBtn: {
@@ -759,10 +762,10 @@ const styles = StyleSheet.create({
 
   /* Empty state */
   emptyCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderRadius: ms(16),
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: neutral.border,
     alignItems: 'center',
     paddingHorizontal: hs(24),
     paddingVertical: vs(32),
@@ -770,14 +773,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: ms(13),
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
     textAlign: 'center',
   },
   emptySub: {
     fontSize: ms(12),
     fontWeight: '500',
-    color: '#6B7280',
+    color: neutral.inkMuted,
     textAlign: 'center',
     lineHeight: vs(17),
   },
@@ -786,14 +789,14 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(20),
     borderRadius: ms(22),
     borderWidth: 1,
-    borderColor: '#CBD5E1',
+    borderColor: neutral.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   retryText: {
     fontSize: ms(13),
     fontWeight: '600',
-    color: '#16A34A',
+    color: semantic.success,
   },
 
   /* Address editor sheet */
@@ -803,7 +806,7 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalSheet: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
     borderTopLeftRadius: ms(20),
     borderTopRightRadius: ms(20),
     paddingHorizontal: hs(20),
@@ -818,8 +821,8 @@ const styles = StyleSheet.create({
   },
   modalTitle: {
     fontSize: ms(17),
-    fontWeight: '800',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   modalClose: {
     padding: hs(4),
@@ -833,8 +836,8 @@ const styles = StyleSheet.create({
   },
   fieldLabel: {
     fontSize: ms(12),
-    fontWeight: '700',
-    color: '#374151',
+    fontWeight: '600',
+    color: neutral.inkMuted,
     marginTop: SPACE.ITEM,
   },
   tagRow: {
@@ -846,37 +849,37 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: hs(5),
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: neutral.border,
     borderRadius: ms(10),
     paddingHorizontal: hs(12),
     paddingVertical: vs(8),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: neutral.card,
   },
   tagOptionActive: {
-    borderColor: '#86EFAC',
-    backgroundColor: '#F0FDF4',
+    borderColor: semanticTint.success,
+    backgroundColor: semanticTint.success,
   },
   tagOptionText: {
     fontSize: ms(12),
-    fontWeight: '700',
-    color: '#6B7280',
+    fontWeight: '600',
+    color: neutral.inkMuted,
   },
   tagOptionTextActive: {
-    color: '#166534',
+    color: semantic.success,
   },
   fieldInput: {
     borderWidth: 1,
-    borderColor: '#E5E7EB',
+    borderColor: neutral.border,
     borderRadius: ms(10),
     paddingHorizontal: hs(12),
     paddingVertical: vs(10),
     fontSize: ms(13),
-    color: '#111827',
-    backgroundColor: '#FFFFFF',
+    color: neutral.ink,
+    backgroundColor: neutral.card,
   },
   fieldError: {
     fontSize: ms(12),
-    color: '#B91C1C',
+    color: semantic.danger,
     marginTop: vs(4),
   },
   modalError: {
@@ -900,13 +903,13 @@ const styles = StyleSheet.create({
   },
   defaultTitle: {
     fontSize: ms(13),
-    fontWeight: '700',
-    color: '#111827',
+    fontWeight: '600',
+    color: neutral.ink,
   },
   defaultSub: {
     fontSize: ms(11),
     fontWeight: '500',
-    color: '#6B7280',
+    color: neutral.inkMuted,
     marginTop: vs(2),
   },
   modalActions: {
@@ -920,8 +923,8 @@ const styles = StyleSheet.create({
     height: ms(48),
     borderRadius: ms(12),
     borderWidth: 1,
-    borderColor: '#FECACA',
-    backgroundColor: '#FEF2F2',
+    borderColor: semanticTint.danger,
+    backgroundColor: semanticTint.danger,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -929,16 +932,16 @@ const styles = StyleSheet.create({
     flex: 1,
     height: ms(48),
     borderRadius: ms(12),
-    backgroundColor: '#16A34A',
+    backgroundColor: semantic.success,
     alignItems: 'center',
     justifyContent: 'center',
   },
   modalSaveBtnDisabled: {
-    backgroundColor: '#86EFAC',
+    backgroundColor: semanticTint.success,
   },
   modalSaveText: {
     fontSize: ms(14),
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontWeight: '600',
+    color: neutral.card,
   },
 });

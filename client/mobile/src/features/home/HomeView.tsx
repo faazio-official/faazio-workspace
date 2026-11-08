@@ -208,7 +208,7 @@ export default function HomeView({
 const styles = StyleSheet.create({
   list: {
     flex: 1,
-    backgroundColor: '#f1f5f9',
+    backgroundColor: neutral.surfaceAlt,
   },
   content: {
     paddingBottom: SPACE.LIST_BOTTOM,
@@ -220,7 +220,7 @@ const styles = StyleSheet.create({
   },
   emptyTitle: {
     fontSize: ms(16),
-    fontWeight: '700',
+    fontWeight: '600',
     color: neutral.ink,
     textAlign: 'center',
   },
@@ -235,11 +235,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(18),
     paddingVertical: vs(10),
     borderRadius: ms(999),
-    backgroundColor: brandRamp.MART.base,
+    backgroundColor: brandRamp.MART.deep,
   },
   retryText: {
     fontSize: ms(13),
-    fontWeight: '700',
-    color: '#ffffff',
+    fontWeight: '600',
+    color: brandRamp.MART.onDeep,
   },
 });

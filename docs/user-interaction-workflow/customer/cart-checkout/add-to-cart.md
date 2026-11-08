@@ -6,7 +6,10 @@
 
 ## Steps
 
-1. The card/PDP calls `useCartStore.addToCart(id, name, price, emoji, restaurantId?)`.
+1. The card/PDP calls `useCartStore.addToCart(id, name, price, iconKey, restaurantId?)`. The fourth
+   argument is a semantic `EnterpriseIcon` key (`dining`, `pharma`, `mart`, …) for screen-sourced
+   items; server/catalog products still pass their legacy emoji, which `EnterpriseIcon` resolves
+   through its alias table.
 2. The store optimistically updates the visible cart.
 3. It awaits `gateway.addToCart(productId, qty)` (`POST /cart/items`) or
    `gateway.updateCartItem(productId, qty)` (`PUT /cart/items`) for an existing line.
