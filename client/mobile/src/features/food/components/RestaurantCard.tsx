@@ -1,8 +1,9 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import Animated, { useSharedValue, useAnimatedStyle, withSpring } from 'react-native-reanimated';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { MapPin } from 'lucide-react-native';
 import { hs, ms, vs } from '@/utils/responsive';
+import { DURATION, EASE_ENTRANCE, SCALE } from '@/theme/motion';
 import AppText from '@/components/AppText';
 import { foodTheme } from '../constants/theme';
 import type { FoodRestaurant } from '../mocks/types';
@@ -27,10 +28,10 @@ const RestaurantCard = memo(function RestaurantCard({ restaurant, onPress }: Res
   }));
 
   const onPressIn = () => {
-    scale.value = withSpring(0.98, { damping: 22, stiffness: 320 });
+    scale.value = withTiming(SCALE.press, { duration: DURATION.press, easing: EASE_ENTRANCE });
   };
   const onPressOut = () => {
-    scale.value = withSpring(1, { damping: 18, stiffness: 280 });
+    scale.value = withTiming(1, { duration: DURATION.press, easing: EASE_ENTRANCE });
   };
 
   return (

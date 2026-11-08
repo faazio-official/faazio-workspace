@@ -61,9 +61,22 @@ export function can(role: Role | undefined, capability: Capability): boolean {
 }
 
 export function homeFor(role: Role): string {
-  if (role === "SELLER") return "/seller";
+  if (role === "SELLER") return "/seller/orders";
   if (role === "DISTRICT_ADMIN") return "/admin/district";
   return "/admin/super";
+}
+
+/**
+ * Default landing route for the current console, used by error/not-found boundaries that render
+ * outside the authenticated shell (where no role may be known). Mirrors `homeFor` per area so
+ * "Go home" never dumps a seller on the public landing page.
+ */
+export function homeForPath(pathname: string): string {
+  if (pathname === "/seller" || pathname.startsWith("/seller/")) return homeFor("SELLER");
+  if (pathname === "/admin/district" || pathname.startsWith("/admin/district/"))
+    return homeFor("DISTRICT_ADMIN");
+  if (pathname === "/admin/super" || pathname.startsWith("/admin/super/")) return homeFor("SUPER_ADMIN");
+  return "/";
 }
 
 export const ROLE_LABEL: Record<Role, string> = {

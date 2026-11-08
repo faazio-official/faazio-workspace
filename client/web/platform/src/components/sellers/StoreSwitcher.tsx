@@ -5,7 +5,9 @@
 // shop and persists the choice to localStorage (Zustand persist).
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
 import { cn } from "@/lib/utils";
+import { DURATION, EASE } from "@/lib/motion";
 import { useActiveStore } from "@/lib/api/hooks";
 import { SectorBadge } from "@/components/sellers/kit";
 
@@ -41,7 +43,7 @@ export function StoreSwitcher({
         aria-expanded={open}
         aria-label="Switch shop"
         onClick={() => setOpen((v) => !v)}
-        className="flex min-w-0 items-center gap-1 text-left"
+        className="flex w-full min-w-0 items-center gap-1 text-left"
       >
         <span className="min-w-0 flex-1">
           {caption && (
@@ -56,14 +58,20 @@ export function StoreSwitcher({
         />
       </button>
 
-      {open && (
-        <div
-          role="listbox"
-          className={cn(
-            "absolute z-50 mt-2 w-72 max-w-[calc(100vw-1rem)] rounded-2xl border border-border bg-card p-2 shadow-lg",
-            align === "end" ? "right-0" : "left-0",
-          )}
-        >
+      <AnimatePresence>
+        {open ? (
+          <m.div
+            role="listbox"
+            className={cn(
+              "absolute z-50 mt-2 w-72 max-w-[calc(100vw-1rem)] rounded-2xl border border-border bg-card p-2 shadow-lg",
+              align === "end" ? "right-0" : "left-0",
+            )}
+            style={{ transformOrigin: align === "end" ? "top right" : "top left" }}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.95, transition: { duration: DURATION.exit, ease: EASE.entrance } }}
+            transition={{ duration: DURATION.menu, ease: EASE.entrance }}
+          >
           <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             Switch shop
           </p>
@@ -110,8 +118,9 @@ export function StoreSwitcher({
               No shops yet — add one from Stores
             </p>
           )}
-        </div>
-      )}
+          </m.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,7 +1,9 @@
 import { useState } from "react";
 import { HiArrowDownTray, HiBars3 as Menu, HiXMark as X } from "react-icons/hi2";
+import { AnimatePresence, motion } from "motion/react";
 import { FaazioLogo } from "@/components/faazio-logo";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { DURATION, EASE } from "@/lib/motion";
 
 const navLinks = [
   { label: "About", href: "/about" },
@@ -53,22 +55,38 @@ export function SiteHeader() {
           </button>
         </div>
       </nav>
-      {menuOpen && (
-        <nav id="mobile-navigation" aria-label="Mobile navigation" className="mobile-menu">
-          {navLinks.map((link) => (
-            <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>
-              {link.label}
+      <AnimatePresence>
+        {menuOpen ? (
+          <motion.nav
+            id="mobile-navigation"
+            aria-label="Mobile navigation"
+            className="mobile-menu"
+            style={{ transformOrigin: "top right" }}
+            initial={{ opacity: 0, y: -8, scaleY: 0.96 }}
+            animate={{ opacity: 1, y: 0, scaleY: 1 }}
+            exit={{
+              opacity: 0,
+              y: -8,
+              scaleY: 0.96,
+              transition: { duration: DURATION.exit, ease: EASE.entrance },
+            }}
+            transition={{ duration: DURATION.enter, ease: EASE.entrance }}
+          >
+            {navLinks.map((link) => (
+              <a key={link.href} href={link.href} onClick={() => setMenuOpen(false)}>
+                {link.label}
+              </a>
+            ))}
+            <a href="/download" onClick={() => setMenuOpen(false)}>
+              Get the app
             </a>
-          ))}
-          <a href="/download" onClick={() => setMenuOpen(false)}>
-            Get the app
-          </a>
-          <div className="mobile-menu-theme">
-            <span>Theme</span>
-            <ThemeToggle />
-          </div>
-        </nav>
-      )}
+            <div className="mobile-menu-theme">
+              <span>Theme</span>
+              <ThemeToggle />
+            </div>
+          </motion.nav>
+        ) : null}
+      </AnimatePresence>
     </header>
   );
 }

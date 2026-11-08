@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MotionConfig } from "motion/react";
 import {
   LEGAL_EFFECTIVE_DATE,
   PolicyList,
@@ -158,7 +157,7 @@ const refundSections: PolicySection[] = [
 
 function RefundPolicy() {
   return (
-    <MotionConfig reducedMotion="user">
+    <>
       <SiteHeader />
       <main id="main">
         <section className="page-hero" aria-labelledby="refunds-title">
@@ -198,6 +197,6 @@ function RefundPolicy() {
         </section>
       </main>
       <SiteFooter />
-    </MotionConfig>
+    </>
   );
 }

@@ -94,6 +94,7 @@ export function OnboardingScreen({ navigation }: Props) {
   const reduceMotion = useReducedMotion();
 
   const slideAnim = useRef(new Animated.Value(0)).current;
+  const arcAnim = useRef(new Animated.Value(0)).current;
   const opacityAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -106,23 +107,39 @@ export function OnboardingScreen({ navigation }: Props) {
     // Reduce Motion removes the slide but keeps a short cross-fade, so the
     // content still changes legibly instead of popping in.
     slideAnim.setValue(reduceMotion ? 0 : offset);
+    arcAnim.setValue(0);
     opacityAnim.setValue(0);
 
     Animated.parallel([
       Animated.timing(slideAnim, {
         toValue: 0,
-        duration: reduceMotion ? 0 : DURATION.base,
+        duration: reduceMotion ? 0 : DURATION.enter,
         easing: EASING,
         useNativeDriver: true,
       }),
+      // The step travels on an arc: x eases across while y bows up and settles.
+      Animated.sequence([
+        Animated.timing(arcAnim, {
+          toValue: 1,
+          duration: reduceMotion ? 0 : DURATION.enter / 2,
+          easing: EASING,
+          useNativeDriver: true,
+        }),
+        Animated.timing(arcAnim, {
+          toValue: 0,
+          duration: reduceMotion ? 0 : DURATION.enter / 2,
+          easing: EASING,
+          useNativeDriver: true,
+        }),
+      ]),
       Animated.timing(opacityAnim, {
         toValue: 1,
-        duration: reduceMotion ? DURATION.fast : DURATION.base,
+        duration: reduceMotion ? DURATION.fast : DURATION.enter,
         easing: EASING,
         useNativeDriver: true,
       }),
     ]).start();
-  }, [currentStep, reduceMotion, slideAnim, opacityAnim]);
+  }, [currentStep, reduceMotion, slideAnim, arcAnim, opacityAnim]);
 
   const handleNext = () => {
     if (currentStep < ONBOARDING_DATA.length - 1) {
@@ -156,7 +173,12 @@ export function OnboardingScreen({ navigation }: Props) {
         styles.animatedWrapper,
         {
           opacity: opacityAnim,
-          transform: [{ translateX: slideAnim }],
+          transform: [
+            { translateX: slideAnim },
+            {
+              translateY: arcAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 10] }),
+            },
+          ],
         },
       ]}
     >

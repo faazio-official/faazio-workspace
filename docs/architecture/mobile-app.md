@@ -797,8 +797,8 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── Dashboard    — Go Online toggle (PUT /delivery/availability), Valkey heartbeat every 120 s
 │                  (foreground + Android foreground service headless task + iOS background watch),
 │                  45 s offer cards, active multi-stop jobs, Earnings link
-├── AcceptReject — deep-link/push offer: store/customer, payout, route context, 45 s countdown,
-│                  Accept / Reject (expiry = implicit reject) → Route
+├── AcceptReject — deep-link/push offer or a Dashboard offer card: store/customer, payout, route
+│                  context, 45 s countdown, Accept / Reject (expiry = implicit reject) → Route
 ├── Route        — one merged route across all ACCEPTED jobs: stops sorted by the server's global
 │                  sequence, one polyline, Arrived/Picked Up/Delivered transitions. **Pickup QR
 │                  gate (`0088`):** at a PICKUP stop the rider taps "Scan seller QR & pick up",
@@ -1058,7 +1058,13 @@ Shared, token-based primitives introduced by the UI-craft pass, all under `src/t
   `EnterpriseIcon` is keyed by semantic strings (`mart`, `food`, `pharma`, `dining`, `dairy`, …)
   and resolves legacy `@data/*`/server emoji through an escaped alias table, so no emoji glyph is
   rendered or stored in source.
-- `theme/motion.ts` — one easing curve + durations; `hooks/useReducedMotion.ts` gates animation.
+- `theme/motion.ts` — the motion contract (docs/UI_DESIGN_SYSTEM.md §3 Pass 9): two curves
+  (`EASE_ENTRANCE` ease-out for arrivals, `EASE_MOVE` ease-in-out for on-screen movement),
+  semantic durations (`press 120`, `menu 180`, `enter 240`, `exit 192` = 80% of enter, `move 280`),
+  `STAGGER 30`, `SCALE` (`press 0.97`, `popover 0.95`, `knob 1.12`), and critically damped `SPRING`
+  for drag only. Shared primitives: `components/shared/PressableScale`, `SlideUpSheet` (token
+  enter/exit, clamped swipe-to-dismiss), `SuccessPulse`, `AnimatedIconSwap`;
+  `hooks/useReducedMotion.ts` gates animation.
 - `components/Button.tsx` and `components/AppText.tsx` (`variant`/`tone`/`weight` props).
 - `scripts/check-ui.mjs` (`npm run check:ui`) — a ratchet baseline (`.ui-baseline.json`) that
   fails when hardcoded hex literals, sub-11pt type, 700–900 weights or emoji counts regress.

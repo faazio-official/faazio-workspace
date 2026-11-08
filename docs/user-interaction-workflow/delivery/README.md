@@ -4,7 +4,7 @@
 **Entry:** `client/mobile/index.delivery.js` → `src/DeliveryPartnerApp.tsx` →
 `src/features/delivery-partner/DeliveryPartnerNavigator.tsx`
 **Routes:** `PhoneEntry`, `OtpVerify`, `Register`, `SubmissionSuccess`, `Dashboard`,
-`AcceptReject` (modal, opened by push/deep link), `Route`, `Payouts`
+`AcceptReject` (modal, opened by push/deep link or a `Dashboard` offer card), `Route`, `Payouts`
 **Auth:** Firebase phone OTP (shared with the customer app) + rider application status.
 **Data:** `GatewayClient` delivery methods only; no fixtures as live data.
 
@@ -32,10 +32,9 @@
 
 ## Known gaps
 
-See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Delivery-specific gaps: `AcceptReject` is not navigated
-from any screen (push/deep link only); iOS force-quit background limits are documented in
-`client/mobile/PENDING_WORK.md`. OTP handover is enabled (COD/UPI checkout orders) and delivered
-through the notifications outbox.
+See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Delivery-specific gaps: iOS force-quit background limits
+are documented in `client/mobile/PENDING_WORK.md`. OTP handover is enabled (COD/UPI checkout orders)
+and delivered through the notifications outbox.
 
 ## Linked docs
 

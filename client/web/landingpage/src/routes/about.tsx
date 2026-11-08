@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MotionConfig } from "motion/react";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { seoHead } from "@/lib/seo";
@@ -17,7 +16,7 @@ export const Route = createFileRoute("/about")({
 
 function About() {
   return (
-    <MotionConfig reducedMotion="user">
+    <>
       <SiteHeader />
       <main id="main">
         <section className="page-hero" aria-labelledby="about-title">
@@ -59,6 +58,6 @@ function About() {
         </section>
       </main>
       <SiteFooter />
-    </MotionConfig>
+    </>
   );
 }

@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/lib/hooks/useTheme";
+import { MotionProvider } from "@/components/motion/MotionProvider";
 import { SeedModeBanner } from "@/components/patterns/SeedModeBanner";
 import { OfflineGuard } from "@/components/layout/OfflineGuard";
 import { restoreSession } from "@/lib/api";
@@ -58,17 +59,19 @@ export function Providers({ children }: { children: ReactNode }) {
   }, []);
 
   return (
-    <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        <TooltipProvider delayDuration={120}>
-          <OfflineGuard>{children}</OfflineGuard>
-        </TooltipProvider>
-        <SeedModeBanner />
-        {/* On phones the sticky seller headers sit at the top with a safe-area
-            inset; push toasts below them so they never cover the header or the
-            notch. Desktop keeps the compact 16px edge offset. */}
-        <Toaster position="top-right" mobileOffset={{ top: "calc(env(safe-area-inset-top) + 4rem)" }} />
-      </QueryClientProvider>
-    </ThemeProvider>
+    <MotionProvider>
+      <ThemeProvider>
+        <QueryClientProvider client={queryClient}>
+          <TooltipProvider delayDuration={120}>
+            <OfflineGuard>{children}</OfflineGuard>
+          </TooltipProvider>
+          <SeedModeBanner />
+          {/* On phones the sticky seller headers sit at the top with a safe-area
+              inset; push toasts below them so they never cover the header or the
+              notch. Desktop keeps the compact 16px edge offset. */}
+          <Toaster position="top-right" mobileOffset={{ top: "calc(env(safe-area-inset-top) + 4rem)" }} />
+        </QueryClientProvider>
+      </ThemeProvider>
+    </MotionProvider>
   );
 }

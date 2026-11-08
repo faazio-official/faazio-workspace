@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MotionConfig } from "motion/react";
 import {
   LEGAL_EFFECTIVE_DATE,
   PolicyList,
@@ -144,7 +143,7 @@ const cookieSections: PolicySection[] = [
 
 function CookiePolicy() {
   return (
-    <MotionConfig reducedMotion="user">
+    <>
       <SiteHeader />
       <main id="main">
         <section className="page-hero" aria-labelledby="cookies-title">
@@ -182,6 +181,6 @@ function CookiePolicy() {
         </section>
       </main>
       <SiteFooter />
-    </MotionConfig>
+    </>
   );
 }

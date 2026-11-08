@@ -51,7 +51,6 @@ while the WebView owns the session.
 
 | Gap | Evidence | Impact |
 |---|---|---|
-| Offer modal is not navigated from a screen | `AcceptReject` is registered in `DeliveryPartnerNavigator.tsx:43` but no screen calls `navigate('AcceptReject')` | Offers arrive only via push/deep link |
 | iOS background limits | Documented in `client/mobile/PENDING_WORK.md` | Force-quit/background location is best-effort (see `delivery/availability/index.md`) |
 | Multi-vendor orders are not auto-dispatched | `docs/architecture/server-gateway-plan.md:340-342` | Orders spanning >1 store need manual allocation |
 

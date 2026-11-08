@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MotionConfig } from "motion/react";
 import {
   HiMapPin as MapPin,
   HiBeaker as Pill,
@@ -44,7 +43,7 @@ export const Route = createFileRoute("/karaikal")({
 
 function Karaikal() {
   return (
-    <MotionConfig reducedMotion="user">
+    <>
       <SiteHeader />
       <main id="main">
         <section className="page-hero" aria-labelledby="karaikal-title">
@@ -92,6 +91,6 @@ function Karaikal() {
         </section>
       </main>
       <SiteFooter />
-    </MotionConfig>
+    </>
   );
 }

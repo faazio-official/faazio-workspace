@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MotionConfig } from "motion/react";
 import {
   LEGAL_EFFECTIVE_DATE,
   PolicyList,
@@ -139,7 +138,7 @@ const disclaimerSections: PolicySection[] = [
 
 function Disclaimer() {
   return (
-    <MotionConfig reducedMotion="user">
+    <>
       <SiteHeader />
       <main id="main">
         <section className="page-hero" aria-labelledby="disclaimer-title">
@@ -181,6 +180,6 @@ function Disclaimer() {
         </section>
       </main>
       <SiteFooter />
-    </MotionConfig>
+    </>
   );
 }

@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MotionConfig } from "motion/react";
 import {
   LEGAL_EFFECTIVE_DATE,
   PolicyList,
@@ -351,7 +350,7 @@ const termsSections: PolicySection[] = [
 
 function TermsAndConditions() {
   return (
-    <MotionConfig reducedMotion="user">
+    <>
       <SiteHeader />
       <main id="main">
         <section className="page-hero" aria-labelledby="terms-title">
@@ -391,6 +390,6 @@ function TermsAndConditions() {
         </section>
       </main>
       <SiteFooter />
-    </MotionConfig>
+    </>
   );
 }

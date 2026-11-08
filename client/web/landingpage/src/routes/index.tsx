@@ -10,7 +10,7 @@ import {
   HiBuildingStorefront as Store,
 } from "react-icons/hi2";
 import { PiForkKnifeFill as UtensilsCrossed } from "react-icons/pi";
-import { motion, MotionConfig } from "motion/react";
+import { motion } from "motion/react";
 import { DownloadButton } from "@/components/download-button";
 import {
   Dialog,
@@ -23,6 +23,7 @@ import { FaazioCommunity } from "@/components/faazio-community";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { seoHead } from "@/lib/seo";
+import { DURATION, EASE, STAGGER } from "@/lib/motion";
 import heroImage from "@/assets/faazio-daily.jpg";
 import martImage from "@/assets/mart.jpg";
 import foodImage from "@/assets/food.jpg";
@@ -120,7 +121,7 @@ function Index() {
     action === "download" || action === "donor" || action === "partner" ? dialogCopy[action] : null;
 
   return (
-    <MotionConfig reducedMotion="user">
+    <>
       <SiteHeader />
       <main id="main">
         {/* Hero: a scene. The photograph carries the colour; the type sits in
@@ -139,7 +140,7 @@ function Index() {
             className="page-width hero-inner"
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+            transition={{ duration: DURATION.enter, ease: EASE.entrance }}
           >
             <div className="hero-copy">
               <p className="eyebrow">Karaikal · Mart, Food and Pharma</p>
@@ -212,7 +213,7 @@ function Index() {
                   initial={{ opacity: 0, y: 20 }}
                   whileInView={{ opacity: 1, y: 0 }}
                   viewport={{ once: true, amount: 0.2 }}
-                  transition={{ duration: 0.45, delay: index * 0.06 }}
+                  transition={{ duration: DURATION.enter, delay: index * STAGGER, ease: EASE.entrance }}
                 >
                   <div className="sector-media">
                     <img
@@ -284,6 +285,6 @@ function Index() {
           )}
         </DialogContent>
       </Dialog>
-    </MotionConfig>
+    </>
   );
 }

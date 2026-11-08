@@ -24,6 +24,10 @@
 | `PAYMENT_STATUS` | UPI return/poll | `fetchPaymentStatus` |
 | `RECEIPT` | Order confirmation + track action | `useOrdersStore`; "Track My Order" navigates to `MyOrders` |
 
+**Motion:** fulfilment/payment sheets use the shared `SlideUpSheet` — enter on the entrance curve,
+leave ~20% faster, and drag the grab handle down to dismiss (translation clamps to its bounds).
+The receipt success uses a single pulse, not a loop.
+
 ## State
 
 - `useCartStore` — server-authoritative cart with optimistic writes and rollback.

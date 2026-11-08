@@ -9,8 +9,10 @@ import {
   type ErrorComponentProps,
 } from "@tanstack/react-router";
 import { type ReactNode } from "react";
+import { MotionConfig } from "motion/react";
 
 import appCss from "../styles.css?url";
+import { DURATION, EASE } from "../lib/motion";
 import { DEFAULT_OG_IMAGE, OG_IMAGE_HEIGHT, OG_IMAGE_WIDTH, SITE_NAME } from "../lib/site";
 import { ThemeProvider } from "../lib/hooks/useTheme";
 import { themeInitScript } from "../lib/theme";
@@ -129,10 +131,17 @@ function RootComponent() {
 
   return (
     <ThemeProvider>
-      <QueryClientProvider client={queryClient}>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-      </QueryClientProvider>
+      {/* One motion provider for every route. `reducedMotion="user"` follows the
+          OS setting; the default transition is the entrance curve. */}
+      <MotionConfig
+        reducedMotion="user"
+        transition={{ duration: DURATION.enter, ease: EASE.entrance }}
+      >
+        <QueryClientProvider client={queryClient}>
+          {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+          <Outlet />
+        </QueryClientProvider>
+      </MotionConfig>
     </ThemeProvider>
   );
 }

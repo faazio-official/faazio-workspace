@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MotionConfig } from "motion/react";
 import { HiArrowRight as ArrowRight } from "react-icons/hi2";
 import { PiForkKnifeFill as UtensilsCrossed } from "react-icons/pi";
 import { HiBeaker as Pill, HiBuildingStorefront as Store } from "react-icons/hi2";
@@ -38,7 +37,7 @@ const partnerTypes = [
 
 function Partners() {
   return (
-    <MotionConfig reducedMotion="user">
+    <>
       <SiteHeader />
       <main id="main">
         <section className="page-hero" aria-labelledby="partner-title">
@@ -97,6 +96,6 @@ function Partners() {
         </section>
       </main>
       <SiteFooter />
-    </MotionConfig>
+    </>
   );
 }

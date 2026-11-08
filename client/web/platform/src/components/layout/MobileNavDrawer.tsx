@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useRef, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import Link from "next/link";
 import { ArrowLeft, X } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
 import { activeNavHref, normalizeNavPath, type NavItem } from "@/components/layout/nav";
 import { Button } from "@/components/ui/button";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { cn } from "@/lib/utils";
+import { DURATION, EASE } from "@/lib/motion";
 import type { AuthUser } from "@/data/types";
 
 export function MobileNavDrawer({
@@ -80,27 +82,39 @@ export function MobileNavDrawer({
     }
   }
 
-  if (!open) return null;
-
   return (
-    <div
-      className="fixed inset-0 z-40 lg:hidden"
-      role="dialog"
-      aria-modal="true"
-      aria-label={`${scopeLabel} navigation`}
-    >
-      <button
-        type="button"
-        aria-label="Close menu"
-        className="absolute inset-0 bg-overlay"
-        onClick={onClose}
-      />
-      <div
-        ref={panelRef}
-        id="mobile-nav-drawer"
-        className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col border-r border-sidebar-border bg-sidebar shadow-xl"
-        onKeyDown={onPanelKeyDown}
-      >
+    <AnimatePresence>
+      {open ? (
+        <m.div
+          className="fixed inset-0 z-40 lg:hidden"
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${scopeLabel} navigation`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0, transition: { duration: DURATION.exit, ease: EASE.entrance } }}
+          transition={{ duration: DURATION.press, ease: EASE.entrance }}
+        >
+          <m.button
+            type="button"
+            aria-label="Close menu"
+            className="absolute inset-0 bg-overlay"
+            onClick={onClose}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0, transition: { duration: DURATION.exit, ease: EASE.entrance } }}
+            transition={{ duration: DURATION.press, ease: EASE.entrance }}
+          />
+          <m.div
+            ref={panelRef}
+            id="mobile-nav-drawer"
+            className="absolute inset-y-0 left-0 flex w-72 max-w-[85%] flex-col border-r border-sidebar-border bg-sidebar shadow-xl"
+            onKeyDown={onPanelKeyDown}
+            initial={{ x: "-100%" }}
+            animate={{ x: 0 }}
+            exit={{ x: "-100%", transition: { duration: DURATION.exit, ease: EASE.entrance } }}
+            transition={{ duration: DURATION.enter, ease: EASE.entrance }}
+          >
         <div className="flex h-14 items-center gap-2 border-b border-border px-3">
           <div className="min-w-0">
             <FaazioWordmark className="brand-wordmark text-primary" />
@@ -162,7 +176,9 @@ export function MobileNavDrawer({
             </div>
           ))}
         </nav>
-      </div>
-    </div>
+          </m.div>
+        </m.div>
+      ) : null}
+    </AnimatePresence>
   );
 }

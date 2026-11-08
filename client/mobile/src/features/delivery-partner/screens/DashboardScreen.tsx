@@ -388,6 +388,19 @@ export function DashboardScreen({ navigation }: Props) {
                       <AppText style={styles.rejectText}>Reject</AppText>
                     </TouchableOpacity>
                   </View>
+                  <TouchableOpacity
+                    accessibilityRole="button"
+                    accessibilityLabel="View full offer details"
+                    onPress={() =>
+                      navigation.navigate('AcceptReject', {
+                        orderId: order.orderId,
+                        ...(order.expiresAt ? { expiresAt: order.expiresAt } : {}),
+                      })
+                    }
+                    style={styles.offerLink}
+                  >
+                    <AppText style={styles.open}>View full offer →</AppText>
+                  </TouchableOpacity>
                 </Card>
               );
             })}
@@ -470,6 +483,7 @@ const styles = StyleSheet.create({
   rejectText: { fontSize: ms(12), fontWeight: '900', color: DP.danger, textTransform: 'uppercase' },
   empty: { fontSize: ms(13), color: DP.muted, lineHeight: ms(19) },
   badge: { fontSize: ms(11), fontWeight: '900', color: DP.brand },
+  offerLink: { marginTop: vs(2) },
   open: { fontSize: ms(12), fontWeight: '900', color: DP.brand, marginTop: vs(8) },
   paymentTag: { fontSize: ms(11), fontWeight: '800', color: DP.warning, marginTop: vs(4) },
   linkWrap: { alignItems: 'center', marginTop: vs(18) },

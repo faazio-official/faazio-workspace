@@ -152,6 +152,11 @@ Shipped (first pass):
 - Foundations: `theme/tokens.ts`, `theme/motion.ts`, `useReducedMotion`, `components/Button.tsx`,
   shared `AppText` variants; `scripts/check-ui.mjs` + `.ui-baseline.json` (`npm run check:ui`)
   wired into the mobile CI checks.
+- Motion pass (`docs/UI_DESIGN_SYSTEM.md` §3 Pass 9): `theme/motion.ts` extended to two curves
+  (ease-out entrances, ease-in-out movement) + semantic durations, `STAGGER 30` and `SCALE`;
+  shared `PressableScale` (0.97, timed, no spring), `SuccessPulse`, `AnimatedIconSwap`;
+  `SlideUpSheet` token enter/exit + clamped swipe-to-dismiss; `Button`/restaurant rows scale
+  instead of spring; onboarding steps travel on an arc; cart empty-state loop removed.
 - Onboarding/Language/Login/Location: reduce-motion cross-fade, returning-user onboarding gate,
   country-code picker (E.164), resend cooldown, inline send errors, sentence-case labels.
 - Home: brand-stop gradient with no decoration, 44pt sector cards, stable seeded rails, shared

@@ -1,5 +1,4 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { MotionConfig } from "motion/react";
 import { HiArrowUpRight as ArrowUpRight, HiDevicePhoneMobile as Smartphone } from "react-icons/hi2";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -29,7 +28,7 @@ export const Route = createFileRoute("/download")({
 
 function Download() {
   return (
-    <MotionConfig reducedMotion="user">
+    <>
       <SiteHeader />
       <main id="main">
         <section className="page-hero" aria-labelledby="download-title">
@@ -76,6 +75,6 @@ function Download() {
         </section>
       </main>
       <SiteFooter />
-    </MotionConfig>
+    </>
   );
 }

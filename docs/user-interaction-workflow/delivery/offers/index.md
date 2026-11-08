@@ -1,9 +1,10 @@
 # Delivery offers — domain index
 
-**Status:** Partial (offer accept/reject modal is reachable only by push/deep link, not from an
-in-app screen)
-**Routes:** `AcceptReject` (modal, push/deep link), `Route` (`RouteScreen.tsx`), `Dashboard`
-**Trigger:** Push/deep link for a new offer, or the dashboard's active list.
+**Status:** Complete
+**Routes:** `AcceptReject` (modal, push/deep link or a Dashboard offer card), `Route`
+(`RouteScreen.tsx`), `Dashboard`
+**Trigger:** Push/deep link for a new offer, the **View full offer →** link on a `Dashboard` offer
+card, or the dashboard's active list.
 
 ## Flows
 
@@ -32,8 +33,8 @@ in-app screen)
 
 ## Known gaps
 
-- `AcceptReject` is not navigated from any screen; it is opened only by
-  `services/deliveryLinks.ts` (push/deep link). See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- None for offer accept/reject: `AcceptReject` is opened by `services/deliveryLinks.ts`
+  (push/deep link) and by the **View full offer →** link on a `Dashboard` offer card.
 
 ## Linked docs
 

@@ -1,8 +1,10 @@
 "use client";
 
 import { Monitor, Moon, Sun } from "lucide-react";
+import { AnimatePresence, m } from "motion/react";
 import { cn } from "@/lib/utils";
 import { useTheme } from "@/lib/hooks/useTheme";
+import { DURATION, EASE } from "@/lib/motion";
 import { THEME_OPTIONS, type ThemePreference } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,14 +58,21 @@ export function ThemeSegmentedControl({ className }: { className?: string }) {
             title={HINT[option]}
             onClick={() => setPreference(option)}
             className={cn(
-              "focus-ringed inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors",
-              active
-                ? "bg-card text-foreground shadow-[0_1px_2px_oklch(0_0_0/0.08)]"
-                : "text-muted-foreground hover:text-foreground",
+              "focus-ringed relative inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] font-medium transition-colors",
+              active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
             )}
           >
-            <Icon className="size-3.5 shrink-0" aria-hidden="true" />
-            {LABEL[option]}
+            {active ? (
+              <m.span
+                layoutId="theme-segment-active"
+                className="absolute inset-0 rounded-md bg-card shadow-[0_1px_2px_oklch(0_0_0/0.08)]"
+                transition={{ duration: DURATION.move, ease: EASE.move }}
+              />
+            ) : null}
+            <span className="relative z-10 inline-flex items-center gap-1.5">
+              <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+              {LABEL[option]}
+            </span>
           </button>
         );
       })}
@@ -89,7 +98,20 @@ export function ThemeMenu() {
           aria-label={`Theme: ${LABEL[preference]}`}
           title={`Theme: ${LABEL[preference]}`}
         >
-          <TriggerIcon className="size-4" />
+          <span className="relative size-4">
+            <AnimatePresence initial={false}>
+              <m.span
+                key={resolved}
+                className="absolute inset-0 inline-flex items-center justify-center"
+                initial={{ opacity: 0, scale: 0.85, filter: "blur(3px)" }}
+                animate={{ opacity: 1, scale: 1, filter: "blur(0px)" }}
+                exit={{ opacity: 0, scale: 0.85, filter: "blur(3px)" }}
+                transition={{ duration: DURATION.press, ease: EASE.entrance }}
+              >
+                <TriggerIcon className="size-4" />
+              </m.span>
+            </AnimatePresence>
+          </span>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-44">

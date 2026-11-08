@@ -1,6 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { homeForPath } from "@/lib/auth/permissions";
 
 export default function NotFound() {
+  const pathname = usePathname();
+  const home = homeForPath(pathname ?? "/");
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
@@ -11,7 +18,7 @@ export default function NotFound() {
         </p>
         <div className="mt-6">
           <Link
-            href="/"
+            href={home}
             className="inline-flex items-center justify-center rounded-md bg-primary px-4 py-2 text-sm font-medium text-primary-foreground transition-colors hover:bg-primary/90"
           >
             Go home

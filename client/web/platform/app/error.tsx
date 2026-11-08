@@ -1,8 +1,15 @@
 "use client";
 
 import { useEffect } from "react";
+import { usePathname } from "next/navigation";
+import { homeFor, homeForPath } from "@/lib/auth/permissions";
+import { useSession } from "@/lib/hooks/useSession";
 
 export default function Error({ error, reset }: { error: Error; reset: () => void }) {
+  const pathname = usePathname();
+  const session = useSession();
+  const home = session ? homeFor(session.role) : homeForPath(pathname ?? "/");
+
   useEffect(() => {
     console.error(error);
   }, [error]);
@@ -14,7 +21,7 @@ export default function Error({ error, reset }: { error: Error; reset: () => voi
           This page didn’t load
         </h1>
         <p className="mt-2 text-sm text-muted-foreground">
-          Something went wrong on our end. You can try refreshing or head back home.
+          Something went wrong on our end. You can try refreshing or head back to your dashboard.
         </p>
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <button
@@ -24,7 +31,7 @@ export default function Error({ error, reset }: { error: Error; reset: () => voi
             Try again
           </button>
           <a
-            href="/"
+            href={home}
             className="inline-flex items-center justify-center rounded-md border border-input bg-background px-4 py-2 text-sm font-medium text-foreground transition-colors hover:bg-accent"
           >
             Go home

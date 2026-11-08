@@ -24,7 +24,6 @@ import {
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { semantic } from '@/theme/brandTokens';
-import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
 import Checkbox from '@/components/shared/Checkbox';
@@ -289,23 +288,6 @@ export default function CartView({
     coinsEarned: number;
     coinsRedeemed: number;
   } | null>(null);
-
-  const reduceMotion = useReducedMotion();
-  const bounceAnim = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    if (reduceMotion) {
-      bounceAnim.setValue(0);
-      return;
-    }
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(bounceAnim, { toValue: 1, duration: 800, useNativeDriver: true }),
-        Animated.timing(bounceAnim, { toValue: 0, duration: 800, useNativeDriver: true }),
-      ])
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [bounceAnim, reduceMotion]);
 
   // The receipt status is static, so the "live" pulse was decoration. Keep a
   // steady dot instead of an endless loop (and no Reduce-Motion special case).
@@ -869,9 +851,9 @@ export default function CartView({
         >
           {cartItems.length === 0 ? (
             <View style={styles.bagEmpty}>
-              <Animated.View style={[styles.emptyIconCircle, { transform: [{ translateY: bounceAnim.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }) }] }]}>
+              <View style={styles.emptyIconCircle}>
                 <ShoppingBag size={ms(22)} color={neutral.inkSubtle} />
-              </Animated.View>
+              </View>
               <AppText style={styles.emptyTitle}>
                 {restaurantName ? `No items from ${restaurantName} yet` : 'Your cart is empty'}
               </AppText>

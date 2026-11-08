@@ -1,5 +1,6 @@
 import { motion, useReducedMotion } from "motion/react";
 import { HiArrowDownTray, HiArrowUpRight } from "react-icons/hi2";
+import { SCALE, TRANSITION } from "@/lib/motion";
 
 type DownloadButtonProps = { onClick: () => void; compact?: boolean };
 
@@ -13,8 +14,8 @@ export function DownloadButton({ onClick, compact = false }: DownloadButtonProps
     <motion.div
       className="download-control"
       whileHover={reduced ? {} : { y: -2 }}
-      whileTap={reduced ? {} : { scale: 0.985 }}
-      transition={{ duration: 0.15 }}
+      whileTap={reduced ? {} : { scale: SCALE.press }}
+      transition={TRANSITION.press}
     >
       <button
         type="button"

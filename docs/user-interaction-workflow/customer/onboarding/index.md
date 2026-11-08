@@ -23,6 +23,8 @@
 
 **State:** `useOnboardingStore` (`src/state/onboardingStore.ts`), persisted.
 **Data path:** none (local first-run flag only).
+**Motion:** each step enters on the entrance curve (240ms) and travels on a short arc
+(`OnboardingScreen`); Reduce Motion replaces the slide/arc with a short cross-fade.
 **Success:** `Login`. **Error:** none. **Empty:** not applicable.
 
 ## Language selection

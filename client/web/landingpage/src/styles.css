@@ -67,6 +67,11 @@
   --color-food: var(--food);
   --color-pharma: var(--pharma);
 
+  /* Motion curves (docs/UI_DESIGN_SYSTEM.md §3 Pass 9). Entrances ease out;
+   * on-screen movement eases in and out. Durations live in `:root` below. */
+  --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-move: cubic-bezier(0.65, 0, 0.35, 1);
+
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -405,7 +410,7 @@
 
 .nav-links a {
   color: var(--color-muted-foreground);
-  transition: color 0.15s ease;
+  transition: color var(--motion-press) var(--ease-entrance);
 }
 
 .nav-links a:hover {
@@ -485,8 +490,8 @@
   line-height: 1;
   cursor: pointer;
   transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
+    background-color var(--motion-press) var(--ease-entrance),
+    color var(--motion-press) var(--ease-entrance);
 }
 
 .theme-toggle-option svg {
@@ -791,8 +796,8 @@
   border-radius: 16px;
   background: var(--color-card);
   transition:
-    border-color 0.2s ease,
-    transform 0.2s ease;
+    border-color var(--motion-menu) var(--ease-entrance),
+    transform var(--motion-menu) var(--ease-entrance);
 }
 
 .sector:hover {
@@ -1383,9 +1388,16 @@
   white-space: nowrap;
   cursor: pointer;
   transition:
-    background-color 0.15s ease,
-    border-color 0.15s ease,
-    color 0.15s ease;
+    background-color var(--motion-press) var(--ease-entrance),
+    border-color var(--motion-press) var(--ease-entrance),
+    color var(--motion-press) var(--ease-entrance),
+    transform var(--motion-press) var(--ease-entrance);
+}
+
+/* Press feedback: controls scale to 0.97, timed (never spring-tweened). */
+.btn:active,
+.download-button:active {
+  transform: scale(0.97);
 }
 
 .btn svg {
@@ -1458,7 +1470,9 @@
   font-size: 0.9375rem;
   font-weight: 500;
   cursor: pointer;
-  transition: background-color 0.15s ease;
+  transition:
+    background-color var(--motion-press) var(--ease-entrance),
+    transform var(--motion-press) var(--ease-entrance);
 }
 
 .download-button:hover {
@@ -1593,6 +1607,58 @@
   margin-top: 4px;
   flex-shrink: 0;
   color: var(--color-brand-ink);
+}
+
+/* ── Motion tokens (docs/UI_DESIGN_SYSTEM.md §3 Pass 9) ─────────────────── */
+/* Exits are 20% shorter than entrances; dropdowns sit in the 150–250ms band.
+ * Springs are reserved for drag and never used for discrete UI. */
+:root {
+  --motion-press: 120ms;
+  --motion-menu: 180ms;
+  --motion-enter: 240ms;
+  --motion-exit: 192ms;
+  --motion-move: 280ms;
+  --motion-stagger: 30ms;
+}
+
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes popover-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+@keyframes success-pulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* Press feedback: controls scale to 0.97, timed (never spring-tweened). */
+.press-scale {
+  transition: transform var(--motion-press) var(--ease-entrance);
+}
+.press-scale:active {
+  transform: scale(0.97);
 }
 
 @media (prefers-reduced-motion: reduce) {

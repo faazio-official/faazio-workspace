@@ -25,6 +25,7 @@ import Svg, {
 } from 'react-native-svg';
 import { SCREEN_W, hs, vs, ms, wp, hp, DOME_RADIUS } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import PressableScale from '@/components/shared/PressableScale';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import phoneAuthBackgroundImg from '@/assets/phone_auth_background.webp';
@@ -74,19 +75,10 @@ function BrandGradient({ borderRadius = 0, diagonal = false, startOffset = '0%' 
 }
 
 function ScalePressable({ onPress, style, children, ...rest }: any) {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
   return (
-    <Pressable
-      onPress={onPress}
-      onPressIn={() => Animated.spring(scaleAnim, { toValue: 0.9, friction: 8, tension: 100, useNativeDriver: true }).start()}
-      onPressOut={() => Animated.spring(scaleAnim, { toValue: 1, friction: 8, tension: 100, useNativeDriver: true }).start()}
-      style={style}
-      {...rest}
-    >
-      <Animated.View style={{ transform: [{ scale: scaleAnim }] }}>
-        {children}
-      </Animated.View>
-    </Pressable>
+    <PressableScale onPress={onPress} style={style} {...rest}>
+      {children}
+    </PressableScale>
   );
 }
 

@@ -8,6 +8,7 @@ import {
 import { PiForkKnifeFill as UtensilsCrossed } from "react-icons/pi";
 import { motion } from "motion/react";
 import { DownloadButton } from "@/components/download-button";
+import { DURATION, EASE, STAGGER } from "@/lib/motion";
 import {
   Accordion,
   AccordionContent,
@@ -64,7 +65,7 @@ export function FaazioCommunity({ onAction }: Props) {
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.1 }}
-        transition={{ duration: 0.45 }}
+        transition={{ duration: DURATION.enter, ease: EASE.entrance }}
         className="section how"
         id="how-it-works"
         aria-labelledby="how-title"
@@ -97,7 +98,7 @@ export function FaazioCommunity({ onAction }: Props) {
                 initial={{ opacity: 0, x: 12 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.4, delay: index * 0.05 }}
+                transition={{ duration: DURATION.enter, delay: index * STAGGER, ease: EASE.entrance }}
               >
                 <span className="step-number" aria-hidden="true">
                   {step.number}
@@ -153,7 +154,7 @@ export function FaazioCommunity({ onAction }: Props) {
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.1 }}
-        transition={{ duration: 0.45 }}
+        transition={{ duration: DURATION.enter, ease: EASE.entrance }}
         id="community"
         className="donor"
         aria-labelledby="donor-title"
@@ -181,7 +182,7 @@ export function FaazioCommunity({ onAction }: Props) {
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.1 }}
-        transition={{ duration: 0.45 }}
+        transition={{ duration: DURATION.enter, ease: EASE.entrance }}
         id="partners"
         className="section"
         aria-labelledby="partner-title"
@@ -246,7 +247,7 @@ export function FaazioCommunity({ onAction }: Props) {
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.1 }}
-        transition={{ duration: 0.45 }}
+        transition={{ duration: DURATION.enter, ease: EASE.entrance }}
         id="download"
         className="download"
         aria-labelledby="download-title"
@@ -270,7 +271,7 @@ export function FaazioCommunity({ onAction }: Props) {
         initial={{ opacity: 0, y: 16 }}
         whileInView={{ opacity: 1, y: 0 }}
         viewport={{ once: true, amount: 0.1 }}
-        transition={{ duration: 0.45 }}
+        transition={{ duration: DURATION.enter, ease: EASE.entrance }}
         id="faq"
         className="section"
         aria-labelledby="faq-title"

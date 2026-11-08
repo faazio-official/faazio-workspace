@@ -31,14 +31,14 @@ export function Toggle({
         onChange(!checked);
       }}
       className={cn(
-        "relative h-6 w-10 shrink-0 rounded-full transition-colors",
+        "group relative h-6 w-10 shrink-0 rounded-full transition-colors",
         checked ? "bg-success" : "bg-border",
       )}
     >
       <span
         className={cn(
-          "absolute top-0.5 h-5 w-5 rounded-full bg-card shadow transition-all",
-          checked ? "left-[18px]" : "left-0.5",
+          "absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-card shadow transition-transform duration-[var(--motion-press)] ease-entrance group-active:scale-110",
+          checked ? "translate-x-[18px]" : "translate-x-0",
         )}
       />
     </button>
@@ -346,7 +346,7 @@ export function PrimaryButton({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "rounded-xl px-4 py-3 text-sm font-semibold transition-opacity disabled:opacity-40",
+        "rounded-xl px-4 py-3 text-sm font-semibold transition-[opacity,transform] duration-[var(--motion-press)] ease-entrance active:scale-[0.97] disabled:opacity-40",
         variant === "dark" && "bg-foreground text-background",
         variant === "outline" && "border border-border bg-card text-foreground",
         variant === "info" && "bg-info text-primary-foreground",

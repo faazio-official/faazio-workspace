@@ -1,7 +1,8 @@
 import React from 'react';
-import { ActivityIndicator, Pressable, StyleSheet, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import type { StyleProp, ViewStyle } from 'react-native';
 import AppText from '@/components/AppText';
+import PressableScale from '@/components/shared/PressableScale';
 import { neutral, parentRamp } from '@/theme/brandTokens';
 import { RADIUS, TOUCH } from '@/theme/tokens';
 
@@ -45,7 +46,7 @@ export function Button({
       : { background: 'transparent', text: neutral.inkMuted, border: 'transparent' };
 
   return (
-    <Pressable
+    <PressableScale
       onPress={onPress}
       disabled={inactive}
       accessibilityRole="button"
@@ -53,12 +54,12 @@ export function Button({
       accessibilityHint={accessibilityHint}
       accessibilityState={{ disabled: inactive, busy: loading }}
       testID={testID}
-      style={({ pressed }) => [
+      style={[
         styles.base,
         {
           backgroundColor: palette.background,
           borderColor: palette.border,
-          opacity: inactive ? 0.55 : pressed ? 0.85 : 1,
+          opacity: inactive ? 0.55 : 1,
         },
         fullWidth && styles.fullWidth,
         style,
@@ -74,7 +75,7 @@ export function Button({
           </AppText>
         </View>
       )}
-    </Pressable>
+    </PressableScale>
   );
 }
 

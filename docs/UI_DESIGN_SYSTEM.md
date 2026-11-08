@@ -265,21 +265,72 @@ and motion last (they should fit a screen that already works without them).
 
 ### Pass 9 — Motion
 
-- Remove motion that loops for no reason — `animate-pulse`, `animate-ping`,
-  breathing glows, shimmer on headings, floating elements, parallax.
-- Remove `transition-all`, bouncy springs, `hover:scale` on cards, and anything
-  that moves more than a few pixels on hover.
-- Keep motion that explains something: a hover is a quick colour or surface
-  change; a press is a tiny scale down; a menu fades and rises a few pixels from
-  where it opens; a changed number tweens.
-- Transition **colour, background, border, opacity and transform** — named
-  (`transition-colors`, `transition-[transform,opacity]`), never a catch-all.
-  Never animate width, height, top, left, margins or large blurs.
-- **One easing curve**, a few durations, across the whole screen:
-  `cubic-bezier(0.22, 1, 0.36, 1)`. 120–180ms for feedback, 160–220ms for menus,
-  300–500ms for entrances.
-- At most one entrance on load — a short fade and rise with a small stagger (40–
-  60ms, at most six items). Not every card flying in from a different side.
+Motion explains a change. It never decorates, loops, or makes people wait.
+
+**Two curves, one set of durations.** Entrances and on-screen movement are
+different jobs, so they use different curves — this supersedes the older
+"one curve" rule:
+
+| Curve | Value | Use |
+|---|---|---|
+| **Entrance** (ease-out) | `cubic-bezier(0.22, 1, 0.36, 1)` | anything arriving: popovers, sheets, rows, screens |
+| **Movement** (ease-in-out) | `cubic-bezier(0.65, 0, 0.35, 1)` | something already on screen that changes position or settles |
+
+- **Entrances ease out.** Popovers, sheets, menus, list rows and screen content
+  enter on the entrance curve.
+- **On-screen movement eases in and out.** A thing that is already visible and
+  moves, reflows, or settles uses the movement curve. Objects that travel follow
+  an **arc**, not a straight line (ease x and y differently, or use a curved
+  path).
+- **Dropdowns and popovers are 150–250ms** (use `menu = 180ms`). Feedback
+  (press, hover, colour) is 120–180ms. Entrances are 200–260ms (use
+  `enter = 240ms`).
+- **Exits are about 20% shorter than entrances** — `exit = enter × 0.8`
+  (192ms). Never reuse the entrance duration on the way out.
+- **Bring the new state in as the old state leaves.** Cross-fade or overlap the
+  two; never blank the surface between them.
+- **Stagger list rows by 30ms**, and stagger the same way when detail rows
+  settle. Cap the stagger to the first visible rows (about eight) so nothing
+  waits.
+- **Buttons scale to 0.97 on press.** It is a timed transform on the entrance
+  curve, not a spring, and it returns on release.
+- **A moving switch or slider thumb stretches by 12%** (`scale 1.12`) while it
+  is being dragged, and settles back to 1.
+- **Popovers start at scale 0.95.** They scale up from the **trigger**, not the
+  centre: `transform-origin` is the trigger. They exit back toward the trigger
+  — never fade into the centre.
+- **No spring bounds for everyday UI.** A press, a hover, a menu, a colour
+  change — all timed. Springs are reserved for drag and other interruptible
+  gestures, and even then they are critically damped so they do not overshoot.
+  **Do not tween a spring**, and do not tween a drag: gesture-driven motion
+  follows the finger.
+- **Respect drag bound boundaries.** Any drag clamps to its bounds with
+  rubber-band resistance; it never tears past the edge.
+- **Use masks for reveals and colour changes** — reveal with a clip/mask sweep
+  rather than a bare opacity fade, and cross-fade a colour change through a
+  mask.
+- **Cross-fade icons with scale and blur.** When an icon changes, the old one
+  leaves and the new one arrives with a small scale and blur, on the entrance
+  curve.
+- **Use a pulse to confirm success.** A single, short scale pulse on the
+  success mark or toast — not a loop.
+- **Reuse the same layout ID across sharedness.** When the same element appears
+  in two places, animate it with one shared layout identity (`layoutId`) so it
+  moves between them instead of cutting.
+
+**Never**
+
+- Loop motion for decoration — `animate-pulse` on things that are not live,
+  `animate-ping`, breathing glows, shimmer on headings, floating elements,
+  parallax.
+- `transition-all`, `hover:scale` on cards, or anything that moves more than a
+  few pixels on hover.
+- Animate width, height, top, left, margins, or large blurs.
+- More than one entrance on load; not every card flying in from a different
+  side.
+
+Transition **colour, background, border, opacity and transform** — named
+(`transition-colors`, `transition-[transform,opacity]`), never a catch-all.
 
 ---
 
@@ -322,8 +373,10 @@ glowing brains, circuit lines; text or fake buttons baked into an image; an
 image with a hard edge and a different black; a visual on every section.
 
 **Motion** — `animate-pulse` on things that are not live; `transition-all` and
-`hover:scale`; bouncy springs; everything flying in from different directions;
-animating width/height/top/left.
+`hover:scale`; bouncy springs on everyday UI; everything flying in from
+different directions; animating width/height/top/left; popovers that scale from
+the centre instead of the trigger; exits as long as (or longer than) entrances;
+staggers other than 30ms; drags that ignore their bounds.
 
 **Template look** (not slop, but what a cleaned screen falls back to when nobody
 decided) — pure grey page + Inter + white text + old brand on one button on a
@@ -638,8 +691,13 @@ colour pair rather than eyeballing it.
 - [ ] A hero has a real visual or a product preview with at least one moment —
       never filler, never a labelled placeholder
 - [ ] The first screen is composed as a whole with no dead empty band
-- [ ] No looping or bouncy motion; one easing curve; no animated layout
-      properties
+- [ ] No looping or bouncy motion; entrances ease out and movement eases in-out;
+      no animated layout properties
+- [ ] Menus are 150–250ms, exits ~20% shorter than entrances, rows stagger 30ms
+- [ ] Buttons scale to 0.97 on press; moving knobs stretch 12%
+- [ ] Popovers start at 0.95 from the trigger, in and out; new state enters as
+      the old leaves; icons cross-fade with scale and blur
+- [ ] No spring on everyday UI; drags clamp to their bounds
 - [ ] Both themes render correctly, and the browser chrome matches
 - [ ] **Template check:** swap the product name for another product's. Does the
       screen still fit? If yes, push the direction harder in the copy, the

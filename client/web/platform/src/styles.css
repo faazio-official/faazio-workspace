@@ -108,6 +108,11 @@
   --color-nav: var(--nav);
   --color-nav-foreground: var(--nav-foreground);
 
+  /* Motion curves (docs/UI_DESIGN_SYSTEM.md §3 Pass 9). Entrances ease out;
+   * on-screen movement eases in and out. Durations live in `:root` below. */
+  --ease-entrance: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-move: cubic-bezier(0.65, 0, 0.35, 1);
+
   --shadow-card: 0 1px 2px oklch(0.19 0.04 265 / 0.04);
   --shadow-lift: 0 8px 24px oklch(0.19 0.04 265 / 0.07);
 }
@@ -400,6 +405,19 @@
     display: none;
   }
 }
+/* ── Motion (docs/UI_DESIGN_SYSTEM.md §3 Pass 9) ─────────────────────────── */
+/* One token set for the whole console. Exits are 20% shorter than entrances;
+ * dropdowns sit in the 150–250ms band. Springs are reserved for drag and never
+ * used for discrete UI. */
+:root {
+  --motion-press: 120ms;
+  --motion-menu: 180ms;
+  --motion-enter: 240ms;
+  --motion-exit: 192ms;
+  --motion-move: 280ms;
+  --motion-stagger: 30ms;
+}
+
 @keyframes sheet-up {
   from {
     transform: translateY(100%);
@@ -416,9 +434,105 @@
     opacity: 1;
   }
 }
+@keyframes popover-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+@keyframes popover-out {
+  from {
+    opacity: 1;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+}
+@keyframes success-pulse {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.12);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
 @utility animate-sheet {
-  animation: sheet-up 0.25s ease-out;
+  animation: sheet-up var(--motion-enter) var(--ease-entrance);
 }
 @utility animate-fade {
-  animation: fade-in 0.2s ease-out;
+  animation: fade-in var(--motion-enter) var(--ease-entrance);
+}
+@utility animate-popover-in {
+  animation: popover-in var(--motion-menu) var(--ease-entrance);
+}
+@utility animate-popover-out {
+  animation: popover-out var(--motion-exit) var(--ease-entrance);
+}
+@utility animate-success-pulse {
+  animation: success-pulse 600ms var(--ease-move);
+}
+
+/* Press feedback: buttons scale to 0.97; a moving switch/slider thumb stretches
+ * by 12%. Both are timed (never spring-tweened). */
+@utility press-scale {
+  transition: transform var(--motion-press) var(--ease-entrance);
+  &:active {
+    transform: scale(0.97);
+  }
+}
+@utility knob-stretch {
+  transition: transform var(--motion-press) var(--ease-entrance);
+  &:active {
+    transform: scale(1.12);
+  }
+}
+
+/* Stagger the first visible rows by 30ms each (docs/UI_DESIGN_SYSTEM.md §3). */
+@utility stagger-rows {
+  & > * {
+    animation: fade-in var(--motion-enter) var(--ease-entrance) both;
+  }
+  & > *:nth-child(1) {
+    animation-delay: calc(0 * var(--motion-stagger));
+  }
+  & > *:nth-child(2) {
+    animation-delay: calc(1 * var(--motion-stagger));
+  }
+  & > *:nth-child(3) {
+    animation-delay: calc(2 * var(--motion-stagger));
+  }
+  & > *:nth-child(4) {
+    animation-delay: calc(3 * var(--motion-stagger));
+  }
+  & > *:nth-child(5) {
+    animation-delay: calc(4 * var(--motion-stagger));
+  }
+  & > *:nth-child(6) {
+    animation-delay: calc(5 * var(--motion-stagger));
+  }
+  & > *:nth-child(7) {
+    animation-delay: calc(6 * var(--motion-stagger));
+  }
+  & > *:nth-child(n + 8) {
+    animation-delay: calc(7 * var(--motion-stagger));
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

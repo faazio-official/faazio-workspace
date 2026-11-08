@@ -1,9 +1,10 @@
 # Delivery offer (accept / reject)
 
 **App / route:** delivery · `AcceptReject` (`features/delivery-partner/screens/AcceptRejectScreen.tsx`)
-**Status:** Partial (not reachable from any in-app screen; deep-link/push only)
+**Status:** Complete
 **Trigger:** Push notification or deep link with `orderId` + optional `expiresAt`
-(`services/deliveryLinks.ts`).
+(`services/deliveryLinks.ts`), or the **View full offer →** link on a `Dashboard` offer card
+(`DashboardScreen.tsx`, `navigate('AcceptReject', { orderId, expiresAt })`).
 
 ## Steps
 
@@ -37,8 +38,8 @@
 
 ## Known gaps
 
-- The route is not navigated from any screen; it is deep-link/push only. See
-  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- None. The screen is reachable from `Dashboard` offer cards (in addition to push/deep link), so a
+  rider who misses or denies the push can still open the full offer in-app.
 
 ## Linked docs
 

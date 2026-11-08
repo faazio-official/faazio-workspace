@@ -124,11 +124,21 @@ of `client/web/seller app vite reference` (restaurant partner app) — Figtree, 
 accent (unified with the console accent; see `docs/UI_DESIGN_SYSTEM.md` §5), softer
 success/info/warning tints, dark pill bottom nav, bottom Sheet interactions and inline SVG charts.
 The seller-only token/utility layer lives at the bottom of `src/styles.css` (`.font-seller`, `bg-promo`,
-`bg-info-gradient`, `no-scrollbar`, `animate-sheet`, `animate-fade`, `--color-brand/-soft`,
+`bg-info-gradient`, `no-scrollbar`, `animate-sheet`, `animate-fade`, `animate-popover-in/out`,
+`animate-success-pulse`, `press-scale`, `knob-stretch`, `stagger-rows`, `--color-brand/-soft`,
 `--color-info/-soft`, `--color-success-soft`, `--color-warning-soft`, `--color-nav`, `--color-nav-foreground`,
 `--radius-3xl/4xl`); admin consoles keep IBM Plex Sans + Faazio blue. New seller-only primitives live in
 `src/components/sellers/` (`kit.tsx`, `charts.tsx`, `promo.tsx`, `shells.tsx`, `hamburger.tsx`,
 `desktop-shell.tsx`) and are never imported by admin routes.
+
+**Motion.** The console is CSS-first, with one tree-shaken JS layer for shared-layout transitions:
+motion tokens live in `src/styles.css` (`--ease-entrance`/`--ease-move`, `--motion-press/menu/enter/exit/move/stagger`,
+keyframes `popover-in/out`, `success-pulse`; global reduced-motion guard) and mirror in `src/lib/motion.ts`.
+`components/motion/MotionProvider` wraps the app in `MotionConfig reducedMotion="user"` + `LazyMotion`
+(`domMax`, `strict` → use `m`, never `motion`) for `layoutId` shared indicators and cross-fades.
+Radix overlays enter in the menu band and exit ~20% shorter; press is `active:scale-[0.97]`; moving
+switch/toggle thumbs stretch `1.12`; custom overlays (`MobileNavDrawer`, `StoreSwitcher`, seller
+`Sheet`) animate from their trigger. See `docs/UI_DESIGN_SYSTEM.md` §3 Pass 9.
 
 `app/seller/layout.tsx` renders `SellerAppShell` (`src/components/sellers/shells.tsx`), and the old
 width-1440 `SellerShell` (plus its `VendorSwitcher`) is removed. Below `md` the seller content is fluid
@@ -153,7 +163,10 @@ plus the reference's bell → `/seller/notifications`, round shop-initials avata
 and the explore icon → `/seller/explore`; pages pass `actions` (analytics period pills, a sector-aware
 menus "Add dish"/"Add item", payments "Print statement") and an optional sticky tab row.
 Orders/operations surfaces keep `OrdersTopBar` (whose shop name also opens the `StoreSwitcher`) +
-`OrdersHeaderIcons` (`orders`, `inventory`) and detail/edit screens keep `PageHeader`
+`OrdersHeaderIcons` (`orders`, `inventory`) and detail/edit screens keep `PageHeader`. The
+`StoreSwitcher` trigger is width-constrained (`w-full` inside its `flex-1` root) so a long shop
+name/address truncates instead of overflowing and covering the online chip, QR/search icons or
+hamburger on narrow mobile headers.
 (`promotions`, `products`, `orders/[id]`, `explore`, `settings`, `stores`, `support`, …).
 `PageHeader` appends a persistent explore icon (except on `/seller/explore` itself), so settings/detail
 routes are never mobile dead ends.
@@ -302,7 +315,10 @@ Dynamic segments rename `$id` → `[id]` and read params via `useParams()` from
 `next/navigation`. `__root.tsx` becomes `app/layout.tsx` (html/body + root
 metadata + `src/styles.css`) plus `app/providers.tsx`
 (QueryClientProvider + TooltipProvider + Toaster). `notFoundComponent` /
-`errorComponent` become `app/not-found.tsx` / `app/error.tsx`.
+`errorComponent` become `app/not-found.tsx` / `app/error.tsx`. Their "Go home" action is
+context-aware via `homeFor` / `homeForPath` (`src/lib/auth/permissions.ts`): a seller lands on
+`/seller/orders` (the console default), admins on their district/super dashboard, and only public
+routes fall back to the marketing `/` — never the landing page from inside the seller console.
 
 ## Help system (contextual "i" guidance)
 
