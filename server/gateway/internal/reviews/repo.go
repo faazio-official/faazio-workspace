@@ -187,6 +187,82 @@ func (r *Repo) VendorApp(ctx context.Context, vendorID string) (string, error) {
 	return app, err
 }
 
+// ProductApp returns the app brand for a product id.
+func (r *Repo) ProductApp(ctx context.Context, productID string) (string, error) {
+	if r.pool == nil {
+		return "", fmt.Errorf("reviews: database not configured")
+	}
+	var app string
+	err := r.pool.QueryRow(ctx, `select app::text from catalog.products where id = $1`, productID).Scan(&app)
+	if err == pgx.ErrNoRows {
+		return "MART", nil
+	}
+	return app, err
+}
+
+// UpsertProductReview inserts or replaces the user's live review (one per user/product), latest
+// wins. The verified-purchase order ids are stored as provenance and never exposed publicly.
+func (r *Repo) UpsertProductReview(ctx context.Context, userID, userName, productID, app string, rating int64, comment string, orderIDs []string) error {
+	if r.pool == nil {
+		return fmt.Errorf("reviews: database not configured")
+	}
+	if orderIDs == nil {
+		orderIDs = []string{}
+	}
+	_, err := r.pool.Exec(ctx, `
+		insert into reviews.reviews
+		  (id, product_id, app, user_id, user_name, avatar, rating, comment, order_ids, date_label, created_at, updated_at)
+		values ($1, $2, $3::app_brand, $4, $5, null, $6, $7, $8, 'Just now', now(), now())
+		on conflict (product_id, user_id) where user_id is not null do update
+		  set rating = excluded.rating,
+		      comment = excluded.comment,
+		      user_name = excluded.user_name,
+		      order_ids = excluded.order_ids,
+		      date_label = 'Just now',
+		      updated_at = now()`,
+		"pr-"+userID+"-"+productID, productID, app, userID, userName, rating, comment, orderIDs)
+	return err
+}
+
+// OrderFeedback reads the user's feedback for an order. ok=false when none has been submitted.
+func (r *Repo) OrderFeedback(ctx context.Context, userID, orderID string) (contracts.OrderFeedback, bool, error) {
+	if r.pool == nil {
+		return contracts.OrderFeedback{}, false, fmt.Errorf("reviews: database not configured")
+	}
+	out := contracts.OrderFeedback{OrderID: orderID}
+	var updated time.Time
+	err := r.pool.QueryRow(ctx, `
+		select rating, comment, updated_at
+		  from reviews.order_feedback
+		 where order_id = $1 and user_id = $2`, orderID, userID).Scan(&out.Rating, &out.Comment, &updated)
+	if err == pgx.ErrNoRows {
+		return out, false, nil
+	}
+	if err != nil {
+		return contracts.OrderFeedback{}, false, err
+	}
+	out.UpdatedAt = updated.UTC().Format(time.RFC3339)
+	return out, true, nil
+}
+
+// UpsertOrderFeedback inserts or replaces the user's post-delivery feedback for one order.
+func (r *Repo) UpsertOrderFeedback(ctx context.Context, userID, userName, orderID string, rating int64, comment string) error {
+	if r.pool == nil {
+		return fmt.Errorf("reviews: database not configured")
+	}
+	_, err := r.pool.Exec(ctx, `
+		insert into reviews.order_feedback
+		  (order_id, user_id, user_name, rating, comment, order_ids, created_at, updated_at)
+		values ($1, $2, $3, $4, $5, array[$1], now(), now())
+		on conflict (order_id) do update
+		  set rating = excluded.rating,
+		      comment = excluded.comment,
+		      user_name = excluded.user_name,
+		      updated_at = now()`,
+		orderID, userID, userName, rating, comment)
+	return err
+}
+
 // SetVendorReviewHidden flips the moderation flag on a vendor review. Returns ok=false when absent.
 func (r *Repo) SetVendorReviewHidden(ctx context.Context, id string, hidden bool) (bool, error) {
 	if r.pool == nil {

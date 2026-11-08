@@ -407,6 +407,22 @@ gate must be identical on client and server so it can ship ahead of the backend.
 - **Cache:** `faazio:v1:reviews:vendor:{id}` (TTL 24 h); the user's own rating is
   auth-scoped and never edge-cached. See `docs/architecture/db-schema.md` §7.7.
 
+## Post-delivery feedback (shipped)
+
+Two additional write surfaces share the derived-gate pattern but tighten the purchase gate to a
+**delivered** order:
+
+- **Product review** — `PUT /products/{id}/review` (auth) upserts one live review per
+  `(user, product)` in `reviews.reviews` (`0090` adds `user_id`/`order_ids`/`updated_at` + a
+  partial unique index). Eligibility: a `checkout.orders` row with `status = 'Delivered'` joined to
+  `checkout.order_items.product_id` (`ProductPurchaseProof`). Read: `GET /product/{id}/reviews`;
+  write purges `faazio:v1:reviews:product:{id}`.
+- **Order feedback** — `GET` / `PUT /orders/{id}/feedback` (auth) reads/upserts one row per order in
+  `reviews.order_feedback`. Eligibility: the caller's order must be `Delivered`
+  (`OrderDeliveredProof`).
+- **Mobile:** root `RateProduct` (`features/product/RateProductScreen.tsx`) off the PDP, and root
+  `OrderFeedback` (`features/profile/OrderFeedbackScreen.tsx`) off a delivered `OrderDetails`.
+
 ## Planned module tree
 
 ```

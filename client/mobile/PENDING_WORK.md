@@ -2256,6 +2256,14 @@ profile). The rating form is a root `RateVendor` route.
 seam (`getVendorReviews`, `rateVendor`). The screen migration uses the real Firebase phone-OTP
 session (W60); `authStore.login()` persists the Firebase ID token.
 
+**Phase 2 — post-delivery feedback (built):** order-level feedback (`GET`/`PUT
+/orders/{id}/feedback` → `reviews.order_feedback`, root `OrderFeedback` route off a delivered
+`OrderDetails`) and product-level reviews (`PUT /products/{id}/review` → `reviews.reviews` with
+`user_id`/`order_ids`, root `RateProduct` route off the PDP). Both server gates tighten the
+purchase rule to a **delivered** order (`ProductPurchaseProof` / `OrderDeliveredProof`, migration
+`0090`). Shared presentation lives in `components/shared/ReviewForm.tsx`; the client gate mirror is
+`services/productReviews.ts`.
+
 ---
 
 ## Food — Restaurant menu category rail clipped (shared MenuCategoryRail)

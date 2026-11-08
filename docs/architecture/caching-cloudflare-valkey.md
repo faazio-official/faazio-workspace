@@ -241,8 +241,10 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
   `PUT /seller/products/{id}`, `PUT /seller/inventory/{productId}`, `PUT /seller/pricing/{productId}`
   and `/{id}/status`) purges the product's store-pin `geo:nearby:products:*` tile prefixes (via
   `Repo.StorePin`) so a delist/re-price lands immediately for co-located shoppers; an `order.placed`
-  stock decrement also purges `product:{id}` per line item because product detail embeds stock; and
-  `rateVendor` purges `directory:store:{id}` because the store card embeds rating/reviews_count.
+  stock decrement also purges `product:{id}` per line item because product detail embeds stock;
+  `rateVendor` purges `directory:store:{id}` because the store card embeds rating/reviews_count; and
+  `submitProductReview` (`PUT /products/{id}/review`) purges `reviews:product:{id}` so the next PDP
+  read includes the new review. `reviews.order_feedback` has no cache key (caller-scoped read).
 - **PII never enters the cache:** `GET /store/:id` caches only the redacted projection; authenticated
   reads bypass the cache (see §8).
 - **Slim values (no key/TTL change):** list/search reads cache the lean product projection

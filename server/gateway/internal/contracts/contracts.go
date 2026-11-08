@@ -207,6 +207,15 @@ type VendorReview struct {
 	Date     string `json:"date"`
 }
 
+// OrderFeedback is one post-delivery order feedback row. user_id is never part of the public
+// projection; the handler returns only the caller's own row.
+type OrderFeedback struct {
+	OrderID   string `json:"orderId"`
+	Rating    int64  `json:"rating"`
+	Comment   string `json:"comment"`
+	UpdatedAt string `json:"updatedAt,omitempty"`
+}
+
 // SduiSection is one ID-only Home section (Mongo sdui_layouts).
 type SduiSection struct {
 	ID         string         `json:"id"`
@@ -335,6 +344,13 @@ type StockWriter interface {
 // internal/checkout, db-schema §7.7). Never a stored flag.
 type PurchaseGate interface {
 	PurchaseProof(ctx context.Context, userID, vendorID string) (eligible bool, orderIDs []string, err error)
+}
+
+// FeedbackGate derives post-delivery review/feedback eligibility from delivered order history
+// (implemented by internal/checkout). Never a stored flag.
+type FeedbackGate interface {
+	ProductPurchaseProof(ctx context.Context, userID, productID string) (eligible bool, orderIDs []string, err error)
+	OrderDeliveredProof(ctx context.Context, userID, orderID string) (eligible bool, err error)
 }
 
 // RewardsWriter applies an order's reward effect during checkout (implemented by internal/rewards).

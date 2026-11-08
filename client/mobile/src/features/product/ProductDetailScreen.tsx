@@ -6,6 +6,8 @@ import type { ProductView } from '@/services/api/GatewayClient';
 import { applyActiveDiscount, useActiveDiscounts } from '@/services/pricing';
 import { useCartStore } from '@/state/cartStore';
 import { useFavoriteStore } from '@/state/favoriteStore';
+import { useOrdersStore } from '@/state/ordersStore';
+import { canReviewProduct } from '@/services/productReviews';
 import { getFoodRestaurantForProduct } from '@/features/food/utils/restaurantForProduct';
 import type { SubAppId } from '@/state/uiStore';
 import type { RootStackParamList } from '@/navigation/types';
@@ -21,6 +23,8 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   const updateCartQuantity = useCartStore((s) => s.updateQuantity);
   const favorites = useFavoriteStore((s) => s.favorites);
   const toggleFavorite = useFavoriteStore((s) => s.toggleFavorite);
+  const orders = useOrdersStore((s) => s.orders);
+  const serverOrders = useOrdersStore((s) => s.serverOrders);
 
   // Behavior analytics (ID-only, allowlisted); best-effort and a no-op in mock mode.
   useEffect(() => {
@@ -97,6 +101,15 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     [navigation],
   );
 
+  const canReview = useMemo(
+    () => (product?.id ? canReviewProduct(product.id) : false),
+    [product?.id, orders, serverOrders],
+  );
+  const handleWriteReview = useCallback(() => {
+    if (!product?.id) return;
+    navigation.navigate('RateProduct', { productId: product.id, productName: product.name });
+  }, [navigation, product?.id, product?.name]);
+
   const restaurant = useMemo(
     () => (product?.app === 'FOOD' ? getFoodRestaurantForProduct(product) : undefined),
     [product],
@@ -125,6 +138,7 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       onOpenProduct={handleOpenProduct}
       restaurantId={restaurant?.id}
       reviews={reviews}
+      onWriteReview={canReview ? handleWriteReview : undefined}
       stock={canonical?.stock}
       onRetry={loadFailed ? handleRetry : undefined}
     />

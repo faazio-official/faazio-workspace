@@ -168,7 +168,7 @@ func NewRouter(d Deps) http.Handler {
 	// Contexts. Each owns its routes; cross-context calls use contracts interfaces.
 	checkoutService := checkout.NewService(checkoutRepo, cartRepo, d.Cache, rewardsRepo, promoRepo, promoRepo, adsRepo,
 		deliveryHandler, weatherChecker, festivalRepo)
-	reviewsService := reviews.NewService(reviewsRepo, checkoutRepo, d.Cache)
+	reviewsService := reviews.NewService(reviewsRepo, checkoutRepo, checkoutRepo, d.Cache)
 	sduiService := sdui.NewService(recoRepo, recoRepo, catalogRepo, directoryRepo, d.Cache)
 	recoService := reco.NewService(recoRepo, catalogRepo, d.Cache)
 

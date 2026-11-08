@@ -207,6 +207,14 @@ export interface VendorReviewSummary {
   distribution: number[];
 }
 
+/** The caller's own post-delivery feedback for one order (rating 0 = none submitted). */
+export interface OrderFeedback {
+  orderId: string;
+  rating: number;
+  comment: string;
+  updatedAt?: string;
+}
+
 /**
  * Result of `PUT /vendors/{id}/rating`.
  *  - `synced`      — server persisted the row (durable / portal-visible).
@@ -2067,6 +2075,60 @@ export class GatewayClient {
     if (!REMOTE_ENABLED) return 'offline';
     try {
       const r = await this.http<{ ok: boolean }>(`/vendors/${encodeURIComponent(vendorId)}/rating`, {
+        method: 'PUT',
+        body: JSON.stringify({ rating, comment: comment ?? '' }),
+      });
+      return r.ok === true ? 'synced' : 'offline';
+    } catch (err) {
+      if (err instanceof GatewayHttpError) {
+        if (err.status === 403) return 'not-verified';
+        if (err.status === 401) return 'signed-out';
+      }
+      return 'offline';
+    }
+  }
+
+  /**
+   * Upsert the signed-in user's review for a product (`PUT /products/{id}/review`). The server
+   * re-checks that a DELIVERED order contains the product. Same outcome vocabulary as `rateVendor`.
+   */
+  async submitProductReview(
+    productId: string,
+    rating: number,
+    comment?: string,
+  ): Promise<VendorRatingOutcome> {
+    if (!REMOTE_ENABLED) return 'offline';
+    try {
+      const r = await this.http<{ ok: boolean }>(`/products/${encodeURIComponent(productId)}/review`, {
+        method: 'PUT',
+        body: JSON.stringify({ rating, comment: comment ?? '' }),
+      });
+      return r.ok === true ? 'synced' : 'offline';
+    } catch (err) {
+      if (err instanceof GatewayHttpError) {
+        if (err.status === 403) return 'not-verified';
+        if (err.status === 401) return 'signed-out';
+      }
+      return 'offline';
+    }
+  }
+
+  /** The caller's own feedback for an order (zero rating when none submitted). */
+  async getOrderFeedback(orderId: string): Promise<OrderFeedback> {
+    return this.serverOnly(
+      () => this.http<OrderFeedback>(`/orders/${encodeURIComponent(orderId)}/feedback`),
+    );
+  }
+
+  /** Upsert the caller's post-delivery feedback for a delivered order. */
+  async submitOrderFeedback(
+    orderId: string,
+    rating: number,
+    comment?: string,
+  ): Promise<VendorRatingOutcome> {
+    if (!REMOTE_ENABLED) return 'offline';
+    try {
+      const r = await this.http<{ ok: boolean }>(`/orders/${encodeURIComponent(orderId)}/feedback`, {
         method: 'PUT',
         body: JSON.stringify({ rating, comment: comment ?? '' }),
       });

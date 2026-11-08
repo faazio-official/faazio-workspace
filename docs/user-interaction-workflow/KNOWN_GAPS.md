@@ -96,7 +96,6 @@ here so the folder never claims full coverage it does not have. Add a page befor
 |---|---|---|
 | `Favourites` tab | `features/favourites/FavouritesScreen.tsx`, `FavouritesTabScreen.tsx` | `GET/PUT/DELETE /favourites*` → `favourites.items` |
 | `Search` | `features/search/SearchRouteScreen.tsx` | See the FOOD-config gap above |
-| `RateVendor` | `features/profile/RateVendorScreen.tsx` | `PUT /vendors/{id}/rating` |
 | `DeleteAccount`, `RequestDataDeletion` | `features/profile/DeleteAccountScreen.tsx`, `RequestDataDeletionScreen.tsx` | `DELETE /users/me`, `POST /users/me/data-deletion` |
 | `Notifications` | `features/notifications/NotificationsScreen.tsx` | `GET /notifications`, read/read-all |
 | `SellerRequests`, `SellerRequestDetail`, `SellerPlatformFeeRequest`, `FeeChangeRequests` | `features/seller-onboarding/` | Seller application/fee-change boards |

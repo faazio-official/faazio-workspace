@@ -2,9 +2,11 @@ package reviews
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/checkout"
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 )
 
@@ -67,6 +69,74 @@ func TestVendorSummaryMatchesAggregate(t *testing.T) {
 	}
 	if wantDist != s.Distribution {
 		t.Fatalf("distribution = %v, want %v", s.Distribution, wantDist)
+	}
+}
+
+func TestFeedbackGateAndUpserts(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	gate := checkout.New(pool)
+	ctx := context.Background()
+	productID := "fm-m1"
+	orderID := fmt.Sprintf("test-feedback-%d", time.Now().UnixNano())
+
+	if _, err := pool.Exec(ctx, `
+		insert into checkout.orders (order_id, order_number, user_id, placed_at, status, vendor_store_ids)
+		values ($1, $1, 'user-1', now(), 'Delivered', '{}')`, orderID); err != nil {
+		t.Fatalf("insert delivered order: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into checkout.order_items (line_id, order_id, product_id, name, qty, unit_price_paisa)
+		values ($1, $2, $3, 'test item', 1, 100)`, orderID+"-l1", orderID, productID); err != nil {
+		t.Fatalf("insert order item: %v", err)
+	}
+	t.Cleanup(func() {
+		pool.Exec(ctx, `delete from reviews.reviews where id = $1`, "pr-user-1-"+productID)
+		pool.Exec(ctx, `delete from reviews.order_feedback where order_id = $1`, orderID)
+		pool.Exec(ctx, `delete from checkout.order_items where order_id = $1`, orderID)
+		pool.Exec(ctx, `delete from checkout.orders where order_id = $1`, orderID)
+	})
+
+	eligible, ids, err := gate.ProductPurchaseProof(ctx, "user-1", productID)
+	if err != nil {
+		t.Fatalf("ProductPurchaseProof: %v", err)
+	}
+	if !eligible || len(ids) == 0 {
+		t.Fatalf("expected delivered purchase proof, got eligible=%v ids=%v", eligible, ids)
+	}
+	ok, err := gate.OrderDeliveredProof(ctx, "user-1", orderID)
+	if err != nil || !ok {
+		t.Fatalf("OrderDeliveredProof: ok=%v err=%v", ok, err)
+	}
+
+	if err := repo.UpsertProductReview(ctx, "user-1", "Test User", productID, "MART", 4, "good", ids); err != nil {
+		t.Fatalf("UpsertProductReview: %v", err)
+	}
+	if err := repo.UpsertProductReview(ctx, "user-1", "Test User", productID, "MART", 5, "great", ids); err != nil {
+		t.Fatalf("UpsertProductReview update: %v", err)
+	}
+	var rating int64
+	var comment string
+	if err := pool.QueryRow(ctx, `select rating, comment from reviews.reviews where id = $1`, "pr-user-1-"+productID).
+		Scan(&rating, &comment); err != nil {
+		t.Fatalf("read product review: %v", err)
+	}
+	if rating != 5 || comment != "great" {
+		t.Fatalf("product review = (%d, %q), want (5, great)", rating, comment)
+	}
+
+	if err := repo.UpsertOrderFeedback(ctx, "user-1", "Test User", orderID, 3, "fine"); err != nil {
+		t.Fatalf("UpsertOrderFeedback: %v", err)
+	}
+	if err := repo.UpsertOrderFeedback(ctx, "user-1", "Test User", orderID, 4, "better"); err != nil {
+		t.Fatalf("UpsertOrderFeedback update: %v", err)
+	}
+	fb, ok, err := repo.OrderFeedback(ctx, "user-1", orderID)
+	if err != nil || !ok {
+		t.Fatalf("OrderFeedback: ok=%v err=%v", ok, err)
+	}
+	if fb.Rating != 4 || fb.Comment != "better" {
+		t.Fatalf("order feedback = (%d, %q), want (4, better)", fb.Rating, fb.Comment)
 	}
 }
 

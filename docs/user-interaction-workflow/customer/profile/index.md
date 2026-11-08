@@ -14,6 +14,7 @@
 | Profile details | [user-details.md](./user-details.md) |
 | Saved addresses | [saved-addresses.md](./saved-addresses.md) |
 | Rewards ledger | [rewards-ledger.md](./rewards-ledger.md) |
+| Rate vendor | [rate-vendor.md](./rate-vendor.md) |
 
 ## Account surfaces
 
@@ -47,9 +48,10 @@
 
 ## Known gaps
 
-- `RateVendor`, `DeleteAccount`, `RequestDataDeletion` and `Notifications` exist in code but have no
-  dedicated flow page yet; they are tracked in [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md) →
-  "Documentation coverage gaps". This is why the domain index is **Partial**.
+- `DeleteAccount`, `RequestDataDeletion` and `Notifications` exist in code but have no dedicated flow
+  page yet; they are tracked in [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md) → "Documentation
+  coverage gaps". This is why the domain index is **Partial**.
+- `RateVendor` is documented at [rate-vendor.md](./rate-vendor.md).
 - See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs

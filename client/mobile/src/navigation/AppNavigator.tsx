@@ -47,6 +47,8 @@ const MyOrdersScreen = lazyNamed(() => import('@/features/profile/MyOrdersScreen
 const NotificationsScreen = lazyNamed(() => import('@/features/notifications/NotificationsScreen'), 'NotificationsScreen');
 const OrderDetailsScreen = lazyNamed(() => import('@/features/profile/OrderDetailsScreen'), 'OrderDetailsScreen');
 const RateVendorScreen = lazyNamed(() => import('@/features/profile/RateVendorScreen'), 'RateVendorScreen');
+const RateProductScreen = lazyNamed(() => import('@/features/product/RateProductScreen'), 'RateProductScreen');
+const OrderFeedbackScreen = lazyNamed(() => import('@/features/profile/OrderFeedbackScreen'), 'OrderFeedbackScreen');
 const YouScreen = lazyNamed(() => import('@/features/profile/YouScreen'), 'YouScreen');
 const BloodDonorScreen = lazyNamed(() => import('@/features/pharma/blood-donor/BloodDonorScreen'), 'BloodDonorScreen');
 const BloodDonorDetailsScreen = lazyNamed(() => import('@/features/pharma/blood-donor/DonorDetailsScreen'), 'DonorDetailsScreen');
@@ -190,6 +192,16 @@ export function AppNavigator() {
           <Stack.Screen
             name="RateVendor"
             component={RateVendorScreen}
+            options={{ animation: 'slide_from_bottom', animationDuration: 220 }}
+          />
+          <Stack.Screen
+            name="RateProduct"
+            component={RateProductScreen}
+            options={{ animation: 'slide_from_bottom', animationDuration: 220 }}
+          />
+          <Stack.Screen
+            name="OrderFeedback"
+            component={OrderFeedbackScreen}
             options={{ animation: 'slide_from_bottom', animationDuration: 220 }}
           />
           <Stack.Screen

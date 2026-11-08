@@ -604,16 +604,40 @@ by Haversine distance (server-computed `distanceKm`).
 
 ```sql
 CREATE TABLE reviews.reviews (
-  id         TEXT PRIMARY KEY,      -- 'rev-1','rev-m1','rev-p1'
+  id         TEXT PRIMARY KEY,      -- 'rev-1','rev-m1','rev-p1' (seeded) / 'pr-{user}-{product}'
   product_id TEXT NOT NULL,
   app        app_brand NOT NULL,
-  user       TEXT NOT NULL,          -- reviewer name (PII-ish)
+  user_id    TEXT,                   -- author (0090); NULL for seeded/editorial rows
+  user_name  TEXT NOT NULL,          -- reviewer name (PII-ish)
   avatar     TEXT,
-  rating     INT8 NOT NULL,          -- 0..5
+  rating     INT8 NOT NULL CHECK (rating BETWEEN 1 AND 5),
   comment    TEXT NOT NULL,
-  date       TEXT NOT NULL
+  order_ids  TEXT[] NOT NULL DEFAULT '{}', -- verified-purchase provenance (never public)
+  date_label TEXT NOT NULL DEFAULT '',      -- display label ('Just now')
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- One live review per (user, product), latest wins (0090).
+CREATE UNIQUE INDEX reviews_product_user_idx ON reviews.reviews (product_id, user_id)
+  WHERE user_id IS NOT NULL;
+
+CREATE TABLE reviews.order_feedback (
+  order_id   TEXT PRIMARY KEY,       -- → checkout.orders.order_id
+  user_id    TEXT NOT NULL,          -- author (PII linkage — never public)
+  user_name  TEXT NOT NULL,          -- admin display only
+  rating     INT8 NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment    TEXT NOT NULL DEFAULT '' CHECK (octet_length(comment) <= 280),
+  order_ids  TEXT[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
+
+**Write eligibility — derived, never a stored flag.** `PUT /products/{id}/review` requires a
+`checkout.orders` row with `status = 'Delivered'` joined to `checkout.order_items.product_id`;
+`PUT /orders/{id}/feedback` requires the caller's order to be `Delivered` (`ProductPurchaseProof` /
+`OrderDeliveredProof` in `internal/checkout`). One write per `(user, product)` / `(order)`, latest
+wins.
 
 **Sample rows** (`data/productMeta/reviews.ts:22-37` → attached to representative product ids
 `rvf-1`/`rvm-1`/`rvp-1`):
