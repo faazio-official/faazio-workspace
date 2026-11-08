@@ -41,8 +41,27 @@
 - Mobile OTP verification is unavailable when Firebase Auth is unconfigured; the screen says so.
 - See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
+## Local verification (no Firebase / SMS)
+
+The gateway verifies Firebase ID tokens first and falls back to legacy Supabase/GoTrue **HS256**
+tokens signed with `SUPABASE_JWT_SECRET`. That makes the exact server path
+(`auth.Require` → `checkout.ProvisionUserID` → `auth.OTPSigned` → `sellers.CreateExtended`) drivable
+locally without Firebase:
+
+```bash
+# gateway running with SUPABASE_JWT_SECRET set; local Postgres migrated (all 87 migrations + seed)
+export SUPABASE_JWT_SECRET='<same secret the gateway uses>'
+server/gateway/scripts/simulate-seller-registration.sh 5 http://localhost:8080
+```
+
+The script mints one HS256 token per applicant (`sub` + matching `phone` claim) and submits a valid
+`POST /sellers` body (`otpVerified: true`, unique sub/phone/email), then asserts `201`,
+`PENDING_REVIEW`, and that `GET /sellers/me` returns the same `sellerId`. Exit code is non-zero on
+any failure. It writes real rows through the real handler — no fixtures.
+
 ## Linked docs
 
 - `docs/architecture/mobile-app.md` (seller onboarding)
 - `docs/architecture/web-portal.md`
 - `docs/RUNBOOKS/FIREBASE_AUTH.md`
+- `server/gateway/scripts/simulate-seller-registration.sh`

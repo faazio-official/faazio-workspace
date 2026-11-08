@@ -752,6 +752,10 @@ build on the Linux host.
   Re-send the OTP; the mobile flow uses a disposable secondary Firebase app, so the shopper session
   should stay signed in. If `sendOtp` fails, confirm `FIREBASE_AUTH_ENABLED` and the native
   `google-services.json` / `GoogleService-Info.plist`.
+- **`POST /sellers` returns `otp_unverified` (401)** — the bearer token has no `phone`/`phone_number`
+  claim matching `contactPhone` (last 10 digits). Locally, without Firebase, mint legacy HS256 tokens
+  with `SUPABASE_JWT_SECRET` and drive the flow with
+  `server/gateway/scripts/simulate-seller-registration.sh` (see the seller-registration workflow doc).
 - **Seller <Select> on `/admin/super/credentials` is empty** — the portal store hydrates once at
   login (`hydrateFromGateway`); the page now re-fetches `GET /sellers` on mount as a best-effort
   refresh and keeps the hydrated/seed roster when the gateway is absent or the call fails. If it is

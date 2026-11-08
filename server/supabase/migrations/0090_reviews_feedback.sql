@@ -36,6 +36,11 @@ create index if not exists order_feedback_user_idx on reviews.order_feedback (us
 -- policies keep any direct Supabase client honest.
 do $$
 begin
+  if not exists (select 1 from pg_namespace where nspname = 'auth')
+     or not exists (select 1 from pg_roles where rolname = 'authenticated') then
+    raise notice 'auth schema or Supabase roles absent — skipping 0090 RLS (non-Supabase environment)';
+    return;
+  end if;
   execute 'alter table reviews.order_feedback enable row level security';
   execute 'drop policy if exists public_insert on reviews.reviews';
   execute $p$create policy public_insert on reviews.reviews for insert to authenticated

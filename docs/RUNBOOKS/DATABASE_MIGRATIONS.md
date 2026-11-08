@@ -28,6 +28,9 @@ the new code never runs against an un-migrated schema.
   `0038`) still works. Files that carry their own `BEGIN`/`COMMIT` (the seed) batch as intended.
 - A migration may fail part-way; the migrator stops on the first failing statement and prints it.
   Fix forward (a small follow-up migration) rather than editing an applied file.
+- RLS/grant blocks are guarded on the Supabase `auth` schema + `authenticated` role, so the full set
+  also applies to a **bare Postgres** (local Docker). If a new migration adds policies, copy that
+  guard; otherwise it fails with `role "authenticated" does not exist` on local/bare databases.
 
 ## 1. Apply with the Go migrator (preferred)
 

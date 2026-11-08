@@ -7,7 +7,9 @@
 #   curl localhost:8080/health
 #   curl 'localhost:8080/search?q=coffee'
 #
-# Dev auth is open: AUTH_DISABLED=true, user = user-1 (or X-Dev-User header).
+# Auth: every protected route requires a verified bearer token (AUTH_DISABLED/DEV_USER_ID are not
+# read by the Go gateway). For local seller registration without Firebase, set SUPABASE_JWT_SECRET
+# and drive the flow with scripts/simulate-seller-registration.sh (locally minted HS256 tokens).
 services:
   postgres:
     image: postgres:16-alpine
@@ -17,69 +19,12 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - ../supabase/migrations/0001_mvp_schemas.sql:/docker-entrypoint-initdb.d/0001_schemas.sql:ro
-      - ../supabase/migrations/0002_fts_search.sql:/docker-entrypoint-initdb.d/0002_fts.sql:ro
-      - ../supabase/migrations/0003_inventory_ttl_rls.sql:/docker-entrypoint-initdb.d/0003_ttl_rls.sql:ro
-      - ../supabase/migrations/0004_lean_indexes.sql:/docker-entrypoint-initdb.d/0004_lean_indexes.sql:ro
-      - ../supabase/migrations/0005_lean_types.sql:/docker-entrypoint-initdb.d/0005_lean_types.sql:ro
-      - ../supabase/migrations/0006_idempotency.sql:/docker-entrypoint-initdb.d/0006_idempotency.sql:ro
-      - ../supabase/migrations/0007_favourites.sql:/docker-entrypoint-initdb.d/0007_favourites.sql:ro
-      - ../supabase/migrations/0008_rewards.sql:/docker-entrypoint-initdb.d/0008_rewards.sql:ro
-      - ../supabase/migrations/0009_prescriptions.sql:/docker-entrypoint-initdb.d/0009_prescriptions.sql:ro
-      - ../supabase/migrations/0010_blood.sql:/docker-entrypoint-initdb.d/0010_blood.sql:ro
-      - ../supabase/migrations/0012_payments_pickup.sql:/docker-entrypoint-initdb.d/0012_payments_pickup.sql:ro
-      - ../supabase/migrations/0013_menus_venues.sql:/docker-entrypoint-initdb.d/0013_menus_venues.sql:ro
-      - ../supabase/migrations/0014_hardening.sql:/docker-entrypoint-initdb.d/0014_hardening.sql:ro
-      - ../supabase/migrations/0015_partner_control.sql:/docker-entrypoint-initdb.d/0015_partner_control.sql:ro
-      - ../supabase/migrations/0016_store_live.sql:/docker-entrypoint-initdb.d/0016_store_live.sql:ro
-      - ../supabase/migrations/0017_partner_complete.sql:/docker-entrypoint-initdb.d/0017_partner_complete.sql:ro
-      - ../supabase/migrations/0018_rx_quote_notify.sql:/docker-entrypoint-initdb.d/0018_rx_quote_notify.sql:ro
-      - ../supabase/migrations/0019_app_gaps.sql:/docker-entrypoint-initdb.d/0019_app_gaps.sql:ro
-      - ../supabase/migrations/0021_public_promos.sql:/docker-entrypoint-initdb.d/0021_public_promos.sql:ro
-      - ../supabase/migrations/0022_menu_mrp.sql:/docker-entrypoint-initdb.d/0022_menu_mrp.sql:ro
-      - ../supabase/migrations/0023_rx_privacy.sql:/docker-entrypoint-initdb.d/0023_rx_privacy.sql:ro
-      - ../supabase/migrations/0024_mart_vendor_list.sql:/docker-entrypoint-initdb.d/0024_mart_vendor_list.sql:ro
-      - ../supabase/migrations/0025_media_assets.sql:/docker-entrypoint-initdb.d/0025_media_assets.sql:ro
-      - ../supabase/migrations/0026_media_gc.sql:/docker-entrypoint-initdb.d/0026_media_gc.sql:ro
-      - ../supabase/migrations/0027_ads_campaigns.sql:/docker-entrypoint-initdb.d/0027_ads_campaigns.sql:ro
-      - ../supabase/migrations/0028_ads_selfserve.sql:/docker-entrypoint-initdb.d/0028_ads_selfserve.sql:ro
-      - ../supabase/migrations/0029_blood_match_status.sql:/docker-entrypoint-initdb.d/0029_blood_match_status.sql:ro
-      - ../supabase/migrations/0030_auth_link.sql:/docker-entrypoint-initdb.d/0030_auth_link.sql:ro
-      - ../supabase/migrations/0031_firebase_auth_uid.sql:/docker-entrypoint-initdb.d/0031_firebase_auth_uid.sql:ro
-      - ../supabase/migrations/0032_portal_users.sql:/docker-entrypoint-initdb.d/0032_portal_users.sql:ro
-      - ../supabase/migrations/0033_portal_roles.sql:/docker-entrypoint-initdb.d/0033_portal_roles.sql:ro
-      - ../supabase/migrations/0034_portal_superadmin_no_force.sql:/docker-entrypoint-initdb.d/0034_portal_superadmin_no_force.sql:ro
-      - ../supabase/migrations/0036_state_admin_identity_guard.sql:/docker-entrypoint-initdb.d/0036_state_admin_identity_guard.sql:ro
-      - ../supabase/migrations/0037_audit_log_retention.sql:/docker-entrypoint-initdb.d/0037_audit_log_retention.sql:ro
-      - ../supabase/migrations/0038_portal_session_lifetime.sql:/docker-entrypoint-initdb.d/0038_portal_session_lifetime.sql:ro
-      - ../supabase/migrations/0039_seller_onboarding_extended.sql:/docker-entrypoint-initdb.d/0039_seller_onboarding_extended.sql:ro
-      - ../supabase/migrations/0040_route_webhook_reversal.sql:/docker-entrypoint-initdb.d/0040_route_webhook_reversal.sql:ro
-      - ../supabase/migrations/0041_store_geo.sql:/docker-entrypoint-initdb.d/0041_store_geo.sql:ro
-      - ../supabase/migrations/0042_delivery.sql:/docker-entrypoint-initdb.d/0042_delivery.sql:ro
-      - ../supabase/migrations/0043_delivery_reassign.sql:/docker-entrypoint-initdb.d/0043_delivery_reassign.sql:ro
-      - ../supabase/migrations/0044_checkout_drop_coordinates.sql:/docker-entrypoint-initdb.d/0044_checkout_drop_coordinates.sql:ro
-      - ../supabase/migrations/0045_delivery_otp_attempts.sql:/docker-entrypoint-initdb.d/0045_delivery_otp_attempts.sql:ro
-      - ../supabase/migrations/0046_district_master.sql:/docker-entrypoint-initdb.d/0046_district_master.sql:ro
-      - ../supabase/migrations/0047_seller_district.sql:/docker-entrypoint-initdb.d/0047_seller_district.sql:ro
-      - ../supabase/migrations/0048_district_admins.sql:/docker-entrypoint-initdb.d/0048_district_admins.sql:ro
-      - ../supabase/migrations/0049_seller_fee_change_requests.sql:/docker-entrypoint-initdb.d/0049_seller_fee_change_requests.sql:ro
-      - ../supabase/migrations/0050_district_rls.sql:/docker-entrypoint-initdb.d/0050_district_rls.sql:ro
-      - ../supabase/migrations/0051_tax_invoices.sql:/docker-entrypoint-initdb.d/0051_tax_invoices.sql:ro
-      - ../supabase/migrations/0052_delivery_payout.sql:/docker-entrypoint-initdb.d/0052_delivery_payout.sql:ro
-      - ../supabase/migrations/0053_delivery_fee_settings.sql:/docker-entrypoint-initdb.d/0053_delivery_fee_settings.sql:ro
-      - ../supabase/migrations/0054_weather_festival.sql:/docker-entrypoint-initdb.d/0054_weather_festival.sql:ro
-      - ../supabase/migrations/0055_delivery_manual_payout.sql:/docker-entrypoint-initdb.d/0055_delivery_manual_payout.sql:ro
-      - ../supabase/migrations/0056_seller_order_decisions.sql:/docker-entrypoint-initdb.d/0056_seller_order_decisions.sql:ro
-      - ../supabase/migrations/0057_strict_district_owner_backfill.sql:/docker-entrypoint-initdb.d/0057_strict_district_owner_backfill.sql:ro
-      - ../supabase/migrations/0058_notifications_retry.sql:/docker-entrypoint-initdb.d/0058_notifications_retry.sql:ro
-      - ../supabase/migrations/0059_app_config.sql:/docker-entrypoint-initdb.d/0059_app_config.sql:ro
-      - ../supabase/migrations/0060_account_deletion.sql:/docker-entrypoint-initdb.d/0060_account_deletion.sql:ro
-      - ../supabase/migrations/0061_blood_request_author.sql:/docker-entrypoint-initdb.d/0061_blood_request_author.sql:ro
-      - ../supabase/migrations/0062_error_events.sql:/docker-entrypoint-initdb.d/0062_error_events.sql:ro
-      - ../supabase/migrations/0063_seller_tiruchirappalli.sql:/docker-entrypoint-initdb.d/0063_seller_tiruchirappalli.sql:ro
-      - ../supabase/migrations/0064_seller_tiruchi_contact.sql:/docker-entrypoint-initdb.d/0064_seller_tiruchi_contact.sql:ro
-      - ../supabase/migrations/0065_tiruchirappalli_district_admin.sql:/docker-entrypoint-initdb.d/0065_tiruchirappalli_district_admin.sql:ro
-      - ../supabase/seed/0001_seed.sql:/docker-entrypoint-initdb.d/0099_seed.sql:ro
+      # The whole migrations directory is mounted (read-only) and applied by the committed init
+      # wrapper below, so new migrations are picked up automatically (no per-file list to keep in
+      # sync) and the seed always runs last. ON_ERROR_STOP fails the boot on a bad statement.
+      - ../supabase/migrations:/migrations:ro
+      - ../supabase/seed:/seed:ro
+      - ./scripts/compose-postgres-init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]
       interval: 5s
@@ -126,11 +71,10 @@ services:
       VALKEY_URL: "redis://valkey:6379/0"
       MONGO_URI: "mongodb://mongo:27017"
       MONGO_DATABASE: "faazio"
-      # Firebase phone-OTP verification. Local auth stays disabled by default; set this (and
-      # AUTH_DISABLED=false) to exercise real ID tokens against the compose stack.
+      # Firebase phone-OTP verification (optional). For local seller registration without Firebase,
+      # set SUPABASE_JWT_SECRET and use scripts/simulate-seller-registration.sh instead.
       FIREBASE_PROJECT_ID: "${FIREBASE_PROJECT_ID:-}"
-      AUTH_DISABLED: "true"
-      DEV_USER_ID: "user-1"
+      SUPABASE_JWT_SECRET: "${SUPABASE_JWT_SECRET:-}"
       ALLOWED_ORIGINS: "http://localhost:3000"
       # Portal auth (POST /auth/portal/*, /admin/portal-users). Empty = 503 portal_auth_unavailable;
       # generate both before `up` to exercise real sign-in locally:

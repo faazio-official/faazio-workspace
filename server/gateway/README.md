@@ -84,8 +84,10 @@ CI runs the full suite with Postgres + Valkey service containers
 Auth: `Authorization: Bearer <firebase-id-token>` (RS256) from **real Firebase phone OTP**;
 `FIREBASE_PROJECT_ID` enables verification against Google's published certificate set. The first
 authenticated call upserts `checkout.users.auth_uid` (`ProvisionUserID`, `0030`). A legacy Supabase
-HS256 token is also accepted for the partner portal when `SUPABASE_JWT_SECRET` is set. Local dev:
-`AUTH_DISABLED=true` and `X-Dev-User` / `DEV_USER_ID`. Setup: `docs/RUNBOOKS/FIREBASE_AUTH.md`.
+HS256 token signed with `SUPABASE_JWT_SECRET` is accepted as a fallback. There is **no** dev bypass —
+`AUTH_DISABLED` / `DEV_USER_ID` are not read by the gateway; every protected route needs a verified
+bearer token. For local seller registration without Firebase, mint HS256 tokens via
+`scripts/simulate-seller-registration.sh`. Setup: `docs/RUNBOOKS/FIREBASE_AUTH.md`.
 
 ## Media workers
 

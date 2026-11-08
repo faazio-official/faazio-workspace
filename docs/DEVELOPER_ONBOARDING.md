@@ -95,10 +95,14 @@ and starts the gateway. `curl localhost:8080/health` should report `db:true cach
 > `docker compose down -v && docker compose up -d`. A stale volume makes integration tests fail
 > with `column … does not exist` even though `/health` looks green.
 >
+> The compose Postgres mounts the **whole `server/supabase/migrations/` directory** read-only and
+> applies it (then the seed) with the committed `server/gateway/scripts/compose-postgres-init.sh`
+> wrapper, so it auto-applies every committed migration (`0001`–`0090`) — new files need no compose
+> edit, and `ON_ERROR_STOP` fails the boot on a bad statement.
+>
 > Production (Supabase) is the opposite: **Render never applies migrations** — they are run by hand
 > from a dev terminal with `server/supabase/apply-migration.sh` (reads `DATABASE_URL` from
-> `server/gateway/.env`; `docs/RUNBOOKS/DATABASE_MIGRATIONS.md`). Local compose auto-applies every
-> committed migration (`0001`–`0056`) + seed on a fresh volume.
+> `server/gateway/.env`; `docs/RUNBOOKS/DATABASE_MIGRATIONS.md`).
 
 Integration tests (FTS, order lock/decrement, rating gate, PII redaction, pagination) **skip**
 unless pointed at the stack; run them fully with:
