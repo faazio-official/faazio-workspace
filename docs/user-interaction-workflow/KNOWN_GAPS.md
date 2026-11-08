@@ -36,10 +36,14 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | Hardcoded tax constants on new-product display | New-product page shows GST/TCS/TDS constants | Display-only; the server remains the money authority |
 
 **By design — not gaps:** seller registration is intentionally mobile-only (`POST /sellers` from
-the customer app's `SellWithUs`); portal login credentials are issued by a superadmin at
-`/admin/super/credentials` (role `SELLER`, scoped to `seller_id`, HS256 JWT in HttpOnly cookies);
-and the seller app is a WebView shell over the same portal. This is the completed design, not a
-partial flow — see [`seller/onboarding/index.md`](./seller/onboarding/index.md) and
+the customer app's `SellWithUs`). On approval (`POST /sellers/{id}/verify-kyc`, or
+`PATCH /sellers/{id}/status` → `ACTIVE`) the seller's portal login is auto-provisioned from
+`contact_email` as a `SELLER` row scoped to `seller_id` (`must_change=true`); the one-time temporary
+password is returned to the approving admin and never logged, and an existing login is reused
+idempotently. A superadmin can still issue or reset credentials at `/admin/super/credentials`
+(HS256 JWT in HttpOnly cookies) — used when `contact_email` is already owned by another account.
+The seller app is a WebView shell over the same portal. This is the completed design, not a partial
+flow — see [`seller/onboarding/index.md`](./seller/onboarding/index.md) and
 [`shared/auth-otp.md`](./shared/auth-otp.md). Native seller auth is likewise intentionally unused
 while the WebView owns the session.
 

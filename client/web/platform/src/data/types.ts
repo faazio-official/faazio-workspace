@@ -119,11 +119,23 @@ export interface SellerVendorRecord {
   districtCode?: string | undefined;
 }
 
+/** One-time SELLER portal login minted when an application is approved (never persisted client-side). */
+export interface SellerLoginCredential {
+  userId?: string | undefined;
+  email?: string | undefined;
+  temporaryPassword?: string | undefined;
+  created: boolean;
+  skipped?: boolean | undefined;
+  reason?: string | undefined;
+}
+
 export interface SellerDetail extends SellerRecord {
   bankAccount?: BankAccount | undefined;
   kycDocuments: KycDocument[];
   verificationLog: SellerVerificationLog[];
   vendors: SellerVendorRecord[];
+  /** Present on the approval response: the auto-provisioned login, shown once to the admin. */
+  credential?: SellerLoginCredential | undefined;
 }
 
 /** directory.stores */

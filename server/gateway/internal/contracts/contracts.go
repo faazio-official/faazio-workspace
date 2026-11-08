@@ -433,6 +433,25 @@ type Notifier interface {
 	EnqueueSeller(ctx context.Context, storeIDs []string, kind, title, body string, data map[string]any) error
 }
 
+// SellerLogin is the outcome of auto-provisioning a SELLER portal login when an application is
+// approved. TemporaryPassword is a one-time plaintext shown to the approving admin and is never
+// persisted or logged; it is empty when an existing login was reused or provisioning was skipped.
+type SellerLogin struct {
+	UserID            string `json:"userId,omitempty"`
+	Email             string `json:"email,omitempty"`
+	TemporaryPassword string `json:"temporaryPassword,omitempty"`
+	Created           bool   `json:"created"`
+	Skipped           bool   `json:"skipped,omitempty"`
+	Reason            string `json:"reason,omitempty"`
+}
+
+// SellerLoginProvisioner auto-creates a scoped SELLER portal credential on approval (implemented by
+// internal/portal). Provisioning must be idempotent: a seller that already has this login is reused,
+// never duplicated or re-passworded.
+type SellerLoginProvisioner interface {
+	ProvisionSellerLogin(ctx context.Context, sellerID, email, displayName string) (SellerLogin, error)
+}
+
 // Drainer runs one synchronous notification-outbox drain (implemented by notifications.Worker). The
 // admin endpoint uses it as a manual trigger when no background worker is deployed.
 type Drainer interface {

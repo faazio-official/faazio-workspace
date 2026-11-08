@@ -121,7 +121,11 @@ caller) and are event-purged on store live toggle and product edit/status change
   `phone_number` claim matches `contactPhone` (`auth.OTPSigned`, `401 otp_unverified`; dev-mode
   `X-Dev-*` identities are the only exception). Admin review:
   `PATCH /sellers/:id/platform-fee`, `POST /sellers/:id/verify-doc/:docType`,
-  `POST /sellers/:id/verify-kyc` (verifies KYC + activates — **no Razorpay Route linked account**),
+  `POST /sellers/:id/verify-kyc` (verifies KYC + activates — **no Razorpay Route linked account**;
+  also auto-provisions the seller's `SELLER` portal login from `contact_email` via
+  `contracts.SellerLoginProvisioner`, returning a one-time temporary password to the admin — never
+  logged — and reusing an existing login idempotently; `PATCH /sellers/:id/status` → `ACTIVE` does
+  the same),
   `POST /sellers/:id/reject`, and seller `POST /sellers/:id/edit` (rejected rows only; field history).
   `GET /sellers/:id` returns the seller + masked bank account + KYC docs + verification log; admin KYC
   images render via the existing `GET /media/private/{id}` presigned-GET (creator or admin only).

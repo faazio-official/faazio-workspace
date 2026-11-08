@@ -23,7 +23,7 @@ func handlerRouter(t *testing.T, pool *pgxpool.Pool) http.Handler {
 	}
 	r := chi.NewRouter()
 	r.Use(authtest.Middleware())
-	NewHandler(New(pool), c, nil).Register(r)
+	NewHandler(New(pool), c, nil, nil).Register(r)
 	return r
 }
 

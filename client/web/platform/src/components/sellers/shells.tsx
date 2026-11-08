@@ -33,20 +33,20 @@ import { sectorLabel } from "@/lib/sector";
 
 type NavItem = { to: string; label: string; icon: typeof ClipboardList };
 
-/** Orders-mode tab bar (reference OrdersShell). */
+/** Orders-mode tab bar (reference OrdersShell). Short, plain words shop owners already use. */
 const ORDERS_NAV: NavItem[] = [
   { to: "/seller/orders", label: "Orders", icon: ClipboardList },
-  { to: "/seller/inventory", label: "Inventory", icon: Boxes },
+  { to: "/seller/inventory", label: "Stock", icon: Boxes },
   { to: "/seller/menus", label: "Menu", icon: BookOpen },
-  { to: "/seller/reviews", label: "Feedback", icon: MessageSquareText },
+  { to: "/seller/reviews", label: "Reviews", icon: MessageSquareText },
 ];
 
-/** Hub-mode tab bar (reference HubShell). Growth/Finance map onto the platform's ads/payments routes. */
+/** Hub-mode tab bar (reference HubShell). Ads/Payments map onto the platform's routes. */
 const HUB_NAV: NavItem[] = [
-  { to: "/seller/hub", label: "Hub", icon: LayoutGrid },
-  { to: "/seller/ads", label: "Growth", icon: TrendingUp },
+  { to: "/seller/hub", label: "Home", icon: LayoutGrid },
+  { to: "/seller/ads", label: "Ads", icon: TrendingUp },
   { to: "/seller/menus", label: "Menu", icon: BookOpen },
-  { to: "/seller/payments", label: "Finance", icon: Wallet },
+  { to: "/seller/payments", label: "Payments", icon: Wallet },
 ];
 
 /** Routes that render with the hub-mode tab bar.
@@ -78,8 +78,8 @@ export function SwitchingOverlay({ to }: { to: "hub" | "orders" }) {
       <div className="mb-4 flex h-12 w-12 animate-pulse items-center justify-center rounded-full bg-foreground text-background">
         <ArrowLeftRight className="h-5 w-5" />
       </div>
-      <p className="text-lg font-bold">Switching to {to === "hub" ? "Business Hub" : "Orders"}</p>
-      <p className="mt-1 text-xs text-muted-foreground">Hang tight — your shop dashboard is loading</p>
+      <p className="text-lg font-bold">Opening {to === "hub" ? "Home" : "Orders"}</p>
+      <p className="mt-1 text-xs text-muted-foreground">Loading your shop…</p>
     </div>
   );
 }
@@ -99,27 +99,28 @@ export function SellerBottomNav({
 }) {
   const pathname = usePathname();
   const items = mode === "orders" ? ORDERS_NAV : HUB_NAV;
-  const switchLabel = mode === "orders" ? "To Hub" : "To Orders";
+  // Single short word on the switch button: the arrow icon already says "switch".
+  const switchLabel = mode === "orders" ? "Home" : "Orders";
   const switchLeft = mode === "hub";
   const sw = (
     <button
       onClick={onSwitch}
-      aria-label={switchLabel}
-      className="flex h-14 w-14 shrink-0 flex-col items-center justify-center rounded-full bg-nav text-[9px] font-semibold text-nav-foreground shadow-lg"
+      aria-label={mode === "orders" ? "Switch to Home" : "Switch to Orders"}
+      className="flex h-[var(--seller-nav-h)] w-[var(--seller-nav-h)] shrink-0 flex-col items-center justify-center gap-1 rounded-full bg-nav text-[11px] font-semibold leading-none text-nav-foreground shadow-lg"
     >
-      <ArrowLeftRight className="mb-0.5 h-4 w-4" />
-      {switchLabel}
+      <ArrowLeftRight className="h-4 w-4" />
+      <span>{switchLabel}</span>
     </button>
   );
   return (
     <nav
       className={cn(
-        "fixed bottom-[calc(var(--seller-nav-gap)+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-[var(--seller-nav-h)] w-full max-w-[430px] -translate-x-1/2 items-center gap-2 px-3",
+        "fixed bottom-[calc(var(--seller-nav-gap)+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-[var(--seller-nav-h)] w-full max-w-[430px] -translate-x-1/2 items-center gap-2 px-4",
         className,
       )}
     >
       {switchLeft && sw}
-      <div className="flex flex-1 items-center justify-around rounded-full bg-nav px-2 py-1.5 shadow-lg">
+      <div className="flex h-full flex-1 items-center justify-around gap-1 rounded-full bg-nav p-1 shadow-lg">
         {items.map((item) => {
           const Icon = item.icon;
           const active =
@@ -131,12 +132,12 @@ export function SellerBottomNav({
               key={item.to}
               href={item.to}
               className={cn(
-                "flex flex-1 flex-col items-center rounded-full px-1 py-1.5 text-[10px] font-semibold transition-colors",
+                "flex h-full flex-1 flex-col items-center justify-center gap-1 rounded-full px-1 text-[11px] font-semibold leading-none transition-colors",
                 active ? "bg-background/15 text-background" : "text-nav-foreground",
               )}
             >
-              <Icon className="mb-0.5 h-4 w-4" />
-              {item.label}
+              <Icon className="h-4 w-4" />
+              <span>{item.label}</span>
             </Link>
           );
         })}
@@ -169,21 +170,21 @@ export function OutletHeader({
   const name = activeStore?.name ?? "Your shop";
   return (
     <div className="min-w-0 flex-1">
-      <div className="flex items-center gap-1.5">
+      <div className="flex min-w-0 items-center gap-2">
         <StoreSwitcher caption={showData ? "Showing data for" : undefined}>
-          <span className="truncate text-[15px] font-bold">{name}</span>
+          <span className="block truncate text-[15px] font-bold">{name}</span>
         </StoreSwitcher>
         <Link
           href="/seller/notifications"
           aria-label="Notifications"
-          className="rounded-full p-1.5 hover:bg-muted"
+          className="shrink-0 rounded-full p-1.5 hover:bg-muted"
         >
           <Bell className="h-5 w-5" />
         </Link>
         <Link
           href="/seller/outlet-info"
           aria-label="Profile"
-          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-info text-[10px] font-bold text-primary-foreground"
+          className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-info text-[11px] font-bold text-primary-foreground"
         >
           {initialsFor(name)}
         </Link>
@@ -207,14 +208,14 @@ export function HubHeader({
   sticky?: ReactNode;
 }) {
   return (
-    <header className="sticky top-0 z-30 bg-card px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
-      <div className="flex items-center gap-2">
+    <header className="sticky top-0 z-30 border-b border-border bg-card px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <div className="flex min-w-0 items-center gap-2">
         <OutletHeader showData />
-        {actions}
+        {actions ? <div className="flex shrink-0 items-center gap-1">{actions}</div> : null}
         <Link
           href="/seller/explore"
           aria-label="Explore more"
-          className="rounded-full p-1.5 hover:bg-muted"
+          className="shrink-0 rounded-full p-1.5 hover:bg-muted"
         >
           <MenuIcon className="h-5 w-5" />
         </Link>
@@ -230,8 +231,8 @@ export function OrdersTopBar({ extra }: { extra?: ReactNode }) {
   const { activeStore } = useActiveStore();
   const area = activeStore ? (activeStore.address ?? sectorLabel(activeStore.sector)) : "Seller console";
   return (
-    <header className="sticky top-0 z-30 bg-card px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
-      <div className="flex items-center gap-2">
+    <header className="sticky top-0 z-30 border-b border-border bg-card px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <div className="flex min-w-0 items-center gap-2">
         <StoreSwitcher>
           <span className="block truncate text-[15px] font-bold">{activeStore?.name ?? "Your shop"}</span>
           <span className="block truncate text-[11px] text-muted-foreground">{area}</span>
@@ -239,7 +240,7 @@ export function OrdersTopBar({ extra }: { extra?: ReactNode }) {
         <Link
           href="/seller/restaurant-status"
           className={cn(
-            "flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-semibold",
+            "flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[11px] font-semibold",
             online
               ? "border-success text-success"
               : "border-border text-muted-foreground",
@@ -253,11 +254,11 @@ export function OrdersTopBar({ extra }: { extra?: ReactNode }) {
           />
           {online ? "Online" : "Offline"} <ChevronRight className="h-3 w-3" />
         </Link>
-        {extra}
+        {extra ? <div className="flex shrink-0 items-center gap-1">{extra}</div> : null}
         <Link
           href="/seller/explore"
           aria-label="Explore more"
-          className="rounded-full p-1.5 hover:bg-muted"
+          className="shrink-0 rounded-full p-1.5 hover:bg-muted"
         >
           <MenuIcon className="h-5 w-5" />
         </Link>

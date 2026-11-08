@@ -137,9 +137,11 @@ full-width with a floating dark pill tab bar (a centred `max-w-[430px]` dock, hi
 16px below `md` (`html:has(.font-seller)`) so mobile type/tap targets are not scaled to the desktop
 13px density. On ≥ 768px a persistent left sidebar (all `SELLER_NAV` groups — the first entry is now
 **Business Hub** → `/seller/hub`) sits beside a wider `max-w-[1024px]` content column. The pill nav is mode-aware like the reference app:
-**Orders mode** tabs (Orders / Inventory / Menu / Feedback) vs **Hub mode** tabs (Hub / Growth / Menu /
-Finance, mapped onto the platform's `hub`/`ads`/`menus`/`payments` routes), with an animated
-`SwitchingOverlay` on the round "To Hub" / "To Orders" button. `/seller` redirects to `/seller/orders`
+**Orders mode** tabs (Orders / Stock / Menu / Reviews) vs **Hub mode** tabs (Home / Ads / Menu /
+Payments, mapped onto the platform's `hub`/`ads`/`menus`/`payments` routes), with an animated
+`SwitchingOverlay` on the round "Home" / "Orders" switch button. Labels are single plain words shop
+owners already use; the nav follows the 4px spacing grid with `--seller-nav-h`/`--seller-nav-gap`.
+`/seller` redirects to `/seller/orders`
 (orders stay the first page you land on); the old dashboard's KPIs / GMV trend / shop health / checklist /
 top products / alerts now live in the `/seller/hub` Business Hub page. Restaurant-status-ish UI state
 (online/rush/delivery) is not server data, so it lives in a small persisted Zustand slice `src/lib/sellerUi.ts`.

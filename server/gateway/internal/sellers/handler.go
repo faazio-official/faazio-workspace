@@ -1,6 +1,7 @@
 package sellers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -21,11 +22,13 @@ type Handler struct {
 	repo  *Repo
 	cache *cache.Cache
 	audit contracts.AuditWriter
+	// logins auto-provisions the seller's portal credential on approval; nil disables it.
+	logins contracts.SellerLoginProvisioner
 }
 
 // NewHandler builds the sellers handler.
-func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter) *Handler {
-	return &Handler{repo: repo, cache: c, audit: audit}
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, logins contracts.SellerLoginProvisioner) *Handler {
+	return &Handler{repo: repo, cache: c, audit: audit, logins: logins}
 }
 
 // Register mounts the sellers routes.
@@ -382,7 +385,11 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.log(r, "SELLER_"+req.Status, id, map[string]string{"status": before.Status}, map[string]string{"status": after.Status})
-	httpx.JSON(w, http.StatusOK, after)
+	resp := sellerResponse{Seller: after}
+	if after.Status == "ACTIVE" {
+		resp.Credential = h.provisionLogin(r.Context(), after)
+	}
+	httpx.JSON(w, http.StatusOK, resp)
 }
 
 type setStatusRequest struct {
@@ -459,7 +466,37 @@ func (h *Handler) verifyKYC(w http.ResponseWriter, r *http.Request) {
 		map[string]string{"status": s.Status},
 		map[string]string{"status": after.Status})
 	detail, _, _ := h.repo.DetailByID(r.Context(), after.SellerID)
-	httpx.JSON(w, http.StatusOK, detail)
+	httpx.JSON(w, http.StatusOK, sellerDetailResponse{
+		Detail:     detail,
+		Credential: h.provisionLogin(r.Context(), after),
+	})
+}
+
+// sellerResponse is a seller row plus the one-time credential minted when it is activated. The
+// embedded Seller keeps the existing camelCase fields at the top level of the JSON object.
+type sellerResponse struct {
+	Seller
+	Credential *contracts.SellerLogin `json:"credential,omitempty"`
+}
+
+// sellerDetailResponse is the admin review projection plus the activation credential.
+type sellerDetailResponse struct {
+	Detail
+	Credential *contracts.SellerLogin `json:"credential,omitempty"`
+}
+
+// provisionLogin creates (or reuses) the seller's portal login. It is best-effort: a provisioning
+// failure must never roll back an approval the admin already committed, so it is reported in the
+// response instead. The temporary password is never logged.
+func (h *Handler) provisionLogin(ctx context.Context, s Seller) *contracts.SellerLogin {
+	if h.logins == nil {
+		return nil
+	}
+	login, err := h.logins.ProvisionSellerLogin(ctx, s.SellerID, s.ContactEmail, s.BusinessName)
+	if err != nil {
+		return &contracts.SellerLogin{Skipped: true, Reason: "login provisioning failed"}
+	}
+	return &login
 }
 
 type verifyDocRequest struct {
