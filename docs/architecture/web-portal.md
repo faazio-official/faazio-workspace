@@ -818,6 +818,7 @@ Run from `client/web/platform/`:
 npm run ts:check   # tsc --noEmit
 npm run build      # next build (must prerender all routes with no errors)
 npm run lint       # eslint (prettier is `npm run format`, not a lint error)
+npm test           # vitest run (logic tests, e.g. src/lib/api/__tests__/createProduct.test.ts)
 ```
 
 ## Deployment (Vercel)

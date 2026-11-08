@@ -418,6 +418,33 @@ build (Reanimated is far slower in debug); use a **CI release** build.
 - Mongo `home feed unavailable` → `mongodb` not seeded. Run `server/supabase/seed/mongo/seed.js`
   (compose mounts it into `/docker-entrypoint-initdb.d`).
 
+## 🧪 Gateway integration tests + seller-product simulation
+
+- **Integration tests skip, they do not fail, without a DB.** The `testenv` helpers
+  (`internal/platform/testenv`) skip any test when `TEST_DATABASE_URL`/`DATABASE_URL` or
+  `TEST_VALKEY_URL`/`VALKEY_URL` are unset. To actually run them, point at the local compose stack:
+  ```bash
+  cd server/gateway
+  TEST_DATABASE_URL="postgres://postgres:faazio@localhost:5432/faazio?sslmode=disable" \
+  TEST_VALKEY_URL="redis://localhost:6379/0" \
+    go test -count=1 ./internal/catalog/... ./internal/media/...
+  ```
+  A `--- SKIP` line means the service was not reachable — not a pass. Start the stack first
+  (`docker compose up -d postgres valkey`, or `docker start faazio-local-pg faazio-local-valkey`).
+- **`connect postgres: ...` skip** → the URL is wrong or Postgres is not up; check the port
+  (`5432`) and that migrations/seed ran (`GET /health` shows `"db":true`).
+- **`TestCreateProductHandlerCachePurge` / any cache test skips** → `TEST_VALKEY_URL` unset; the
+  no-op cache has no keys to purge. Set `TEST_VALKEY_URL` to run it.
+- **Portal unit tests** (`client/web/platform`): `npm test` (vitest). No DB/Docker needed —
+  `createProduct` is exercised with mocked network/store.
+- **Seller-product simulation** (`server/gateway/scripts/test-seller-product-create.sh`) drives the
+  real HTTP contract against a **running** gateway and needs: `SUPABASE_JWT_SECRET` (same value the
+  gateway uses), `SELLER_ID` (an ACTIVE seller with a live store; look it up with
+  `docker exec faazio-local-pg psql "$TEST_DATABASE_URL" -tAc "select seller_id from
+  sellers.sellers where status='ACTIVE' limit 1"`), and a reachable `GATEWAY_URL`
+  (default `http://localhost:8080`). It skips the real R2 `PUT` (no creds needed) and only touches
+  `media.assets`. Any `FAIL` line exits non-zero.
+
 ## 🔧 Central remote config (`admins.app_config`, `0059`)
 
 - The app fetches `GET /app-config` best-effort under the splash (`remoteConfigStore`). A failure is

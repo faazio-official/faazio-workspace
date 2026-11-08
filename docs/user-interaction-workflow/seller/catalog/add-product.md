@@ -58,6 +58,39 @@
 - **Error:** inline error; no fake product row.
 - **Empty:** no products → create-product empty state.
 
+## Testing
+
+Four layers cover this workflow (all skip cleanly when their backing service is unset, so the
+plain unit suite stays green without Docker):
+
+1. **Go handler integration** — `server/gateway/internal/catalog/handler_test.go` drives
+   `POST /seller/products` through a real `httptest` router over Postgres + Valkey:
+   `TestCreateProductHandlerHappyPath` (201 + `PENDING_REVIEW`, product/stock rows, rupees→paisa),
+   `...Validation` (400s), `...AuthZ` (cross-seller/cross-district 404, super-admin 201),
+   `...ImageR2Resolution` (`r2:<key>` → `image_key`, unknown asset 400), and `...CachePurge`
+   (store-products key purged; requires Valkey).
+2. **Go media happy path** — `server/gateway/internal/media/handler_test.go` adds
+   `TestUploadURLHappyPath` (minted `img_` asset + presigned PUT, DRAFT row), `TestConfirmHappyPath`
+   (DRAFT → ACTIVE + owner link), and `TestConfirmRejectsUnknownAsset` (404).
+3. **Portal unit tests** — `client/web/platform/src/lib/api/__tests__/createProduct.test.ts`
+   (vitest) covers live-mode id/status adoption, whole-rupee conversion, `data:` rejection,
+   `r2:`→`imageKey`, https passthrough, offline seed mode, and pricing parsing.
+4. **Gateway simulation** — `server/gateway/scripts/test-seller-product-create.sh` runs the whole
+   HTTP flow (upload-url → confirm → create → list → inventory → admin approve → negatives) against
+   a running gateway and prints a PASS/FAIL summary.
+
+```bash
+# Go (from server/gateway/; export TEST_DATABASE_URL + TEST_VALKEY_URL to run, else they skip)
+go test ./internal/catalog/... ./internal/media/...
+
+# Portal
+cd client/web/platform && npm test
+
+# Simulation (gateway must be running; see the script header for SELLER_ID lookup)
+SUPABASE_JWT_SECRET=... SELLER_ID=sel-tiruchi-01 \
+  server/gateway/scripts/test-seller-product-create.sh http://localhost:8080
+```
+
 ## Known gaps
 
 - The new-product page hardcodes GST/TCS/TDS display constants (`page.client.tsx`); the server is
