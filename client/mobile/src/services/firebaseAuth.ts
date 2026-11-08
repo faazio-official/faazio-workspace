@@ -18,7 +18,10 @@ import {
   type ConfirmationResult,
   type User,
 } from '@react-native-firebase/auth';
-import { FIREBASE_AUTH_ENABLED } from '../lib/config';
+import {
+  FIREBASE_APP_VERIFICATION_DISABLED,
+  FIREBASE_AUTH_ENABLED,
+} from '../lib/config';
 import { DEFAULT_COUNTRY, toE164 as normalizePhone } from '@/lib/phone';
 
 export interface FirebaseUser {
@@ -229,6 +232,11 @@ async function sendOtpForScope(phoneDigits: string, scope: OtpScope): Promise<vo
   }
   const phone = toE164(phoneDigits);
   const auth = await otpAuth(scope);
+  // Dev/simulator only: the iOS simulator always uses Firebase's reCAPTCHA web sheet. With app
+  // verification disabled, a console registered test number signs in without leaving the app.
+  if (FIREBASE_APP_VERIFICATION_DISABLED) {
+    auth.settings.appVerificationDisabledForTesting = true;
+  }
   const current: PendingOtp = {
     phone,
     scope,

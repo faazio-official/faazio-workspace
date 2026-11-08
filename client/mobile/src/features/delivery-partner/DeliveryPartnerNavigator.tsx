@@ -35,7 +35,7 @@ export function DeliveryPartnerNavigator() {
   }, [hydrated, isAuthenticated]);
 
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, statusBarStyle: 'dark' }} initialRouteName="PhoneEntry">
+    <Stack.Navigator screenOptions={{ headerShown: false }} initialRouteName="PhoneEntry">
       <Stack.Screen name="PhoneEntry" component={PhoneEntryScreen} />
       <Stack.Screen name="OtpVerify" component={OtpVerifyScreen} />
       <Stack.Screen name="Register" component={RegistrationFormScreen} />

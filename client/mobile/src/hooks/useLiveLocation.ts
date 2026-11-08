@@ -3,9 +3,8 @@ import { AppState } from 'react-native';
 import {
   distanceMeters,
   getCoarsePosition,
-  getCurrentAddress,
   getHighAccuracyPosition,
-  requestLocationPermission,
+  requestLocationAccess,
   reverseGeocode,
   type Coordinates,
 } from '@/services/location';
@@ -30,8 +29,8 @@ export async function refreshLiveLocation(
   const store = useLocationStore.getState();
   if (!prompt && !store.permissionGranted) return false;
   if (prompt) {
-    const granted = await requestLocationPermission();
-    if (!granted) {
+    const access = await requestLocationAccess();
+    if (access !== 'granted') {
       store.setDenied();
       return false;
     }
@@ -68,29 +67,41 @@ export async function refreshLiveLocation(
 }
 
 /**
+ * Outcome of an explicit "use my location" request. `blocked` means the OS will
+ * not show the permission dialog again (iOS denial / Android "don't ask again");
+ * the caller must send the user to Settings instead of retrying the prompt.
+ */
+export type LocationRequestResult = 'ready' | 'denied' | 'blocked' | 'failed';
+
+/**
  * Explicit consent + fix for onboarding/manual location. Requests the OS
  * permission and, when granted, resolves a high-accuracy fix and address.
  */
-export async function requestAndRefreshLocation(): Promise<boolean> {
+export async function requestAndRefreshLocation(): Promise<LocationRequestResult> {
   const store = useLocationStore.getState();
   store.setLoading();
+  const access = await requestLocationAccess();
+  if (access !== 'granted') {
+    store.setDenied();
+    return access === 'blocked' ? 'blocked' : 'denied';
+  }
   try {
-    const resolved = await getCurrentAddress();
-    if (!resolved) {
-      store.setDenied();
-      return false;
-    }
+    const coordinates = await getHighAccuracyPosition();
+    const place = await reverseGeocode(
+      coordinates.latitude,
+      coordinates.longitude,
+    );
     store.setFix({
-      coordinates: resolved.coordinates,
-      place: resolved.place,
+      coordinates,
+      place,
       address:
-        formatPlace(resolved.place) ||
-        `${resolved.coordinates.latitude.toFixed(4)}, ${resolved.coordinates.longitude.toFixed(4)}`,
+        formatPlace(place) ||
+        `${coordinates.latitude.toFixed(4)}, ${coordinates.longitude.toFixed(4)}`,
     });
-    return true;
+    return 'ready';
   } catch {
     store.setDenied();
-    return false;
+    return 'failed';
   }
 }
 

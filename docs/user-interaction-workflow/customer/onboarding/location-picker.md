@@ -9,7 +9,11 @@
 1. A returning user with `useLocationStore.address` starts in `manual`; a first-time user starts in
    `request`.
 2. **Request:** `requestAndRefreshLocation()` asks for foreground location permission and a fix.
-   Denial or failure shows an inline error and keeps the manual path available.
+   - **First denial (Android):** inline error; the manual path stays available and a later tap can
+     show the OS dialog again.
+   - **Blocked (iOS "Don't Allow", Android "Don't ask again"):** the OS will never show the
+     permission dialog again. The screen shows a Settings instruction, opens the Settings app via
+     `Linking.openSettings()`, and the manual path stays available.
 3. **Manual:** `usePlaceAutocomplete` searches places; `resolvePlaceLocation(placeId)` resolves the
    selected suggestion to coordinates + address.
 4. Selecting a place or a confirmed fix calls `useLocationStore.setFix(...)` and moves to `loader`.
@@ -41,6 +45,9 @@
 
 - None specific to this screen. Places availability depends on a valid API key; see
   `docs/RUNBOOKS/TROUBLESHOOTING.md`.
+- Permission state is read through the local `FaazioGeocoder` native module
+  (`getLocationAuthorizationStatus`) because `@react-native-community/geolocation` does not expose
+  the iOS authorization status. A native rebuild is required when this module changes.
 
 ## Linked docs
 

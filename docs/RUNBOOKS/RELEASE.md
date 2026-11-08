@@ -388,6 +388,12 @@ Each product is a separate listing built from the same target via a build config
 | Delivery Partner | `Delivery-Release` | `com.faazio.deliverypartner` | `GoogleService-Info-Delivery.plist` (CI secret) |
 | Seller Partner | `Seller-Release` | `com.faazio.sellerpartner` | `GoogleService-Info-Seller.plist` (CI secret) |
 
+The `Delivery Firebase config` build phase runs `ios/scripts/firebase-url-scheme.sh`, which reads
+`GOOGLE_APP_ID` from the Firebase plist actually bundled and injects the matching Firebase Phone
+Auth callback scheme (`app-<GOOGLE_APP_ID with : → ->`) into the built `Info.plist`. This is what
+keeps `verifyPhoneNumber()` from `fatalError`-ing (SIGTRAP) on iOS; no per-variant manual scheme is
+needed when a partner plist is supplied.
+
 APNs entitlements are split by configuration: the three `*Release` configs sign with
 `ios/Faazio/Faazio.entitlements` (`aps-environment = production`) and the three `*Debug` configs
 with `ios/Faazio/Faazio-Debug.entitlements` (`development`). The App Store/development provisioning

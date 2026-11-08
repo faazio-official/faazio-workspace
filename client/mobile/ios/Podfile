@@ -7,11 +7,12 @@ require Pod::Executable.execute_command('node', ['-p',
 platform :ios, min_ios_version_supported
 prepare_react_native_project!
 
-linkage = ENV['USE_FRAMEWORKS']
-if linkage != nil
-  Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
-  use_frameworks! :linkage => linkage.to_sym
-end
+# React Native Firebase 27 resolves Firebase 13 through Swift Package Manager,
+# whose products are automatic (static) libraries. RNFB requires dynamic pod
+# linkage so those products don't collide at link time, so default to dynamic.
+linkage = ENV['USE_FRAMEWORKS'] || 'dynamic'
+Pod::UI.puts "Configuring Pod with #{linkage}ally linked Frameworks".green
+use_frameworks! :linkage => linkage.to_sym
 
 target 'Faazio' do
   config = use_native_modules!
@@ -29,5 +30,40 @@ target 'Faazio' do
       config[:reactNativePath],
       :mac_catalyst_enabled => false
     )
+
+    # With `use_frameworks! :linkage => :dynamic` every pod is its own dynamic
+    # framework and must resolve its own symbols at its own link step. Static
+    # linkage gets system frameworks and React via app-level autolinking, but
+    # a few pods only rely on that implicit behaviour and therefore fail to
+    # link (`Undefined symbols`, e.g. VisionCamera -> RCTEventEmitter,
+    # RNSound -> AVAudioSession). Declare the missing link flags per pod here.
+    dynamic_linkage_frameworks = {
+      'VisionCamera' => %w[React ReactNativeDependencies hermesvm AVFoundation CoreMedia UIKit],
+      'RNSound' => %w[AVFoundation],
+      'react-native-image-picker' => %w[UniformTypeIdentifiers],
+      'RNKeychain' => %w[LocalAuthentication Security],
+      'RNReanimated' => %w[CoreMotion QuartzCore],
+      'RNSVG' => %w[CoreGraphics CoreImage CoreText QuartzCore],
+      'RNWorklets' => %w[QuartzCore],
+      'react-native-maps' => %w[CoreLocation MapKit QuartzCore],
+      'react-native-webview' => %w[WebKit],
+      'RNFBMessaging' => %w[UserNotifications],
+    }.freeze
+
+    installer.pods_project.targets.each do |target|
+      frameworks = dynamic_linkage_frameworks[target.name]
+      next unless frameworks
+
+      target.build_configurations.each do |build_config|
+        ldflags = build_config.build_settings['OTHER_LDFLAGS'] || []
+        ldflags = [ldflags] unless ldflags.is_a?(Array)
+        ldflags << '$(inherited)' unless ldflags.include?('$(inherited)')
+        frameworks.each do |framework|
+          flag = "-framework \"#{framework}\""
+          ldflags << flag unless ldflags.include?(flag)
+        end
+        build_config.build_settings['OTHER_LDFLAGS'] = ldflags
+      end
+    end
   end
 end

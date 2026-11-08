@@ -151,6 +151,9 @@ const useFirebaseAuth =
   appVariant === 'seller' ? false : firebaseSetting === '' || ['1', 'true', 'yes'].includes(firebaseSetting);
 const isRelease = flag('CONFIGURE_RELEASE');
 const requirePins = flag('REQUIRE_CERT_PINS');
+// Dev/simulator convenience: skip Firebase app verification so a console-registered test phone
+// number signs in without the iOS reCAPTCHA Safari sheet. Never allowed in release builds.
+const disableAppVerification = !isRelease && flag('FIREBASE_APP_VERIFICATION_DISABLED');
 const transport = isRelease ? 'embedded' : 'metro';
 
 // Each product has its own Firebase app entry (distinct package/bundle id). The partner build
@@ -295,6 +298,8 @@ export const USE_GATEWAY = ${useGateway};
 export const STRICT = ${strict};
 export const DEV_USER = ${JSON.stringify(devUser)};
 export const FIREBASE_AUTH_ENABLED = ${useFirebaseAuth};
+/** Debug-only: use Firebase console test phone numbers without the reCAPTCHA web sheet. */
+export const FIREBASE_APP_VERIFICATION_DISABLED = ${disableAppVerification};
 export const CERT_PINS: readonly string[] = ${JSON.stringify(pins)};
 export const IS_RELEASE_CONFIG = ${isRelease};
 /** Restricted Google Maps SDK keys (native map rendering; Android needs the manifest resource). */

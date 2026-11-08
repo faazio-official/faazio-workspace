@@ -658,6 +658,75 @@ build on the Linux host.
 - **Partner build fails with "requires GoogleService-Info-Delivery.plist"** → the
   `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` (or `_SELLER_`) secret is not set; the build phase copies it
   over the bundled customer plist.
+- **"no such module 'React'" with `ld: warning: search path '…/Debug-iphonesimulator/<Pod>' not
+  found` for every pod** → you opened/built `Faazio.xcodeproj` instead of `Faazio.xcworkspace`.
+  Building the `.xcodeproj` skips the `Pods` project, so React and every pod framework are never
+  compiled. Always `open client/mobile/ios/Faazio.xcworkspace` (the build log shows
+  `from project 'Faazio'` / `cd …/Faazio.xcodeproj` when you got it wrong). Fix by closing Xcode,
+  opening the `.xcworkspace`, then build. Re-run `pod install` if the workspace itself is stale.
+- **"no such module 'React'" / `Undefined symbols …` (e.g. `RCTEventEmitter`, `AVAudioSession`) on
+  a local Xcode build from the workspace** → React Native Firebase 27 resolves Firebase 13 through
+  SPM, which requires `use_frameworks! :linkage => :dynamic` (see `ios/Podfile`). After any native
+  dependency change, run `cd client/mobile/ios && pod install` (delete `Pods/` + `Podfile.lock`
+  first if the workspace looks stale). Because dynamic pods must resolve their own symbols, the
+  Podfile `post_install` declares missing React/system frameworks per pod
+  (`dynamic_linkage_frameworks`) — add an entry there when a new native module fails to link.
+- **`Sandbox: … deny(1) file-write-create …/Pods/resources-to-copy-<target>.txt`** →
+  `ENABLE_USER_SCRIPT_SANDBOXING` must be `NO` on the app build configurations; CocoaPods resource
+  scripts write into `Pods/`, which the Xcode 15+ script sandbox otherwise blocks.
+
+## 🔧 iOS local simulator run
+
+- **Status-bar red boxes from `RCTStatusBarManager` ("requires that the
+  `UIViewControllerBasedStatusBarAppearance` key … is set to NO") or from
+  `RNSScreenWindowTraits assertViewControllerBasedStatusBarAppearenceSet` ("… set to YES")** →
+  the app has two status-bar APIs and they require opposite plist values:
+  - RN's `StatusBar` (`App.tsx`, `DeliveryPartnerApp.tsx`, `SellerPartnerApp.tsx`, and the Home
+    focus effect in `HomeTabScreen.tsx`) only works when the key is **`NO`**.
+  - `react-native-screens`/native-stack's per-screen `statusBarStyle`/`statusBarHidden`/
+    `statusBarAnimation` options only work when it is **`YES`**.
+
+  This app standardises on RN's `StatusBar`, so **all three plists set the key to `NO`**
+  (`ios/Faazio/Info.plist`, `Info-Delivery.plist`, `Info-Seller.plist`; include it in any new
+  variant too) and navigators **must not** set `statusBarStyle`/`statusBarHidden` in
+  `screenOptions` — doing so fires the `react-native-screens` assertion under `NO`. Change bar
+  style with `StatusBar.setBarStyle(...)` (e.g. `useFocusEffect` for the blue Home header). If you
+  ever switch to `YES`, remove **every** RN `StatusBar` usage first.
+- **`No script URL provided` / `Could not connect to the server (localhost:8081)` /
+  `The default Firebase app has not yet been configured`** → Metro isn't running. Start it with
+  `cd client/mobile && npm run start` before launching the simulator build. Firebase is configured
+  by JS (`initializeApp`), so these all clear once the bundle loads.
+- **`Class … is implemented in both …RNFBMessaging and …PackageFrameworks/GULAppDelegateSwizzler…`
+  (duplicate Objective-C classes)** → expected with React Native Firebase 27 + Firebase 13 SPM.
+  Firebase 13 products are plain (static) Swift-Package libraries; RNFB requires
+  `use_frameworks! :linkage => :dynamic`, and its own `firebase_spm.rb` documents that "dynamic pods
+  … still embed a private copy per pod, so third-party pods cannot share one FirebaseCore/FirebaseApp
+  with RNFB under SPM." The app builds and runs; these are upstream warnings, not a local misconfig.
+- **`empty dSYM file detected … created with an executable with no debug info`** → harmless Xcode
+  debug-dylib (`Faazio.debug.dylib`) artifact in Debug; ignore it.
+- **OTP appears to be accepted, then the app bounces straight back to the phone-entry/Login page
+  (a login loop), or no SMS is ever sent on iOS** → the default Firebase app was never configured,
+  so `getApps()` is empty and `firebaseAuthConfigured()` is false. `LoginScreen` then uses its
+  `__DEV__` placeholder path (any six digits, fake `placeholder.*` token), the gateway 401s,
+  `recoverSession` finds no native user and `expireSession` resets to Login. Fix: `ios/Faazio/
+  AppDelegate.swift` must `import FirebaseCore` and call `FirebaseApp.configure()` before React
+  Native starts (RNFB does not auto-configure iOS; see `docs/RUNBOOKS/FIREBASE_AUTH.md`).
+- **The app crashes with `SIGTRAP` / `EXC_BREAKPOINT` the moment OTP is sent, and the device log
+  shows `FirebaseAuth/PhoneAuthProvider.swift: … Fatal error: Please register custom URL scheme
+  app-<…>`** → the Firebase Phone Auth callback scheme is missing from the **built** `Info.plist`.
+  `ios/scripts/firebase-url-scheme.sh` (the `Delivery Firebase config` build phase) derives it from
+  the bundled `GoogleService-Info.plist` and injects it, so this should not happen on a current
+  build. If it does: the app is a pre-fix build or the phase did not run — clean build and look for
+  `note: added Firebase Auth URL scheme …`; verify the active `GoogleService-Info*.plist` has
+  `GOOGLE_APP_ID`. See `docs/RUNBOOKS/FIREBASE_AUTH.md` → "iOS: why a browser opens".
+- **`pod install` prints `xcode-select: error: tool 'xcodebuild' requires Xcode` / ends with
+  `[!] Unexpected XCode version string ''`, or `xcodebuild` / `npm run ios` fails with the same
+  error** → the active developer directory is the Command Line Tools, not full Xcode
+  (`xcode-select -p` shows `/Library/Developer/CommandLineTools`; CLT has no iOS SDK). Point it at
+  the real Xcode install and confirm: `sudo xcode-select -s /Applications/Xcode.app/Contents/Developer`
+  then `xcodebuild -version`. Xcode must live outside `~/Downloads` for App Store/GUI reliability.
+  To test a build without changing the system setting, prefix it:
+  `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -workspace …`.
 
 ## Seller onboarding / payouts (manual)
 

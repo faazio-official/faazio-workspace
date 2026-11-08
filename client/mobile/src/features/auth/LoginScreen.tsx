@@ -30,8 +30,6 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import phoneAuthBackgroundImg from '@/assets/phone_auth_background.webp';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
-import { COUNTRY_OPTIONS, CountryCodePicker } from '@/components/CountryCodePicker';
-import type { CountryOptionCode } from '@/components/CountryCodePicker';
 import { useAuthStore } from '@/state/authStore';
 import { useOnboardingStore } from '@/state/onboardingStore';
 import { openTrustedUrl } from '@/lib/externalLinks';
@@ -135,6 +133,9 @@ function RotatingSpinner({ size = 14, borderWidth = 2, color = neutral.ink }) {
 
 const RESEND_COOLDOWN_S = 30;
 
+/** Customer phone auth is India-only; the dial code is fixed, never user-selectable. */
+const COUNTRY_DIAL = '+91';
+
 export function LoginScreen({ navigation }: Props) {
   const login = useAuthStore((s) => s.login);
   const hasSeenOnboarding = useOnboardingStore((s) => s.hasSeenOnboarding);
@@ -147,7 +148,6 @@ export function LoginScreen({ navigation }: Props) {
     void openTrustedUrl(PRIVACY_URL);
   }, []);
   const [phone, setPhone] = useState('');
-  const [country, setCountry] = useState<CountryOptionCode>('IN');
   const [phoneError, setPhoneError] = useState('');
   const [otpState, setOtpState] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -278,9 +278,9 @@ export function LoginScreen({ navigation }: Props) {
     prevOtpLength.current = otpCode.length;
   }, [otpCode, digitAnims]);
 
-  const dial = COUNTRY_OPTIONS.find((option) => option.code === country)?.dial ?? '+91';
-  const phoneE164 = toE164(phone, country);
-  const phoneValid = isValidPhone(phone, country);
+  const dial = COUNTRY_DIAL;
+  const phoneE164 = toE164(phone);
+  const phoneValid = isValidPhone(phone);
 
   const completeLogin = useCallback(
     async (session: FirebaseSession): Promise<boolean> => {
@@ -392,8 +392,8 @@ export function LoginScreen({ navigation }: Props) {
   const requestOtp = useCallback(
     async (digits: string) => {
       if (isSending) return;
-      if (!isValidPhone(digits, country)) {
-        setPhoneError('Enter a valid phone number for the selected country.');
+      if (!isValidPhone(digits)) {
+        setPhoneError('Enter a valid Indian mobile number.');
         return;
       }
       Keyboard.dismiss();
@@ -407,7 +407,7 @@ export function LoginScreen({ navigation }: Props) {
         // The User Consent API only sees SMS received after it starts — arm before the send.
         restartSmsConsent();
         try {
-          await sendOtp(toE164(digits, country));
+          await sendOtp(toE164(digits));
         } catch (err) {
           stopSmsConsent();
           setIsSending(false);
@@ -426,7 +426,7 @@ export function LoginScreen({ navigation }: Props) {
       setOtpState(true);
       setResendCooldown(RESEND_COOLDOWN_S);
     },
-    [country, isSending, restartSmsConsent, stopSmsConsent],
+    [isSending, restartSmsConsent, stopSmsConsent],
   );
 
   const handlePhoneChange = (val: string) => {
@@ -437,19 +437,13 @@ export function LoginScreen({ navigation }: Props) {
       clearTimeout(phoneAdvanceRef.current);
       phoneAdvanceRef.current = null;
     }
-    // India keeps the auto-advance at 10 digits; other countries use the Send code button
-    // because national lengths differ.
-    if (country === 'IN' && numericVal.length === 10 && !otpState) {
+    // India-only login: a 10-digit national number auto-advances to the OTP screen.
+    if (numericVal.length === 10 && !otpState) {
       phoneAdvanceRef.current = setTimeout(() => {
         phoneAdvanceRef.current = null;
         void requestOtp(numericVal);
       }, 150);
     }
-  };
-
-  const handleCountryChange = (code: CountryOptionCode) => {
-    setCountry(code);
-    setPhoneError('');
   };
 
   const handleOtpChange = (val: string) => {
@@ -573,11 +567,7 @@ export function LoginScreen({ navigation }: Props) {
             <View style={styles.formContainer}>
               <View>
                 <View style={[styles.phoneInputRow, isPhoneFocused && styles.phoneInputRowFocused]}>
-                  <CountryCodePicker
-                    value={country}
-                    onChange={handleCountryChange}
-                    disabled={isSending || otpState}
-                  />
+                  <AppText style={styles.countryCode}>{COUNTRY_DIAL}</AppText>
                   <View style={styles.separator} />
                   <AppTextInput
                     ref={phoneInputRef}

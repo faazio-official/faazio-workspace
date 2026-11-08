@@ -12,7 +12,7 @@ const Stack = createNativeStackNavigator<SellerStackParamList>();
  */
 export function SellerPartnerNavigator() {
   return (
-    <Stack.Navigator screenOptions={{ headerShown: false, statusBarStyle: 'dark' }}>
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="Portal" component={SellerWebViewScreen} />
     </Stack.Navigator>
   );

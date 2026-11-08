@@ -94,7 +94,7 @@ export function AppNavigator() {
     >
       <Suspense fallback={<SplashFallback />}>
         <Stack.Navigator
-          screenOptions={{ headerShown: false, statusBarStyle: 'dark' }}
+          screenOptions={{ headerShown: false }}
           initialRouteName={isAuthenticated ? 'MainTabs' : hasSeenOnboarding ? 'Login' : 'Onboarding'}
         >
           <Stack.Screen name="Onboarding" component={OnboardingScreen} />

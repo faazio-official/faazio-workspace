@@ -93,7 +93,21 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
     });
   },
 
-  setDenied: () => set({ status: 'denied', permissionGranted: false }),
+  setDenied: () => {
+    const { latitude, longitude, updatedAt, address } = get();
+    set({ status: 'denied', permissionGranted: false });
+    // Keep the last fix for display, but persist `permissionGranted: false` so a revoked
+    // OS permission does not hydrate back as "granted" and restart the silent poll.
+    if (latitude !== 0 || longitude !== 0) {
+      persist({
+        latitude,
+        longitude,
+        updatedAt: updatedAt ?? Date.now(),
+        permissionGranted: false,
+        address: address || undefined,
+      });
+    }
+  },
 
   reset: () => {
     set({

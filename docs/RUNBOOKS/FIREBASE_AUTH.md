@@ -4,6 +4,12 @@
 > (**Part 6: Play Integrity / APNs**) is **NOT completed** — the Firebase project is not linked
 > to Google Cloud yet, so it must be finished later. Until then Android may show reCAPTCHA on
 > devices without Play Services, and iOS always falls back to the reCAPTCHA web flow.
+>
+> **iOS simulator note:** the reCAPTCHA sheet is *expected*, not a misconfiguration. Firebase
+> documents that the iOS simulator **always** uses the reCAPTCHA flow (it cannot receive the
+> silent APNs verification push). On a physical iPhone the browser only appears when the APNs
+> `.p8` key / Push Notifications capability is missing. For browser-free simulator testing use a
+> console test number with `FIREBASE_APP_VERIFICATION_DISABLED=true` (see §3.1).
 
 ## 1. Identifiers (must match exactly)
 
@@ -39,6 +45,19 @@ committed so CI can build without extra secrets — the customer, delivery and s
 `google-services.json` files are all committed. The iOS partner plists are injected by CI. CI also
 overwrites the committed partner Android JSONs from the delivery/seller secrets so a rotated config
 never needs a git change. No service-account key is used by the mobile app.
+
+### iOS native init (required)
+
+RNFB 27 does **not** auto-configure the default Firebase app on iOS (Android does it through the
+`google-services` Gradle plugin). `ios/Faazio/AppDelegate.swift` must call `FirebaseApp.configure()`
+(imported from `FirebaseCore`, an explicit SPM product on the app target) before React Native
+starts; it reads the bundled `GoogleService-Info.plist` for the active product configuration.
+
+Without it, `getApps()` is empty, `firebaseAuthConfigured()` is false, and `LoginScreen` silently
+takes its `__DEV__` placeholder path: no SMS is sent, any six digits "succeed" with a fake
+`placeholder.*` token, the gateway 401s, `recoverSession` finds no native user, `expireSession`
+clears the session and the navigator resets to `Login` — an apparent OTP → Login loop. Verify the
+fix in the simulator by logging `getApps().length` (must be ≥ 1).
 
 ## 3. Flow
 
@@ -158,6 +177,37 @@ runtime notification permission.
   `server/gateway/.env` sourced) confirms a key parses before a deploy; it skips when the env vars
   are unset.
 
+### 3.1 iOS: why a browser opens, and how to avoid it
+
+Firebase verifies the caller with a **silent APNs push**. When that cannot happen it opens an
+in-app `SFSafariViewController` asking for reCAPTCHA. Two triggers:
+
+| Situation | Result |
+|---|---|
+| iOS **simulator** (any build) | Always reCAPTCHA — the simulator has no APNs token. Expected. |
+| Physical iPhone, **Part 6 not done** (no APNs `.p8` uploaded / Push Notifications capability missing) | reCAPTCHA every time. Upload the `.p8` key to Firebase → Project Settings → Cloud Messaging to get silent verification. |
+| Physical iPhone, Part 6 done | Silent push; the browser is used only as a rare fallback. |
+
+The app registers for remote notifications at launch
+(`ios/Faazio/AppDelegate.swift` → `application.registerForRemoteNotifications()`) so the silent
+verification push can be used. FirebaseAuth method-swizzling consumes the reCAPTCHA redirect, but
+the callback URL scheme must still be present in the **built** `Info.plist`
+(`app-<GOOGLE_APP_ID with : → ->`). `ios/scripts/firebase-url-scheme.sh` (run by the
+`Delivery Firebase config` build phase) reads `GOOGLE_APP_ID` from whichever
+`GoogleService-Info.plist` the build bundles and injects the matching scheme, so each product gets
+its own scheme automatically — including the CI-supplied delivery/seller plists. No manual plist
+edit is needed; the customer scheme is also committed in `Info.plist` as a fallback.
+
+**Browser-free simulator development:** do not disable verification for real numbers.
+
+1. Firebase console → Authentication → Sign-in method → Phone → **Phone numbers for testing**, add
+   e.g. `+91 90000 00001` with code `123456`.
+2. Set `FIREBASE_APP_VERIFICATION_DISABLED=true` in `.env.ios` (or the process env) and restart
+   Metro. `scripts/configure.js` only honours it for **non-release** builds, and `sendOtp` sets
+   `auth.settings.appVerificationDisabledForTesting = true`.
+3. Only the registered test numbers will work while the flag is on; set it back to `false` for
+   normal device testing.
+
 ## 4. Console setup (already done, except Part 6)
 
 - [x] Firebase project created; Google Analytics disabled.
@@ -196,9 +246,9 @@ runtime notification permission.
   ```
 - [x] iOS app registered with `com.faazio.customer`.
 - [x] Delivery Android app registered with `com.faazio.deliverypartner` (config -> `GOOGLE_SERVICES_DELIVERY_JSON`).
-- [ ] Delivery iOS app registered with `com.faazio.deliverypartner` (config -> `GoogleService-Info-Delivery.plist`).
+- [ ] Delivery iOS app registered with `com.faazio.deliverypartner` (config -> `GoogleService-Info-Delivery.plist`). The `Delivery Firebase config` build phase derives the phone-OTP callback scheme from that plist automatically.
 - [x] Seller Android app registered with `com.faazio.sellerpartner` (config -> `GOOGLE_SERVICES_SELLER_JSON`).
-- [ ] Seller iOS app registered with `com.faazio.sellerpartner` (config -> `GoogleService-Info-Seller.plist`).
+- [ ] Seller iOS app registered with `com.faazio.sellerpartner` (config -> `GoogleService-Info-Seller.plist`). The build phase injects its callback scheme automatically (FCM only today, but correct if phone auth is added).
 - [x] Authentication → Sign-in method → **Phone** enabled.
 - [x] SMS region policy allow-list includes **+91 (India)**.
 - [x] Test numbers added (use them for Metro + CI); real SMS for device tests.
@@ -261,6 +311,7 @@ Device smoke test (CI debug APK):
 |---|---|
 | `auth/invalid-app-credential` | App signature/SHA not registered, or package/bundle ID mismatch. Add debug + release SHA-1/SHA-256. |
 | Send always fails on iOS | Part 6 APNs not configured; reCAPTCHA fallback should still open. Add the `.p8` key. |
+| App crashes (SIGTRAP, `PhoneAuthProvider.swift` `fatalError`) when sending OTP on iOS | FirebaseAuth `verifyPhoneNumber` fatals when its callback URL scheme (`app-<GOOGLE_APP_ID with : → ->`) is missing from the built `Info.plist`; it trips before any network call. `ios/scripts/firebase-url-scheme.sh` (the `Delivery Firebase config` phase) injects it from the bundled `GoogleService-Info.plist`. If it recurs, the build predates that phase or the bundled Firebase plist has no `GOOGLE_APP_ID`: clean build, confirm the phase ran (look for the `note: added Firebase Auth URL scheme …` log line), and check the active `GoogleService-Info*.plist`. If `CLIENT_ID` exists, its reversed value is the equivalent scheme. With swizzling enabled (default) FirebaseAuth consumes the redirect itself; only forward URLs to `Auth.auth().canHandle(url)` in `AppDelegate.application(_:open:options:)` if swizzling is disabled. |
 | `401` from the gateway after login | `FIREBASE_PROJECT_ID` mismatch with the token `aud`/`iss`, or the gateway still runs `AUTH_DISABLED=false` with no Firebase verifier. Check Render env. |
 | SMS never arrives | Region policy excludes +91, the number is not a test number, or the free quota is exhausted (Blaze billing required past the quota). |
 | No SMS-autofill consent sheet | Google Play Services is missing/outdated, the APK predates the native module, or the retriever was armed **after** the SMS was sent. Type the code manually; rebuild via `gh workflow run android-debug.yml -f app=customer`. |

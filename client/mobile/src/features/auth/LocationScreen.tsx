@@ -234,8 +234,17 @@ export function LocationScreen({ navigation }: Props) {
   const useMyLocation = async () => {
     setPermissionError('');
     setManualError('');
-    const ok = await requestAndRefreshLocation();
-    if (!ok) {
+    const result = await requestAndRefreshLocation();
+    if (result === 'blocked') {
+      setPermissionError(
+        'Location access is off for Faazio. Enable it in Settings → Privacy & Security → Location Services, then tap “Use my current location” again.',
+      );
+      // iOS (and Android "don't ask again") will not show the system dialog a second time.
+      // Taking the user straight to Settings is the only recovery.
+      void Linking.openSettings();
+      return;
+    }
+    if (result !== 'ready') {
       setPermissionError(
         'Location permission is required to show nearby stores. You can still enter an area manually.',
       );

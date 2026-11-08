@@ -6,7 +6,8 @@
 
 ## Steps
 
-1. `LoginScreen` renders the country picker + phone field. `toE164`/`isValidPhone` validate locally.
+1. `LoginScreen` renders a fixed `+91` (India) dial code + phone field — the country is not
+   user-selectable. `toE164`/`isValidPhone` validate locally.
 2. User requests an OTP. Firebase `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode
    and starts the 30 s resend cooldown (`RESEND_COOLDOWN_S`).
 3. User enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval).
@@ -44,6 +45,11 @@
 - Dev-only placeholder login exists under `__DEV__` when Firebase is unconfigured
   (`LoginScreen.tsx` `submitOtp`). It is not a release path; see
   [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- **iOS must configure Firebase natively.** RNFB does not auto-configure the default app on iOS, so
+  `ios/Faazio/AppDelegate.swift` calls `FirebaseApp.configure()` (`FirebaseCore`). If that call is
+  missing, `getApps()` is empty, `firebaseAuthConfigured()` is false, the placeholder path above is
+  used instead of the real OTP, and its fake token 401s → `expireSession` → back to `Login` (a
+  login loop). See `docs/RUNBOOKS/FIREBASE_AUTH.md` → "iOS native init".
 - Re-auth for irreversible actions uses the same phone OTP path (`sendReauthOtp` /
   `verifyReauthOtp` in `authStore`).
 
