@@ -23,6 +23,8 @@ import {
   Star,
   Plus,
   Minus,
+  AlertCircle,
+  RefreshCw,
 } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
@@ -31,6 +33,8 @@ import ProductCardBase from '@/components/shared/ProductCardBase';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { gateway } from '@/services/api/GatewayClient';
 import type { Product, StoreProfile } from '@data/types';
+import type { ReviewRow } from '@data/reviews/reviews';
+import type { StockRow } from '@data/inventory/stock';
 import { semantic } from '@/theme/brandTokens';
 
 interface ProductDetailViewProps {
@@ -55,6 +59,16 @@ interface ProductDetailViewProps {
    * the restaurant cart pill/filter) instead of the common cart.
    */
   restaurantId?: string;
+  /**
+   * Product reviews from `GET /product/{id}/reviews`. `undefined` = not loaded
+   * (offline / remote disabled) so no section is shown; `[]` = the server really
+   * has no reviews (honest empty state).
+   */
+  reviews?: ReviewRow[];
+  /** Live stock row from the canonical `GET /product/{id}` read. Gates add-to-cart. */
+  stock?: StockRow;
+  /** Shown only when the canonical price/stock read failed; re-runs that read. */
+  onRetry?: () => void;
 }
 
 function discountPercent(price: number, original?: number): number {
@@ -76,6 +90,9 @@ export default function CommonProductDetailView({
   onViewRestaurant,
   onOpenProduct,
   restaurantId,
+  reviews,
+  stock,
+  onRetry,
 }: ProductDetailViewProps) {
   const product = propProduct;
   const safePrice = Number(product?.price) || 0;
@@ -106,6 +123,15 @@ export default function CommonProductDetailView({
   const cartItem = product ? cartItems.find((i) => i.id === product.id) : undefined;
   const cartQty = cartItem?.quantity ?? 0;
 
+  // Stock is only known once the canonical read answers; never guess. `available: false`
+  // (or a zero quantity) blocks adding and caps the stepper at the remaining stock.
+  const outOfStock = stock ? !stock.available || stock.inStockQty <= 0 : false;
+  const lowStock =
+    !outOfStock && stock?.available === true && stock.inStockQty > 0 && stock.inStockQty <= 5;
+  const atStockLimit =
+    stock?.available === true && stock.inStockQty > 0 && cartQty >= stock.inStockQty;
+  const canAddMore = !outOfStock && !atStockLimit;
+
   const handleToggleFavorite = () => {
     if (toggleFavorite && product) toggleFavorite(product.id);
   };
@@ -115,11 +141,11 @@ export default function CommonProductDetailView({
   };
 
   const handleAddToCart = () => {
-    if (product) confirmAdd(product);
+    if (product && canAddMore) confirmAdd(product);
   };
 
   const handleIncrement = () => {
-    if (product) updateCartQuantity(product.id, 1);
+    if (product && canAddMore) updateCartQuantity(product.id, 1);
   };
 
   const handleDecrement = () => {
@@ -445,6 +471,38 @@ export default function CommonProductDetailView({
             )}
           </View>
           <AppText style={styles.inclTax}>Inclusive of all taxes</AppText>
+
+          {outOfStock ? (
+            <View style={styles.availabilityRow}>
+              <AlertCircle size={ms(14)} color={semantic.danger} strokeWidth={2.2} />
+              <AppText style={styles.outOfStockText}>Out of stock</AppText>
+            </View>
+          ) : lowStock ? (
+            <View style={styles.availabilityRow}>
+              <AlertCircle size={ms(14)} color={semantic.warning} strokeWidth={2.2} />
+              <AppText style={styles.lowStockText}>
+                Only {stock?.inStockQty} left in stock
+              </AppText>
+            </View>
+          ) : null}
+
+          {onRetry ? (
+            <View style={styles.retryBanner}>
+              <AppText style={styles.retryText}>
+                Couldn’t refresh live price and stock.
+              </AppText>
+              <TouchableOpacity
+                onPress={onRetry}
+                style={styles.retryBtn}
+                activeOpacity={0.8}
+                accessibilityRole="button"
+                accessibilityLabel="Retry loading price and stock"
+              >
+                <RefreshCw size={ms(13)} color={semantic.info} strokeWidth={2.4} />
+                <AppText style={styles.retryBtnText}>Retry</AppText>
+              </TouchableOpacity>
+            </View>
+          ) : null}
         </View>
 
         {/* Product details — only render the block when there is real content. */}
@@ -458,6 +516,42 @@ export default function CommonProductDetailView({
           </View>
         ) : null}
 
+        {reviews !== undefined ? (
+          <View style={styles.padded}>
+            <AppText style={styles.sectionLabel}>Ratings & Reviews</AppText>
+            {reviews.length === 0 ? (
+              <AppText style={styles.reviewsEmpty}>No reviews yet.</AppText>
+            ) : (
+              <View style={styles.reviewList}>
+                {reviews.map((review) => (
+                  <View key={review.id} style={styles.reviewRow}>
+                    <View style={styles.reviewHeader}>
+                      <AppText style={styles.reviewer} numberOfLines={1}>
+                        {review.user}
+                      </AppText>
+                      <AppText style={styles.reviewDate}>{review.date}</AppText>
+                    </View>
+                    <View style={styles.reviewStars}>
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <Star
+                          key={star}
+                          size={ms(12)}
+                          color={star <= review.rating ? categorical.amber : neutral.border}
+                          fill={star <= review.rating ? categorical.amber : 'transparent'}
+                          strokeWidth={1.6}
+                        />
+                      ))}
+                    </View>
+                    {review.comment ? (
+                      <AppText style={styles.reviewComment}>{review.comment}</AppText>
+                    ) : null}
+                  </View>
+                ))}
+              </View>
+            )}
+          </View>
+        ) : null}
+
         {storeSection}
         {foodSection}
       </ScrollView>
@@ -465,13 +559,26 @@ export default function CommonProductDetailView({
       {/* Sticky footer */}
       <View style={styles.footer}>
         {cartQty === 0 ? (
-          <TouchableOpacity
-            onPress={handleAddToCart}
-            style={[styles.footerBtn, styles.addToCartBtn]}
-            activeOpacity={0.85}
-          >
-            <AppText style={styles.addToCartText}>Add to Cart</AppText>
-          </TouchableOpacity>
+          outOfStock ? (
+            <View
+              style={[styles.footerBtn, styles.addToCartBtn, styles.addToCartBtnDisabled]}
+              accessibilityRole="button"
+              accessibilityState={{ disabled: true }}
+              accessibilityLabel="Out of stock"
+            >
+              <AppText style={[styles.addToCartText, styles.addToCartTextDisabled]}>
+                Out of stock
+              </AppText>
+            </View>
+          ) : (
+            <TouchableOpacity
+              onPress={handleAddToCart}
+              style={[styles.footerBtn, styles.addToCartBtn]}
+              activeOpacity={0.85}
+            >
+              <AppText style={styles.addToCartText}>Add to Cart</AppText>
+            </TouchableOpacity>
+          )
         ) : (
           <>
             <View style={styles.stepper}>
@@ -479,8 +586,20 @@ export default function CommonProductDetailView({
                 <Minus size={ms(18)} strokeWidth={2.5} color={neutral.ink} />
               </TouchableOpacity>
               <AppText style={styles.stepValue}>{cartQty}</AppText>
-              <TouchableOpacity onPress={handleIncrement} style={styles.stepBtn} activeOpacity={0.8}>
-                <Plus size={ms(18)} strokeWidth={2.5} color={neutral.ink} />
+              <TouchableOpacity
+                onPress={handleIncrement}
+                style={styles.stepBtn}
+                activeOpacity={0.8}
+                disabled={!canAddMore}
+                accessibilityRole="button"
+                accessibilityState={{ disabled: !canAddMore }}
+                accessibilityLabel="Increase quantity"
+              >
+                <Plus
+                  size={ms(18)}
+                  strokeWidth={2.5}
+                  color={canAddMore ? neutral.ink : neutral.inkSubtle}
+                />
               </TouchableOpacity>
             </View>
             <TouchableOpacity
@@ -652,6 +771,93 @@ const styles = StyleSheet.create({
     color: semantic.success,
     fontWeight: '600',
     marginTop: vs(3),
+  },
+  availabilityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
+    marginTop: vs(10),
+  },
+  outOfStockText: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: semantic.danger,
+  },
+  lowStockText: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: semantic.warning,
+  },
+  retryBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: hs(10),
+    marginTop: SPACE.BLOCK,
+    paddingVertical: vs(10),
+    paddingHorizontal: hs(12),
+    borderRadius: ms(12),
+    backgroundColor: semanticTint.warning,
+  },
+  retryText: {
+    flexShrink: 1,
+    fontSize: ms(12),
+    fontWeight: '500',
+    color: neutral.ink,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(4),
+    paddingVertical: vs(4),
+    paddingHorizontal: hs(8),
+    borderRadius: ms(8),
+    backgroundColor: neutral.card,
+  },
+  retryBtnText: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: semantic.info,
+  },
+  reviewsEmpty: {
+    fontSize: ms(13),
+    color: neutral.inkSubtle,
+  },
+  reviewList: {
+    gap: SPACE.SECTION,
+  },
+  reviewRow: {
+    borderTopWidth: 1,
+    borderTopColor: neutral.surfaceAlt,
+    paddingTop: SPACE.BLOCK,
+  },
+  reviewHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(8),
+  },
+  reviewer: {
+    flexShrink: 1,
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: neutral.ink,
+  },
+  reviewDate: {
+    marginLeft: 'auto',
+    fontSize: ms(11),
+    color: neutral.inkSubtle,
+  },
+  reviewStars: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(2),
+    marginTop: vs(4),
+  },
+  reviewComment: {
+    marginTop: vs(6),
+    fontSize: ms(13),
+    color: neutral.inkMuted,
+    lineHeight: ms(19),
   },
   sectionLabel: {
     fontSize: ms(13),
@@ -841,10 +1047,17 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: neutral.ink,
   },
+  addToCartBtnDisabled: {
+    borderColor: neutral.border,
+    backgroundColor: neutral.surfaceAlt,
+  },
   addToCartText: {
     color: neutral.ink,
     fontSize: ms(14),
     fontWeight: '600',
+  },
+  addToCartTextDisabled: {
+    color: neutral.inkSubtle,
   },
   stepper: {
     flexDirection: 'row',

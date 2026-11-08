@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import CommonProductDetailView from '@/features/product/CommonProductDetailView';
 import { gateway } from '@/services/api/GatewayClient';
+import type { ProductView } from '@/services/api/GatewayClient';
 import { applyActiveDiscount, useActiveDiscounts } from '@/services/pricing';
 import { useCartStore } from '@/state/cartStore';
 import { useFavoriteStore } from '@/state/favoriteStore';
@@ -9,6 +10,7 @@ import { getFoodRestaurantForProduct } from '@/features/food/utils/restaurantFor
 import type { SubAppId } from '@/state/uiStore';
 import type { RootStackParamList } from '@/navigation/types';
 import type { Product } from '@data/types';
+import type { ReviewRow } from '@data/reviews/reviews';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'ProductDetail'>;
 
@@ -28,23 +30,35 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   // Price authority: re-resolve the canonical catalog row (base price) so an already-overlaid
   // object from a rail/search never gets the festival discount applied twice. Offline / on error
   // the passed product is used as-is.
-  const [canonical, setCanonical] = useState<Product | undefined>(undefined);
+  const [canonical, setCanonical] = useState<ProductView | undefined>(undefined);
+  const [reviews, setReviews] = useState<ReviewRow[] | undefined>(undefined);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadToken, setReloadToken] = useState(0);
   useEffect(() => {
     if (!product?.id || !gateway.remoteEnabled) {
       setCanonical(undefined);
+      setReviews(undefined);
+      setLoadFailed(false);
       return;
     }
     let active = true;
+    setLoadFailed(false);
     gateway
       .getProduct(product.id)
       .then((r) => {
-        if (active && r?.product) setCanonical(r.product);
+        if (!active || !r?.product) return;
+        setCanonical(r.product);
+        setReviews(r.reviews);
       })
-      .catch(() => undefined);
+      .catch(() => {
+        if (active) setLoadFailed(true);
+      });
     return () => {
       active = false;
     };
-  }, [product?.id]);
+  }, [product?.id, reloadToken]);
+
+  const handleRetry = useCallback(() => setReloadToken((n) => n + 1), []);
 
   const discounts = useActiveDiscounts(canonical ? [canonical.id] : []);
   const pricedProduct = useMemo<Product | undefined>(() => {
@@ -110,6 +124,9 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       onViewRestaurant={handleViewRestaurant}
       onOpenProduct={handleOpenProduct}
       restaurantId={restaurant?.id}
+      reviews={reviews}
+      stock={canonical?.stock}
+      onRetry={loadFailed ? handleRetry : undefined}
     />
   );
 }

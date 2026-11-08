@@ -2,18 +2,21 @@
 
 **App / route:** customer · `ProductDetail` (`src/features/product/ProductDetailScreen.tsx`,
 `CommonProductDetailView.tsx`)
-**Status:** Partial (reviews fetched but not rendered; no stock gating or retry UI)
+**Status:** Partial (same-store dish rail not yet built)
 **Trigger:** Tapping a product card, search result, deal, or deep link.
 
 ## Steps
 
 1. `ProductDetailScreen` receives a product from the caller and renders the shared
    `CommonProductDetailView` immediately.
-2. With the gateway enabled it refreshes canonical price via `getProduct(id)` (`GET /product/{id}` +
-   `GET /product/{id}/reviews`); only `product` is used, the `reviews` array is discarded today.
+2. With the gateway enabled it refreshes canonical price/stock via `getProduct(id)`
+   (`GET /product/{id}` + `GET /product/{id}/reviews`); both the product and its `reviews` are
+   rendered. A failed read keeps the passed product, shows a retry banner, and re-runs the read.
 3. It loads the store context (`getStore`) and related rows (`getStoreProducts`).
 4. `trackEvent('view')` records the view (`POST /events`).
-5. Add-to-cart calls `useCartStore.addToCart`, which writes the server cart.
+5. Add-to-cart calls `useCartStore.addToCart`, which writes the server cart. The action is gated on
+   the canonical stock row: `available: false` (or `inStockQty: 0`) disables it, and the stepper
+   cannot exceed `inStockQty`.
 6. Favourite toggle calls `useFavoriteStore` → `PUT/DELETE /favourites/{productId}`.
 
 ## State
@@ -27,7 +30,8 @@
 ## Data path
 
 - `gateway.getProduct(id)` → `GET /product/{id}` + `/product/{id}/reviews` → `catalog.products`,
-  `inventory.stock`, `reviews.reviews`.
+  `inventory.stock`, `reviews.reviews`. The stock row gates the footer; the review rows feed the
+  "Ratings & Reviews" section.
 - `gateway.getStore(id)` → `GET /store/{id}` → `directory.stores`.
 - `gateway.getStoreProducts(storeId)` → `GET /stores/{id}/products`.
 - `gateway.trackEvent(productId, 'view')` → `POST /events` → Mongo `user_events` (ID-only).
@@ -37,20 +41,19 @@
 
 ## Success / error / empty
 
-- **Success:** product and server-authoritative price render; the store card renders. The
-  **View Vendor** / **View Restaurant** action is shown only when the caller supplies the handler
-  (never a no-op button). The same-store dish rail is server-backed only and stays hidden when the
-  server returns nothing (no bundled dish fixture is invented).
-- **Error:** a failed canonical read is swallowed and the passed product keeps rendering; there is
-  no retry UI. A missing route `product` shows "Product unavailable".
-- **Empty:** reviews are not rendered today, so there is no empty review state; add-to-cart is always
-  enabled (no out-of-stock gating).
+- **Success:** product and server-authoritative price render; the store card and the
+  "Ratings & Reviews" list render. The **View Vendor** / **View Restaurant** action is shown only
+  when the caller supplies the handler (never a no-op button). The same-store dish rail is
+  server-backed only and stays hidden when the server returns nothing (no bundled dish fixture is
+  invented).
+- **Error:** a failed canonical read keeps the passed product rendering and shows an inline retry
+  banner that re-runs `getProduct`. A missing route `product` shows "Product unavailable".
+- **Empty:** an empty review list shows "No reviews yet." (the section stays hidden when reviews
+  were never loaded, e.g. offline). Out-of-stock products show "Out of stock" and disable the
+  add-to-cart button; low stock (≤5) shows "Only N left in stock".
 
 ## Known gaps
 
-- `/product/{id}/reviews` is fetched but never rendered; there is no review list or empty state.
-- No stock/availability check disables add-to-cart on the PDP.
-- A failed canonical read has no retry affordance.
 - There is no same-store dish rail yet; the previous always-empty block was removed rather than
   presenting a dead section.
 - Vendor rating requires a completed purchase for the verified-purchase path.

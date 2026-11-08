@@ -20,7 +20,6 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | Order cancellation is a support hand-off, not an API | `client/mobile/src/features/profile/OrderDetailsScreen.tsx:188-199` opens a `mailto:` | No in-app cancel state or cancellation endpoint |
 | Dev-only placeholder login | `client/mobile/src/features/auth/LoginScreen.tsx` `submitOtp` path under `__DEV__` when Firebase is unconfigured | Not a release path, but it is a mock session seam |
 | Food PDP has no restaurant affordance | `client/mobile/src/features/food/utils/restaurantForProduct.ts:46-57` is an intentional server-only stub returning `undefined` | Deliberate no-fabrication choice; do not "fix" with a fixture |
-| PDP does not render reviews, gate stock, or offer retry | `client/mobile/src/features/product/ProductDetailScreen.tsx:39-46` discards the `reviews` result; `CommonProductDetailView.tsx:492-520` always enables add-to-cart | Review list/empty state, out-of-stock gating, and a retry affordance on load failure are absent |
 
 ## Seller (portal + partner app)
 

@@ -15,6 +15,26 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W87 — PDP: render reviews, gate stock, add retry
+
+**Status:** 🟢 Shipped. Closes the three flagged PDP gaps.
+
+- **Reviews:** `ProductDetailScreen` now keeps the `reviews` array returned by `getProduct`
+  (`GET /product/{id}/reviews`) and threads it into `CommonProductDetailView`, which renders a
+  "Ratings & Reviews" list (reviewer, stars, date, comment) plus an honest "No reviews yet." empty
+  state. The section stays hidden when reviews were never loaded (offline / remote disabled), so an
+  offline read never masquerades as "no reviews".
+- **Stock gating:** the canonical stock row now drives the footer — `available: false` or
+  `inStockQty: 0` disables the add-to-cart button ("Out of stock") and shows an out-of-stock line;
+  the stepper is capped at `inStockQty` and low stock (≤5) shows "Only N left in stock".
+- **Retry:** a failed canonical `getProduct` read no longer fails silently — an inline retry banner
+  re-runs the read instead of only rendering the stale passed product.
+
+Docs touched: `docs/user-interaction-workflow/customer/discovery/product-detail.md` and
+`docs/user-interaction-workflow/KNOWN_GAPS.md` (gap removed).
+
+---
+
 ## W86 — Close behavioural gaps found during the UI audit
 
 **Status:** 🟢 Shipped. Fixes the honest-state bugs surfaced by the token-migration audit.
