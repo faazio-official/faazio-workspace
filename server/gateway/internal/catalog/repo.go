@@ -64,7 +64,7 @@ func (r *Repo) ByID(ctx context.Context, id string) (contracts.Product, bool, er
 	if r.pool == nil {
 		return contracts.Product{}, false, fmt.Errorf("catalog: database not configured")
 	}
-	rows, err := r.pool.Query(ctx, productSelect+" where p.id = $1", id)
+	rows, err := r.pool.Query(ctx, productSelect+" where p.id = $1 and p.deleted_at is null", id)
 	if err != nil {
 		return contracts.Product{}, false, err
 	}
@@ -111,6 +111,7 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 		left join inventory.stock s on s.product_id = p.id
 		join directory.stores d on d.id = p.store_id
 		where p.status = 'ACTIVE'
+		  and p.deleted_at is null
 		  and d.is_live
 		  and d.latitude is not null and d.longitude is not null
 		  and d.latitude between $3 and $4
@@ -150,7 +151,7 @@ func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Product, er
 	if len(ids) == 0 {
 		return []contracts.Product{}, nil
 	}
-	rows, err := r.pool.Query(ctx, productListSelect+" where p.id = any($1)", ids)
+	rows, err := r.pool.Query(ctx, productListSelect+" where p.id = any($1) and p.deleted_at is null", ids)
 	if err != nil {
 		return nil, err
 	}
@@ -183,6 +184,7 @@ func (r *Repo) ByStorePage(ctx context.Context, storeID string, limit int, curso
 	rows, err := r.pool.Query(ctx, productListSelect+`
 		where p.store_id = $1
 		  and p.status = 'ACTIVE'
+		  and p.deleted_at is null
 		  and (not $2::bool or p.rating < $3::float8 or (p.rating = $3::float8 and p.id > $4))
 		order by p.rating desc, p.id asc
 		limit $5`, storeID, hasCursor, cursorRating, cursorID, limit)
@@ -212,12 +214,13 @@ func (r *Repo) SearchScoped(ctx context.Context, q, app string, limit int) ([]co
 	)
 	if q == "" {
 		rows, err = r.pool.Query(ctx, productListSelect+
-			` where ($1 = '' or p.app::text = $1) order by p.rating desc, p.reviews_count desc limit $2`, app, limit)
+			` where p.deleted_at is null and ($1 = '' or p.app::text = $1) order by p.rating desc, p.reviews_count desc limit $2`, app, limit)
 	} else {
 		// FTS only: the pg_trgm `%` fallback was dropped with products_name_trgm_idx (0005) so the
 		// planner stays on products_search_vec_idx instead of seq-scanning the OR.
 		rows, err = r.pool.Query(ctx, productListSelect+`
-			where p.search_vec @@ websearch_to_tsquery('simple', catalog.immutable_unaccent($1))
+			where p.deleted_at is null
+			  and p.search_vec @@ websearch_to_tsquery('simple', catalog.immutable_unaccent($1))
 			  and ($2 = '' or p.app::text = $2)
 			order by ts_rank(p.search_vec, websearch_to_tsquery('simple', catalog.immutable_unaccent($1))) desc,
 			         p.rating desc
@@ -336,6 +339,11 @@ type SellerProduct struct {
 	// ReviewReason is the admin's moderation note on a REJECTED listing (empty otherwise).
 	ReviewReason string `json:"reviewReason,omitempty"`
 	UpdatedAt    string `json:"updatedAt"`
+	// DeletedAt/DeleteReason/PurgeAt describe a listing in the trash (soft deleted). Empty on a live
+	// listing. PurgeAt is the moment the row is permanently removed (7 days after the delete).
+	DeletedAt    string `json:"deletedAt,omitempty"`
+	DeleteReason string `json:"deleteReason,omitempty"`
+	PurgeAt      string `json:"purgeAt,omitempty"`
 }
 
 // sellerProductSelect projects a product with its owner derived through the vendor store. Ownership
@@ -347,7 +355,7 @@ select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(st.seller
        coalesce(p.desc_text,''), coalesce(p.unit,''), coalesce(p.emoji,''),
        coalesce(p.image_url,''), coalesce(p.image_key,''), p.is_veg, p.is_prescription,
        coalesce(s.in_stock_qty, 0), coalesce(s.available, true), coalesce(s.eta, ''),
-       coalesce(p.review_reason, ''), p.updated_at
+       coalesce(p.review_reason, ''), p.updated_at, p.deleted_at, coalesce(p.delete_reason, '')
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id
 left join directory.stores st on st.id = p.store_id`
@@ -361,7 +369,8 @@ func (r *Repo) SellerProducts(ctx context.Context, sellerID, district, status st
 		return nil, fmt.Errorf("catalog: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, sellerProductSelect+`
-		where ($1 = '' or st.seller_id = $1)
+		where p.deleted_at is null
+		  and ($1 = '' or st.seller_id = $1)
 		  and ($2 = '' or exists (
 		         select 1 from sellers.sellers se
 		          where se.seller_id = st.seller_id and se.district_code = $2))
@@ -389,7 +398,7 @@ func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, district, sta
 		update catalog.products p set status = $4::product_status,
 		       review_reason = case when $4 = 'REJECTED' then nullif($5, '') else null end
 		 from directory.stores st
-		 where p.id = $1 and st.id = p.store_id and (
+		 where p.id = $1 and st.id = p.store_id and p.deleted_at is null and (
 		       ($2 <> '' and st.seller_id = $2) or
 		       ($3 <> '' and exists (
 		          select 1 from sellers.sellers se
@@ -558,12 +567,17 @@ func newProductID(app string) string {
 // ProductEdit is the seller price/stock/image edit payload (money in whole rupees; nil = leave
 // unchanged). ImageKey/ImageAssetID link a confirmed media asset; a pointer to "" clears the image.
 type ProductEdit struct {
-	Price        *int64
-	InStockQty   *int64
-	Available    *bool
-	Eta          *string
-	ImageKey     *string
-	ImageAssetID *string
+	Price          *int64
+	InStockQty     *int64
+	Available      *bool
+	Eta            *string
+	ImageKey       *string
+	ImageAssetID   *string
+	Name           *string
+	Description    *string
+	Category       *string
+	IsVeg          *bool
+	IsPrescription *bool
 }
 
 // UpdateProduct edits price/stock for a seller's product. The row must belong to sellerID, or
@@ -583,14 +597,18 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 	var (
 		owner         *string
 		ownerDistrict string
+		curName       string
+		curDesc       string
+		curCategory   string
 	)
 	if err := tx.QueryRow(ctx, `
-		select st.seller_id, coalesce(se.district_code, '')
+		select st.seller_id, coalesce(se.district_code, ''), p.name,
+		       coalesce(p.desc_text,''), p.category
 		  from catalog.products p
 		  join directory.stores st on st.id = p.store_id
 		  left join sellers.sellers se on se.seller_id = st.seller_id
-		 where p.id = $1
-		 for update of p`, id).Scan(&owner, &ownerDistrict); err != nil {
+		 where p.id = $1 and p.deleted_at is null
+		 for update of p`, id).Scan(&owner, &ownerDistrict, &curName, &curDesc, &curCategory); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerProduct{}, false, nil
 		}
@@ -604,6 +622,31 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 	case district != "":
 		if owner == nil || ownerDistrict != district {
 			return SellerProduct{}, false, nil
+		}
+	}
+	if e.Name != nil || e.Description != nil || e.Category != nil || e.IsVeg != nil || e.IsPrescription != nil {
+		newName, newDesc, newCategory := curName, curDesc, curCategory
+		if e.Name != nil {
+			newName = strings.TrimSpace(*e.Name)
+		}
+		if e.Description != nil {
+			newDesc = strings.TrimSpace(*e.Description)
+		}
+		if e.Category != nil {
+			newCategory = strings.TrimSpace(*e.Category)
+		}
+		if _, err := tx.Exec(ctx, `
+			update catalog.products
+			   set name            = $2,
+			       desc_text       = $3,
+			       category        = $4,
+			       search_tokens   = $5,
+			       is_veg          = coalesce($6, is_veg),
+			       is_prescription = coalesce($7, is_prescription)
+			 where id = $1`,
+			id, newName, newDesc, newCategory, searchTokens(newName, newCategory, newDesc),
+			e.IsVeg, e.IsPrescription); err != nil {
+			return SellerProduct{}, false, err
 		}
 	}
 	if e.Price != nil {
@@ -623,16 +666,17 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 			return SellerProduct{}, false, err
 		}
 	}
-	if e.InStockQty != nil || e.Available != nil || e.Price != nil || e.Eta != nil {
+	if e.InStockQty != nil || e.Available != nil || e.Price != nil || e.Eta != nil || e.IsPrescription != nil {
 		if _, err := tx.Exec(ctx, `
 			update inventory.stock
-			   set price_paisa  = coalesce($2, price_paisa),
-			       in_stock_qty = coalesce($3, in_stock_qty),
-			       available    = coalesce($4, available),
-			       eta          = coalesce($5, eta),
-			       updated_at   = now()
+			   set price_paisa     = coalesce($2, price_paisa),
+			       in_stock_qty    = coalesce($3, in_stock_qty),
+			       available       = coalesce($4, available),
+			       eta             = coalesce($5, eta),
+			       is_prescription = coalesce($6, is_prescription),
+			       updated_at      = now()
 			 where product_id = $1`, id,
-			mul100(e.Price), e.InStockQty, e.Available, e.Eta); err != nil {
+			mul100(e.Price), e.InStockQty, e.Available, e.Eta, e.IsPrescription); err != nil {
 			return SellerProduct{}, false, err
 		}
 	}
@@ -640,6 +684,120 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 		return SellerProduct{}, false, err
 	}
 	return r.sellerProductByID(ctx, id)
+}
+
+// SoftDeleteProduct moves a listing to the trash (deleted_at = now()) instead of removing the row.
+// Scope matches UpdateProduct: seller_id for a seller, strict district for a district admin, neither
+// for a super admin. Returns ok=false when the product is absent, already deleted, or out of scope.
+func (r *Repo) SoftDeleteProduct(ctx context.Context, id, sellerID, district, reason string) (SellerProduct, bool, error) {
+	if r.pool == nil {
+		return SellerProduct{}, false, fmt.Errorf("catalog: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update catalog.products p
+		   set deleted_at = now(), delete_reason = $4
+		 from directory.stores st
+		 where p.id = $1 and st.id = p.store_id and p.deleted_at is null and (
+		       ($2 <> '' and st.seller_id = $2) or
+		       ($3 <> '' and exists (
+		          select 1 from sellers.sellers se
+		           where se.seller_id = st.seller_id and se.district_code = $3)) or
+		       ($2 = '' and $3 = ''))`,
+		id, sellerID, district, strings.TrimSpace(reason))
+	if err != nil {
+		return SellerProduct{}, false, err
+	}
+	if tag.RowsAffected() == 0 {
+		return SellerProduct{}, false, nil
+	}
+	return r.sellerProductByID(ctx, id)
+}
+
+// RestoreProduct clears a soft delete so the listing returns to its previous status/lifecycle.
+// Scope is identical to SoftDeleteProduct; ok=false when the row is absent, not deleted, or out of
+// scope. A listing past the 7-day window may already have been purged and will read as not found.
+func (r *Repo) RestoreProduct(ctx context.Context, id, sellerID, district string) (SellerProduct, bool, error) {
+	if r.pool == nil {
+		return SellerProduct{}, false, fmt.Errorf("catalog: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update catalog.products p
+		   set deleted_at = null, delete_reason = ''
+		 from directory.stores st
+		 where p.id = $1 and st.id = p.store_id and p.deleted_at is not null and (
+		       ($2 <> '' and st.seller_id = $2) or
+		       ($3 <> '' and exists (
+		          select 1 from sellers.sellers se
+		           where se.seller_id = st.seller_id and se.district_code = $3)) or
+		       ($2 = '' and $3 = ''))`,
+		id, sellerID, district)
+	if err != nil {
+		return SellerProduct{}, false, err
+	}
+	if tag.RowsAffected() == 0 {
+		return SellerProduct{}, false, nil
+	}
+	return r.sellerProductByID(ctx, id)
+}
+
+// DeletedProducts lists the caller-scoped trash, newest deletion first.
+func (r *Repo) DeletedProducts(ctx context.Context, sellerID, district string) ([]SellerProduct, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("catalog: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, sellerProductSelect+`
+		where p.deleted_at is not null
+		  and ($1 = '' or st.seller_id = $1)
+		  and ($2 = '' or exists (
+		         select 1 from sellers.sellers se
+		          where se.seller_id = st.seller_id and se.district_code = $2))
+		order by p.deleted_at desc`, sellerID, district)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SellerProduct{}
+	for rows.Next() {
+		p, err := scanSellerProduct(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+// PurgeDeletedProducts permanently removes trash rows older than maxAge and their stock rows.
+// Order history is preserved (it is a historical record, not a live catalogue row). Global sweep;
+// callers run it with the productTrashWindow.
+func (r *Repo) PurgeDeletedProducts(ctx context.Context, maxAge time.Duration) (int64, error) {
+	if r.pool == nil {
+		return 0, fmt.Errorf("catalog: database not configured")
+	}
+	cutoff := time.Now().Add(-maxAge)
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `
+		delete from inventory.stock s
+		 using catalog.products p
+		 where s.product_id = p.id
+		   and p.deleted_at is not null
+		   and p.deleted_at < $1`, cutoff); err != nil {
+		return 0, err
+	}
+	tag, err := tx.Exec(ctx, `
+		delete from catalog.products
+		 where deleted_at is not null and deleted_at < $1`, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 func (r *Repo) sellerProductByID(ctx context.Context, id string) (SellerProduct, bool, error) {
@@ -667,17 +825,25 @@ func scanSellerProduct(row sellerProductScanner) (SellerProduct, error) {
 	var (
 		p         SellerProduct
 		updatedAt time.Time
+		deletedAt *time.Time
 	)
 	if err := row.Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID,
 		&p.Price, &p.Description, &p.Unit, &p.Emoji, &p.ImageURL, &p.ImageKey,
 		&p.IsVeg, &p.IsPrescription, &p.InStockQty, &p.Available, &p.Eta,
-		&p.ReviewReason, &updatedAt); err != nil {
+		&p.ReviewReason, &updatedAt, &deletedAt, &p.DeleteReason); err != nil {
 		return SellerProduct{}, err
 	}
 	p.Price /= 100
 	p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+	if deletedAt != nil {
+		p.DeletedAt = deletedAt.UTC().Format(time.RFC3339)
+		p.PurgeAt = deletedAt.Add(productTrashWindow).UTC().Format(time.RFC3339)
+	}
 	return p, nil
 }
+
+// productTrashWindow is how long a soft-deleted listing stays restorable before it is purged.
+const productTrashWindow = 7 * 24 * time.Hour
 
 func scanSellerProducts(rows pgx.Rows) ([]SellerProduct, error) {
 	out := []SellerProduct{}

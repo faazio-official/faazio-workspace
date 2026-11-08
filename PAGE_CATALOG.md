@@ -282,6 +282,8 @@ Auth uses real **Firebase phone OTP** (`services/firebaseAuth.ts`, W60); `authSt
 | RN21 | `OrderDetails` | **OrderDetailsScreen** | `src/features/profile/OrderDetailsScreen.tsx` | `{ orderId }`; resolves `ordersStore` → `@data`; pickup card + rate card |
 | RN22 | `Favourites` | **FavouritesScreen** → `FavouritesPageView` | `src/features/favourites/FavouritesScreen.tsx` | Search-results-style; `useFavoriteStore` |
 | RN24 | `RateVendor` | **RateVendorScreen** | `src/features/profile/RateVendorScreen.tsx` | `{ vendorId; vendorName? }`; verified buyers only, gate re-checked |
+| RN24a | `RateProduct` | **RateProductScreen** | `src/features/product/RateProductScreen.tsx` | `{ productId; productName? }`; delivered buyers only, gate re-checked; `PUT /products/{id}/review` |
+| RN24b | `OrderFeedback` | **OrderFeedbackScreen** | `src/features/profile/OrderFeedbackScreen.tsx` | `{ orderId }`; delivered orders only, gate re-checked; `GET`/`PUT /orders/{id}/feedback` |
 | RN25 | `FaazioRewards` | **FaazioRewardsScreen** | `src/features/rewards/FaazioRewardsScreen.tsx` | Device-local coins + streak |
 | RN26 | `SellWithUs` | **SellerRegistrationScreen** | `src/features/seller-onboarding/SellerRegistrationScreen.tsx` | Partner onboarding → `POST /sellers` |
 | RN32 | `SellerRequests` | **SellerRequestsScreen** | `src/features/seller-onboarding/SellerRequestsScreen.tsx` | Admin application queue (role-gated); routes off the Account "Seller applications" card |
@@ -544,8 +546,12 @@ These tabs render with empty-state messages:
 | `src/features/cart/CartScreen.tsx` | Central "Your Cart" checkout (wraps CartView) | ✅ Active |
 | `src/features/cart/payment/PaymentOptionsScreen.tsx` | Payment picker (preferred card/UPI/cards/more; Swiggy-Money promo removed) | ✅ Active |
 | `src/features/profile/MyOrdersScreen.tsx` | My Orders (sub-app rail + status filter + fulfillment chip; eligibility-gated **Rate** CTA per card) | ✅ Active |
-| `src/features/profile/OrderDetailsScreen.tsx` | Per-order details (status/item/meta + "Rate your purchase" + View Product) | ✅ Active |
+| `src/features/profile/OrderDetailsScreen.tsx` | Per-order details (status/item/meta + "Rate your purchase" + "Rate your order" + View Product) | ✅ Active |
 | `src/features/profile/RateVendorScreen.tsx` | Rate Vendor form (stars + ≤280-char comment; verified buyers only) | ✅ Active |
+| `src/features/profile/OrderFeedbackScreen.tsx` | Post-delivery order feedback form (delivered orders only; server-gated) | ✅ Active |
+| `src/features/product/RateProductScreen.tsx` | Product review form (delivered buyers only; server-gated) | ✅ Active |
+| `src/components/shared/ReviewForm.tsx` | Shared product-review / order-feedback form presentation | ✅ Active |
+| `src/services/productReviews.ts` | Client mirror of the delivered-purchase product-review gate | ✅ Active |
 | `src/services/vendorRatings.ts` | Vendor rating seam (single owner of the derived gate + reviews merge) | ✅ Active |
 | `src/state/vendorRatingStore.ts` | Persisted user vendor ratings (`faazio/vendor-ratings/v1`, reset on logout) | ✅ Active |
 | `src/components/shared/VendorReviewsSection.tsx` | Reusable vendor reviews block (summary + rate CTA + public list) | ✅ Active |

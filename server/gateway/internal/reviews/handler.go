@@ -39,6 +39,9 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.Require)
 		g.Put("/vendors/{id}/rating", h.rateVendor)
+		g.Put("/products/{id}/review", h.rateProduct)
+		g.Get("/orders/{orderID}/feedback", h.getOrderFeedback)
+		g.Put("/orders/{orderID}/feedback", h.rateOrder)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
@@ -176,6 +179,62 @@ func (h *Handler) vendorSummary(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, summary)
+}
+
+// rateProduct upserts the signed-in user's review for a product they bought and received.
+func (h *Handler) rateProduct(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Rating  int64  `json:"rating"`
+		Comment string `json:"comment"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	err := h.service.SubmitProductReview(r.Context(), auth.UserID(r.Context()), chi.URLParam(r, "id"), body.Rating, body.Comment)
+	switch {
+	case errors.Is(err, ErrNotEligible):
+		httpx.Fail(w, http.StatusForbidden, "not_eligible", "you can only review products you have received")
+	case errors.Is(err, ErrInvalidRating):
+		httpx.Fail(w, http.StatusBadRequest, "invalid_rating", "rating must be between 1 and 5")
+	case err != nil:
+		httpx.Fail(w, http.StatusInternalServerError, "review_failed", "could not save review")
+	default:
+		httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
+}
+
+// getOrderFeedback returns the caller's own feedback for an order, or a zero rating when none.
+func (h *Handler) getOrderFeedback(w http.ResponseWriter, r *http.Request) {
+	fb, _, err := h.service.OrderFeedback(r.Context(), auth.UserID(r.Context()), chi.URLParam(r, "orderID"))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "feedback_unavailable", "feedback unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, fb)
+}
+
+// rateOrder upserts the caller's post-delivery feedback for one delivered order.
+func (h *Handler) rateOrder(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		Rating  int64  `json:"rating"`
+		Comment string `json:"comment"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	err := h.service.SubmitOrderFeedback(r.Context(), auth.UserID(r.Context()), chi.URLParam(r, "orderID"), body.Rating, body.Comment)
+	switch {
+	case errors.Is(err, ErrNotEligible):
+		httpx.Fail(w, http.StatusForbidden, "not_eligible", "you can only give feedback on a delivered order")
+	case errors.Is(err, ErrInvalidRating):
+		httpx.Fail(w, http.StatusBadRequest, "invalid_rating", "rating must be between 1 and 5")
+	case err != nil:
+		httpx.Fail(w, http.StatusInternalServerError, "feedback_failed", "could not save feedback")
+	default:
+		httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+	}
 }
 
 func (h *Handler) rateVendor(w http.ResponseWriter, r *http.Request) {

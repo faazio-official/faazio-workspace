@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"testing"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 )
@@ -229,5 +230,106 @@ func TestSellerInventoryAndPricing(t *testing.T) {
 	}
 	if found.InStockQty != 42 || found.Eta != "25" || found.Price != 90 || found.Unit != "1 pc" {
 		t.Fatalf("enriched projection mismatch: %+v", *found)
+	}
+}
+
+func TestProductEditAndTrash(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	sellerID := "sel-trash-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
+		values ($1,'Trash Test','O','TN','TCH')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
+
+	storeID := "store-trash-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, state_code, is_live, latitude, longitude)
+		values ($1,'MART','Trash Store',$2,'TN',true,17.44,78.38)`, storeID, sellerID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from inventory.stock where product_id in (
+			select id from catalog.products where store_id=$1)`, storeID)
+		_, _ = pool.Exec(ctx, `delete from catalog.products where store_id=$1`, storeID)
+		_, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID)
+	})
+
+	p, ok, err := repo.CreateProduct(ctx, sellerID, "", ProductCreateInput{
+		StoreID: storeID, Name: "Editable", Category: "Old Category", Desc: "before", Price: 50,
+	})
+	if err != nil || !ok {
+		t.Fatalf("create: ok=%v err=%v", ok, err)
+	}
+
+	// Descriptive fields persist (the previously local-only gap).
+	name, desc, category, veg := "Renamed Listing", "after", "New Category", true
+	got, ok, err := repo.UpdateProduct(ctx, p.ID, sellerID, "", ProductEdit{
+		Name: &name, Description: &desc, Category: &category, IsVeg: &veg,
+	})
+	if err != nil || !ok {
+		t.Fatalf("edit: ok=%v err=%v", ok, err)
+	}
+	if got.Name != name || got.Description != desc || got.Category != category || got.IsVeg == nil || !*got.IsVeg {
+		t.Fatalf("edit projection mismatch: %+v", got)
+	}
+
+	// Soft delete hides the row from the active list but keeps it in the trash.
+	trashed, ok, err := repo.SoftDeleteProduct(ctx, p.ID, sellerID, "", "test removal")
+	if err != nil || !ok {
+		t.Fatalf("soft delete: ok=%v err=%v", ok, err)
+	}
+	if trashed.DeletedAt == "" || trashed.PurgeAt == "" || trashed.DeleteReason != "test removal" {
+		t.Fatalf("trash projection missing delete metadata: %+v", trashed)
+	}
+	if items, err := repo.SellerProducts(ctx, sellerID, "", ""); err != nil || len(items) != 0 {
+		t.Fatalf("active list after delete: err=%v n=%d", err, len(items))
+	}
+	if trash, err := repo.DeletedProducts(ctx, sellerID, ""); err != nil || len(trash) != 1 || trash[0].ID != p.ID {
+		t.Fatalf("trash list: err=%v n=%d", err, len(trash))
+	}
+	// A different seller cannot restore or purge another seller's trash row.
+	if _, ok, err := repo.RestoreProduct(ctx, p.ID, "sel-other", ""); err != nil || ok {
+		t.Fatalf("cross-seller restore must be denied: ok=%v err=%v", ok, err)
+	}
+
+	// Restore brings back the listing unchanged.
+	restored, ok, err := repo.RestoreProduct(ctx, p.ID, sellerID, "")
+	if err != nil || !ok {
+		t.Fatalf("restore: ok=%v err=%v", ok, err)
+	}
+	if restored.DeletedAt != "" {
+		t.Fatalf("restore left deletedAt=%q", restored.DeletedAt)
+	}
+	if items, err := repo.SellerProducts(ctx, sellerID, "", ""); err != nil || len(items) != 1 {
+		t.Fatalf("active list after restore: err=%v n=%d", err, len(items))
+	}
+
+	// Delete again, age the row past the window, and purge: product + stock disappear.
+	if _, ok, err := repo.SoftDeleteProduct(ctx, p.ID, sellerID, "", "expired"); err != nil || !ok {
+		t.Fatalf("second soft delete: ok=%v err=%v", ok, err)
+	}
+	if _, err := pool.Exec(ctx, `update catalog.products set deleted_at = now() - interval '8 days' where id = $1`, p.ID); err != nil {
+		t.Fatalf("age row: %v", err)
+	}
+	if n, err := repo.PurgeDeletedProducts(ctx, 7*24*time.Hour); err != nil || n < 1 {
+		t.Fatalf("purge: n=%d err=%v", n, err)
+	}
+	var count int
+	if err := pool.QueryRow(ctx, `select count(*) from catalog.products where id = $1`, p.ID).Scan(&count); err != nil {
+		t.Fatalf("count product: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("product survived purge")
+	}
+	if err := pool.QueryRow(ctx, `select count(*) from inventory.stock where product_id = $1`, p.ID).Scan(&count); err != nil {
+		t.Fatalf("count stock: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("stock survived purge")
 	}
 }

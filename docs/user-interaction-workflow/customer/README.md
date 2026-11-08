@@ -31,14 +31,17 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Discovery | Mart / Food / Pharma browse | `SubApp`, `FoodApp`, `CategoryDrillIn`, `VendorDetails` | [discovery/index.md](./discovery/index.md) · [store-drillin.md](./discovery/store-drillin.md) |
 | Discovery | Food search | `FoodApp` → `Search` (`FoodSearchScreen`) | [discovery/food-search.md](./discovery/food-search.md) |
 | Discovery | Product detail | `ProductDetail` | [product-detail.md](./discovery/product-detail.md) |
+| Discovery | Product review | `ProductDetail` → `RateProduct` | [product-review.md](./discovery/product-review.md) |
 | Cart | Add to cart | Cart tab / product cards | [cart-checkout/index.md](./cart-checkout/index.md) · [add-to-cart.md](./cart-checkout/add-to-cart.md) |
 | Checkout | Delivery-fee quote | `Cart` → FULFILLMENT step | [delivery-fee-quote.md](./cart-checkout/delivery-fee-quote.md) |
 | Checkout | Place order + payment | `Cart` → PAYMENT → RECEIPT, `PaymentCallback` | [place-order.md](./cart-checkout/place-order.md) |
 | Orders | Order history | `MyOrders`, `OrderDetails` | [orders/index.md](./orders/index.md) · [order-history.md](./orders/order-history.md) |
+| Orders | Order feedback | `OrderDetails` → `OrderFeedback` | [order-feedback.md](./orders/order-feedback.md) |
 | Profile | Account / profile | `MainTabs` → `You`, `UserDetails` | [profile/index.md](./profile/index.md) |
 | Profile | Profile details | `UserDetails` (`UserDetailsScreen.tsx`) | [profile/user-details.md](./profile/user-details.md) |
 | Profile | Saved addresses | `SavedAddresses` | [saved-addresses.md](./profile/saved-addresses.md) |
 | Profile | Rewards ledger | `FaazioRewards` | [rewards-ledger.md](./profile/rewards-ledger.md) |
+| Profile | Rate vendor | `RateVendor` | [rate-vendor.md](./profile/rate-vendor.md) |
 | Pharma | Prescription upload | `PrescriptionFlow` | [pharma/index.md](./pharma/index.md) · [prescription-upload.md](./pharma/prescription-upload.md) |
 | Pharma | Blood donor | `BloodDonor` | [blood-donor.md](./pharma/blood-donor.md) |
 | Pharma | Blood donor detail / request description | `BloodDonorDetails`, `BloodRequestDescription` | [pharma/blood-donor-details.md](./pharma/blood-donor-details.md) |
@@ -61,7 +64,7 @@ invoice-PDF stub, the root `Search` `FOOD` config mismatch, Home rail fixture su
 
 ## Not yet documented (tracked in KNOWN_GAPS.md)
 
-`Favourites`, root `Search`, `RateVendor`, `DeleteAccount`, `RequestDataDeletion`, `Notifications`,
+`Favourites`, root `Search`, `DeleteAccount`, `RequestDataDeletion`, `Notifications`,
 `SellerRequests` / `SellerRequestDetail` / `SellerPlatformFeeRequest` / `FeeChangeRequests`,
 `DealsLanding`, and the Food venue screens (`RestaurantProfile`, `RestaurantOffers`,
 `RestaurantMenu`). `MedicalShopDetails` and `SellWithUs` are described only inside their domain

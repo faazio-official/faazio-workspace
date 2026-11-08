@@ -10,6 +10,7 @@
 | Flow | Doc |
 |---|---|
 | Order history + detail | [order-history.md](./order-history.md) |
+| Order feedback | [order-feedback.md](./order-feedback.md) |
 
 ## State
 
@@ -21,6 +22,8 @@
 
 - `gateway.getOrders()` → `GET /orders` → `checkout.orders` + `checkout.order_items`.
 - `gateway.getOrderInvoice(orderId)` → `GET /orders/{id}/invoice` → `tax.tax_invoices`.
+- `gateway.getOrderFeedback` / `submitOrderFeedback` → `GET` / `PUT /orders/{id}/feedback` →
+  `reviews.order_feedback` (delivered orders only; latest wins).
 - `gateway.getOrderTracking` and `gateway.getPayments` exist on the client but no order screen calls
   them today.
 

@@ -445,6 +445,30 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
           </View>
         ) : null}
 
+        {/* Post-delivery order feedback — delivered orders only (gate re-checked inside). */}
+        {order.status === 'Delivered' ? (
+          <View style={styles.card}>
+            <AppText style={styles.sectionTitle}>Rate your order</AppText>
+            <AppText style={styles.rateIntro}>
+              Tell us how the packing and delivery went for this order.
+            </AppText>
+            <TouchableOpacity
+              onPress={() =>
+                navigation.navigate('OrderFeedback', {
+                  orderId: order.id,
+                  orderNumber: order.id,
+                })
+              }
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Rate your order"
+              style={styles.invoiceBtn}
+            >
+              <AppText style={styles.invoiceBtnText}>Share feedback</AppText>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+
         {/* Tax invoice — My Orders entry only. The post-payment confirmation deep link never
             offers a PDF download; the invoice lives under My Orders → Order Details. Prescription
             orders have no invoice row (shown honestly as absent, never fabricated). */}

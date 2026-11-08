@@ -328,6 +328,7 @@ func (h *Handler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 	}
 	imagePaths, _ := h.repo.PrescriptionImagePaths(r.Context(), userID)
 	vendorIDs, _ := h.repo.ReviewedVendorIDs(r.Context(), userID)
+	productIDs, _ := h.repo.ReviewedProductIDs(r.Context(), userID)
 	authUID, ok, err := h.repo.DeleteAccount(r.Context(), userID)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "account_delete_failed", "could not delete account")
@@ -338,7 +339,7 @@ func (h *Handler) deleteAccount(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.deleteStoredObjects(r.Context(), imagePaths)
-	h.purgeUserCache(r, userID, authUID, vendorIDs)
+	h.purgeUserCache(r, userID, authUID, vendorIDs, productIDs)
 	if h.audit != nil {
 		raw, _ := json.Marshal(map[string]string{"action": "account_deleted"})
 		_ = h.audit.Audit(r.Context(), contracts.AuditEntry{
@@ -403,7 +404,7 @@ func (h *Handler) deleteUserData(w http.ResponseWriter, r *http.Request) {
 
 // purgeUserCache drops every per-user cache slice after account deletion, including the
 // auth_uid → user_id read-through mapping so a stale token cannot resolve the deleted account.
-func (h *Handler) purgeUserCache(r *http.Request, userID, authUID string, vendorIDs []string) {
+func (h *Handler) purgeUserCache(r *http.Request, userID, authUID string, vendorIDs, productIDs []string) {
 	if h.cache == nil {
 		return
 	}
@@ -419,6 +420,9 @@ func (h *Handler) purgeUserCache(r *http.Request, userID, authUID string, vendor
 	}
 	for _, vendorID := range vendorIDs {
 		keys = append(keys, cache.VendorReviews(vendorID))
+	}
+	for _, productID := range productIDs {
+		keys = append(keys, cache.ProductReviews(productID))
 	}
 	h.cache.Del(r.Context(), keys...)
 }

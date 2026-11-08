@@ -65,6 +65,8 @@ interface ProductDetailViewProps {
    * has no reviews (honest empty state).
    */
   reviews?: ReviewRow[];
+  /** Present only when a delivered order qualifies the viewer to review this product. */
+  onWriteReview?: () => void;
   /** Live stock row from the canonical `GET /product/{id}` read. Gates add-to-cart. */
   stock?: StockRow;
   /** Shown only when the canonical price/stock read failed; re-runs that read. */
@@ -91,6 +93,7 @@ export default function CommonProductDetailView({
   onOpenProduct,
   restaurantId,
   reviews,
+  onWriteReview,
   stock,
   onRetry,
 }: ProductDetailViewProps) {
@@ -549,6 +552,19 @@ export default function CommonProductDetailView({
                 ))}
               </View>
             )}
+            {onWriteReview ? (
+              <TouchableOpacity
+                onPress={onWriteReview}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Write a review"
+                style={styles.writeReviewBtn}
+              >
+                <AppText style={styles.writeReviewBtnText}>
+                  {reviews.length === 0 ? 'Be the first to review' : 'Write a review'}
+                </AppText>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
 
@@ -822,6 +838,20 @@ const styles = StyleSheet.create({
   reviewsEmpty: {
     fontSize: ms(13),
     color: neutral.inkSubtle,
+  },
+  writeReviewBtn: {
+    alignSelf: 'flex-start',
+    marginTop: SPACE.BLOCK,
+    paddingVertical: vs(9),
+    paddingHorizontal: hs(14),
+    borderRadius: ms(10),
+    borderWidth: 1,
+    borderColor: semantic.success,
+  },
+  writeReviewBtnText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: semantic.success,
   },
   reviewList: {
     gap: SPACE.SECTION,

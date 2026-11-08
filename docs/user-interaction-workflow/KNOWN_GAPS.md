@@ -31,7 +31,6 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | Toast-only admin actions | District `content` publish, `orders` escalate, `pricing-audit` contact, super `settings` save | UI reports success without a gateway write |
 | District-admins page is district-locked | `app/admin/super/district-admins/page.client.tsx:64` (`TTC_CODE = "TTC"`, used through `:124`) | Cannot provision admins outside Tiruchirappalli |
 | Native seller auth is unused | `GatewayClient.portalLogin/portalRefresh/portalLogout` exist (`src/services/api/GatewayClient.ts:826-866`) but the seller app is a WebView shell (`SellerPartnerNavigator.tsx`); the portal owns the session | Intentional today; prune or wire if native seller auth is ever built |
-| Product name/description edit and delete are local-only | `client/web/platform/src/lib/api/index.ts:468-481` (`updateProduct`) and `:520-530` (`deleteProduct`) mutate the Zustand store/audit only; there is no `DELETE /seller/products/{id}` route. The same local-only helpers back the admin product pages (`app/admin/district/products/page.client.tsx:175,191`, `app/admin/super/products/page.client.tsx:120`) and super-admin sector rename/merge (`app/admin/super/sectors/page.client.tsx:113,168`) | Edits/deletes do not persist to the gateway (price/image updates do) |
 | Admin dispatch boards have no dedicated flow page | Manual allocation (`app/admin/district/delivery/manual-allocation/page.client.tsx`, `app/admin/super/delivery/manual-allocation/page.client.tsx`) and delivery-boy boards (`app/admin/*/delivery-boys/page.client.tsx`) write through `server/gateway/internal/delivery/handler.go:90-99` but are only mentioned in passing | Flow under-documented; add a delivery-admin page before changing it |
 | Hardcoded tax constants on new-product display | New-product page shows GST/TCS/TDS constants | Display-only; the server remains the money authority |
 
@@ -96,7 +95,6 @@ here so the folder never claims full coverage it does not have. Add a page befor
 |---|---|---|
 | `Favourites` tab | `features/favourites/FavouritesScreen.tsx`, `FavouritesTabScreen.tsx` | `GET/PUT/DELETE /favourites*` → `favourites.items` |
 | `Search` | `features/search/SearchRouteScreen.tsx` | See the FOOD-config gap above |
-| `RateVendor` | `features/profile/RateVendorScreen.tsx` | `PUT /vendors/{id}/rating` |
 | `DeleteAccount`, `RequestDataDeletion` | `features/profile/DeleteAccountScreen.tsx`, `RequestDataDeletionScreen.tsx` | `DELETE /users/me`, `POST /users/me/data-deletion` |
 | `Notifications` | `features/notifications/NotificationsScreen.tsx` | `GET /notifications`, read/read-all |
 | `SellerRequests`, `SellerRequestDetail`, `SellerPlatformFeeRequest`, `FeeChangeRequests` | `features/seller-onboarding/` | Seller application/fee-change boards |

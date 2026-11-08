@@ -244,7 +244,8 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `seller/ads` | hero CampaignWizard (what→where→creative→when→review) + campaign list/KPIs — includes the `PHARMA_HERO` (Pharma home), `CATEGORY_TOP` (Pharma/mart category drill-in) and `STORE_TOP` (Pharma medical shop / mart vendor) placements | all |
 | `seller/products` | catalog list — seller products+stock hydrate from `GET /seller/pricing` + `GET /seller/inventory` | all |
 | `seller/products/new` | create listing — sector fixed from registration, store picked from the seller's own `GET /seller/stores`, category from the **approved GST category master**, no MRP/ETA inputs, live seller "What you keep" deduction preview (platform fee, platform GST, TCS, TDS); submit persists through `POST /seller/products` (seed mode keeps the local demo path) | all |
-| `seller/products/[id]/edit` | listing editor (name/desc/photos + `upsertPrice`) — no MRP field, GST note | all |
+| `seller/products/[id]/edit` | listing editor — name/desc/category persisted via `PUT /seller/products/{id}`, photos via the media link, `upsertPrice` for money; delete soft-deletes into the trash; no MRP field, GST note | all |
+| `seller/products/trash` | deleted listings (`GET /seller/products/trash`) with a days-left countdown; `POST /seller/products/{id}/restore` within the 7-day window, then auto-purged | all |
 | `seller/inventory` | stock — hydrated from `GET /seller/inventory`; qty/ETA writes `PUT /seller/inventory/{productId}` | all |
 | `seller/pricing` | price — hydrated from `GET /seller/pricing`; edits `PUT /seller/pricing/{productId}` (MRP retired by `0079`) | all |
 | `seller/promotions` | festival opt-ins + live price — hydrated `GET /seller/promotions` (campaigns + own opt-ins); opt-in `POST /seller/promotions/optin` | all |
@@ -505,10 +506,13 @@ used when `NEXT_PUBLIC_GATEWAY_URL` is unset; seed mode reconciles on the next h
 Write bodies send **whole rupee** integers (the mapper divides paisa by 100). Listing creation
 (`seller/products/new`) awaits `POST /seller/products` and adopts the server id/status before inserting
 the local row + stock, so a rejected listing never lingers. The seller listing
-editor (`seller/products/[id]/edit`) persists name/description/photos through `updateProduct` but
-routes **price through `upsertPrice`** (`PUT /seller/pricing/{id}`) so money edits reach
-`catalog.products` + `inventory.stock` instead of staying local-only; the inventory console writes
-stock/ETA through `PUT /seller/inventory/{id}`. The **products + stock** slices hydrate from
+editor (`seller/products/[id]/edit`) persists name/description/category through `updateProduct`
+(`PUT /seller/products/{id}`) and photos through the media link, and routes **price through
+`upsertPrice`** (`PUT /seller/pricing/{id}`) so money edits reach `catalog.products` +
+`inventory.stock`; the inventory console writes stock/ETA through `PUT /seller/inventory/{id}`.
+Delete calls `DELETE /seller/products/{id}` (soft delete) and the row is restorable from
+`seller/products/trash` for 7 days via `POST /seller/products/{id}/restore` before the gateway
+purges it. The **products + stock** slices hydrate from
 `GET /seller/pricing` (price + identity) and `GET /seller/inventory` (qty/ETA) for the `SELLER`
 role **and for admins** (the gateway scopes those reads to the admin's district), so the seller
 console and the admin catalog/review queues read live gateway rows instead of seed fixtures.

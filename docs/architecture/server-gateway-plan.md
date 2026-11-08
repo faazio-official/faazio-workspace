@@ -75,7 +75,12 @@ caller) and are event-purged on store live toggle and product edit/status change
   inventory.stock in one transaction; created rows surface in the public nearby reads once ACTIVE).
   The seller console reads stock/pricing via `GET /seller/inventory` + `GET /seller/pricing` and writes
   them via `PUT /seller/inventory/{productId}` (qty + ETA) and `PUT /seller/pricing/{productId}`
-  (price-only; MRP was retired by `0079`), all seller-scoped and audit-logged; promotions read
+  (price-only; MRP was retired by `0079`), and edits descriptive fields via `PUT
+  /seller/products/{id}` (name/description/category/isVeg/isPrescription; re-tokenizes search), all
+  seller-scoped and audit-logged. `DELETE /seller/products/{id}` soft-deletes to a 7-day trash
+  (`catalog.products.deleted_at`, `0089`), `GET /seller/products/trash` lists it and `POST
+  /seller/products/{id}/restore` restores it; `catalog.purge_deleted_products` removes the product +
+  stock after the window. Promotions read
   `GET /seller/promotions` (campaigns + own opt-ins) with opt-in `POST /seller/promotions/optin`; the
   money ledger reads `GET /seller/payments` and `GET /seller/payments/{cycleId}` (seller id from the token).
   `POST /orders` also enqueues a PII-free seller new-order notification per active seller portal user
@@ -401,6 +406,22 @@ gate must be identical on client and server so it can ship ahead of the backend.
   entry points) + `src/state/vendorRatingStore.ts` (persisted `faazio/vendor-ratings/v1`).
 - **Cache:** `faazio:v1:reviews:vendor:{id}` (TTL 24 h); the user's own rating is
   auth-scoped and never edge-cached. See `docs/architecture/db-schema.md` §7.7.
+
+## Post-delivery feedback (shipped)
+
+Two additional write surfaces share the derived-gate pattern but tighten the purchase gate to a
+**delivered** order:
+
+- **Product review** — `PUT /products/{id}/review` (auth) upserts one live review per
+  `(user, product)` in `reviews.reviews` (`0090` adds `user_id`/`order_ids`/`updated_at` + a
+  partial unique index). Eligibility: a `checkout.orders` row with `status = 'Delivered'` joined to
+  `checkout.order_items.product_id` (`ProductPurchaseProof`). Read: `GET /product/{id}/reviews`;
+  write purges `faazio:v1:reviews:product:{id}`.
+- **Order feedback** — `GET` / `PUT /orders/{id}/feedback` (auth) reads/upserts one row per order in
+  `reviews.order_feedback`. Eligibility: the caller's order must be `Delivered`
+  (`OrderDeliveredProof`).
+- **Mobile:** root `RateProduct` (`features/product/RateProductScreen.tsx`) off the PDP, and root
+  `OrderFeedback` (`features/profile/OrderFeedbackScreen.tsx`) off a delivered `OrderDetails`.
 
 ## Planned module tree
 

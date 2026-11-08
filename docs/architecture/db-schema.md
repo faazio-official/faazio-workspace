@@ -180,6 +180,8 @@ CREATE TABLE catalog.products (
   unit          TEXT,
   attributes    JSONB,                        -- sparse facets
   review_reason TEXT CHECK (review_reason IS NULL OR octet_length(review_reason) <= 500), -- admin note on REJECTED (0087)
+  deleted_at    TIMESTAMPTZ,                 -- soft-delete tombstone; row purged after 7 days (0089)
+  delete_reason TEXT NOT NULL DEFAULT '' CHECK (octet_length(delete_reason) <= 500), -- who/why (0089)
   store_id      TEXT REFERENCES directory.stores(id),
   is_prescription BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -202,6 +204,8 @@ CREATE TABLE catalog.products (
 | `badge`/`shop`/`unit` | TEXT | var | display | — |
 | `attributes` | JSONB | var | facets — **not fetched by list/search reads** | GIN |
 | `review_reason` | TEXT | var | admin moderation note on a `REJECTED` listing, bounded to 500 bytes; cleared on approve/delist (`0087`) | — |
+| `deleted_at` | TIMESTAMPTZ | 8 | soft-delete tombstone (`0089`); every shopper read filters `deleted_at IS NULL`; `catalog.purge_deleted_products` removes the row + stock after 7 days | partial (`deleted_at IS NOT NULL`) |
+| `delete_reason` | TEXT | var | free-text delete note, bounded to 500 bytes (`0089`) | — |
 | `store_id` | TEXT | ~8 | FK to stores | btree |
 | `is_prescription` | BOOL | 1 | pharma gating | — |
 | `created_at`/`updated_at` | TIMESTAMPTZ | 8 each | audit | — |
@@ -210,6 +214,14 @@ CREATE TABLE catalog.products (
 search, and batch/SDUI** reads use a slim projection (`productListSelect`) that substitutes constant
 placeholders for `desc_text`/`attributes`/`shop`, so those TOAST-able bytes never leave Postgres and
 the Valkey `search:q:*` value shrinks with it.
+
+**Soft delete (`0089`):** `DELETE /seller/products/{id}` sets `deleted_at`/`delete_reason` instead of
+removing the row. Detail, list, search, batch, nearby and store-product reads all add
+`deleted_at IS NULL`, so a trashed listing disappears from shoppers immediately; the seller/admin
+trash read (`GET /seller/products/trash`) selects the inverse. `catalog.purge_deleted_products('7
+days')` deletes the product and its `inventory.stock` row once the window elapses (pg_cron hourly
+where available, plus a gateway sweep on each trash read). `checkout.order_items` retains the
+historical product snapshot.
 
 **5 sample rows** (provenance: `data/catalog/products.ts` `catalogIndex` → `data/mart/products.ts`,
 `data/pharma/products.ts`):
@@ -592,16 +604,40 @@ by Haversine distance (server-computed `distanceKm`).
 
 ```sql
 CREATE TABLE reviews.reviews (
-  id         TEXT PRIMARY KEY,      -- 'rev-1','rev-m1','rev-p1'
+  id         TEXT PRIMARY KEY,      -- 'rev-1','rev-m1','rev-p1' (seeded) / 'pr-{user}-{product}'
   product_id TEXT NOT NULL,
   app        app_brand NOT NULL,
-  user       TEXT NOT NULL,          -- reviewer name (PII-ish)
+  user_id    TEXT,                   -- author (0090); NULL for seeded/editorial rows
+  user_name  TEXT NOT NULL,          -- reviewer name (PII-ish)
   avatar     TEXT,
-  rating     INT8 NOT NULL,          -- 0..5
+  rating     INT8 NOT NULL CHECK (rating BETWEEN 1 AND 5),
   comment    TEXT NOT NULL,
-  date       TEXT NOT NULL
+  order_ids  TEXT[] NOT NULL DEFAULT '{}', -- verified-purchase provenance (never public)
+  date_label TEXT NOT NULL DEFAULT '',      -- display label ('Just now')
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+-- One live review per (user, product), latest wins (0090).
+CREATE UNIQUE INDEX reviews_product_user_idx ON reviews.reviews (product_id, user_id)
+  WHERE user_id IS NOT NULL;
+
+CREATE TABLE reviews.order_feedback (
+  order_id   TEXT PRIMARY KEY,       -- → checkout.orders.order_id
+  user_id    TEXT NOT NULL,          -- author (PII linkage — never public)
+  user_name  TEXT NOT NULL,          -- admin display only
+  rating     INT8 NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  comment    TEXT NOT NULL DEFAULT '' CHECK (octet_length(comment) <= 280),
+  order_ids  TEXT[] NOT NULL DEFAULT '{}',
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
+
+**Write eligibility — derived, never a stored flag.** `PUT /products/{id}/review` requires a
+`checkout.orders` row with `status = 'Delivered'` joined to `checkout.order_items.product_id`;
+`PUT /orders/{id}/feedback` requires the caller's order to be `Delivered` (`ProductPurchaseProof` /
+`OrderDeliveredProof` in `internal/checkout`). One write per `(user, product)` / `(order)`, latest
+wins.
 
 **Sample rows** (`data/productMeta/reviews.ts:22-37` → attached to representative product ids
 `rvf-1`/`rvm-1`/`rvp-1`):

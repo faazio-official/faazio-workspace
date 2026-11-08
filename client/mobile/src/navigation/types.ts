@@ -86,6 +86,10 @@ export type RootStackParamList = {
    * the gate is re-checked inside the screen.
    */
   RateVendor: { vendorId: string; vendorName?: string };
+  /** Product review form — delivered buyers only; gate re-checked inside the screen. */
+  RateProduct: { productId: string; productName?: string };
+  /** Post-delivery order feedback form — delivered orders only; gate re-checked inside. */
+  OrderFeedback: { orderId: string; orderNumber?: string };
   /** Blood Donor registration wizard + registered dashboard (pushed from Pharma). */
   BloodDonor: undefined;
   /** Targeted donor profile opened from Ask Blood matching results. */

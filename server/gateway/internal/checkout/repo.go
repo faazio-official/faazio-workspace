@@ -688,6 +688,46 @@ func (r *Repo) PurchaseProof(ctx context.Context, userID, vendorID string) (bool
 	return len(ids) > 0, ids, rows.Err()
 }
 
+// ProductPurchaseProof derives product-review eligibility: the user must own a DELIVERED order
+// containing the product. Returns the qualifying order ids (provenance), never a stored flag.
+func (r *Repo) ProductPurchaseProof(ctx context.Context, userID, productID string) (bool, []string, error) {
+	if r.pool == nil {
+		return false, nil, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select distinct o.order_id
+		  from checkout.orders o
+		  join checkout.order_items i on i.order_id = o.order_id
+		 where o.user_id = $1 and o.status = 'Delivered' and i.product_id = $2`, userID, productID)
+	if err != nil {
+		return false, nil, err
+	}
+	defer rows.Close()
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return false, nil, err
+		}
+		ids = append(ids, id)
+	}
+	return len(ids) > 0, ids, rows.Err()
+}
+
+// OrderDeliveredProof reports whether the order belongs to the user and was delivered. Order-level
+// feedback is only accepted after delivery (post-delivery feedback).
+func (r *Repo) OrderDeliveredProof(ctx context.Context, userID, orderID string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("checkout: database not configured")
+	}
+	var ok bool
+	err := r.pool.QueryRow(ctx, `
+		select exists (
+			select 1 from checkout.orders
+			 where order_id = $1 and user_id = $2 and status = 'Delivered')`, orderID, userID).Scan(&ok)
+	return ok, err
+}
+
 // ProductSnapshot is the catalog data checkout needs to price an order line.
 type ProductSnapshot struct {
 	ID         string
@@ -1623,6 +1663,8 @@ func (r *Repo) DeleteAccount(ctx context.Context, userID string) (authUID string
 		`update support.tickets set user_id = null, subject = '', body = '' where user_id = $1`,
 		`update checkout.returns set reason = '' where user_id = $1`,
 		`update reviews.vendor_reviews set user_name = 'Deleted user', comment = null where user_id = $1`,
+		`update reviews.reviews set user_name = 'Deleted user', comment = '', avatar = null where user_id = $1`,
+		`update reviews.order_feedback set user_name = 'Deleted user', comment = '' where user_id = $1`,
 		`update media.assets set created_by = '' where created_by = $1`,
 		`update checkout.orders
 		    set delivery_latitude = null, delivery_longitude = null
@@ -1675,6 +1717,29 @@ func (r *Repo) ReviewedVendorIDs(ctx context.Context, userID string) ([]string, 
 	}
 	rows, err := r.pool.Query(ctx,
 		`select vendor_id from reviews.vendor_reviews where user_id = $1`, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var ids []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
+// ReviewedProductIDs lists the products whose public review pages include this user's display name.
+// The account-deletion handler purges those caches after anonymising the review rows.
+func (r *Repo) ReviewedProductIDs(ctx context.Context, userID string) ([]string, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx,
+		`select distinct product_id from reviews.reviews where user_id = $1`, userID)
 	if err != nil {
 		return nil, err
 	}

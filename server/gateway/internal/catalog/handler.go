@@ -46,6 +46,9 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Post("/seller/products", h.createProduct)
 		g.Get("/seller/products", h.sellerProducts)
+		g.Get("/seller/products/trash", h.sellerTrash)
+		g.Delete("/seller/products/{id}", h.deleteProduct)
+		g.Post("/seller/products/{id}/restore", h.restoreProduct)
 		g.Put("/seller/products/{id}/status", h.setProductStatus)
 		g.Put("/seller/products/{id}", h.updateProduct)
 		// Inventory + pricing are first-class seller surfaces over the same catalog/stock row.
@@ -134,11 +137,16 @@ func (h *Handler) purgeNearbyProductTiles(r *http.Request, storeID string) {
 func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Price        *int64  `json:"price"`
-		InStockQty   *int64  `json:"inStockQty"`
-		Available    *bool   `json:"available"`
-		ImageAssetID *string `json:"imageAssetId"`
-		ImageKey     *string `json:"imageKey"`
+		Price          *int64  `json:"price"`
+		InStockQty     *int64  `json:"inStockQty"`
+		Available      *bool   `json:"available"`
+		ImageAssetID   *string `json:"imageAssetId"`
+		ImageKey       *string `json:"imageKey"`
+		Name           *string `json:"name"`
+		Description    *string `json:"description"`
+		Category       *string `json:"category"`
+		IsVeg          *bool   `json:"isVeg"`
+		IsPrescription *bool   `json:"isPrescription"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
@@ -152,6 +160,30 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid stock quantity")
 		return
 	}
+	if body.Name != nil {
+		name := strings.TrimSpace(*body.Name)
+		if len(name) < 3 || len(name) > 200 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "name must be 3-200 characters")
+			return
+		}
+		body.Name = &name
+	}
+	if body.Description != nil {
+		desc := strings.TrimSpace(*body.Description)
+		if len(desc) > 4000 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "description is too long")
+			return
+		}
+		body.Description = &desc
+	}
+	if body.Category != nil {
+		category := strings.TrimSpace(*body.Category)
+		if category == "" || len(category) > 120 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid category")
+			return
+		}
+		body.Category = &category
+	}
 	sellerID, district, scopeOK := managementScope(r)
 	if !scopeOK {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
@@ -164,6 +196,8 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	p, found, err := h.repo.UpdateProduct(r.Context(), id, sellerID, district, ProductEdit{
 		Price: body.Price, InStockQty: body.InStockQty, Available: body.Available,
 		ImageKey: imageKey, ImageAssetID: imageAssetID,
+		Name: body.Name, Description: body.Description, Category: body.Category,
+		IsVeg: body.IsVeg, IsPrescription: body.IsPrescription,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
@@ -176,6 +210,79 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(p.StoreID))
 	h.purgeNearbyProductTiles(r, p.StoreID)
 	h.log(r, "PRODUCT_EDIT", id, map[string]any{"price": p.Price})
+	httpx.JSON(w, http.StatusOK, p)
+}
+
+// deleteProduct soft-deletes a listing (DELETE /seller/products/{id}?reason=...). The row moves to
+// the trash and is restorable for 7 days; shopper reads stop seeing it immediately. A hard failure to
+// scope the row returns 404 so a seller cannot probe another seller's ids.
+func (h *Handler) deleteProduct(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	reason := strings.TrimSpace(r.URL.Query().Get("reason"))
+	if len(reason) > 500 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "delete reason is too long")
+		return
+	}
+	sellerID, district, scopeOK := managementScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
+		return
+	}
+	p, found, err := h.repo.SoftDeleteProduct(r.Context(), id, sellerID, district, reason)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(p.StoreID))
+	h.purgeNearbyProductTiles(r, p.StoreID)
+	h.log(r, "PRODUCT_DELETE", id, map[string]any{"reason": reason})
+	httpx.JSON(w, http.StatusOK, p)
+}
+
+// sellerTrash lists the caller-scoped soft-deleted listings (GET /seller/products/trash). It runs the
+// expiry purge first so an expired row never appears as restorable.
+func (h *Handler) sellerTrash(w http.ResponseWriter, r *http.Request) {
+	sellerID, district, ok := managementScope(r)
+	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
+		return
+	}
+	if auth.Role(r.Context()) != auth.RoleSeller {
+		sellerID = strings.TrimSpace(r.URL.Query().Get("sellerId"))
+	}
+	_, _ = h.repo.PurgeDeletedProducts(r.Context(), productTrashWindow)
+	items, err := h.repo.DeletedProducts(r.Context(), sellerID, district)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+// restoreProduct brings a trashed listing back (POST /seller/products/{id}/restore).
+func (h *Handler) restoreProduct(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	sellerID, district, scopeOK := managementScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
+		return
+	}
+	p, found, err := h.repo.RestoreProduct(r.Context(), id, sellerID, district)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found in trash")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(p.StoreID))
+	h.purgeNearbyProductTiles(r, p.StoreID)
+	h.log(r, "PRODUCT_RESTORE", id, nil)
 	httpx.JSON(w, http.StatusOK, p)
 }
 

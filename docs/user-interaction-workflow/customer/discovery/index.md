@@ -11,6 +11,7 @@
 |---|---|
 | Store/category drill-in | [store-drillin.md](./store-drillin.md) |
 | Product detail | [product-detail.md](./product-detail.md) |
+| Product review | [product-review.md](./product-review.md) |
 | Food search | [food-search.md](./food-search.md) |
 
 ## Sub-app surfaces
@@ -36,6 +37,9 @@
 - Stores: `getStores`, `getStoresNearby`, `getStore` → `directory.stores`.
 - Products: `searchProducts`, `getStoreProducts`, `getProductsByIds`, `getProduct` →
   `catalog.products` / `inventory.stock`.
+- Product reviews: `getProduct` (reviews leg) → `GET /product/{id}/reviews`; write
+  `submitProductReview` → `PUT /products/{id}/review` → `reviews.reviews` (delivered purchase only,
+  latest wins).
 - Menus: `fetchVenues`, `fetchMenu` → `directory.dining_venues` / `directory.menus`.
 - Mart, Food and Pharma use no `@data/*` substitution on a failed live read: empty/error is honest.
   Pharma's category grid shows a retryable error instead of authored rows; Food's restaurant grid,
