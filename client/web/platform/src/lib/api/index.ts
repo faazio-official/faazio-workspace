@@ -81,11 +81,21 @@ function pushWrite(
 }
 
 /** Restore a product row to its pre-mutation snapshot after a rejected gateway write. */
-function restoreProduct(prev: ProductRecord | undefined): void {
+function restoreProductSnapshot(prev: ProductRecord | undefined): void {
   if (!prev) return;
   state().set((s) => ({
     products: s.products.map((p) => (p.productId === prev.productId ? prev : p)),
   }));
+}
+
+/** Re-insert a product removed optimistically when its gateway delete is rejected. */
+function reinsertProductSnapshot(prev: ProductRecord | undefined): void {
+  if (!prev) return;
+  state().set((s) =>
+    s.products.some((p) => p.productId === prev.productId)
+      ? s
+      : { products: [prev, ...s.products] },
+  );
 }
 
 function audit(input: {
@@ -465,18 +475,46 @@ export async function createProduct(dto: CreateProductInput): Promise<ProductRec
   return record;
 }
 
-export function updateProduct(productId: string, patch: Partial<ProductRecord>): void {
+/** Applies a product patch to the local store only. Callers push their own gateway write. */
+function patchProductLocal(
+  productId: string,
+  patch: Partial<ProductRecord>,
+): ProductRecord | undefined {
   const before = getProduct(productId);
   state().set((s) => ({
-    products: s.products.map((p) =>
-      p.productId === productId
-        ? {
-            ...p,
-            ...patch,
-          }
-        : p,
-    ),
+    products: s.products.map((p) => (p.productId === productId ? { ...p, ...patch } : p)),
   }));
+  return before;
+}
+
+/**
+ * Edits a listing's descriptive fields through the gateway (PUT /seller/products/{id}). Only the
+ * fields the gateway owns are sent; price/image/status have their own endpoints. The local store is
+ * updated optimistically and rolled back if the server rejects the write.
+ */
+export function updateProduct(productId: string, patch: Partial<ProductRecord>): void {
+  const before = patchProductLocal(productId, patch);
+  const body: {
+    name?: string;
+    description?: string;
+    category?: string;
+    isVeg?: boolean;
+    isPrescription?: boolean;
+  } = {};
+  if (patch.name !== undefined) body.name = patch.name;
+  if (patch.description !== undefined) body.description = patch.description;
+  if (patch.category !== undefined) body.category = patch.category;
+  if (patch.isVeg !== undefined) body.isVeg = patch.isVeg;
+  if (patch.isPrescription !== undefined) body.isPrescription = patch.isPrescription;
+  if (Object.keys(body).length > 0) {
+    pushWrite(
+      "Product update",
+      "put",
+      `/seller/products/${encodeURIComponent(productId)}`,
+      body,
+      () => restoreProductSnapshot(before),
+    );
+  }
   audit({ action: "PRODUCT_UPDATE", entity: "catalog.products", entityId: productId, before, after: patch });
 }
 
@@ -498,7 +536,7 @@ export function saveProductImage(productId: string, image: string | undefined): 
 
 export function upsertPrice(productId: string, pricePaisa: number): void {
   const before = getProduct(productId);
-  updateProduct(productId, { pricePaisa });
+  patchProductLocal(productId, { pricePaisa });
   // The gateway speaks whole rupees and writes price to catalog.products + inventory.stock in lockstep.
   // Awaited with rollback: a rejected price write must not leave a stale optimistic price on screen.
   pushWrite(
@@ -506,7 +544,7 @@ export function upsertPrice(productId: string, pricePaisa: number): void {
     "put",
     `/seller/pricing/${encodeURIComponent(productId)}`,
     { price: toRupees(pricePaisa) },
-    () => restoreProduct(before),
+    () => restoreProductSnapshot(before),
   );
   audit({
     action: "PRICE_UPDATE",
@@ -517,9 +555,24 @@ export function upsertPrice(productId: string, pricePaisa: number): void {
   });
 }
 
+/**
+ * Soft-deletes a listing through the gateway (DELETE /seller/products/{id}). The row leaves the
+ * active list immediately but stays restorable from the trash for 7 days. The optimistic removal is
+ * rolled back if the server rejects the delete.
+ */
 export function deleteProduct(productId: string, reason: string): void {
   const before = getProduct(productId);
   state().set((s) => ({ products: s.products.filter((p) => p.productId !== productId) }));
+  const note = (reason ?? "").trim();
+  pushWrite(
+    "Product delete",
+    "delete",
+    `/seller/products/${encodeURIComponent(productId)}${
+      note ? `?reason=${encodeURIComponent(note)}` : ""
+    }`,
+    undefined,
+    () => reinsertProductSnapshot(before),
+  );
   audit({
     action: "PRODUCT_DELETE",
     entity: "catalog.products",
@@ -529,17 +582,44 @@ export function deleteProduct(productId: string, reason: string): void {
   });
 }
 
+/** A soft-deleted listing from GET /seller/products/trash (purgeAt = deletedAt + 7 days). */
+export interface TrashProduct {
+  id: string;
+  name: string;
+  category: string;
+  app: Sector;
+  status: ProductStatus;
+  price: number;
+  storeId?: string;
+  sellerId?: string;
+  deletedAt: string;
+  deleteReason?: string;
+  purgeAt: string;
+}
+
+/** Live trash list: the caller-scoped soft-deleted products still inside the 7-day window. */
+export async function fetchProductTrash(): Promise<TrashProduct[]> {
+  if (!remoteConfigured()) return [];
+  return toCamel(await remote.get<TrashProduct[]>("/seller/products/trash"));
+}
+
+/** Restores a trashed listing (POST /seller/products/{id}/restore). */
+export async function restoreDeletedProduct(productId: string): Promise<void> {
+  if (!remoteConfigured()) return;
+  await remote.post(`/seller/products/${encodeURIComponent(productId)}/restore`);
+}
+
 export function setProductStatus(productId: string, status: ProductStatus, reason?: string): void {
   const before = getProduct(productId);
   const note = (reason ?? "").trim();
   const reviewReason = status === "REJECTED" ? note : "";
-  updateProduct(productId, { status, reviewReason });
+  patchProductLocal(productId, { status, reviewReason });
   pushWrite(
     `Product ${status}`,
     "put",
     `/seller/products/${encodeURIComponent(productId)}/status`,
     status === "REJECTED" ? { status, reason: reviewReason } : { status },
-    () => restoreProduct(before),
+    () => restoreProductSnapshot(before),
   );
   audit({
     action: `PRODUCT_${status}`,

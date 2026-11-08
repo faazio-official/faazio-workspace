@@ -109,7 +109,7 @@ This folder documents the rule enforced by `AGENTS.md`:
 ### Seller
 - [Seller overview](./seller/README.md)
 - [Onboarding](./seller/onboarding/index.md) · [Registration](./seller/onboarding/seller-registration.md) · [KYC documents](./seller/onboarding/kyc-documents.md) · [Store setup](./seller/onboarding/store-setup.md)
-- [Catalog](./seller/catalog/index.md) · [Add product](./seller/catalog/add-product.md) · [Price update](./seller/catalog/price-update.md)
+- [Catalog](./seller/catalog/index.md) · [Add product](./seller/catalog/add-product.md) · [Price update](./seller/catalog/price-update.md) · [Edit / delete / restore](./seller/catalog/product-trash.md)
 - [Orders](./seller/orders/index.md) · [Order lifecycle](./seller/orders/order-lifecycle.md) · [Payouts ledger](./seller/orders/payouts-ledger.md)
 - [Web portal](./seller/web-portal/index.md) · [Seller console](./seller/web-portal/seller-console.md)
 

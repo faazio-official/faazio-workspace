@@ -188,7 +188,7 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 
 | Event | Valkey keys affected | Cloudflare purge |
 |---|---|---|
-| `catalog.updated` (product edit / status change) | `product:{id}`, `stock:{productId}`, `catalog:store-products:{storeId}`, `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the product's store pin (3×3 block, all `radiusKm`/`app` variants) — `search:q:*` is TTL-bounded (600 s), deliberately not purged per edit | `/search?*`, product URL |
+| `catalog.updated` (product edit / status change / soft delete / restore) | `product:{id}`, `stock:{productId}`, `catalog:store-products:{storeId}`, `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the product's store pin (3×3 block, all `radiusKm`/`app` variants) — `search:q:*` is TTL-bounded (600 s), deliberately not purged per edit. `DELETE /seller/products/{id}` and `POST /seller/products/{id}/restore` purge the same set so a trashed listing leaves nearby/store reads immediately | `/search?*`, product URL |
 | `stock.updated` | `stock:{productId}` | — |
 | `order.placed` | `checkout:orders:{userId}`, `product:{id}` (embedded stock; purged per line item), `reco:{userIdHash}` | — |
 | customer payment confirmed/failed (`POST /razorpay/customer/orders` when Razorpay reports `paid`, or the `POST /webhooks/razorpay/payments` webhook) | `checkout:orders:{userId}` (the cached order status reflects the payment) | — |

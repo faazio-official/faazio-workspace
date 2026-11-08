@@ -180,6 +180,8 @@ CREATE TABLE catalog.products (
   unit          TEXT,
   attributes    JSONB,                        -- sparse facets
   review_reason TEXT CHECK (review_reason IS NULL OR octet_length(review_reason) <= 500), -- admin note on REJECTED (0087)
+  deleted_at    TIMESTAMPTZ,                 -- soft-delete tombstone; row purged after 7 days (0089)
+  delete_reason TEXT NOT NULL DEFAULT '' CHECK (octet_length(delete_reason) <= 500), -- who/why (0089)
   store_id      TEXT REFERENCES directory.stores(id),
   is_prescription BOOLEAN NOT NULL DEFAULT false,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -202,6 +204,8 @@ CREATE TABLE catalog.products (
 | `badge`/`shop`/`unit` | TEXT | var | display | — |
 | `attributes` | JSONB | var | facets — **not fetched by list/search reads** | GIN |
 | `review_reason` | TEXT | var | admin moderation note on a `REJECTED` listing, bounded to 500 bytes; cleared on approve/delist (`0087`) | — |
+| `deleted_at` | TIMESTAMPTZ | 8 | soft-delete tombstone (`0089`); every shopper read filters `deleted_at IS NULL`; `catalog.purge_deleted_products` removes the row + stock after 7 days | partial (`deleted_at IS NOT NULL`) |
+| `delete_reason` | TEXT | var | free-text delete note, bounded to 500 bytes (`0089`) | — |
 | `store_id` | TEXT | ~8 | FK to stores | btree |
 | `is_prescription` | BOOL | 1 | pharma gating | — |
 | `created_at`/`updated_at` | TIMESTAMPTZ | 8 each | audit | — |
@@ -210,6 +214,14 @@ CREATE TABLE catalog.products (
 search, and batch/SDUI** reads use a slim projection (`productListSelect`) that substitutes constant
 placeholders for `desc_text`/`attributes`/`shop`, so those TOAST-able bytes never leave Postgres and
 the Valkey `search:q:*` value shrinks with it.
+
+**Soft delete (`0089`):** `DELETE /seller/products/{id}` sets `deleted_at`/`delete_reason` instead of
+removing the row. Detail, list, search, batch, nearby and store-product reads all add
+`deleted_at IS NULL`, so a trashed listing disappears from shoppers immediately; the seller/admin
+trash read (`GET /seller/products/trash`) selects the inverse. `catalog.purge_deleted_products('7
+days')` deletes the product and its `inventory.stock` row once the window elapses (pg_cron hourly
+where available, plus a gateway sweep on each trash read). `checkout.order_items` retains the
+historical product snapshot.
 
 **5 sample rows** (provenance: `data/catalog/products.ts` `catalogIndex` → `data/mart/products.ts`,
 `data/pharma/products.ts`):

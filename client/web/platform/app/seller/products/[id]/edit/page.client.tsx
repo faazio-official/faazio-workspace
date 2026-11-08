@@ -197,7 +197,8 @@ function EditProduct() {
         }
       >
         <p className="pb-2 text-xs text-muted-foreground">
-          Shoppers lose this listing immediately. The action is written to the audit log.
+          Shoppers lose this listing immediately. It moves to Trash, where you can restore it for 7
+          days before it is permanently removed. The action is written to the audit log.
         </p>
       </Sheet>
     </>

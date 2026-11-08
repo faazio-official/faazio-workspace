@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronRight, Package, Plus, Search, SlidersHorizontal, X } from "lucide-react";
+import { ChevronRight, Package, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { PageHeader, Card, EmptyState, Sheet } from "@/components/sellers/kit";
 import { formatINR } from "@/lib/format";
 import { usePortalLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
@@ -39,13 +39,22 @@ function SellerProducts() {
         title="Products"
         sub="Catalog"
         right={
-          <Link
-            href="/seller/products/new"
-            className="flex shrink-0 items-center gap-1 rounded-xl bg-foreground px-3 py-2 text-xs font-semibold text-background"
-          >
-            <Plus className="h-3.5 w-3.5" />
-            Add
-          </Link>
+          <div className="flex shrink-0 items-center gap-2">
+            <Link
+              href="/seller/products/trash"
+              className="flex items-center gap-1 rounded-xl border border-border bg-card px-3 py-2 text-xs font-semibold"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Trash
+            </Link>
+            <Link
+              href="/seller/products/new"
+              className="flex items-center gap-1 rounded-xl bg-foreground px-3 py-2 text-xs font-semibold text-background"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              Add
+            </Link>
+          </div>
         }
       />
 

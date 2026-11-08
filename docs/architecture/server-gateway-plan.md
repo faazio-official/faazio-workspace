@@ -75,7 +75,12 @@ caller) and are event-purged on store live toggle and product edit/status change
   inventory.stock in one transaction; created rows surface in the public nearby reads once ACTIVE).
   The seller console reads stock/pricing via `GET /seller/inventory` + `GET /seller/pricing` and writes
   them via `PUT /seller/inventory/{productId}` (qty + ETA) and `PUT /seller/pricing/{productId}`
-  (price-only; MRP was retired by `0079`), all seller-scoped and audit-logged; promotions read
+  (price-only; MRP was retired by `0079`), and edits descriptive fields via `PUT
+  /seller/products/{id}` (name/description/category/isVeg/isPrescription; re-tokenizes search), all
+  seller-scoped and audit-logged. `DELETE /seller/products/{id}` soft-deletes to a 7-day trash
+  (`catalog.products.deleted_at`, `0089`), `GET /seller/products/trash` lists it and `POST
+  /seller/products/{id}/restore` restores it; `catalog.purge_deleted_products` removes the product +
+  stock after the window. Promotions read
   `GET /seller/promotions` (campaigns + own opt-ins) with opt-in `POST /seller/promotions/optin`; the
   money ledger reads `GET /seller/payments` and `GET /seller/payments/{cycleId}` (seller id from the token).
   `POST /orders` also enqueues a PII-free seller new-order notification per active seller portal user

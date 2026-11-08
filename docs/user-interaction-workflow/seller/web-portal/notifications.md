@@ -24,7 +24,8 @@ Admin approve/reject of a listing (`PUT /seller/products/{id}/status`, see
 `PRODUCT_REJECTED` outbox row via `contracts.Notifier.EnqueueSeller` from
 `server/gateway/internal/catalog/handler.go`. The payload is PII-free: `productId`, `storeId`,
 `status`, and a `/seller/products/{id}/edit` deep link, so the seller lands directly on the edit
-screen to fix and resubmit a rejected listing.
+screen to fix and resubmit a rejected listing. The edit save persists the correction through
+`PUT /seller/products/{id}` (see [../catalog/product-trash.md](../catalog/product-trash.md)).
 
 ## State
 
