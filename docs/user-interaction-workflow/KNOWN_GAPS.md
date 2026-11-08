@@ -57,7 +57,6 @@ These are code-misleading items, not partial user flows; they do not downgrade a
 | Item | Evidence | Action |
 |---|---|---|
 | Blood-donor `StepPlaceholder` dead code | `client/mobile/src/features/pharma/blood-donor/BloodDonorScreen.tsx:95` | Defensive dead path; add the step or remove it |
-| Stale prescription mock comments | `client/mobile/src/features/pharma/prescription/PrescriptionFlowScreen.tsx:106-107,120` mention a fixture fallback that no longer exists | Misleading; the code is server-only |
 | Re-upload request endpoint is retired | `PUT /delivery/register/{id}/reupload-request` always returns `410 Gone` (`server/gateway/internal/delivery/handler.go:428-434`); admins use `.../documents/{docType}/reupload` | Old clients get a hard failure; current clients use the admin path |
 | `src/services/homeFeed.ts` fixture seam | Removed — it had zero live importers | Done |
 

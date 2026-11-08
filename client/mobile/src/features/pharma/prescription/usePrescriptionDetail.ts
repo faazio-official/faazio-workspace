@@ -4,10 +4,11 @@ import { gateway, type PrescriptionRecord } from '@/services/api/GatewayClient';
 /**
  * Polls the durable prescription (by order id) so the customer sees the seller quote and the
  * READY reveal without a push channel. Remote mode only — the caller gates on `gateway.remoteEnabled`.
- * Stops as soon as the Rx reaches a terminal status (READY/FULFILLED/CANCELLED).
+ * Stops only at a truly terminal status (FULFILLED/CANCELLED); READY keeps polling so a later
+ * fulfilment/cancellation still surfaces without a remount.
  */
 const POLL_MS = 10_000;
-const TERMINAL = new Set(['READY', 'FULFILLED', 'CANCELLED']);
+const TERMINAL = new Set(['FULFILLED', 'CANCELLED']);
 
 export function usePrescriptionDetail(orderId: string | undefined, enabled: boolean) {
   const [rx, setRx] = useState<PrescriptionRecord | null>(null);

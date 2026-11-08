@@ -229,7 +229,9 @@ with rollback), `getPickupPoints`
 (durable `inventory.pickup_points`, replaces the runtime `NEUTRAL_PICKUP` derivation), `payForOrder`
 (server-derived payment ledger), `getRewards` (server-authoritative coins/streak/ledger — earned
 in-process during `POST /orders`), `getMenu` (durable `directory.menus`), `createPrescription` /
-`getPrescriptions` (durable Rx; images in Supabase Storage), `deleteAccount` (`DELETE /users/me` —
+`getPrescriptions` (durable Rx; images in Supabase Storage), `checkoutPrescription`
+(`POST /prescriptions/{id}/checkout` — accepts a seller-quoted Rx by materialising a real checkout
+order keyed to the Rx id, reusing the payment rail; idempotent, amount from the quote), `deleteAccount` (`DELETE /users/me` —
 strict, server-only anonymising delete; local teardown follows only after the server confirms),
 `requestDataDeletion` (`POST /users/me/data-deletion` — addresses/favourites/prescriptions while
 keeping the account), and `trackEvent` (ID-only; mock fallback

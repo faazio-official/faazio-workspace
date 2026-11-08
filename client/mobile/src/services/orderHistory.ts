@@ -9,6 +9,7 @@
 import type { OrderRow } from '@data/checkout/orders';
 import type { OrderStatus } from '@data/types';
 import type { PlacedOrder } from '@/state/ordersStore';
+import type { PrescriptionRecord } from '@/services/api/GatewayClient';
 
 /** Gateway projects NEW/PACKED → Processing; RETURNED folds into Cancelled for the customer. */
 const STATUS_MAP: Record<string, OrderStatus> = {
@@ -57,5 +58,30 @@ export function orderRowToPlaced(row: OrderRow): PlacedOrder {
     storeIds: row.vendorStoreIds,
     total,
     placedAt: row.placedAt,
+  };
+}
+
+/**
+ * Project a durable prescription (`GET /prescriptions`) onto the same `PlacedOrder` view model so My
+ * Orders keeps showing an Rx after an app restart. The Rx is never in `GET /orders` (the materialised
+ * checkout order is hidden by rx_id), so this is its only durable listing. The vendor display name is
+ * not carried by the Rx row, so a neutral label is used rather than an invented store.
+ */
+export function prescriptionToPlaced(rx: PrescriptionRecord): PlacedOrder {
+  return {
+    id: `server-${rx.id}`,
+    orderId: rx.id,
+    kind: 'prescription',
+    // Prescription lifecycle (RECEIVED/QUOTED/READY/…) is polled on Order Details; the list pill
+    // uses the generic in-progress status because it is still an open order.
+    status: 'Processing',
+    fulfillment: rx.fulfillment ?? 'DELIVERY',
+    vendorName: 'Pharmacy',
+    storeIds: rx.vendorId ? [rx.vendorId] : undefined,
+    pages: rx.pages,
+    rxStatus: rx.status,
+    note: rx.note,
+    total: rx.quotedTotal ?? 0,
+    placedAt: rx.createdAt,
   };
 }

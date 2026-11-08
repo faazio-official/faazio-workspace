@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { OrderRow } from '@data/checkout/orders';
 import type { FulfillmentMode, OrderStatus } from '@data/types';
-import { orderRowToPlaced } from '@/services/orderHistory';
+import { orderRowToPlaced, prescriptionToPlaced } from '@/services/orderHistory';
 import { gateway } from '@/services/api/GatewayClient';
 
 export type PlacedOrderKind = 'items' | 'prescription';
@@ -33,6 +33,8 @@ export interface PlacedOrder {
   location?: { lat: number; lng: number };
   /** Prescription orders only — captured page count. */
   pages?: number;
+  /** Prescription orders only — the durable pharma status (RECEIVED/QUOTED/READY/…), for the list pill. */
+  rxStatus?: string;
   /** Prescription orders only — optional pharmacist note. Never PII-logged. */
   note?: string;
   /** Itemised orders only — purchased line items. */
@@ -118,8 +120,18 @@ export const useOrdersStore = create<OrdersState>()((set, get) => ({
       return;
     }
     try {
-      const rows = await gateway.getOrders();
-      set({ serverOrders: rows.map(orderRowToPlaced), ordersHydrated: true, ordersError: false });
+      // Durable history is two sources: item orders (`GET /orders`) and prescriptions
+      // (`GET /prescriptions`). The materialised Rx checkout order is hidden server-side, so the Rx
+      // is listed from its own row. A prescription read failure must not blank out item history.
+      const [rows, prescriptions] = await Promise.all([
+        gateway.getOrders(),
+        gateway.getPrescriptions().catch(() => []),
+      ]);
+      const merged = [
+        ...rows.map(orderRowToPlaced),
+        ...prescriptions.map(prescriptionToPlaced),
+      ].sort((a, b) => new Date(b.placedAt).getTime() - new Date(a.placedAt).getTime());
+      set({ serverOrders: merged, ordersHydrated: true, ordersError: false });
     } catch {
       // Keep any previous live history (stale-but-honest) instead of showing fixtures, but
       // surface the failure so an empty screen is not mistaken for "no orders".

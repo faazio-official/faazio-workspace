@@ -41,6 +41,9 @@ type Handler struct {
 	// pay is the customer Razorpay rail (order creation + webhook). nil disables the customer
 	// payment endpoints (unit tests / unconfigured deployments).
 	pay razorpaypay.Gateway
+	// rxQuotes resolves an owner-scoped prescription quote so the customer can accept it as a real
+	// checkout order (0086). nil disables POST /prescriptions/{id}/checkout.
+	rxQuotes contracts.PrescriptionQuoteReader
 }
 
 // NewHandler builds the checkout handler. notifier/coupons/stores/delivery/signer may be nil
@@ -58,6 +61,13 @@ func (h *Handler) WithRxBlobDeleter(deleter BlobDeleter) *Handler {
 // WithPaymentGateway enables the customer Razorpay rail (create order + webhook + status).
 func (h *Handler) WithPaymentGateway(gw razorpaypay.Gateway) *Handler {
 	h.pay = gw
+	return h
+}
+
+// WithRxQuotes enables accepting a quoted prescription as a checkout order (0086), reusing the
+// payment rail. nil leaves POST /prescriptions/{id}/checkout returning 503.
+func (h *Handler) WithRxQuotes(reader contracts.PrescriptionQuoteReader) *Handler {
+	h.rxQuotes = reader
 	return h
 }
 
@@ -101,6 +111,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/orders/{orderID}/invoice", h.getInvoice)
 		g.Post("/orders/{orderID}/payments", h.payOrder)
 		g.Get("/orders/{orderID}/payment-status", h.paymentStatus)
+		g.Post("/prescriptions/{id}/checkout", h.checkoutPrescription)
 		g.Post("/razorpay/customer/orders", h.createRazorpayOrder)
 		g.Get("/payments", h.getPayments)
 		g.Get("/profile", h.getProfile)
@@ -524,6 +535,38 @@ func (h *Handler) deliveryFee(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, quote)
+}
+
+// checkoutPrescription materialises an owner-scoped, seller-quoted prescription into a real
+// checkout order (order_id = Rx id) so the customer can pay it through the existing rail. Idempotent:
+// re-accepting the same Rx returns the order materialised the first time. Only a QUOTED or READY Rx
+// with a positive total can be accepted.
+func (h *Handler) checkoutPrescription(w http.ResponseWriter, r *http.Request) {
+	if h.rxQuotes == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "prescriptions_unavailable", "prescription checkout not configured")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	q, ok, err := h.rxQuotes.QuoteForCheckout(r.Context(), id, auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "prescription_unavailable", "could not read prescription")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "prescription not found")
+		return
+	}
+	order, err := h.service.CreateOrderFromRx(r.Context(), q)
+	switch {
+	case errors.Is(err, ErrRxNotPayable):
+		httpx.Fail(w, http.StatusConflict, "not_payable", "this prescription is not ready to pay")
+		return
+	case err != nil:
+		httpx.Fail(w, http.StatusInternalServerError, "checkout_failed", "could not start prescription checkout")
+		return
+	}
+	order.Status = mobileStatus(order.Status)
+	httpx.JSON(w, http.StatusCreated, order)
 }
 
 // payOrder records a payment for an order the caller owns. The amount is derived server-side from

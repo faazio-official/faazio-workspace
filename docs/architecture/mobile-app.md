@@ -597,7 +597,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `uiStore` | Sub-app id (`FA_MART`/`FOOD`/`PHARMA`), tab name |
 | `foodFilterStore` | Food sub-app Veg / Non-Veg diet filter (`all`/`veg`/`nonveg`), session-scoped |
 | `rewardsStore` | FaazioCoins balance, streak, discount card + ledger — **server-authoritative** (`GET /rewards`); AsyncStorage `faazio/rewards/v1` is an offline read-through cache only and there is no client earn/redeem (coins are written inside the checkout order transaction). `reconcile()` on login/focus, reset on logout; the seeded 245-coin/5-streak fiction is gone. A server reconcile result is race-guarded so a slow AsyncStorage hydration read can never overwrite fresh balances |
-| `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) + durable `serverOrders` from `gateway.getOrders()` (`refresh()` on login + My Orders focus); `recordServerOrder(row)` adopts the server order after checkout; `recordOrder` remains for the mock-mode Rx flow; `getOrderById` prefers server history; reset on logout |
+| `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) + durable `serverOrders` merged from `gateway.getOrders()` **and** `gateway.getPrescriptions()` (`refresh()` on login + My Orders focus); `recordServerOrder(row)` adopts the server order after checkout; `recordOrder` records a just-placed prescription (keyed by the server Rx id); `getOrderById` prefers server history; reset on logout |
 | `vendorRatingStore` | The signed-in user's live vendor ratings (one per `(user, vendor)`, latest wins) + verified-purchase `orderIds`; persisted AsyncStorage `faazio/vendor-ratings/v1`, reset on logout |
 | `deliveryPartnerStore` | Partner-app only: verified application phone + the rider/detail projection from `GET /delivery/me`. The Firebase session itself stays in `authStore`/Keychain and is never duplicated here |
 | `remoteConfigStore` | Central remote config (the "Central Digital Menu", `admins.app_config` `0059`): boots `gateway.getAppConfig()` (`GET /app-config`, public, variant-filtered) best-effort under the splash, keeps a flat key→value map, and **never blocks startup** (failure keeps the bake-time `config.ts` defaults). Baked values are the safe defaults; a remote row overrides its key only when present; `GATEWAY_URL`/`APP_VARIANT` are never overridden. Selectors: `selectPlacesApiKey` (wired → `usePlaceAutocomplete` — a `maps.places_api_key` edit is live on the next boot), `selectMaintenanceEnabled` (available, no screen consumes it yet), `resolvePlacesApiKey` (non-hook read for `resolvePlaceLocation`). Not persisted — refetched every cold boot |
@@ -728,8 +728,14 @@ offline read still throws `GatewayOfflineError` (the retired `_mock` lambdas/`wi
   notifications are served by the gateway (see `mvp-backend.md`). The customer sees the quote in
   **Order Details**: `usePrescriptionDetail` (`features/pharma/prescription/`) polls the durable Rx
   in remote mode and renders the seller's line items + total, a customer-facing status label
-  (Awaiting quote / Quote ready / Ready / Fulfilled / Cancelled) and the recent status history,
-  stopping on a terminal status.
+  (Awaiting quote / Processing / Quote ready / Ready / Fulfilled / Cancelled) and the recent status
+  history, stopping only at FULFILLED/CANCELLED (READY keeps polling). **(W84)** a `QUOTED` Rx with a
+  positive total is payable: **Pay ₹X** opens `PrescriptionPaymentSheet`, which calls
+  `gateway.checkoutPrescription(rx.id)` (`POST /prescriptions/{id}/checkout`) to materialise a real
+  checkout order keyed to the Rx id — idempotent, amount server-derived from the quote — then reuses
+  the standard rail (COD `payForOrder`, or UPI `createRazorpayOrder` → intent → webhook →
+  `fetchPaymentStatus`). `usePrescriptionPayment` reflects the settled state, and a
+  FULFILLED/CANCELLED Rx offers **Order again** (re-opens `PrescriptionFlow` with `presetVendorId`).
 
 ## Navigation graph
 
@@ -1582,20 +1588,28 @@ normal entry:
   When opened from `MedicalShopDetails` with `presetVendorId`, the flow stores that pharmacy after
   NOTE, skips `VENDORS`, and shows the same fulfilment sheet in the flow screen; dismissing it
   returns to NOTE.
+- **Pay / refill (W84)** happen from `OrderDetails`, not the flow. A `QUOTED` Rx with a positive total
+  shows **Pay ₹X** → `PrescriptionPaymentSheet` (accept the quote via
+  `gateway.checkoutPrescription(rx.id)`, then COD or UPI through the reused checkout rail; the amount
+  is always server-derived). A FULFILLED/CANCELLED Rx shows **Order again**, which navigates to
+  `PrescriptionFlow` with `presetVendorId` (a fresh capture is required — images are never reused).
 
 ## My Orders — merged list + prescription cards
 
 `MyOrdersScreen` merges `ordersStore.orders` (in-session, newest first) above the durable
-history; the history is the hydrated `ordersStore.serverOrders` (refreshed on focus). The
-`@data myOrders` fixture fallback was removed — an authoritative empty history is an honest empty
-state, with a loading state until the first read settles. Rows already present as an in-session
-placement are dropped (deduped by order id) and the placed card renders the order's real status
-(server status wins). The sub-app rail counts recompute from the merged list. Prescription placed
-orders render a distinct prescription card (`FileText` icon), and a `highlightOrderId` route param
-auto-selects that order's sub-app in the rail and rings its card. The merged list is one virtualised
-`FlatList` (the rail/filter bar are its `ListHeaderComponent`), and a failed history read sets
-`ordersStore.ordersError` so the empty state reads "Could not load your orders" with retry instead
-of "No orders here yet".
+history; the history is the hydrated `ordersStore.serverOrders` (`refresh()` merges item orders from
+`GET /orders` **and** prescriptions from `GET /prescriptions` via `prescriptionToPlaced`, so an Rx
+survives a restart). The `@data myOrders` fixture fallback was removed — an authoritative empty
+history is an honest empty state, with a loading state until the first read settles. Rows already
+present as an in-session placement are dropped (deduped by order id) and the placed card renders the
+order's real status (server status wins). The sub-app rail counts recompute from the merged list.
+Prescription placed orders render a distinct prescription card (`FileText` icon) whose pill reflects
+the durable pharma status (`PlacedOrder.rxStatus` — Awaiting quote / Quote ready / Ready / Fulfilled /
+Cancelled) and shows a **Pay now** badge when `QUOTED`; a `highlightOrderId` route param auto-selects
+that order's sub-app in the rail and rings its card. The
+merged list is one virtualised `FlatList` (the rail/filter bar are its `ListHeaderComponent`), and a
+failed history read sets `ordersStore.ordersError` so the empty state reads "Could not load your
+orders" with retry instead of "No orders here yet".
 
 ## Vendor ratings & reviews (phase 1)
 

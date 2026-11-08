@@ -491,6 +491,10 @@ placement for `DELIVERY` orders. They are internal (never returned in the order 
 order-ready auto-dispatch; null means no fix and the order stays on the admin assignment path.
 Self-pickup orders leave them null.
 
+**Prescription checkout (0086):** `rx_id` (nullable TEXT) marks an order materialised by accepting a
+prescription quote — `order_id` equals the Rx id and the partial unique index on `rx_id` makes the
+accept idempotent. Such rows are excluded from `GET /orders` (see §12.5).
+
 **Access patterns:** `getOrdersByUser(userId)`, My Orders list, order detail by `order_id`, status
 filter. **Keyset pagination index:** `(user_id, placed_at DESC)` for cursor-based order history.
 `POST /orders` is idempotent: a durable `checkout.idempotency_keys (user_id, key) → order_id` record
@@ -1328,6 +1332,13 @@ ALTER TABLE pharma.prescriptions ADD COLUMN IF NOT EXISTS quoted_total_paisa INT
 ALTER TABLE pharma.prescriptions ADD COLUMN IF NOT EXISTS revealed_at  TIMESTAMPTZ;
 ALTER TABLE pharma.prescriptions ADD COLUMN IF NOT EXISTS revealed_by  TEXT;
 ALTER TABLE pharma.prescriptions ADD COLUMN IF NOT EXISTS address_id   TEXT;
+
+-- 0086: accept a quoted Rx by materialising a real checkout order. `rx_id` marks the order and is
+-- the idempotency key (partial unique index); `order_id` equals the Rx id (`RX-*`) so the existing
+-- payment rail (COD/UPI) applies unchanged. `GET /orders` excludes rx_id rows so the Rx is listed
+-- once, from `GET /prescriptions`.
+ALTER TABLE checkout.orders ADD COLUMN IF NOT EXISTS rx_id TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS checkout_orders_rx_id_key ON checkout.orders (rx_id) WHERE rx_id IS NOT NULL;
 
 CREATE TABLE pharma.status_history (                              -- append-only per Rx
   id bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

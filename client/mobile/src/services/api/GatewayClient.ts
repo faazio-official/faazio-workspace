@@ -1579,6 +1579,19 @@ export class GatewayClient {
     );
   }
 
+  /**
+   * Accept a quoted prescription: the server materialises it as a real checkout order (`order_id` =
+   * the Rx id) so the existing payment rail (COD / UPI via Razorpay) applies to it. Idempotent — a
+   * repeat call returns the same order. The amount is server-derived from the seller quote, never
+   * client-supplied. Throws `GatewayHttpError(409)` when the Rx is not yet quoted or is terminal.
+   */
+  async checkoutPrescription(prescriptionId: string): Promise<OrderRow> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<OrderRow>(`/prescriptions/${encodeURIComponent(prescriptionId)}/checkout`, {
+      method: 'POST',
+    });
+  }
+
   /** The caller's own donor profile, or null if not registered (server-only; throws offline). */
   async getDonorProfile(): Promise<BloodDonorProfile | null> {
     return this.serverOnly(

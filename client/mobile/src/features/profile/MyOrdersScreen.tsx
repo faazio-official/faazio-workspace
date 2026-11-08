@@ -51,6 +51,25 @@ const STATUS_BADGE_BG: Record<OrderStatus, string> = {
   Cancelled: '#FEE2E2',
 };
 
+/** Durable pharma status → list label + pill colours (mirrors Order Details). */
+const RX_STATUS_LABEL: Record<string, string> = {
+  RECEIVED: 'Awaiting quote',
+  PROCESSING: 'Processing',
+  QUOTED: 'Quote ready',
+  READY: 'Ready',
+  FULFILLED: 'Fulfilled',
+  CANCELLED: 'Cancelled',
+};
+
+const RX_PILL: Record<string, { bg: string; color: string }> = {
+  'Awaiting quote': { bg: '#FEF3C7', color: semantic.warning },
+  Processing: { bg: '#FEF3C7', color: semantic.warning },
+  'Quote ready': { bg: '#DBEAFE', color: semantic.info },
+  Ready: { bg: '#DCFCE7', color: '#16A34A' },
+  Fulfilled: { bg: '#DCFCE7', color: '#16A34A' },
+  Cancelled: { bg: '#FEE2E2', color: '#EF4444' },
+};
+
 /**
  * One row in My Orders, built only from durable server history (serverOrders) and in-session
  * placements (orders). Each carries the sub-app inferred from its line items / Rx kind.
@@ -260,6 +279,9 @@ export function MyOrdersScreen({ navigation, route }: Props) {
       // Prescription placed order — distinct card; opens OrderDetails for the durable Rx
       // status + seller quote (same route as item orders).
       if (po.kind === 'prescription') {
+        const rxLabel = po.rxStatus ? RX_STATUS_LABEL[po.rxStatus] ?? po.rxStatus : 'Processing';
+        const rxPill = RX_PILL[rxLabel] ?? RX_PILL.Processing;
+        const needsPay = po.rxStatus === 'QUOTED';
         return (
           <TouchableOpacity
             style={[styles.orderCard, highlighted && styles.orderCardHighlighted]}
@@ -277,10 +299,13 @@ export function MyOrdersScreen({ navigation, route }: Props) {
                 })}
               </AppText>
               <View style={styles.headerPills}>
-                <View style={[styles.statusPill, { backgroundColor: STATUS_BADGE_BG.Processing }]}>
-                  <AppText style={[styles.statusText, { color: STATUS_COLORS.Processing }]}>
-                    Processing
-                  </AppText>
+                {needsPay ? (
+                  <View style={styles.actionPill}>
+                    <AppText style={styles.actionPillText}>Pay now</AppText>
+                  </View>
+                ) : null}
+                <View style={[styles.statusPill, { backgroundColor: rxPill.bg }]}>
+                  <AppText style={[styles.statusText, { color: rxPill.color }]}>{rxLabel}</AppText>
                 </View>
                 {po.fulfillment === 'PICKUP' ? (
                   <View style={[styles.fulfillmentPill, styles.fulfillmentPillPickup]}>
@@ -791,6 +816,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(8),
     paddingVertical: vs(2),
     borderRadius: ms(6),
+  },
+  actionPill: {
+    paddingHorizontal: hs(8),
+    paddingVertical: vs(2),
+    borderRadius: ms(6),
+    backgroundColor: '#FEF3C7',
+  },
+  actionPillText: {
+    fontSize: ms(11),
+    fontWeight: '800',
+    color: '#854D0E',
   },
   statusText: {
     fontSize: ms(11),

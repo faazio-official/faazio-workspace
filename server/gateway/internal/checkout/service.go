@@ -42,6 +42,11 @@ var ErrInsufficientCoins = errors.New("insufficient coins")
 // server did not rule valid.
 var ErrInvalidCoupon = errors.New("coupon not valid for this order")
 
+// ErrRxNotPayable is returned when a prescription cannot be turned into a payable order: it has no
+// seller quote yet, or it is already fulfilled/cancelled. Paying a prescription is only meaningful
+// once the pharmacy has priced it.
+var ErrRxNotPayable = errors.New("prescription is not ready to pay")
+
 // PlaceOrderRequest is the POST /orders body.
 type PlaceOrderRequest struct {
 	Items []struct {
@@ -499,6 +504,62 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	if s.ads != nil && req.Attribution.SlotID != "" {
 		_ = s.ads.AttributeOrder(ctx, req.Attribution.SlotID)
 	}
+	return order, nil
+}
+
+// CreateOrderFromRx materialises an accepted prescription quote as a real checkout order so the
+// existing payment rail (COD/UPI via Razorpay, invoices, order status) is reused rather than
+// duplicated. Idempotent per Rx: a second accept returns the order the first materialised. The seller
+// quote is the price authority — the amount is server-derived from pharma.prescriptions, never
+// client-supplied.
+func (s *Service) CreateOrderFromRx(ctx context.Context, q contracts.PrescriptionQuote) (Order, error) {
+	if q.Status != "QUOTED" && q.Status != "READY" {
+		return Order{}, ErrRxNotPayable
+	}
+	if q.VendorID == "" || q.QuotedTotalPaisa <= 0 || len(q.Lines) == 0 {
+		return Order{}, ErrRxNotPayable
+	}
+	if existing, ok, err := s.repo.OrderByRxForUser(ctx, q.ID, q.UserID); err != nil {
+		return Order{}, err
+	} else if ok {
+		return existing, nil
+	}
+	lines := make([]OrderLineItem, 0, len(q.Lines))
+	for i, l := range q.Lines {
+		unit := l.Price - l.Discount
+		if unit < 0 {
+			unit = 0
+		}
+		lines = append(lines, OrderLineItem{
+			LineID:    fmt.Sprintf("%s-l%d", q.ID, i+1),
+			Name:      l.Name,
+			Qty:       l.Qty,
+			UnitPrice: unit,
+			StoreID:   q.VendorID,
+		})
+	}
+	order := Order{
+		ID:                q.ID,
+		OrderNumber:       "#" + q.ID,
+		UserID:            q.UserID,
+		AddressID:         q.AddressID,
+		PlacedAt:          time.Now().UTC().Format(time.RFC3339),
+		Status:            "Processing",
+		Fulfillment:       q.Fulfillment,
+		VendorStoreIDs:    []string{q.VendorID},
+		LineItems:         lines,
+		TotalChargedPaisa: q.QuotedTotalPaisa,
+		PaymentStatus:     "PENDING_PAYMENT",
+		RxID:              q.ID,
+	}
+	if err := s.repo.InsertRxOrder(ctx, order, lines); err != nil {
+		// Race: a concurrent accept won the unique(rx_id) insert — return that order instead of failing.
+		if existing, ok, rerr := s.repo.OrderByRxForUser(ctx, q.ID, q.UserID); rerr == nil && ok {
+			return existing, nil
+		}
+		return Order{}, err
+	}
+	s.cache.Del(ctx, cache.Orders(q.UserID))
 	return order, nil
 }
 

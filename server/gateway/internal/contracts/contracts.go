@@ -456,6 +456,35 @@ type OrderOwnership interface {
 	OrderOwnedBy(ctx context.Context, orderID, userID string) (bool, error)
 }
 
+// PrescriptionQuoteLine is one priced line of a seller's prescription quote (money in whole rupees).
+type PrescriptionQuoteLine struct {
+	Name     string
+	Qty      int64
+	MRP      int64
+	Price    int64
+	Discount int64
+}
+
+// PrescriptionQuote is the server-verified quote behind a customer accepting a prescription. The
+// pharma context resolves it from its own tables; checkout turns it into a real order so the payment
+// rail is reused (boundary rule §2 — checkout never imports pharma).
+type PrescriptionQuote struct {
+	ID               string
+	UserID           string
+	VendorID         string
+	Fulfillment      string
+	AddressID        string
+	Status           string
+	QuotedTotalPaisa int64
+	Lines            []PrescriptionQuoteLine
+}
+
+// PrescriptionQuoteReader resolves an owner-scoped prescription quote for checkout materialisation
+// (implemented by pharma.Repo). ok=false when the Rx is absent or owned by another user.
+type PrescriptionQuoteReader interface {
+	QuoteForCheckout(ctx context.Context, id, userID string) (PrescriptionQuote, bool, error)
+}
+
 // DeliveryDispatchRequest is the internal order-ready → dispatch call. Checkout composes the
 // customer drop (PII, server-side only) and the store pickup, then delivery owns candidate
 // selection, assignment and the rider ping. Never logged.

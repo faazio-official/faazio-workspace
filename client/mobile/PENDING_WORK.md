@@ -15,6 +15,33 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W84 — Pharma Rx end-to-end: pay a quoted prescription
+
+**Status:** 🟢 Shipped. Closes the last open pharma gap: a quoted prescription is payable, the Rx
+survives an app restart in My Orders, and every server status is shown honestly.
+
+- **Pay a quoted Rx (server + client):** accepting a quote materialises a real `checkout.orders` row
+  keyed to the Rx id — migration `0086` adds `checkout.orders.rx_id`, and `POST /prescriptions/{id}/checkout`
+  (checkout context) reads the seller quote via `contracts.PrescriptionQuoteReader`, implemented by
+  `pharma.Repo.QuoteForCheckout`. `OrderDetails` shows a "Pay ₹X" button that opens
+  `PrescriptionPaymentSheet`, reusing the existing rail: COD (`POST /orders/{id}/payments`) or UPI
+  (`POST /razorpay/customer/orders` → intent → webhook). The amount is always server-derived from the
+  seller quote, and the partial unique index on `rx_id` makes a repeat accept idempotent — a retry can
+  never double-charge.
+- **Rx durability:** `ordersStore.refresh` now also reads `GET /prescriptions` and merges those rows as
+  prescription placements, so an Rx no longer disappears from My Orders after a restart. The
+  materialised checkout order is hidden from `GET /orders` (rx_id), so the Rx is listed once.
+- **Honest statuses:** `OrderDetails` maps `PROCESSING`; `usePrescriptionDetail` keeps polling past
+  `READY` so a later FULFILLED/CANCELLED still surfaces; the stale "₹0" line now shows the page count
+  and the quoted total; the cancellation CTA no longer shows for prescriptions; a FULFILLED/CANCELLED
+  Rx offers **Order again** (re-opens the flow pre-set to the same pharmacy).
+- **Gallery import** (previously open W83 item) was already shipped — confirmed, no change needed.
+
+Docs touched: `docs/architecture/mobile-app.md`, `data-layer-sdui.md`, `monolith-breakdown.md`,
+`server-gateway-plan.md`, `db-schema.md`, `docs/user-interaction-workflow/customer/pharma/prescription-upload.md`.
+
+---
+
 ## W83 — UI-craft pass
 
 **Status:** 🟢 Shipped (three passes). Foundations, screen fixes, the remaining functional bugs, and

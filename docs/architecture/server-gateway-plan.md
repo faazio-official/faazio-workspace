@@ -102,6 +102,16 @@ caller) and are event-purged on store live toggle and product edit/status change
   client-built (`upi://pay?...` rewritten per app on iOS); the Razorpay order id is the intent `tr`,
   and the intent's `url=faazio://payment/callback` deep-links back into the app's `PaymentCallback`
   screen (which re-verifies via `GET /orders/{orderId}/payment-status`).
+- **Prescription quote → payable order (`internal/checkout` + `internal/pharma`, `0086`):**
+  `POST /prescriptions/{id}/checkout` accepts an owner-scoped, seller-quoted Rx by materialising a
+  real `checkout.orders` row with `order_id = rx.id` and `rx_id` set, line items built from the quote.
+  The customer then pays it through the SAME rail above (COD `POST /orders/{id}/payments`, UPI
+  `POST /razorpay/customer/orders` + webhook + `GET /orders/{id}/payment-status`). The accept is
+  idempotent via the partial unique index on `rx_id`, and the amount is always the server-stored quote
+  total (never client-supplied). Checkout reads the quote through `contracts.PrescriptionQuoteReader`,
+  implemented by `pharma.Repo` (no cross-context repo import). Materialised Rx orders are excluded from
+  `GET /orders` so the Rx is listed once, from `GET /prescriptions`. A `409 not_payable` is returned
+  when the Rx is not yet quoted or is terminal.
 - **Seller onboarding + manual payouts (`internal/sellers` + `internal/payouts`, `0077`):**
   `POST /sellers` now carries the platform fee, payout bank details (masked tail stored; the full
   account number is never persisted), private R2 passbook/FSSAI keys and `otpVerified`. The OTP is the

@@ -15,6 +15,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/jackc/pgx/v5"
 )
@@ -173,6 +174,31 @@ select id, user_id, coalesce(vendor_id,''), coalesce(fulfillment::text,''), page
        coalesce(note,''), image_paths, status::text, coalesce(address_id,''),
        quoted_total_paisa / 100, revealed_at, coalesce(revealed_by,''), created_at, updated_at
   from pharma.prescriptions`
+
+// QuoteForCheckout resolves one of the caller's own prescriptions into the server-verified quote the
+// checkout context needs to materialise a payable order (contracts.PrescriptionQuoteReader). It
+// never exposes another user's Rx; ok=false for an unknown id or a row owned by someone else.
+func (r *Repo) QuoteForCheckout(ctx context.Context, id, userID string) (contracts.PrescriptionQuote, bool, error) {
+	p, ok, err := r.ByIDForUser(ctx, id, userID)
+	if err != nil || !ok {
+		return contracts.PrescriptionQuote{}, ok, err
+	}
+	q := contracts.PrescriptionQuote{
+		ID:               p.ID,
+		UserID:           p.UserID,
+		VendorID:         p.VendorID,
+		Fulfillment:      p.Fulfillment,
+		AddressID:        p.AddressID,
+		Status:           p.Status,
+		QuotedTotalPaisa: p.QuotedTotal * 100,
+	}
+	for _, it := range p.Quote {
+		q.Lines = append(q.Lines, contracts.PrescriptionQuoteLine{
+			Name: it.Name, Qty: it.Qty, MRP: it.MRP, Price: it.Price, Discount: it.Discount,
+		})
+	}
+	return q, true, nil
+}
 
 // VendorPrescriptions lists prescriptions routed to a seller's stores (admin: all), by status, as a
 // PII-redacted projection (name only until READY/FULFILLED).

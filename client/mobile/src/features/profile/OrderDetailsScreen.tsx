@@ -24,6 +24,8 @@ import { useCanRateVendor } from '@/hooks/useVendorRating';
 import { gateway, type OrderInvoice } from '@/services/api/GatewayClient';
 import { SUPPORT_EMAIL } from '@/lib/site';
 import { usePrescriptionDetail } from '@/features/pharma/prescription/usePrescriptionDetail';
+import { usePrescriptionPayment } from '@/features/pharma/prescription/usePrescriptionPayment';
+import PrescriptionPaymentSheet from '@/features/pharma/prescription/PrescriptionPaymentSheet';
 import type { MyOrder } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 
@@ -54,6 +56,7 @@ const STATUS_BADGE_BG: Record<string, string> = {
 /** Server Rx status → customer-facing label (pharma.prescription_status). */
 const RX_STATUS_LABEL: Record<string, string> = {
   RECEIVED: 'Awaiting quote',
+  PROCESSING: 'Processing',
   QUOTED: 'Quote ready',
   READY: 'Ready',
   FULFILLED: 'Fulfilled',
@@ -107,6 +110,11 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
     placedOrder?.kind === 'prescription' && gateway.remoteEnabled,
   );
   const rx = usePrescriptionDetail(placedOrder?.orderId, rxEnabled);
+  // The Rx id doubles as the materialised checkout order id, so the payment status is readable once
+  // the quote is accepted. Only poll while the Rx is actually payable/settling.
+  const rxPaymentEnabled = Boolean(rx && (rx.status === 'QUOTED' || rx.status === 'READY'));
+  const rxPayment = usePrescriptionPayment(rx?.id, rxPaymentEnabled);
+  const [paymentSheetVisible, setPaymentSheetVisible] = useState(false);
 
   const order = useMemo<OrderView | null>(() => {
     if (placedOrder) {
@@ -226,6 +234,13 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
   const statusColor = STATUS_COLORS[statusLabel] ?? '#374151';
   const statusBg = STATUS_BADGE_BG[statusLabel] ?? '#F3F4F6';
 
+  const rxQuoteTotal = rx?.quote && rx.quote.length > 0 ? rx.quotedTotal ?? 0 : 0;
+  const rxPaid = rxPayment.state === 'PAID';
+  const rxPayable = Boolean(rx && rx.status === 'QUOTED' && rxQuoteTotal > 0 && gateway.remoteEnabled);
+  const rxRefillable = Boolean(
+    rx && (rx.status === 'FULFILLED' || rx.status === 'CANCELLED') && rx.vendorId,
+  );
+
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <ScrollView
@@ -275,10 +290,16 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
               <AppText style={styles.productName}>{order.productName}</AppText>
               <AppText style={styles.productVariant}>{order.variant}</AppText>
               <AppText style={styles.lineMeta}>
-                ₹{order.price} × {order.qty}
+                {placedOrder?.kind === 'prescription'
+                  ? `${placedOrder.pages ?? 0} page${(placedOrder.pages ?? 0) === 1 ? '' : 's'}`
+                  : `₹${order.price} × ${order.qty}`}
               </AppText>
             </View>
-            <AppText style={styles.lineTotal}>₹{order.lineTotal}</AppText>
+            {placedOrder?.kind === 'prescription' ? (
+              rxQuoteTotal > 0 ? <AppText style={styles.lineTotal}>₹{rxQuoteTotal}</AppText> : null
+            ) : (
+              <AppText style={styles.lineTotal}>₹{order.lineTotal}</AppText>
+            )}
           </View>
         </View>
 
@@ -340,6 +361,44 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
                 ))}
               </View>
             ) : null}
+
+            {/* Pay a quoted Rx through the reused checkout rail; the amount is server-derived. */}
+            {rxPaid ? (
+              <View style={[styles.metaRow, styles.quoteTotalRow]}>
+                <AppText style={styles.metaLabel}>Payment</AppText>
+                <AppText style={styles.paidValue}>Paid</AppText>
+              </View>
+            ) : rxPayment.state === 'PENDING' ? (
+              <AppText style={styles.payPendingHint}>
+                Payment processing — this updates automatically once confirmed.
+              </AppText>
+            ) : null}
+
+            {rxPayable && !rxPaid ? (
+              <TouchableOpacity
+                style={styles.payBtn}
+                onPress={() => setPaymentSheetVisible(true)}
+                activeOpacity={0.9}
+                accessibilityRole="button"
+                accessibilityLabel={`Pay ₹${rxQuoteTotal} for this prescription`}
+              >
+                <AppText style={styles.payBtnText}>Pay ₹{rxQuoteTotal}</AppText>
+              </TouchableOpacity>
+            ) : null}
+
+            {rxRefillable ? (
+              <TouchableOpacity
+                style={styles.refillBtn}
+                onPress={() =>
+                  navigation.navigate('PrescriptionFlow', { presetVendorId: rx.vendorId })
+                }
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Order this prescription again"
+              >
+                <AppText style={styles.refillBtnText}>Order again</AppText>
+              </TouchableOpacity>
+            ) : null}
           </View>
         ) : null}
 
@@ -386,8 +445,9 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
         ) : null}
 
         {/* Tax invoice — My Orders entry only. The post-payment confirmation deep link never
-            offers a PDF download; the invoice lives under My Orders → Order Details. */}
-        {route.params.entry !== 'confirmation' ? (
+            offers a PDF download; the invoice lives under My Orders → Order Details. Prescription
+            orders have no invoice row (shown honestly as absent, never fabricated). */}
+        {route.params.entry !== 'confirmation' && placedOrder?.kind !== 'prescription' ? (
         <View style={styles.card}>
           <AppText style={styles.sectionTitle}>Tax invoice</AppText>
           <AppText style={styles.invoiceHint}>
@@ -450,7 +510,7 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
           >
             <AppText style={styles.helpBtnText}>Contact support</AppText>
           </TouchableOpacity>
-          {order.status === 'Processing' ? (
+          {order.status === 'Processing' && placedOrder?.kind !== 'prescription' ? (
             <TouchableOpacity
               onPress={handleRequestCancellation}
               style={styles.helpSecondaryBtn}
@@ -465,6 +525,19 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
 
         <View style={styles.bottomSpacer} />
       </ScrollView>
+
+      {rx ? (
+        <PrescriptionPaymentSheet
+          visible={paymentSheetVisible}
+          orderId={rx.id}
+          amountRupees={rxQuoteTotal}
+          onRequestClose={() => {
+            setPaymentSheetVisible(false);
+            rxPayment.refresh();
+          }}
+          onPaid={() => rxPayment.refresh()}
+        />
+      ) : null}
     </View>
   );
 }
@@ -672,6 +745,44 @@ const styles = StyleSheet.create({
     fontSize: ms(14),
     fontWeight: '700',
     color: '#111827',
+  },
+  paidValue: {
+    fontSize: ms(13),
+    fontWeight: '800',
+    color: '#16A34A',
+  },
+  payPendingHint: {
+    fontSize: ms(12),
+    color: '#6B7280',
+    marginTop: SPACE.ITEM,
+    lineHeight: ms(17),
+  },
+  payBtn: {
+    marginTop: SPACE.ITEM,
+    minHeight: 48,
+    borderRadius: ms(10),
+    backgroundColor: semantic.info,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  payBtnText: {
+    fontSize: ms(15),
+    fontWeight: '700',
+    color: '#FFFFFF',
+  },
+  refillBtn: {
+    marginTop: vs(8),
+    minHeight: 44,
+    borderRadius: ms(10),
+    borderWidth: 1,
+    borderColor: '#16A34A',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  refillBtnText: {
+    fontSize: ms(14),
+    fontWeight: '700',
+    color: '#16A34A',
   },
   historyWrap: {
     marginTop: SPACE.ITEM,

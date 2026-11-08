@@ -182,7 +182,8 @@ func NewRouter(d Deps) http.Handler {
 	notifications.NewHandler(notificationsRepo, d.Cache, d.Drainer).Register(r)
 	blood.NewHandler(bloodRepo, d.Cache, adminsRepo, notificationsRepo).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo, notificationsRepo, promoRepo,
-		directoryRepo, deliveryHandler, d.Signer).WithRxBlobDeleter(pharmaStorage).WithPaymentGateway(razorpayPay).Register(r)
+		directoryRepo, deliveryHandler, d.Signer).WithRxBlobDeleter(pharmaStorage).WithPaymentGateway(razorpayPay).
+		WithRxQuotes(pharmaRepo).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache, adminsRepo).Register(r)
 	reco.NewHandler(recoRepo, recoService).Register(r)
 	sdui.NewHandler(sduiService, adminsRepo).Register(r)

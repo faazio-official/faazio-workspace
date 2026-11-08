@@ -103,8 +103,8 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
       void (async () => {
         try {
           // Resolve the delivery address from the SERVER-owned list (auth-scoped) so the
-          // prescription's address_id FK never points at a phantom @data fixture id. Falls back
-          // to the fixture list only when the gateway is offline (mock mode).
+          // prescription's address_id FK never points at a phantom id. Server-only: no fixture
+          // fallback exists (a failed read surfaces as an empty list, not invented data).
           const addresses = await gateway.getAddresses();
           const addressId =
             addresses.find((a) => a.isDefault === true)?.id ?? addresses[0]?.id;
@@ -116,8 +116,8 @@ export function PrescriptionFlowScreen({ navigation, route }: Props) {
             if (key) keys.push(key);
             setUploadProgress({ done: index + 1, total: draft.photos.length });
           }
-          // A durable Rx must carry its scans: on a real server session any failed page is a hard
-          // stop so the shopper can retry, not a silent partial upload. (Mock mode allows empty.)
+          // A durable Rx must carry its scans: any failed page is a hard stop so the shopper can
+          // retry, not a silent partial upload.
           if (gateway.remoteEnabled && keys.length !== draft.photos.length) {
             const failed = draft.photos.length - keys.length;
             setSubmitError(

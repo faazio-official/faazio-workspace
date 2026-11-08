@@ -78,6 +78,10 @@ type Order struct {
 	// until the Razorpay webhook flips them; COD/coins are PAID. Informational — the payment ledger
 	// (checkout.payments) remains authoritative for money state.
 	PaymentStatus string `json:"paymentStatus,omitempty"`
+	// RxID marks an order materialised from a prescription quote (0086). The order_id equals the Rx
+	// id; rx_id lets the generic My Orders history hide it so the Rx is listed once (via
+	// pharma.prescriptions). Internal only — never serialized to the app.
+	RxID string `json:"-"`
 }
 
 // SellerScope is the caller's order-visibility scope. A seller sees orders touching their own
@@ -317,12 +321,14 @@ func (r *Repo) OrderByIdempotencyKey(ctx context.Context, userID, key string) (s
 	return orderID, true, nil
 }
 
-// OrdersByUser returns a user's orders with line items.
+// OrdersByUser returns a user's orders with line items. Prescription-checkout orders (rx_id set)
+// are excluded: the Rx is surfaced from pharma.prescriptions, so listing the materialised order too
+// would duplicate it in My Orders.
 func (r *Repo) OrdersByUser(ctx context.Context, userID string) ([]Order, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("checkout: database not configured")
 	}
-	rows, err := r.pool.Query(ctx, orderHeaderSelect+` where user_id = $1 order by placed_at desc`, userID)
+	rows, err := r.pool.Query(ctx, orderHeaderSelect+` where user_id = $1 and rx_id is null order by placed_at desc`, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -1051,6 +1057,67 @@ func totalPaisa(lines []OrderLineItem) int64 {
 		total += li.Qty * li.UnitPrice * 100
 	}
 	return total
+}
+
+// OrderByRxForUser returns the checkout order materialised for a prescription (rx_id), scoped to its
+// owner. ok=false when the quote has not been accepted yet.
+func (r *Repo) OrderByRxForUser(ctx context.Context, rxID, userID string) (Order, bool, error) {
+	if r.pool == nil {
+		return Order{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, orderHeaderSelect+` where rx_id = $1 and user_id = $2`, rxID, userID)
+	if err != nil {
+		return Order{}, false, err
+	}
+	defer rows.Close()
+	orders, err := scanOrderHeaders(rows)
+	if err != nil {
+		return Order{}, false, err
+	}
+	if len(orders) == 0 {
+		return Order{}, false, nil
+	}
+	withItems, err := r.attachOrderItems(ctx, orders)
+	if err != nil {
+		return Order{}, false, err
+	}
+	return withItems[0], true, nil
+}
+
+// InsertRxOrder materialises an accepted prescription quote as a real checkout order (0086):
+// order_id = the Rx id, rx_id set. No invoice or payment row is written — the seller quote is the
+// price and the customer payment rail (POST /orders/{id}/payments or the Razorpay flow) writes the
+// ledger afterwards. The partial unique index on rx_id makes it idempotent: a concurrent duplicate
+// insert fails and the caller re-reads the winner.
+func (r *Repo) InsertRxOrder(ctx context.Context, o Order, lines []OrderLineItem) error {
+	if r.pool == nil {
+		return fmt.Errorf("checkout: database not configured")
+	}
+	return r.WithTx(ctx, func(tx pgx.Tx) error {
+		var fulfillment any
+		if o.Fulfillment == "PICKUP" || o.Fulfillment == "DELIVERY" {
+			fulfillment = o.Fulfillment
+		}
+		if _, err := tx.Exec(ctx, `
+			insert into checkout.orders
+			  (order_id, order_number, user_id, address_id, placed_at, status, fulfillment, total_paisa,
+			   vendor_store_ids, total_charged_paisa, payment_status, rx_id)
+			values ($1,$2,$3,$4, now(), $5::order_status, $6::fulfillment_mode, $7, $8, $9,
+			        coalesce(nullif($10,''),'PENDING_PAYMENT'), $11)`,
+			o.ID, o.OrderNumber, o.UserID, nullIfEmpty(o.AddressID), o.Status, fulfillment,
+			totalPaisa(lines), o.VendorStoreIDs, o.TotalChargedPaisa, o.PaymentStatus, o.RxID); err != nil {
+			return err
+		}
+		for _, li := range lines {
+			if _, err := tx.Exec(ctx, `
+				insert into checkout.order_items (line_id, order_id, product_id, name, variant, qty, unit_price_paisa, store_id)
+				values ($1,$2,$3,$4,$5,$6,$7,coalesce(nullif($8,''),null))`,
+				li.LineID, o.ID, nullIfEmpty(li.ProductID), li.Name, nullIfEmpty(li.Variant), li.Qty, li.UnitPrice*100, li.StoreID); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 func nullIfEmpty(v string) any {
