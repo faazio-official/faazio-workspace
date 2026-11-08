@@ -10,6 +10,7 @@
 | Flow | Doc |
 |---|---|
 | Portal auth + seller console shell | [seller-console.md](./seller-console.md) |
+| Seller notifications inbox | [notifications.md](./notifications.md) |
 
 ## Route groups
 
@@ -43,9 +44,8 @@
 
 ## Known gaps
 
-- Local-only notifications/support/rush-hour/restaurant-status, toast-only admin and settings
-  actions, and the TTC-hardcoded district-admins page. See
-  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- Local-only support/rush-hour/restaurant-status, toast-only admin and settings actions, and the
+  TTC-hardcoded district-admins page. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

@@ -22,16 +22,18 @@ const (
 
 // Handler serves product detail + batch endpoints and seller product management.
 type Handler struct {
-	repo  *Repo
-	cache *cache.Cache
-	audit contracts.AuditWriter
-	media contracts.MediaReader
+	repo     *Repo
+	cache    *cache.Cache
+	audit    contracts.AuditWriter
+	media    contracts.MediaReader
+	notifier contracts.Notifier
 }
 
 // NewHandler builds the catalog HTTP handler. media (optional) resolves a linked image asset id to its
 // registry row so the seller edit can store the object key without importing the media context.
-func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, media contracts.MediaReader) *Handler {
-	return &Handler{repo: repo, cache: c, audit: audit, media: media}
+// notifier (optional) tells the seller portal when a listing is approved or rejected.
+func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, media contracts.MediaReader, notifier contracts.Notifier) *Handler {
+	return &Handler{repo: repo, cache: c, audit: audit, media: media, notifier: notifier}
 }
 
 // Register mounts the catalog endpoints onto the shared router.
@@ -518,14 +520,25 @@ func (h *Handler) setProductStatus(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
 		Status string `json:"status"`
+		Reason string `json:"reason"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
 		return
 	}
 	status := strings.ToUpper(strings.TrimSpace(body.Status))
+	reason := strings.TrimSpace(body.Reason)
 	if !allowedProductStatus(status, auth.IsAdmin(r.Context())) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "status not permitted for this role")
+		return
+	}
+	if len(reason) > 500 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "review reason is too long")
+		return
+	}
+	// A rejection must carry a message so the seller learns why the listing was turned down.
+	if status == "REJECTED" && reason == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a rejection reason is required")
 		return
 	}
 	sellerID, district, scopeOK := managementScope(r)
@@ -533,7 +546,7 @@ func (h *Handler) setProductStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
 		return
 	}
-	p, ok, err := h.repo.SetProductStatus(r.Context(), id, sellerID, district, status)
+	p, ok, err := h.repo.SetProductStatus(r.Context(), id, sellerID, district, status, reason)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
 		return
@@ -544,8 +557,41 @@ func (h *Handler) setProductStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.Del(r.Context(), cache.Product(id), cache.StoreProducts(p.StoreID))
 	h.purgeNearbyProductTiles(r, p.StoreID)
-	h.log(r, "PRODUCT_"+status, id, map[string]string{"status": status})
+	after := map[string]string{"status": status}
+	if status == "REJECTED" {
+		after["reason"] = reason
+	}
+	h.log(r, "PRODUCT_"+status, id, after)
+	h.notifyModeration(r, p, status, reason)
 	httpx.JSON(w, http.StatusOK, p)
+}
+
+// notifyModeration tells the owning seller portal about an admin accept/reject decision. It is
+// best-effort: a notification failure must never fail the status write that already persisted.
+// Only admin moderation transitions (ACTIVE/REJECTED) notify — sellers self-serve the rest.
+func (h *Handler) notifyModeration(r *http.Request, p SellerProduct, status, reason string) {
+	if h.notifier == nil || p.StoreID == "" {
+		return
+	}
+	var kind, title, body string
+	switch status {
+	case "ACTIVE":
+		kind = "PRODUCT_APPROVED"
+		title = "Product approved"
+		body = p.Name + " is now live in the catalog."
+	case "REJECTED":
+		kind = "PRODUCT_REJECTED"
+		title = "Product rejected"
+		body = p.Name + " was rejected: " + reason
+	default:
+		return
+	}
+	_ = h.notifier.EnqueueSeller(r.Context(), []string{p.StoreID}, kind, title, body, map[string]any{
+		"productId": p.ID,
+		"storeId":   p.StoreID,
+		"status":    status,
+		"deepLink":  "/seller/products/" + p.ID + "/edit",
+	})
 }
 
 // managementScope resolves the row filter for product management. A seller is scoped to their own

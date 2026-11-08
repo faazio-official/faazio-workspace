@@ -28,7 +28,6 @@ import {
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { deleteProduct, updateProduct, upsertPrice } from "@/lib/api";
 import { usePortalLoading, useProducts } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
 import type { ProductRecord, Sector } from "@/data/types";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -37,12 +36,10 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 const SECTORS: (Sector | "ALL")[] = ["ALL", "MART", "FOOD", "PHARMA"];
 
 function StateProducts() {
-  const session = useSession();
-  const stateCode = session?.stateCode ?? "MH";
   const loading = usePortalLoading();
   const [sector, setSector] = useState<Sector | "ALL">("ALL");
   const [query, setQuery] = useState("");
-  const products = useProducts({ stateCode, sector, query });
+  const products = useProducts({ sector, query });
   const [active, setActive] = useState<ProductRecord | null>(null);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");

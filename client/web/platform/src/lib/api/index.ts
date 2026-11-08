@@ -531,12 +531,14 @@ export function deleteProduct(productId: string, reason: string): void {
 
 export function setProductStatus(productId: string, status: ProductStatus, reason?: string): void {
   const before = getProduct(productId);
-  updateProduct(productId, { status });
+  const note = (reason ?? "").trim();
+  const reviewReason = status === "REJECTED" ? note : "";
+  updateProduct(productId, { status, reviewReason });
   pushWrite(
     `Product ${status}`,
     "put",
     `/seller/products/${encodeURIComponent(productId)}/status`,
-    { status },
+    status === "REJECTED" ? { status, reason: reviewReason } : { status },
     () => restoreProduct(before),
   );
   audit({
@@ -544,7 +546,7 @@ export function setProductStatus(productId: string, status: ProductStatus, reaso
     entity: "catalog.products",
     entityId: productId,
     before: before && { status: before.status },
-    after: { status, reason },
+    after: { status, reason: note },
   });
 }
 
@@ -615,6 +617,7 @@ export interface SellerConsoleRow {
   inStockQty: number;
   available: boolean;
   eta?: string;
+  reviewReason?: string;
   updatedAt: string;
 }
 
@@ -989,6 +992,60 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
     ...(row.drugLicenseCertKey ? { drugLicenseCertKey: row.drugLicenseCertKey } : {}),
     ...(row.drugLicenseCertAssetId ? { drugLicenseCertAssetId: row.drugLicenseCertAssetId } : {}),
   }));
+}
+
+/* ------------------------------ notifications ---------------------------- */
+
+/** One row from `GET /notifications` (notifications.outbox, scoped to the signed-in portal user). */
+export interface PortalNotification {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  /** PII-free payload; product moderation rows carry `deepLink` + `productId`. */
+  data?: Record<string, unknown>;
+  status: string;
+  createdAt: string;
+  readAt?: string;
+}
+
+/** The caller's notification inbox, newest first. Empty when the gateway is unconfigured. */
+export async function fetchNotifications(): Promise<PortalNotification[]> {
+  if (!remoteConfigured()) return [];
+  const rows = await remote.get<
+    {
+      id: string;
+      kind: string;
+      title: string;
+      body: string;
+      data?: Record<string, unknown>;
+      status: string;
+      createdAt: string;
+      readAt?: string;
+    }[]
+  >("/notifications");
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    body: row.body,
+    ...(row.data ? { data: row.data } : {}),
+    status: row.status,
+    createdAt: row.createdAt,
+    ...(row.readAt ? { readAt: row.readAt } : {}),
+  }));
+}
+
+/** Mark one notification read (in-app state; a foreign/unknown id is a server no-op). */
+export async function markNotificationRead(id: string): Promise<void> {
+  if (!remoteConfigured()) return;
+  await remote.post(`/notifications/${encodeURIComponent(id)}/read`);
+}
+
+/** Mark every notification for the signed-in user read. */
+export async function markAllNotificationsRead(): Promise<void> {
+  if (!remoteConfigured()) return;
+  await remote.post("/notifications/read-all");
 }
 
 export interface CreateVendorInput {

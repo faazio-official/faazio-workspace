@@ -234,18 +234,18 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 	out := []contracts.Product{}
 	for rows.Next() {
 		var (
-			p                    contracts.Product
+			p                      contracts.Product
 			pricePaisa, stockPrice *int64
-			rating               float64
-			reviewsCount         *int64
-			attrsRaw             []byte
-			badge, shop, unit    *string
-			imageKey             *string
-			sAvail               *bool
-			sQty                 *int64
-			sETA                 *string
-			sRx                  *bool
-			distance             *float64
+			rating                 float64
+			reviewsCount           *int64
+			attrsRaw               []byte
+			badge, shop, unit      *string
+			imageKey               *string
+			sAvail                 *bool
+			sQty                   *int64
+			sETA                   *string
+			sRx                    *bool
+			distance               *float64
 		)
 		if err := rows.Scan(
 			&p.ID, &p.App, &p.Category, &p.Name, &p.SearchTokens,
@@ -333,7 +333,9 @@ type SellerProduct struct {
 	InStockQty     int64  `json:"inStockQty"`
 	Available      bool   `json:"available"`
 	Eta            string `json:"eta,omitempty"` // free-text ETA carried from inventory.stock
-	UpdatedAt      string `json:"updatedAt"`
+	// ReviewReason is the admin's moderation note on a REJECTED listing (empty otherwise).
+	ReviewReason string `json:"reviewReason,omitempty"`
+	UpdatedAt    string `json:"updatedAt"`
 }
 
 // sellerProductSelect projects a product with its owner derived through the vendor store. Ownership
@@ -345,7 +347,7 @@ select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(st.seller
        coalesce(p.desc_text,''), coalesce(p.unit,''), coalesce(p.emoji,''),
        coalesce(p.image_url,''), coalesce(p.image_key,''), p.is_veg, p.is_prescription,
        coalesce(s.in_stock_qty, 0), coalesce(s.available, true), coalesce(s.eta, ''),
-       p.updated_at
+       coalesce(p.review_reason, ''), p.updated_at
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id
 left join directory.stores st on st.id = p.store_id`
@@ -373,8 +375,9 @@ func (r *Repo) SellerProducts(ctx context.Context, sellerID, district, status st
 }
 
 // SetProductStatus transitions a product's status. The write is scoped to the caller's seller_id or
-// district (strict). Passing neither is the super-admin all-products case.
-func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, district, status string) (SellerProduct, bool, error) {
+// district (strict). Passing neither is the super-admin all-products case. reason is the admin's
+// moderation note; it is stored only for REJECTED and cleared on any other transition.
+func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, district, status, reason string) (SellerProduct, bool, error) {
 	if r.pool == nil {
 		return SellerProduct{}, false, fmt.Errorf("catalog: database not configured")
 	}
@@ -383,7 +386,8 @@ func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, district, sta
 		updatedAt time.Time
 	)
 	err := r.pool.QueryRow(ctx, `
-		update catalog.products p set status = $4::product_status
+		update catalog.products p set status = $4::product_status,
+		       review_reason = case when $4 = 'REJECTED' then nullif($5, '') else null end
 		 from directory.stores st
 		 where p.id = $1 and st.id = p.store_id and (
 		       ($2 <> '' and st.seller_id = $2) or
@@ -392,9 +396,10 @@ func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, district, sta
 		           where se.seller_id = st.seller_id and se.district_code = $3)) or
 		       ($2 = '' and $3 = ''))
 		 returning p.id, p.name, p.app::text, p.category, p.status::text,
-		           coalesce(st.seller_id,''), coalesce(p.store_id,''), p.price_paisa, p.updated_at`,
-		id, sellerID, district, status).
-		Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID, &p.Price, &updatedAt)
+		           coalesce(st.seller_id,''), coalesce(p.store_id,''), p.price_paisa,
+		           coalesce(p.review_reason,''), p.updated_at`,
+		id, sellerID, district, status, reason).
+		Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID, &p.Price, &p.ReviewReason, &updatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerProduct{}, false, nil
@@ -665,7 +670,8 @@ func scanSellerProduct(row sellerProductScanner) (SellerProduct, error) {
 	)
 	if err := row.Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID,
 		&p.Price, &p.Description, &p.Unit, &p.Emoji, &p.ImageURL, &p.ImageKey,
-		&p.IsVeg, &p.IsPrescription, &p.InStockQty, &p.Available, &p.Eta, &updatedAt); err != nil {
+		&p.IsVeg, &p.IsPrescription, &p.InStockQty, &p.Available, &p.Eta,
+		&p.ReviewReason, &updatedAt); err != nil {
 		return SellerProduct{}, err
 	}
 	p.Price /= 100

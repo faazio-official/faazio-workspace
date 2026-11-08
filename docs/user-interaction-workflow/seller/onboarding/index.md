@@ -1,6 +1,6 @@
 # Seller onboarding — domain index
 
-**Status:** Partial (application mobile-only; vendor fee/cover steps incomplete)
+**Status:** Shipped (by design: application is mobile-only; login creds are superadmin-issued; the seller app is a WebView over the portal). Vendor fee/cover steps remain tracked as separate gaps in [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 **Surfaces:** mobile `SellWithUs` (`SellerRegistrationScreen.tsx`) for application + KYC upload,
 portal `/seller/onboarding` for vendor creation, district-admin review at
 `/admin/district/sellers/[id]` (super admin has a list only), fee-change boards.
@@ -55,10 +55,17 @@ application (POST /sellers, mobile)
 - **Error:** inline portal errors; no fabricated approval.
 - **Empty:** no application → onboarding entry state.
 
+## Designed, not partial
+
+- **Application is intentionally mobile-only:** `POST /sellers` is called only from the customer
+  app's `SellWithUs`; the portal deliberately has no application form. This is the completed design.
+- **Portal login creds are superadmin-issued:** a superadmin creates them at
+  `/admin/super/credentials` (role `SELLER`, scoped to `seller_id`; HS256 JWT in HttpOnly cookies).
+- **Seller app is a WebView over the portal:** the seller partner app loads the portal, so there is
+  no native seller auth or separate seller web app to build.
+
 ## Known gaps
 
-- The seller application is mobile-only: `POST /sellers` is called only from the customer app's
-  `SellWithUs`; the portal has no application form.
 - Mobile seller onboarding OTP is unavailable when Firebase Auth is unconfigured
   (`SellerRegistrationScreen.tsx` reports it).
 - See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
