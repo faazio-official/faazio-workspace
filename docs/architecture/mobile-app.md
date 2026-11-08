@@ -1089,9 +1089,10 @@ and now owns the full lifecycle through a bottom-sheet `AddressEditor` (tag chip
 address, default switch): **Add New** opens a blank draft, **Edit** seeds it from the card, and both
 save via `GatewayClient.saveAddress()` → `PUT /profile/addresses` (upsert; the server mints the id for
 a new address and clears the caller's other defaults when one is set default). **Delete** (card or
-sheet) calls `GatewayClient.deleteAddress()` → `DELETE /profile/addresses/{id}`; a cross-user or
-unknown id is a 404 and still drops the row locally so the list stays consistent. Money/PII stay on
-the server — the screen only ever sends `{tag, name, phone, address, isDefault}`.
+sheet) calls `GatewayClient.deleteAddress()` → `DELETE /profile/addresses/{id}`; a 404 means the row
+is already gone and still drops locally. Any other failure keeps the row and shows a delete-failed
+alert, so the device never hides an address the server still holds. Money/PII stay on the server —
+the screen only ever sends `{tag, name, phone, address, isDefault}`.
 
 ## Sell with us (seller onboarding)
 
@@ -1497,7 +1498,11 @@ dedicated **FULFILLMENT** step. `fulfillment` (`'DELIVERY' | 'PICKUP'`) is a sin
   being transparent. The no-quote and degraded states are surfaced on BOTH the FULFILLMENT and PAYMENT
   steps (the estimate flag is threaded through `PaymentOptionsScreen`).
   A FREE-Delivery coupon discounts the **live** quote (including a surge that arrives after the code
-  was applied), not a frozen fee, and the gateway settles the same zero delivery line.
+  was applied), not a frozen fee, and the gateway settles the same zero delivery line. The streak
+  discount card is settled the same way: `CartView` sends `useDiscountCard: true` (never combined
+  with a coupon), checkout reads the card from `rewards.balances`, applies the same whole-rupee
+  discount the client displayed, and clears the card after the order commits; an absent/expired card
+  fails the order instead of charging the undiscounted total.
 - **PAYMENT:** the reworked `PaymentOptionsScreen` (below); its back button returns to FULFILLMENT.
 - **Order placement:** for Delivery, the live fix (or fallback) is the delivery address and
   the GPS coordinates are captured on the order (`PlacedOrder.location`) and sent as

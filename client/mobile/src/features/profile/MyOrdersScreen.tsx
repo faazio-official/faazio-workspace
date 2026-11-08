@@ -741,10 +741,6 @@ const styles = StyleSheet.create({
   },
 
   /* List */
-  list: {
-    paddingHorizontal: hs(16),
-    paddingTop: vs(4),
-  },
   orderCard: {
     backgroundColor: neutral.card,
     borderRadius: ms(12),

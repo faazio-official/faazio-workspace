@@ -53,7 +53,7 @@ import type { RazorpayOrderResult } from '@/services/api/GatewayClient';
 import { clearUpiOrderPending, markUpiOrderPending } from '@/services/paymentReconciliation';
 import { consumeLastClickedSlotId } from '@/services/adsAttribution';
 import { coinsEarnedFor, isCardActive } from '@/features/rewards/rewardsLogic';
-import { COIN_REDEEM_RATE, DISCOUNT_CARD_PERCENT } from '@data/rewards/rewards';
+import { COIN_REDEEM_RATE } from '@data/rewards/rewards';
 import { useLiveAddress } from '@/hooks/useLiveAddress';
 import { useAuthStore } from '@/state/authStore';
 import { brandRamp } from '@/theme/brandTokens';
@@ -157,6 +157,9 @@ export default function CartView({
   } | null>(null);
   // The raw code (without the display suffix) the server re-validates + settles at placement.
   const [appliedCouponCode, setAppliedCouponCode] = useState<string | null>(null);
+  /** True only while the streak discount card is the selected discount. Sent to the server so it
+   *  settles the same discount; mutually exclusive with a coupon code. */
+  const [usingStreakCard, setUsingStreakCard] = useState(false);
   const [couponError, setCouponError] = useState<string | null>(null);
   const [expandedCategories, setExpandedCategories] = useState<CartCategory[]>(CATEGORY_ORDER);
   const [showCouponSheet, setShowCouponSheet] = useState(false);
@@ -164,6 +167,9 @@ export default function CartView({
   // Coupon list is server-owned (GET /coupons). An authoritative empty list is a real empty — the
   // sheet never falls back to the retired fixtures when the gateway answers.
   const [couponList, setCouponList] = useState<Coupon[]>([]);
+  // Distinguishes "list still loading" from "loaded and the code is genuinely absent", so a banner
+  // hand-off that the server no longer offers surfaces an error instead of waiting forever.
+  const [couponsLoaded, setCouponsLoaded] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -180,9 +186,12 @@ export default function CartView({
             isFreeDelivery: c.freeDelivery,
           })),
         );
+        setCouponsLoaded(true);
       })
       .catch(() => {
-        if (!cancelled) setCouponList([]);
+        if (cancelled) return;
+        setCouponList([]);
+        setCouponsLoaded(true);
       });
     return () => {
       cancelled = true;
@@ -398,6 +407,7 @@ export default function CartView({
           setAppliedDiscount({ code: `${normalized} (${v.valuePercent}% OFF)`, amount: v.discount });
         }
         setAppliedCouponCode(normalized);
+        setUsingStreakCard(false);
         setShowCouponSheet(false);
       })
       .catch(() => setCouponError('Could not validate this coupon. Please try again.'));
@@ -406,6 +416,7 @@ export default function CartView({
   const removeCoupon = () => {
     setAppliedDiscount(null);
     setAppliedCouponCode(null);
+    setUsingStreakCard(false);
     setCouponError(null);
   };
 
@@ -415,18 +426,19 @@ export default function CartView({
   // inline error a manual entry would. Runs once.
   const prefilledCouponRef = useRef(false);
   useEffect(() => {
-    if (prefilledCouponRef.current || !initialCouponCode) return;
-    const code = initialCouponCode.toUpperCase().trim();
-    if (!couponList.some((c) => c.code === code)) return; // wait for the server/fixture list
+    if (prefilledCouponRef.current || !initialCouponCode || !couponsLoaded) return;
     prefilledCouponRef.current = true;
-    applyCouponCode(code);
-  }, [initialCouponCode, couponList, applyCouponCode]);
+    // Apply once the list is in: `applyCouponCode` validates against the live list and surfaces the
+    // same inline error a manual entry would when the code is no longer offered.
+    applyCouponCode(initialCouponCode.toUpperCase().trim());
+  }, [initialCouponCode, couponsLoaded, applyCouponCode]);
 
   const applyStreakCard = () => {
     if (!discountCard) return;
-    const amt = Math.round(subtotal * (DISCOUNT_CARD_PERCENT / 100));
-    setAppliedDiscount({ code: `Faazio Streak (${DISCOUNT_CARD_PERCENT}% OFF)`, amount: amt });
+    const amt = Math.round(subtotal * (discountCard.percent / 100));
+    setAppliedDiscount({ code: `Faazio Streak (${discountCard.percent}% OFF)`, amount: amt });
     setAppliedCouponCode(null);
+    setUsingStreakCard(true);
     setShowCouponSheet(false);
   };
 
@@ -571,6 +583,7 @@ export default function CartView({
           paymentMethod: method,
           idempotencyKey,
           ...(appliedCouponCode ? { couponCode: appliedCouponCode } : {}),
+          ...(usingStreakCard ? { useDiscountCard: true } : {}),
           ...(attributedSlotId ? { attribution: { slotId: attributedSlotId } } : {}),
           ...(!isPickup && hasLiveFix
             ? { deliveryLocation: { latitude: liveAddress.lat, longitude: liveAddress.lng } }

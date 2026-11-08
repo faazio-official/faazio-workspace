@@ -31,7 +31,7 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { savedAddresses } from '@data/index';
 import type { SavedAddress, AddressTag } from '@data/types';
-import { gateway } from '@/services/api/GatewayClient';
+import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SavedAddresses'>;
@@ -379,8 +379,17 @@ export function SavedAddressesScreen({ navigation }: Props) {
   const deleteAddress = useCallback(async (item: SavedAddress) => {
     try {
       await gateway.deleteAddress(item.id);
-    } catch {
-      // The server rejects a foreign/unknown id; still drop it locally so the UI is consistent.
+    } catch (err) {
+      // A 404 means the server already dropped it → the local removal is truthful. Any other
+      // failure (offline, foreign id, server error) must NOT remove the row: the next read would
+      // bring it back, so keep the list honest and tell the user instead.
+      if (!(err instanceof GatewayHttpError && err.status === 404)) {
+        Alert.alert(
+          'Delete failed',
+          'Could not delete this address. Check your connection and try again.',
+        );
+        return;
+      }
     }
     setAddresses((prev) => prev.filter((a) => a.id !== item.id));
     setSelectedId((cur) => (cur === item.id ? '' : cur));

@@ -18,7 +18,7 @@
 
 | Step | What the user does | Primary data |
 |---|---|---|
-| `BAG` | Review lines, quantity, select items, choose coupon | `useCartStore`, `getCart`, `validateCoupon` |
+| `BAG` | Review lines, quantity, select items, choose coupon or streak card | `useCartStore`, `getCart`, `validateCoupon` |
 | `FULFILLMENT` | Choose Delivery or Self-Pickup, address/pickup point | `getAddresses`, `getPickupPoints` (self-pickup), `fetchDeliveryFee` |
 | `PAYMENT` | Choose COD/UPI, redeem coins, place order | `placeOrder`, `createRazorpayOrder`, `payForOrder` |
 | `PAYMENT_STATUS` | UPI return/poll | `fetchPaymentStatus` |
@@ -34,7 +34,8 @@
 ## Data path
 
 - Cart: `getCart` / `addToCart` / `updateCartItem` / `removeCartItem` → `inventory.carts`.
-- Pricing: `validateCoupon` → `promo.coupons`; `getActiveDiscounts` → `promo`.
+- Pricing: `validateCoupon` → `promo.coupons`; `getActiveDiscounts` → `promo`; streak card →
+  `rewards.balances.card` (read + cleared at `POST /orders` settlement).
 - Fees: `fetchDeliveryFee` → `tax.delivery_fee_settings` + store pins.
 - Order: `placeOrder` → `checkout.orders`, `checkout.order_items`, `checkout.payments`,
   `checkout.idempotency_keys` (one transaction).

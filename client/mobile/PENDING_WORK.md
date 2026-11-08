@@ -15,6 +15,30 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W86 — Close behavioural gaps found during the UI audit
+
+**Status:** 🟢 Shipped. Fixes the honest-state bugs surfaced by the token-migration audit.
+
+- **Streak discount card (server + client):** `POST /orders` accepts `useDiscountCard`; checkout reads
+  the caller's card from `rewards.balances` via `contracts.RewardsCardReader`, applies the same
+  whole-rupee discount the client displayed, and clears it via `contracts.RewardsCardConsumer` after
+  the order commits. Mutually exclusive with `couponCode`; absent/expired → `400 invalid_discount_card`.
+  `CartView` sends the flag and uses the server-held card percent.
+- **Coupon banner hand-off:** `CartView` now distinguishes "coupon list still loading" from "loaded,
+  code absent" and surfaces the inline error instead of silently dropping the prefill.
+- **Saved addresses:** a failed delete keeps the row and shows an alert; only a 404 is treated as
+  already-deleted. No more local-only removal that the next read undoes.
+- **PDP:** removed the unreachable same-store dish rail and hides **View Vendor** when no handler is
+  supplied (no no-op button).
+- **MyOrders:** removed the unused `list` style.
+- **Cart receipt:** empty pickup `Open`/`Contact` rows are no longer rendered.
+- **Contrast:** `HomeView` retry button pairs `brandRamp.MART.deep` with `onDeep`.
+
+Docs touched: `docs/architecture/mobile-app.md`, `server-gateway-plan.md`,
+`monolith-breakdown.md`, and the cart-checkout / saved-addresses / product-detail workflow pages.
+
+---
+
 ## W85 — UI token migration + emoji elimination
 
 **Status:** 🟢 Shipped. Applies the existing design system to the worst-offender customer screens,

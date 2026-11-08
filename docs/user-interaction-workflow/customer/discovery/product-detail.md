@@ -37,7 +37,10 @@
 
 ## Success / error / empty
 
-- **Success:** product and server-authoritative price render; store link renders.
+- **Success:** product and server-authoritative price render; the store card renders. The
+  **View Vendor** / **View Restaurant** action is shown only when the caller supplies the handler
+  (never a no-op button). The same-store dish rail is server-backed only and stays hidden when the
+  server returns nothing (no bundled dish fixture is invented).
 - **Error:** a failed canonical read is swallowed and the passed product keeps rendering; there is
   no retry UI. A missing route `product` shows "Product unavailable".
 - **Empty:** reviews are not rendered today, so there is no empty review state; add-to-cart is always
@@ -48,6 +51,8 @@
 - `/product/{id}/reviews` is fetched but never rendered; there is no review list or empty state.
 - No stock/availability check disables add-to-cart on the PDP.
 - A failed canonical read has no retry affordance.
+- There is no same-store dish rail yet; the previous always-empty block was removed rather than
+  presenting a dead section.
 - Vendor rating requires a completed purchase for the verified-purchase path.
 
 ## Linked docs

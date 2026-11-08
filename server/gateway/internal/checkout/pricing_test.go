@@ -24,3 +24,26 @@ func TestDiscountedUnitPaisa(t *testing.T) {
 		}
 	}
 }
+
+// TestDiscountCardPaisa locks the streak-card settlement to the client's whole-rupee rounding
+// (`Math.round(subtotal * percent / 100)`), so the invoice total matches what was displayed.
+func TestDiscountCardPaisa(t *testing.T) {
+	cases := []struct {
+		name     string
+		subtotal int64
+		percent  int64
+		want     int64
+	}{
+		{"ten percent exact", 1000, 10, 10000},
+		{"rounds half up", 105, 10, 1100},
+		{"rounds down", 104, 10, 1000},
+		{"no card", 1000, 0, 0},
+		{"empty cart", 0, 10, 0},
+		{"negative percent", 1000, -5, 0},
+	}
+	for _, tc := range cases {
+		if got := discountCardPaisa(tc.subtotal, tc.percent); got != tc.want {
+			t.Errorf("%s: discountCardPaisa(%d, %d) = %d, want %d", tc.name, tc.subtotal, tc.percent, got, tc.want)
+		}
+	}
+}

@@ -42,6 +42,11 @@ var ErrInsufficientCoins = errors.New("insufficient coins")
 // server did not rule valid.
 var ErrInvalidCoupon = errors.New("coupon not valid for this order")
 
+// ErrInvalidDiscountCard is returned when the caller asked to spend a streak discount card but has
+// no active card (or combined it with a coupon). The client must never receive a discount it did not
+// hold, so this fails the order rather than silently charging the undiscounted total.
+var ErrInvalidDiscountCard = errors.New("discount card not valid for this order")
+
 // ErrRxNotPayable is returned when a prescription cannot be turned into a payable order: it has no
 // seller quote yet, or it is already fulfilled/cancelled. Paying a prescription is only meaningful
 // once the pharmacy has priced it.
@@ -65,6 +70,10 @@ type PlaceOrderRequest struct {
 	// client's applied discount is display-only.
 	CouponCode string `json:"couponCode,omitempty"`
 	StateCode  string `json:"stateCode,omitempty"`
+	// UseDiscountCard spends the caller's server-held streak discount card. The server reads the
+	// percent from rewards.balances, applies it once, and clears the card after the order commits.
+	// Mutually exclusive with CouponCode (the client offers one discount at a time).
+	UseDiscountCard bool `json:"useDiscountCard,omitempty"`
 	// Attribution carries the last-clicked sponsored slot id (closed-loop ads). Best-effort.
 	Attribution struct {
 		SlotID string `json:"slotId,omitempty"`
@@ -85,14 +94,17 @@ type Service struct {
 	// rewardCoins reads the server-held balance so a redemption can never exceed it. Optional: the
 	// rewards repo implements both writer and reader, so it is wired by type assertion below.
 	rewardCoins contracts.RewardsReader
-	coupons     contracts.CouponValidator
-	discounts   contracts.DiscountReader
-	ads         contracts.AdAttributor
-	surge       contracts.SurgeReader
-	weather     contracts.WeatherChecker
-	festivals   contracts.FestivalLookup
-	cache       *cache.Cache
-	logger      *slog.Logger
+	// rewardCard reads/consumes the streak discount card. Optional: absent in unit contexts.
+	rewardCard         contracts.RewardsCardReader
+	rewardCardConsumer contracts.RewardsCardConsumer
+	coupons            contracts.CouponValidator
+	discounts          contracts.DiscountReader
+	ads                contracts.AdAttributor
+	surge              contracts.SurgeReader
+	weather            contracts.WeatherChecker
+	festivals          contracts.FestivalLookup
+	cache              *cache.Cache
+	logger             *slog.Logger
 }
 
 // NewService builds the checkout service. rewards/coupons/discounts/ads/surge/weather/festivals may
@@ -105,6 +117,12 @@ func NewService(repo *Repo, stock contracts.StockWriter, cache *cache.Cache, rew
 	}
 	if reader, ok := rewards.(contracts.RewardsReader); ok {
 		s.rewardCoins = reader
+	}
+	if reader, ok := rewards.(contracts.RewardsCardReader); ok {
+		s.rewardCard = reader
+	}
+	if consumer, ok := rewards.(contracts.RewardsCardConsumer); ok {
+		s.rewardCardConsumer = consumer
 	}
 	return s
 }
@@ -153,6 +171,15 @@ func customerDeliveryFeePaisa(feePaisa int64, freeDelivery bool) int64 {
 		return 0
 	}
 	return feePaisa
+}
+
+// discountCardPaisa mirrors the client's `Math.round(subtotalRupees * percent / 100)` so the
+// settled invoice matches the discount the customer saw to the rupee. Discounts are whole rupees.
+func discountCardPaisa(subtotalRupees, percent int64) int64 {
+	if subtotalRupees <= 0 || percent <= 0 {
+		return 0
+	}
+	return ((subtotalRupees*percent + 50) / 100) * 100
 }
 
 // CreateOrder places an order: idempotency lock → price → stock decrement → insert.
@@ -375,6 +402,30 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		orderDeliveryFeePaisa = customerDeliveryFeePaisa(orderDeliveryFeePaisa, v.FreeDelivery)
 	}
 
+	// Streak discount-card settlement: the server reads the caller's card and applies the same
+	// whole-rupee discount the client displayed, then clears the card after the order commits. A card
+	// is mutually exclusive with a coupon, and an expired/absent card fails the order rather than
+	// silently charging more than the customer saw.
+	cardDiscountPaisa := int64(0)
+	usedCardID := ""
+	if req.UseDiscountCard {
+		if req.CouponCode != "" {
+			return Order{}, ErrInvalidDiscountCard
+		}
+		if s.rewardCard == nil {
+			return Order{}, ErrInvalidDiscountCard
+		}
+		percent, cardID, err := s.rewardCard.ActiveDiscountCardPercent(ctx, userID)
+		if err != nil {
+			return Order{}, err
+		}
+		if percent <= 0 || cardID == "" {
+			return Order{}, ErrInvalidDiscountCard
+		}
+		cardDiscountPaisa = discountCardPaisa(totalRupees, percent)
+		usedCardID = cardID
+	}
+
 	platformRates.DeliveryFeePaisa = orderDeliveryFeePaisa
 	breakdown := taxmath.Compute(taxLines, platformRates)
 
@@ -430,7 +481,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		sellerName = "Faazio Marketplace (multi-seller order)"
 	}
 	invoice := taxmath.NewInvoice(order.ID, order.OrderNumber, userID, sellerID, sellerName, sellerGSTIN,
-		breakdown, couponDiscountPaisa)
+		breakdown, couponDiscountPaisa+cardDiscountPaisa)
 	order.InvoiceID = invoice.InvoiceID
 	order.TotalChargedPaisa = invoice.TotalPaisa
 
@@ -495,6 +546,15 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	if s.rewards != nil {
 		if err := s.rewards.Earn(ctx, userID, order.ID, paidRupees, coins); err != nil {
 			s.logger.Error("rewards earn failed after order commit", "orderId", order.ID, "coinsRedeemed", coins, "err", err)
+		} else {
+			s.cache.Del(ctx, cache.Rewards(userID))
+		}
+	}
+	// Spend the streak card only after the order is committed: a failed insert leaves it intact. The
+	// clear is conditional on the same card id, so a concurrent order cannot spend a newer card.
+	if usedCardID != "" && s.rewardCardConsumer != nil {
+		if err := s.rewardCardConsumer.ConsumeDiscountCard(ctx, userID, usedCardID); err != nil {
+			s.logger.Error("discount card consume failed after order commit", "orderId", order.ID, "err", err)
 		} else {
 			s.cache.Del(ctx, cache.Rewards(userID))
 		}

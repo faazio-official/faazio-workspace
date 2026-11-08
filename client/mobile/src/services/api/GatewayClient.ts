@@ -255,6 +255,8 @@ export interface PlaceOrderInput {
   coinsRedeemed?: number;
   /** Coupon code the server re-validates + settles (the client figure is display-only). */
   couponCode?: string;
+  /** Spend the caller's server-held streak discount card (mutually exclusive with `couponCode`). */
+  useDiscountCard?: boolean;
   /** Buyer state for state-scoped coupon validation. */
   stateCode?: string;
   /** Live drop fix at placement (delivery only) — persisted for order-ready auto-dispatch. */

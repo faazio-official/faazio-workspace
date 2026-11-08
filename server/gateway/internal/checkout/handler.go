@@ -462,6 +462,8 @@ func (h *Handler) placeOrder(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "insufficient_coins", "not enough coins for this redemption")
 	case errors.Is(err, ErrInvalidCoupon):
 		httpx.Fail(w, http.StatusBadRequest, "invalid_coupon", "coupon is not valid for this order")
+	case errors.Is(err, ErrInvalidDiscountCard):
+		httpx.Fail(w, http.StatusBadRequest, "invalid_discount_card", "discount card is not valid for this order")
 	case err != nil:
 		httpx.Fail(w, http.StatusInternalServerError, "order_failed", "could not place order")
 	default:

@@ -193,14 +193,6 @@ export default function CommonProductDetailView({
     [relatedProducts, relatedDiscounts],
   );
 
-  // "Same restaurant dishes" is server-backed only: no bundled dish fixture is substituted for a FOOD
-  // product. On a failed/absent read the rail stays empty (an invented dish price on a PDP is worse
-  // than an honest gap).
-  const relatedDishes = useMemo<Product[]>(() => {
-    if (product?.app !== 'FOOD' || !product.shop) return [];
-    return [];
-  }, [product?.app, product?.shop, product?.id]);
-
   // No product to render: an honest empty state beats a fabricated demo row (which could show an
   // invented price). Placed after every hook so the hook order stays stable across renders.
   if (!product) {
@@ -292,13 +284,15 @@ export default function CommonProductDetailView({
           </>
         )}
 
-        <TouchableOpacity
-          style={styles.viewVendorBtn}
-          activeOpacity={0.85}
-          onPress={() => onViewVendor?.(store.id)}
-        >
-          <AppText style={styles.viewVendorBtnText}>View Vendor</AppText>
-        </TouchableOpacity>
+        {onViewVendor ? (
+          <TouchableOpacity
+            style={styles.viewVendorBtn}
+            activeOpacity={0.85}
+            onPress={() => onViewVendor(store.id)}
+          >
+            <AppText style={styles.viewVendorBtnText}>View Vendor</AppText>
+          </TouchableOpacity>
+        ) : null}
       </View>
     </View>
   ) : null;
@@ -345,31 +339,6 @@ export default function CommonProductDetailView({
             </TouchableOpacity>
           ) : null}
 
-          {relatedDishes.length > 0 && (
-            <>
-              <AppText style={styles.relatedTitle}>More from {product.shop}</AppText>
-              <View style={styles.relatedGrid}>
-                {relatedDishes.map((p) => {
-                  const qty = cartItems.find((i) => i.id === p.id)?.quantity ?? 0;
-                  return (
-                    <ProductCardBase
-                      key={p.id}
-                      product={p}
-                      appBrand="FOOD"
-                      variant="grid2"
-                      width={cardWidth}
-                      quantity={qty}
-                      isAdded={qty > 0}
-                      onPress={onOpenProduct}
-                      onAdd={() => confirmAdd(p)}
-                      onIncrement={() => updateCartQuantity(p.id, 1)}
-                      onDecrement={() => updateCartQuantity(p.id, -1)}
-                    />
-                  );
-                })}
-              </View>
-            </>
-          )}
         </View>
       </View>
     ) : null;

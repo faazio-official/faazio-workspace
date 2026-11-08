@@ -281,6 +281,59 @@ func (r *Repo) Coins(ctx context.Context, userID string) (int64, error) {
 	return coins, nil
 }
 
+// ActiveDiscountCardPercent returns the percent of the caller's unexpired streak card and its id.
+// It returns 0/"" when there is no rewards row, no card, a malformed card, or an expired card —
+// checkout then treats the card as unavailable rather than trusting a client-asserted percent.
+func (r *Repo) ActiveDiscountCardPercent(ctx context.Context, userID string) (int64, string, error) {
+	if r.pool == nil {
+		return 0, "", fmt.Errorf("rewards: database not configured")
+	}
+	var card []byte
+	err := r.pool.QueryRow(ctx, `select card from rewards.balances where user_id = $1`, userID).Scan(&card)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return 0, "", nil
+		}
+		return 0, "", err
+	}
+	if len(card) == 0 || string(card) == "null" {
+		return 0, "", nil
+	}
+	var c struct {
+		ID        string `json:"id"`
+		Percent   int64  `json:"percent"`
+		ExpiresAt string `json:"expiresAt"`
+	}
+	if err := json.Unmarshal(card, &c); err != nil {
+		return 0, "", nil
+	}
+	if c.Percent <= 0 || c.ID == "" {
+		return 0, "", nil
+	}
+	if c.ExpiresAt != "" {
+		exp, err := time.Parse(time.RFC3339, c.ExpiresAt)
+		if err != nil || !time.Now().UTC().Before(exp) {
+			return 0, "", nil
+		}
+	}
+	return c.Percent, c.ID, nil
+}
+
+// ConsumeDiscountCard clears the card only when it is still the same card, so a concurrent order
+// can never spend a newer card. It is a no-op when the card was already consumed.
+func (r *Repo) ConsumeDiscountCard(ctx context.Context, userID, cardID string) error {
+	if r.pool == nil {
+		return fmt.Errorf("rewards: database not configured")
+	}
+	if cardID == "" {
+		return nil
+	}
+	_, err := r.pool.Exec(ctx, `
+		update rewards.balances set card = null, updated_at = now()
+		 where user_id = $1 and card->>'id' = $2`, userID, cardID)
+	return err
+}
+
 // View returns the caller's balance plus the 50 most recent ledger entries.
 func (r *Repo) View(ctx context.Context, userID string) (View, error) {
 	if r.pool == nil {

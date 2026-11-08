@@ -91,23 +91,23 @@ type Stock struct {
 
 // Product is a catalog row joined with its live stock (CatalogEntry + ProductView).
 type Product struct {
-	ID            string         `json:"id"`
-	App           App            `json:"app"`
-	Category      string         `json:"category"`
-	Name          string         `json:"name"`
-	SearchTokens  []string       `json:"searchTokens"`
-	Price         int64          `json:"price"` // rupees
-	Rating        float64        `json:"rating"`
-	Emoji         string         `json:"emoji"`
-	Image         string         `json:"image"`
-	Desc          string         `json:"desc"`
-	Badge         string         `json:"badge,omitempty"`
-	Shop          string         `json:"shop,omitempty"`
-	StoreID       string         `json:"storeId,omitempty"`
-	ReviewsCount  *int64         `json:"reviewsCount,omitempty"`
-	Unit          string         `json:"unit,omitempty"`
-	Attributes    map[string]any `json:"attributes,omitempty"`
-	Stock         *Stock         `json:"stock,omitempty"`
+	ID           string         `json:"id"`
+	App          App            `json:"app"`
+	Category     string         `json:"category"`
+	Name         string         `json:"name"`
+	SearchTokens []string       `json:"searchTokens"`
+	Price        int64          `json:"price"` // rupees
+	Rating       float64        `json:"rating"`
+	Emoji        string         `json:"emoji"`
+	Image        string         `json:"image"`
+	Desc         string         `json:"desc"`
+	Badge        string         `json:"badge,omitempty"`
+	Shop         string         `json:"shop,omitempty"`
+	StoreID      string         `json:"storeId,omitempty"`
+	ReviewsCount *int64         `json:"reviewsCount,omitempty"`
+	Unit         string         `json:"unit,omitempty"`
+	Attributes   map[string]any `json:"attributes,omitempty"`
+	Stock        *Stock         `json:"stock,omitempty"`
 	// DistanceKm is set only by GET /products/nearby (straight-line km from the caller).
 	DistanceKm *float64 `json:"distanceKm,omitempty"`
 }
@@ -349,6 +349,18 @@ type RewardsWriter interface {
 // the same value, but the payment amount must be settled against the clamped figure too.
 type RewardsReader interface {
 	Coins(ctx context.Context, userID string) (int64, error)
+}
+
+// RewardsCardReader exposes the caller's active streak discount card so checkout can settle the
+// discount the client displayed. It returns 0 when there is no card or the card has expired.
+type RewardsCardReader interface {
+	ActiveDiscountCardPercent(ctx context.Context, userID string) (percent int64, cardID string, err error)
+}
+
+// RewardsCardConsumer clears a discount card after it has been used, so it can never discount a
+// second order. It is best-effort after the order commits; a miss only leaves the card reusable.
+type RewardsCardConsumer interface {
+	ConsumeDiscountCard(ctx context.Context, userID, cardID string) error
 }
 
 // CouponValidation is the server-authoritative verdict on a coupon code for a given cart. Money is

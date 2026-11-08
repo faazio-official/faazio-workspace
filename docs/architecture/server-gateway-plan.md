@@ -60,8 +60,10 @@ caller) and are event-purged on store live toggle and product edit/status change
   destinations are served — no empty/placeholder sections), `/seller/orders`, `/seller/orders/:id`,
   `/coupons?app=` (anon), `/promo/active-discounts?ids=` (anon), `/ads/live?slot=` (anon),
   `/admin/user-trail?userId=` (admin, ID-only), `/admin/sdui/home` (super-admin, raw ID-only layout);
-  writes `POST/PUT/DELETE /cart…`, `POST /orders` (festival-discount + coupon settlement + ad
-  attribution + optional live drop fix for auto-dispatch + dynamic delivery fee),
+  writes `POST/PUT/DELETE /cart…`, `POST /orders` (festival-discount + coupon settlement +
+  streak discount-card settlement — `useDiscountCard` reads the caller's server-held card, applies
+  its percent once and clears it after the order commits — + ad attribution + optional live drop fix
+  for auto-dispatch + dynamic delivery fee),
   `POST /checkout/validate-coupon`, `GET /checkout/delivery-fee?storeId=&lat=&lng=` (auth-scoped,
   server-authoritative road-distance delivery-fee quote), `POST /ads/events`, `PUT /vendors/:id/rating`, `POST /events`,
   `POST /errors` (client crash/error sink, optional-auth, non-PII, capped + throttle-limited, best-effort

@@ -10,8 +10,12 @@
 1. `handlePlaceOrder` validates the delivery address (Delivery only) and builds a stable
    idempotency key.
 2. `gateway.placeOrder(input)` → `POST /orders`. The gateway re-prices from `catalog.products`,
-   validates the coupon and coin balance, decrements stock, and writes the order, items, invoice,
-   payment, and idempotency key in **one transaction**.
+   validates the coupon / streak discount card and coin balance, decrements stock, and writes the
+   order, items, invoice, payment, and idempotency key in **one transaction**. The streak card is
+   sent as `useDiscountCard: true` (mutually exclusive with `couponCode`); the server reads its
+   percent from `rewards.balances`, applies the same whole-rupee discount the client showed, and
+   clears the card after the order commits. An absent/expired card fails with
+   `invalid_discount_card` rather than charging an undiscounted total.
 3. `useOrdersStore.recordServerOrder(placed)` adopts the durable server id; `useRewardsStore.reconcile()`
    refreshes the ledger (coins are earned server-side, never client-written).
 4. Purchased lines are removed from the server cart (`DELETE /cart/items/{id}`); a failed removal
@@ -37,6 +41,7 @@
 - `gateway.placeOrder` → `POST /orders` → `checkout.orders`, `checkout.order_items`,
   `checkout.payments`, `checkout.idempotency_keys`, `tax.tax_invoices`.
 - `gateway.validateCoupon` → `POST /checkout/validate-coupon` → `promo.coupons`.
+- Streak discount card: `rewards.balances.card` (read at settlement, cleared after commit).
 - `gateway.createRazorpayOrder` → `POST /razorpay/customer/orders` → `checkout.payments`.
 - `gateway.fetchPaymentStatus` → `GET /orders/{id}/payment-status`.
 - `gateway.payForOrder` → `POST /orders/{id}/payments`.

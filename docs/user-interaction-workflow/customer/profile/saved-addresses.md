@@ -8,7 +8,9 @@
 
 1. The screen loads `gateway.getAddresses()` (`GET /profile/addresses`).
 2. The user adds/edits an address; `gateway.saveAddress(addr)` (`PUT /profile/addresses`) writes it.
-3. Deleting calls `gateway.deleteAddress(id)` (`DELETE /profile/addresses/{id}`).
+3. Deleting calls `gateway.deleteAddress(id)` (`DELETE /profile/addresses/{id}`). The row is removed
+   locally only after the server confirms (or returns 404, meaning it is already gone); any other
+   failure keeps the row and shows a delete-failed alert.
 4. Checkout reuses the saved address id; only a durable server id is submitted on `POST /orders`.
 
 ## State
@@ -28,7 +30,8 @@
 ## Success / error / empty
 
 - **Success:** address list reflects the server.
-- **Error:** inline error; the UI does not keep an unconfirmed address.
+- **Error:** inline error on save; a failed delete keeps the address and alerts the user. A 404 on
+  delete is treated as already-deleted. The UI never hides a row the server still holds.
 - **Empty:** "No saved addresses" state.
 
 ## Known gaps
