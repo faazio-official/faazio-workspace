@@ -80,7 +80,7 @@
   --radius: 0.75rem;
 
   /* Faazio Blue — the single brand anchor (docs/UI_DESIGN_SYSTEM.md §5). */
-  --brand-blue: #4250ff;
+  --brand-blue: #1627e9;
 
   /* Warm paper ramp. */
   --background: oklch(0.988 0.004 85);
@@ -94,9 +94,9 @@
 
   /* Faazio Blue, dark enough to carry white text at 4.5:1. */
   --brand: var(--brand-blue);
-  --brand-ink: oklch(0.4 0.16 271);
-  --brand-soft: oklch(0.955 0.03 271);
-  --brand-line: oklch(0.88 0.05 271);
+  --brand-ink: oklch(0.4 0.16 266);
+  --brand-soft: oklch(0.955 0.03 266);
+  --brand-line: oklch(0.88 0.05 266);
 
   --primary: var(--brand-blue);
   --primary-foreground: oklch(0.99 0.002 85);
@@ -137,12 +137,12 @@
   --popover: oklch(0.272 0.012 70);
   --popover-foreground: oklch(0.95 0.006 82);
 
-  --brand: oklch(0.72 0.16 271);
-  --brand-ink: oklch(0.8 0.12 271);
-  --brand-soft: oklch(0.292 0.05 271);
-  --brand-line: oklch(0.38 0.08 271);
+  --brand: oklch(0.72 0.16 266);
+  --brand-ink: oklch(0.8 0.12 266);
+  --brand-soft: oklch(0.292 0.05 266);
+  --brand-line: oklch(0.38 0.08 266);
 
-  --primary: oklch(0.72 0.16 271);
+  --primary: oklch(0.72 0.16 266);
   --primary-foreground: oklch(0.18 0.012 70);
   --secondary: oklch(0.282 0.012 70);
   --secondary-foreground: oklch(0.95 0.006 82);
@@ -154,7 +154,7 @@
   --border: oklch(1 0 0 / 10%);
   --border-strong: oklch(1 0 0 / 18%);
   --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.72 0.16 271);
+  --ring: oklch(0.72 0.16 266);
   --overlay: oklch(0.12 0.008 70 / 0.7);
 
   --destructive: oklch(0.68 0.17 25);
@@ -163,7 +163,7 @@
   --donor-soft: oklch(0.29 0.045 22);
   --donor-line: oklch(0.4 0.07 22);
 
-  --mart: oklch(0.72 0.16 271);
+  --mart: oklch(0.72 0.16 266);
   --food: oklch(0.73 0.12 152);
   --pharma: oklch(0.74 0.11 45);
 }

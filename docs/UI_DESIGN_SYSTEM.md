@@ -22,7 +22,7 @@ only this product could have.
 | `client/mobile` | Bare React Native 0.86 | `StyleSheet.create` | `src/theme/*` |
 
 This doc is also the **single source of truth for the brand colour** —
-**Faazio Blue `#4250FF`**, defined in §5 (Brand colour). Other docs and
+**Faazio Blue `#1627E9`**, defined in §5 (Brand colour). Other docs and
 `AGENTS.md` files reference that section; they do not define their own hex.
 
 Where this doc disagrees with a surface's own `AGENTS.md`, the nearer file wins
@@ -339,7 +339,7 @@ Starting values. When the project already has a good system, **keep its values
 and only fix how they are used.**
 
 ### Brand colour — single source of truth
-**Faazio Blue = `#4250FF`.** This is the only definition of the brand colour;
+**Faazio Blue = `#1627E9`.** This is the only definition of the brand colour;
 every other doc, `AGENTS.md` and surface README must point here instead of
 restating a hex.
 
@@ -350,9 +350,9 @@ restating a hex.
   `parentRamp.base` (`client/mobile/src/theme/brandTokens.ts`) and web
   `--brand-blue` (`client/web/platform/src/styles.css`,
   `client/web/landingpage/src/styles.css`,
-  `client/web/vite-reference/src/styles.css`) are all `#4250FF`. Data/SDUI
+  `client/web/vite-reference/src/styles.css`) are all `#1627E9`. Data/SDUI
   accents (`data/*`, `server/supabase/seed/mongo/*`) use the same value.
-  Dark themes lift the anchor for text contrast (web `oklch(0.72 0.16 271)`,
+  Dark themes lift the anchor for text contrast (web `oklch(0.72 0.16 266)`,
   mobile keeps its `deep`/`pressed` companions); those are derived shades of the
   same brand, not a second brand colour.
 - Historical accent changes are logged in `docs/BRAND_COLOR_MIGRATION.md`; that

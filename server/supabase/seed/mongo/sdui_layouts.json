@@ -71,7 +71,7 @@
       "id": "hotBrandDeals",
       "title": "Deals of the day",
       "subtitle": null,
-      "accent": "#4250FF",
+      "accent": "#1627E9",
       "productIds": [
         "hbd-1",
         "hbd-2",
@@ -359,7 +359,7 @@
       "id": "recentlyViewedMart",
       "title": "Recently Viewed — Mart",
       "subtitle": null,
-      "accent": "#4250FF",
+      "accent": "#1627E9",
       "productIds": [
         "rvm-1",
         "rvm-2",
@@ -415,7 +415,7 @@
       "id": "mens",
       "title": "Men",
       "subtitle": null,
-      "accent": "#4250FF",
+      "accent": "#1627E9",
       "productIds": [
         "men-1",
         "men-2",
@@ -431,7 +431,7 @@
       "id": "womens",
       "title": "Women",
       "subtitle": null,
-      "accent": "#4250FF",
+      "accent": "#1627E9",
       "productIds": [
         "wom-1",
         "wom-2",
@@ -447,7 +447,7 @@
       "id": "childrens",
       "title": "Kids",
       "subtitle": null,
-      "accent": "#4250FF",
+      "accent": "#1627E9",
       "productIds": [
         "kid-1",
         "kid-2",
@@ -500,7 +500,7 @@
         {
           "id": "fashion",
           "label": "Fashion",
-          "accent": "#4250FF",
+          "accent": "#1627E9",
           "productIds": [
             "men-1",
             "men-3",
@@ -511,7 +511,7 @@
         {
           "id": "homeAppliances",
           "label": "Home Appliances",
-          "accent": "#4250FF",
+          "accent": "#1627E9",
           "productIds": [
             "hbd-2",
             "rvm-4"

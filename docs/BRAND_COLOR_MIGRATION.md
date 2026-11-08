@@ -128,3 +128,22 @@ The 2026-09-10 change above is **superseded**. All three splash layers now use F
 All native splash logos are now generated from `client/mobile/src/assets/logo.png` by
 `client/mobile/scripts/generate-splash-logo.py` — see `docs/architecture/mobile-app.md`
 ("Splash assets") for the mask and aspect-ratio constraints that script encodes.
+
+## Follow-up (2026-11-08): Faazio Blue re-anchored to `#1627E9`
+
+The brand anchor moved from the previous blue to the canonical value in
+`docs/UI_DESIGN_SYSTEM.md` §5. Every code anchor and derived shade follows the
+same value:
+
+- **Web** — `--brand-blue` in `client/web/platform/src/styles.css`,
+  `client/web/landingpage/src/styles.css` and
+  `client/web/vite-reference/src/styles.css`; dark-theme lifts moved to hue 266.
+- **Mobile** — `parentRamp.base` in `client/mobile/src/theme/brandTokens.ts`
+  (`baseLift` recomputed to `#6A95FF` for the new hue).
+- **Native** — Android `colors.xml` splash/icon background, iOS
+  `SplashScreenBackground.colorset` and the inline colour in
+  `SplashScreen.storyboard`, and the JS `SplashFallback` fallback.
+- **Data/SDUI + seed** — `data/*` accents, `server/supabase/migrations/0059_app_config.sql`
+  (`brand.primary_color`) and `server/supabase/seed/mongo/*`.
+- **PWA/manifest + icon script** — `theme_color` in both `site.webmanifest`
+  files and the first gradient stop in `generate-brand-icons.py`.

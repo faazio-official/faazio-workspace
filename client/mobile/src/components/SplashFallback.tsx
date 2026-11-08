@@ -6,7 +6,7 @@ import { parentRamp } from '@/theme/brandTokens';
 
 interface SplashFallbackProps {
   /**
-   * 'royal' renders the cold-start splash with a Faazio blue (#4250FF)
+   * 'royal' renders the cold-start splash with a Faazio blue (#1627E9)
    * background and the centered wide logo image (no spinner).
    * Default ('default') keeps the lightweight white/blue splash used by
    * navigation Suspense fallbacks.
@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   royalContainer: {
-    backgroundColor: '#4250FF',
+    backgroundColor: '#1627E9',
   },
   royalLogo: {
     width: 220,

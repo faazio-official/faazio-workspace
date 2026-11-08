@@ -86,8 +86,8 @@ export interface FilterChip {
 export const filterChips: FilterChip[] = [
   { id: 'forYou', label: 'For You', accent: '#8B5CF6' },
   { id: 'trendy', label: 'Trendy', accent: '#8B5CF6' },
-  { id: 'fashion', label: 'Fashion', accent: '#4250FF' },
-  { id: 'homeAppliances', label: 'Home Appliances', accent: '#4250FF' },
+  { id: 'fashion', label: 'Fashion', accent: '#1627E9' },
+  { id: 'homeAppliances', label: 'Home Appliances', accent: '#1627E9' },
   { id: 'fastFood', label: 'Fast Food', accent: '#C2410C' },
   { id: 'snacks', label: 'Snacks', accent: '#10B981' },
   { id: 'hotMeals', label: 'Hot Meals', accent: '#C2410C' },

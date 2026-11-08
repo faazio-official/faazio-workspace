@@ -74,7 +74,7 @@
   --radius: 0.75rem;
 
   /* Faazio Blue — the single brand anchor (docs/UI_DESIGN_SYSTEM.md §5). */
-  --brand-blue: #4250ff;
+  --brand-blue: #1627e9;
 
   --background: oklch(0.976 0.004 250);
   --foreground: oklch(0.19 0.04 265);

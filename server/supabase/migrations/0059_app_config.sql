@@ -44,7 +44,7 @@ create index if not exists app_config_category_idx on admins.app_config (categor
 -- the superadmin turns these live from the partner portal without an app-store release.
 insert into admins.app_config
   (key, category, value, is_public, app_variant, description, updated_by) values
-  ('brand.primary_color',    'brand',       '"#4250FF"'::jsonb, true, 'all', 'Faazio brand blue used by the SuperApp splash and hero surfaces. Reserved for a portal-driven theme; not yet consumed at runtime.', 'system'),
+  ('brand.primary_color',    'brand',       '"#1627E9"'::jsonb, true, 'all', 'Faazio brand blue used by the SuperApp splash and hero surfaces. Reserved for a portal-driven theme; not yet consumed at runtime.', 'system'),
   ('maps.places_api_key',    'maps',        '""'::jsonb,        true, 'all', 'Google Places (New) key for location autocomplete (restricted client key). Empty keeps the build-time baked value; a value set here is picked up on the next app boot, no store release.', 'system'),
   ('region.default',         'region',      '"IN"'::jsonb,      true, 'all', 'Default customer region code. Informational for now.', 'system'),
   ('maintenance.enabled',    'maintenance', 'false'::jsonb,     true, 'all', 'Global maintenance flag the app can read at boot; false = normal operation. Available to a future maintenance banner.', 'system')

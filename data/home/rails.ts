@@ -16,7 +16,7 @@ import type {
 } from '../types';
 
 export const portalSectors: PortalSector[] = [
-  { emoji: '🛍️', name: 'Mart', tagline: 'Shop the latest trends', imageUrl: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?fm=jpg&fit=crop&q=80&w=200&h=200', themeColor: '#4250FF', app: 'MART' },
+  { emoji: '🛍️', name: 'Mart', tagline: 'Shop the latest trends', imageUrl: 'https://images.unsplash.com/photo-1483985988355-763728e1935b?fm=jpg&fit=crop&q=80&w=200&h=200', themeColor: '#1627E9', app: 'MART' },
   { emoji: '🍲', name: 'Food', tagline: 'Taste the extraordinary', imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?fm=jpg&fit=crop&q=80&w=200&h=200', themeColor: '#1E5D44', app: 'FOOD' },
   { emoji: '💊', name: 'Pharma', tagline: 'Your health, our priority', imageUrl: 'https://images.unsplash.com/photo-1585435557343-3b092031a831?fm=jpg&fit=crop&q=80&w=200&h=200', themeColor: '#065F46', app: 'PHARMA' },
 ];

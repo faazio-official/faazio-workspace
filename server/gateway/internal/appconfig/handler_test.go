@@ -74,10 +74,10 @@ func TestSnapshotOmitsSecretValue(t *testing.T) {
 		t.Error("secret snapshot must omit the value field")
 	}
 
-	public := Row{Key: "brand.primary_color", Category: "brand", Value: json.RawMessage(`"#4250FF"`),
+	public := Row{Key: "brand.primary_color", Category: "brand", Value: json.RawMessage(`"#1627E9"`),
 		IsPublic: true, AppVariant: "all", Description: "brand", UpdatedAt: "2026-01-01T00:00:00Z"}
 	out = snapshot(public, true)
-	if !strings.Contains(string(out), "#4250FF") {
+	if !strings.Contains(string(out), "#1627E9") {
 		t.Errorf("public snapshot lost the value: %s", out)
 	}
 
