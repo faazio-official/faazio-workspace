@@ -231,7 +231,7 @@ function Hub() {
             </Card>
             <Card>
               <p className="text-sm font-bold">Sales &amp; orders</p>
-              <div className="mt-2 flex gap-6 text-xs">
+              <div className="mt-2 grid grid-cols-3 gap-3 text-xs">
                 <div>
                   <p className="text-muted-foreground">Net sales</p>
                   <b>{formatINR(gmv, { compact: true })}</b>
@@ -376,7 +376,7 @@ function Hub() {
                       className="flex items-center gap-2 text-xs"
                     >
                       <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" />
-                      <span className="truncate">
+                      <span className="min-w-0 truncate">
                         <b>#{o.orderId}</b> is pending
                       </span>
                       <ChevronRight className="ml-auto h-3 w-3 shrink-0 text-muted-foreground" />

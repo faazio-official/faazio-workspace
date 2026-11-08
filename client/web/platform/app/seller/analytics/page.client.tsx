@@ -168,8 +168,8 @@ function SellerAnalytics() {
                 ) : (
                   categoryMix.map((c) => (
                     <div key={c.label} className="mt-3 flex items-center justify-between text-xs">
-                      <span className="truncate">{c.label}</span>
-                      <span className="pl-3 font-semibold">{formatINR(c.value, { compact: true })}</span>
+                      <span className="min-w-0 truncate">{c.label}</span>
+                      <span className="shrink-0 pl-3 font-semibold">{formatINR(c.value, { compact: true })}</span>
                     </div>
                   ))
                 )}
@@ -183,8 +183,8 @@ function SellerAnalytics() {
                   cityMix.slice(0, 6).map((c) => (
                     <div key={c.label} className="mt-3">
                       <div className="flex justify-between text-xs">
-                        <span>{c.label}</span>
-                        <b>{formatINR(c.value, { compact: true })}</b>
+                        <span className="min-w-0 truncate">{c.label}</span>
+                        <b className="shrink-0 pl-3">{formatINR(c.value, { compact: true })}</b>
                       </div>
                       <div className="mt-1 h-1.5 rounded-full bg-muted">
                         <div

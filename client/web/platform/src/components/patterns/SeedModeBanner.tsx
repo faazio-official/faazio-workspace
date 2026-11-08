@@ -10,7 +10,7 @@ export function SeedModeBanner() {
   return (
     <div
       role="status"
-      className="pointer-events-none fixed bottom-3 left-3 z-50 rounded-full border border-warning/40 bg-warning/15 px-3 py-1 text-[11px] font-semibold text-warning shadow-sm"
+      className="pointer-events-none fixed bottom-[calc(var(--seller-nav-gap)+var(--seller-nav-h)+env(safe-area-inset-bottom)+0.5rem)] left-3 z-40 rounded-full border border-warning/40 bg-warning/15 px-3 py-1 text-[11px] font-semibold text-warning shadow-sm"
     >
       Seed mode: not connected to gateway
     </div>

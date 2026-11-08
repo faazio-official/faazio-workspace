@@ -185,7 +185,7 @@ function SellerMenus() {
                       )}
                       <span
                         className={cn(
-                          "ml-auto rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                          "ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
                           STATUS_PILL[m.status],
                         )}
                       >

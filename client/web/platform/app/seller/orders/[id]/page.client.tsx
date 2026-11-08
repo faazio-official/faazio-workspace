@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { Printer } from "lucide-react";
-import { PageHeader, Card, EmptyState, Sheet, RadioRow, SectorBadge } from "@/components/sellers/kit";
+import { PageHeader, Card, EmptyState, Sheet, RadioRow, SectorBadge, FixedActionBar } from "@/components/sellers/kit";
 import { formatDateTime, formatINR } from "@/lib/format";
 import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
 import { useOrder, useActiveStore } from "@/lib/api/hooks";
@@ -52,13 +52,15 @@ function OrderDetail() {
 
   if (!order) {
     return (
-      <div className="px-4 pt-4">
+      <>
         <PageHeader title="Order" />
-        <EmptyState text="This order is no longer available" />
-        <Link href="/seller/orders" className="block text-center text-sm font-semibold text-info">
-          Back to orders
-        </Link>
-      </div>
+        <div className="px-4 pt-4">
+          <EmptyState text="This order is no longer available" />
+          <Link href="/seller/orders" className="block text-center text-sm font-semibold text-info">
+            Back to orders
+          </Link>
+        </div>
+      </>
     );
   }
 
@@ -140,7 +142,7 @@ function OrderDetail() {
       </div>
 
       {order.status === "NEW" || next ? (
-        <div className="fixed bottom-[76px] left-1/2 flex w-full max-w-[430px] -translate-x-1/2 gap-2 border-t border-border bg-card p-3 md:bottom-0 md:max-w-[1024px]">
+        <FixedActionBar>
           {order.status === "NEW" && (
             <button
               onClick={() => setRejecting(true)}
@@ -163,7 +165,7 @@ function OrderDetail() {
           >
             {order.status === "NEW" ? "Accept order" : NEXT_LABEL[order.status]}
           </button>
-        </div>
+        </FixedActionBar>
       ) : null}
 
       <Sheet

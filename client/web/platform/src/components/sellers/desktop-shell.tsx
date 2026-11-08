@@ -25,7 +25,7 @@ export function SellerDesktopShell({ className }: { className?: string }) {
   return (
     <aside
       className={cn(
-        "hidden w-60 shrink-0 flex-col border-r border-border bg-card md:flex",
+        "hidden w-60 shrink-0 flex-col border-r border-border bg-card md:sticky md:top-0 md:flex md:h-[100dvh]",
         className,
       )}
     >
@@ -37,7 +37,7 @@ export function SellerDesktopShell({ className }: { className?: string }) {
           </p>
         </div>
         <div className="mt-1 border-t border-border pt-2">
-          <StoreSwitcher caption="Active shop" align="end">
+          <StoreSwitcher caption="Active shop">
             <span className="flex min-w-0 items-center gap-1.5">
               <span className="truncate text-[12px] font-semibold">
                 {activeStore?.name ?? "Your shop"}
@@ -48,7 +48,7 @@ export function SellerDesktopShell({ className }: { className?: string }) {
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-2 py-3">
+      <nav className="min-h-0 flex-1 overflow-y-auto px-2 py-3">
         {groups.map((group) => (
           <div key={group} className="mb-4">
             <p className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">{group}</p>

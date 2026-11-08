@@ -444,7 +444,10 @@ surfaces), `brand-wordmark`.
 
 Density: `html { font-size: 13px }`. The console is deliberately denser than the
 landing page. Use the `text-[11px]` / `text-[12px]` / `text-[13px]` / `text-[14px]`
-steps already in use — do not introduce a new size.
+steps already in use — do not introduce a new size. The seller console is the one
+exception below `md`: `html:has(.font-seller)` raises the root to **16px** on phones so
+mobile type, spacing and tap targets are not scaled down to 81% (keep desktop/admin at
+13px). This is the "dense preview gets simpler on mobile, never zoomed down" rule.
 
 Primitives to reuse rather than re-implement, all under
 `src/components/patterns/`: `SectionCard`, `KpiCard` + `KpiStrip` (both in

@@ -60,14 +60,14 @@ export function StoreSwitcher({
         <div
           role="listbox"
           className={cn(
-            "absolute z-50 mt-2 w-72 rounded-2xl border border-border bg-card p-2 shadow-lg",
+            "absolute z-50 mt-2 w-72 max-w-[calc(100vw-1rem)] rounded-2xl border border-border bg-card p-2 shadow-lg",
             align === "end" ? "right-0" : "left-0",
           )}
         >
           <p className="px-2 pb-1 pt-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             Switch shop
           </p>
-          <div className="max-h-80 overflow-y-auto">
+          <div className="max-h-[min(20rem,45dvh)] overflow-y-auto">
             {stores.map((store) => {
               const active = store.storeId === activeStore?.storeId;
               return (
@@ -85,8 +85,8 @@ export function StoreSwitcher({
                   )}
                 >
                   <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-semibold">{store.name}</span>
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <span className="min-w-0 truncate text-sm font-semibold">{store.name}</span>
                       <span
                         className={cn(
                           "h-1.5 w-1.5 shrink-0 rounded-full",

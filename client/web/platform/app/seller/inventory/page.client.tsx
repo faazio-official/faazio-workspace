@@ -190,7 +190,7 @@ function SellerInventory() {
       )}
 
       {tab === "items" ? (
-        <div className="px-4">
+        <div className="px-4 pb-16">
           {grouped.map((g) => (
             <section key={g.category} id={`inv-${g.category}`} className="border-b border-border py-3">
               <div className="flex items-center justify-between">
@@ -233,7 +233,7 @@ function SellerInventory() {
           {grouped.length === 0 && <EmptyState text="No items match your search" />}
         </div>
       ) : (
-        <div className="px-4">
+        <div className="px-4 pb-16">
           {menus.map((m) => (
             <div key={`${m.venueId}:${m.dishId}`} className="flex items-center gap-3 border-b border-border py-3">
               {isFood && <VegMark veg={m.isVeg !== false} />}
@@ -262,7 +262,7 @@ function SellerInventory() {
       {tab === "items" && (
         <button
           onClick={() => setJump(true)}
-          className="fixed bottom-24 right-[max(1rem,calc(50%-199px))] z-30 flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold shadow-md"
+          className="fixed bottom-[calc(var(--seller-nav-gap)+var(--seller-nav-h)+1.5rem+env(safe-area-inset-bottom))] right-4 z-30 flex items-center gap-1 rounded-full border border-border bg-card px-3 py-1.5 text-xs font-semibold shadow-md md:right-6"
         >
           <BookOpen className="h-3.5 w-3.5" />Jump
         </button>

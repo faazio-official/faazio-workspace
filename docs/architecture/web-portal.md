@@ -131,10 +131,12 @@ The seller-only token/utility layer lives at the bottom of `src/styles.css` (`.f
 `desktop-shell.tsx`) and are never imported by admin routes.
 
 `app/seller/layout.tsx` renders `SellerAppShell` (`src/components/sellers/shells.tsx`), and the old
-width-1440 `SellerShell` (plus its `VendorSwitcher`) is removed. On mobile: a centered 430px frame with a
-floating dark pill tab bar and an explore icon that opens `/seller/explore`; on ≥ 768px a persistent left
-sidebar (all `SELLER_NAV` groups — the first entry is now **Business Hub** → `/seller/hub`) beside a wider
-`max-w-[1024px]` content column. The pill nav is mode-aware like the reference app:
+width-1440 `SellerShell` (plus its `VendorSwitcher`) is removed. Below `md` the seller content is fluid
+full-width with a floating dark pill tab bar (a centred `max-w-[430px]` dock, hidden on
+`/seller/explore`) and an explore icon that opens `/seller/explore`; the seller-only root is raised to
+16px below `md` (`html:has(.font-seller)`) so mobile type/tap targets are not scaled to the desktop
+13px density. On ≥ 768px a persistent left sidebar (all `SELLER_NAV` groups — the first entry is now
+**Business Hub** → `/seller/hub`) sits beside a wider `max-w-[1024px]` content column. The pill nav is mode-aware like the reference app:
 **Orders mode** tabs (Orders / Inventory / Menu / Feedback) vs **Hub mode** tabs (Hub / Growth / Menu /
 Finance, mapped onto the platform's `hub`/`ads`/`menus`/`payments` routes), with an animated
 `SwitchingOverlay` on the round "To Hub" / "To Orders" button. `/seller` redirects to `/seller/orders`
@@ -151,6 +153,8 @@ menus "Add dish"/"Add item", payments "Print statement") and an optional sticky 
 Orders/operations surfaces keep `OrdersTopBar` (whose shop name also opens the `StoreSwitcher`) +
 `OrdersHeaderIcons` (`orders`, `inventory`) and detail/edit screens keep `PageHeader`
 (`promotions`, `products`, `orders/[id]`, `explore`, `settings`, `stores`, `support`, …).
+`PageHeader` appends a persistent explore icon (except on `/seller/explore` itself), so settings/detail
+routes are never mobile dead ends.
 `notifications` and `outlet-info` were added as lightweight pages (a mark-all-read notification list and
 a read-only shop profile) so the new header links never 404.
 

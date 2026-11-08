@@ -96,7 +96,7 @@ function SellerAds() {
                   {c.status}
                 </span>
               </div>
-              <div className="mt-3 grid grid-cols-4 gap-2 border-t border-border pt-3 text-center text-[10px]">
+              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-center text-[10px] min-[400px]:grid-cols-4">
                 <div>
                   <p className="text-muted-foreground">Impressions</p>
                   <b>{formatNumber(c.impressions)}</b>
@@ -138,7 +138,7 @@ function SellerAds() {
                   {slot.status}
                 </span>
               </div>
-              <div className="mt-3 grid grid-cols-4 gap-2 border-t border-border pt-3 text-center text-[10px]">
+              <div className="mt-3 grid grid-cols-2 gap-2 border-t border-border pt-3 text-center text-[10px] min-[400px]:grid-cols-4">
                 <div>
                   <p className="text-muted-foreground">Impressions</p>
                   <b>{formatNumber(slot.impressions)}</b>

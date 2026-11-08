@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CheckCircle2, Zap } from "lucide-react";
 import { toast } from "sonner";
-import { PageHeader, RadioRow, EmptyState } from "@/components/sellers/kit";
+import { PageHeader, RadioRow, EmptyState, FixedActionBar } from "@/components/sellers/kit";
 import { useSellerUi } from "@/lib/sellerUi";
 import { useSellerScope } from "@/lib/api/hooks";
 
@@ -76,7 +76,7 @@ function RushHour() {
           </>
         )}
       </div>
-      <div className="fixed bottom-[76px] left-1/2 w-full max-w-[430px] -translate-x-1/2 border-t border-border bg-card p-3 md:bottom-0 md:max-w-[1024px]">
+      <FixedActionBar>
         {rush.on ? (
           <button
             onClick={() => {
@@ -105,7 +105,7 @@ function RushHour() {
             Confirm
           </button>
         )}
-      </div>
+      </FixedActionBar>
     </>
   );
 }

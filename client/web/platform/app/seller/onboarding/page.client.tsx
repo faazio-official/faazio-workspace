@@ -3,7 +3,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
-import { PageHeader, Card, TextField, Toggle, Sheet, RadioRow, EmptyState } from "@/components/sellers/kit";
+import { PageHeader, Card, TextField, Toggle, Sheet, RadioRow, EmptyState, FixedActionBar } from "@/components/sellers/kit";
 import { createSellerVendor } from "@/lib/api";
 import { useSellerScope, useStates } from "@/lib/api/hooks";
 import { uploadPrivateDocument } from "@/lib/media/kyc";
@@ -224,7 +224,7 @@ function AddVendor() {
         )}
       </div>
 
-      <div className="fixed bottom-[76px] left-1/2 flex w-full max-w-[430px] -translate-x-1/2 gap-2 border-t border-border bg-card p-3 md:bottom-0 md:max-w-[1024px]">
+      <FixedActionBar>
         <button
           disabled={!valid || busy}
           onClick={() => void submit()}
@@ -232,7 +232,7 @@ function AddVendor() {
         >
           {busy ? "Creating..." : "Create vendor"}
         </button>
-      </div>
+      </FixedActionBar>
 
       <Sheet open={statePicker} onClose={() => setStatePicker(false)} title="Select state">
         {states.length === 0 ? (

@@ -117,6 +117,12 @@
   color-scheme: light;
   --radius: 0.75rem;
 
+  /* Seller mobile chrome metrics. These are the single source of truth for the
+   * floating bottom nav height/gap, shared by the nav itself and every fixed
+   * action bar so nothing overlaps or leaves a magic-pixel gap. */
+  --seller-nav-gap: 0.75rem;
+  --seller-nav-h: 3.5rem;
+
   /* Faazio Blue — the single brand anchor (docs/UI_DESIGN_SYSTEM.md §5).
    * Every brand/accent token below derives from or references this value. */
   --brand-blue: #1627e9;
@@ -286,6 +292,18 @@
     scrollbar-color: color-mix(in oklab, var(--color-muted-foreground) 45%, transparent) transparent;
   }
 
+  /* The console ships a dense 13px root for desktop. On phones that same root
+   * scaled every rem down to 81% — 9.75px labels and ~23px tap targets, which
+   * is below the mobile floor (docs/UI_DESIGN_SYSTEM.md: "never zoom a dense
+   * preview down"). Give the seller console a true 16px root below md so its
+   * type, spacing and tap targets return to normal; desktop/admin keep 13px.
+   * Scoped with :has so admin routes (no `.font-seller`) are untouched. */
+  @media (max-width: 767px) {
+    html:has(.font-seller) {
+      font-size: 16px;
+    }
+  }
+
   body {
     background-color: var(--color-background);
     color: var(--color-foreground);
@@ -314,6 +332,18 @@
   select,
   textarea {
     color-scheme: inherit;
+  }
+
+  /* iOS Safari auto-zooms any field whose font is < 16px on focus, which then
+   * shoves fixed bars out of place. Even with a 16px root, `text-sm`/`text-xs`
+   * controls resolve below 16px, so every seller field is pinned to exactly
+   * 16px on mobile. Desktop keeps the compact sizing. */
+  @media (max-width: 767px) {
+    .font-seller input,
+    .font-seller select,
+    .font-seller textarea {
+      font-size: 16px;
+    }
   }
 }
 
