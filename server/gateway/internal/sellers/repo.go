@@ -21,6 +21,10 @@ import (
 // ErrNotEditable is returned when a seller tries to edit an application that is not REJECTED.
 var ErrNotEditable = errors.New("sellers: application is not editable")
 
+// ErrEmailTaken is returned when the contact email already belongs to another application
+// (migration 0068 enforces one application per lower-cased contact email).
+var ErrEmailTaken = errors.New("sellers: contact email already registered")
+
 // Seller is one sellers.sellers row (contact_phone is PII — auth/role-scoped only).
 // Seller is one sellers.sellers row: the ACCOUNT (brand-agnostic business identity). App brand,
 // platform fee, taxonomy category and FSSAI are properties of each vendor (directory.stores), not
@@ -185,12 +189,46 @@ func (r *Repo) ValidCategoryID(ctx context.Context, app, id string) (bool, error
 	return exists, err
 }
 
+// ValidStateCode reports whether code is an active ISO 3166-2:IN state/UT (admins.states, 0073).
+// The gateway is the write authority: an out-of-master code (e.g. "ZZ") is rejected rather than
+// silently persisted to sellers.sellers.state_code and directory.stores.state_code.
+func (r *Repo) ValidStateCode(ctx context.Context, code string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("sellers: database not configured")
+	}
+	var exists bool
+	err := r.pool.QueryRow(ctx, `
+		select exists(select 1 from admins.states
+		               where state_code::text = $1 and is_active)`, code).Scan(&exists)
+	return exists, err
+}
+
 const sellerColumns = `seller_id, business_name, owner_name, gstin, pan, address,
 	coalesce(phone,''), coalesce(contact_email,''), state_code, coalesce(district_code,''), status::text, rating,
 	otp_verified, otp_verified_at, coalesce(rejection_reason,''), rejection_history, created_at,
 	latitude, longitude`
 
 const sellerSelect = `select ` + sellerColumns + ` from sellers.sellers`
+
+// vendorRollup aggregates each account's shops (directory.stores) so a seller read can carry the
+// vendor count and the distinct app brands it operates — one account may own shops in several apps.
+// directory.stores.seller_id is indexed (0015 stores_seller_idx, 0070 stores_seller_live_idx).
+// The derived table is joined onto the alias `s` in sellerSelectWithVendors.
+const vendorRollup = `
+	left join (
+	  select seller_id as vendor_seller_id, count(*)::int as vendor_count,
+	         array_agg(distinct app::text) as vendor_apps
+	    from directory.stores group by seller_id
+	) v on v.vendor_seller_id = s.seller_id`
+
+// vendorRollupColumns are the two aggregate columns appended after sellerColumns. Order matters:
+// scanSellerWithVendors decodes them last.
+const vendorRollupColumns = `, coalesce(v.vendor_count, 0), coalesce(v.vendor_apps, '{}')`
+
+// sellerSelectWithVendors is the shared rollup read used by GET /sellers/me, the create response
+// and the admin detail so every seller read exposes vendorCount/vendorApps consistently. The base
+// sellerSelect stays rollup-free for the INSERT/UPDATE ... RETURNING write paths, which cannot join.
+const sellerSelectWithVendors = `select ` + sellerColumns + vendorRollupColumns + ` from sellers.sellers s` + vendorRollup
 
 const bankColumns = `bank_account_id, seller_id, bank_name, account_number_masked, ifsc, beneficiary_name`
 
@@ -199,14 +237,7 @@ func (r *Repo) List(ctx context.Context, f ListFilter) ([]Seller, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("sellers: database not configured")
 	}
-	rows, err := r.pool.Query(ctx, `
-		select `+sellerColumns+`, coalesce(v.vendor_count, 0), coalesce(v.vendor_apps, '{}')
-		  from sellers.sellers s
-		  left join (
-		    select seller_id as vendor_seller_id, count(*)::int as vendor_count,
-		           array_agg(distinct app::text) as vendor_apps
-		      from directory.stores group by seller_id
-		  ) v on v.vendor_seller_id = s.seller_id
+	rows, err := r.pool.Query(ctx, sellerSelectWithVendors+`
 		 where ($1 = '' or s.state_code = $1)
 		   and ($2 = '' or s.status::text = $2)
 		   and ($3 = '' or s.seller_id = $3)
@@ -218,7 +249,7 @@ func (r *Repo) List(ctx context.Context, f ListFilter) ([]Seller, error) {
 	defer rows.Close()
 	out := []Seller{}
 	for rows.Next() {
-		s, err := scanSellerList(rows)
+		s, err := scanSellerWithVendors(rows)
 		if err != nil {
 			return nil, err
 		}
@@ -236,7 +267,7 @@ func (r *Repo) GetByUserID(ctx context.Context, userID string) (Seller, bool, er
 	if userID == "" {
 		return Seller{}, false, nil
 	}
-	s, err := scanSeller(r.pool.QueryRow(ctx, sellerSelect+` where user_id = $1 order by created_at desc limit 1`, userID))
+	s, err := scanSellerWithVendors(r.pool.QueryRow(ctx, sellerSelectWithVendors+` where s.user_id = $1 order by s.created_at desc limit 1`, userID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Seller{}, false, nil
@@ -251,7 +282,7 @@ func (r *Repo) ByID(ctx context.Context, id string) (Seller, bool, error) {
 	if r.pool == nil {
 		return Seller{}, false, fmt.Errorf("sellers: database not configured")
 	}
-	s, err := scanSeller(r.pool.QueryRow(ctx, sellerSelect+` where seller_id = $1`, id))
+	s, err := scanSellerWithVendors(r.pool.QueryRow(ctx, sellerSelectWithVendors+` where s.seller_id = $1`, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Seller{}, false, nil
@@ -360,6 +391,11 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 		nullIfEmpty(s.ContactPhone), s.ContactEmail, s.StateCode, nullIfEmpty(s.DistrictCode),
 		s.OTPVerified, otpAt, s.Latitude, s.Longitude))
 	if err != nil {
+		// The only unique constraint this insert can hit is the contact-email index
+		// (seller_id is a random slug); surface it as a typed error so the handler returns 409.
+		if isUniqueViolation(err) {
+			return Seller{}, ErrEmailTaken
+		}
 		return Seller{}, err
 	}
 	if bank != nil {
@@ -394,6 +430,13 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 			return Seller{}, err
 		}
 	}
+	// The create response carries the same vendor rollup as GET /sellers/me. The INSERT ... RETURNING
+	// above has no join, so re-read once the vendor stores exist (inside the same tx, so they are
+	// visible). A re-read failure is non-fatal: the application was already written and the base row
+	// is a valid response, so we keep it rather than rolling back a successful submission.
+	if enriched, rerr := scanSellerWithVendors(tx.QueryRow(ctx, sellerSelectWithVendors+` where s.seller_id = $1`, created.SellerID)); rerr == nil {
+		created = enriched
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return Seller{}, err
 	}
@@ -402,7 +445,10 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 
 // SetStatus changes a seller's moderation status. Returns ok=false when the seller is absent.
 // Approving clears the rejection trail (clean state), per the product rule.
-func (r *Repo) SetStatus(ctx context.Context, id, status string) (Seller, bool, error) {
+// SetStatus changes a seller's moderation status. A non-empty reason is persisted only for a
+// REJECTED transition (reason + rejection-history entry, mirroring Reject); ACTIVE clears the
+// rejection trail. The reason is always carried into the handler's audit entry.
+func (r *Repo) SetStatus(ctx context.Context, id, status, reason, actorID string) (Seller, bool, error) {
 	if r.pool == nil {
 		return Seller{}, false, fmt.Errorf("sellers: database not configured")
 	}
@@ -414,10 +460,17 @@ func (r *Repo) SetStatus(ctx context.Context, id, status string) (Seller, bool, 
 
 	s, err := scanSeller(tx.QueryRow(ctx, `
 		update sellers.sellers set status = $2::seller_status,
-		       rejection_reason = case when $2::seller_status = 'ACTIVE'::seller_status then null else rejection_reason end,
-		       rejection_history = case when $2::seller_status = 'ACTIVE'::seller_status then '[]'::jsonb else rejection_history end
+		       rejection_reason = case
+		         when $2::seller_status = 'ACTIVE'::seller_status then null
+		         when $2::seller_status = 'REJECTED'::seller_status and $3::text <> '' then $3::text
+		         else rejection_reason end,
+		       rejection_history = case
+		         when $2::seller_status = 'ACTIVE'::seller_status then '[]'::jsonb
+		         when $2::seller_status = 'REJECTED'::seller_status and $3::text <> '' then
+		           rejection_history || jsonb_build_object('reason', $3::text, 'adminId', $4::text, 'createdAt', now())
+		         else rejection_history end
 		 where seller_id = $1
-		 returning `+sellerColumns, id, status))
+		 returning `+sellerColumns, id, status, reason, actorID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Seller{}, false, nil
@@ -534,6 +587,9 @@ func (r *Repo) EditRequest(ctx context.Context, id string, next Seller, bank *Ba
 		next.BusinessAddress, nullIfEmpty(next.ContactPhone), next.ContactEmail, next.StateCode,
 		nullIfEmpty(next.DistrictCode), next.Latitude, next.Longitude))
 	if err != nil {
+		if isUniqueViolation(err) {
+			return Seller{}, nil, ErrEmailTaken
+		}
 		return Seller{}, nil, err
 	}
 	if bank != nil {
@@ -775,8 +831,9 @@ func scanSeller(row rowScanner) (Seller, error) {
 	return s, nil
 }
 
-// scanSellerList decodes the base seller columns plus the aggregated vendor count/apps.
-func scanSellerList(row rowScanner) (Seller, error) {
+// scanSellerWithVendors decodes the base seller columns plus the aggregated vendor count/apps
+// (the trailing vendorRollupColumns). Used by every rollup read via sellerSelectWithVendors.
+func scanSellerWithVendors(row rowScanner) (Seller, error) {
 	var (
 		s         Seller
 		otpAt     *time.Time

@@ -338,6 +338,10 @@ landed.
   `window.__faazio.vendorId` on every load (cold start re-opens scoped to the same shop) plus for
   push/deep-link vendor resolution; the portal order page switches the active vendor from the order's
   store.
+- **Follow-up (closed):** the cross-session "Shops" row no longer blanks after a reload — the
+  `POST /sellers` create response and `GET /sellers/me` now carry the `vendorCount`/`vendorApps`
+  rollup from `directory.stores` (shared `sellerSelectWithVendors` in `internal/sellers/repo.go`),
+  and `SellerRegistrationScreen` falls back to `result.vendorApps` before the local submit draft.
 - **Customer-app no-mocks sweep:** all runtime fixture fallbacks removed (mart vendors/deals,
   restaurant grid + top-rated, pharma rails + top-offer fixture codes, category drill-in, search
   results, sub-app vendor, product-detail store/related/food-store/dish rail, most-rated section,

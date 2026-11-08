@@ -12,8 +12,11 @@
 2. Phone verification with Firebase OTP on mobile.
 3. KYC documents upload (`uploadSellerDocument`).
 4. `gateway.submitSellerApplication(input)` → `POST /sellers` stores `sellers.sellers.user_id` from
-   the auth subject and the `vendors[]` payload.
-5. `GET /sellers/me` returns the newest application linked by `user_id` (`404` = none).
+   the auth subject and the `vendors[]` payload. `districtCode` is derived from the first pinned
+   shop's reverse-geocoded district and is **required** (`400 district is required` when absent).
+5. `GET /sellers/me` returns the newest application linked by `user_id` (`404` = none), including the
+   `vendorCount`/`vendorApps` rollup from `directory.stores`, so the "Shops" row survives a
+   cross-session reload (the create response carries the same rollup).
 6. A rejected application can be edited with `POST /sellers/{id}/edit` (REJECTED only).
 
 ## State
@@ -32,8 +35,19 @@
 
 ## Success / error / empty
 
-- **Success:** application pending review.
-- **Error:** inline validation/API error; no fake approval.
+- **Success:** application pending review (`201`, `PENDING_REVIEW`).
+- **Error:** inline validation/API error; no fake approval. Server-side failure modes:
+  - `400 bad_request` — missing names/PAN/email/bank/passbook, invalid platform fee/lat-lng, an
+    inactive/unservable `stateCode` (validated against `admins.states`, 0073), a missing `districtCode`
+    (`district is required`), or a `districtCode` whose parent state does not match `stateCode`.
+  - `400 unknown_district` — `districtCode` is not in the active master (`admins.district_master`).
+  - `400 otp_required` — `otpVerified` is false.
+  - `401 otp_unverified` — the bearer token's phone claim does not match `contactPhone`.
+  - `409 email_taken` — the lower-cased `contactEmail` already belongs to another application
+    (`sellers_contact_email_lower_uniq`, 0068); surfaced on both `POST /sellers` and
+    `POST /sellers/{id}/edit`.
+  The mobile screen maps the gateway `code` to specific copy (duplicate email, unverified phone,
+  unknown district) instead of one generic "try again" message.
 - **Empty:** no application → onboarding entry state.
 
 ## Known gaps

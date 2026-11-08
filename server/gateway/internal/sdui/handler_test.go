@@ -123,8 +123,8 @@ func TestAdminPutHomeRequiresSuperAdmin(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPut, "/admin/sdui/home", strings.NewReader(`{"sections":[{"id":"deals","title":"D","accent":"#111","productIds":["md-1"]}]}`))
 	req.Header.Set("X-Dev-Role", auth.RoleSeller)
 	newAdminRouter(t, &fakeLayouts{}).ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want 401", rec.Code)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403", rec.Code)
 	}
 }
 

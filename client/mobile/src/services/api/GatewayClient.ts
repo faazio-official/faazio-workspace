@@ -73,10 +73,18 @@ export interface SellerOrder extends OrderRow {
   rejectionReason?: string;
 }
 
-/** An HTTP failure carrying the server status so callers can branch on 401/403 without parsing text. */
+/**
+ * An HTTP failure carrying the server status plus the parsed `{ code, error }` body when present,
+ * so callers can branch on 401/403 and map machine codes (e.g. `email_taken`, `otp_unverified`)
+ * to a precise message without parsing free text.
+ */
 export class GatewayHttpError extends Error {
-  constructor(public readonly status: number) {
-    super(`gateway ${status}`);
+  constructor(
+    public readonly status: number,
+    public readonly code?: string,
+    message?: string,
+  ) {
+    super(message ?? `gateway ${status}`);
     this.name = 'GatewayHttpError';
   }
 }
@@ -654,7 +662,6 @@ export interface SellerApplication {
   vendorCount?: number;
   vendorApps?: string[];
   vendors?: SellerApplicationVendor[];
-  razorpayLinkedAccountId?: string;
   otpVerified: boolean;
   otpVerifiedAt?: string;
   rejectionReason?: string;
@@ -997,7 +1004,23 @@ export class GatewayClient {
     if (res.status === 401 && (await this.recoverSession())) {
       res = await send();
     }
-    if (!res.ok) throw new GatewayHttpError(res.status);
+    if (!res.ok) {
+      // The gateway error envelope is { error: <message>, code: <machine_code> }. Parse it so the
+      // caller can map codes to precise copy; a non-JSON/empty body degrades to the status.
+      let code: string | undefined;
+      let message: string | undefined;
+      try {
+        const text = await res.text();
+        if (text) {
+          const body = JSON.parse(text) as { code?: string; error?: string };
+          code = body.code;
+          message = body.error;
+        }
+      } catch {
+        // non-JSON error body — fall through to the status-only error
+      }
+      throw new GatewayHttpError(res.status, code, message);
+    }
     if (res.status === 204 || res.status === 205) return undefined as T;
     const body = await res.text();
     return (body ? JSON.parse(body) : undefined) as T;

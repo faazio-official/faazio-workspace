@@ -859,7 +859,6 @@ export async function fetchSellers(): Promise<SellerRecord[]> {
       rating: number;
       createdAt: string;
       contactEmail?: string;
-      razorpayLinkedAccountId?: string;
       otpVerified?: boolean;
       otpVerifiedAt?: string;
       rejectionReason?: string;
@@ -957,7 +956,7 @@ export async function verifySellerDocument(
   return toCamel(detail);
 }
 
-/** Admin: create/attach the Razorpay Route linked account, then activate the seller. */
+/** Admin: verify KYC and activate the seller. */
 export async function verifySellerKyc(sellerId: string): Promise<SellerDetail | null> {
   if (!remoteConfigured()) {
     patchSellerLocal(sellerId, { status: "ACTIVE" });
@@ -966,15 +965,12 @@ export async function verifySellerKyc(sellerId: string): Promise<SellerDetail | 
   const detail = toCamel(
     await remote.post<SellerDetail>(`/sellers/${encodeURIComponent(sellerId)}/verify-kyc`, {}),
   );
-  patchSellerLocal(sellerId, {
-    status: detail.status,
-    razorpayLinkedAccountId: detail.razorpayLinkedAccountId,
-  });
+  patchSellerLocal(sellerId, { status: detail.status });
   audit({
     action: "SELLER_VERIFY_KYC",
     entity: "sellers.sellers",
     entityId: sellerId,
-    after: { status: detail.status, razorpayLinkedAccountId: detail.razorpayLinkedAccountId },
+    after: { status: detail.status },
   });
   return detail;
 }

@@ -1960,7 +1960,7 @@ splitting, COD reconciliation, TDS and payout frequency remain out of scope.
 CREATE TABLE admins.district_master (
   district_code TEXT PRIMARY KEY, name TEXT NOT NULL, state_code CHAR(2) NOT NULL);
 
--- 0047: seller district (nullable on legacy rows; validated against the master when present)
+-- 0047: seller district (required on new onboarding; nullable for legacy/backfilled rows)
 ALTER TABLE sellers.sellers ADD COLUMN district_code TEXT REFERENCES admins.district_master(district_code);
 CREATE INDEX sellers_district_idx ON sellers.sellers (district_code);
 
@@ -2008,9 +2008,12 @@ derived from the district.
   admins stay **state-scoped** (`district_code` NULL) because coverage is TN/PY only;
   `auth.CanActForSellerDistrict` prefers the district claim and falls back to the parent `state_code`
   (and to state for sellers with no district).
-- `district_code` on sellers is **optional server-side** (legacy apps/tests submit only a state), but
-  the mobile onboarding screen requires it for TN/PY and rejects a district that does not belong to
-  the selected state (`400 bad_request`).
+- `district_code` on sellers is **required on create** — `POST /sellers` returns `400 bad_request`
+  (`district is required`) when it is missing, `400 unknown_district` when the code is not in
+  `admins.district_master`, and `400 bad_request` when the district's parent state does not match
+  `stateCode` (migration `0047`: new onboarding requires a district, and a district-less seller breaks
+  district-scoped admin routing). It stays nullable **only** for legacy/backfilled rows;
+  `POST /sellers/{id}/edit` keeps validate-when-present so a pre-rollout seller can still resubmit.
 - The live `platform_fee_pct` is still immutable through `PATCH /sellers/{id}/platform-fee` for
   sellers. A seller files a **request**; a district admin (own district) or super admin approves it.
   Only `APPROVED` mutates `sellers.sellers.platform_fee_pct`; one `PENDING` request per seller is

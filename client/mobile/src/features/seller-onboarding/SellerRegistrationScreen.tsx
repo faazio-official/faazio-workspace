@@ -30,6 +30,7 @@ import { SPACE } from '@/theme/spacing';
 import { SELLER_SETUP_FIELDS } from '@data/index';
 import type { DistrictInfo } from '@data/districts';
 import {
+  GatewayHttpError,
   gateway,
   type GeoState,
   type SellerApplication,
@@ -48,6 +49,33 @@ type Props = NativeStackScreenProps<RootStackParamList, 'SellWithUs'>;
 
 /** Label/placeholder sourced from the stable @data contract (keeps the fixture meaningful). */
 const setup = (key: string) => SELLER_SETUP_FIELDS.find((f) => f.key === key);
+
+/**
+ * Map a submission failure to actionable copy. The gateway returns `{ code, error }`; branch on the
+ * machine code so a duplicate email or an unverified phone reads differently from a transient outage.
+ */
+function describeSubmitError(err: unknown): string {
+  if (err instanceof GatewayHttpError) {
+    switch (err.code) {
+      case 'email_taken':
+        return 'This email is already linked to a seller application. Use a different email, or open the app with the account that applied.';
+      case 'otp_unverified':
+      case 'otp_required':
+        return 'Phone verification is required. Please verify your number again and resubmit.';
+      case 'unknown_district':
+        return 'That district isn’t recognised. Re-pin your shop on the map and try again.';
+      case 'sellers_unavailable':
+      case 'seller_create_failed':
+      case 'seller_update_failed':
+        return 'The server couldn’t save your application. Please try again in a moment.';
+      case 'bad_request':
+        return err.message || 'Some details are invalid. Please review the form and try again.';
+      default:
+        return err.message || `Could not submit right now (error ${err.status}). Please try again.`;
+    }
+  }
+  return 'Could not submit right now. Please try again.';
+}
 
 interface FormState {
   businessName: string;
@@ -639,8 +667,8 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       });
       setResult(res);
       setSubmittedApps(vendorPayload.map((v) => v.app).filter(Boolean));
-    } catch {
-      setError('Could not submit right now. Please try again.');
+    } catch (err) {
+      setError(describeSubmitError(err));
     } finally {
       setSubmitting(false);
     }
@@ -669,9 +697,14 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const applicationStatus = (result?.status ?? 'NOT_APPLIED').toUpperCase();
   const isUnderReview = applicationStatus === 'PENDING_REVIEW';
   const isActiveSeller = applicationStatus === 'ACTIVE';
-  // Prefer vendor apps echoed by the server; otherwise the local submit selection. A cross-session
-  // fetch echoes no vendors, so it must not fall back to the empty default draft.
-  const displayedApps = (result?.vendors?.map((v) => v.app) ?? submittedApps).filter(Boolean);
+  // Prefer the full vendor list when the detail is loaded; otherwise the server's vendorApps
+  // rollup (returned by POST /sellers and GET /sellers/me), and only finally the local submit
+  // selection. A cross-session fetch echoes the rollup, so it must not fall back to the empty draft.
+  const displayedApps = (
+    result?.vendors?.map((v) => v.app) ??
+    result?.vendorApps ??
+    submittedApps
+  ).filter(Boolean);
 
   const handleDownloadSellerApp = useCallback(() => {
     const androidUrl =

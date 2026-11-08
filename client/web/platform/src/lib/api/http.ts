@@ -30,8 +30,8 @@ interface RequestOptions {
 
 /**
  * Codes that mean the refresh family is *actually* dead (the proxy already cleared the cookies).
- * A 401 with any other code is an authorization denial (wrong role / denied path) — the session
- * is alive and must NOT bounce the user to /login.
+ * Any other 401, and every 403 (role denial), is an authorization failure — the session is alive
+ * and must NOT bounce the user to /login.
  */
 const DEAD_SESSION_CODES = new Set([
   "no_refresh_token",

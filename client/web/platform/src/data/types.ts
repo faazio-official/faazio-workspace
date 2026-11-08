@@ -60,7 +60,6 @@ export interface SellerRecord {
   createdAt: string;
   /** Private onboarding extensions (migration 0039). */
   contactEmail?: string | undefined;
-  razorpayLinkedAccountId?: string | undefined;
   otpVerified?: boolean | undefined;
   otpVerifiedAt?: string | undefined;
   rejectionReason?: string | undefined;

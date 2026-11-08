@@ -50,7 +50,7 @@ func TestSellerRoleGating(t *testing.T) {
 
 	// Onboarding (any authenticated caller) creates a PENDING_REVIEW seller.
 	create := do(t, h, http.MethodPost, "/sellers",
-		`{"businessName":"Gate Test","ownerName":"O","stateCode":"KA",`+
+		`{"businessName":"Gate Test","ownerName":"O","stateCode":"TN","districtCode":"TTC",`+
 			`"gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","contactPhone":"9876543210",`+
 			`"contactEmail":"o@example.com","otpVerified":true,`+
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
@@ -70,9 +70,9 @@ func TestSellerRoleGating(t *testing.T) {
 		_, _ = pool.Exec(context.Background(), `delete from sellers.sellers where seller_id=$1`, created.SellerID)
 	})
 
-	// Unauthenticated role (no app_role) cannot read the seller directory.
-	if rec := do(t, h, http.MethodGet, "/sellers/"+created.SellerID, "", nil); rec.Code != http.StatusUnauthorized {
-		t.Fatalf("no-role read status = %d, want 401", rec.Code)
+	// An authenticated caller with no app_role is forbidden (not unauthenticated): 403, not 401.
+	if rec := do(t, h, http.MethodGet, "/sellers/"+created.SellerID, "", nil); rec.Code != http.StatusForbidden {
+		t.Fatalf("no-role read status = %d, want 403", rec.Code)
 	}
 
 	// The seller themself can read.
@@ -90,7 +90,7 @@ func TestSellerRoleGating(t *testing.T) {
 
 	// A state admin in the seller's state can activate.
 	admin := do(t, h, http.MethodPatch, "/sellers/"+created.SellerID+"/status", `{"status":"ACTIVE"}`,
-		map[string]string{"X-Dev-Role": "STATE_ADMIN", "X-Dev-State": "KA"})
+		map[string]string{"X-Dev-Role": "STATE_ADMIN", "X-Dev-State": "TN"})
 	if admin.Code != http.StatusOK {
 		t.Fatalf("admin status change status = %d body=%s", admin.Code, admin.Body.String())
 	}
@@ -129,10 +129,66 @@ func TestSellerMeRead(t *testing.T) {
 	}
 }
 
+// TestSellerCreateRejectsInvalidState covers the write-authority check: a code that is not an
+// active ISO 3166-2:IN state/UT (admins.states) is rejected instead of persisted.
+func TestSellerCreateRejectsInvalidState(t *testing.T) {
+	pool := testenv.Pool(t)
+	h := handlerRouter(t, pool)
+
+	rec := do(t, h, http.MethodPost, "/sellers",
+		`{"businessName":"Bad State","ownerName":"O","stateCode":"ZZ",`+
+			`"pan":"ABCDE1234F","contactPhone":"9876500001",`+
+			`"contactEmail":"bad-state@example.com","otpVerified":true,`+
+			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
+			`"bankBeneficiary":"Bad State","passbookFileKey":"kyc/gate/passbook.jpg",`+
+			`"vendors":[{"name":"Bad Store","app":"FOOD","platformFeePct":10}]}`,
+		map[string]string{"X-Dev-Phone": "9876500001"})
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid state status = %d body=%s, want 400", rec.Code, rec.Body.String())
+	}
+}
+
+// TestSellerCreateDuplicateEmailConflict covers the 409 mapping for the lower(contact_email)
+// uniqueness constraint (0068): a second application is a clean conflict, never an opaque 500.
+func TestSellerCreateDuplicateEmailConflict(t *testing.T) {
+	pool := testenv.Pool(t)
+	h := handlerRouter(t, pool)
+
+	const email = "dupe-create@example.com"
+	cleanup := func() {
+		ctx := context.Background()
+		_, _ = pool.Exec(ctx, `delete from directory.stores where seller_id in `+
+			`(select seller_id from sellers.sellers where lower(contact_email)=lower($1))`, email)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where lower(contact_email)=lower($1)`, email)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	body := func(phone, name string) string {
+		return `{"businessName":"` + name + `","ownerName":"O","stateCode":"TN",` +
+			`"districtCode":"TTC","pan":"ABCDE1234F","contactPhone":"` + phone + `",` +
+			`"contactEmail":"` + email + `","otpVerified":true,` +
+			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",` +
+			`"bankBeneficiary":"` + name + `","passbookFileKey":"kyc/gate/passbook.jpg",` +
+			`"vendors":[{"name":"` + name + ` Store","app":"FOOD","platformFeePct":10}]}`
+	}
+
+	first := do(t, h, http.MethodPost, "/sellers", body("9876500002", "Dupe One"),
+		map[string]string{"X-Dev-Phone": "9876500002"})
+	if first.Code != http.StatusCreated {
+		t.Fatalf("first create status = %d body=%s", first.Code, first.Body.String())
+	}
+	second := do(t, h, http.MethodPost, "/sellers", body("9876500003", "Dupe Two"),
+		map[string]string{"X-Dev-Phone": "9876500003"})
+	if second.Code != http.StatusConflict {
+		t.Fatalf("duplicate email status = %d body=%s, want 409", second.Code, second.Body.String())
+	}
+}
+
 func createTestSeller(t *testing.T, pool *pgxpool.Pool, h http.Handler, name string) Seller {
 	t.Helper()
 	create := do(t, h, http.MethodPost, "/sellers",
-		`{"businessName":"`+name+`","ownerName":"O","stateCode":"KA",`+
+		`{"businessName":"`+name+`","ownerName":"O","stateCode":"TN","districtCode":"TTC",`+
 			`"gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","contactPhone":"9876543210",`+
 			`"contactEmail":"o@example.com","otpVerified":true,`+
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
@@ -162,11 +218,11 @@ func TestRejectResubmit(t *testing.T) {
 	pool := testenv.Pool(t)
 	h := handlerRouter(t, pool)
 	s := createTestSeller(t, pool, h, "Reject Test")
-	adminH := map[string]string{"X-Dev-Role": "STATE_ADMIN", "X-Dev-State": "KA"}
+	adminH := map[string]string{"X-Dev-Role": "STATE_ADMIN", "X-Dev-State": "TN"}
 
 	// A short/no reason is rejected.
 	short := do(t, h, http.MethodPost, "/sellers/"+s.SellerID+"/reject", `{"reason":"no"}`,
-		map[string]string{"X-Dev-Role": "STATE_ADMIN", "X-Dev-State": "KA"})
+		map[string]string{"X-Dev-Role": "STATE_ADMIN", "X-Dev-State": "TN"})
 	if short.Code != http.StatusBadRequest {
 		t.Fatalf("short reason status = %d, want 400", short.Code)
 	}
@@ -201,7 +257,7 @@ func TestRejectResubmit(t *testing.T) {
 
 	// The seller (REJECTED only) resubmits with a corrected business name.
 	edit := do(t, h, http.MethodPost, "/sellers/"+s.SellerID+"/edit",
-		`{"businessName":"Reject Test (corrected)","ownerName":"O","stateCode":"KA",
+		`{"businessName":"Reject Test (corrected)","ownerName":"O","stateCode":"TN","districtCode":"TTC",
 		  "gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","businessAddress":"","contactPhone":"",
 		  "contactEmail":"o@example.com"}`,
 		map[string]string{"X-Dev-Role": "SELLER", "X-Dev-Seller": s.SellerID})
@@ -226,7 +282,7 @@ func TestRejectResubmit(t *testing.T) {
 
 	// Editing again while PENDING_REVIEW is a 409.
 	again := do(t, h, http.MethodPost, "/sellers/"+s.SellerID+"/edit",
-		`{"businessName":"X","ownerName":"O","stateCode":"KA",
+		`{"businessName":"X","ownerName":"O","stateCode":"TN","districtCode":"TTC",
 		  "gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","businessAddress":"","contactPhone":"",
 		  "contactEmail":"o@example.com"}`,
 		map[string]string{"X-Dev-Role": "SELLER", "X-Dev-Seller": s.SellerID})
@@ -241,7 +297,7 @@ func TestVerifyDoc(t *testing.T) {
 	s := createTestSeller(t, pool, h, "Verify Doc Test")
 
 	verified := do(t, h, http.MethodPost, "/sellers/"+s.SellerID+"/verify-doc/PASSBOOK", `{}`,
-		map[string]string{"X-Dev-Role": "STATE_ADMIN", "X-Dev-State": "KA"})
+		map[string]string{"X-Dev-Role": "STATE_ADMIN", "X-Dev-State": "TN"})
 	if verified.Code != http.StatusOK {
 		t.Fatalf("verify-doc status = %d body=%s", verified.Code, verified.Body.String())
 	}
@@ -266,8 +322,43 @@ func TestVerifyDoc(t *testing.T) {
 
 	// An invalid docType is 400.
 	bad := do(t, h, http.MethodPost, "/sellers/"+s.SellerID+"/verify-doc/DRIVING_LICENCE", `{}`,
-		map[string]string{"X-Dev-Role": "STATE_ADMIN", "X-Dev-State": "KA"})
+		map[string]string{"X-Dev-Role": "STATE_ADMIN", "X-Dev-State": "TN"})
 	if bad.Code != http.StatusBadRequest {
 		t.Fatalf("invalid docType status = %d, want 400", bad.Code)
+	}
+}
+
+// TestSetStatusRecordsReason covers PATCH /sellers/{id}/status accepting a moderator reason: a
+// REJECTED transition persists it to rejection_reason + history, and an overlong reason is a 400.
+func TestSetStatusRecordsReason(t *testing.T) {
+	pool := testenv.Pool(t)
+	h := handlerRouter(t, pool)
+	s := createTestSeller(t, pool, h, "Status Reason Test")
+	adminH := map[string]string{"X-Dev-Role": "STATE_ADMIN", "X-Dev-State": "TN"}
+
+	rec := do(t, h, http.MethodPatch, "/sellers/"+s.SellerID+"/status",
+		`{"status":"REJECTED","reason":"blurry shop licence"}`, adminH)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status reason code = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var got Seller
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.Status != "REJECTED" || got.RejectionReason != "blurry shop licence" {
+		t.Fatalf("rejected seller = %+v", got)
+	}
+	var hist []map[string]any
+	if err := json.Unmarshal(got.RejectionHistory, &hist); err != nil {
+		t.Fatalf("rejection history: %v", err)
+	}
+	if len(hist) != 1 {
+		t.Fatalf("rejection history length = %d, want 1", len(hist))
+	}
+
+	overlong := do(t, h, http.MethodPatch, "/sellers/"+s.SellerID+"/status",
+		`{"status":"SUSPENDED","reason":"`+strings.Repeat("x", 501)+`"}`, adminH)
+	if overlong.Code != http.StatusBadRequest {
+		t.Fatalf("overlong reason status = %d, want 400", overlong.Code)
 	}
 }

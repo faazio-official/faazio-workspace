@@ -123,6 +123,46 @@ func TestRequireUnauthenticated(t *testing.T) {
 	}
 }
 
+func TestRequireRoleStatusCodes(t *testing.T) {
+	h := RequireRole(RoleSeller, RoleDistrictAdmin)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// Anonymous (no identity on the context) → 401: the client must sign in.
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous status = %d, want 401", rec.Code)
+	}
+
+	// Authenticated with no app role (e.g. a shopper) → 403: known caller, missing privilege.
+	rec = httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req = req.WithContext(WithIdentity(req.Context(), Identity{UserID: "u-1"}))
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("no-role status = %d, want 403", rec.Code)
+	}
+
+	// Authenticated with a disallowed role → 403.
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req = req.WithContext(WithIdentity(req.Context(), Identity{UserID: "u-1", Role: RoleSuperAdmin}))
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("wrong-role status = %d, want 403", rec.Code)
+	}
+
+	// Authenticated with an allowed role → passes through.
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodGet, "/", nil)
+	req = req.WithContext(WithIdentity(req.Context(), Identity{UserID: "u-1", Role: RoleSeller}))
+	h.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("allowed-role status = %d, want 200", rec.Code)
+	}
+}
+
 func TestPortalMustChangeIsConfined(t *testing.T) {
 	secret := []byte("portal-secret")
 	newToken := func(role string, extra map[string]any) string {

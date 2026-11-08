@@ -47,6 +47,9 @@ application (POST /sellers, mobile)
 - `POST /sellers/{id}/verify-doc/{docType}` → `sellers.kyc_documents`,
   `sellers.kyc_verification_log`; `POST /sellers/{id}/verify-kyc` only sets
   `sellers.sellers.status` to ACTIVE (it writes no document/log rows).
+- `PATCH /sellers/{id}/status` sets the moderation status; an optional `reason` is recorded in the
+  audit entry and persisted to `rejection_reason` + `rejection_history` on a REJECTED transition
+  (ACTIVE clears the rejection trail).
 - `POST /seller/stores`, `PUT /seller/stores/{id}` → `directory.stores`.
 
 ## Success / error / empty

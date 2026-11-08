@@ -156,7 +156,9 @@ func Require(next http.Handler) http.Handler {
 }
 
 // RequireRole rejects callers whose app_role is not one of roles. A resolved app user id with no
-// role is not accepted (partner routes are role-gated).
+// role is not accepted (partner routes are role-gated). HTTP semantics: an anonymous caller (no
+// resolved identity) is 401 (sign in again); an authenticated caller whose role is simply not
+// allowed is 403 — the caller is known but lacks the privilege, so clients must keep the session.
 func RequireRole(roles ...string) func(http.Handler) http.Handler {
 	allowed := make(map[string]struct{}, len(roles))
 	for _, role := range roles {
@@ -165,7 +167,11 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if _, ok := allowed[Role(r.Context())]; !ok {
-				unauthorized(w)
+				if _, identified := r.Context().Value(identityKey{}).(Identity); identified {
+					forbidden(w)
+				} else {
+					unauthorized(w)
+				}
 				return
 			}
 			next.ServeHTTP(w, r)
@@ -177,6 +183,12 @@ func unauthorized(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusUnauthorized)
 	_, _ = w.Write([]byte(`{"error":"authentication required","code":"unauthorized"}`))
+}
+
+func forbidden(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	w.WriteHeader(http.StatusForbidden)
+	_, _ = w.Write([]byte(`{"error":"authorization required","code":"forbidden"}`))
 }
 
 // UserID returns the resolved app user id, or "" when unauthenticated.

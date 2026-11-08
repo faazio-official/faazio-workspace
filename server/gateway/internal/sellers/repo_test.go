@@ -41,11 +41,16 @@ func TestSellerLifecycle(t *testing.T) {
 		t.Fatal("GetByUserID returned a row for an unknown user")
 	}
 
-	active, ok, err := repo.SetStatus(ctx, s.SellerID, "ACTIVE")
-	if err != nil || !ok || active.Status != "ACTIVE" {
-		t.Fatalf("SetStatus: ok=%v err=%v status=%q", ok, err, active.Status)
+	rejected, ok, err := repo.SetStatus(ctx, s.SellerID, "REJECTED", "illegible passbook", "admin-test")
+	if err != nil || !ok || rejected.Status != "REJECTED" || rejected.RejectionReason != "illegible passbook" {
+		t.Fatalf("SetStatus(REJECTED): ok=%v err=%v seller=%+v", ok, err, rejected)
 	}
-	if _, ok, _ := repo.SetStatus(ctx, "sel-does-not-exist", "ACTIVE"); ok {
+
+	active, ok, err := repo.SetStatus(ctx, s.SellerID, "ACTIVE", "", "admin-test")
+	if err != nil || !ok || active.Status != "ACTIVE" || active.RejectionReason != "" {
+		t.Fatalf("SetStatus(ACTIVE): ok=%v err=%v seller=%+v", ok, err, active)
+	}
+	if _, ok, _ := repo.SetStatus(ctx, "sel-does-not-exist", "ACTIVE", "", "admin-test"); ok {
 		t.Fatal("SetStatus on missing seller must report ok=false")
 	}
 

@@ -174,7 +174,11 @@ function SellerReview() {
           { label: "GMV (30d)", value: formatINR(sumGmv(series), { compact: true }) },
           { label: "Orders (30d)", value: formatNumber(sumOrders(series)) },
           { label: "Vendors", value: String(seller.vendors?.length ?? 0) },
-          { label: "KYC", value: seller.razorpayLinkedAccountId ? "Route linked" : "Not linked" },
+          {
+            label: "KYC",
+            value:
+              docs.length === 0 ? "No docs" : docs.every((d) => d.verified) ? "Verified" : "In review",
+          },
         ]}
       />
 
@@ -228,7 +232,6 @@ function SellerReview() {
               value={bank ? `${bank.bankName ? `${bank.bankName} · ` : ""}${bank.accountNumberMasked} · ${bank.ifsc}` : "Not added"}
             />
             <Row label="OTP signature" value={seller.otpVerified ? "Verified" : "Missing"} />
-            <Row label="Razorpay account" value={seller.razorpayLinkedAccountId || "Not linked"} />
           </dl>
         </SectionCard>
       </div>

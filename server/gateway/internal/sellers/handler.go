@@ -207,6 +207,17 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "state is invalid")
 		return
 	}
+	// The gateway is the write authority for sellers.sellers.state_code: reject a code that is not
+	// an active ISO 3166-2:IN state/UT rather than persisting an out-of-master value (e.g. "ZZ").
+	stateOK, serr := h.repo.ValidStateCode(r.Context(), req.StateCode)
+	if serr != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+		return
+	}
+	if !stateOK {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "state is invalid")
+		return
+	}
 	// An account is only useful with at least one vendor; the vendor carries the brand.
 	if len(req.Vendors) == 0 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "at least one vendor is required")
@@ -276,15 +287,22 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 			v.BankAccountNumber = masked
 		}
 	}
-	if req.DistrictCode != "" {
-		if !geo.IsValid(req.DistrictCode) {
-			httpx.Fail(w, http.StatusBadRequest, "unknown_district", "unknown district code")
-			return
-		}
-		if geo.StateForDistrict(req.DistrictCode) != req.StateCode {
-			httpx.Fail(w, http.StatusBadRequest, "bad_request", "district does not belong to the selected state")
-			return
-		}
+	// New onboarding requires a district (migration 0047): district-scoped admin queues
+	// (auth.CanActForSellerDistrict) fall back to state scope for a NULL-district row, so a
+	// district-less seller would break district routing. The district must be in the active master
+	// (admins.district_master → geo) and belong to the selected state. Legacy sellers created before
+	// the rollout keep a NULL district and can still be edited (see edit).
+	if req.DistrictCode == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "district is required")
+		return
+	}
+	if !geo.IsValid(req.DistrictCode) {
+		httpx.Fail(w, http.StatusBadRequest, "unknown_district", "unknown district code")
+		return
+	}
+	if geo.StateForDistrict(req.DistrictCode) != req.StateCode {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "district does not belong to the selected state")
+		return
 	}
 	if !validLatLng(req.Latitude, req.Longitude) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
@@ -342,11 +360,15 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		Latitude:     req.Latitude, Longitude: req.Longitude, OTPVerified: true,
 	}, bank, docs, vendors)
 	if err != nil {
+		if errors.Is(err, ErrEmailTaken) {
+			httpx.Fail(w, http.StatusConflict, "email_taken", "a seller application with this contact email already exists")
+			return
+		}
 		httpx.Fail(w, http.StatusInternalServerError, "seller_create_failed", "could not create seller")
 		return
 	}
 
-	h.log(r, "SELLER_CREATE", s.SellerID, nil, s)
+	h.log(r, "SELLER_CREATE", s.SellerID, nil, redactSeller(s))
 	httpx.JSON(w, http.StatusCreated, s)
 }
 
@@ -371,11 +393,16 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	req.Status = strings.ToUpper(strings.TrimSpace(req.Status))
+	req.Reason = strings.TrimSpace(req.Reason)
 	if !validSellerStatus(req.Status) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid seller status")
 		return
 	}
-	after, ok, err := h.repo.SetStatus(r.Context(), id, req.Status)
+	if len(req.Reason) > 500 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "reason is too long")
+		return
+	}
+	after, ok, err := h.repo.SetStatus(r.Context(), id, req.Status, req.Reason, h.actor(r))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not update seller")
 		return
@@ -384,7 +411,11 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
 		return
 	}
-	h.log(r, "SELLER_"+req.Status, id, map[string]string{"status": before.Status}, map[string]string{"status": after.Status})
+	afterMap := map[string]string{"status": after.Status}
+	if req.Reason != "" {
+		afterMap["reason"] = req.Reason
+	}
+	h.log(r, "SELLER_"+req.Status, id, map[string]string{"status": before.Status}, afterMap)
 	resp := sellerResponse{Seller: after}
 	if after.Status == "ACTIVE" {
 		resp.Credential = h.provisionLogin(r.Context(), after)
@@ -394,6 +425,9 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 
 type setStatusRequest struct {
 	Status string `json:"status"`
+	// Reason is an optional moderator note (e.g. a suspension/rejection reason). Persisted to the
+	// rejection trail only on a REJECTED transition; always recorded in the audit entry.
+	Reason string `json:"reason"`
 }
 
 type platformFeeRequest struct {
@@ -453,7 +487,7 @@ func (h *Handler) verifyKYC(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	after, ok, err := h.repo.SetStatus(r.Context(), s.SellerID, "ACTIVE")
+	after, ok, err := h.repo.SetStatus(r.Context(), s.SellerID, "ACTIVE", "", h.actor(r))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not activate seller")
 		return
@@ -601,6 +635,15 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "state is invalid")
 		return
 	}
+	stateOK, serr := h.repo.ValidStateCode(r.Context(), req.StateCode)
+	if serr != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+		return
+	}
+	if !stateOK {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "state is invalid")
+		return
+	}
 	if req.DistrictCode != "" {
 		if !geo.IsValid(req.DistrictCode) {
 			httpx.Fail(w, http.StatusBadRequest, "unknown_district", "unknown district code")
@@ -651,10 +694,14 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 			httpx.Fail(w, http.StatusConflict, "not_editable", "only a rejected application can be edited")
 			return
 		}
+		if errors.Is(err, ErrEmailTaken) {
+			httpx.Fail(w, http.StatusConflict, "email_taken", "a seller application with this contact email already exists")
+			return
+		}
 		httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not update application")
 		return
 	}
-	h.log(r, "SELLER_RESUBMIT", id, nil, map[string]any{"changedFields": changes})
+	h.log(r, "SELLER_RESUBMIT", id, nil, map[string]any{"changedFields": redactHistory(changes)})
 	httpx.JSON(w, http.StatusOK, after)
 }
 
@@ -1022,6 +1069,32 @@ func marshal(v any) json.RawMessage {
 		return nil
 	}
 	return b
+}
+
+// auditPIIFields are seller field names whose values must never be written to admins.audit_logs
+// (AGENTS.md: never log PII). The live row and API responses keep the values; only the audit
+// snapshot is masked.
+var auditPIIFields = map[string]bool{"contactPhone": true, "contactEmail": true}
+
+// redactSeller returns a copy safe to serialize into the audit trail: contact phone and email are
+// dropped, everything else (status, names, geo, KYC flags) is retained for accountability.
+func redactSeller(s Seller) Seller {
+	s.ContactPhone = ""
+	s.ContactEmail = ""
+	return s
+}
+
+// redactHistory masks the old/new values of PII fields in a resubmission diff before it is audited.
+func redactHistory(in []RequestHistoryEntry) []RequestHistoryEntry {
+	out := make([]RequestHistoryEntry, len(in))
+	copy(out, in)
+	for i := range out {
+		if auditPIIFields[out[i].FieldName] {
+			out[i].OldValue = ""
+			out[i].NewValue = ""
+		}
+	}
+	return out
 }
 
 // validLatLng accepts absent coordinates or a complete in-range pair.

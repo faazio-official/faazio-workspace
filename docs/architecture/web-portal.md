@@ -741,7 +741,7 @@ browser                        Next.js route handlers                 Go gateway
   `faazio_remember`/`remember`, and a forced password rotation stashes `next` in `sessionStorage`
   (`faazio.next`) so the deep link survives the `/security` round-trip. On a genuinely dead session
   (`invalid_refresh`, `session_expired_*`, `invalid_refresh_reuse` from `/api/gateway`) `http.ts`
-  redirects once to `/login?next=…` — authorization 401s (wrong role) never do.
+  redirects once to `/login?next=…` — authorization denials (wrong role, now `403`) never do.
 - **First-login confinement** — the access token carries `must_change`. Until the password is
   rotated, the gateway refuses every path outside `/auth/portal/*` (`403 password_change_required`)
   and the shell redirects to `/security`, so a temporary password cannot reach the control plane.

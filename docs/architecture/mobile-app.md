@@ -1177,7 +1177,9 @@ Android seller-app download CTA (iOS shows the Play Store hint). On a fresh app 
 calls `GatewayClient.getMySellerApplication` (`GET /sellers/me`, `auth.Require`) so status is no
 longer session-scoped: `404` means `NOT_APPLIED` (the form), `PENDING_REVIEW`/`ACTIVE` render their
 cards, and `REJECTED`/`SUSPENDED` render the form with a notice (rejection reason / support hint).
-The application is linked to the shopper by `sellers.sellers.user_id` (0084) at `POST /sellers`.
+The application is linked to the shopper by `sellers.sellers.user_id` (0084) at `POST /sellers`;
+the read carries the `vendorCount`/`vendorApps` rollup so the under-review "Shops" row survives a
+fresh open, and `POST /sellers` requires a `districtCode` (derived from the first pinned shop).
 `POST /sellers/{id}/edit` resubmit remains `SELLER`-gated and is not reachable by a still-shopper
 applicant, so a rejected applicant re-submits through the form.
 

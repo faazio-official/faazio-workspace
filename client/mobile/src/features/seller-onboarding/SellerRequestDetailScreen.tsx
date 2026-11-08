@@ -279,9 +279,6 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
           ) : (
             <AppText style={styles.mutedText}>No bank account on file.</AppText>
           )}
-          {d.razorpayLinkedAccountId ? (
-            <AppText style={styles.razorpayNote}>Razorpay tied account: {d.razorpayLinkedAccountId}</AppText>
-          ) : null}
         </View>
 
         <View style={styles.sectionCard}>
@@ -551,7 +548,6 @@ const styles = StyleSheet.create({
   infoValue: { flex: 1, fontSize: ms(13), fontWeight: '700', color: neutral.ink, textAlign: 'right' },
   infoValueUpper: { textTransform: 'uppercase' },
   mutedText: { fontSize: ms(12), color: neutral.inkMuted, fontWeight: '600', marginTop: vs(6) },
-  razorpayNote: { fontSize: ms(11), color: semantic.warning, fontWeight: '700', marginTop: vs(8) },
   feeRow: { flexDirection: 'row', gap: hs(8), alignItems: 'center' },
   input: {
     height: Math.max(46, vs(46)),

@@ -59,7 +59,6 @@ interface RawSeller {
   rating: number;
   createdAt: string;
   contactEmail?: string;
-  razorpayLinkedAccountId?: string;
   otpVerified?: boolean;
   otpVerifiedAt?: string;
   rejectionReason?: string;

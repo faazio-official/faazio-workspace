@@ -134,11 +134,18 @@ caller) and are event-purged on store live toggle and product edit/status change
   `POST /sellers/:id/reject`, and seller `POST /sellers/:id/edit` (rejected rows only; field history).
   `GET /sellers/:id` returns the seller + masked bank account + KYC docs + verification log; admin KYC
   images render via the existing `GET /media/private/{id}` presigned-GET (creator or admin only).
+  `districtCode` is **required on create** (`POST /sellers` → `400 bad_request` `district is required`
+  when missing, `400 unknown_district` when not in the master, `400 bad_request` when the district's
+  parent state mismatches `stateCode`); `POST /sellers/{id}/edit` keeps validate-when-present so a
+  legacy NULL-district row can still resubmit.
   **Shopper self-read (`0084`):** `POST /sellers` stores `auth.UserID()` as `sellers.sellers.user_id`,
   and `GET /sellers/me` (mounted under `auth.Require`, **not** `RequireRole`) returns the caller's
   newest application or `404 not_found`. This lets a still-shopper applicant read their status
   across app sessions (`GatewayClient.getMySellerApplication`); the role-gated `GET /sellers/{id}`
-  is unchanged.
+  is unchanged. **Vendor rollup:** `GET /sellers/me`, the `POST /sellers` create response, the admin
+  `GET /sellers` list and `GET /sellers/{id}` all carry `vendorCount` + `vendorApps` aggregated from
+  `directory.stores`, so the applicant's "Shops" row survives a cross-session reload instead of
+  falling back to an empty local draft.
   **Razorpay Route is removed (`0077`)** — `internal/platform/razorpayroute` + `internal/settlement`
   are deleted, so there are no linked accounts, no `on_hold` transfers, no `POST /payouts/holds` /
   `{id}/release` / `{id}/reverse`, no `POST /webhooks/razorpay/route` and no hold releaser.
@@ -162,7 +169,9 @@ caller) and are event-purged on store live toggle and product edit/status change
   lines are allowed by policy). See `0036`, `0048` + `db-schema.md` §12.19/§12.24.
 - **District scope (`internal/platform/geo`, migrations `0046`–`0049` + `0057`):** the wire role is
   `DISTRICT_ADMIN`; the 42 TN/PY district codes are validated against `admins.district_master` and
-  the Go master. Sellers carry an optional `district_code`; seller/KYC/admin reads/writes use
+  the Go master. Sellers carry a `district_code` — **required on new onboarding** (`0047`; `POST
+  /sellers` rejects a missing/unknown/state-mismatched code), nullable only for legacy rows;
+  seller/KYC/admin reads/writes use
   `auth.CanActForSellerDistrict` (district claim first, legacy parent `state_code` fallback). The
   seller-owned catalog/directory/pharma management routes are stricter: `auth.AdminScope` requires a
   district claim with **no** state fallback, and rows without a seller resolve to super-admin only
