@@ -40,9 +40,8 @@ Domain indexes are the entry point for each area; every flow page is linked from
 
 ## Known gaps
 
-See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Seller-specific gaps include local-only support, the
-"Simulate scan" toast, toast-only admin/settings actions, and the district-admins page being
-hardcoded to TTC.
+See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Seller-specific gaps include local-only support,
+toast-only admin/settings actions, and the district-admins page being hardcoded to TTC.
 
 ## Linked docs
 

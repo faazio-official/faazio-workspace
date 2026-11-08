@@ -32,6 +32,9 @@ type Handler struct {
 	matrix              RoadMatrix
 	orders              contracts.OrderOwnership
 	maxDispatchAttempts int
+	// handoverKey signs the seller→rider pickup QR tokens (0088). Nil disables the flow (503)
+	// rather than issuing an unsigned capability.
+	handoverKey []byte
 }
 
 // NewHandler builds the delivery handler. A nil matrix means the route matrix is not configured;
@@ -64,6 +67,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Post("/delivery/{orderId}/accept", h.acceptOrder)
 		g.Post("/delivery/{orderId}/reject", h.rejectOrder)
 		g.Put("/delivery/stop/{stopId}/status", h.updateStop)
+		g.Post("/delivery/pickup/verify", h.verifyPickup)
 		g.Post("/delivery/{orderId}/stop/{stopId}/payment-received", h.markPaymentReceived)
 		g.Get("/delivery/route/{deliveryId}", h.getRoute)
 		g.Post("/delivery/otp/verify", h.verifyOTP)
@@ -1250,6 +1254,44 @@ func (h *Handler) updateStop(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, order)
 }
 
+type pickupVerifyRequest struct {
+	StopID string `json:"stopId"`
+	Token  string `json:"token"`
+}
+
+// verifyPickup validates the seller's pickup QR and advances the PICKUP stop to PICKED_UP.
+func (h *Handler) verifyPickup(w http.ResponseWriter, r *http.Request) {
+	var req pickupVerifyRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_body", "invalid pickup payload")
+		return
+	}
+	req.StopID = strings.TrimSpace(req.StopID)
+	req.Token = strings.TrimSpace(req.Token)
+	if req.StopID == "" || req.Token == "" {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_body", "stop id and token are required")
+		return
+	}
+	rider, err := h.currentRider(r.Context())
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	if err := h.verifyPickupToken(req.StopID, req.Token); err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	order, err := h.repo.VerifyPickup(r.Context(), rider.RiderID, req.StopID)
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	h.auditEvent(r.Context(), "DELIVERY_BOY_PICKUP", order.OrderID, nil, map[string]any{
+		"stopId": req.StopID, "qr": true,
+	})
+	httpx.JSON(w, http.StatusOK, order)
+}
+
 // markPaymentReceived is the rider's "Payment received" confirmation for a COD DROP stop (cash or
 // the delivery UPI QR). Once set, the DROP may be marked DELIVERED (UpdateStop gate, 0077).
 func (h *Handler) markPaymentReceived(w http.ResponseWriter, r *http.Request) {
@@ -1451,6 +1493,15 @@ func (h *Handler) writeErr(w http.ResponseWriter, err error) {
 	case errors.Is(err, ErrPaymentRequired):
 		httpx.Fail(w, http.StatusConflict, "payment_not_received",
 			"confirm 'Payment received' before marking this order delivered")
+	case errors.Is(err, ErrPickupUnverified):
+		httpx.Fail(w, http.StatusConflict, "pickup_scan_required",
+			"scan the seller's pickup QR to complete this pickup")
+	case errors.Is(err, ErrInvalidPickupToken):
+		httpx.Fail(w, http.StatusUnauthorized, "invalid_pickup_qr", "this pickup QR is not valid for the selected stop")
+	case errors.Is(err, ErrPickupTokenExpired):
+		httpx.Fail(w, http.StatusConflict, "pickup_qr_expired", "this pickup QR has expired; ask the seller to refresh it")
+	case errors.Is(err, ErrHandoverUnconfigured):
+		httpx.Fail(w, http.StatusServiceUnavailable, "pickup_qr_unavailable", "pickup QR verification is not configured")
 	default:
 		httpx.Fail(w, http.StatusInternalServerError, "delivery_unavailable", "delivery service unavailable")
 	}

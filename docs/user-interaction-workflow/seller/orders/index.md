@@ -1,6 +1,6 @@
 # Seller orders — domain index
 
-**Status:** Partial ("Simulate scan" is a toast-only demo affordance)
+**Status:** Shipped (seller pickup QR + order lifecycle)
 **Routes:** portal `/seller/orders`, `/seller/orders/[id]`, `/seller/order-history`, `/seller/returns`,
 `/seller/payments`
 **Trigger:** New-order notification, seller console, or order board.
@@ -21,6 +21,7 @@
 
 - `GET /seller/orders`, `GET /seller/orders/{id}` → `checkout.orders`, `checkout.order_items`.
 - `PUT /seller/orders/{id}/accept|reject`, `PUT /orders/{id}/status`.
+- `GET /seller/orders/{id}/pickup-qr` → `delivery.delivery_stops` (mints the rider-scanned token).
 - `GET /seller/payments`, `GET /seller/payments/{cycleId}`, `GET /seller/payout-invoices/{payoutId}`
   → `payments.*`.
 
@@ -32,8 +33,8 @@
 
 ## Known gaps
 
-- The "Simulate scan" button only toasts (no rider-QR verification). See
-  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- None specific. The pickup QR needs an active delivery job; unallocated orders show
+  `409 pickup_qr_unavailable` until a rider is assigned.
 
 ## Linked docs
 

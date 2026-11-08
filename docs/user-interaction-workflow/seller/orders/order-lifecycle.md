@@ -11,11 +11,15 @@
 3. **Accept:** `PUT /seller/orders/{id}/accept` moves NEW → PACKED and triggers dispatch. The
    transition is gated: an order with `payment_status ≠ PAID` is rejected with
    `409 payment_pending`.
-4. **Reject:** `PUT /seller/orders/{id}/reject` moves NEW → REJECTED, refunds a captured payment,
+4. **Pickup QR:** a PACKED order shows **Pickup QR** (also the header scan icon). The portal calls
+   `GET /seller/orders/{id}/pickup-qr`, which mints a short-lived (2 h) HMAC-signed token for the
+   active delivery PICKUP stop and renders it as a QR; the rider scans it to complete the pickup
+   (`POST /delivery/pickup/verify`, migration `0088`). The token is never stored.
+5. **Reject:** `PUT /seller/orders/{id}/reject` moves NEW → REJECTED, refunds a captured payment,
    and notifies the customer.
-5. Further transitions use `PUT /orders/{id}/status` (PACKED → SHIPPED → DELIVERED).
-6. Returns/cancellations appear in `/seller/returns`; `advanceOrder` updates them.
-7. New orders are fanned out to seller portal users through the notifications outbox.
+6. Further transitions use `PUT /orders/{id}/status` (PACKED → SHIPPED → DELIVERED).
+7. Returns/cancellations appear in `/seller/returns`; `advanceOrder` updates them.
+8. New orders are fanned out to seller portal users through the notifications outbox.
 
 ## State
 
@@ -31,6 +35,8 @@
 - `gateway.rejectSellerOrder` → `PUT /seller/orders/{id}/reject` → `checkout.orders`,
   `checkout.payments` (refund), `notifications.outbox`.
 - `PUT /orders/{id}/status` → `checkout.orders`.
+- `fetchSellerPickupQr` → `GET /seller/orders/{id}/pickup-qr` → `delivery.delivery_orders` +
+  `delivery.delivery_stops` (mints a token; no write).
 
 ## Success / error / empty
 
@@ -40,8 +46,8 @@
 
 ## Known gaps
 
-- The "Simulate scan" button in `/seller/orders` only shows a toast; there is no rider-QR
-  verification call. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- None specific. The pickup QR requires an active delivery job (rider dispatched); an order with no
+  rider gets `409 pickup_qr_unavailable` until allocation.
 
 ## Linked docs
 

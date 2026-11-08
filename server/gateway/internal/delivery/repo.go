@@ -671,16 +671,17 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var (
-		orderID  string
-		stopType string
-		current  string
+		orderID        string
+		stopType       string
+		current        string
+		pickupVerified *time.Time
 	)
 	if err := tx.QueryRow(ctx, `
-		select s.delivery_order_id, s.stop_type::text, s.status::text
+		select s.delivery_order_id, s.stop_type::text, s.status::text, s.pickup_verified_at
 		  from delivery.delivery_stops s
 		  join delivery.delivery_orders o on o.order_id = s.delivery_order_id
 		 where s.stop_id=$1 and o.rider_id=$2 and o.status='ACCEPTED'`, stopID, riderID).
-		Scan(&orderID, &stopType, &current); err != nil {
+		Scan(&orderID, &stopType, &current, &pickupVerified); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Order{}, ErrNotFound
 		}
@@ -688,6 +689,10 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 	}
 	if err := validStopTransition(stopType, current, status); err != nil {
 		return Order{}, err
+	}
+	// Pickup QR gate (0088): the plain status endpoint may not complete a pickup without a scan.
+	if stopType == "PICKUP" && status == StopPickedUp && pickupVerified == nil {
+		return Order{}, ErrPickupUnverified
 	}
 	if stopType == "DROP" {
 		var pickup string
@@ -804,6 +809,79 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 	return r.Route(ctx, riderID, orderID)
 }
 
+// VerifyPickup records a valid seller-QR scan and advances the rider's PICKUP stop AT_PICKUP →
+// PICKED_UP in one transaction. The caller must have already validated the signed token; this method
+// only enforces rider ownership, stop type and the forward-only status. Repeating a completed
+// pickup is idempotent.
+func (r *Repo) VerifyPickup(ctx context.Context, riderID, stopID string) (Order, error) {
+	if err := r.ready(); err != nil {
+		return Order{}, err
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Order{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var (
+		orderID  string
+		stopType string
+		current  string
+	)
+	if err := tx.QueryRow(ctx, `
+		select s.delivery_order_id, s.stop_type::text, s.status::text
+		  from delivery.delivery_stops s
+		  join delivery.delivery_orders o on o.order_id = s.delivery_order_id
+		 where s.stop_id=$1 and o.rider_id=$2 and o.status='ACCEPTED'`, stopID, riderID).
+		Scan(&orderID, &stopType, &current); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Order{}, ErrNotFound
+		}
+		return Order{}, err
+	}
+	if stopType != "PICKUP" {
+		return Order{}, fmt.Errorf("%w: only a pickup stop can be verified", ErrConflict)
+	}
+	if current == StopPickedUp {
+		if err := tx.Commit(ctx); err != nil {
+			return Order{}, err
+		}
+		return r.Route(ctx, riderID, orderID)
+	}
+	if current != StopAtPickup {
+		return Order{}, fmt.Errorf("%w: mark arrival at the store before scanning", ErrConflict)
+	}
+	if _, err := tx.Exec(ctx, `
+		update delivery.delivery_stops
+		   set status='PICKED_UP', pickup_verified_at=now()
+		 where stop_id=$1`, stopID); err != nil {
+		return Order{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Order{}, err
+	}
+	return r.Route(ctx, riderID, orderID)
+}
+
+// PickupStopByCustomerOrder returns the pickup stop of the customer order's active delivery job.
+// It is used by the seller console to issue the handover QR before the rider picks the order up.
+func (r *Repo) PickupStopByCustomerOrder(ctx context.Context, customerOrderID string) (stopID, orderID string, err error) {
+	if err := r.ready(); err != nil {
+		return "", "", err
+	}
+	err = r.pool.QueryRow(ctx, `
+		select s.stop_id, o.order_id
+		  from delivery.delivery_orders o
+		  join delivery.delivery_stops s
+		    on s.delivery_order_id = o.order_id and s.stop_type='PICKUP'
+		 where o.customer_order_id=$1 and o.status in ('ASSIGNED','ACCEPTED')
+		 order by o.created_at desc, s.sequence
+		 limit 1`, customerOrderID).Scan(&stopID, &orderID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", ErrNotFound
+	}
+	return stopID, orderID, err
+}
+
 // Route returns one order with its ordered stops, scoped to the rider.
 func (r *Repo) Route(ctx context.Context, riderID, orderID string) (Order, error) {
 	return r.orderByID(ctx, riderID, orderID)
@@ -903,7 +981,7 @@ func (r *Repo) orderByID(ctx context.Context, riderID, orderID string) (Order, e
 		select stop_id, delivery_order_id, sequence, stop_type::text, status::text, label, address,
 		       latitude, longitude, customer_name, customer_phone,
 		       (customer_otp_hash is not null) as requires_otp, coalesce(failure_reason,''),
-		       arrived_at, completed_at
+		       arrived_at, completed_at, pickup_verified_at
 		  from delivery.delivery_stops where delivery_order_id=$1 order by sequence`, orderID)
 	if err != nil {
 		return Order{}, err
@@ -912,14 +990,15 @@ func (r *Repo) orderByID(ctx context.Context, riderID, orderID string) (Order, e
 	o.Stops = []Stop{}
 	for rows.Next() {
 		var s Stop
-		var arrived, done *time.Time
+		var arrived, done, pickupVerified *time.Time
 		if err := rows.Scan(&s.StopID, &s.DeliveryOrderID, &s.Sequence, &s.StopType, &s.Status,
 			&s.Label, &s.Address, &s.Latitude, &s.Longitude, &s.CustomerName, &s.CustomerPhone,
-			&s.RequiresOTP, &s.FailureReason, &arrived, &done); err != nil {
+			&s.RequiresOTP, &s.FailureReason, &arrived, &done, &pickupVerified); err != nil {
 			return Order{}, err
 		}
 		s.ArrivedAt = iso(arrived)
 		s.CompletedAt = iso(done)
+		s.PickupVerifiedAt = iso(pickupVerified)
 		o.Stops = append(o.Stops, s)
 	}
 	return o, rows.Err()

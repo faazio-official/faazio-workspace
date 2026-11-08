@@ -288,7 +288,7 @@ export const OrdersHeaderIcons = ({
 }) => (
   <>
     <button
-      aria-label="Scan"
+      aria-label="Pickup QR"
       onClick={onScan}
       className="rounded-full p-1.5 hover:bg-muted"
     >

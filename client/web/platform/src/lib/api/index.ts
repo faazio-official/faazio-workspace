@@ -665,6 +665,18 @@ export function getOrder(orderId: string) {
   return state().orders.find((o) => o.orderId === orderId);
 }
 
+/** Seller-side pickup handover QR: the short-lived token the rider scans at the store (0088). */
+export interface SellerPickupQr {
+  customerOrderId: string;
+  stopId: string;
+  token: string;
+  expiresAt: string;
+}
+
+export async function fetchSellerPickupQr(orderId: string): Promise<SellerPickupQr> {
+  return remote.get<SellerPickupQr>(`/seller/orders/${encodeURIComponent(orderId)}/pickup-qr`);
+}
+
 export function advanceOrder(orderId: string, status: OrderStatus): void {
   const before = getOrder(orderId);
   state().set((s) => ({

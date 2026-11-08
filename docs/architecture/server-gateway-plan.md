@@ -225,14 +225,18 @@ caller) and are event-purged on store live toggle and product edit/status change
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
 
-### Delivery partner (`internal/delivery`, migrations `0042`, `0043`, `0045`, `0052`, `0055`)
+### Delivery partner (`internal/delivery`, migrations `0042`, `0043`, `0045`, `0052`, `0055`, `0088`)
 
 The partner domain is a first-class context in the same gateway (future service: Go + Postgres).
 Rider endpoints authenticate with the Firebase phone ID token and resolve the rider by E.164 phone:
 `POST /delivery/register` (KYC application), `GET /delivery/me`, `PUT /delivery/availability`,
 `POST /delivery/heartbeat`, `GET /delivery/active`, `GET /delivery/route/{id}`,
-`POST /delivery/{id}/accept|reject`, `PUT /delivery/stop/{id}/status`, `POST /delivery/otp/verify`
-and `POST /delivery/{orderId}/rate`. Admin endpoints are `DISTRICT_ADMIN`/`SUPER_ADMIN` gated and
+`POST /delivery/{id}/accept|reject`, `PUT /delivery/stop/{id}/status`,
+`POST /delivery/pickup/verify` (seller-QR pickup handover), `POST /delivery/otp/verify`
+and `POST /delivery/{orderId}/rate`. The seller console mints the scanned token with
+`GET /seller/orders/{orderId}/pickup-qr` (`contracts.PickupHandoverIssuer`; token is a stateless
+HMAC bound to the stop id + expiry, never persisted). Admin endpoints are
+`DISTRICT_ADMIN`/`SUPER_ADMIN` gated and
 district-scoped: `GET /delivery/register/pending`, `GET /delivery/register/{id}`,
 `PUT /delivery/register/{id}/verify|reject`, `PUT /delivery/register/{id}/documents/{docType}/reupload`
 (admin uploads a replacement document), `GET /delivery/online-riders`,
@@ -327,6 +331,11 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   as SHA-256(code + stop id), and never returned in the rider projection. Only
   `/delivery/otp/verify` can mark that stop delivered. Attempts are bounded at 5 (`429 otp_locked`,
   migration `0045`); the hash/expiry are cleared on delivery so a code cannot be replayed.
+- Pickup is seller-QR verified (`0088`): the seller console mints a 2-hour HMAC token for the active
+  PICKUP stop and renders it as a QR; the rider scans it and `POST /delivery/pickup/verify` checks
+  the signature/expiry and rider ownership before `AT_PICKUP → PICKED_UP`. The plain status endpoint
+  rejects `PICKED_UP` without `pickup_verified_at` (`409 pickup_scan_required`). The flow is disabled
+  (`503 pickup_qr_unavailable`) when no signing secret is configured.
 - Every mutation writes an `admins.audit_logs` row through `contracts.AuditWriter`.
 - **Money-adjacent authority:** coin redemption is validated against the server-held balance
   (`contracts.RewardsReader`; `400 insufficient_coins`) on both order placement and payment recording,

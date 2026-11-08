@@ -800,7 +800,11 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── AcceptReject — deep-link/push offer: store/customer, payout, route context, 45 s countdown,
 │                  Accept / Reject (expiry = implicit reject) → Route
 ├── Route        — one merged route across all ACCEPTED jobs: stops sorted by the server's global
-│                  sequence, one polyline, Arrived/Picked Up/Delivered transitions. **COD payment
+│                  sequence, one polyline, Arrived/Picked Up/Delivered transitions. **Pickup QR
+│                  gate (`0088`):** at a PICKUP stop the rider taps "Scan seller QR & pick up",
+│                  `PickupScanModal` scans the seller's QR (`useCodeScanner`, QR only) and calls
+│                  `POST /delivery/pickup/verify`; the PICKUP stop cannot reach PICKED_UP without
+│                  a valid scanned token (`409 pickup_scan_required`). **COD payment
 │                  gate (`0077`):** DROP stops show the delivery UPI QR (fetched from the public
 │                  `GET /app-config/delivery-upi-qr`) with a "Payment received" confirm
 │                  (`POST /delivery/{orderId}/stop/{stopId}/payment-received`) before the stop may

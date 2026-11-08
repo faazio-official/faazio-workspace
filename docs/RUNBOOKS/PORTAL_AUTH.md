@@ -73,6 +73,10 @@ non-secret `faazio_remember` cookie (`0` = refresh cookie is browser-session-onl
    - `PORTAL_JWT_SECRET` — `openssl rand -base64 48` (≥256-bit HS256 signing key).
    - `PORTAL_PEPPER` — `openssl rand -base64 32` (server-side HMAC pepper; **changing it invalidates
      every existing password hash**).
+   - `PICKUP_HANDOVER_SECRET` — optional; signs the seller→rider pickup QR (`0088`). Defaults to
+     `PORTAL_JWT_SECRET` (domain-separated), so no extra value is required. Set it explicitly to
+     rotate the handover capability without rotating portal sessions; empty disables the QR flow
+     (`503 pickup_qr_unavailable`).
    - `AUTH_DISABLED=false`, `ALLOWED_ORIGINS=https://<portal-origin>` (exact, no `*`).
    - Local dev: `PORTAL_JWT_SECRET=$(openssl rand -base64 48) PORTAL_PEPPER=$(openssl rand -base64 32) docker compose up --build`.
 3. Portal env (Vercel): `NEXT_PUBLIC_GATEWAY_URL=https://<gateway-origin>` only. There is no auth-mode

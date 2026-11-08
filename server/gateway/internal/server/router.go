@@ -132,7 +132,7 @@ func NewRouter(d Deps) http.Handler {
 	deliveryRepo := delivery.New(d.Pool)
 	deliveryMatrix := delivery.NewRoutesMatrix(d.Config.GoogleRoutesAPIKey, d.Cache)
 	deliveryHandler := delivery.NewHandler(deliveryRepo, d.Cache, adminsRepo, notificationsRepo, deliveryMatrix, checkoutRepo,
-		d.Config.DeliveryMaxDispatchAttempts)
+		d.Config.DeliveryMaxDispatchAttempts).WithHandoverSecret(d.Config.PickupHandoverSecret)
 	if d.WorkersCtx != nil && d.Pool != nil {
 		go deliveryHandler.RunExpiry(d.WorkersCtx)
 	}
@@ -183,7 +183,7 @@ func NewRouter(d Deps) http.Handler {
 	blood.NewHandler(bloodRepo, d.Cache, adminsRepo, notificationsRepo).Register(r)
 	checkout.NewHandler(checkoutRepo, checkoutService, d.Cache, adminsRepo, notificationsRepo, promoRepo,
 		directoryRepo, deliveryHandler, d.Signer).WithRxBlobDeleter(pharmaStorage).WithPaymentGateway(razorpayPay).
-		WithRxQuotes(pharmaRepo).Register(r)
+		WithRxQuotes(pharmaRepo).WithPickupHandover(deliveryHandler).Register(r)
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache, adminsRepo).Register(r)
 	reco.NewHandler(recoRepo, recoService).Register(r)
 	sdui.NewHandler(sduiService, adminsRepo).Register(r)

@@ -11,6 +11,7 @@ import {
   type DeliveryStopStatus,
 } from '@/services/api/GatewayClient';
 import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
+import { PickupScanModal } from './PickupScanModal';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
@@ -21,8 +22,8 @@ const rupees = (paisa: number) => `₹${(paisa / 100).toFixed(0)}`;
 function nextAction(stop: DeliveryStop): { label: string; status: DeliveryStopStatus } | null {
   if (stop.status === 'DELIVERED' || stop.status === 'FAILED') return null;
   if (stop.stopType === 'PICKUP') {
+    // AT_PICKUP → PICKED_UP is gated on a seller-QR scan (0088), rendered separately.
     if (stop.status === 'PENDING') return { label: 'Arrived at store', status: 'AT_PICKUP' };
-    if (stop.status === 'AT_PICKUP') return { label: 'Picked up', status: 'PICKED_UP' };
     return null;
   }
   if (stop.status === 'AT_CUSTOMER') return null;
@@ -60,6 +61,7 @@ export function RouteScreen({ navigation }: Props) {
   const [failureFor, setFailureFor] = useState<DeliveryStop | null>(null);
   const [failureReason, setFailureReason] = useState('');
   const [qrUrl, setQrUrl] = useState('');
+  const [scanStop, setScanStop] = useState<DeliveryStop | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -159,6 +161,26 @@ export function RouteScreen({ navigation }: Props) {
         finishIfEmpty(updated, await refresh());
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not update this stop.');
+      } finally {
+        setBusy(false);
+      }
+    },
+    [finishIfEmpty, refresh],
+  );
+
+  const verifyPickup = useCallback(
+    async (stop: DeliveryStop, token: string) => {
+      setBusy(true);
+      setError(null);
+      try {
+        const updated = await gateway.verifyDeliveryPickup(stop.stopId, token);
+        setScanStop(null);
+        finishIfEmpty(updated, await refresh());
+      } catch (err) {
+        // Close the scanner so a failed token never leaves it stuck on the "already handled" guard;
+        // the rider can retry from the stop card.
+        setScanStop(null);
+        setError(err instanceof Error ? err.message : 'Could not verify the pickup QR.');
       } finally {
         setBusy(false);
       }
@@ -355,6 +377,15 @@ export function RouteScreen({ navigation }: Props) {
                     loading={busy}
                   />
                 </>
+              ) : stop.stopType === 'PICKUP' && stop.status === 'AT_PICKUP' ? (
+                <PrimaryButton
+                  label="Scan seller QR & pick up"
+                  onPress={() => {
+                    setError(null);
+                    setScanStop(stop);
+                  }}
+                  loading={busy}
+                />
               ) : action && !blockedDrop ? (
                 <PrimaryButton
                   label={action.label}
@@ -406,6 +437,13 @@ export function RouteScreen({ navigation }: Props) {
           <PrimaryButton label="Back to dashboard" onPress={() => navigation.replace('Dashboard')} />
         ) : null}
       </ScrollView>
+      <PickupScanModal
+        visible={!!scanStop}
+        onClose={() => setScanStop(null)}
+        onScanned={(token) => {
+          if (scanStop) void verifyPickup(scanStop, token);
+        }}
+      />
     </Screen>
   );
 }

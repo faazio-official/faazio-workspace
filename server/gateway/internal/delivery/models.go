@@ -124,6 +124,14 @@ var ErrConflict = errors.New("delivery: state conflict")
 // "Payment received" (migration 0077).
 var ErrPaymentRequired = errors.New("delivery: payment not received")
 
+// ErrPickupUnverified is returned when a PICKUP stop is advanced to PICKED_UP without a valid
+// seller-QR scan (migration 0088).
+var ErrPickupUnverified = errors.New("delivery: pickup QR not verified")
+
+// ErrHandoverUnconfigured is returned when the pickup-QR signing secret is not set. The flow fails
+// closed rather than issuing an unsigned token.
+var ErrHandoverUnconfigured = errors.New("delivery: pickup handover not configured")
+
 // Rider is one delivery.delivery_boys row. Phone is PII and only projected to auth-scoped callers.
 type Rider struct {
 	RiderID string `json:"riderId"`
@@ -203,6 +211,9 @@ type Stop struct {
 	FailureReason   string   `json:"failureReason,omitempty"`
 	ArrivedAt       string   `json:"arrivedAt,omitempty"`
 	CompletedAt     string   `json:"completedAt,omitempty"`
+	// PickupVerifiedAt is set by the seller-QR scan (0088). A PICKUP stop may not transition to
+	// PICKED_UP through the plain status endpoint until this is non-empty.
+	PickupVerifiedAt string `json:"pickupVerifiedAt,omitempty"`
 }
 
 // Order is one delivery_orders row plus its ordered stops.

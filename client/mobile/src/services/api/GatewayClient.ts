@@ -2289,6 +2289,15 @@ export class GatewayClient {
     });
   }
 
+  /** Rider scans the seller's pickup QR at the store; completes the PICKUP stop. */
+  async verifyDeliveryPickup(stopId: string, token: string): Promise<DeliveryOrder> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryOrder>('/delivery/pickup/verify', {
+      method: 'POST',
+      body: JSON.stringify({ stopId, token }),
+    });
+  }
+
   /** The single delivery UPI QR (superadmin-configured): shown to riders so a COD customer can pay. */
   async getDeliveryUpipQr(): Promise<{ qrUrl: string; assetId?: string }> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
@@ -2492,6 +2501,8 @@ export interface DeliveryStop {
   failureReason?: string;
   arrivedAt?: string;
   completedAt?: string;
+  /** Set once the rider scans the seller's pickup QR (0088). */
+  pickupVerifiedAt?: string;
 }
 
 export interface DeliveryOrder {

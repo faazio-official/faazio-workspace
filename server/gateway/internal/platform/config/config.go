@@ -22,8 +22,12 @@ type Config struct {
 	PortalJWTSecret string
 	// PortalPepper is the server-side HMAC pepper applied before Argon2id. Empty is allowed for
 	// local dev; production must set it (see docs/RUNBOOKS/PORTAL_AUTH.md).
-	PortalPepper      string
-	FirebaseProjectID string
+	PortalPepper string
+	// PickupHandoverSecret signs the seller→rider pickup QR tokens (0088). It defaults to
+	// PortalJWTSecret (domain-separated in the delivery handler) so no extra secret is required;
+	// set it explicitly to rotate the handover capability independently. Empty disables the flow.
+	PickupHandoverSecret string
+	FirebaseProjectID    string
 	// GoogleRoutesAPIKey backs the road-aware dispatch matrix (Routes API, server-side only).
 	// The mobile Maps SDK key is a separate, app-restricted client key. Empty is a hard config error:
 	// dispatch fails closed instead of estimating a straight-line leg.
@@ -84,6 +88,7 @@ func Load() Config {
 		SupabaseJWTSecret:           env("SUPABASE_JWT_SECRET", ""),
 		PortalJWTSecret:             env("PORTAL_JWT_SECRET", ""),
 		PortalPepper:                env("PORTAL_PEPPER", ""),
+		PickupHandoverSecret:        env("PICKUP_HANDOVER_SECRET", env("PORTAL_JWT_SECRET", "")),
 		FirebaseProjectID:           env("FIREBASE_PROJECT_ID", ""),
 		GoogleRoutesAPIKey:          env("GOOGLE_ROUTES_API_KEY", ""),
 		DeliveryMaxDispatchAttempts: envInt("DELIVERY_MAX_DISPATCH_ATTEMPTS", 5),
@@ -101,13 +106,13 @@ func Load() Config {
 		PublicBaseURL:               envFirst("PUBLIC_BASE_URL", "RENDER_EXTERNAL_URL"),
 		CFZoneID:                    env("CF_ZONE_ID", ""),
 		CFAPIToken:                  env("CF_API_TOKEN", ""),
-RazorpayKeyID:         env("RAZORPAY_KEY_ID", ""),
-		RazorpayKeySecret:     env("RAZORPAY_KEY_SECRET", ""),
-		RazorpayWebhookSecret: env("RAZORPAY_WEBHOOK_SECRET", ""),
-		FCMProjectID:               env("FCM_PROJECT_ID", ""),
-		FCMServiceAccount:          env("FCM_SERVICE_ACCOUNT_JSON", ""),
-		AllowedOrigins:             splitCSV(env("ALLOWED_ORIGINS", "")),
-		OTelEnabled:                envBool("OTEL_ENABLED", false),
+		RazorpayKeyID:               env("RAZORPAY_KEY_ID", ""),
+		RazorpayKeySecret:           env("RAZORPAY_KEY_SECRET", ""),
+		RazorpayWebhookSecret:       env("RAZORPAY_WEBHOOK_SECRET", ""),
+		FCMProjectID:                env("FCM_PROJECT_ID", ""),
+		FCMServiceAccount:           env("FCM_SERVICE_ACCOUNT_JSON", ""),
+		AllowedOrigins:              splitCSV(env("ALLOWED_ORIGINS", "")),
+		OTelEnabled:                 envBool("OTEL_ENABLED", false),
 	}
 }
 

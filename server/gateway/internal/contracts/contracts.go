@@ -525,6 +525,25 @@ type DeliveryDispatcher interface {
 	DispatchOrder(ctx context.Context, req DeliveryDispatchRequest) (assigned bool, err error)
 }
 
+// PickupHandover is the seller-facing pickup QR payload. The token is a short-lived HMAC-signed
+// capability the rider scans at the store; the seller console only renders it. Implemented by
+// delivery.Handler so checkout never imports the delivery repo.
+type PickupHandover struct {
+	CustomerOrderID string    `json:"customerOrderId"`
+	StopID          string    `json:"stopId"`
+	Token           string    `json:"token"`
+	ExpiresAt       time.Time `json:"expiresAt"`
+}
+
+// PickupHandoverIssuer mints the seller pickup QR for an active delivery job. Implemented by
+// delivery.Handler; checkout maps ErrPickupHandoverUnavailable to 503 and everything else to 409.
+type PickupHandoverIssuer interface {
+	IssuePickupHandover(ctx context.Context, customerOrderID string) (PickupHandover, error)
+}
+
+// ErrPickupHandoverUnavailable marks a disabled/unconfigured pickup-QR signer.
+var ErrPickupHandoverUnavailable = errors.New("pickup handover unavailable")
+
 // SurgeRates is the server-owned surcharge card in paisa (delivery.payout_settings). Checkout reads
 // it through SurgeReader so the customer bill and rider payout use one authoritative card without
 // importing the delivery context.

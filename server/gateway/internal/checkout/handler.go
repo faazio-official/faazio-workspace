@@ -44,6 +44,9 @@ type Handler struct {
 	// rxQuotes resolves an owner-scoped prescription quote so the customer can accept it as a real
 	// checkout order (0086). nil disables POST /prescriptions/{id}/checkout.
 	rxQuotes contracts.PrescriptionQuoteReader
+	// pickup mints the seller pickup QR for an active delivery job. nil disables
+	// GET /seller/orders/{orderID}/pickup-qr.
+	pickup contracts.PickupHandoverIssuer
 }
 
 // NewHandler builds the checkout handler. notifier/coupons/stores/delivery/signer may be nil
@@ -68,6 +71,12 @@ func (h *Handler) WithPaymentGateway(gw razorpaypay.Gateway) *Handler {
 // payment rail. nil leaves POST /prescriptions/{id}/checkout returning 503.
 func (h *Handler) WithRxQuotes(reader contracts.PrescriptionQuoteReader) *Handler {
 	h.rxQuotes = reader
+	return h
+}
+
+// WithPickupHandover enables the seller pickup QR endpoint (0088). nil leaves it returning 503.
+func (h *Handler) WithPickupHandover(issuer contracts.PickupHandoverIssuer) *Handler {
+	h.pickup = issuer
 	return h
 }
 
@@ -129,6 +138,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Get("/seller/orders", h.sellerOrders)
 		g.Get("/seller/orders/{orderID}", h.sellerOrderDetail)
+		g.Get("/seller/orders/{orderID}/pickup-qr", h.sellerPickupQr)
 		g.Put("/seller/orders/{orderID}/accept", h.acceptSellerOrder)
 		g.Put("/seller/orders/{orderID}/reject", h.rejectSellerOrder)
 		g.Put("/orders/{orderID}/status", h.setOrderStatus)
@@ -971,6 +981,37 @@ func (h *Handler) sellerOrderDetail(w http.ResponseWriter, r *http.Request) {
 	}
 	order.Status = portalStatus(order.Status)
 	httpx.JSON(w, http.StatusOK, order)
+}
+
+// sellerPickupQr mints the short-lived handover QR the rider scans at pickup. It reuses the seller
+// order scope, so a seller can only display QRs for their own orders. The delivery context owns the
+// token; checkout never touches the delivery repo.
+func (h *Handler) sellerPickupQr(w http.ResponseWriter, r *http.Request) {
+	orderID := chi.URLParam(r, "orderID")
+	_, ok, err := h.repo.SellerOrderByID(r.Context(), orderID, sellerScope(r))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	if h.pickup == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "pickup_qr_unavailable", "pickup QR is not available")
+		return
+	}
+	handover, err := h.pickup.IssuePickupHandover(r.Context(), orderID)
+	switch {
+	case errors.Is(err, contracts.ErrPickupHandoverUnavailable):
+		httpx.Fail(w, http.StatusServiceUnavailable, "pickup_qr_unavailable", "pickup QR is not configured")
+		return
+	case err != nil:
+		httpx.Fail(w, http.StatusConflict, "pickup_qr_unavailable",
+			"this order has no active delivery pickup yet")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, handover)
 }
 
 // acceptSellerOrder is the seller's explicit NEW → PACKED decision. Only an unfulfilled NEW order

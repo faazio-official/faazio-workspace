@@ -573,7 +573,10 @@ projection is name-only until `READY`/`FULFILLED`. Order rows carry the portal l
 (`NEW`→`PACKED`→`SHIPPED`→`DELIVERED`, plus `CANCELLED`/`RETURNED`; gateway `REJECTED` maps to the
 portal's `CANCELLED` bucket). NEW cards call the explicit rollback-safe
 `PUT /seller/orders/{id}/accept` / `reject` decisions; later stages advance with
-`PUT /orders/{id}/status`. The seller orders slice is hydrated from `GET /seller/orders` (the
+`PUT /orders/{id}/status`. A PACKED order shows **Pickup QR**, which fetches
+`GET /seller/orders/{id}/pickup-qr` (a short-lived HMAC token from the delivery context, rendered by
+`qrcode.react`) for the rider to scan; the header scan icon opens the same sheet. The seller orders
+slice is hydrated from `GET /seller/orders` (the
 customer name is intentionally not exposed — cards show the order id), so the board reflects real
 gateway rows.
   In **development** an empty remote slice keeps the seeded rows (demo fallback); in

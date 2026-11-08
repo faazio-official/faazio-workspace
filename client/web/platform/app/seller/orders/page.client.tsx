@@ -3,9 +3,16 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { ClipboardList, Clock, Receipt } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { OrdersHeaderIcons, OrdersTopBar } from "@/components/sellers/shells";
 import { EmptyState, PillTabs, RadioRow, SectorBadge, Sheet } from "@/components/sellers/kit";
-import { acceptOrder, advanceOrder, rejectOrder } from "@/lib/api";
+import {
+  acceptOrder,
+  advanceOrder,
+  fetchSellerPickupQr,
+  rejectOrder,
+  type SellerPickupQr,
+} from "@/lib/api";
 import { useOrders, useSellerScope } from "@/lib/api/hooks";
 import { useSellerUi } from "@/lib/sellerUi";
 import { formatDateTime, formatINR } from "@/lib/format";
@@ -36,9 +43,11 @@ function slaLeft(iso: string): string {
 function OrderCard({
   o,
   onReject,
+  onShowQr,
 }: {
   o: OrderRecord;
   onReject: () => void;
+  onShowQr: () => void;
 }) {
   const next = NEXT[o.status];
   return (
@@ -96,15 +105,25 @@ function OrderCard({
               </button>
             </div>
           ) : next ? (
-            <button
-              onClick={() => {
-                advanceOrder(o.orderId, next.to);
-                toast.success(`#${o.orderId} → ${next.label}`);
-              }}
-              className="rounded-lg bg-foreground px-3 py-1.5 text-xs font-semibold text-background"
-            >
-              {next.label}
-            </button>
+            <div className="flex items-center gap-2">
+              {o.status === "PACKED" ? (
+                <button
+                  onClick={onShowQr}
+                  className="rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-semibold"
+                >
+                  Pickup QR
+                </button>
+              ) : null}
+              <button
+                onClick={() => {
+                  advanceOrder(o.orderId, next.to);
+                  toast.success(`#${o.orderId} → ${next.label}`);
+                }}
+                className="rounded-lg bg-foreground px-3 py-1.5 text-xs font-semibold text-background"
+              >
+                {next.label}
+              </button>
+            </div>
           ) : null}
         </div>
       ) : null}
@@ -119,11 +138,28 @@ function SellerOrders() {
   const orders = useOrders({ sellerId, storeId });
   const [tab, setTab] = useState<TabKey>("NEW");
   const [search, setSearch] = useState(false);
-  const [scan, setScan] = useState(false);
+  const [qrFor, setQrFor] = useState<OrderRecord | null>(null);
+  const [qr, setQr] = useState<SellerPickupQr | null>(null);
+  const [qrLoading, setQrLoading] = useState(false);
+  const [qrError, setQrError] = useState<string | null>(null);
   const [q, setQ] = useState("");
   const [rejecting, setRejecting] = useState<OrderRecord | null>(null);
   const rejectReasons = REJECT_BY_SECTOR[sector ?? "DEFAULT"] ?? REJECT_BY_SECTOR["DEFAULT"]!;
   const [reason, setReason] = useState<string>(rejectReasons[0]!);
+
+  const openPickupQr = async (order: OrderRecord) => {
+    setQrFor(order);
+    setQr(null);
+    setQrError(null);
+    setQrLoading(true);
+    try {
+      setQr(await fetchSellerPickupQr(order.orderId));
+    } catch (err) {
+      setQrError(err instanceof Error ? err.message : "Could not load the pickup QR.");
+    } finally {
+      setQrLoading(false);
+    }
+  };
 
   // The active shop can change under this page (StoreSwitcher in the header); reset the selected
   // reject reason when the sector's reason list changes so a food excuse never leaks to a Mart order.
@@ -147,7 +183,16 @@ function SellerOrders() {
   return (
     <>
       <OrdersTopBar
-        extra={<OrdersHeaderIcons onSearch={() => setSearch(true)} onScan={() => setScan(true)} />}
+        extra={
+          <OrdersHeaderIcons
+            onSearch={() => setSearch(true)}
+            onScan={() => {
+              const packed = sorted.find((o) => o.status === "PACKED");
+              if (packed) void openPickupQr(packed);
+              else toast.info("No packed orders ready for pickup");
+            }}
+          />
+        }
       />
       <div className="space-y-3 px-4 pt-3">
         {!online && (
@@ -174,7 +219,12 @@ function SellerOrders() {
         ) : (
           <div className="grid gap-3 md:grid-cols-2">
             {list.map((o) => (
-              <OrderCard key={o.orderId} o={o} onReject={() => setRejecting(o)} />
+              <OrderCard
+                key={o.orderId}
+                o={o}
+                onReject={() => setRejecting(o)}
+                onShowQr={() => void openPickupQr(o)}
+              />
             ))}
           </div>
         )}
@@ -250,19 +300,37 @@ function SellerOrders() {
         </div>
       </Sheet>
 
-      <Sheet open={scan} onClose={() => setScan(false)} title="Scan rider QR">
-        <div className="mx-auto my-4 flex aspect-square w-56 items-center justify-center rounded-2xl border-2 border-dashed border-info text-xs text-muted-foreground">
-          Point camera at delivery partner&apos;s QR
+      <Sheet
+        open={qrFor !== null}
+        onClose={() => {
+          setQrFor(null);
+          setQr(null);
+          setQrError(null);
+        }}
+        title="Pickup QR"
+      >
+        <div className="pb-4">
+          <p className="mb-3 text-center text-xs text-muted-foreground">
+            {qrFor ? `Order #${qrFor.orderId}` : ""} — ask the delivery partner to scan this code at
+            pickup.
+          </p>
+          {qrLoading ? (
+            <div className="mx-auto my-4 h-56 w-56 animate-pulse rounded-2xl bg-muted" />
+          ) : qr ? (
+            <div className="mx-auto my-2 flex w-fit rounded-2xl bg-white p-4">
+              <QRCodeSVG value={qr.token} size={208} level="M" marginSize={2} />
+            </div>
+          ) : (
+            <div className="mx-auto my-4 flex aspect-square w-56 items-center justify-center rounded-2xl border-2 border-dashed border-border px-4 text-center text-xs text-muted-foreground">
+              {qrError ?? "This order has no active pickup yet."}
+            </div>
+          )}
+          {qr ? (
+            <p className="mt-2 text-center text-[11px] text-muted-foreground">
+              Expires {formatDateTime(qr.expiresAt)}
+            </p>
+          ) : null}
         </div>
-        <button
-          onClick={() => {
-            setScan(false);
-            toast.success("Rider verified");
-          }}
-          className="mb-3 w-full rounded-xl bg-foreground py-3 text-sm font-semibold text-background"
-        >
-          Simulate scan
-        </button>
       </Sheet>
 
       <Sheet

@@ -826,7 +826,8 @@ default it to `https://app.faazio.com`.
   replacement upload (the rider app has no re-upload screen) → super-admin
   activation → Go Online/Offline + 120 s heartbeat (foreground loop and, on Android, an ongoing
   foreground service that wakes the same headless task) → 45 s order offers → server-ordered
-  multi-stop route → pickup/drop statuses → hashed customer-OTP handover.
+  multi-stop route → seller-QR pickup handover (`POST /delivery/pickup/verify`, migration `0088`)
+  → pickup/drop statuses → hashed customer-OTP handover.
 - **Gateway:** `internal/delivery` + migrations `0042`/`0043` (tables, enums, RLS, audit). Dispatch
   scores ACTIVE/available/under-capacity riders by Google Routes road time (Valkey-cached legs,
   300 s), falls back to Haversine without `GOOGLE_ROUTES_API_KEY`; capacity is hard-capped by vehicle
