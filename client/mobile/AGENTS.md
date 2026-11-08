@@ -13,7 +13,8 @@ Native app.
   app. Do not introduce a styling library.
 - Tokens live in `src/theme/`:
   - `brandTokens.ts` — per-`AppBrand` colour (accent, card, button, gradient,
-    header, price, pill). This is the source of truth for brand colour.
+    header, price, pill): the code token home. The **brand colour definition**
+    itself (Faazio Blue) lives once in `docs/UI_DESIGN_SYSTEM.md` §5.
   - `spacing.ts` — `SPACE.SECTION` / `BLOCK` / `ITEM` / `LIST_BOTTOM`, the
     canonical vertical rhythm.
   - `fonts.ts` — platform fonts only (Roboto on Android, `System` on iOS). No

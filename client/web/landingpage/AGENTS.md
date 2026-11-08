@@ -18,7 +18,7 @@ this surface.
 ## Design direction (decided — do not re-derive)
 
 A neighbourhood storefront, not a SaaS launch. Warm paper neutrals (hue ~70–85),
-Faazio blue as the only accent, **Instrument Sans** for interface and
+Faazio blue (defined in `docs/UI_DESIGN_SYSTEM.md` §5) as the only accent, **Instrument Sans** for interface and
 **Instrument Serif** for display headlines only. The hero is a scene: real
 photography, type on the calm side it was composed to leave open. The signature
 detail is the small "open now" dot beside local availability.

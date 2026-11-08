@@ -2293,7 +2293,8 @@ vendor — replacing the text/underline rail, per-store ads and horizontal produ
   shared filter-chip metrics (`height: vs(32)`, `paddingHorizontal: hs(14)`, `borderRadius: ms(16)`,
   `gap: hs(8)`). Inactive chips are transparent with dark (`#111827`) text; the active chip is
   filled with the accent and white text. The underline bar was removed.
-- **Faazio-blue page accent** (`CategoryDrillInPanel.tsx`): added `FAAZIO_BLUE = '#1162D3'` and
+- **Faazio-blue page accent** (`CategoryDrillInPanel.tsx`): added `FAAZIO_BLUE` set to the brand
+  accent (see `docs/UI_DESIGN_SYSTEM.md` §5) and
   use it for the rail on this (brand-surface) page only — `MART_ACCENT`/`PHARMA_ACCENT` stay in
   `@data` for the Master Categories / vendor theme. Selecting a chip clears the search query and
   snaps the body `ScrollView` back to the top.

@@ -5,6 +5,7 @@ import { pharmaProducts } from '@data/pharma/products';
 import type { Product } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
 import { withActiveDiscounts } from '@/services/pricing';
+import { parentRamp } from '@/theme/brandTokens';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
 import { buildProductSuggestions } from '../suggestions';
@@ -70,7 +71,7 @@ export function createHomeSearchConfig({
 }: HomeSearchConfigOptions = {}): SearchScreenConfig {
   return {
     searchPlaceholder: 'Search food, groceries or more…',
-    accentColor: '#2F80ED',
+    accentColor: parentRamp.base,
     toggles: [
       { key: 'all', label: 'All', icon: LayoutGrid },
       { key: 'mart', label: 'Mart', icon: Package },

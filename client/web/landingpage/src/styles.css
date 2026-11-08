@@ -79,6 +79,9 @@
   color-scheme: light;
   --radius: 0.75rem;
 
+  /* Faazio Blue — the single brand anchor (docs/UI_DESIGN_SYSTEM.md §5). */
+  --brand-blue: #4250ff;
+
   /* Warm paper ramp. */
   --background: oklch(0.988 0.004 85);
   --foreground: oklch(0.235 0.014 60);
@@ -89,13 +92,13 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.235 0.014 60);
 
-  /* Faazio blue, dark enough to carry white text at 4.5:1. */
-  --brand: oklch(0.5 0.16 258);
-  --brand-ink: oklch(0.4 0.14 258);
-  --brand-soft: oklch(0.955 0.022 255);
-  --brand-line: oklch(0.88 0.04 255);
+  /* Faazio Blue, dark enough to carry white text at 4.5:1. */
+  --brand: var(--brand-blue);
+  --brand-ink: oklch(0.4 0.16 271);
+  --brand-soft: oklch(0.955 0.03 271);
+  --brand-line: oklch(0.88 0.05 271);
 
-  --primary: oklch(0.5 0.16 258);
+  --primary: var(--brand-blue);
   --primary-foreground: oklch(0.99 0.002 85);
   --secondary: oklch(0.958 0.008 82);
   --secondary-foreground: oklch(0.235 0.014 60);
@@ -107,7 +110,7 @@
   --border: oklch(0.898 0.008 80);
   --border-strong: oklch(0.83 0.012 78);
   --input: oklch(0.86 0.01 80);
-  --ring: oklch(0.5 0.16 258);
+  --ring: var(--brand-blue);
   --overlay: oklch(0.235 0.014 60 / 0.45);
 
   --destructive: oklch(0.55 0.2 27);
@@ -116,7 +119,7 @@
   --donor-soft: oklch(0.962 0.02 25);
   --donor-line: oklch(0.89 0.045 25);
 
-  --mart: oklch(0.5 0.16 258);
+  --mart: var(--brand-blue);
   --food: oklch(0.47 0.12 150);
   --pharma: oklch(0.52 0.13 40);
 }
@@ -134,12 +137,12 @@
   --popover: oklch(0.272 0.012 70);
   --popover-foreground: oklch(0.95 0.006 82);
 
-  --brand: oklch(0.72 0.13 255);
-  --brand-ink: oklch(0.8 0.1 255);
-  --brand-soft: oklch(0.292 0.038 258);
-  --brand-line: oklch(0.38 0.06 258);
+  --brand: oklch(0.72 0.16 271);
+  --brand-ink: oklch(0.8 0.12 271);
+  --brand-soft: oklch(0.292 0.05 271);
+  --brand-line: oklch(0.38 0.08 271);
 
-  --primary: oklch(0.72 0.13 255);
+  --primary: oklch(0.72 0.16 271);
   --primary-foreground: oklch(0.18 0.012 70);
   --secondary: oklch(0.282 0.012 70);
   --secondary-foreground: oklch(0.95 0.006 82);
@@ -151,7 +154,7 @@
   --border: oklch(1 0 0 / 10%);
   --border-strong: oklch(1 0 0 / 18%);
   --input: oklch(1 0 0 / 18%);
-  --ring: oklch(0.72 0.13 255);
+  --ring: oklch(0.72 0.16 271);
   --overlay: oklch(0.12 0.008 70 / 0.7);
 
   --destructive: oklch(0.68 0.17 25);
@@ -160,7 +163,7 @@
   --donor-soft: oklch(0.29 0.045 22);
   --donor-line: oklch(0.4 0.07 22);
 
-  --mart: oklch(0.72 0.13 255);
+  --mart: oklch(0.72 0.16 271);
   --food: oklch(0.73 0.12 152);
   --pharma: oklch(0.74 0.11 45);
 }

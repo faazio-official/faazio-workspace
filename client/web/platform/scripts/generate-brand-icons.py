@@ -36,7 +36,7 @@ SOURCE = SCRIPT_DIR.parents[2] / "mobile" / "src" / "assets" / "faazio-logo.png"
 
 # Brand-gradient stops, copied from public/favicon.svg.
 # diagonal (0,0) -> (S,S); stops at t = 0 / 0.6 / 1.
-ST0 = np.array([17, 98, 211], dtype=float)   # #1162D3
+ST0 = np.array([66, 80, 255], dtype=float)   # #4250FF (Faazio Blue, docs/UI_DESIGN_SYSTEM.md §5)
 ST1 = np.array([47, 128, 237], dtype=float)  # #2F80ED
 ST2 = np.array([42, 159, 214], dtype=float)  # #2A9FD6
 

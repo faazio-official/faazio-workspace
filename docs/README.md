@@ -18,8 +18,8 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 | Doc | Purpose | Audience |
 |---|---|---|
 | [DEVELOPER_ONBOARDING.md](./DEVELOPER_ONBOARDING.md) | Numbered getting-started guide (setup → run → verify) | Everyone |
-| [UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md) | **UI authority**: unslop direction, nine passes, tokens, theme contract, per-surface playbooks, done checklist | Anyone touching UI |
-| [BRAND_COLOR_MIGRATION.md](./BRAND_COLOR_MIGRATION.md) | Royal-purple → Faazio-blue change log + revert command | Design / maintainers |
+| [UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md) | **UI authority** + **brand colour SSOT** (Faazio Blue §5): unslop direction, nine passes, tokens, theme contract, per-surface playbooks, done checklist | Anyone touching UI |
+| [BRAND_COLOR_MIGRATION.md](./BRAND_COLOR_MIGRATION.md) | Historical royal-purple → brand-blue accent change log + revert command (colour definition lives in [UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md) §5) | Design / maintainers |
 | [architecture/mvp-backend.md](./architecture/mvp-backend.md) | **Production authority**: Go Chi modular monolith over Supabase + MongoDB + Valkey (production runtime; contexts, endpoints, RLS) | Engineers / infra |
 | [architecture/monolith-breakdown.md](./architecture/monolith-breakdown.md) | **Refactor authority**: context → package → schema → scaling-service ownership, boundaries, extraction playbook | Engineers / infra |
 | [architecture/mobile-app.md](./architecture/mobile-app.md) | Deep dive: RN app internals (modules, state, nav, boundaries) | Engineers |

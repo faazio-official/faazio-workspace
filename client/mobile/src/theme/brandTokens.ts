@@ -101,7 +101,7 @@ export const brandTokens: Record<AppBrand, BrandTokens> = {
  * Four-role brand ramp
  * -------------------------------------------------------------------------
  * Every brand anchor is bright, so it can never carry white text. Measured
- * white-on-base: Mart 1.63, Pharma 2.49, Food 2.80, Parent 5.66. The anchor is
+ * white-on-base: Mart 1.63, Pharma 2.49, Food 2.80, Parent 5.49. The anchor is
  * therefore a FILL colour (icons, chips, badges, accents) and never a button
  * background under white text.
  *
@@ -177,14 +177,14 @@ export const brandRamp: Record<AppBrand, BrandRamp> = {
  * The Faazio parent brand. Not an `AppBrand` (it is the shell, not a sub-app),
  * so it lives beside the ramp rather than inside it.
  *
- * Parent blue is the one anchor that CAN carry white text (5.66), so `onBase`
+ * Parent blue is the one anchor that CAN carry white text (5.49), so `onBase`
  * is white here rather than ink. `baseLift` is unused by the parent today and
  * is provided only to keep the shape uniform.
  */
 export const parentRamp: BrandRamp = {
-  base: '#1162D3',
+  base: '#4250FF',
   onBase: '#FFFFFF',
-  baseLift: '#6499E2',
+  baseLift: '#848DFF',
   deep: '#08264E',
   onDeep: '#FFFFFF',
   pressed: '#051A35',
@@ -201,14 +201,15 @@ export const parentRamp: BrandRamp = {
  *
  * warning is #854D0E rather than #D97706 because #D97706 is dE 15.4 from the
  * Food anchor — a warning toast in Food would have looked like branding.
- * info is #4338CA rather than #2563EB because #2563EB is dE 13.9 from the
- * parent blue.
+ * info is #5B21B6 rather than a blue such as #2563EB because any blue sits
+ * within dE 20 of the parent Faazio Blue anchor (#4250FF); violet keeps info
+ * distinct from the brand.
  */
 export const semantic = {
   success: '#15803D',
   danger: '#B91C1C',
   warning: '#854D0E',
-  info: '#4338CA',
+  info: '#5B21B6',
   neutral: '#475569',
 } as const;
 

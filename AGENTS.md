@@ -38,8 +38,8 @@ Structured docs live under root `docs/` (mirrors the repo layout):
 docs/
 ├── README.md                       # index + reading order
 ├── DEVELOPER_ONBOARDING.md         # numbered getting-started guide
-├── UI_DESIGN_SYSTEM.md             # unslop: direction, 9 passes, tokens, theme contract, done checklist
-├── BRAND_COLOR_MIGRATION.md        # royal-purple → Faazio-blue change log + revert
+├── UI_DESIGN_SYSTEM.md             # unslop: direction, 9 passes, tokens, BRAND COLOUR SSOT, theme contract, done checklist
+├── BRAND_COLOR_MIGRATION.md        # historical royal-purple → brand-blue accent change log + revert (not the colour definition)
 ├── architecture/                   # deep-dives (mvp-backend, monolith-breakdown, mobile-app, web-portal, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
 ├── user-interaction-workflow/      # authoritative end-to-end flows per app (customer, seller, delivery, shared) + KNOWN_GAPS.md
 └── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, DATABASE_MIGRATIONS, FIREBASE_AUTH, PORTAL_AUTH, TROUBLESHOOTING)
@@ -58,7 +58,7 @@ Anyone doing UI work reads `docs/UI_DESIGN_SYSTEM.md` first.
 5. **Modularity** — small components under `src/components/`; screen helpers under their `src/features/<module>/`; shared widgets under `src/components/shared/`. Reuse before duplicating (avoid parallel mock copies).
 6. **Navigation** — all routes typed in `src/navigation/AppNavigator.tsx`; screens use `NativeStackScreenProps`.
 7. **Native permissions** — document in `android/app/src/main/AndroidManifest.xml` + the per-variant iOS plists (`ios/Faazio/Info.plist` customer, `Info-Delivery.plist`, `Info-Seller.plist`; selected by `INFOPLIST_FILE`) and gate with consent dialogs before hardware.
-8. **Brand** — always use the Faazio logo (`<FaazioLogo />`), never raw text placeholders.
+8. **Brand** — always use the Faazio logo (`<FaazioLogo />`), never raw text placeholders. The brand colour is **Faazio Blue**, defined once in `docs/UI_DESIGN_SYSTEM.md` §5 — reference it by document, never restate the hex in another file.
 9. **Layout** — full-viewport, non-scrollable (`h-[100dvh]`), no faux device borders/notches.
 10. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
 11. **Docs** — architecture deep-dives live in `docs/architecture/`, operational guides in `docs/RUNBOOKS/`; update `docs/README.md` and the "Documentation map" when adding docs.

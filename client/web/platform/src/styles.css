@@ -19,7 +19,8 @@
  * Faazio Partner Portal design system.
  *
  * One cool graphite ramp, Faazio blue as the only accent, figures in tabular
- * mono. Brand blue #1162D3, ink #0F172A, page bg #F6F8FB, success #059669,
+ * mono. Faazio Blue is defined once in `docs/UI_DESIGN_SYSTEM.md` §5; the code
+ * anchor is `--brand-blue`. Ink #0F172A, page bg #F6F8FB, success #059669,
  * warning #D97706, danger #DC2626. Sector colours (MART blue, FOOD green,
  * PHARMA coral) are semantic and appear only in sector labels and the sector
  * mix chart.
@@ -116,6 +117,10 @@
   color-scheme: light;
   --radius: 0.75rem;
 
+  /* Faazio Blue — the single brand anchor (docs/UI_DESIGN_SYSTEM.md §5).
+   * Every brand/accent token below derives from or references this value. */
+  --brand-blue: #4250ff;
+
   --background: oklch(0.976 0.004 250);
   --foreground: oklch(0.19 0.04 265);
   --card: oklch(1 0 0);
@@ -123,9 +128,9 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.19 0.04 265);
 
-  --primary: oklch(0.5 0.185 262);
+  --primary: var(--brand-blue);
   --primary-foreground: oklch(0.99 0 0);
-  --interactive: oklch(0.6 0.168 258);
+  --interactive: var(--brand-blue);
 
   --secondary: oklch(0.955 0.008 250);
   --secondary-foreground: oklch(0.19 0.04 265);
@@ -143,7 +148,7 @@
 
   --border: oklch(0.918 0.011 250);
   --input: oklch(0.66 0.02 258);
-  --ring: oklch(0.6 0.168 258);
+  --ring: var(--brand-blue);
   --overlay: oklch(0.19 0.04 265 / 0.4);
   --focus-on-ink: oklch(0.9 0.02 250);
 
@@ -161,20 +166,21 @@
   --ink-muted: oklch(0.68 0.022 258);
   --ink-border: oklch(0.28 0.035 263);
 
-  --mart: oklch(0.5 0.185 262);
+  --mart: var(--brand-blue);
   --food: oklch(0.5 0.15 148);
   --pharma: oklch(0.56 0.15 40);
 
   /* Data series: one accent leads, the rest are neutral steps of the ramp. */
-  --chart-1: oklch(0.5 0.185 262);
+  --chart-1: var(--brand-blue);
   --chart-2: oklch(0.52 0.02 258);
   --chart-3: oklch(0.68 0.018 258);
   --chart-4: oklch(0.8 0.014 258);
   --chart-5: oklch(0.89 0.011 258);
 
-  /* Seller console (vite reference) accents. Soft tints mix from the token so they stay
-   * theme-correct; `info` blue is new to the ramp and used only by seller chrome. */
-  --brand: oklch(0.6 0.22 20);
+  /* Seller console accents. `brand` is the Faazio Blue anchor (unified with the
+   * console accent); soft tints mix from the token so they stay theme-correct.
+   * `info` is a distinct semantic blue used only by seller chrome. */
+  --brand: var(--brand-blue);
   --brand-soft: color-mix(in oklab, var(--brand) 13%, var(--card));
   --info: oklch(0.52 0.17 255);
   --info-soft: color-mix(in oklab, var(--info) 13%, var(--card));
@@ -197,10 +203,11 @@
   --popover: oklch(0.262 0.017 265);
   --popover-foreground: oklch(0.96 0.004 250);
 
-  /* On dark, the accent lifts so it still clears 4.5:1 on the card surface. */
-  --primary: oklch(0.7 0.145 258);
+  /* On dark, the Faazio Blue anchor (#4250FF) lifts so it still clears 4.5:1 as
+   * text on the card surface; the anchor itself stays `--brand-blue`. */
+  --primary: oklch(0.72 0.16 271);
   --primary-foreground: oklch(0.18 0.02 265);
-  --interactive: oklch(0.76 0.13 258);
+  --interactive: oklch(0.78 0.13 271);
 
   --secondary: oklch(0.272 0.016 265);
   --secondary-foreground: oklch(0.96 0.004 250);
@@ -218,7 +225,7 @@
 
   --border: oklch(1 0 0 / 9%);
   --input: oklch(1 0 0 / 16%);
-  --ring: oklch(0.7 0.145 258);
+  --ring: oklch(0.72 0.16 271);
   --overlay: oklch(0.1 0.012 265 / 0.68);
   --focus-on-ink: oklch(0.9 0.02 250);
 
@@ -235,19 +242,20 @@
   --ink-muted: oklch(0.7 0.02 258);
   --ink-border: oklch(1 0 0 / 10%);
 
-  --mart: oklch(0.7 0.145 258);
+  --mart: oklch(0.72 0.16 271);
   --food: oklch(0.72 0.14 152);
   --pharma: oklch(0.72 0.13 45);
 
-  --chart-1: oklch(0.7 0.145 258);
+  --chart-1: oklch(0.72 0.16 271);
   --chart-2: oklch(0.74 0.02 258);
   --chart-3: oklch(0.6 0.018 258);
   --chart-4: oklch(0.46 0.016 258);
   --chart-5: oklch(0.36 0.014 258);
 
-  /* Seller console accents on dark: brand/info lift a step above the card surface; the nav pill
-   * stays a dark-but-visible step so the active tab (`bg-background/15`) still reads. */
-  --brand: oklch(0.72 0.18 22);
+  /* Seller console accents on dark: brand lifts the Faazio Blue anchor a step above the card
+   * surface so it stays readable; the nav pill stays a dark-but-visible step so the active tab
+   * (`bg-background/15`) still reads. */
+  --brand: oklch(0.72 0.16 271);
   --brand-soft: color-mix(in oklab, var(--brand) 18%, var(--card));
   --info: oklch(0.68 0.15 255);
   --info-soft: color-mix(in oklab, var(--info) 20%, var(--card));

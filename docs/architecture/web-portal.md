@@ -120,8 +120,9 @@ fields); the prescriptions queue is gated to PHARMA shops; rest of the chrome us
 nav/tiles instead of `UtensilsCrossed`).
 
 **Seller console reference redesign (phased).** The seller console is being ported to the visual language
-of `client/web/seller app vite reference` (restaurant partner app) — Figtree, coral `--brand` accent,
-softer success/info/warning tints, dark pill bottom nav, bottom Sheet interactions and inline SVG charts.
+of `client/web/seller app vite reference` (restaurant partner app) — Figtree, Faazio Blue `--brand`
+accent (unified with the console accent; see `docs/UI_DESIGN_SYSTEM.md` §5), softer
+success/info/warning tints, dark pill bottom nav, bottom Sheet interactions and inline SVG charts.
 The seller-only token/utility layer lives at the bottom of `src/styles.css` (`.font-seller`, `bg-promo`,
 `bg-info-gradient`, `no-scrollbar`, `animate-sheet`, `animate-fade`, `--color-brand/-soft`,
 `--color-info/-soft`, `--color-success-soft`, `--color-warning-soft`, `--color-nav`, `--color-nav-foreground`,
@@ -757,11 +758,11 @@ The marketing landing page (`client/web/landingpage/`) keeps its own design
 system in `src/styles.css` (Tailwind v4 `@theme inline`), deliberately stripped
 to a **single brand accent**:
 
-- **Faazio Blue** `oklch(0.521 0.189 258.9)` (exactly `#1162D3` — the hex the
-  mobile app and both `theme-color` metas use) as `--brand` / `--primary`, plus
-  a soft tint `--brand-soft: oklch(0.95 0.045 258.9)` for subtle fills. The old
+- **Brand accent** resolves to the Faazio Blue anchor `--brand-blue` (see
+  `docs/UI_DESIGN_SYSTEM.md` §5) as `--brand` / `--primary`, plus a soft
+  `--brand-soft` tint for subtle fills. The old
   per-sector accents (green CTA, food orange, pharma teal, donor amber) were
-  removed; every section renders on brand blue + neutrals.
+  removed; every section renders on the brand accent + neutrals.
 - **Display type**: `Instrument Serif` for headings (`--font-display`);
   **body**: `Instrument Sans` (`--font-sans`); figures in `IBM Plex Mono`
   (`--font-mono`). All load via Google Fonts in `src/routes/__root.tsx`.
@@ -819,7 +820,7 @@ Readiness config that ships with the app:
   `app/layout.tsx` `metadata.icons` (cache-busting `?v=4` for the ico,
   `?v=3` for the rest, mirroring the landing page's `?v=3`) +
   `metadata.manifest` (`/site.webmanifest`), plus
-  `viewport.themeColor` (`#1162D3`). The non-ico PNG raster set is regenerated
+  `viewport.themeColor` (the brand accent — see `docs/UI_DESIGN_SYSTEM.md` §5). The non-ico PNG raster set is regenerated
   from the
   canonical mobile knot PNG (`client/mobile/src/assets/faazio-logo.png`) by
   `scripts/generate-brand-icons.py` (dev-only, python3 + Pillow); and

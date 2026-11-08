@@ -394,7 +394,7 @@ sub-app header) opens `CategoryDrillInScreen` (route `CategoryDrillIn`, params `
 **flat, unbounded pill rail** of every sub-category title (`CategoryTitleRail` — first auto-selected;
 inactive chips transparent with dark text, the active one filled with the **Faazio-blue** page
 accent; no grouping). The page is a brand
-surface, so it uses `#1162D3` rather than the per-app `MART_ACCENT`/`PHARMA_ACCENT`. For the selected
+surface, so it uses the brand accent (see `docs/UI_DESIGN_SYSTEM.md` §5) rather than the per-app `MART_ACCENT`/`PHARMA_ACCENT`. For the selected
 title it renders a **store-grouped body**: the paid **`CATEGORY_TOP` hero carousel** (ad-server fill;
 AD-labelled, tap → its server-resolved product/store; collapses when unfilled), then one
 `StoreProductSection` per matching store — a **store-name heading** (tap → vendor page; rating ·
@@ -539,7 +539,8 @@ through `useHomeFeed` → `GatewayClient.getHomeFeed` (`GET /sdui/home`); the ol
   `SPLASH_MIN_DISPLAY_MS` (a floor, not a ceiling), so a hydration stall keeps the splash up
   rather than falling through to the app.
 - **Branded splash minimum** — the cold-start splash (`SplashFallback` `royal` variant) shows the
-  wide `logo.png` centered on Faazio blue (`#4250FF`) with no spinner, and stays up for at least
+  wide `logo.png` centered on Faazio blue (the canonical brand colour — see
+  `docs/UI_DESIGN_SYSTEM.md` §5) with no spinner, and stays up for at least
   `SPLASH_MIN_DISPLAY_MS` (5 s) via `App.tsx` before the app UI renders.
 - **Splash assets** — the three layers (Android native, iOS native, JS fallback) all render
   `src/assets/logo.png`. Native copies are generated, never hand-edited:
@@ -555,8 +556,8 @@ through `useHomeFeed` → `GatewayClient.getHomeFeed` (`GET /sdui/home`); the ol
     constraints Auto Layout uses the asset's *intrinsic* size. The iOS splash now mirrors Android:
     the imageset carries the same square 288dp canvas at 1x/2x/3x (288/576/864 px, mapped to
     Android mdpi/xhdpi/xxhdpi), and the storyboard carries an explicit `width = 200` plus a
-    `width:height = 1.0` square constraint. All three iOS apps share the `#4250FF` splash
-    background.
+    `width:height = 1.0` square constraint. All three iOS apps share the Faazio Blue splash
+    background (see `docs/UI_DESIGN_SYSTEM.md` §5).
   The source PNG is opaque RGB with a non-flat blue field, so the script keys the field out to
   transparency (luma key with a dead zone) and keeps only the white wordmark. That makes the
   native assets background-independent on both platforms.

@@ -21,6 +21,10 @@ only this product could have.
 | `client/web/landingpage` | TanStack Start + Nitro | Tailwind v4 | `src/styles.css` |
 | `client/mobile` | Bare React Native 0.86 | `StyleSheet.create` | `src/theme/*` |
 
+This doc is also the **single source of truth for the brand colour** —
+**Faazio Blue `#4250FF`**, defined in §5 (Brand colour). Other docs and
+`AGENTS.md` files reference that section; they do not define their own hex.
+
 Where this doc disagrees with a surface's own `AGENTS.md`, the nearer file wins
 for that surface. Where it disagrees with a hard rule in root `AGENTS.md`
 (brand logo, full-viewport mobile layout, boundaries), root `AGENTS.md` wins.
@@ -333,6 +337,26 @@ same layout, type and palette.
 
 Starting values. When the project already has a good system, **keep its values
 and only fix how they are used.**
+
+### Brand colour — single source of truth
+**Faazio Blue = `#4250FF`.** This is the only definition of the brand colour;
+every other doc, `AGENTS.md` and surface README must point here instead of
+restating a hex.
+
+- Used as the brand identity colour: splash background (Android/iOS/JS fallback),
+  app icon plate, `theme-color` and the seeded `brand.primary_color`
+  (`server/supabase/migrations/0059_app_config.sql`).
+- The interactive UI accent resolves to the same value: mobile
+  `parentRamp.base` (`client/mobile/src/theme/brandTokens.ts`) and web
+  `--brand-blue` (`client/web/platform/src/styles.css`,
+  `client/web/landingpage/src/styles.css`,
+  `client/web/vite-reference/src/styles.css`) are all `#4250FF`. Data/SDUI
+  accents (`data/*`, `server/supabase/seed/mongo/*`) use the same value.
+  Dark themes lift the anchor for text contrast (web `oklch(0.72 0.16 271)`,
+  mobile keeps its `deep`/`pressed` companions); those are derived shades of the
+  same brand, not a second brand colour.
+- Historical accent changes are logged in `docs/BRAND_COLOR_MIGRATION.md`; that
+  file is a change log, not the definition.
 
 ### Spacing scale
 `4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128`

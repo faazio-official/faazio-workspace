@@ -14,7 +14,8 @@ Direction: a neighbourhood storefront, not a SaaS launch. Grounded, warm and
 unhurried; the world is a shop counter (paper, cardboard, produce crates,
 daylight), so the neutrals are warm rather than blue-grey.
 
-- **One accent, never a surface.** Faazio Blue (`--brand`) is the accent and
+- **One accent, never a surface.** Faazio Blue (`--brand`, defined in
+  `docs/UI_DESIGN_SYSTEM.md` §5) is the accent and
   appears on the primary action, links and the sector dots. No section is
   filled with it. The four stacked colour slabs (blue, blue, pink, blue) that
   the page used to have are gone; sections now step between `--background` and

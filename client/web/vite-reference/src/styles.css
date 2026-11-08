@@ -6,8 +6,9 @@
 
 /*
  * Faazio Partner Portal design system.
- * Brand blue #1162D3, interactive #2F80ED, ink #0F172A, page bg #F6F8FB,
- * hairline #E2E8F0, success #059669, warning #D97706, danger #DC2626.
+ * Faazio Blue defined once in `docs/UI_DESIGN_SYSTEM.md` §5; code anchor
+ * `--brand-blue`. Ink #0F172A, page bg #F6F8FB, hairline #E2E8F0,
+ * success #059669, warning #D97706, danger #DC2626.
  * Sector accents: MART blue, FOOD green #16A34A, PHARMA coral #FF7A59.
  * All values oklch. Add new tokens in :root AND register in @theme inline.
  */
@@ -72,6 +73,9 @@
 :root {
   --radius: 0.75rem;
 
+  /* Faazio Blue — the single brand anchor (docs/UI_DESIGN_SYSTEM.md §5). */
+  --brand-blue: #4250ff;
+
   --background: oklch(0.976 0.004 250);
   --foreground: oklch(0.19 0.04 265);
   --card: oklch(1 0 0);
@@ -79,9 +83,9 @@
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.19 0.04 265);
 
-  --primary: oklch(0.5 0.185 262);
+  --primary: var(--brand-blue);
   --primary-foreground: oklch(0.99 0 0);
-  --interactive: oklch(0.6 0.168 258);
+  --interactive: var(--brand-blue);
 
   --secondary: oklch(0.955 0.008 250);
   --secondary-foreground: oklch(0.19 0.04 265);
@@ -99,18 +103,18 @@
 
   --border: oklch(0.918 0.011 250);
   --input: oklch(0.918 0.011 250);
-  --ring: oklch(0.6 0.168 258);
+  --ring: var(--brand-blue);
 
   --ink: oklch(0.19 0.04 265);
   --ink-foreground: oklch(0.97 0.005 250);
   --ink-muted: oklch(0.68 0.022 258);
   --ink-border: oklch(0.28 0.035 263);
 
-  --mart: oklch(0.5 0.185 262);
+  --mart: var(--brand-blue);
   --food: oklch(0.6 0.161 148);
   --pharma: oklch(0.72 0.153 40);
 
-  --chart-1: oklch(0.5 0.185 262);
+  --chart-1: var(--brand-blue);
   --chart-2: oklch(0.6 0.161 148);
   --chart-3: oklch(0.72 0.153 40);
   --chart-4: oklch(0.66 0.152 62);

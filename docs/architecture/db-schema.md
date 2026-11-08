@@ -709,6 +709,8 @@ public output exposes `user_name`, `rating`, `comment` only. Moderation queries 
 The Home feed is stored as **ID-only** documents — every leaf references `catalog.products` /
 `directory.stores` ids rather than embedding product data (exactly the `SduiSection` design in
 `data/home/sdui.ts`). The Go gateway compiles these into `SDUINode` trees.
+Brand-accent `accent` values below use the placeholder `brand-accent`; the colour
+itself is the Faazio Blue token defined in `docs/UI_DESIGN_SYSTEM.md` §5.
 
 ```js
 // Mongo collection: sdui_layouts
@@ -732,7 +734,7 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
     { id: 'pharmaEssentials', title: 'Health Essentials', accent: '#0E7490',
       productIds: ['ph-cal3','ph-dig4','ph-per2','ph-per3','ph-ayur2'] },    // Pharma essentials rail
     { id: 'adBanner', title: 'Offers', accent: '#111827', productIds: [], storeIds: [] },
-    { id: 'hotBrandDeals', title: 'Deals of the day', accent: '#1162D3',
+    { id: 'hotBrandDeals', title: 'Deals of the day', accent: 'brand-accent',
       productIds: ['hbd-1','hbd-2','hbd-3','hbd-4','hbd-5'],
       campaigns: [{ id: 'camp-darling-mobiles', storeId: 'store-m1',
                     productIds: ['fm-m1','fm-m2'], carousel: 1 }] },         // editorial vendor campaigns
@@ -740,7 +742,7 @@ The Home feed is stored as **ID-only** documents — every leaf references `cata
       productIds: ['md-1','md-2','md-3','md-4','md-5','md-6'] },
     { id: 'martEssentials', title: 'Daily Essentials', accent: '#0F766E',
       productIds: ['gr-p3','gr-p4','gr-p5','gr-p6','gr-p7'] },             // Mart essentials rail
-    { id: 'mens', title: 'Men', accent: '#1162D3',
+    { id: 'mens', title: 'Men', accent: 'brand-accent',
       productIds: ['men-1','men-2','men-3','men-4','men-5','men-6'] },
     { id: 'filterFeed', title: 'Filter Feed', accent: '#8B5CF6', productIds: [], chips: [...] }
   ],
