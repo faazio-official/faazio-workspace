@@ -36,7 +36,14 @@ function OutletInfo() {
 
   return (
     <>
-      <PageHeader title="Outlet info" right={<span className="text-[10px] text-muted-foreground">ID: {activeStore.storeId}</span>} />
+      <PageHeader
+        title="Outlet info"
+        right={
+          <span className="max-w-[35%] truncate text-[10px] text-muted-foreground">
+            ID: {activeStore.storeId}
+          </span>
+        }
+      />
       <div className="space-y-3 px-4 pt-3 pb-10">
         <Card>
           <div className="flex items-start justify-between gap-2">
@@ -78,7 +85,7 @@ function OutletInfo() {
               <p key={r.label} className="flex items-center gap-1.5 text-sm">
                 <r.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <span className="text-xs text-muted-foreground">{r.label}</span>
-                <span className="ml-auto text-right text-sm font-medium">{r.value}</span>
+                <span className="ml-auto max-w-[55%] truncate text-right text-sm font-medium">{r.value}</span>
               </p>
             ))}
           </div>

@@ -35,6 +35,27 @@
 - All console reads/writes → gateway endpoints listed in the seller/catalog/orders docs.
 - No bundled demo rows; a disconnected gateway yields an empty state, not fixtures.
 
+## Mobile layout contract
+
+- Below `md` the seller content is **fluid full-width** (the old 430px centred strip left dead
+  gutters on tablets/landscape); at `md` it switches to the persistent `SellerDesktopShell` sidebar
+  beside a `max-w-[1024px]` column. The floating bottom nav is `md:hidden` and stays a centred
+  `max-w-[430px]` dock.
+- Mobile type is **not** the 13px desktop root: `html:has(.font-seller)` raises the root to 16px
+  below `md` (admin routes keep 13px). Fields stay pinned to 16px to prevent iOS focus auto-zoom.
+- `--seller-nav-gap` + `--seller-nav-h` (`src/styles.css`) are the single source of truth for the
+  nav height/gap; the nav carries `h-[var(--seller-nav-h)]`, and `main` bottom padding + every
+  fixed action bar/FAB derive from them plus `env(safe-area-inset-bottom)`.
+- The bottom nav is hidden on `/seller/explore` (that page is the navigation itself).
+- All fixed action bars use the shared `FixedActionBar` (`src/components/sellers/kit.tsx`), which
+  also aligns to the content column (right of the sidebar) at `md` and sits at `z-40`.
+- `Sheet` uses `88dvh`, respects the bottom safe area, and is offset by the sidebar at `md`.
+- Sticky headers (`HubHeader`, `OrdersTopBar`, `PageHeader`, order-history) respect
+  `env(safe-area-inset-top)`. `PageHeader` always ends with an Explore escape (except on Explore
+  itself), so no detail/settings page is a mobile dead end.
+- Settings' `UnderlineTabs` wrap instead of hiding tabs in a scroll row.
+- Hub-mode tab bar includes `/seller/onboarding`; landscape phones ≥ `md` get the desktop sidebar.
+
 ## Success / error / empty
 
 - **Success:** role home renders live data.

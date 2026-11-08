@@ -4,7 +4,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Trash2 } from "lucide-react";
-import { PageHeader, Card, Sheet, TextField, Toggle, EmptyState } from "@/components/sellers/kit";
+import { PageHeader, Card, Sheet, TextField, Toggle, EmptyState, FixedActionBar } from "@/components/sellers/kit";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { deleteProduct, saveProductImage, updateProduct, upsertPrice } from "@/lib/api";
 import { useProduct } from "@/lib/api/hooks";
@@ -36,16 +36,18 @@ function EditProduct() {
 
   if (!product) {
     return (
-      <div className="px-4 pt-4">
+      <>
         <PageHeader title="Product" />
-        <EmptyState text="This listing may have been deleted by an admin" />
-        <Link
-          href="/seller/products"
-          className="block text-center text-sm font-semibold text-info"
-        >
-          Back to products
-        </Link>
-      </div>
+        <div className="px-4 pt-4">
+          <EmptyState text="This listing may have been deleted by an admin" />
+          <Link
+            href="/seller/products"
+            className="block text-center text-sm font-semibold text-info"
+          >
+            Back to products
+          </Link>
+        </div>
+      </>
     );
   }
 
@@ -140,7 +142,7 @@ function EditProduct() {
         </Card>
       </div>
 
-      <div className="fixed bottom-[76px] left-1/2 flex w-full max-w-[430px] -translate-x-1/2 gap-2 border-t border-border bg-card p-3 md:bottom-0 md:max-w-[1024px]">
+      <FixedActionBar>
         <button
           onClick={() => setConfirmDelete(true)}
           className="flex items-center justify-center gap-2 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-brand"
@@ -167,7 +169,7 @@ function EditProduct() {
         >
           Save changes
         </button>
-      </div>
+      </FixedActionBar>
 
       <Sheet
         open={confirmDelete}

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { PageHeader, Card, Sheet, RadioRow, TextField, Toggle, EmptyState } from "@/components/sellers/kit";
+import { PageHeader, Card, Sheet, RadioRow, TextField, Toggle, EmptyState, FixedActionBar } from "@/components/sellers/kit";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { createProduct, updateStock } from "@/lib/api";
 import { useSellerScope, useTaxCategories } from "@/lib/api/hooks";
@@ -268,7 +268,7 @@ function NewProduct() {
 
         {step === 4 && (
           <Card>
-            <div className="mb-3 flex gap-2">
+            <div className="mb-3 flex flex-wrap gap-2">
               {images.map((src, index) => (
                 <img
                   key={index}
@@ -307,7 +307,7 @@ function NewProduct() {
         )}
       </div>
 
-      <div className="fixed bottom-[76px] left-1/2 flex w-full max-w-[430px] -translate-x-1/2 gap-2 border-t border-border bg-card p-3 md:bottom-0 md:max-w-[1024px]">
+      <FixedActionBar>
         <button
           disabled={step === 0}
           onClick={() => setStep((s) => Math.max(0, s - 1))}
@@ -332,7 +332,7 @@ function NewProduct() {
             {submitting ? "Submitting..." : "Submit for review"}
           </button>
         )}
-      </div>
+      </FixedActionBar>
 
       <Sheet open={storePicker} onClose={() => setStorePicker(false)} title="Store">
         {stores.map((s) => (

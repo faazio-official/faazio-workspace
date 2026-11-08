@@ -64,7 +64,10 @@ export function Providers({ children }: { children: ReactNode }) {
           <OfflineGuard>{children}</OfflineGuard>
         </TooltipProvider>
         <SeedModeBanner />
-        <Toaster position="top-right" />
+        {/* On phones the sticky seller headers sit at the top with a safe-area
+            inset; push toasts below them so they never cover the header or the
+            notch. Desktop keeps the compact 16px edge offset. */}
+        <Toaster position="top-right" mobileOffset={{ top: "calc(env(safe-area-inset-top) + 4rem)" }} />
       </QueryClientProvider>
     </ThemeProvider>
   );

@@ -322,7 +322,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
       )}
 
       {step === 2 && (
-        <div className="grid gap-5 md:grid-cols-[1fr_320px]">
+        <div className="grid gap-5 xl:grid-cols-[1fr_320px]">
           <div className="space-y-4">
             <div className="space-y-1.5">
               <Label>Title (max 40)</Label>

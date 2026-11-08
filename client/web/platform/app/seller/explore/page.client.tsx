@@ -136,18 +136,18 @@ function Explore() {
         {filtered.map((s) => (
           <section key={s.title} className="border-b border-border py-4 last:border-0">
             <h2 className="mb-3 text-sm font-bold">{s.title}</h2>
-            <div className="grid grid-cols-4 gap-y-4">
+            <div className="grid grid-cols-4 gap-y-4 min-[520px]:grid-cols-6">
               {s.tiles.map((t) => (
                 <Link key={t.to} href={t.to} className="flex flex-col items-center">
                   <span className="relative flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-card shadow-sm">
                     <t.icon className="h-5 w-5" strokeWidth={1.6} />
                   </span>
-                  <span className="mt-1.5 text-center text-[10px] leading-tight text-muted-foreground">
+                  <span className="mt-1.5 text-center text-[11px] leading-tight text-muted-foreground">
                     {t.label}
                   </span>
                   {t.badge && (
                     <span
-                      className={`mt-0.5 rounded px-1 text-[8px] font-bold text-primary-foreground ${
+                      className={`mt-0.5 rounded px-1 text-[10px] font-bold text-primary-foreground ${
                         t.badge === "ON" ? "bg-success" : "bg-brand"
                       }`}
                     >

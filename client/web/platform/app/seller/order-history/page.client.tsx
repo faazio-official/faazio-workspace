@@ -35,7 +35,7 @@ function OrderHistory() {
 
   return (
     <>
-      <header className="sticky top-0 z-30 flex items-center gap-2 bg-card px-4 py-3">
+      <header className="sticky top-0 z-30 flex items-center gap-2 bg-card px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <button
           aria-label="Back"
           onClick={() => router.back()}
@@ -96,7 +96,7 @@ function OrderHistory() {
                 )}
               </div>
               <div className="mt-2 flex justify-between text-sm">
-                <b className="truncate">ID: {o.orderId}</b>
+                <b className="min-w-0 truncate">ID: {o.orderId}</b>
                 <span className="ml-2 shrink-0 text-[11px] text-muted-foreground">
                   {formatDateTime(o.placedAt)}
                 </span>

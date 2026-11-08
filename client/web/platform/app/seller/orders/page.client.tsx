@@ -193,12 +193,12 @@ function SellerOrders() {
                     <span className="block truncate font-semibold">#{o.orderId}</span>
                     <span className="block text-[11px] text-muted-foreground">{o.customerName}</span>
                   </span>
-                  <span className="flex items-center gap-3">
-                    <span className="text-[11px] text-muted-foreground">
+                  <span className="flex min-w-0 items-center gap-3">
+                    <span className="truncate text-[11px] text-muted-foreground">
                       {o.status === "CANCELLED" ? "Cancelled" : "Returned"} · {formatINR(o.amountPaisa)}
                     </span>
                     <span
-                      className={`rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
+                      className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${
                         o.status === "CANCELLED"
                           ? "bg-warning-soft text-warning"
                           : "bg-brand-soft text-brand"
@@ -236,10 +236,10 @@ function SellerOrders() {
               href={`/seller/orders/${encodeURIComponent(o.orderId)}`}
               className="flex justify-between rounded-xl border border-border p-3 text-sm"
             >
-              <span>
+              <span className="min-w-0 truncate">
                 #{o.orderId} • {o.customerName}
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="shrink-0 pl-2 text-xs text-muted-foreground">
                 {orderStatusLabel(o.status, sector)}
               </span>
             </Link>

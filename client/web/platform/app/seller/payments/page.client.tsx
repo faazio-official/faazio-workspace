@@ -262,18 +262,18 @@ function SellerPayments() {
                   </p>
                 </div>
               </div>
-              <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                <div>
+              <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
+                <div className="min-w-0">
                   <p className="text-muted-foreground">TCS collected</p>
-                  <b className="text-brand">−{formatINR(tcs)}</b>
+                  <b className="break-words text-brand">−{formatINR(tcs)}</b>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-muted-foreground">TDS deducted</p>
-                  <b className="text-brand">−{formatINR(tds)}</b>
+                  <b className="break-words text-brand">−{formatINR(tds)}</b>
                 </div>
-                <div>
+                <div className="min-w-0">
                   <p className="text-muted-foreground">Product GST</p>
-                  <b>{formatINR(productTax)}</b>
+                  <b className="break-words">{formatINR(productTax)}</b>
                 </div>
               </div>
             </Card>

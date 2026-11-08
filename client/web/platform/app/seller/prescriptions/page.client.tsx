@@ -237,7 +237,7 @@ function SellerPrescriptions() {
                       key={img.objectPath}
                       src={img.url}
                       alt="Prescription scan"
-                      className="h-28 w-24 rounded-lg border border-border object-cover"
+                      className="h-28 w-24 rounded-lg border border-border bg-muted object-contain"
                     />
                   ))}
                 </div>
@@ -260,50 +260,54 @@ function SellerPrescriptions() {
               </div>
               <div className="mt-2 space-y-2">
                 {draft.map((row, i) => (
-                  <div key={i} className="grid grid-cols-12 gap-1.5">
-                    <input
-                      placeholder="Item"
-                      value={row.name}
-                      onChange={(e) => setRow(i, { name: e.target.value })}
-                      className={cn(inputCls, "col-span-4")}
-                    />
-                    <input
-                      placeholder="Qty"
-                      inputMode="numeric"
-                      value={row.qty}
-                      onChange={(e) => setRow(i, { qty: e.target.value })}
-                      className={cn(inputCls, "col-span-1")}
-                    />
-                    <input
-                      placeholder="MRP"
-                      inputMode="decimal"
-                      value={row.mrp}
-                      onChange={(e) => setRow(i, { mrp: e.target.value })}
-                      className={cn(inputCls, "col-span-2")}
-                    />
-                    <input
-                      placeholder="Price"
-                      inputMode="decimal"
-                      value={row.price}
-                      onChange={(e) => setRow(i, { price: e.target.value })}
-                      className={cn(inputCls, "col-span-2")}
-                    />
-                    <input
-                      placeholder="Disc ₹"
-                      inputMode="decimal"
-                      value={row.discount}
-                      onChange={(e) => setRow(i, { discount: e.target.value })}
-                      className={cn(inputCls, "col-span-2")}
-                    />
-                    <button
-                      aria-label="Remove item"
-                      onClick={() =>
-                        setDraft((r) => (r.length > 1 ? r.filter((_, j) => j !== i) : [emptyRow()]))
-                      }
-                      className="col-span-1 flex items-center justify-center rounded-lg text-brand"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
+                  <div key={i} className="rounded-xl border border-border bg-card p-2">
+                    <div className="flex items-center gap-1.5">
+                      <input
+                        placeholder="Item name"
+                        value={row.name}
+                        onChange={(e) => setRow(i, { name: e.target.value })}
+                        className={cn(inputCls, "min-w-0 flex-1")}
+                      />
+                      <button
+                        aria-label="Remove item"
+                        onClick={() =>
+                          setDraft((r) => (r.length > 1 ? r.filter((_, j) => j !== i) : [emptyRow()]))
+                        }
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-brand"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div className="mt-1.5 grid grid-cols-4 gap-1.5">
+                      <input
+                        placeholder="Qty"
+                        inputMode="numeric"
+                        value={row.qty}
+                        onChange={(e) => setRow(i, { qty: e.target.value })}
+                        className={inputCls}
+                      />
+                      <input
+                        placeholder="MRP"
+                        inputMode="decimal"
+                        value={row.mrp}
+                        onChange={(e) => setRow(i, { mrp: e.target.value })}
+                        className={inputCls}
+                      />
+                      <input
+                        placeholder="Price"
+                        inputMode="decimal"
+                        value={row.price}
+                        onChange={(e) => setRow(i, { price: e.target.value })}
+                        className={inputCls}
+                      />
+                      <input
+                        placeholder="Disc ₹"
+                        inputMode="decimal"
+                        value={row.discount}
+                        onChange={(e) => setRow(i, { discount: e.target.value })}
+                        className={inputCls}
+                      />
+                    </div>
                   </div>
                 ))}
               </div>

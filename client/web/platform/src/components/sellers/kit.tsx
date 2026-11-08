@@ -3,8 +3,9 @@
 // reference/src/components/app/kit.tsx). Only consumer is @/components/sellers + app/seller/*.
 // Money note: the portal stores integer paisa everywhere; `inr()` here mirrors the reference and
 // takes RUPEE float — pages convert paisa with `paisa / 100` or use formatINR() instead.
-import { useRouter } from "next/navigation";
-import { ArrowLeft, Package, X } from "lucide-react";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { ArrowLeft, Menu as MenuIcon, Package, X } from "lucide-react";
 import type { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { sectorChip, sectorLabel } from "@/lib/sector";
@@ -59,9 +60,9 @@ export function Sheet({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex justify-center">
+    <div className="fixed inset-0 z-50 flex justify-center md:left-60">
       <div className="absolute inset-0 animate-fade bg-foreground/50" onClick={onClose} />
-      <div className="relative mt-auto flex max-h-[88vh] w-full max-w-[430px] flex-col">
+      <div className="relative mt-auto flex max-h-[88dvh] w-full max-w-[430px] flex-col">
         <button
           onClick={onClose}
           aria-label="Close"
@@ -72,9 +73,39 @@ export function Sheet({
         <div className="animate-sheet flex min-h-0 flex-col rounded-t-3xl bg-card">
           {title && <h3 className="px-5 pt-5 text-lg font-bold">{title}</h3>}
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">{children}</div>
-          {footer && <div className="border-t border-border px-5 py-3">{footer}</div>}
+          {footer && (
+            <div className="border-t border-border px-5 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3">
+              {footer}
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Fixed bottom action bar for seller flows. Owns the safe-area + floating-nav
+ * offset so pages never hard-code `bottom-[76px]`. On ≥ md it aligns with the
+ * content column (right of the sidebar) instead of centring on the viewport.
+ */
+export function FixedActionBar({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        "fixed z-40 flex w-full gap-2 border-t border-border bg-card p-3",
+        "bottom-[calc(var(--seller-nav-gap)+var(--seller-nav-h)+env(safe-area-inset-bottom))] left-1/2 -translate-x-1/2",
+        "md:bottom-0 md:left-[calc(50%+7.5rem)] md:w-[min(1024px,calc(100vw-15rem))] md:max-w-[1024px] md:pb-3",
+        className,
+      )}
+    >
+      {children}
     </div>
   );
 }
@@ -91,24 +122,34 @@ export function PageHeader({
   onBack?: () => void;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   return (
-    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-card px-4 py-3">
+    <header className="sticky top-0 z-30 flex items-center gap-3 border-b border-border bg-card px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
       <button
         aria-label="Back"
         onClick={onBack ?? (() => router.back())}
-        className="-ml-1 rounded-full p-1 hover:bg-muted"
+        className="-ml-1 shrink-0 rounded-full p-1 hover:bg-muted"
       >
         <ArrowLeft className="h-5 w-5" />
       </button>
       <div className="min-w-0 flex-1">
         {sub && (
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+          <p className="truncate text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
             {sub}
           </p>
         )}
         <h1 className="truncate text-base font-bold">{title}</h1>
       </div>
       {right}
+      {pathname === "/seller/explore" ? null : (
+        <Link
+          href="/seller/explore"
+          aria-label="Explore more"
+          className="shrink-0 rounded-full p-1.5 hover:bg-muted"
+        >
+          <MenuIcon className="h-5 w-5" />
+        </Link>
+      )}
     </header>
   );
 }
@@ -162,13 +203,13 @@ export function UnderlineTabs<T extends string>({
   onChange: (v: T) => void;
 }) {
   return (
-    <div className="flex border-b border-border bg-card">
+    <div className="flex flex-wrap border-b border-border bg-card">
       {tabs.map((t) => (
         <button
           key={t.key}
           onClick={() => onChange(t.key)}
           className={cn(
-            "flex-1 border-b-2 py-2.5 text-sm font-semibold transition-colors",
+            "shrink-0 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-semibold transition-colors",
             value === t.key
               ? "border-info text-info"
               : "border-transparent text-muted-foreground",
@@ -345,7 +386,7 @@ export function TextField({
         placeholder={placeholder}
         disabled={disabled}
         onChange={(e) => onChange(e.target.value)}
-        className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm outline-none focus:border-info disabled:opacity-50"
+        className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-[16px] outline-none focus:border-info disabled:opacity-50 md:text-sm"
       />
     </label>
   );

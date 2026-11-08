@@ -83,7 +83,7 @@ function SellerSupport() {
                 >
                   {ticket.status}
                 </span>
-                <span className="ml-auto text-[10px] text-muted-foreground">
+                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground">
                   {formatDateTime(ticket.createdAt)}
                 </span>
               </div>

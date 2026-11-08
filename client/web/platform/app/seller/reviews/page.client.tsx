@@ -63,14 +63,14 @@ function SellerReviews() {
             <span className="rounded-md bg-success px-1.5 py-0.5 text-xs font-bold text-primary-foreground">
               {average.toFixed(1)}★
             </span>
-            <span className="flex-1 text-xs">
+            <span className="min-w-0 flex-1 text-xs">
               <b>
                 {average.toFixed(1)} average {reviews.length > 0 && `• ${reviews.length} ratings`}
               </b>
               <br />
               <span className="text-muted-foreground">From shop ratings and reviews</span>
             </span>
-            <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+            <span className="hidden shrink-0 items-center gap-1 text-[10px] text-muted-foreground min-[400px]:flex">
               {breakdown.map((row) => (
                 <span key={row.star} className="flex items-center gap-0.5">
                   {row.star}

@@ -31,20 +31,6 @@ import { SellerDesktopShell } from "@/components/sellers/desktop-shell";
 import { StoreSwitcher } from "@/components/sellers/StoreSwitcher";
 import { sectorLabel } from "@/lib/sector";
 
-/** Centered app column. Mobile = 430px; desktop = wider so the expanded view can use side-by-side grids. */
-export function MobileFrame({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div
-      className={cn(
-        "relative mx-auto min-h-[100dvh] w-full max-w-[430px] bg-background shadow-xl md:max-w-[1024px]",
-        className,
-      )}
-    >
-      {children}
-    </div>
-  );
-}
-
 type NavItem = { to: string; label: string; icon: typeof ClipboardList };
 
 /** Orders-mode tab bar (reference OrdersShell). */
@@ -78,6 +64,7 @@ const HUB_MODE_PATHS = [
   "/seller/menus",
   "/seller/notifications",
   "/seller/outlet-info",
+  "/seller/onboarding",
 ];
 
 export function sellerNavMode(pathname: string): "orders" | "hub" {
@@ -127,7 +114,7 @@ export function SellerBottomNav({
   return (
     <nav
       className={cn(
-        "fixed bottom-3 left-1/2 z-40 flex w-full max-w-[430px] -translate-x-1/2 items-center gap-2 px-3",
+        "fixed bottom-[calc(var(--seller-nav-gap)+env(safe-area-inset-bottom))] left-1/2 z-40 flex h-[var(--seller-nav-h)] w-full max-w-[430px] -translate-x-1/2 items-center gap-2 px-3",
         className,
       )}
     >
@@ -144,7 +131,7 @@ export function SellerBottomNav({
               key={item.to}
               href={item.to}
               className={cn(
-                "flex flex-1 flex-col items-center rounded-full px-2 py-1.5 text-[10px] font-semibold transition-colors",
+                "flex flex-1 flex-col items-center rounded-full px-1 py-1.5 text-[10px] font-semibold transition-colors",
                 active ? "bg-background/15 text-background" : "text-nav-foreground",
               )}
             >
@@ -220,7 +207,7 @@ export function HubHeader({
   sticky?: ReactNode;
 }) {
   return (
-    <header className="sticky top-0 z-30 bg-card px-4 pb-2 pt-3">
+    <header className="sticky top-0 z-30 bg-card px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
       <div className="flex items-center gap-2">
         <OutletHeader showData />
         {actions}
@@ -243,7 +230,7 @@ export function OrdersTopBar({ extra }: { extra?: ReactNode }) {
   const { activeStore } = useActiveStore();
   const area = activeStore ? (activeStore.address ?? sectorLabel(activeStore.sector)) : "Seller console";
   return (
-    <header className="sticky top-0 z-30 bg-card px-4 pb-2 pt-3">
+    <header className="sticky top-0 z-30 bg-card px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
       <div className="flex items-center gap-2">
         <StoreSwitcher>
           <span className="block truncate text-[15px] font-bold">{activeStore?.name ?? "Your shop"}</span>
@@ -337,17 +324,19 @@ export function SellerAppShell({ children }: { children: ReactNode }) {
       <div className="font-seller flex min-h-[100dvh] bg-background">
         <SellerDesktopShell />
         <div className="flex min-w-0 flex-1 flex-col">
-          <main className="relative mx-auto w-full max-w-[430px] flex-1 pb-28 md:max-w-[1024px] md:pb-10">
+          <main className="relative mx-auto w-full flex-1 pb-[calc(var(--seller-nav-gap)+var(--seller-nav-h)+1.5rem+env(safe-area-inset-bottom))] md:max-w-[1024px] md:pb-10">
             {scopeSwitching ? (
               <div className="pointer-events-none absolute inset-x-0 top-0 z-40 h-0.5 animate-fade bg-info/70" />
             ) : null}
             {children}
           </main>
-          <SellerBottomNav
-            mode={mode}
-            onSwitch={() => go(mode === "orders" ? "hub" : "orders")}
-            className="md:hidden"
-          />
+          {pathname === "/seller/explore" ? null : (
+            <SellerBottomNav
+              mode={mode}
+              onSwitch={() => go(mode === "orders" ? "hub" : "orders")}
+              className="md:hidden"
+            />
+          )}
         </div>
       </div>
       {switching && <SwitchingOverlay to={switching} />}
