@@ -1084,8 +1084,8 @@ live). Tapping an item pushes `ProductDetail`. The store hydrates from the serve
 ## Saved addresses (edit / delete)
 
 `SavedAddressesScreen` (root route `SavedAddresses`) hydrates the caller's durable addresses from
-`GatewayClient.getAddresses()` (keeping the `@data/account/addresses.ts` fixtures on mock/empty/error)
-and now owns the full lifecycle through a bottom-sheet `AddressEditor` (tag chips, name, phone,
+`GatewayClient.getAddresses()` only — no fixture seed, so an offline read shows the honest
+error/empty state — and now owns the full lifecycle through a bottom-sheet `AddressEditor` (tag chips, name, phone,
 address, default switch): **Add New** opens a blank draft, **Edit** seeds it from the card, and both
 save via `GatewayClient.saveAddress()` → `PUT /profile/addresses` (upsert; the server mints the id for
 a new address and clears the caller's other defaults when one is set default). **Delete** (card or

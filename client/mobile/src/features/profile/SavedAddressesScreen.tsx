@@ -29,7 +29,6 @@ import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { savedAddresses } from '@data/index';
 import type { SavedAddress, AddressTag } from '@data/types';
 import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import type { RootStackParamList } from '@/navigation/types';
@@ -317,18 +316,16 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
 
 export function SavedAddressesScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  // Server-first: fixtures are only a mock/offline seed, never shown as real rows
-// after a remote read (including an empty one).
-  const [addresses, setAddresses] = useState<SavedAddress[]>(
-    gateway.remoteEnabled ? [] : savedAddresses,
-  );
+  // Server-only: addresses are never seeded from a fixture. An offline read shows the honest
+  // error/empty state instead of treating sample rows as the caller's real addresses.
+  const [addresses, setAddresses] = useState<SavedAddress[]>([]);
   const [selectedId, setSelectedId] = useState<string>('');
   const [showBanner, setShowBanner] = useState<boolean>(true);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editing, setEditing] = useState<SavedAddress | null>(null);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(gateway.remoteEnabled);
+  const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
 
@@ -411,8 +408,14 @@ export function SavedAddressesScreen({ navigation }: Props) {
     setSaveError(null);
     try {
       const saved = await gateway.saveAddress(draft);
-      // The server mints the id for a new address; mock mode echoes an empty id — assign a local one.
-      const withId: SavedAddress = saved.id ? saved : { ...saved, id: `addr-local-${Date.now()}` };
+      // The server is the id authority. An empty id means the server did not confirm the write, so
+      // treat it as a failure rather than inventing a local `addr-local-…` id that a later edit
+      // would send back and the server would reject.
+      if (!saved.id) {
+        setSaveError('Could not save this address. Check your connection and try again.');
+        return;
+      }
+      const withId: SavedAddress = saved;
       setAddresses((prev) => {
         // A new default clears the others (mirrors the server).
         const base = withId.isDefault ? prev.map((a) => ({ ...a, isDefault: false })) : prev;

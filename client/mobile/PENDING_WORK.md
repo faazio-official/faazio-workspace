@@ -26,8 +26,11 @@ dependencies exist. Do not build the backend/seller flows until told to.
   `CartView` sends the flag and uses the server-held card percent.
 - **Coupon banner hand-off:** `CartView` now distinguishes "coupon list still loading" from "loaded,
   code absent" and surfaces the inline error instead of silently dropping the prefill.
-- **Saved addresses:** a failed delete keeps the row and shows an alert; only a 404 is treated as
-  already-deleted. No more local-only removal that the next read undoes.
+- **Saved addresses:** server-only now — no fixture seed and no local `addr-local-…` id minting.
+  A save without a server-minted id is treated as a failure; a failed delete keeps the row and shows
+  an alert (404 = already deleted). No more local-only removal that the next read undoes.
+- **MyOrders filter counts:** derived from `myOrdersStatusFilters` + orders, so the key set can never
+  drift from the sheet when filters change; statuses outside the filter set are not counted.
 - **PDP:** removed the unreachable same-store dish rail and hides **View Vendor** when no handler is
   supplied (no no-op button).
 - **MyOrders:** removed the unused `list` style.

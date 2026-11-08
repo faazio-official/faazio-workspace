@@ -24,8 +24,9 @@
 - `gateway.getAddresses()` → `GET /profile/addresses` → `checkout.addresses`.
 - `gateway.saveAddress(addr)` → `PUT /profile/addresses`.
 - `gateway.deleteAddress(id)` → `DELETE /profile/addresses/{id}`.
-- `savedAddresses` in `@data/account` is the offline/error shell only (`gateway.remoteEnabled`
-  false); it is never the online origin.
+- The screen is server-only: it never seeds from `savedAddresses` in `@data/account` (that fixture
+  remains a `data/checkout/orders.ts` seed). Saves require the server-minted id; there is no local
+  `addr-local-…` fallback.
 
 ## Success / error / empty
 

@@ -29,7 +29,7 @@ import { VendorRateButton } from '@/components/shared';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { semantic } from '@/theme/brandTokens';
-import { getCatalogEntryById } from '@data/index';
+import { getCatalogEntryById, myOrdersStatusFilters } from '@data/index';
 import type { OrderStatus, MyOrdersStatusFilter } from '@data/types';
 import type { AppBrand } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
@@ -204,15 +204,21 @@ export function MyOrdersScreen({ navigation, route }: Props) {
 
   const statusCounts = useMemo(() => {
     const inApp = allOrders.filter((vo) => activeApp === 'ALL' || vo.app === activeApp);
-    const counts: Record<string, number> = {
-      'All Orders': inApp.length,
-      Processing: 0,
-      Shipped: 0,
-      Delivered: 0,
-      Cancelled: 0,
-    };
+    // Derive the key set from the filter list itself so adding/removing a status filter can never
+    // leave counts keyed by a status the sheet does not render, and statuses outside the filter
+    // set (e.g. Rx-only states) simply do not appear.
+    const counts: Record<string, number> = { 'All Orders': inApp.length };
+    const filterNames = new Set<string>();
+    for (const filter of myOrdersStatusFilters) {
+      if (filter.name !== 'All Orders') {
+        counts[filter.name] = 0;
+        filterNames.add(filter.name);
+      }
+    }
     for (const vo of inApp) {
-      counts[vo.order.status] = (counts[vo.order.status] ?? 0) + 1;
+      if (filterNames.has(vo.order.status)) {
+        counts[vo.order.status] += 1;
+      }
     }
     return counts;
   }, [activeApp, allOrders]);
