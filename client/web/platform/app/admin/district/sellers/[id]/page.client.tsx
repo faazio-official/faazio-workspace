@@ -37,7 +37,12 @@ import {
   verifySellerKyc,
 } from "@/lib/api";
 import { useAnalyticsSeries, useSeller } from "@/lib/api/hooks";
-import type { KycDocument, SellerDetail, SellerVendorRecord } from "@/data/types";
+import type {
+  KycDocument,
+  SellerDetail,
+  SellerLoginCredential,
+  SellerVendorRecord,
+} from "@/data/types";
 
 const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]{2}$/;
 
@@ -48,6 +53,7 @@ function SellerReview() {
   const [detail, setDetail] = useState<SellerDetail | null>(null);
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
+  const [credential, setCredential] = useState<SellerLoginCredential | null>(null);
 
   const loadDetail = useCallback(async () => {
     try {
@@ -122,10 +128,13 @@ function SellerReview() {
     setBusy(true);
     try {
       const next = await verifySellerKyc(seller.sellerId);
-      if (next) setDetail(next);
+      if (next) {
+        setDetail(next);
+        if (next.credential) setCredential(next.credential);
+      }
       toast.success("KYC verified — seller activated");
     } catch {
-      toast.error("Could not create the Razorpay linked account");
+      toast.error("Could not activate the seller");
     } finally {
       setBusy(false);
     }
@@ -297,6 +306,56 @@ function SellerReview() {
           />
         </div>
       </SectionCard>
+
+      {credential ? (
+        <SectionCard
+          title="Seller login"
+          description="Provisioned automatically on approval. The password is shown once and never stored in the clear."
+        >
+          {credential.created && credential.temporaryPassword ? (
+            <div className="space-y-2">
+              <p className="text-[13px]">
+                Share these credentials with the seller once. They must change the password at first
+                sign-in.
+              </p>
+              <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Email</p>
+                <p className="num text-[13px]">{credential.email}</p>
+                <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground">
+                  Temporary password
+                </p>
+                <p className="num select-all text-[13px]">{credential.temporaryPassword}</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => {
+                  void navigator.clipboard
+                    .writeText(
+                      `${credential.email}\n${credential.temporaryPassword}`,
+                    )
+                    .then(() => toast.success("Login copied"))
+                    .catch(() => toast.error("Could not copy — select the text manually"));
+                }}
+              >
+                Copy login
+              </Button>
+            </div>
+          ) : credential.skipped ? (
+            <p className="text-[13px] text-muted-foreground">
+              No login was auto-created: {credential.reason ?? "provisioning skipped"}. Issue one from{" "}
+              <Link href="/admin/super/credentials" className="font-medium text-interactive">
+                Portal credentials
+              </Link>
+              .
+            </p>
+          ) : (
+            <p className="text-[13px] text-muted-foreground">
+              This seller already has a portal login ({credential.email}); it was reused.
+            </p>
+          )}
+        </SectionCard>
+      ) : null}
     </div>
   );
 }

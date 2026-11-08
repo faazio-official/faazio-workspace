@@ -3,7 +3,10 @@
 **App / route:** `client/web/platform` · `/login` → role home (`/seller`, `/admin/district`,
 `/admin/super`)
 **Status:** Partial (auth shell shipped; local-only surfaces remain)
-**Trigger:** Browser login, seller app WebView, or a session restore on page load.
+**Trigger:** Browser login, seller app WebView, or a session restore on page load. A seller's
+`SELLER` credential is auto-provisioned on application approval (see
+[`../onboarding/index.md`](../onboarding/index.md)); a superadmin can still issue/reset one at
+`/admin/super/credentials`.
 
 ## Steps
 
@@ -46,7 +49,13 @@
 - `--seller-nav-gap` + `--seller-nav-h` (`src/styles.css`) are the single source of truth for the
   nav height/gap; the nav carries `h-[var(--seller-nav-h)]`, and `main` bottom padding + every
   fixed action bar/FAB derive from them plus `env(safe-area-inset-bottom)`.
-- The bottom nav is hidden on `/seller/explore` (that page is the navigation itself).
+- The bottom nav is hidden on `/seller/explore` (that page is the navigation itself). Its labels
+  are plain single words shop owners already use: Orders / Stock / Menu / Reviews (Orders mode) and
+  Home / Ads / Menu / Payments (Hub mode); the round switch reads Home / Orders. Spacing follows the
+  4px grid and derives from `--seller-nav-h` / `--seller-nav-gap`.
+- Mobile headers (`OrdersTopBar`, `HubHeader`, `OutletHeader`) share one hairline bottom border,
+  `px-4` padding and the `env(safe-area-inset-top)` offset; action clusters are `shrink-0` so the
+  shop name truncates instead of crowding the icons.
 - All fixed action bars use the shared `FixedActionBar` (`src/components/sellers/kit.tsx`), which
   also aligns to the content column (right of the sidebar) at `md` and sits at `z-40`.
 - `Sheet` uses `88dvh`, respects the bottom safe area, and is offset by the sidebar at `md`.
