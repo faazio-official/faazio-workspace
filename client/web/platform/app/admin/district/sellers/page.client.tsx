@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/format";
-import { useMockLoading, useSellers } from "@/lib/api/hooks";
+import { usePortalLoading, useSellers } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import type { SellerStatus } from "@/data/types";
 
@@ -28,7 +28,7 @@ function StateSellers() {
   // No hardcoded district: a state-scoped / super-admin caller has no district claim, and the
   // gateway already scopes GET /sellers by the caller's scope. Fabricating "TCH" here hid every row.
   const districtCode = session?.districtCode;
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [status, setStatus] = useState<SellerStatus | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const sellers = useSellers({ districtCode, status });

@@ -51,7 +51,7 @@ import {
   normalizePhoneDigits,
   updateDistrictAdmin,
 } from "@/lib/api";
-import { useMockLoading, useSellers, useDistrictAdmins, useDistricts } from "@/lib/api/hooks";
+import { usePortalLoading, useSellers, useDistrictAdmins, useDistricts } from "@/lib/api/hooks";
 import { usePortalStore } from "@/lib/api/store";
 import { districtName } from "@/lib/api/reference";
 import type { PortalCredential, DistrictAdmin } from "@/data/types";
@@ -81,7 +81,7 @@ function DistrictChip() {
 }
 
 function DistrictAdminAccounts() {
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const admins = useDistrictAdmins(TTC_CODE);
   const sellers = useSellers();
   const districts = useDistricts();

@@ -385,8 +385,9 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
           </View>
         ) : null}
 
-        {/* Tax invoice — only meaningful once the order is paid/delivered (server record). */}
-        {invoice !== null || (order && /deliver|complet|fulfil|paid|ready|dispatch|packed/i.test(order.status)) ? (
+        {/* Tax invoice — My Orders entry only. The post-payment confirmation deep link never
+            offers a PDF download; the invoice lives under My Orders → Order Details. */}
+        {route.params.entry !== 'confirmation' ? (
         <View style={styles.card}>
           <AppText style={styles.sectionTitle}>Tax invoice</AppText>
           <AppText style={styles.invoiceHint}>

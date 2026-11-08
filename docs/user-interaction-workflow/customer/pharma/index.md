@@ -1,7 +1,6 @@
 # Pharma — domain index
 
-**Status:** Partial (pharmacy discovery renders the authored offline shell on a failed category
-read — a no-mocks gap; prescription and blood flows are shipped)
+**Status:** Shipped (pharmacy discovery is server-driven; prescription and blood flows shipped)
 **Routes:** `SubApp` `PHARMA` (`PharmaScreen.tsx`), `MedicalShopDetails`, `ProductDetail`,
 `PrescriptionFlow`, `BloodDonor`, `BloodDonorDetails`, `BloodRequestDescription`
 **Trigger:** Home → Pharma, pharmacy card, prescription entry, or blood-donor entry.
@@ -40,15 +39,11 @@ read — a no-mocks gap; prescription and blood flows are shipped)
 - **Success:** pharmacy rail/detail render server rows; prescription submits with a server Rx id;
   donor profile/request writes return a sync outcome.
 - **Error:** inline error on the failing step; prescription/donor/match reads never fabricate rows.
-  The category grid does fall back to its authored `PHARMA_PRODUCTS_DB` shell after a failed
-  category read (a no-mocks gap — see Known gaps).
+  The category grid shows a retryable error after a failed read — never authored rows while online.
 - **Empty:** no nearby pharmacies / no blood requests → honest empty state.
 
 ## Known gaps
 
-- The category grid renders the authored `PHARMA_PRODUCTS_DB` rows when the batch read fails
-  (`PharmaScreen.tsx:149-160,242`) even while the gateway is enabled — a no-mocks gap. See
-  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 - `MedicalShopDetails` has no dedicated page yet (described here only); tracked as a coverage gap.
 - See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 

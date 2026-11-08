@@ -20,17 +20,12 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | Order cancellation is a support hand-off, not an API | `client/mobile/src/features/profile/OrderDetailsScreen.tsx:188-199` opens a `mailto:` | No in-app cancel state or cancellation endpoint |
 | Dev-only placeholder login | `client/mobile/src/features/auth/LoginScreen.tsx` `submitOtp` path under `__DEV__` when Firebase is unconfigured | Not a release path, but it is a mock session seam |
 | Food PDP has no restaurant affordance | `client/mobile/src/features/food/utils/restaurantForProduct.ts:46-57` is an intentional server-only stub returning `undefined` | Deliberate no-fabrication choice; do not "fix" with a fixture |
-| Pharma category grid substitutes the authored fixture while online on a failed read | `client/mobile/src/features/pharma/PharmaScreen.tsx:149-160` sets `categorySource = 'fallback'`; `:242` renders authored rows when `fallback` even though `gateway.remoteEnabled` is true | Violates no-mocks: authored rows render as live after a failed category read (see `customer/pharma/index.md`) |
-| Home rails substitute `@mock` fixtures while online | `client/mobile/src/features/home/HomeView.tsx:123,131-138` (`rail(fallback)`); `features/home/sections/FilterFeedSection.tsx:7,71` (`filterFeedPools`); `sections/DealsOfDaySection.tsx:15,30-34` (`MART_DEALS`); `sections/TodaysSpecialsSection.tsx:51-62` (`TODAYS_SPECIALS` + `@data/home/rails`); `cards/BrandCampaignCard.tsx:39-40` / `sections/BrandCampaignsSection.tsx:129` (`adCampaigns`) | Violates no-mocks: fixture rows render when a server section has no products, even while the gateway answers |
-| Food feed merges `@mock` fixtures | `client/mobile/src/features/food/services/restaurantFeedService.ts:3-5,155-161` (`TOP_FOODS_TO_ORDER`, `TODAYS_SPECIALS`, `FOOD_RESTAURANTS`); `features/food/screens/FoodHomeScreen.tsx:15,145` (`SNACKS_BEVERAGES`) | No-mocks violation: fixture dishes render alongside live data |
-| Self-pickup points are client-resolved from `@mock` data | `client/mobile/src/features/cart/CartView.tsx:29,431` uses `getPickupPointsForItems` from `data/cart/pickup-resolver.ts:2` (`@mock`, `data/DATA_CONTROL.md:320`) and submits them to `POST /orders` | Pickup points are not server-derived |
 | PDP does not render reviews, gate stock, or offer retry | `client/mobile/src/features/product/ProductDetailScreen.tsx:39-46` discards the `reviews` result; `CommonProductDetailView.tsx:492-520` always enables add-to-cart | Review list/empty state, out-of-stock gating, and a retry affordance on load failure are absent |
 
 ## Seller (portal + partner app)
 
 | Gap | Evidence | Impact |
 |---|---|---|
-| Fake loading latency | `client/web/platform/src/lib/api/hooks.ts:56-64` (`useMockLoading`, 320 ms) is used by 37 files under `app/` | Violates the no-mocks rule; pages exercise loading states with fabricated delay |
 | Seller application is mobile-only | `POST /sellers` is called only from the customer app's `SellWithUs` (`SellerRegistrationScreen.tsx`); the portal has no application form | A seller cannot apply without installing the customer app (see `seller/onboarding/index.md`) |
 | Toast-only settings actions | `client/web/platform/app/seller/settings/page.client.tsx:62` ("Request update") and `:139` (sub-user "Invite") only toast | Account/sub-user changes are not persisted; partial flow |
 | Store fee/cover have no seller UI | `PUT /seller/stores/{id}/fee` is admin-only (`server/gateway/internal/directory/handler.go:500-503`); no client calls `PUT /seller/stores/{id}/cover` | Sellers can only file a fee-change request; cover image cannot be set from the console |
@@ -48,11 +43,12 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | Gap | Evidence | Impact |
 |---|---|---|
 | Offer modal is not navigated from a screen | `AcceptReject` is registered in `DeliveryPartnerNavigator.tsx:43` but no screen calls `navigate('AcceptReject')` | Offers arrive only via push/deep link |
-| OTP handover unreachable for checkout orders | Checkout auto-dispatch omits `RequireOTP` (`server/gateway/internal/checkout/handler.go:1104-1117` vs `internal/contracts/contracts.go:475`); only admin `POST /dispatch/assign` can set it | `stop.requiresOtp` is false for normal orders, so the handover OTP branch never renders |
-| COD + OTP handover UI ordering | `client/mobile/src/features/delivery-partner/screens/RouteScreen.tsx:288-289,312-332` render the OTP branch before the "Payment received" branch (`:339-382`), while `deliverWithOtp` refuses until payment is received (`:201-205`) | A COD order that did require OTP cannot be completed in the UI |
 | iOS background limits | Documented in `client/mobile/PENDING_WORK.md` | Force-quit/background location is best-effort (see `delivery/availability/index.md`) |
 | Multi-vendor orders are not auto-dispatched | `docs/architecture/server-gateway-plan.md:340-342` | Orders spanning >1 store need manual allocation |
-| Payout splitting is not implemented | `docs/architecture/server-gateway-plan.md:336-338`; `delivery.delivery_orders.payout_amount_paisa` is display-only (`server/supabase/migrations/0042_delivery.sql:144-146`) | Rider/seller/platform transfers are not automated |
+
+Payout disbursement is **intentionally manual**: the server-derived amounts are accurate, but a
+state/super admin records the transfer via `mark-paid` (no Razorpay Route). See
+[`delivery/earnings/index.md`](./delivery/earnings/index.md).
 
 ## Code hygiene (non-flow, no partial user workflow)
 

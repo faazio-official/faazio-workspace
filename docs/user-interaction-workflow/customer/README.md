@@ -13,9 +13,8 @@
 **State:** `src/state/` (auth, cart, favorite, orders, rewards, location, language, onboarding,
 pharma, bloodDonor, search, foodFilter, vendorRating, remoteConfig, connectivity).
 **Data:** `GatewayClient` (`src/services/api/GatewayClient.ts`) is the only online origin.
-`@data/*` is an offline/error shell or type source. Some Home/Food rails still substitute fixture
-rows when a server section is empty and are tracked as no-mocks gaps in
-[`../KNOWN_GAPS.md`](../KNOWN_GAPS.md).
+`@data/*` is an offline/error shell or type source. Home/Food/Pharma online rails render server
+rows or honest empty/error states (fixtures only when the gateway is disabled).
 
 ## Flow inventory
 

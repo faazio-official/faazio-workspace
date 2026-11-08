@@ -105,8 +105,9 @@ export function PharmaScreen({
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [addedAnimationId, setAddedAnimationId] = useState<string | null>(null);
   const [feedAddedIds, setFeedAddedIds] = useState<Set<string>>(new Set());
-  const [categorySource, setCategorySource] = useState<'idle' | 'loading' | 'live' | 'fallback'>('idle');
+  const [categorySource, setCategorySource] = useState<'idle' | 'loading' | 'live' | 'error'>('idle');
   const [categoryServerById, setCategoryServerById] = useState<Record<string, ProductView> | null>(null);
+  const [categoryReloadNonce, setCategoryReloadNonce] = useState(0);
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const feed = usePharmaFeed();
@@ -156,12 +157,13 @@ export function PharmaScreen({
       })
       .catch(() => {
         if (!active) return;
-        setCategorySource('fallback');
+        setCategoryServerById(null);
+        setCategorySource('error');
       });
     return () => {
       active = false;
     };
-  }, [selectedCategoryId, categoryProductIds]);
+  }, [selectedCategoryId, categoryProductIds, categoryReloadNonce]);
   const categoryDiscounts = useActiveDiscounts(categoryProductIds);
   const discountFor = (id: string) => categoryDiscounts[id]?.discountPercent ?? 0;
   const displayPrice = (p: { id: string; price: number }) => effectivePrice(p.price, discountFor(p.id));
@@ -239,7 +241,9 @@ export function PharmaScreen({
         return row ? [overlayCategoryProduct(p, row)] : [];
       });
     }
-    if (categorySource === 'fallback' || !gateway.remoteEnabled) return authored;
+    // Authored rows are the explicit offline shell only. Online, a failed read shows an honest
+    // error/empty — never authored prices pretending to be live.
+    if (!gateway.remoteEnabled) return authored;
     return [];
   }, [selectedCategoryId, categorySearchQuery, categorySource, categoryServerById]);
 
@@ -368,8 +372,8 @@ export function PharmaScreen({
             <CloudOff size={ms(13)} color="#64748b" strokeWidth={2.2} />
             <AppText style={styles.offlineChipText}>
               {storesSource === 'empty-authoritative'
-                ? 'No pharmacies listed yet — showing sample outlets'
-                : 'Showing sample pharmacies — offline'}
+                ? 'No pharmacies are listed near you yet'
+                : 'Could not load pharmacies — check your connection'}
             </AppText>
           </View>
         ) : null}
@@ -405,6 +409,21 @@ export function PharmaScreen({
       {categorySource === 'loading' ? (
         <View style={styles.categoryLoading}>
           <ActivityIndicator color={brandRamp.PHARMA.deep} />
+        </View>
+      ) : categorySource === 'error' ? (
+        <View style={styles.emptyStateCard}>
+          <CloudOff size={ms(36)} color={brandRamp.PHARMA.deep} strokeWidth={1.5} style={styles.emptyStateIcon} />
+          <AppText style={styles.emptyStateTitle}>Could not load products</AppText>
+          <TouchableOpacity
+            onPress={() => setCategoryReloadNonce((n) => n + 1)}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            style={{ marginTop: vs(10) }}
+          >
+            <AppText style={{ fontSize: ms(12), fontWeight: '700', color: brandRamp.PHARMA.deep }}>
+              Try again
+            </AppText>
+          </TouchableOpacity>
         </View>
       ) : filteredCategoryProducts.length === 0 ? (
         <View style={styles.emptyStateCard}>

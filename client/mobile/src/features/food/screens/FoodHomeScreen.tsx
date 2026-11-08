@@ -139,10 +139,13 @@ export function FoodHomeScreen({ navigation }: Props) {
 
   const renderTopSections = useCallback((): ReactNode => {
     if (!feed) return null;
+    const offline = !gateway.remoteEnabled;
     const topRated = feed.topRated.filter((r) => venueMatches(dietFilter, r));
     const specials = feed.specials.filter((d) => dishMatches(dietFilter, d));
     const mind = feed.topFoods.filter((f) => venueMatches(dietFilter, f));
-    const snacks = SNACKS_BEVERAGES.filter((s) => dishMatches(dietFilter, s));
+    // The authored snack rail is an offline shell only; there is no server snack feed yet, so the
+    // online rail is omitted rather than showing fixture tiles as live.
+    const snacks = offline ? SNACKS_BEVERAGES.filter((s) => dishMatches(dietFilter, s)) : [];
     return (
       <>
         <Animated.View entering={FadeIn.duration(260)}>
@@ -172,6 +175,10 @@ export function FoodHomeScreen({ navigation }: Props) {
           </View>
           {topRated.length > 0 ? (
             <TopRestaurantCarousel restaurants={topRated} onPress={openRestaurant} />
+          ) : feed.topRated.length === 0 ? (
+            <View style={styles.sectionEmpty}>
+              <AppText style={styles.emptySub}>No top-rated restaurants available right now.</AppText>
+            </View>
           ) : (
             <DietEmptyNote />
           )}
@@ -182,26 +189,26 @@ export function FoodHomeScreen({ navigation }: Props) {
           </View>
           {specials.length > 0 ? (
             <FeaturedDishCarousel dishes={specials} onPress={openDishProduct} />
+          ) : feed.specials.length === 0 ? (
+            <View style={styles.sectionEmpty}>
+              <AppText style={styles.emptySub}>No specials available right now.</AppText>
+            </View>
           ) : (
             <DietEmptyNote />
           )}
         </Animated.View>
-        <Animated.View entering={FadeInDown.duration(380)}>
-          <FoodSectionHeader title="What's on your mind?" />
-          {mind.length > 0 ? (
+        {mind.length > 0 ? (
+          <Animated.View entering={FadeInDown.duration(380)}>
+            <FoodSectionHeader title="What's on your mind?" />
             <MindGridRail items={mind} onPress={openMindSearch} />
-          ) : (
-            <DietEmptyNote />
-          )}
-        </Animated.View>
-        <Animated.View entering={FadeInDown.duration(400)}>
-          <FoodSectionHeader title="Snacks & Beverages" />
-          {snacks.length > 0 ? (
+          </Animated.View>
+        ) : null}
+        {snacks.length > 0 ? (
+          <Animated.View entering={FadeInDown.duration(400)}>
+            <FoodSectionHeader title="Snacks & Beverages" />
             <SnacksRail snacks={snacks} onPress={openSnackSearch} />
-          ) : (
-            <DietEmptyNote />
-          )}
-        </Animated.View>
+          </Animated.View>
+        ) : null}
       </>
     );
   }, [feed, dietFilter, openRestaurant, openDishProduct, openSearch, openMindSearch, openSnackSearch, goBack, openVenue, navigation]);
@@ -289,6 +296,10 @@ const styles = StyleSheet.create({
   sectionHeaderWrap: {
     paddingHorizontal: hs(16),
     marginTop: SPACE.SECTION,
+  },
+  sectionEmpty: {
+    paddingHorizontal: hs(16),
+    paddingVertical: 12,
   },
   emptyState: {
     paddingHorizontal: hs(24),

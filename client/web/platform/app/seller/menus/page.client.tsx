@@ -6,7 +6,7 @@ import { HubHeader } from "@/components/sellers/shells";
 import { Sheet, TextField, Toggle, VegMark, EmptyState } from "@/components/sellers/kit";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { deleteMenu, setMenuStatus, upsertMenu, type MenuDto } from "@/lib/api";
-import { useMenus, useMockLoading, useSellerScope } from "@/lib/api/hooks";
+import { useMenus, usePortalLoading, useSellerScope } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
 import type { MenuItemRecord, ProductStatus } from "@/data/types";
 
@@ -60,7 +60,7 @@ function toForm(m: MenuItemRecord): FormState {
 function SellerMenus() {
   const { sellerId, storeId, activeStore } = useSellerScope();
   const isFood = activeStore?.sector === "FOOD";
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [status, setStatus] = useState<ProductStatus | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const [filtersOpen, setFiltersOpen] = useState(false);

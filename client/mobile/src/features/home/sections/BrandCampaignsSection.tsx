@@ -11,12 +11,16 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { AdCampaign, Product } from '@data/types';
 import { adCampaigns } from '@data/home/campaigns';
+import { gateway, type HomeCampaignDetail } from '@/services/api/GatewayClient';
 import BrandCampaignCard from '@/features/home/cards/BrandCampaignCard';
 import type { SectionProps } from './common';
 import AppText from '@/components/AppText';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { neutral } from '@/theme/brandTokens';
 
 const SWIPE_INTERVAL = 4500;
+
+type CampaignItem = AdCampaign & { detail?: HomeCampaignDetail };
 
 /**
  * One auto-playing paging carousel of vendor campaign cards. Pattern lifted from
@@ -30,7 +34,7 @@ const CampaignCarousel = memo(function CampaignCarousel({
   onViewAll,
   onProductClick,
 }: {
-  campaigns: AdCampaign[];
+  campaigns: CampaignItem[];
   onViewAll?: (campaign: AdCampaign) => void;
   onProductClick?: (product: Product) => void;
 }) {
@@ -85,6 +89,7 @@ const CampaignCarousel = memo(function CampaignCarousel({
             <View key={campaign.id} style={[styles.slide, { width }]}>
               <BrandCampaignCard
                 campaign={campaign}
+                detail={campaign.detail}
                 onViewAll={onViewAll}
                 onProductClick={onProductClick}
               />
@@ -122,20 +127,71 @@ const CampaignCarousel = memo(function CampaignCarousel({
 function BrandCampaignsSection({ onProductClick, onOpenDeals, campaigns }: SectionProps) {
   const handleViewAll = (campaign: AdCampaign) =>
     onOpenDeals?.({ mode: 'campaign', campaignId: campaign.id });
+  const offline = !gateway.remoteEnabled;
 
-  // Server-owned campaign definitions (portal-published on the SDUI `hotBrandDeals` section) win;
-  // the `@data` fixture is the offline / pre-load fallback so the carousels never blank.
+  const [details, setDetails] = useState<HomeCampaignDetail[] | null>(null);
+  const [error, setError] = useState(false);
+
+  // Server-joined campaign detail (live store + products) — the fixture is only the offline shell.
+  useEffect(() => {
+    if (offline) return;
+    // No server-published campaign defs for this section → honest empty (never all campaigns).
+    const ids = campaigns?.map((c) => c.id) ?? [];
+    if (ids.length === 0) {
+      setDetails([]);
+      setError(false);
+      return;
+    }
+    let active = true;
+    setError(false);
+    gateway
+      .getHomeCampaigns()
+      .then((rows) => {
+        if (!active) return;
+        setDetails(rows.filter((r) => ids.includes(r.id)));
+      })
+      .catch(() => {
+        if (!active) return;
+        setDetails([]);
+        setError(true);
+      });
+    return () => {
+      active = false;
+    };
+  }, [offline, campaigns]);
+
   const { carouselOne, carouselTwo } = useMemo(() => {
-    const source = campaigns && campaigns.length > 0 ? campaigns : adCampaigns;
+    if (offline) {
+      return {
+        carouselOne: adCampaigns.filter((c) => c.carousel === 1) as CampaignItem[],
+        carouselTwo: adCampaigns.filter((c) => c.carousel === 2) as CampaignItem[],
+      };
+    }
+    const source: CampaignItem[] = (details ?? []).map((d) => ({
+      id: d.id,
+      storeId: d.storeId,
+      productIds: d.products.map((p) => p.id),
+      carousel: d.carousel,
+      detail: d,
+    }));
     return {
       carouselOne: source.filter((c) => c.carousel === 1),
       carouselTwo: source.filter((c) => c.carousel === 2),
     };
-  }, [campaigns]);
+  }, [details, offline]);
+
+  const loading = !offline && details === null;
 
   return (
     <View style={styles.container}>
       <AppText style={styles.containerTitle}>Deals of the day</AppText>
+      {loading ? (
+        <AppText style={styles.stateText}>Loading deals…</AppText>
+      ) : !offline && error ? (
+        <AppText style={styles.stateText}>Deals are unavailable right now.</AppText>
+      ) : !offline && carouselOne.length === 0 && carouselTwo.length === 0 ? (
+        <AppText style={styles.stateText}>No deals available today.</AppText>
+      ) : null}
       {carouselOne.length > 0 ? (
         <CampaignCarousel
           campaigns={carouselOne}
@@ -173,6 +229,13 @@ const styles = StyleSheet.create({
     color: '#0f172a',
     marginBottom: SPACE.BLOCK,
     marginLeft: hs(2),
+  },
+  stateText: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: neutral.inkMuted,
+    textAlign: 'center',
+    paddingVertical: SPACE.BLOCK,
   },
   viewport: {
     borderRadius: ms(16),

@@ -8,7 +8,7 @@ import { capFor, validateOptin } from "@/lib/pricing/rules";
 import { upsertOptin } from "@/lib/api";
 import {
   useCampaigns,
-  useMockLoading,
+  usePortalLoading,
   useOptins,
   useProducts,
   useSellerScope,
@@ -27,7 +27,7 @@ function SellerPromotions() {
   const session = useSession();
   const { sellerId, storeId } = useSellerScope();
   const stateCode = session?.stateCode;
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const products = useProducts({ sellerId, storeId });
   const campaigns = useCampaigns({ stateCode }).filter(
     (c) => c.status === "LIVE" || c.status === "SCHEDULED",

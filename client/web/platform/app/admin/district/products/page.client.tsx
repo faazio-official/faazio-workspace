@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/table";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { deleteProduct, updateProduct, upsertPrice } from "@/lib/api";
-import { useMockLoading, useProducts } from "@/lib/api/hooks";
+import { usePortalLoading, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import type { ProductRecord, Sector } from "@/data/types";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
@@ -39,7 +39,7 @@ const SECTORS: (Sector | "ALL")[] = ["ALL", "MART", "FOOD", "PHARMA"];
 function StateProducts() {
   const session = useSession();
   const stateCode = session?.stateCode ?? "MH";
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [sector, setSector] = useState<Sector | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const products = useProducts({ stateCode, sector, query });

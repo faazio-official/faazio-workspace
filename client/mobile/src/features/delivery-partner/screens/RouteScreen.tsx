@@ -287,6 +287,17 @@ export function RouteScreen({ navigation }: Props) {
             !pickedUpOrders.has(stop.deliveryOrderId);
           const otpDrop =
             stop.stopType === 'DROP' && stop.status === 'AT_CUSTOMER' && stop.requiresOtp;
+          const dropOrder = orderByStopId.get(stop.stopId);
+          const paymentRequired = !!dropOrder?.paymentRequired;
+          const paymentReceived = !!dropOrder?.paymentReceived;
+          // COD must be collected before the OTP can complete the drop, so the payment controls
+          // render first — otherwise the OTP branch would hide the "Payment received" button and
+          // the order could never be completed.
+          const awaitingPayment =
+            stop.stopType === 'DROP' &&
+            stop.status === 'AT_CUSTOMER' &&
+            paymentRequired &&
+            !paymentReceived;
           return (
             <Card key={stop.stopId} style={[styles.stop, done && styles.stopDone]}>
               <View style={styles.stopHead}>
@@ -309,7 +320,21 @@ export function RouteScreen({ navigation }: Props) {
                 </View>
               </View>
 
-              {otpDrop ? (
+              {awaitingPayment ? (
+                <>
+                  {qrUrl ? (
+                    <Image source={{ uri: qrUrl }} style={styles.qr} resizeMode="contain" />
+                  ) : null}
+                  <AppText style={styles.payHint}>
+                    COD · collect cash or ask the customer to scan the QR, then confirm.
+                  </AppText>
+                  <PrimaryButton
+                    label="Payment received"
+                    onPress={() => void confirmPayment(stop)}
+                    loading={busy}
+                  />
+                </>
+              ) : otpDrop ? (
                 <>
                   <Field
                     label="Customer OTP"
@@ -337,49 +362,11 @@ export function RouteScreen({ navigation }: Props) {
                   loading={busy}
                 />
               ) : stop.stopType === 'DROP' && stop.status === 'AT_CUSTOMER' ? (
-                (() => {
-                  const order = orderByStopId.get(stop.stopId);
-                  const paymentRequired = !!order?.paymentRequired;
-                  const paymentReceived = !!order?.paymentReceived;
-                  if (!paymentRequired) {
-                    return (
-                      <PrimaryButton
-                        label="Mark delivered"
-                        onPress={() => void advance(stop, 'DELIVERED')}
-                        loading={busy}
-                      />
-                    );
-                  }
-                  return (
-                    <>
-                      {qrUrl ? (
-                        <Image
-                          source={{ uri: qrUrl }}
-                          style={styles.qr}
-                          resizeMode="contain"
-                        />
-                      ) : null}
-                      <AppText style={[styles.payHint, paymentReceived && styles.payHintOk]}>
-                        {paymentReceived
-                          ? 'Payment received'
-                          : 'COD · collect cash or ask the customer to scan the QR, then confirm.'}
-                      </AppText>
-                      {!paymentReceived ? (
-                        <PrimaryButton
-                          label="Payment received"
-                          onPress={() => void confirmPayment(stop)}
-                          loading={busy}
-                        />
-                      ) : null}
-                      <PrimaryButton
-                        label="Mark delivered"
-                        onPress={() => void advance(stop, 'DELIVERED')}
-                        loading={busy}
-                        disabled={!paymentReceived}
-                      />
-                    </>
-                  );
-                })()
+                <PrimaryButton
+                  label="Mark delivered"
+                  onPress={() => void advance(stop, 'DELIVERED')}
+                  loading={busy}
+                />
               ) : null}
 
               {failureFor?.stopId === stop.stopId ? (

@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { formatINR } from "@/lib/format";
-import { useMockLoading, useProducts } from "@/lib/api/hooks";
+import { usePortalLoading, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -19,7 +19,7 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 function StateContent() {
   const session = useSession();
   const stateCode = session?.stateCode ?? "MH";
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const products = useProducts({ stateCode, status: "ACTIVE" });
   const [railTitle, setRailTitle] = useState("Today's picks");
   const [picks, setPicks] = useState<string[]>([]);

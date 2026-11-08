@@ -26,7 +26,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
 import Checkbox from '@/components/shared/Checkbox';
 import type { CartItem, CartCategory } from '@/state/cartStore';
-import { getPickupPointsForItems, getStoreIdsForItems } from '@data/cart/pickup-resolver';
+import { getStoreIdsForItems } from '@data/cart/pickup-resolver';
 import type { Coupon, FulfillmentMode, PickupPoint, SavedAddress } from '@data/types';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
@@ -427,10 +427,52 @@ export default function CartView({
     setShowCouponSheet(false);
   };
 
-  const pickupPointList = useMemo(
-    () => getPickupPointsForItems(selectedItems),
-    [selectedItems],
-  );
+  // Self-pickup points are server-derived (`GET /pickup-points`): one per store in the cart plus
+  // any neutral hub the server returns. The client resolver is no longer the origin.
+  const [pickupPoints, setPickupPoints] = useState<PickupPoint[]>([]);
+  const [pickupPointsLoading, setPickupPointsLoading] = useState(false);
+  const [pickupPointsError, setPickupPointsError] = useState<string | null>(null);
+  const [pickupReloadNonce, setPickupReloadNonce] = useState(0);
+
+  useEffect(() => {
+    if (fulfillment !== 'PICKUP' || (step !== 'FULFILLMENT' && step !== 'PAYMENT')) {
+      setPickupPoints([]);
+      setPickupPointsError(null);
+      setPickupPointsLoading(false);
+      return;
+    }
+    if (storeIdsForQuote.length === 0) {
+      setPickupPoints([]);
+      setPickupPointsLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setPickupPointsLoading(true);
+    setPickupPointsError(null);
+    void gateway
+      .getPickupPoints(storeIdsForQuote)
+      .then((rows) => {
+        if (cancelled) return;
+        // The server always includes the neutral hub for a filtered query; keep it only when no
+        // store-specific point matched.
+        const storePoints = rows.filter((p) => p.id !== 'pickup-neutral');
+        const chosen = storePoints.length > 0 ? storePoints : rows;
+        setPickupPoints(
+          chosen.map((p) => ({ ...p, phone: p.phone ?? '', hours: p.hours ?? '' })),
+        );
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setPickupPoints([]);
+        setPickupPointsError('Could not load pickup locations.');
+      })
+      .finally(() => {
+        if (!cancelled) setPickupPointsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [step, fulfillment, storeIdsForQuote, pickupReloadNonce]);
 
   // Server-authoritative delivery fee (road distance). Refetched on the FULFILLMENT step; kept once
   // fetched so the PAYMENT step shows the same figure the server will charge. A multi-store cart
@@ -490,6 +532,14 @@ export default function CartView({
       setPaymentError('Add a delivery address before paying.');
       return;
     }
+    if ((fulfillment ?? 'DELIVERY') === 'PICKUP' && pickupPoints.length === 0) {
+      setPaymentError(
+        pickupPointsLoading
+          ? 'Loading pickup locations. Please wait a moment.'
+          : 'No pickup location is available for these items.',
+      );
+      return;
+    }
     setPaymentProcessing(true);
     void (async () => {
       try {
@@ -498,7 +548,7 @@ export default function CartView({
         const coinsEarned = coinsEarnedFor(paidAmount);
         const isPickup = fulfillment === 'PICKUP';
         const mode = fulfillment ?? 'DELIVERY';
-        const pickups = isPickup ? pickupPointList : [];
+        const pickups = isPickup ? pickupPoints : [];
         const primaryPickup = pickups[0];
         // Only a durable server address id is safe to submit; pickup carries no address.
         const addressId = isPickup ? undefined : savedAddress?.id || undefined;
@@ -1130,19 +1180,44 @@ export default function CartView({
             </View>
           ) : (
             <View style={styles.fulfillmentPickupWrap}>
-              {pickupPointList.map((p) => (
-                <View key={p.id} style={styles.fulfillmentPickupCard}>
-                  <View style={styles.pickupCardHeader}>
-                    <Store size={ms(14)} color="#0F4C81" strokeWidth={2.2} />
-                    <AppText style={styles.pickupCardName} numberOfLines={1}>
-                      {p.name}
-                    </AppText>
-                  </View>
-                  <AppText style={styles.fulfillmentPickupText}>{p.address}</AppText>
-                  <AppText style={styles.fulfillmentPickupText}>Open {p.hours}</AppText>
-                  <AppText style={styles.fulfillmentPickupText}>Contact: {p.phone}</AppText>
+              {pickupPointsLoading ? (
+                <AppText style={styles.fulfillmentPickupText}>Loading pickup locations…</AppText>
+              ) : pickupPointsError ? (
+                <View style={styles.fulfillmentPickupCard}>
+                  <AppText style={styles.fulfillmentPickupText}>{pickupPointsError}</AppText>
+                  <TouchableOpacity
+                    onPress={() => setPickupReloadNonce((n) => n + 1)}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                  >
+                    <AppText style={styles.changeText}>Try again</AppText>
+                  </TouchableOpacity>
                 </View>
-              ))}
+              ) : pickupPoints.length === 0 ? (
+                <View style={styles.fulfillmentPickupCard}>
+                  <AppText style={styles.fulfillmentPickupText}>
+                    No pickup locations are available for these items.
+                  </AppText>
+                </View>
+              ) : (
+                pickupPoints.map((p) => (
+                  <View key={p.id} style={styles.fulfillmentPickupCard}>
+                    <View style={styles.pickupCardHeader}>
+                      <Store size={ms(14)} color="#0F4C81" strokeWidth={2.2} />
+                      <AppText style={styles.pickupCardName} numberOfLines={1}>
+                        {p.name}
+                      </AppText>
+                    </View>
+                    <AppText style={styles.fulfillmentPickupText}>{p.address}</AppText>
+                    {p.hours ? (
+                      <AppText style={styles.fulfillmentPickupText}>Open {p.hours}</AppText>
+                    ) : null}
+                    {p.phone ? (
+                      <AppText style={styles.fulfillmentPickupText}>Contact: {p.phone}</AppText>
+                    ) : null}
+                  </View>
+                ))
+              )}
             </View>
           )}
         </ScrollView>
@@ -1157,6 +1232,18 @@ export default function CartView({
               if (fulfillment === 'DELIVERY' && !deliveryAddress.address.trim()) {
                 setCheckoutError('Add a delivery address before paying.');
                 return;
+              }
+              if (fulfillment === 'PICKUP') {
+                if (pickupPointsLoading) {
+                  setCheckoutError('Loading pickup locations. Please wait a moment.');
+                  return;
+                }
+                if (pickupPointsError || pickupPoints.length === 0) {
+                  setCheckoutError(
+                    pickupPointsError ?? 'No pickup location is available for these items.',
+                  );
+                  return;
+                }
               }
               setCheckoutError(null);
               setPaymentError(null);
@@ -1178,7 +1265,7 @@ export default function CartView({
 
   if (step === 'PAYMENT') {
     const itemCount = selectedItems.reduce((acc, curr) => acc + curr.quantity, 0);
-    const primaryPickup = pickupPointList[0];
+    const primaryPickup = pickupPoints[0];
     return (
       <View style={styles.paymentRoot}>
         <PaymentOptionsScreen

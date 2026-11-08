@@ -4,12 +4,12 @@ import { toast } from "sonner";
 import { PageHeader, Card, EmptyState } from "@/components/sellers/kit";
 import { formatINR } from "@/lib/format";
 import { advanceOrder } from "@/lib/api";
-import { useMockLoading, useOrders, useSellerScope } from "@/lib/api/hooks";
+import { usePortalLoading, useOrders, useSellerScope } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
 
 function SellerReturns() {
   const { sellerId, storeId } = useSellerScope();
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const returns = useOrders({ sellerId, storeId }).filter(
     (o) => o.status === "RETURNED" || o.status === "CANCELLED",
   );

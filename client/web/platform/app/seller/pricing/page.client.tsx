@@ -4,12 +4,12 @@ import { toast } from "sonner";
 import { PageHeader, Card, EmptyState } from "@/components/sellers/kit";
 import { formatINR, formatDateTime, parseRupeesToPaisa } from "@/lib/format";
 import { upsertPrice } from "@/lib/api";
-import { useAuditLogs, useMockLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
+import { useAuditLogs, usePortalLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
 
 function SellerPricing() {
   const { sellerId, storeId } = useSellerScope();
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const products = useProducts({ sellerId, storeId });
   const logs = useAuditLogs({ query: "" }).filter((l) => l.action === "PRICE_UPDATE");
   const [drafts, setDrafts] = useState<Record<string, { price: string }>>({});

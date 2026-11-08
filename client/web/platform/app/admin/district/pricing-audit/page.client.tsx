@@ -15,7 +15,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatINR, formatNumber } from "@/lib/format";
-import { useMockLoading, useProducts } from "@/lib/api/hooks";
+import { usePortalLoading, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -24,7 +24,7 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 function PricingAudit() {
   const session = useSession();
   const stateCode = session?.stateCode ?? "MH";
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const products = useProducts({ stateCode });
 
   const medianByCategory = new Map<string, number>();

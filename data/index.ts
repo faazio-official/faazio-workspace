@@ -83,7 +83,7 @@ export { avatarMap, getProductReviews, getProductSpecs, getProductHighlights } f
 
 export { defaultAddresses } from './cart/addresses';
 export { coupons } from './cart/coupons';
-export { getPickupPointsForItems, getStoreIdsForItems, NEUTRAL_PICKUP } from './cart/pickup-resolver';
+export { getStoreIdsForItems } from './cart/pickup-resolver';
 
 export { pastOrders, myOrders, myOrdersStatusFilters, getMyOrderById } from './account/orders';
 export { userProfile, saverMembership } from './account/profile';

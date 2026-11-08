@@ -3,7 +3,7 @@ import { Megaphone } from "lucide-react";
 import { HubHeader } from "@/components/sellers/shells";
 import { Card, EmptyState } from "@/components/sellers/kit";
 import { formatNumber, formatPercent } from "@/lib/format";
-import { useAdSlots, useHeroCampaigns, useMockLoading, usePlacements, useSellerScope } from "@/lib/api/hooks";
+import { useAdSlots, useHeroCampaigns, usePortalLoading, usePlacements, useSellerScope } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { placementLabel } from "@/lib/api/reference";
 import { CampaignWizard } from "./components/CampaignWizard";
@@ -20,7 +20,7 @@ const AD_PILL: Record<AdStatus, string> = {
 function SellerAds() {
   const session = useSession();
   const { sellerId, storeId } = useSellerScope();
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const placements = usePlacements();
   const slots = useAdSlots({ sellerId, storeId: storeId || undefined });
   const campaigns = useHeroCampaigns({ sellerId, storeId: storeId || undefined });

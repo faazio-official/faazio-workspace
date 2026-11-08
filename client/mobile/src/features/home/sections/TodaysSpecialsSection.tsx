@@ -8,6 +8,7 @@ import type { Product } from '@data/types';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import { SectionHeader } from './common';
 import type { SectionProps } from './common';
+import { gateway } from '@/services/api/GatewayClient';
 
 const DEAL_CARD_W = hs(116);
 const CARDS_PER_RAIL = 10;
@@ -47,20 +48,24 @@ interface TodaysSpecialsSectionProps extends SectionProps {
 }
 
 function TodaysSpecialsSection({ products, onProductClick, onLaunchSubApp }: TodaysSpecialsSectionProps) {
+  const offline = !gateway.remoteEnabled;
   const pool = useMemo<Product[]>(
     () =>
-      products && products.length > 0
-        ? products
-        : [
+      offline
+        ? [
             ...TODAYS_SPECIALS.map(dishToProduct),
             ...recentlyViewedMart,
             ...hotBrandDeals,
             ...recentlyViewedPharma,
-          ],
-    [products],
+          ]
+        : products ?? [],
+    [products, offline],
   );
 
   const [railA, railB] = useMemo(() => planRails(pool), [pool]);
+
+  // Online with no server rows: omit the section entirely (honest empty, never fixtures).
+  if (!offline && pool.length === 0) return null;
 
   const renderRail = (rail: Product[]) => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>

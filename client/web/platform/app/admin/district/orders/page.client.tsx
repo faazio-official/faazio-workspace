@@ -16,7 +16,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime, formatINR, formatNumber, formatPercent } from "@/lib/format";
-import { useMockLoading, useOrders } from "@/lib/api/hooks";
+import { usePortalLoading, useOrders } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
@@ -24,7 +24,7 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 function StateOrders() {
   const session = useSession();
   const stateCode = session?.stateCode ?? "MH";
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const orders = useOrders({ stateCode });
   const [tick, setTick] = useState(0);
 

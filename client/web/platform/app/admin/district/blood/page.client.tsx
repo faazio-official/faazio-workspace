@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
-import { useMockLoading, useBloodRequests } from "@/lib/api/hooks";
+import { usePortalLoading, useBloodRequests } from "@/lib/api/hooks";
 import { removeBloodRequest } from "@/lib/api";
 import { useSession } from "@/lib/hooks/useSession";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -22,7 +22,7 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 function StateBlood() {
   const session = useSession();
   const stateCode = session?.stateCode ?? "MH";
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const requests = useBloodRequests({ stateCode });
 
   return (

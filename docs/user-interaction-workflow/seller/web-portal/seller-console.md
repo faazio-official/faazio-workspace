@@ -2,7 +2,7 @@
 
 **App / route:** `client/web/platform` · `/login` → role home (`/seller`, `/admin/district`,
 `/admin/super`)
-**Status:** Partial (auth shell shipped; fake latency and local-only surfaces remain)
+**Status:** Partial (auth shell shipped; local-only surfaces remain)
 **Trigger:** Browser login, seller app WebView, or a session restore on page load.
 
 ## Steps
@@ -44,8 +44,6 @@
 
 ## Known gaps
 
-- `useMockLoading` adds 320 ms fake latency on 37 files under `app/` (plus the hook definition in
-  `src/lib/api/hooks.ts`); must be removed per the no-mocks rule.
 - Local-only seller surfaces: `notifications` (`INITIAL` list), `support` (local tickets),
   `hub` checklist, `restaurant-status`, `rush-hour` (client-only zustand store), and the
   "Simulate scan" toast.

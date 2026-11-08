@@ -1,5 +1,5 @@
 import React, { memo, useCallback, useEffect, useState } from 'react';
-import { View, StyleSheet, LayoutChangeEvent } from 'react-native';
+import { View, StyleSheet, LayoutChangeEvent, TouchableOpacity } from 'react-native';
 import { AppImage } from '@/components/shared/AppImage';
 import { hs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
@@ -14,6 +14,8 @@ import { SectionHeader, useAddToCartFeedback, usePricedProducts } from './common
 import type { SectionProps } from './common';
 import { useBatchedFeed } from '@/hooks/useBatchedFeed';
 import AppText from '@/components/AppText';
+import { ActivityIndicator } from 'react-native';
+import { brandRamp } from '@/theme/brandTokens';
 
 const BATCH_SIZE = 8;
 
@@ -45,30 +47,41 @@ function FilterFeedSection({
   viewportH,
 }: FilterFeedSectionProps) {
   const [activeChip, setActiveChip] = useState<FilterChipId>(filterChips[0].id);
-  // SDUI-resolved rows for the active chip; null → use the local fixture pool.
+  const offline = !gateway.remoteEnabled;
+  // SDUI-resolved rows for the active chip. Online, `null` means "not fetched yet"; an empty
+  // array is an honest authoritative empty. Authored `filterFeedPools` are used only offline.
   const [feedPool, setFeedPool] = useState<Product[] | null>(null);
+  const [fetchState, setFetchState] = useState<'idle' | 'loading' | 'live' | 'error'>('idle');
+  const [reloadNonce, setReloadNonce] = useState(0);
   const feedIds = chipProducts?.[activeChip];
 
   useEffect(() => {
+    if (offline) return;
     if (!feedIds || feedIds.length === 0) {
-      setFeedPool(null);
+      setFeedPool([]);
+      setFetchState('live');
       return;
     }
     let active = true;
+    setFetchState('loading');
     gateway
       .getProductsByIds(feedIds)
       .then((rows) => {
-        if (active) setFeedPool(rows as unknown as Product[]);
+        if (!active) return;
+        setFeedPool(rows as unknown as Product[]);
+        setFetchState('live');
       })
       .catch(() => {
-        if (active) setFeedPool(null);
+        if (!active) return;
+        setFeedPool([]);
+        setFetchState('error');
       });
     return () => {
       active = false;
     };
-  }, [feedIds]);
+  }, [feedIds, offline, reloadNonce]);
 
-  const pool = feedPool && feedPool.length > 0 ? feedPool : filterFeedPools[activeChip] ?? [];
+  const pool = offline ? filterFeedPools[activeChip] ?? [] : feedPool ?? [];
   const pricedPool = usePricedProducts(pool);
   const { visibleItems, hasMore, loadMore, total, visibleCount } = useBatchedFeed(pricedPool, BATCH_SIZE);
   const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
@@ -125,22 +138,37 @@ function FilterFeedSection({
     <View onLayout={onSectionLayout}>
       <SectionHeader title="Discover" />
       <FilterChipsRail chips={filterChips} activeId={activeChip} onSelect={setActiveChip} />
-      <View style={styles.grid}>
-        {visibleItems.map((product) => (
-          <UniversalFeedCard
-            key={product.id}
-            product={product}
-            isAdded={addedId === product.id}
-            onPress={handlePress}
-            onAdd={handleAddStable}
-          />
-        ))}
-      </View>
-      {total === 0 ? (
-        <AppText style={styles.emptyState}>No items in this category yet.</AppText>
-      ) : !hasMore ? (
-        <AppText style={styles.endState}>All {total} items loaded</AppText>
-      ) : null}
+      {!offline && fetchState === 'loading' ? (
+        <View style={styles.stateWrap}>
+          <ActivityIndicator color={brandRamp.MART.base} />
+        </View>
+      ) : !offline && fetchState === 'error' ? (
+        <View style={styles.stateWrap}>
+          <AppText style={styles.emptyState}>Could not load this category.</AppText>
+          <TouchableOpacity onPress={() => setReloadNonce((n) => n + 1)} activeOpacity={0.8} accessibilityRole="button">
+            <AppText style={styles.retryText}>Try again</AppText>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <>
+          <View style={styles.grid}>
+            {visibleItems.map((product) => (
+              <UniversalFeedCard
+                key={product.id}
+                product={product}
+                isAdded={addedId === product.id}
+                onPress={handlePress}
+                onAdd={handleAddStable}
+              />
+            ))}
+          </View>
+          {total === 0 ? (
+            <AppText style={styles.emptyState}>No items in this category yet.</AppText>
+          ) : !hasMore ? (
+            <AppText style={styles.endState}>All {total} items loaded</AppText>
+          ) : null}
+        </>
+      )}
     </View>
   );
 }
@@ -154,12 +182,23 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
   },
+  stateWrap: {
+    alignItems: 'center',
+    paddingVertical: SPACE.SECTION,
+    gap: 6,
+  },
   emptyState: {
     fontSize: ms(12),
     fontWeight: '700',
     color: '#94a3b8',
     textAlign: 'center',
     paddingVertical: SPACE.SECTION,
+  },
+  retryText: {
+    fontSize: ms(12),
+    fontWeight: '700',
+    color: brandRamp.MART.base,
+    textAlign: 'center',
   },
   endState: {
     fontSize: ms(10),

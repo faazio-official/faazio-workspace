@@ -17,7 +17,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
-import { useMockLoading, useSduiLayouts } from "@/lib/api/hooks";
+import { usePortalLoading, useSduiLayouts } from "@/lib/api/hooks";
 import { saveSduiLayoutHome } from "@/lib/api";
 import { resolveImage, uploadProductImage } from "@/lib/media/productImages";
 import type { SduiBanner, SduiCampaign, SduiSection } from "@/data/types";
@@ -52,7 +52,7 @@ async function uploadBannerImage(file: File): Promise<string | null> {
 }
 
 function SuperSdui() {
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const layouts = useSduiLayouts({ layoutId: "home" });
   const layout = layouts[0];
   const [draft, setDraft] = useState<SduiSection[]>([]);

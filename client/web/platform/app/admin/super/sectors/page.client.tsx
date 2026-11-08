@@ -27,7 +27,7 @@ import {
 import { formatINR, formatNumber } from "@/lib/format";
 import { capFor } from "@/lib/pricing/rules";
 import { updateProduct } from "@/lib/api";
-import { useMockLoading, useProducts, useSectorCaps } from "@/lib/api/hooks";
+import { usePortalLoading, useProducts, useSectorCaps } from "@/lib/api/hooks";
 import type { Sector } from "@/data/types";
 import { remote } from "@/lib/api/http";
 import { remoteConfigured } from "@/lib/config";
@@ -36,7 +36,7 @@ import { remoteConfigured } from "@/lib/config";
 const SECTORS: Sector[] = ["MART", "FOOD", "PHARMA"];
 
 function SuperSectors() {
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const products = useProducts();
   const caps = useSectorCaps();
   const [renameFrom, setRenameFrom] = useState("");

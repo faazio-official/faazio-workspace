@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { HubHeader } from "@/components/sellers/shells";
 import { Card, PillTabs, Sheet, EmptyState } from "@/components/sellers/kit";
 import { formatDate, formatINR } from "@/lib/format";
-import { useLedger, useMockLoading, usePayouts } from "@/lib/api/hooks";
+import { useLedger, usePortalLoading, usePayouts } from "@/lib/api/hooks";
 import { getSellerPayoutInvoice } from "@/lib/api";
 import { useSession } from "@/lib/hooks/useSession";
 import { config } from "@/lib/config";
@@ -42,7 +42,7 @@ async function downloadPayoutInvoice(payout: PayoutRecord) {
 function SellerPayments() {
   const session = useSession();
   const sellerId = session?.sellerId ?? "";
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const ledger = useLedger(sellerId);
   const payouts = usePayouts(sellerId);
   const [tab, setTab] = useState<"payouts" | "invoices">("payouts");

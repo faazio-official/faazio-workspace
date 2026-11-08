@@ -90,7 +90,7 @@ export default function PaymentCallbackScreen() {
     navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
   };
   const viewOrder = () => {
-    if (orderId) navigation.replace('OrderDetails', { orderId });
+    if (orderId) navigation.replace('OrderDetails', { orderId, entry: 'confirmation' });
   };
   const viewOrders = () => {
     navigation.replace('MyOrders', orderId ? { highlightOrderId: orderId } : undefined);

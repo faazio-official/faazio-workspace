@@ -4,11 +4,14 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { ChevronRight } from 'lucide-react-native';
 import type { AdCampaign, Product } from '@data/types';
 import { getCampaignProducts, getCampaignStore } from '@data/home/campaigns';
+import type { HomeCampaignDetail } from '@/services/api/GatewayClient';
 import AdProductCard from '@/features/home/cards/AdProductCard';
 import AppText from '@/components/AppText';
 
 interface BrandCampaignCardProps {
   campaign: AdCampaign;
+  /** Server-joined store/products (`GET /home/campaigns`). When absent, the offline fixture path runs. */
+  detail?: HomeCampaignDetail;
   onViewAll?: (campaign: AdCampaign) => void;
   onProductClick?: (product: Product) => void;
 }
@@ -35,13 +38,20 @@ function maxDiscountPct(products: Product[]): number | null {
  */
 const BrandCampaignCard = memo(function BrandCampaignCard({
   campaign,
+  detail,
   onViewAll,
   onProductClick,
 }: BrandCampaignCardProps) {
-  const store = getCampaignStore(campaign);
-  const products = getCampaignProducts(campaign).slice(0, 2);
+  // Server-joined detail wins (live prices/store). The authored fixture is used only when no
+  // joined detail exists (offline shell) — never as a live substitute online.
+  const store = detail ? detail.store : getCampaignStore(campaign);
+  const products = (detail
+    ? (detail.products as unknown as Product[])
+    : getCampaignProducts(campaign)
+  ).slice(0, 2);
   const name = store?.name ?? '';
   const maxPct = maxDiscountPct(products);
+  if (!name && products.length === 0) return null;
 
   return (
     <View style={styles.card}>

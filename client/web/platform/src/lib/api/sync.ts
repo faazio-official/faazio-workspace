@@ -187,7 +187,10 @@ function mapSellerProductRow(raw: SellerConsoleRow): ProductRecord {
  * when at least one slice was hydrated.
  */
 export async function hydrateFromGateway(): Promise<boolean> {
-  if (!remoteConfigured()) return false;
+  if (!remoteConfigured()) {
+    usePortalStore.getState().set(() => ({ hydrated: true }));
+    return false;
+  }
   const cur = usePortalStore.getState();
   const role = cur.session?.role;
   const isAdmin = role === "DISTRICT_ADMIN" || role === "SUPER_ADMIN";
@@ -619,5 +622,6 @@ export async function hydrateFromGateway(): Promise<boolean> {
   }
 
   if (touched) usePortalStore.getState().set(() => patch);
+  usePortalStore.getState().set(() => ({ hydrated: true }));
   return touched;
 }

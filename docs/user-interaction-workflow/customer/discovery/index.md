@@ -1,7 +1,6 @@
 # Customer discovery — domain index
 
-**Status:** Partial (Mart server-backed; Pharma falls back to its authored shell on a failed read;
-Food rails still merge `@mock` fixtures)
+**Status:** Shipped (Mart/Food/Pharma read from the gateway; authored data is offline-shell only)
 **Routes:** `SubApp` (Mart/Pharma), `FoodApp` (`FoodStack`), `CategoryDrillIn`, `VendorDetails`,
 `ProductDetail`, `Search`, `DealsLanding`, `MedicalShopDetails`
 **Trigger:** Home launcher, search, category rail, deal card, or deep link.
@@ -38,28 +37,22 @@ Food rails still merge `@mock` fixtures)
 - Products: `searchProducts`, `getStoreProducts`, `getProductsByIds`, `getProduct` →
   `catalog.products` / `inventory.stock`.
 - Menus: `fetchVenues`, `fetchMenu` → `directory.dining_venues` / `directory.menus`.
-- Mart uses no `@data/*` substitution on a failed live read; empty is empty. Pharma renders its
-  authored category shell on a failed category read (`PharmaScreen.tsx:149-160,242`) — a no-mocks
-  gap. Food still merges `@mock` fixture rows (`restaurantFeedService.ts` specials/topFoods,
-  `SNACKS_BEVERAGES`) even while the gateway answers.
+- Mart, Food and Pharma use no `@data/*` substitution on a failed live read: empty/error is honest.
+  Pharma's category grid shows a retryable error instead of authored rows; Food's restaurant grid,
+  top-rated and specials rails are server-derived (no server snack/category feed exists yet, so
+  those online rails are omitted rather than fixture-filled).
 
 ## Success / error / empty
 
 - **Success:** server stores/products/menus render; prices match checkout.
-- **Error:** empty surface + report-issue affordance; no stale fixture grouping in Mart; Pharma
-  shows its authored offline shell, Food its fixture rails (both Known gaps).
-- **Empty:** honest "no stores/products" state (Mart); Food falls back to fixture rails today
-  (see Known gaps).
+- **Error:** empty surface + retry/report-issue affordance; no stale fixture rows anywhere online.
+- **Empty:** honest "no stores/products" state for Mart, Food and Pharma.
 
 ## Known gaps
 
 - Root `Search` accepts `subApp: 'FOOD'` but `SearchRouteScreen` only branches Mart/Pharma and falls
   back to the Home config. Food uses its own `FoodStack` search. See
   [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
-- Food feed rails (`restaurantFeedService.ts`, `FoodHomeScreen.tsx`) render `@mock` fixtures
-  (`topFoods`, `specials`, `SNACKS_BEVERAGES`) alongside live data — a no-mocks gap.
-- Pharma's category grid renders the authored `PHARMA_PRODUCTS_DB` shell after a failed live read
-  (`PharmaScreen.tsx:149-160,242`) — a no-mocks gap.
 - Some `services/categoryVendors.ts` fixture helpers are unused by the live drill-in.
 
 ## Linked docs

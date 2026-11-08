@@ -4,7 +4,7 @@ import { useState } from "react";
 import { ChevronRight, Package, Plus, Search, SlidersHorizontal, X } from "lucide-react";
 import { PageHeader, Card, EmptyState, Sheet } from "@/components/sellers/kit";
 import { formatINR } from "@/lib/format";
-import { useMockLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
+import { usePortalLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
 import { sectorLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 import type { ProductRecord, ProductStatus, Sector } from "@/data/types";
@@ -22,7 +22,7 @@ const STATUS_PILL: Record<ProductStatus, string> = {
 
 function SellerProducts() {
   const { sellerId, storeId } = useSellerScope();
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [query, setQuery] = useState("");
   const [sector, setSector] = useState<Sector | "ALL">("ALL");
   const [status, setStatus] = useState<ProductStatus | "ALL">("ALL");

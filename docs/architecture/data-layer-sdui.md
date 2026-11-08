@@ -247,8 +247,8 @@ only when the server gave no answer and is never presented as live data (W69).
 **Home SDUI cutover (W35).** `getHomeFeed` (`GET /sdui/home`) is now the single source of truth for
 every Home section whose doc carries the data: the gateway joins each section's `productIds` **and**
 `storeIds` (`HomeSection.stores`, via the previously unused `contracts.StoreReader`), and the app
-threads `products`/`stores`/`chips[].productIds` into the rails, keeping each `@data/home/*` fixture
-as the offline first-paint. Only the paid `HOME_HERO` banner stayed fixture-owned until W42; **(W50)**
+threads `products`/`stores`/`chips[].productIds` into the rails; each `@data/home/*` fixture is the
+**offline shell only** — online rails render server rows or an honest empty/error state. Only the paid `HOME_HERO` banner stayed fixture-owned until W42; **(W50)**
 the vendor-campaign carousels are now server-owned too (`hotBrandDeals.campaigns[]` →
 `BrandCampaignsSection` from `getHomeFeed`, `DealsLanding` `campaign` via `getHomeCampaign`).
 

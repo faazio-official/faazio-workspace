@@ -12,7 +12,7 @@ import {
   setPrescriptionReady,
   setPrescriptionStatus,
 } from "@/lib/api";
-import { useMockLoading, useSellerScope } from "@/lib/api/hooks";
+import { usePortalLoading, useSellerScope } from "@/lib/api/hooks";
 import { remoteConfigured } from "@/lib/config";
 import { usePortalStore } from "@/lib/api/store";
 import { cn } from "@/lib/utils";
@@ -55,7 +55,7 @@ const inputCls =
 
 function SellerPrescriptions() {
   const { sellerId, storeId, activeStore } = useSellerScope();
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const prescriptions = usePortalStore((s) => s.prescriptions);
   const rows = useMemo(
     () => listPrescriptions(remoteConfigured() ? { storeId } : { sellerId, storeId }),

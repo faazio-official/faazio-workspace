@@ -26,12 +26,12 @@ import {
 } from "@/components/ui/table";
 import { formatDate, formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { createCoupon, toggleCoupon } from "@/lib/api";
-import { useCoupons, useMockLoading } from "@/lib/api/hooks";
+import { useCoupons, usePortalLoading } from "@/lib/api/hooks";
 import type { Sector } from "@/data/types";
 
 
 function SuperCoupons() {
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const coupons = useCoupons();
   const [code, setCode] = useState("");
   const [sector, setSector] = useState<Sector | "ALL">("ALL");

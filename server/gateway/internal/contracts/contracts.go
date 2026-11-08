@@ -474,6 +474,8 @@ type DeliveryDispatchRequest struct {
 	DropLongitude     float64
 	RequireOTP        bool
 	PayoutAmountPaisa int64
+	// CustomerUserID is the order owner; delivery uses it to enqueue the handover OTP notification.
+	CustomerUserID string
 }
 
 // DeliveryDispatcher assigns a ready order to the best rider. Implemented by delivery.Handler.

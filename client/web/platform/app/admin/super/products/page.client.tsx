@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/table";
 import { formatINR, formatNumber } from "@/lib/format";
 import { deleteProduct, setProductStatus } from "@/lib/api";
-import { useMockLoading, useProducts } from "@/lib/api/hooks";
+import { usePortalLoading, useProducts } from "@/lib/api/hooks";
 import type { Sector } from "@/data/types";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
 
@@ -40,7 +40,7 @@ import { ProductThumb } from "@/components/patterns/ProductThumb";
 const SECTORS: (Sector | "ALL")[] = ["ALL", "MART", "FOOD", "PHARMA"];
 
 function SuperProducts() {
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [sector, setSector] = useState<Sector | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<string[]>([]);

@@ -1276,6 +1276,25 @@ func (r *Repo) OrderPaymentStatusByID(ctx context.Context, orderID string) (stri
 	return ps, true, nil
 }
 
+// OrderPaymentMethodByID returns the latest recorded payment method for an order (auto-dispatch
+// uses it to decide whether the handover needs an OTP). found=false when no payment row exists.
+func (r *Repo) OrderPaymentMethodByID(ctx context.Context, orderID string) (string, bool, error) {
+	if r.pool == nil {
+		return "", false, fmt.Errorf("checkout: database not configured")
+	}
+	var method string
+	err := r.pool.QueryRow(ctx, `
+		select coalesce(method,'') from checkout.payments
+		 where order_id = $1 order by created_at desc limit 1`, orderID).Scan(&method)
+	if err == pgx.ErrNoRows {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return method, true, nil
+}
+
 // OrderMetaByRazorpayOrderID resolves the checkout order a Razorpay order id belongs to (webhook
 // auto-dispatch target), returning the order id, stored status and payment gate. found=false when
 // the razorpay id is unknown. Idempotent.

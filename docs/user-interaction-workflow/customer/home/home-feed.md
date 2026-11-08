@@ -2,7 +2,7 @@
 
 **App / route:** customer · `MainTabs` → `Home` (`src/features/home/HomeTabScreen.tsx`,
 `HomeView.tsx`, `hooks/useHomeFeed.ts`)
-**Status:** Partial (server SDUI; fixture rail fallbacks — see Known gaps)
+**Status:** Shipped (server SDUI; rails are server-only while online)
 **Trigger:** Authenticated app launch or Home tab focus.
 
 ## Steps
@@ -27,21 +27,19 @@
 - Cache: `faazio:v1:gateway:sdui:{locale}:/home` (300 s), purged on SDUI publish.
 - Supporting: `getProductsByIds` (`POST /products/batch`), `getActiveDiscounts`
   (`GET /promo/active-discounts`), `fetchCategoryRail` (`GET /categories/rail`).
-- Offline shell: `@data/home/sections` registry + section fixtures. Today some rails also use
-  fixture rows when a server section has no joined products (`HomeView.tsx` `rail(fallback)`;
-  `FilterFeedSection.tsx` `filterFeedPools`), even while the gateway answers.
+- Offline shell: `@data/home/sections` registry + section fixtures, used only when the gateway is
+  disabled. Online rails render server rows or an honest empty/error state.
 
 ## Success / error / empty
 
 - **Success:** server section order and joined rows.
-- **Error/offline:** static registry + first-paint fixtures; the UI does not claim live data.
-- **Empty:** a section with no rows falls back to `@data/home` fixture rows today (see Known gaps),
-  or hides when no fixture exists.
+- **Loading:** honest "Loading your feed…" until the SDUI read answers.
+- **Error/offline:** online error → retry; gateway disabled → static registry + fixtures.
+- **Empty:** a section with no rows is omitted or shows an honest empty note.
 
 ## Known gaps
 
-- Live `@data/home` rail/filter fixture substitution while the gateway answers (no-mocks violation).
-  See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- None for live fixture substitution (removed); see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

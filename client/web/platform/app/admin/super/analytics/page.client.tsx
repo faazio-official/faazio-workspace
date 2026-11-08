@@ -17,13 +17,13 @@ import {
 } from "@/components/ui/table";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
-import { useAnalyticsRanks, useAnalyticsSeries, useMockLoading, useOrders, useProducts, useSellers, useStates } from "@/lib/api/hooks";
+import { useAnalyticsRanks, useAnalyticsSeries, usePortalLoading, useOrders, useProducts, useSellers, useStates } from "@/lib/api/hooks";
 
 
 const PERIODS = [7, 30, 90];
 
 function SuperAnalytics() {
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [days, setDays] = useState(30);
   const states = useStates();
   const series = useAnalyticsSeries("global", "", days);

@@ -32,16 +32,16 @@ Domain indexes are the entry point for each area; every flow page is linked from
 
 - **Server-only:** portal reads/writes go through `src/lib/api/*` → same-origin
   `/api/gateway/[...path]`; there are no Server Actions. No bundled demo rows.
-- **No fake latency:** `useMockLoading` must not fabricate loading. It is currently still present
-  (320 ms, 37 `app/` files) and is recorded as a violation in [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md).
+- **No fake latency:** portal loading comes from `usePortalLoading()` (real gateway hydration);
+  fabricated `useMockLoading` timers are removed.
 - **Honest local-only states:** notifications/support/rush-hour/restaurant-status are currently
   client-local; they are documented as gaps, not live flows.
 
 ## Known gaps
 
-See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Seller-specific gaps include the current
-`useMockLoading` fake-latency violation, local-only notifications and support, the "Simulate scan"
-toast, toast-only admin/settings actions, and the district-admins page being hardcoded to TTC.
+See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Seller-specific gaps include local-only notifications
+and support, the "Simulate scan" toast, toast-only admin/settings actions, and the district-admins
+page being hardcoded to TTC.
 
 ## Linked docs
 

@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { setTicketStatus } from "@/lib/api";
-import { useMockLoading, useTickets } from "@/lib/api/hooks";
+import { usePortalLoading, useTickets } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { TicketStatus } from "@/data/types";
@@ -35,7 +35,7 @@ const STATUSES: (TicketStatus | "ALL")[] = ["ALL", "OPEN", "IN_PROGRESS", "RESOL
 function StateSupport() {
   const session = useSession();
   const stateCode = session?.stateCode ?? "MH";
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [status, setStatus] = useState<TicketStatus | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const tickets = useTickets({ stateCode, status, query });

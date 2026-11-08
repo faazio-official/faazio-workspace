@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { gateway, type ProductView } from '@/services/api/GatewayClient';
 import type { SduiSection } from '@data/home/sdui';
 import type { StoreRecord } from '@data/directory/stores';
@@ -9,24 +9,54 @@ import type { StoreRecord } from '@data/directory/stores';
  */
 export type HomeFeedSection = SduiSection & { products: ProductView[]; stores?: StoreRecord[] };
 
+export interface HomeFeedState {
+  feed: HomeFeedSection[] | null;
+  loading: boolean;
+  error: boolean;
+  reload: () => void;
+}
+
 /**
  * Server-driven Home SDUI doc. Returns the ordered sections the gateway compiles
- * (Mongo `sdui_layouts` joined to Postgres) once loaded, or `null` while loading/offline.
- * No local fixture doc is substituted.
+ * (Mongo `sdui_layouts` joined to Postgres). No local fixture doc is substituted: while
+ * the read is in flight `feed` is null and `loading` is true, and a failed read surfaces
+ * `error` so the screen can show an honest empty/error state instead of fixtures.
  */
-export function useHomeFeed(): HomeFeedSection[] | null {
+export function useHomeFeed(): HomeFeedState {
   const [feed, setFeed] = useState<HomeFeedSection[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(false);
+  const [nonce, setNonce] = useState(0);
+
   useEffect(() => {
+    if (!gateway.remoteEnabled) {
+      setFeed(null);
+      setLoading(false);
+      setError(false);
+      return;
+    }
     let active = true;
+    setLoading(true);
+    setError(false);
     gateway
       .getHomeFeed()
       .then((sections) => {
-        if (active) setFeed(sections as HomeFeedSection[]);
+        if (!active) return;
+        setFeed(sections as HomeFeedSection[]);
       })
-      .catch(() => {});
+      .catch(() => {
+        if (!active) return;
+        setFeed(null);
+        setError(true);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
     return () => {
       active = false;
     };
-  }, []);
-  return feed;
+  }, [nonce]);
+
+  const reload = useCallback(() => setNonce((n) => n + 1), []);
+  return { feed, loading, error, reload };
 }

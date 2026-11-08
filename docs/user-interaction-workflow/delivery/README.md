@@ -33,8 +33,9 @@
 ## Known gaps
 
 See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Delivery-specific gaps: `AcceptReject` is not navigated
-from any screen (push/deep link only); OTP handover is unreachable for checkout orders; iOS
-force-quit background limits are documented in `client/mobile/PENDING_WORK.md`.
+from any screen (push/deep link only); iOS force-quit background limits are documented in
+`client/mobile/PENDING_WORK.md`. OTP handover is enabled (COD/UPI checkout orders) and delivered
+through the notifications outbox.
 
 ## Linked docs
 

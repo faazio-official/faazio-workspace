@@ -18,12 +18,12 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime, formatNumber } from "@/lib/format";
 import { updateRewardRates } from "@/lib/api";
-import { useMockLoading, useRewardLedger, useRewardRates } from "@/lib/api/hooks";
+import { usePortalLoading, useRewardLedger, useRewardRates } from "@/lib/api/hooks";
 
 function SuperRewards() {
   const rates = useRewardRates();
   const ledger = useRewardLedger();
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [form, setForm] = useState({
     coinEarnRate: String(rates.coinEarnRate),
     coinRedeemRate: String(rates.coinRedeemRate),

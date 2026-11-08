@@ -5,7 +5,7 @@ import { Card, EmptyState } from "@/components/sellers/kit";
 import { LineSpark, Bars } from "@/components/sellers/charts";
 import { formatINR, formatNumber } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
-import { useAnalyticsRanks, useAnalyticsSeries, useMockLoading, useOrders, useProducts, useSellerScope } from "@/lib/api/hooks";
+import { useAnalyticsRanks, useAnalyticsSeries, usePortalLoading, useOrders, useProducts, useSellerScope } from "@/lib/api/hooks";
 import { orderStatusLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 
@@ -28,7 +28,7 @@ function Delta({ value }: { value: number }) {
 function SellerAnalytics() {
   const { sellerId, storeId, activeStore } = useSellerScope();
   const sector = activeStore?.sector;
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [days, setDays] = useState(30);
   const series = useAnalyticsSeries("seller", sellerId, days);
   const ranks = useAnalyticsRanks(days);

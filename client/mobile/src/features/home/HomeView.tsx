@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo } from 'react';
-import { StyleSheet } from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { SPACE } from '@/theme/spacing';
 import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native-reanimated';
 import type { SharedValue } from 'react-native-reanimated';
@@ -9,6 +9,7 @@ import type { SduiCampaign } from '@data/home/sdui';
 import type { Product, StoreProfile } from '@data/types';
 import type { StoreRecord } from '@data/directory/stores';
 import type { SubAppId } from '@/state/uiStore';
+import { gateway } from '@/services/api/GatewayClient';
 import { useHomeFeed } from './hooks/useHomeFeed';
 import {
   mensPicks,
@@ -33,8 +34,10 @@ import HairSkinCareSection from '@/features/home/sections/HairSkinCareSection';
 import FilterFeedSection from '@/features/home/sections/FilterFeedSection';
 
 import { recentlyViewedMart, recentlyViewedFood, recentlyViewedPharma } from '@data/home/rails';
-import { parentRamp } from '@/theme/brandTokens';
 import { brandRamp } from '@/theme/brandTokens';
+import AppText from '@/components/AppText';
+import { ms, vs, hs } from '@/utils/responsive';
+import { neutral } from '@/theme/brandTokens';
 
 interface HomeViewProps {
   onLaunchSubApp: (subAppId: SubAppId) => void;
@@ -49,6 +52,14 @@ interface HomeViewProps {
   viewportH: SharedValue<number>;
   /** Top padding so the first section sits flush below the expanded (overlay) header. */
   contentPaddingTop: number;
+}
+
+interface HomeRow {
+  id: HomeSectionKind;
+  products?: Product[];
+  stores?: StoreRecord[];
+  chipProducts?: Record<string, string[]>;
+  campaigns?: SduiCampaign[];
 }
 
 export default function HomeView({
@@ -68,36 +79,27 @@ export default function HomeView({
     [onLaunchSubApp, addToCart, onProductClick, onStoreClick, onOpenDeals],
   );
 
-  // Server-driven SDUI registry: section order (and the rail product rows) come from
-  // the gateway doc once loaded; the static registry renders first and is the offline
-  // fallback. Section components keep their local data where the doc has no join.
-  const feed = useHomeFeed();
-
-  // Feed rows: the SDUI doc supplies the ordered sections plus the joined product/store rows
-  // and filter chips. The static `homeSections` registry is the offline fallback; each section
-  // still carries its own first-paint fixture so the rail never flashes empty.
-  interface HomeRow {
-    id: HomeSectionKind;
-    products?: Product[];
-    stores?: StoreRecord[];
-    chipProducts?: Record<string, string[]>;
-    campaigns?: SduiCampaign[];
-  }
+  // Server-driven SDUI registry: section order and joined product/store rows come from the
+  // gateway doc. The static registry + authored fixtures are used only when the gateway is
+  // disabled (offline shell); while online, an empty/failed read shows an honest state.
+  const { feed, loading, error, reload } = useHomeFeed();
+  const offline = !gateway.remoteEnabled;
 
   const rows = useMemo<HomeRow[]>(() => {
-    if (feed && feed.length > 0) {
-      return feed.map((s): HomeRow => ({
-        id: s.id,
-        products: s.products as unknown as Product[],
-        stores: s.stores,
-        campaigns: s.campaigns,
-        chipProducts: s.chips?.length
-          ? Object.fromEntries(s.chips.map((c) => [c.id, c.productIds]))
-          : undefined,
-      }));
+    if (offline) {
+      return homeSections.map((s): HomeRow => ({ id: s.id }));
     }
-    return homeSections.map((s): HomeRow => ({ id: s.id }));
-  }, [feed]);
+    if (!feed) return [];
+    return feed.map((s): HomeRow => ({
+      id: s.id,
+      products: s.products as unknown as Product[],
+      stores: s.stores,
+      campaigns: s.campaigns,
+      chipProducts: s.chips?.length
+        ? Object.fromEntries(s.chips.map((c) => [c.id, c.productIds]))
+        : undefined,
+    }));
+  }, [feed, offline]);
 
   // 1:1 with finger scroll — matches native collapsing toolbars. Damping below 1
   // made content travel faster than the finger (the "surge" while panning down).
@@ -120,32 +122,68 @@ export default function HomeView({
 
   const renderSection = useCallback(
     ({ id, products, stores, chipProducts, campaigns }: HomeRow): React.ReactElement | null => {
-      const rail = (fallback: Product[]) => (products && products.length > 0 ? products : fallback);
+      // Offline: authored fixtures keep the shell usable. Online: only server rows; a section
+      // whose server join is empty is omitted rather than padded with fixtures.
+      const rail = (fallback: Product[]) => (offline ? fallback : products ?? []);
+      const hasRail = (fallback: Product[]) => offline || (products?.length ?? 0) > 0;
       switch (id) {
         case 'adBanner': return <AdBannerSection {...sectionProps} />;
         case 'diningSpecials': return <TodaysSpecialsSection {...sectionProps} products={products} />;
         case 'hotBrandDeals': return <BrandCampaignsSection {...sectionProps} campaigns={campaigns} />;
-        case 'dealsOfDay': return <DealsOfDaySection {...sectionProps} />;
+        case 'dealsOfDay': return <DealsOfDaySection {...sectionProps} products={products} />;
         case 'sponsoredRail': return <SponsoredRailSection {...sectionProps} />;
         case 'mostRatedDining': return <MostRatedRestaurantsSection {...sectionProps} stores={stores} />;
-        case 'recentlyViewedMart': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={rail(recentlyViewedMart)} accent={brandRamp.MART.base} appBrand="MART" />;
-        case 'recentlyViewedFood': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Food" products={rail(recentlyViewedFood)} accent={brandRamp.FOOD.base} appBrand="FOOD" />;
-        case 'recentlyViewedPharma': return <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Pharma" products={rail(recentlyViewedPharma)} accent={brandRamp.PHARMA.base} appBrand="PHARMA" />;
-        case 'nearbyOffers': return <NearbyOffersSection {...sectionProps} products={rail(nearbyOffers)} />;
-        case 'mens': return <MensSection {...sectionProps} products={rail(mensPicks)} />;
-        case 'womens': return <WomensSection {...sectionProps} products={rail(womensPicks)} />;
-        case 'childrens': return <ChildrensSection {...sectionProps} products={rail(childrensPicks)} />;
-        case 'hairSkinCare': return <HairSkinCareSection {...sectionProps} products={rail(hairSkinPicks)} />;
+        case 'recentlyViewedMart':
+          return hasRail(recentlyViewedMart)
+            ? <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Mart" products={rail(recentlyViewedMart)} accent={brandRamp.MART.base} appBrand="MART" />
+            : null;
+        case 'recentlyViewedFood':
+          return hasRail(recentlyViewedFood)
+            ? <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Food" products={rail(recentlyViewedFood)} accent={brandRamp.FOOD.base} appBrand="FOOD" />
+            : null;
+        case 'recentlyViewedPharma':
+          return hasRail(recentlyViewedPharma)
+            ? <RecentlyViewedRailSection {...sectionProps} title="Recently Viewed — Pharma" products={rail(recentlyViewedPharma)} accent={brandRamp.PHARMA.base} appBrand="PHARMA" />
+            : null;
+        case 'nearbyOffers':
+          return hasRail(nearbyOffers) ? <NearbyOffersSection {...sectionProps} products={rail(nearbyOffers)} /> : null;
+        case 'mens':
+          return hasRail(mensPicks) ? <MensSection {...sectionProps} products={rail(mensPicks)} /> : null;
+        case 'womens':
+          return hasRail(womensPicks) ? <WomensSection {...sectionProps} products={rail(womensPicks)} /> : null;
+        case 'childrens':
+          return hasRail(childrensPicks) ? <ChildrensSection {...sectionProps} products={rail(childrensPicks)} /> : null;
+        case 'hairSkinCare':
+          return hasRail(hairSkinPicks) ? <HairSkinCareSection {...sectionProps} products={rail(hairSkinPicks)} /> : null;
         case 'filterFeed': return <FilterFeedSection {...sectionProps} chipProducts={chipProducts} scrollY={scrollY} viewportH={viewportH} />;
         default: return null;
       }
     },
-    [sectionProps, scrollY, viewportH],
+    [sectionProps, scrollY, viewportH, offline],
   );
 
   const renderItem = useCallback(
     ({ item }: { item: HomeRow }) => renderSection(item),
     [renderSection],
+  );
+
+  const emptyState = offline ? null : loading ? (
+    <View style={styles.emptyWrap}>
+      <AppText style={styles.emptyTitle}>Loading your feed…</AppText>
+    </View>
+  ) : error ? (
+    <View style={styles.emptyWrap}>
+      <AppText style={styles.emptyTitle}>Could not load your feed</AppText>
+      <AppText style={styles.emptySub}>Check your connection and try again.</AppText>
+      <TouchableOpacity style={styles.retryBtn} onPress={reload} activeOpacity={0.8} accessibilityRole="button">
+        <AppText style={styles.retryText}>Try again</AppText>
+      </TouchableOpacity>
+    </View>
+  ) : (
+    <View style={styles.emptyWrap}>
+      <AppText style={styles.emptyTitle}>Nothing here yet</AppText>
+      <AppText style={styles.emptySub}>Check back soon for new offers.</AppText>
+    </View>
   );
 
   return (
@@ -162,6 +200,7 @@ export default function HomeView({
       maxToRenderPerBatch={6}
       windowSize={5}
       updateCellsBatchingPeriod={50}
+      ListEmptyComponent={emptyState}
     />
   );
 }
@@ -173,5 +212,34 @@ const styles = StyleSheet.create({
   },
   content: {
     paddingBottom: SPACE.LIST_BOTTOM,
+  },
+  emptyWrap: {
+    paddingHorizontal: hs(32),
+    paddingVertical: vs(64),
+    alignItems: 'center',
+  },
+  emptyTitle: {
+    fontSize: ms(16),
+    fontWeight: '700',
+    color: neutral.ink,
+    textAlign: 'center',
+  },
+  emptySub: {
+    fontSize: ms(13),
+    color: neutral.inkMuted,
+    textAlign: 'center',
+    marginTop: vs(6),
+  },
+  retryBtn: {
+    marginTop: vs(16),
+    paddingHorizontal: hs(18),
+    paddingVertical: vs(10),
+    borderRadius: ms(999),
+    backgroundColor: brandRamp.MART.base,
+  },
+  retryText: {
+    fontSize: ms(13),
+    fontWeight: '700',
+    color: '#ffffff',
   },
 });

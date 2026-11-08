@@ -17,7 +17,7 @@ import {
 } from "@/components/ui/table";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
-import { useAnalyticsRanks, useAnalyticsSeries, useMockLoading, useOrders, useSellers } from "@/lib/api/hooks";
+import { useAnalyticsRanks, useAnalyticsSeries, usePortalLoading, useOrders, useSellers } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
@@ -29,7 +29,7 @@ function StateAnalytics() {
   const stateCode = session?.stateCode ?? "TN";
   // No hardcoded district fallback — see the sellers page; the gateway already scopes the rows.
   const districtCode = session?.districtCode;
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [days, setDays] = useState(30);
   const series = useAnalyticsSeries("state", stateCode, days);
   const ranks = useAnalyticsRanks(days);

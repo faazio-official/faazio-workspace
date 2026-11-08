@@ -744,7 +744,10 @@ func (h *Handler) adminLocation(w http.ResponseWriter, r *http.Request) {
 // ---------------------------------------------------------------- dispatch + execution
 
 type dispatchRequest struct {
-	CustomerOrderID   string   `json:"customerOrderId"`
+	CustomerOrderID string `json:"customerOrderId"`
+	// CustomerUserID is set by the internal checkout dispatch path so the handover OTP can be
+	// enqueued to the customer's notification inbox. Never accepted from the admin JSON body.
+	CustomerUserID    string   `json:"-"`
 	StoreID           string   `json:"storeId"`
 	StoreLabel        string   `json:"storeLabel"`
 	StoreAddress      string   `json:"storeAddress"`
@@ -856,6 +859,7 @@ func (h *Handler) DispatchOrder(ctx context.Context, req contracts.DeliveryDispa
 	dropLat, dropLng := req.DropLatitude, req.DropLongitude
 	_, _, assigned, err := h.dispatch(ctx, dispatchRequest{
 		CustomerOrderID:   req.CustomerOrderID,
+		CustomerUserID:    req.CustomerUserID,
 		StoreID:           req.StoreID,
 		StoreLabel:        req.StoreName,
 		StoreAddress:      req.StoreAddress,
@@ -972,7 +976,23 @@ func (h *Handler) dispatch(ctx context.Context, req dispatchRequest, stateCode s
 		"riderId": best.Rider.RiderID, "customerOrderId": req.CustomerOrderID,
 	})
 	h.notifyRider(ctx, best.Rider, created)
+	if otp != "" && req.CustomerUserID != "" {
+		h.notifyCustomerOTP(ctx, req.CustomerUserID, req.CustomerOrderID, otp)
+	}
 	return created, otp, true, nil
+}
+
+// notifyCustomerOTP enqueues the handover OTP to the customer's durable notification inbox so the
+// rider's "Verify & deliver" step is reachable end-to-end. The code is user-facing copy; the data
+// payload carries only the order id (no PII) and the OTP is never logged.
+func (h *Handler) notifyCustomerOTP(ctx context.Context, userID, customerOrderID, otp string) {
+	if h.notifier == nil || userID == "" {
+		return
+	}
+	_ = h.notifier.Enqueue(ctx, userID, "DELIVERY_OTP",
+		"Delivery OTP",
+		"Your delivery OTP is "+otp+". Share it with the rider only when your order arrives.",
+		map[string]any{"orderId": customerOrderID})
 }
 
 func (h *Handler) acceptOrder(w http.ResponseWriter, r *http.Request) {

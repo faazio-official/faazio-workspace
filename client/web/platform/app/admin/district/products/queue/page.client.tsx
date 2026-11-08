@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/table";
 import { formatDate, formatINR } from "@/lib/format";
 import { setProductStatus } from "@/lib/api";
-import { useMockLoading, useProducts } from "@/lib/api/hooks";
+import { usePortalLoading, useProducts } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -24,7 +24,7 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 function ListingQueue() {
   const session = useSession();
   const stateCode = session?.stateCode ?? "MH";
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const pending = useProducts({ stateCode, status: "PENDING_REVIEW" });
 
   return (

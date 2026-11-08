@@ -14,11 +14,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatINR, formatDate } from "@/lib/format";
-import { useCustomers, useMockLoading } from "@/lib/api/hooks";
+import { useCustomers, usePortalLoading } from "@/lib/api/hooks";
 
 function PlatformUsers() {
   const [query, setQuery] = useState("");
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const customers = useCustomers({ query });
 
   const totalSpend = useMemo(

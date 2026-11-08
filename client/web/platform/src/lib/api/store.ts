@@ -41,6 +41,9 @@ export type SessionStatus = "unknown" | "signed-in" | "reconnecting" | "signed-o
 export interface PortalState {
   session: AuthUser | null;
   sessionStatus: SessionStatus;
+  /** True once the first gateway hydration pass has completed (success or failure). Drives the
+   *  portal's real loading state instead of a fabricated timer. Never persisted. */
+  hydrated: boolean;
   /** The vendor (directory.stores id) the seller console is currently scoped to. Persisted so a
    *  reload keeps the seller on the same shop; null means "not chosen yet" (fall back to the first). */
   activeStoreId: string | null;
@@ -80,6 +83,7 @@ export interface PortalState {
 const emptySeed = {
   session: null as AuthUser | null,
   sessionStatus: "unknown" as SessionStatus,
+  hydrated: false,
   activeStoreId: null as string | null,
   storeScopeVersion: 0,
   sellers: [] as SellerRecord[],
@@ -142,8 +146,15 @@ export const usePortalStore = create<PortalState>()(
           : window.localStorage,
       ),
       partialize: (state) => {
-        const { set: _set, setActiveStoreId: _setActive, sessionStatus: _status, ...rest } = state;
-        // The portal session is never persisted: it is refreshed from the HttpOnly cookie on load.
+        const {
+          set: _set,
+          setActiveStoreId: _setActive,
+          sessionStatus: _status,
+          hydrated: _hydrated,
+          ...rest
+        } = state;
+        // The portal session and hydration flag are never persisted: the session is refreshed from
+        // the HttpOnly cookie and hydration always starts fresh on load.
         return { ...rest, session: null };
       },
     },

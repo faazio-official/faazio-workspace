@@ -1,13 +1,12 @@
 /**
- * @mock Resolves self-pickup points from the items in the cart, derived from the
- * store each product belongs to — NOT a hardcoded Faazio hub. A cart can span
- * several stores; each distinct store yields one pickup point (the user visits
- * whichever applies). Items whose store can't be determined fall back to a single
- * neutral pickup hub.
+ * @mock Offline/type shell only. `getPickupPointsForItems` is @unused by the app:
+ * self-pickup points now come from the server (`GET /pickup-points` via
+ * `GatewayClient.getPickupPoints`). `getStoreIdsForItems` is still used to scope
+ * the server request to the cart's distinct stores.
  *
- * Resolution order per item: product (`getProductById`) → `product.storeId` →
- * store; else `product.shop` matched to a store name; else the app's default
- * outlet (PHARMA has exactly one); else the neutral hub.
+ * Historical behaviour (kept for the offline shell): resolves pickup points from
+ * the store each product belongs to, with items whose store can't be determined
+ * falling back to a single neutral pickup hub.
  */
 import type { PickupPoint } from '../types';
 import { getProductById } from '../catalog/products';

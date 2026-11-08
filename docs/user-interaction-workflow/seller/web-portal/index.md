@@ -1,6 +1,6 @@
 # Seller web portal — domain index
 
-**Status:** Partial (fake `useMockLoading` latency; local-only/toast-only surfaces)
+**Status:** Partial (real hydration loading; local-only/toast-only surfaces remain)
 **App:** `client/web/platform` (Next.js App Router)
 **Routes:** `/seller/*` (seller console), `/admin/district/*`, `/admin/super/*`
 **Trigger:** Browser login at `/login`, or the seller app WebView.
@@ -36,15 +36,16 @@
 ## Success / error / empty
 
 - **Success:** role home / console page renders live gateway data.
+- **Loading:** real `usePortalLoading()` (first gateway hydration) — no fabricated latency.
 - **Error:** `not_configured` / `gateway_unreachable` / `portal_auth_unavailable` diagnostics; `401`
   bounces to `/login`. Toast-only actions report success without a gateway write (see Known gaps).
 - **Empty:** honest empty states; no fixtures.
 
 ## Known gaps
 
-- `useMockLoading` fake latency (320 ms, 37 `app/` files), local-only
-  notifications/support/rush-hour/restaurant-status, toast-only admin and settings actions, and the
-  TTC-hardcoded district-admins page. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- Local-only notifications/support/rush-hour/restaurant-status, toast-only admin and settings
+  actions, and the TTC-hardcoded district-admins page. See
+  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

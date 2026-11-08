@@ -9,7 +9,7 @@ import { DataShell } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
-import { useAnalyticsSeries, useCampaigns, useDistricts, useMockLoading, useOrders, useSellers } from "@/lib/api/hooks";
+import { useAnalyticsSeries, useCampaigns, useDistricts, usePortalLoading, useOrders, useSellers } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { districtName } from "@/lib/api/reference";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -23,7 +23,7 @@ function StateDashboard() {
   // district when present, else by their state (a state-scoped admin) so nothing is hidden.
   const districtCode = session?.districtCode;
   const scopeLabel = districtCode ? districtName(districts, districtCode) : stateCode;
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const series = useAnalyticsSeries("state", stateCode, 30);
   const sellers = useSellers({ districtCode });
   const orders = useOrders({ stateCode });

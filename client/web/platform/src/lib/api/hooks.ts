@@ -53,14 +53,12 @@ export function useUserTrail(userId: string | null): { events: UserTrailEvent[];
   return { events, loading };
 }
 
-/** Short mock latency so every page exercises its loading state. */
-export function useMockLoading(ms = 320): boolean {
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    const timer = window.setTimeout(() => setLoading(false), ms);
-    return () => window.clearTimeout(timer);
-  }, [ms]);
-  return loading;
+/**
+ * Real portal loading state: true while the first gateway hydration pass is in flight (or before
+ * it starts). Replaces the retired fabricated `useMockLoading` timer — no artificial delay.
+ */
+export function usePortalLoading(): boolean {
+  return usePortalStore((s) => !s.hydrated);
 }
 
 export function useProducts(filter: api.ProductFilter = {}) {

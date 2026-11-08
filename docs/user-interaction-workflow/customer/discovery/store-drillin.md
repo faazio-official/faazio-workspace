@@ -2,7 +2,7 @@
 
 **App / route:** customer · `SubApp`, `FoodApp`, `CategoryDrillIn` (`features/catalog/CategoryDrillInScreen.tsx`),
 `VendorDetails` (`features/catalog/VendorDetailScreen.tsx`)
-**Status:** Partial (Food feed rails still merge `@mock` fixtures)
+**Status:** Shipped (server feeds; authored data is offline-shell only)
 **Trigger:** Tapping a sub-app, category, store card, deal, or search result.
 
 ## Steps
@@ -48,8 +48,6 @@
 ## Known gaps
 
 - Root `Search` `FOOD` config mismatch (see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md)).
-- Food feed rails render `@mock` fixtures (`restaurantFeedService.ts` top-rated/specials,
-  `FoodHomeScreen.tsx` `SNACKS_BEVERAGES`) alongside live data — a no-mocks gap.
 - `services/categoryVendors.ts` still exports unused fixture-backed `getVendorsForApp` /
   `getVendorsWithProducts` / `getVendorProducts`. The live drill-in (`useCategoryVendors`) uses the
   gateway directly and does not call these helpers or the `matchesQuery` / `isDiscounted` predicates

@@ -1096,6 +1096,10 @@ func (h *Handler) autoDispatch(ctx context.Context, orderID string) {
 		if ps, paidOK, err := h.repo.OrderPaymentStatusByID(ctx, dc.OrderID); err != nil || !paidOK || ps != "PAID" {
 			return
 		}
+		// Handover OTP is mandatory for the cash/UPI rails (COD includes pay-by-QR at the door;
+		// UPI is the in-app rail). The delivery context generates and delivers it to the customer.
+		method, _, _ := h.repo.OrderPaymentMethodByID(ctx, dc.OrderID)
+		requireOTP := strings.EqualFold(method, "COD") || strings.EqualFold(method, "UPI")
 		store, ok, err := h.stores.ByID(ctx, dc.StoreIDs[0])
 		if err != nil || !ok || store.Latitude == nil || store.Longitude == nil ||
 			strings.TrimSpace(store.StateCode) == "" {
@@ -1103,6 +1107,7 @@ func (h *Handler) autoDispatch(ctx context.Context, orderID string) {
 		}
 		_, _ = h.delivery.DispatchOrder(ctx, contracts.DeliveryDispatchRequest{
 			CustomerOrderID: dc.OrderID,
+			CustomerUserID:  dc.UserID,
 			StoreID:         store.ID,
 			StoreName:       store.Name,
 			StoreAddress:    store.Address,
@@ -1114,6 +1119,7 @@ func (h *Handler) autoDispatch(ctx context.Context, orderID string) {
 			CustomerAddress: dc.CustomerAddr,
 			DropLatitude:    *dc.Latitude,
 			DropLongitude:   *dc.Longitude,
+			RequireOTP:      requireOTP,
 		})
 	}()
 }

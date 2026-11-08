@@ -36,7 +36,7 @@ import {
 import {
   useAnalyticsRanks,
   useCampaigns,
-  useMockLoading,
+  usePortalLoading,
   useOptins,
   useProducts,
   useSectorCaps,
@@ -49,7 +49,7 @@ const SECTORS: Sector[] = ["MART", "FOOD", "PHARMA"];
 const LIFECYCLE: CampaignStatus[] = ["DRAFT", "SCHEDULED", "LIVE", "ENDED"];
 
 function SuperFestival() {
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const caps = useSectorCaps();
   const campaigns = useCampaigns();
   const optins = useOptins();

@@ -1,6 +1,6 @@
 # Customer home — domain index
 
-**Status:** Partial (server SDUI; some rails still substitute `@mock` fixtures — see Known gaps)
+**Status:** Shipped (server SDUI; rails are server-only while online)
 **Route:** `MainTabs` → `Home` (`src/features/home/HomeTabScreen.tsx` → `HomeView.tsx`)
 **Trigger:** App launch when authenticated, or tapping the Home tab.
 
@@ -17,8 +17,8 @@
 - Sub-app launcher cards: Mart (`SubApp`), Food (`FoodApp`), Pharma (`SubApp`).
 - Ordered SDUI sections from `GET /sdui/home` (`useHomeFeed`).
 - Filter-feed chips and paginated pools.
-- Editorial/offline fallbacks (`homeSections` registry and per-section fixtures) when the server
-  doc is absent **or a server section comes back with no rows**.
+- An explicit offline shell (`homeSections` registry + authored fixtures) only when the gateway is
+  disabled. While online, a section with no server rows is omitted; loading/error states are honest.
 
 ## State
 
@@ -32,24 +32,21 @@
   `catalog.products` / `directory.stores` joins, cached at the edge.
 - Supporting reads: `fetchCategoryRail`, `getHeroAds`, `getLiveAds`, `getProductsByIds`,
   `getActiveDiscounts`.
-- `@data/home/*` is the offline/error shell and type source. Today some rails also use fixture rows
-  when a server section has no joined products (`HomeView.tsx` `rail(fallback)`;
-  `FilterFeedSection.tsx` `filterFeedPools`). That is a no-mocks gap, not an online origin.
+- `@data/home/*` is the offline/error shell and type source only. While the gateway answers, rails
+  render server rows or an honest empty/error state — never fixture rows.
 
 ## Success / error / empty
 
 - **Success:** server-ordered sections render with joined rows.
-- **Error/offline:** static section registry + first-paint fixtures; no fabricated live rows.
-- **Empty:** a section with no server rows falls back to fixture rows today (see Known gaps), or
-  hides when no fixture exists.
+- **Loading:** an honest "Loading your feed…" state until `GET /sdui/home` answers.
+- **Error/offline:** online error → retry state; gateway disabled → static registry + fixtures.
+- **Empty:** a section with no server rows is omitted (or shows its own honest empty note); the
+  feed itself shows an honest empty state when the server returns no sections.
 
 ## Known gaps
 
-- Some rails (`recentlyViewed*`, `nearbyOffers`, `mens`/`womens`/`childrens`/`hairSkinCare`,
-  `filterFeed`, `dealsOfDay` via `MART_DEALS`, `todaysSpecials`, `hotBrandDeals` via
-  `adCampaigns`) substitute `@data/home` `@mock`/`@static-editorial` fixtures when the server
-  section has no rows, even while the gateway answers. This violates the no-mocks rule and must be
-  removed or relabelled; see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- None for the online fixture substitution (removed). See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md)
+  for unrelated home gaps.
 
 ## Linked docs
 

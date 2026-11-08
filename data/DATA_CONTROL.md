@@ -49,10 +49,10 @@ writes the dropped columns. `@data/*` stays seed input + types only, never a run
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@server` (fixtures are type seeds) |
 | `categories` | `features/catalog` | `searchDatabase.ts` | `@static` taxonomy |
 | `productMeta` | `features/product` (ProductDetail) | `reviews.ts` | `@server` (fixture `@unused`) |
-| `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@server` + `@mock` (`coupons.ts` hydrates from `GET /coupons`; `pickup-resolver.ts` is client-side `@mock` — a no-mocks gap tracked in `docs/user-interaction-workflow/KNOWN_GAPS.md`) |
+| `cart` | `features/cart` | `addresses.ts`, `coupons.ts`, `pickup-resolver.ts` | `@server` + `@mock` (`coupons.ts` hydrates from `GET /coupons`; `pickup-resolver.ts` is an offline/type shell — `getPickupPointsForItems` is `@unused`, self-pickup reads `GET /pickup-points`) |
 | `account` | `features/profile` | `orders.ts` | `@server` |
 | `directory` / `reviews` (vendor) | `features/profile` (rating form/CTA) + every vendor surface | `directory/vendors.ts`, `food/diningVenues.ts`, `reviews/vendorReviews.ts` | `@server` (fixtures are type seeds) |
-| `home` | `features/home` | `sections.ts`, `rails.ts`, `campaigns.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | `@server` + `@seed`/`@static` registry |
+| `home` | `features/home` | `sections.ts`, `rails.ts`, `campaigns.ts`, `demographics.ts`, `instantFeed.ts`, `nearbyOffers.ts`, `filterFeed.ts`, `seeds.ts` | `@server` + `@seed`/`@static` registry (authored rows are offline-shell only; online rails are server-only) |
 
 > **No dining/table-booking feature exists.** The Food sub-app supports only delivery and pickup
 > fulfillment (`FulfillmentMode = 'DELIVERY' | 'PICKUP'`). `directory.dining_venues` (and the
@@ -177,9 +177,9 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > category→outlet map (`STORE_BY_CATEGORY` in `data/pharma/products.ts`) so the 6 outlets
 > `store-p1…p6` all hold real inventory instead of defaulting to the flagship `store-p1` —
 > self-pickup and the prescription vendor list now surface all six pharma outlets.
-> `getPickupPointsForItems` uses this
-> linkage so Self-Pickup shows the actual store(s) the order came from — not a hardcoded Faazio
-> hub. `data/directory/stores.ts` consolidates the apps' stores.
+> `getStoreIdsForItems` uses this linkage to scope the server self-pickup read
+> (`GET /pickup-points?storeIds=`) to the actual store(s) the order came from — not a hardcoded
+> Faazio hub. `data/directory/stores.ts` consolidates the apps' stores.
 
 ### `@data/food` — owner: `features/food`
 
@@ -317,26 +317,22 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 |---|---|---|---|
 | `defaultAddresses` | `Address[]` | `CartView` (saved-address fallback when live location is unavailable) | `@mock` |
 | `coupons` | `Coupon[]` | `CartView` (promo codes) | `@mock` |
-| `getPickupPointsForItems` | `(items) => PickupPoint[]` | `CartView` (order placement — auto-derives one pickup point per distinct vendor for self-pickup orders) | `@mock` |
-| `NEUTRAL_PICKUP` | `PickupPoint` | fallback hub for cart items whose store can't be determined | `@mock` |
+| `getPickupPointsForItems` | `(items) => PickupPoint[]` | none — retired; self-pickup reads `GatewayClient.getPickupPoints` | `@mock` + `@unused` |
+| `NEUTRAL_PICKUP` | `PickupPoint` | offline shell only (server owns the neutral hub row) | `@mock` + `@unused` |
+| `getStoreIdsForItems` | `(items) => string[]` | `CartView` (scopes the `GET /pickup-points?storeIds=` read) | `@mock` |
 
-> **Self-pickup contract:** `FulfillmentMode` / `PickupPoint` are the typed contract. The production
-> gateway already exposes `GET /pickup-points` (`GatewayClient.getPickupPoints`, backed by
-> `directory.stores`), but `CartView` still resolves pickup points on the client via the `@mock`
-> `getPickupPointsForItems` — a no-mocks gap tracked in
-> `docs/user-interaction-workflow/KNOWN_GAPS.md`. Self-pickup points are **store-backed**,
-> not a hardcoded Faazio hub: `getPickupPointsForItems` resolves each cart item → product
-> (`getProductById`) → its `storeId` (or `shop` matched to a store name, or the app's single outlet
-> for PHARMA) and returns **one pickup point per distinct store** (a cart spanning several
-> stores lists all of them; the user visits whichever applies). Items with no determinable store
-> collapse to `NEUTRAL_PICKUP`. Checkout waives the delivery fee (`computeTotals` zeroes it for
-> `PICKUP`). There is **no pickup-point picker** in the cart — the vendors are auto-derived at
-> order placement and **all** are snapshotted on the order (`ordersStore.PlacedOrder.pickups`) and
-> shown on the receipt + Order Details. `MyOrder.fulfillment` (optional — absent = delivery) drives
-> the My Orders "Delivery / Self Pickup" chip; `MyOrder.pickup` (a `PickupAddress` snapshot —
-> name, address, hours — taken at placement time, present only for `PICKUP` orders) drives the
-> Order Details "Pickup From" card. Contact phone for pickup is the signed-in user's verified
-> `authStore.user.phone` (or the saved address phone), never the `userProfile` fixture — no
+> **Self-pickup contract:** `FulfillmentMode` / `PickupPoint` are the typed contract. At checkout
+> `CartView` calls `GatewayClient.getPickupPoints(storeIds)` (`GET /pickup-points`, backed by
+> `inventory.pickup_points`) and renders the live store rows (+ the server's neutral hub when no
+> store-specific point matches). `getStoreIdsForItems` (still `@mock`) scopes the request to the
+> cart's distinct stores; `getPickupPointsForItems`/`NEUTRAL_PICKUP` are retired (`@unused`) offline
+> shells. Checkout waives the delivery fee (`computeTotals` zeroes it for `PICKUP`). There is **no
+> pickup-point picker** in the cart — the offered points are all snapshotted on the order
+> (`ordersStore.PlacedOrder.pickups`) and shown on the receipt + Order Details. `MyOrder.fulfillment`
+> (optional — absent = delivery) drives the My Orders "Delivery / Self Pickup" chip;
+> `MyOrder.pickup` (a `PickupAddress` snapshot taken at placement time, present only for `PICKUP`
+> orders) drives the Order Details "Pickup From" card. Contact phone for pickup is the signed-in
+> user's verified `authStore.user.phone` (or the saved address phone), never a fixture — no
 > fabricated PII.
 >
 > **Dynamic delivery fee (W65/W66) — no data change needed.** The delivery fee is a **server
@@ -418,7 +414,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `mensPicks` / `womensPicks` / `childrensPicks` / `hairSkinPicks` | `Product[]` | home `MensSection` / `WomensSection` / `ChildrensSection` / `HairSkinCareSection` | `@mock` |
 | `instantFeed` | `Product[]` | data-internal only (`filterFeed`); not directly by screens | `@mock` |
 | `nearbyOffers` | `NearbyOffer[]` | home `NearbyOffersSection` | `@mock` → `@server` (`fetchProductsNearby`, offline/no-fix fallback) |
-| `filterChips` / `filterFeedPools` / `FilterChipId` | typed pools | home `FilterFeedSection` | `@mock` |
+| `filterChips` / `filterFeedPools` / `FilterChipId` | typed pools | home `FilterFeedSection` (chips online; pools offline shell only) | `@mock` |
 | `seedCartItems` | `CartItem[]` | **`@unused`** (cart is server-authoritative — `state/cartStore` pulls `inventory.carts`; no client reads this fixture) | `@seed` + `@unused` |
 | `seedFavorites` | `string[]` | Supabase seed generator only (`server/supabase/seed/generate.mjs` inserts them into `favourites.items` for the demo user — 15 ids spanning FOOD, MART, PHARMA, explore & `cat-*` search ids, all resolvable in `catalogIndex`); the mobile `state/favoriteStore` is server-authoritative and reads `GET /favourites` | `@seed` → `@server` |
 | `seedLocation` | `string` | **`@unused`** by mobile | `@seed` + `@unused` |

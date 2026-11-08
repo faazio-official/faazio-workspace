@@ -17,12 +17,12 @@ import {
 } from "@/components/ui/table";
 import { formatDate, formatNumber, formatPercent } from "@/lib/format";
 import { setAdStatus, setHeroCampaignStatus } from "@/lib/api";
-import { useAdSlots, useHeroCampaigns, useMockLoading, usePlacements } from "@/lib/api/hooks";
+import { useAdSlots, useHeroCampaigns, usePortalLoading, usePlacements } from "@/lib/api/hooks";
 import { placementLabel } from "@/lib/api/reference";
 
 
 function SuperAds() {
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const placements = usePlacements();
   const slots = useAdSlots();
   const campaigns = useHeroCampaigns();

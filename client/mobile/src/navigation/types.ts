@@ -75,8 +75,11 @@ export type RootStackParamList = {
   Notifications: undefined;
   /** Search-results-style Favourites page (pushed from Account). */
   Favourites: undefined;
-  /** Per-order detail page, resolved by id from `@data` (pushed from My Orders). */
-  OrderDetails: { orderId: string };
+  /**
+   * Per-order detail page resolved by id. `entry` distinguishes the My Orders surface (invoice
+   * allowed) from the post-payment confirmation deep link (no invoice on confirmation).
+   */
+  OrderDetails: { orderId: string; entry?: 'orders' | 'confirmation' };
   /**
    * Vendor rating form — reachable from every vendor surface (My Orders, Order
    * Details, Mart vendor, Pharma shop, Food restaurant). Verified buyers only;

@@ -14,7 +14,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
-import { useAuditLogs, useMockLoading } from "@/lib/api/hooks";
+import { useAuditLogs, usePortalLoading } from "@/lib/api/hooks";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { Role } from "@/data/types";
 
@@ -22,7 +22,7 @@ import type { Role } from "@/data/types";
 const ROLES: (Role | "ALL")[] = ["ALL", "SELLER", "DISTRICT_ADMIN", "SUPER_ADMIN"];
 
 function StateAudit() {
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [role, setRole] = useState<Role | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const logs = useAuditLogs({

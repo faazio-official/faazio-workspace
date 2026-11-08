@@ -1,6 +1,6 @@
 # Delivery earnings — domain index
 
-**Status:** Partial (manual settlement; no automated payout split)
+**Status:** Shipped (server-derived amounts; disbursement is intentionally manual by admin)
 **Route:** `Payouts` (`features/delivery-partner/screens/PayoutScreen.tsx`)
 **Trigger:** Rider taps Earnings on the dashboard.
 
@@ -29,7 +29,9 @@
 
 ## Known gaps
 
-- Payout split is manual (no Razorpay Route); bank credit timing depends on the payout run.
+- Payout amounts are calculated accurately server-side; disbursement is **intentionally manual** —
+  a state/super admin records the transfer via `mark-paid` (no Razorpay Route), so bank credit
+  timing depends on the payout run.
 
 ## Linked docs
 

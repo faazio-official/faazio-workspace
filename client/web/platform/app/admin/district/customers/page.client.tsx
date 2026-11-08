@@ -13,7 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatINR, formatDate, formatDateTime } from "@/lib/format";
-import { useCustomers, useMockLoading, useUserTrail } from "@/lib/api/hooks";
+import { useCustomers, usePortalLoading, useUserTrail } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
@@ -22,7 +22,7 @@ function StateCustomers() {
   const stateCode = session?.stateCode;
   const [query, setQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const customers = useCustomers({ stateCode, query });
   const { events: trail, loading: trailLoading } = useUserTrail(selectedUserId);
 

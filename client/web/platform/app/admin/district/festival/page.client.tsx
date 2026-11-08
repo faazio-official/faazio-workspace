@@ -26,7 +26,7 @@ import {
 import { formatDate } from "@/lib/format";
 import { capFor } from "@/lib/pricing/rules";
 import { createFestivalCampaign, setOptinStatus, updateCampaign } from "@/lib/api";
-import { useCampaigns, useMockLoading, useOptins, useProducts, useSectorCaps } from "@/lib/api/hooks";
+import { useCampaigns, usePortalLoading, useOptins, useProducts, useSectorCaps } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { CampaignStatus, Sector } from "@/data/types";
@@ -38,7 +38,7 @@ const LIFECYCLE: CampaignStatus[] = ["DRAFT", "SCHEDULED", "LIVE", "ENDED"];
 function StateFestival() {
   const session = useSession();
   const stateCode = session?.stateCode ?? "MH";
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const caps = useSectorCaps();
   const campaigns = useCampaigns({ stateCode });
   const optins = useOptins();

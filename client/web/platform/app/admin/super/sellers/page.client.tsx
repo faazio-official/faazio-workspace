@@ -20,14 +20,14 @@ import {
 } from "@/components/ui/table";
 import { formatDate } from "@/lib/format";
 import { setSellerStatus } from "@/lib/api";
-import { useMockLoading, useSellers } from "@/lib/api/hooks";
+import { usePortalLoading, useSellers } from "@/lib/api/hooks";
 import type { SellerStatus } from "@/data/types";
 
 
 const STATUSES: (SellerStatus | "ALL")[] = ["ALL", "PENDING_REVIEW", "ACTIVE", "SUSPENDED", "REJECTED"];
 
 function SuperSellers() {
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const [status, setStatus] = useState<SellerStatus | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const sellers = useSellers({ status });

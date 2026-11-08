@@ -15,7 +15,7 @@ import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
 import {
   useAnalyticsSeries,
   useCampaigns,
-  useMockLoading,
+  usePortalLoading,
   useOrders,
   useSellers,
   useDistrictAdmins,
@@ -25,7 +25,7 @@ import { districtName } from "@/lib/api/reference";
 
 
 function SuperDashboard() {
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const series = useAnalyticsSeries("global", "", 30);
   const sellers = useSellers();
   const orders = useOrders();

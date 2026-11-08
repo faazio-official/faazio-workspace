@@ -25,7 +25,7 @@ import {
 } from "@/components/ui/table";
 import { formatDate, formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { createCoupon, toggleCoupon } from "@/lib/api";
-import { useCoupons, useMockLoading } from "@/lib/api/hooks";
+import { useCoupons, usePortalLoading } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import type { Sector } from "@/data/types";
@@ -34,7 +34,7 @@ import type { Sector } from "@/data/types";
 function StateCoupons() {
   const session = useSession();
   const stateCode = session?.stateCode ?? "MH";
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const coupons = useCoupons({ stateCode });
   const [code, setCode] = useState("");
   const [sector, setSector] = useState<Sector>("MART");

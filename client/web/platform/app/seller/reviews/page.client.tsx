@@ -5,7 +5,7 @@ import { Star } from "lucide-react";
 import { toast } from "sonner";
 import { HubHeader } from "@/components/sellers/shells";
 import { PillTabs, EmptyState, Sheet } from "@/components/sellers/kit";
-import { useMockLoading, useReviews, useSellerScope } from "@/lib/api/hooks";
+import { usePortalLoading, useReviews, useSellerScope } from "@/lib/api/hooks";
 import { flagReview, replyToReview } from "@/lib/api";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -15,7 +15,7 @@ type Tab = "reviews" | "complaints";
 
 function SellerReviews() {
   const { sellerId } = useSellerScope();
-  const loading = useMockLoading();
+  const loading = usePortalLoading();
   const reviews = useReviews({ sellerId });
   const [tab, setTab] = useState<Tab>("reviews");
   const [q, setQ] = useState("");

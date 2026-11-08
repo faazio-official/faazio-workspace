@@ -2658,7 +2658,7 @@ show them on the order-success receipt and on Order Details.
   capture is stored on the order (`PlacedOrder.location`); the Android/iOS location permission text
   was updated (needs a native rebuild).
 - **Vendor pickup addresses** — `ordersStore` gained `PlacedOrder.pickups` (one point per
-  vendor, derived from `getPickupPointsForItems`). The RECEIPT and **Order Details**
+  vendor, fetched from `GET /pickup-points` via `GatewayClient.getPickupPoints`). The RECEIPT and **Order Details**
   (`OrderDetailsScreen.tsx`) render one "Pickup From" card per vendor. Order Details now
   resolves via `ordersStore.getOrderById` first, falling back to `@data getMyOrderById` —
   fixing the placed-order "not found" gap.
