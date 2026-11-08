@@ -22,15 +22,23 @@
 ## State
 
 - `useCartStore` — pharmacy cart lines.
-- `usePharmaStore` — local prescription upload metadata.
 - `useBloodDonorStore` — donor draft, registration, matches, offline outbox.
 - `useLocationStore` — nearby pharmacy origin.
+- Prescription flow uses local component state + `useOrdersStore`; `usePharmaStore` is not part of
+  that flow (it is only used by account-deletion/logout cleanup).
 
 ## Data path
 
 - `pharma.prescriptions`, `pharma.quote_items`, `pharma.status_history`.
 - `blood.donors`, `blood.requests`, `blood.interests`, `blood.match_requests`.
 - `directory.stores`, `catalog.products`, `inventory.stock`.
+
+## Success / error / empty
+
+- **Success:** pharmacy rail/detail render server rows; prescription submits with a server Rx id;
+  donor profile/request writes return a sync outcome.
+- **Error:** inline error on the failing step; no fixture pharmacy, prescription, donor, or match.
+- **Empty:** no nearby pharmacies / no blood requests → honest empty state.
 
 ## Known gaps
 

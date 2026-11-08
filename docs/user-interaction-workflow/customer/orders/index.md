@@ -1,6 +1,6 @@
 # Customer orders — domain index
 
-**Status:** Shipped
+**Status:** Partial (invoice PDF + cancellation are gaps; see order-history.md)
 **Routes:** `MyOrders` (`features/profile/MyOrdersScreen.tsx`), `OrderDetails`
 (`features/profile/OrderDetailsScreen.tsx`), `Notifications`
 **Trigger:** Profile → My Orders, receipt, or order notification.
@@ -20,9 +20,9 @@
 ## Data path
 
 - `gateway.getOrders()` → `GET /orders` → `checkout.orders` + `checkout.order_items`.
-- `gateway.getOrderTracking(orderId)` → `GET /orders/tracking/{id}`.
 - `gateway.getOrderInvoice(orderId)` → `GET /orders/{id}/invoice` → `tax.tax_invoices`.
-- `gateway.getPayments()` → `GET /payments` → `checkout.payments`.
+- `gateway.getOrderTracking` and `gateway.getPayments` exist on the client but no order screen calls
+  them today.
 
 ## Success / error / empty
 

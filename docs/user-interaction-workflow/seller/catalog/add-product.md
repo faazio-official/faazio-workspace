@@ -25,8 +25,8 @@
 - `POST /seller/products` → `catalog.products`, `inventory.stock`.
 - `PUT /seller/inventory/{productId}` → `inventory.stock`.
 - `POST /media/upload-url` + `POST /media/confirm` → `media.assets`.
-- Cache purges: `catalog:product:{id}`, `stock:{id}`, `catalog:store-products:{storeId}`, and the
-  store's geo product tiles.
+- Cache purges: `faazio:v1:catalog:product:{id}`, `faazio:v1:stock:{id}`,
+  `faazio:v1:catalog:store-products:{storeId}`, and the store's geo product tiles.
 
 ## Success / error / empty
 

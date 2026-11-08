@@ -1,6 +1,6 @@
 # Cart & checkout — domain index
 
-**Status:** Shipped
+**Status:** Partial (self-pickup points come from a `@mock` resolver; see Known gaps)
 **Routes:** `Cart` (`features/cart/CartScreen.tsx`), Cart tab (`CartTabScreen.tsx`),
 `PaymentCallback` (`features/cart/payment/PaymentCallbackScreen.tsx`)
 **Shared view:** `CartView.tsx` (wizard `BAG → FULFILLMENT → PAYMENT → RECEIPT`)
@@ -19,10 +19,10 @@
 | Step | What the user does | Primary data |
 |---|---|---|
 | `BAG` | Review lines, quantity, select items, choose coupon | `useCartStore`, `getCart`, `validateCoupon` |
-| `FULFILLMENT` | Choose Delivery or Self-Pickup, address/pickup point | `getAddresses`, `getPickupPoints`, `fetchDeliveryFee` |
+| `FULFILLMENT` | Choose Delivery or Self-Pickup, address/pickup point | `getAddresses`, `@data/cart` `getPickupPointsForItems` (self-pickup), `fetchDeliveryFee` |
 | `PAYMENT` | Choose COD/UPI, redeem coins, place order | `placeOrder`, `createRazorpayOrder`, `payForOrder` |
 | `PAYMENT_STATUS` | UPI return/poll | `fetchPaymentStatus` |
-| `RECEIPT` | Order confirmation + tracking | `getOrderTracking` / `ordersStore` |
+| `RECEIPT` | Order confirmation + track action | `useOrdersStore`; "Track My Order" navigates to `MyOrders` |
 
 ## State
 
@@ -39,6 +39,8 @@
 - Order: `placeOrder` → `checkout.orders`, `checkout.order_items`, `checkout.payments`,
   `checkout.idempotency_keys` (one transaction).
 - Payment: `createRazorpayOrder` / `fetchPaymentStatus` / `payForOrder` → `checkout.payments`.
+- Self-pickup points: `getPickupPointsForItems` from `data/cart/pickup-resolver.ts` (tagged `@mock`)
+  resolves store-derived pickup points on the client and submits them in `POST /orders`.
 
 ## Success / error / empty
 
@@ -51,6 +53,8 @@
 
 - `PaymentOptions` is registered in `AppNavigator` but never navigated; the real payment UI is
   inline in `CartView`.
+- Self-pickup points are built client-side by the `@mock` `data/cart/pickup-resolver.ts` and sent
+  to `POST /orders` instead of a gateway pickup-point read — a no-mocks gap.
 - Invoice PDF may be unavailable (stub message).
 - See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 

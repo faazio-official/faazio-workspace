@@ -1,7 +1,7 @@
 # Delivery offer (accept / reject)
 
 **App / route:** delivery · `AcceptReject` (`features/delivery-partner/screens/AcceptRejectScreen.tsx`)
-**Status:** Shipped
+**Status:** Partial (not reachable from any in-app screen; deep-link/push only)
 **Trigger:** Push notification or deep link with `orderId` + optional `expiresAt`
 (`services/deliveryLinks.ts`).
 

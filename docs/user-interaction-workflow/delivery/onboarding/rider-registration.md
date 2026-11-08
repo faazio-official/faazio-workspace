@@ -16,7 +16,8 @@
    required docs, and IFSC format.
 6. Submit calls `gateway.registerDeliveryPartner(payload)` → `POST /delivery/register`.
 7. Success stores the rider projection and replaces to `SubmissionSuccess`.
-8. `409` means the phone already has an active application.
+8. `409` means the phone already has a rider record in `ACTIVE`, `VERIFIED`, `SUSPENDED`, or
+   `BLACKLISTED` status.
 
 ## State
 

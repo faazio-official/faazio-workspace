@@ -1,9 +1,9 @@
 # KYC documents + review
 
-**App / route:** portal `/seller/onboarding`; admin review at `/admin/district/sellers/[id]` and
-`/admin/super/sellers`
+**App / route:** mobile `SellWithUs` (`SellerRegistrationScreen.tsx`) for KYC upload; admin review at
+`/admin/district/sellers/[id]` and `/admin/super/sellers`
 **Status:** Shipped
-**Trigger:** Seller submits/updates KYC; admin opens a seller application.
+**Trigger:** Applicant uploads KYC in the mobile application; admin opens a seller application.
 
 ## Steps
 
@@ -17,7 +17,8 @@
 5. Admin verifies the whole KYC with `POST /sellers/{id}/verify-kyc`, or rejects with
    `POST /sellers/{id}/reject` and a reason.
 6. Private document preview uses `GET /media/private/{assetId}` (creator/admin presigned GET).
-7. Every verification writes `sellers.kyc_verification_log`.
+7. Every document verification (`verify-doc`) writes `sellers.kyc_verification_log`;
+   `verify-kyc` only flips the seller status to ACTIVE.
 
 ## State
 

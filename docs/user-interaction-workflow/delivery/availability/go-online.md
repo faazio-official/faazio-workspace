@@ -12,8 +12,11 @@
    `gateway.sendDeliveryHeartbeat(lat, lng)` (`POST /delivery/heartbeat`).
 4. On iOS, going online may ask for background-location consent and start the background watcher;
    Android runs the ongoing location foreground service + headless heartbeat task.
-5. The heartbeat is skipped when the app is not active; a missed heartbeat is non-fatal (the Valkey
-   key expires and dispatch skips the rider).
+5. The **JavaScript foreground** interval skips heartbeats when `AppState` is not `active`. On
+   Android the headless foreground-service task (`services/deliveryHeartbeatTask.ts`) keeps posting
+   to the same `POST /delivery/heartbeat` endpoint while the rider is online and the UI is paused;
+   iOS relies on the background-location watch. A missed heartbeat is non-fatal (the Valkey key
+   expires and dispatch skips the rider).
 6. Logout forces availability off before clearing the session.
 
 ## State

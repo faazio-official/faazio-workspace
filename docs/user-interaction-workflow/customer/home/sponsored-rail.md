@@ -10,8 +10,8 @@
 1. The section requests live ads for its placement (`getLiveAds` or `getHeroAds`).
 2. `getSponsoredProducts` performs `GET /ads/live` then `POST /products/batch` to resolve products.
 3. The rail renders labelled sponsored cards; hero surfaces render the campaign creative.
-4. Impression/click calls `recordAdEvent` (`POST /ads/events`); abuse reports call
-   `reportHeroAd` (`POST /ads/campaigns/{placementId}/report`).
+4. Impression/click calls `recordAdEvent` (`POST /ads/events`). `gateway.reportHeroAd`
+   (`POST /ads/campaigns/{placementId}/report`) exists but has no UI caller today.
 
 ## State
 
@@ -25,7 +25,8 @@
   `ads.campaigns`.
 - `gateway.getSponsoredProducts(placement?)` → `/ads/live` + `POST /products/batch`.
 - `gateway.recordAdEvent(slotId, event)` → `POST /ads/events`.
-- Cache: `ads:live:{placement}` 600 s, `ads:hero:{placement}:{app}:{category}:{store}` 300 s.
+- Cache: `faazio:v1:ads:live:{placement}` 600 s,
+  `faazio:v1:ads:hero:{placement}:{app}:{category}:{store}` 300 s.
 
 ## Success / error / empty
 

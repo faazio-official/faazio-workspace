@@ -22,8 +22,10 @@
 
 ## Data path
 
-- `payments.settlement_ledger` (gross − commission − TCS − TDS per seller/cycle, per store).
-- `payments.payouts` (PENDING/PARTIAL/PAID, unique per seller+cycle).
+- The ledger is derived live from delivered `checkout.orders` (`settlementLedgerCTE`); the legacy
+  `payments.settlement_ledger` table has had no writer since migration `0077` and is read-only.
+- `payments.payouts` status enum is `SCHEDULED` / `PAID` / `ON_HOLD` (unique per seller+cycle). The
+  admin board computes PENDING/PARTIAL/PAID for display; those are not stored values.
 - `payments.payout_invoices` (invoice number, amounts, `pdf_key`).
 - Cache: `faazio:v1:settlement:{sellerId}:{cycle}` 600 s, invalidated on mark-paid.
 

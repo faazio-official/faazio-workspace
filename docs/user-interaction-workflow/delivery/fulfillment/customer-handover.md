@@ -1,7 +1,7 @@
 # Customer handover / OTP / COD
 
 **App / route:** delivery · `Route` (`RouteScreen.tsx`)
-**Status:** Shipped
+**Status:** Partial (OTP handover is unreachable for checkout orders; COD+OTP UI ordering)
 **Trigger:** Rider arrives at the DROP stop.
 
 ## Steps
@@ -38,7 +38,13 @@
 
 ## Known gaps
 
-- None specific.
+- Checkout's in-process auto-dispatch never sets `RequireOTP`, so `stop.requiresOtp` is false for
+  normal orders and this OTP branch never renders. Only admin `POST /dispatch/assign` can require
+  OTP.
+- When a COD order does require OTP, `RouteScreen` renders the OTP branch before the "Payment
+  received" branch, while `deliverWithOtp` refuses until payment is received — the flow cannot be
+  completed in the UI.
+- See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

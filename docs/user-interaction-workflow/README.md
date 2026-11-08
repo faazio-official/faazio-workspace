@@ -4,7 +4,9 @@ Status: **authoritative** for every expected user interaction across the three m
 (customer, delivery partner, seller partner) and the seller-facing web portal.
 
 This folder is the **contract**; the code is the implementation. If a route, screen, button,
-endpoint, store action, or DB write exists, its end-to-end flow belongs here.
+endpoint, store action, or DB write exists, its end-to-end flow belongs here. The intended state is
+full coverage; current known coverage gaps are listed explicitly in
+[`KNOWN_GAPS.md`](./KNOWN_GAPS.md) so this folder never claims coverage it does not have.
 
 ## The sync rule (non-negotiable)
 
@@ -15,13 +17,14 @@ the matching page under `docs/user-interaction-workflow/<app>/<domain>/` in the 
 - One page per flow. One `index.md` per domain.
 - A PR that ships behavior without the workflow page is incomplete and fails review.
 - Deleting a flow deletes its page in the same change.
-- New pages/subfolders are added to this README and to the docs map in root `AGENTS.md` and
-  `docs/README.md`.
+- New pages are added to this README and its app README; new folders are also added to the docs map
+  in root `AGENTS.md` and `docs/README.md`.
 
-## No partial workflows
+## No undocumented partial workflows
 
-No partial or half-built user-interaction workflows may exist in the codebase. Every documented
-flow must state:
+Partial flows may exist in the code today, but they may never be hidden: every partial flow is
+marked **Status: Partial** on its page and listed in [`KNOWN_GAPS.md`](./KNOWN_GAPS.md). New
+half-built flows are not allowed without that marking. Every documented flow must state:
 
 1. **Trigger** — user action, deep link, push, or boot condition.
 2. **Steps** — numbered, with the real route names and screen files.

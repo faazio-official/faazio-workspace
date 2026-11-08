@@ -1,9 +1,11 @@
 # Seller onboarding — domain index
 
-**Status:** Shipped (portal) + mobile entry
-**Surfaces:** mobile `SellWithUs` (`SellerRegistrationScreen.tsx`), portal `/seller/onboarding`,
-district-admin review at `/admin/district/sellers/[id]` (super admin has a list only), fee-change
-boards.
+**Status:** Partial (application mobile-only; vendor fee/cover steps incomplete)
+**Surfaces:** mobile `SellWithUs` (`SellerRegistrationScreen.tsx`) for application + KYC upload,
+portal `/seller/onboarding` for vendor creation, district-admin review at
+`/admin/district/sellers/[id]` (super admin has a list only), fee-change boards.
+**Trigger:** "Sell with us" entry in the customer app; a seller opens onboarding/stores in the
+portal; an admin opens a seller application.
 
 ## Flows
 
@@ -13,10 +15,18 @@ boards.
 | KYC documents + review | [kyc-documents.md](./kyc-documents.md) |
 | Store/vendor setup | [store-setup.md](./store-setup.md) |
 
+## Steps (application → store)
+
+1. Applicant completes `SellWithUs` on mobile and submits `POST /sellers`.
+2. Applicant uploads KYC documents through the mobile media pipeline.
+3. District/super admin verifies documents and the application.
+4. Seller opens portal `/seller/onboarding` and creates a vendor via `POST /seller/stores`.
+5. Seller adds products (`PENDING_REVIEW` → `ACTIVE`), then receives orders and payouts.
+
 ## Lifecycle
 
 ```
-application (POST /sellers)
+application (POST /sellers, mobile)
   → KYC documents uploaded (media.assets)
   → district/super review (verify-doc, verify-kyc)
   → store/vendor created (POST /seller/stores)
@@ -34,8 +44,9 @@ application (POST /sellers)
 
 - `POST /sellers`, `GET /sellers/me`, `GET /sellers/{id}` → `sellers.sellers`.
 - `POST /media/upload-url` + `POST /media/confirm` → `media.assets`.
-- `POST /sellers/{id}/verify-doc/{docType}`, `POST /sellers/{id}/verify-kyc` → `sellers.kyc_documents`,
-  `sellers.kyc_verification_log`.
+- `POST /sellers/{id}/verify-doc/{docType}` → `sellers.kyc_documents`,
+  `sellers.kyc_verification_log`; `POST /sellers/{id}/verify-kyc` only sets
+  `sellers.sellers.status` to ACTIVE (it writes no document/log rows).
 - `POST /seller/stores`, `PUT /seller/stores/{id}` → `directory.stores`.
 
 ## Success / error / empty

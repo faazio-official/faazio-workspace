@@ -18,7 +18,8 @@
    `pendingOps` outbox and reconcile on hydration/foreground (server wins).
 
 ### Request board + matching
-1. `useBloodRequests` loads `gateway.fetchBloodRequests(filters)` (`GET /blood-requests`).
+1. `useBloodRequests` loads `gateway.fetchBloodRequests()` (`GET /blood-requests`) with no filter
+   arguments.
 2. `donorDirectory` loads `gateway.fetchBloodDonors(filters)` (`GET /donors`).
 3. Interested/accept calls `gateway.setBloodInterest` / `clearBloodInterest`
    (`PUT/DELETE /blood-requests/{id}/interest`).
@@ -31,7 +32,8 @@
 ## State
 
 - `useBloodDonorStore` (`src/state/bloodDonorStore.ts`) — draft, registration, outgoing/incoming
-  matches, interested ids, `pendingOps` outbox, `reconcile()`.
+  matches, interested ids, `pendingOps` outbox. Reconciliation is internal: module-private
+  `hydrateFromServer()` and the foreground `flushPendingOps()` replay, not a public `reconcile()`.
 - `useAuthStore` — donor identity.
 
 ## Data path
@@ -44,7 +46,8 @@
   `blood.interests`.
 - `gateway.createDonorMatch` / `getDonorMatches` / `getIncomingDonorMatches` /
   `setDonorMatchStatus` → `blood.match_requests`.
-- Cache: `faazio:v1:blood:requests:{bloodGroup};{city}` 60 s (public/redacted); never edge-cached.
+- Cache: `faazio:v1:blood:requests:group={bloodGroup};city={city}` 60 s (public/redacted); never
+  edge-cached.
 
 ## Success / error / empty
 

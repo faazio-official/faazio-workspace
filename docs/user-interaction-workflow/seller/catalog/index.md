@@ -1,6 +1,6 @@
 # Seller catalog — domain index
 
-**Status:** Shipped
+**Status:** Partial (product name/description edit + delete are local-only)
 **Routes:** portal `/seller/products`, `/seller/products/new`, `/seller/products/[id]/edit`,
 `/seller/inventory`, `/seller/menus`, `/seller/pricing`
 **Trigger:** Seller console → Products / Inventory / Menus / Pricing.
@@ -17,7 +17,7 @@
 - **Products:** list/create/edit/delete, image upload, status.
 - **Inventory:** stock qty + ETA per product (`GET /seller/inventory`,
   `PUT /seller/inventory/{productId}`).
-- **Pricing:** price-only updates (`GET/PUT /seller/pricing/{productId}`).
+- **Pricing:** price-only updates (`GET /seller/pricing`, `PUT /seller/pricing/{productId}`).
 - **Menus:** Food dishes per venue (`GET/POST /seller/menus`, `PUT/DELETE
   /seller/menus/{venueId}/{dishId}`).
 
@@ -30,6 +30,13 @@
 - `catalog.products`, `inventory.stock`, `directory.menus`, `media.assets`.
 - Seller writes are scoped to an owned **live** store; ownership derives through
   `directory.stores.seller_id`.
+
+## Success / error / empty
+
+- **Success:** server-confirmed product/stock/menu rows render.
+- **Error:** inline error; the form does not claim an unconfirmed save. Local-only edits/deletes
+  (name/description) appear to succeed but do not persist — see Known gaps.
+- **Empty:** no rows → honest empty state.
 
 ## Known gaps
 

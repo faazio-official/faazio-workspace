@@ -24,8 +24,9 @@
 
 - `gateway.getActiveDeliveryOrders` → `GET /delivery/active` → `delivery.delivery_orders`,
   `delivery.delivery_stops`.
-- `gateway.getDeliveryRoute` → `GET /delivery/route/{deliveryId}`.
+- `gateway.getDeliveryUpipQr` → `GET /app-config/delivery-upi-qr`.
 - `gateway.updateDeliveryStop` → `PUT /delivery/stop/{stopId}/status`.
+- (`gateway.getDeliveryRoute` is used by `AcceptReject`, not by `RouteScreen`.)
 - Route cache: `delivery:route:{lat,lng}:{lat,lng}` 300 s (PII/OTP never cached).
 - Google Routes matrix; fails closed when `GOOGLE_ROUTES_API_KEY` is unset.
 

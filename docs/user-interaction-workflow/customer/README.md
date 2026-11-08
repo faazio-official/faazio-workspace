@@ -6,15 +6,20 @@
 `Favourites`, `Cart`, `You`), `SubApp`, `FoodApp` (`FoodStack`), `ProductDetail`, `Search`,
 `Cart`, `CategoryDrillIn`, `VendorDetails`, `DealsLanding`, `MyOrders`, `OrderDetails`,
 `Notifications`, `SavedAddresses`, `UserDetails`, `FaazioRewards`, `PrescriptionFlow`,
-`MedicalShopDetails`, `BloodDonor*`, `SellWithUs`, `SellerRequests*`, `FeeChangeRequests`,
-`PaymentOptions`, `PaymentCallback`.
+`MedicalShopDetails`, `BloodDonor*`, `SellWithUs`, `SellerRequests`, `SellerRequestDetail`,
+`SellerPlatformFeeRequest`, `FeeChangeRequests`, `RateVendor`, `DeleteAccount`,
+`RequestDataDeletion`, `PaymentOptions` (registered, unused), `PaymentCallback`.
 
 **State:** `src/state/` (auth, cart, favorite, orders, rewards, location, language, onboarding,
 pharma, bloodDonor, search, foodFilter, vendorRating, remoteConfig, connectivity).
 **Data:** `GatewayClient` (`src/services/api/GatewayClient.ts`) is the only online origin.
-`@data/*` is an offline/error shell or type source, never substituted on a live failure.
+`@data/*` is an offline/error shell or type source. Some Home/Food rails still substitute fixture
+rows when a server section is empty and are tracked as no-mocks gaps in
+[`../KNOWN_GAPS.md`](../KNOWN_GAPS.md).
 
 ## Flow inventory
+
+Domain indexes are the entry point for each area; every flow page is linked from them.
 
 | Domain | Flow | Route(s) / screen | Doc |
 |---|---|---|---|
@@ -22,18 +27,18 @@ pharma, bloodDonor, search, foodFilter, vendorRating, remoteConfig, connectivity
 | Onboarding | Phone OTP login | `Login` (`features/auth/LoginScreen.tsx`) | [phone-otp-login.md](./onboarding/phone-otp-login.md) |
 | Onboarding | Language selection | `LanguageSelection` | [onboarding/index.md](./onboarding/index.md) |
 | Onboarding | Location picker | `Location` (`features/auth/LocationScreen.tsx`) | [location-picker.md](./onboarding/location-picker.md) |
-| Home | SDUI home feed | `MainTabs` → `Home` (`features/home/HomeTabScreen.tsx`) | [home-feed.md](./home/home-feed.md) |
+| Home | SDUI home feed | `MainTabs` → `Home` (`features/home/HomeTabScreen.tsx`) | [home/index.md](./home/index.md) · [home-feed.md](./home/home-feed.md) |
 | Home | Sponsored rail | Home sections | [sponsored-rail.md](./home/sponsored-rail.md) |
-| Discovery | Mart / Food / Pharma browse | `SubApp`, `FoodApp`, `CategoryDrillIn`, `VendorDetails` | [store-drillin.md](./discovery/store-drillin.md) |
+| Discovery | Mart / Food / Pharma browse | `SubApp`, `FoodApp`, `CategoryDrillIn`, `VendorDetails` | [discovery/index.md](./discovery/index.md) · [store-drillin.md](./discovery/store-drillin.md) |
 | Discovery | Product detail | `ProductDetail` | [product-detail.md](./discovery/product-detail.md) |
-| Cart | Add to cart | Cart tab / product cards | [add-to-cart.md](./cart-checkout/add-to-cart.md) |
+| Cart | Add to cart | Cart tab / product cards | [cart-checkout/index.md](./cart-checkout/index.md) · [add-to-cart.md](./cart-checkout/add-to-cart.md) |
 | Checkout | Delivery-fee quote | `Cart` → FULFILLMENT step | [delivery-fee-quote.md](./cart-checkout/delivery-fee-quote.md) |
 | Checkout | Place order + payment | `Cart` → PAYMENT → RECEIPT, `PaymentCallback` | [place-order.md](./cart-checkout/place-order.md) |
-| Orders | Order history | `MyOrders`, `OrderDetails` | [order-history.md](./orders/order-history.md) |
+| Orders | Order history | `MyOrders`, `OrderDetails` | [orders/index.md](./orders/index.md) · [order-history.md](./orders/order-history.md) |
 | Profile | Account / profile | `MainTabs` → `You`, `UserDetails` | [profile/index.md](./profile/index.md) |
 | Profile | Saved addresses | `SavedAddresses` | [saved-addresses.md](./profile/saved-addresses.md) |
 | Profile | Rewards ledger | `FaazioRewards` | [rewards-ledger.md](./profile/rewards-ledger.md) |
-| Pharma | Prescription upload | `PrescriptionFlow` | [prescription-upload.md](./pharma/prescription-upload.md) |
+| Pharma | Prescription upload | `PrescriptionFlow` | [pharma/index.md](./pharma/index.md) · [prescription-upload.md](./pharma/prescription-upload.md) |
 | Pharma | Blood donor | `BloodDonor`, `BloodDonorDetails`, `BloodRequestDescription` | [blood-donor.md](./pharma/blood-donor.md) |
 
 ## Cross-cutting rules
@@ -49,4 +54,13 @@ pharma, bloodDonor, search, foodFilter, vendorRating, remoteConfig, connectivity
 
 See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Customer-specific gaps currently include the dead
 `PaymentOptions` route registration, the unreachable `Checkout` button in `SubAppWrapper`, the
-invoice-PDF stub, and the root `Search` `FOOD` config mismatch.
+invoice-PDF stub, the root `Search` `FOOD` config mismatch, Home rail fixture substitution, and the
+`@mock` self-pickup resolver.
+
+## Not yet documented (tracked in KNOWN_GAPS.md)
+
+`Favourites`, root `Search`, `RateVendor`, `DeleteAccount`, `RequestDataDeletion`, `Notifications`,
+`SellerRequests` / `SellerRequestDetail` / `SellerPlatformFeeRequest` / `FeeChangeRequests`,
+`DealsLanding`, and the Food venue screens (`RestaurantProfile`, `RestaurantOffers`,
+`RestaurantMenu`). `MedicalShopDetails` and `SellWithUs` are described only inside their domain
+indexes. See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md) → "Documentation coverage gaps".

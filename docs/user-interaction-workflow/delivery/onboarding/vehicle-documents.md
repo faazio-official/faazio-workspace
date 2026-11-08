@@ -15,8 +15,9 @@
 4. Submit includes `documents[]` (`docType`, `fileKey`, `assetId`) in `POST /delivery/register`.
 5. Admin review (`/admin/*/delivery-boys`) verifies documents and activates the rider
    (`PUT /delivery/register/{id}/verify`, `/activate`).
-6. Admin can request/accept a replacement document
-   (`PUT /delivery/register/{id}/documents/{docType}/reupload`).
+6. Admin uploads a replacement document with
+   `PUT /delivery/register/{id}/documents/{docType}/reupload`. Riders cannot request a re-upload
+   in-app: the rider-side request endpoint always returns `410 Gone`.
 
 ## State
 
@@ -42,7 +43,8 @@
 
 ## Known gaps
 
-- None specific.
+- The rider-side re-upload request endpoint is retired (`410 Gone`); only admins can attach a
+  replacement document. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

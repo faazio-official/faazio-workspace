@@ -480,7 +480,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 1. **Duplicated mock data in screens.** `PharmaScreen` (home feed arrays in `mocks/pharmaHomeFeed.ts`),
    `FaMartScreen` (mart home feed in `mocks/martHomeFeed.ts`), and
-   `ProductDetailView` each keep inline/feature copies of data. The `PharmaScreen` recent-orders
+   `CommonProductDetailView` each keep inline/feature copies of data. The `PharmaScreen` recent-orders
    copy has been de-duplicated into `data/pharma/recentOrders.ts`; the pharma/mart **home-feed**
    arrays remain feature-local (feature-specific UI types) and are a deliberate de-dup priority.
    Canonical copies are marked `@unused` until those screens switch to `@data/*`.

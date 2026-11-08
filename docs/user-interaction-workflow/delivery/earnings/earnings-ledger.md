@@ -22,8 +22,8 @@
 
 - `gateway.getDeliveryPayouts` → `GET /delivery/payouts` → `delivery.delivery_payouts`,
   `delivery.payout_settings`.
-- `gateway.getDeliveryPayout(orderId)` → `GET /delivery/payouts/{orderId}` (single order; reuses
-  stored checkout distance + surge, writes `payout_basis`).
+- `gateway.getDeliveryPayout(orderId)` → `GET /delivery/payouts/{orderId}` exists for a single
+  order (reuses stored checkout distance + surge, writes `payout_basis`) but no screen calls it.
 - No Razorpay Route transfer; `payout_amount_paisa` is display-only until marked paid.
 
 ## Success / error / empty

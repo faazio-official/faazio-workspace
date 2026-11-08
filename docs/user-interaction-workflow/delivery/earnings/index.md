@@ -18,7 +18,7 @@
 ## Data path
 
 - `GET /delivery/payouts?limit=` → `delivery.delivery_payouts`, `delivery.payout_settings`.
-- `GET /delivery/payouts/{orderId}` for a single order payout.
+- `GET /delivery/payouts/{orderId}` exists for a single order payout but no screen calls it.
 - No synthetic payouts.
 
 ## Success / error / empty

@@ -25,7 +25,9 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
 1. The app shows the phone entry screen (`LoginScreen.tsx` for customer, `PhoneEntryScreen.tsx` for
    delivery). Customer validates with `toE164` / `isValidPhone`; delivery uses its local
    `validPhone` check.
-2. `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode with a 30 s resend cooldown.
+2. `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode. The customer `LoginScreen`
+   enforces a 30 s resend cooldown; the delivery `OtpVerifyScreen` only disables the button while a
+   resend is in flight (no timer).
 3. The user enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval).
 4. `verifyOtp` returns a Firebase session. Customer `completeLogin` decodes claims (`role`,
    `stateCode`, `districtCode`, `sellerId`) into `useAuthStore.login`.
@@ -37,8 +39,9 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
 
 ### State
 
-- `useAuthStore` (`client/mobile/src/state/authStore.ts`) — session, decoded claims, expiry,
-  re-auth helpers.
+- `useAuthStore` (`client/mobile/src/state/authStore.ts`) — session, decoded claims, `login`,
+  `updateTokens`, `expireSession`, `logout`, `hydrate`, re-auth helpers. The stored session has no
+  expiry field; expiry is event-driven via `expireSession()`.
 - `useOnboardingStore` — first-run gate (customer).
 - `useDeliveryPartnerStore` — rider projection (delivery).
 
@@ -52,7 +55,8 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
 ### Success / error / empty
 
 - **Success:** authenticated session + role/status routing as above.
-- **Invalid/expired code:** inline error, OTP cleared, resend allowed. No fabricated session.
+- **Invalid/expired code:** inline error; the entered code stays so it can be corrected, and resend
+  is allowed. No fabricated session.
 - **Unconfigured Firebase:** release builds report OTP unavailable instead of faking a login.
 - **Empty:** not applicable (auth requires input).
 

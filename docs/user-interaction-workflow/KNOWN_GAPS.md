@@ -23,16 +23,22 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | Stale home-feed mock seam | `client/mobile/src/services/homeFeed.ts` exports fixture-backed `getHomeSections` / `getFilterFeedPage` / `getFilterChips`, but no live screen imports it | Dead mock seam; remove it |
 | Blood-donor `StepPlaceholder` dead code | `client/mobile/src/features/pharma/blood-donor/BloodDonorScreen.tsx:95` renders a placeholder for an unknown step id | Defensive dead path; add the step or remove it |
 | Stale prescription mock comments | `client/mobile/src/features/pharma/prescription/PrescriptionFlowScreen.tsx:106-107,120` mention a fixture fallback that no longer exists | Misleading; the code is server-only |
+| Home rails substitute `@mock` fixtures while online | `client/mobile/src/features/home/HomeView.tsx:123,131-138` (`rail(fallback)`); `features/home/sections/FilterFeedSection.tsx:7,71` (`filterFeedPools`) | Violates no-mocks: fixture rows render when a server section has no products |
+| Food feed merges `@mock` fixtures | `client/mobile/src/features/food/services/restaurantFeedService.ts:3-5,155-161` (`TOP_FOODS_TO_ORDER`, `TODAYS_SPECIALS`, `FOOD_RESTAURANTS`); `features/food/screens/FoodHomeScreen.tsx:15,145` (`SNACKS_BEVERAGES`) | No-mocks violation: fixture dishes render alongside live data |
+| Self-pickup points are client-resolved from `@mock` data | `client/mobile/src/features/cart/CartView.tsx:29,431` uses `getPickupPointsForItems` from `data/cart/pickup-resolver.ts:2` (`@mock`, `data/DATA_CONTROL.md:320`) and submits them to `POST /orders` | Pickup points are not server-derived |
+| PDP does not render reviews or gate stock | `client/mobile/src/features/product/ProductDetailScreen.tsx:39-46` discards the `reviews` result; `CommonProductDetailView.tsx:492-520` always enables add-to-cart | Review list/empty state and out-of-stock gating are absent |
 
 ## Seller (portal + partner app)
 
 | Gap | Evidence | Impact |
 |---|---|---|
-| Fake loading latency | `client/web/platform/src/lib/api/hooks.ts:56-58` (`useMockLoading`, 320 ms) is used by 37 files under `app/` | Violates the no-mocks rule; pages exercise loading states with fabricated delay |
+| Fake loading latency | `client/web/platform/src/lib/api/hooks.ts:56-64` (`useMockLoading`, 320 ms) is used by 37 files under `app/` | Violates the no-mocks rule; pages exercise loading states with fabricated delay |
+| Toast-only settings actions | `client/web/platform/app/seller/settings/page.client.tsx:62` ("Request update") and `:139` (sub-user "Invite") only toast | Account/sub-user changes are not persisted; partial flow |
+| Store fee/cover have no seller UI | `PUT /seller/stores/{id}/fee` is admin-only (`server/gateway/internal/directory/handler.go:500-503`); no client calls `PUT /seller/stores/{id}/cover` | Sellers can only file a fee-change request; cover image cannot be set from the console |
 | Local-only seller surfaces | `app/seller/notifications/page.client.tsx:12` (`INITIAL` list), `app/seller/support` (local tickets), `hub` checklist, `restaurant-status`, `rush-hour` (client-only store in `src/lib/sellerUi.ts`) | These screens are not persisted/DB-backed yet |
 | "Simulate scan" toast | `client/web/platform/app/seller/orders/page.client.tsx:264` | Demo affordance, not a real scan/handover flow |
 | Toast-only admin actions | District `content` publish, `orders` escalate, `pricing-audit` contact, super `settings` save | UI reports success without a gateway write |
-| District-admins page is district-locked | `app/admin/super/district-admins/page.client.tsx:63-85` (`TTC_CODE = "TTC"`) | Cannot provision admins outside Tiruchirappalli |
+| District-admins page is district-locked | `app/admin/super/district-admins/page.client.tsx:64` (`TTC_CODE = "TTC"`, used through `:124`) | Cannot provision admins outside Tiruchirappalli |
 | Native seller auth is unused | `GatewayClient.portalLogin/portalRefresh/portalLogout` exist (`src/services/api/GatewayClient.ts:826-866`) but the seller app is a WebView shell (`SellerPartnerNavigator.tsx`); the portal owns the session | Intentional today; prune or wire if native seller auth is ever built |
 | Product name/description edit and delete are local-only | `client/web/platform/src/lib/api/index.ts:468-481` (`updateProduct`) and `:520-530` (`deleteProduct`) mutate the Zustand store/audit only; there is no `DELETE /seller/products/{id}` route | Edits/deletes do not persist to the gateway (price/image updates do) |
 | Hardcoded tax constants on new-product display | New-product page shows GST/TCS/TDS constants | Display-only; the server remains the money authority |
@@ -42,6 +48,8 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | Gap | Evidence | Impact |
 |---|---|---|
 | Offer modal is not navigated from a screen | `AcceptReject` is registered in `DeliveryPartnerNavigator.tsx:43` but no screen calls `navigate('AcceptReject')` | Offers arrive only via push/deep link |
+| OTP handover unreachable for checkout orders | Checkout auto-dispatch omits `RequireOTP` (`server/gateway/internal/checkout/handler.go:1104-1117` vs `internal/contracts/contracts.go:475`); only admin `POST /dispatch/assign` can set it | `stop.requiresOtp` is false for normal orders, so the handover OTP branch never renders |
+| COD + OTP handover UI ordering | `client/mobile/src/features/delivery-partner/screens/RouteScreen.tsx:288-289,312-332` render the OTP branch before the "Payment received" branch (`:339-382`), while `deliverWithOtp` refuses until payment is received (`:201-205`) | A COD order that did require OTP cannot be completed in the UI |
 | Re-upload request endpoint is retired | `PUT /delivery/register/{id}/reupload-request` always returns `410 Gone` (`server/gateway/internal/delivery/handler.go:428-434`); admins use `.../documents/{docType}/reupload` | Old clients get a hard failure |
 | iOS background limits | Documented in `client/mobile/PENDING_WORK.md` | Force-quit/background location is best-effort |
 | Multi-vendor orders are not auto-dispatched | `docs/architecture/server-gateway-plan.md:340-342` | Orders spanning >1 store need manual allocation |
@@ -55,7 +63,7 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | PDF invoice generation is absent | See customer invoice row above | No downloadable GST invoice |
 | Legacy tables kept read-only | `checkout.coupons` (superseded by `promo.coupons`), `payments.settlement_ledger` (live payouts compute from orders), `sellers.seller_vendor_counts` (no Go reference), `/state-admins` aliases | Not user-flow breakage; do not add new writes |
 | Media/Razorpay/FCM degrade honestly when unconfigured | R2 unset → media disabled; Razorpay unset → `503 payments_disabled`; FCM unset → push disabled | Honest failure, not mocked success — keep it that way |
-| Inline fixture copies still exist in screens | `data/DATA_CONTROL.md:480-489` (`PharmaScreen`, `FaMartScreen`, `ProductDetailView`) | Must be labelled offline/error shells or removed |
+| Inline fixture copies still exist in screens | `data/DATA_CONTROL.md:481-486` (`PharmaScreen`, `FaMartScreen`, `CommonProductDetailView`) | Must be labelled offline/error shells or removed |
 | `SDUINode` is aspirational | `data/schema.ts` (`@aspirational`) | Type contract only; no data file produces SDUI trees |
 
 ## Shared auth
@@ -81,6 +89,9 @@ here so the folder never claims full coverage it does not have. Add a page befor
 | `SellerRequests`, `SellerRequestDetail`, `SellerPlatformFeeRequest`, `FeeChangeRequests` | `features/seller-onboarding/` | Seller application/fee-change boards |
 | `DealsLanding` | `features/ecommerce/DealsLandingScreen.tsx` | Mart deals |
 | `RestaurantProfile`, `RestaurantOffers`, `RestaurantMenu` | `FoodStack.tsx:25-27` | Food venue screens (only the Food feed is covered) |
+| `MedicalShopDetails` | `features/pharma/MedicalShopDetailsScreen.tsx` | Described only in `customer/pharma/index.md`; needs a page |
+| `SellWithUs` | `features/seller-onboarding/SellerRegistrationScreen.tsx` | Seller application entry; covered by `seller/onboarding/seller-registration.md` |
+| `FoodHome` | `features/food/screens/FoodHomeScreen.tsx` | Covered by `customer/discovery/store-drillin.md` (step 2), no standalone page |
 
 ### Delivery
 
@@ -97,8 +108,11 @@ here so the folder never claims full coverage it does not have. Add a page befor
 | Analytics | `/seller/analytics` | `GET /analytics/series|ranks` |
 | Reviews | `/seller/reviews` | `GET /vendors/{id}/reviews*` |
 | Prescriptions | `/seller/prescriptions` | `GET /seller/prescriptions*`, quotes |
-| Settings / outlet info | `/seller/settings`, `/seller/outlet-info` | Store fee/live/cover |
+| Settings / outlet info | `/seller/settings`, `/seller/outlet-info` | Settings = account/bank/notifications/sub-users (partly toast-only); outlet-info = read-only store summary |
 | Hub / explore | `/seller/hub`, `/seller/explore` | Checklist + discovery surfaces (partly local-only) |
+| Order history / returns | `/seller/order-history`, `/seller/returns` | Referenced from `seller/orders/index.md`; no dedicated page |
+| Product list / edit | `/seller/products`, `/seller/products/[id]/edit` | Product list and edit surface; no dedicated page |
+| Local-only seller surfaces | `/seller/notifications`, `/seller/support`, `/seller/restaurant-status`, `/seller/rush-hour` | Client-local; see the seller gaps table above |
 | District admin | `/admin/district/*` | Documented only where a seller flow references it (KYC review, payouts) |
 | Super admin | `/admin/super/*` | Documented only where a seller flow references it |
 

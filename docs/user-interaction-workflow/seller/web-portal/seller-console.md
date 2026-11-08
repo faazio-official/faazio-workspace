@@ -2,7 +2,7 @@
 
 **App / route:** `client/web/platform` · `/login` → role home (`/seller`, `/admin/district`,
 `/admin/super`)
-**Status:** Shipped
+**Status:** Partial (auth shell shipped; fake latency and local-only surfaces remain)
 **Trigger:** Browser login, seller app WebView, or a session restore on page load.
 
 ## Steps

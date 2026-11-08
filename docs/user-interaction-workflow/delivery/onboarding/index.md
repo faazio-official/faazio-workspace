@@ -20,8 +20,13 @@
    - pending → `SubmissionSuccess`
    - none (`404` on resume) → `Register`.
 2. `OtpVerify` verifies the Firebase code and then calls `getDeliveryPartnerMe()` to route by status.
-3. `useAuthStore` holds the Firebase session (Keychain); `useDeliveryPartnerStore` holds the rider
-   projection.
+3. See the State section for the stores involved.
+
+## State
+
+- `useAuthStore` — Firebase session (Keychain).
+- `useDeliveryPartnerStore` — rider projection / verified phone.
+- Local form state on `PhoneEntry` / `OtpVerify`.
 
 ## Data path
 

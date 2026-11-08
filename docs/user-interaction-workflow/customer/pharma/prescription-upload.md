@@ -23,9 +23,9 @@
 
 ## State
 
-- `usePharmaStore` — local upload metadata.
 - `useOrdersStore` — prescription order mirror keyed by the server Rx id.
-- Local `draft`, `step`, `uploadProgress`, `submitting`, `submitError`.
+- Local `draft`, `step`, `uploadProgress`, `submitting`, `submitError`. The flow does not use
+  `usePharmaStore`.
 
 ## Data path
 

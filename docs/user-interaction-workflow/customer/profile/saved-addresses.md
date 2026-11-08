@@ -14,15 +14,16 @@
 ## State
 
 - Local screen state for the form/list.
-- `useLocationStore` — live fix used to label/seed an address.
-- `useCartStore` — selected delivery address for checkout.
+- The screen reads the server list; it does not import `useLocationStore` or `useCartStore`.
+  `CartView` separately selects the default address for checkout.
 
 ## Data path
 
 - `gateway.getAddresses()` → `GET /profile/addresses` → `checkout.addresses`.
 - `gateway.saveAddress(addr)` → `PUT /profile/addresses`.
 - `gateway.deleteAddress(id)` → `DELETE /profile/addresses/{id}`.
-- `defaultAddresses` in `@data/cart` is an offline/error shell only, never the online origin.
+- `savedAddresses` in `@data/account` is the offline/error shell only (`gateway.remoteEnabled`
+  false); it is never the online origin.
 
 ## Success / error / empty
 
@@ -38,4 +39,4 @@
 
 - `docs/architecture/mobile-app.md`
 - `docs/architecture/monolith-breakdown.md` (checkout row)
-- `data/DATA_CONTROL.md` (`@data/cart` / `@data/account`)
+- `data/DATA_CONTROL.md` (`@data/account`)

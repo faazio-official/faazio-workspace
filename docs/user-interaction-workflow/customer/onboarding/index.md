@@ -1,6 +1,6 @@
 # Customer onboarding — domain index
 
-**Status:** Shipped
+**Status:** Partial (dev-only placeholder login seam)
 **Routes:** `Onboarding`, `Login`, `LanguageSelection`, `Location`
 **Files:** `src/features/onboarding/`, `src/features/auth/`
 
@@ -18,7 +18,8 @@
 1. `AppNavigator` picks `initialRouteName` from `useOnboardingStore.hasSeenOnboarding` and
    `useAuthStore` (`AppNavigator.tsx`).
 2. `OnboardingScreen` shows the value carousel.
-3. Completing/skipping sets `hasSeenOnboarding` and replaces the route with `Login`.
+3. Completing/skipping sets `hasSeenOnboarding` and navigates to `Login` (the `Onboarding` route
+   remains in the back stack).
 
 **State:** `useOnboardingStore` (`src/state/onboardingStore.ts`), persisted.
 **Data path:** none (local first-run flag only).

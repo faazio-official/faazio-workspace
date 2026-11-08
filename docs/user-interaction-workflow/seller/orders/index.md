@@ -1,6 +1,6 @@
 # Seller orders — domain index
 
-**Status:** Shipped
+**Status:** Partial ("Simulate scan" is a toast-only demo affordance)
 **Routes:** portal `/seller/orders`, `/seller/orders/[id]`, `/seller/order-history`, `/seller/returns`,
 `/seller/payments`
 **Trigger:** New-order notification, seller console, or order board.
@@ -23,6 +23,12 @@
 - `PUT /seller/orders/{id}/accept|reject`, `PUT /orders/{id}/status`.
 - `GET /seller/payments`, `GET /seller/payments/{cycleId}`, `GET /seller/payout-invoices/{payoutId}`
   → `payments.*`.
+
+## Success / error / empty
+
+- **Success:** server status advances; the customer sees the change.
+- **Error:** `409 payment_pending` blocks packing; inline error otherwise.
+- **Empty:** no orders → honest empty board.
 
 ## Known gaps
 

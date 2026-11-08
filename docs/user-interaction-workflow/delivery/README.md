@@ -15,12 +15,12 @@
 | Onboarding | Phone + OTP entry | `PhoneEntry`, `OtpVerify` | [onboarding/index.md](./onboarding/index.md) |
 | Onboarding | Rider registration | `Register` | [rider-registration.md](./onboarding/rider-registration.md) |
 | Onboarding | Vehicle + documents | `Register` | [vehicle-documents.md](./onboarding/vehicle-documents.md) |
-| Availability | Online/offline + heartbeat | `Dashboard` | [go-online.md](./availability/go-online.md) |
-| Offers | Offer accept/reject | `AcceptReject`, `Dashboard` | [delivery-offer.md](./offers/delivery-offer.md) |
+| Availability | Online/offline + heartbeat | `Dashboard` | [availability/index.md](./availability/index.md) · [go-online.md](./availability/go-online.md) |
+| Offers | Offer accept/reject | `AcceptReject`, `Dashboard` | [offers/index.md](./offers/index.md) · [delivery-offer.md](./offers/delivery-offer.md) |
 | Offers | Route sequencing | `Route` | [route-sequencing.md](./offers/route-sequencing.md) |
-| Fulfillment | Pickup | `Route` | [order-pickup.md](./fulfillment/order-pickup.md) |
+| Fulfillment | Pickup | `Route` | [fulfillment/index.md](./fulfillment/index.md) · [order-pickup.md](./fulfillment/order-pickup.md) |
 | Fulfillment | Customer handover / OTP / COD | `Route` | [customer-handover.md](./fulfillment/customer-handover.md) |
-| Earnings | Payout ledger | `Payouts` | [earnings-ledger.md](./earnings/earnings-ledger.md) |
+| Earnings | Payout ledger | `Payouts` | [earnings/index.md](./earnings/index.md) · [earnings-ledger.md](./earnings/earnings-ledger.md) |
 
 ## Cross-cutting rules
 
@@ -33,8 +33,8 @@
 ## Known gaps
 
 See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Delivery-specific gaps: `AcceptReject` is not navigated
-from any screen (push/deep link only); iOS force-quit background limits are documented in
-`client/mobile/PENDING_WORK.md`.
+from any screen (push/deep link only); OTP handover is unreachable for checkout orders; iOS
+force-quit background limits are documented in `client/mobile/PENDING_WORK.md`.
 
 ## Linked docs
 

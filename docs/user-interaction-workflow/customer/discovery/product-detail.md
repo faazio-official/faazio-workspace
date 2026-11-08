@@ -2,13 +2,15 @@
 
 **App / route:** customer · `ProductDetail` (`src/features/product/ProductDetailScreen.tsx`,
 `CommonProductDetailView.tsx`)
-**Status:** Shipped
+**Status:** Partial (reviews fetched but not rendered; no stock gating or retry UI)
 **Trigger:** Tapping a product card, search result, deal, or deep link.
 
 ## Steps
 
-1. `ProductDetailScreen` resolves the product id and calls the shared `CommonProductDetailView`.
-2. The view loads `getProduct(id)` (`GET /product/{id}` + `GET /product/{id}/reviews`).
+1. `ProductDetailScreen` receives a product from the caller and renders the shared
+   `CommonProductDetailView` immediately.
+2. With the gateway enabled it refreshes canonical price via `getProduct(id)` (`GET /product/{id}` +
+   `GET /product/{id}/reviews`); only `product` is used, the `reviews` array is discarded today.
 3. It loads the store context (`getStore`) and related rows (`getStoreProducts`).
 4. `trackEvent('view')` records the view (`POST /events`).
 5. Add-to-cart calls `useCartStore.addToCart`, which writes the server cart.
@@ -31,17 +33,22 @@
 - `gateway.trackEvent(productId, 'view')` → `POST /events` → Mongo `user_events` (ID-only).
 - `gateway.getVendorReviews` / `getVendorReviewSummary` / `rateVendor` → `reviews.vendor_reviews` /
   `reviews.vendor_summary` (vendor profile screens only).
-- Cache: `catalog:product:{id}` 24 h, purged on product edit/status and order placement.
+- Cache: `faazio:v1:catalog:product:{id}` 24 h, purged on product edit/status and order placement.
 
 ## Success / error / empty
 
-- **Success:** product, price, stock, reviews, store link render.
-- **Error:** honest error/retry; no fixture product substituted.
-- **Empty:** missing reviews show an empty review state; out-of-stock disables add.
+- **Success:** product and server-authoritative price render; store link renders.
+- **Error:** a failed canonical read is swallowed and the passed product keeps rendering; there is
+  no retry UI. A missing route `product` shows "Product unavailable".
+- **Empty:** reviews are not rendered today, so there is no empty review state; add-to-cart is always
+  enabled (no out-of-stock gating).
 
 ## Known gaps
 
-- None specific. Vendor rating requires a completed purchase for the verified-purchase path.
+- `/product/{id}/reviews` is fetched but never rendered; there is no review list or empty state.
+- No stock/availability check disables add-to-cart on the PDP.
+- A failed canonical read has no retry affordance.
+- Vendor rating requires a completed purchase for the verified-purchase path.
 
 ## Linked docs
 

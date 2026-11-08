@@ -26,14 +26,14 @@
 ## State
 
 - `useAuthStore` — session and sign-out.
-- `useRemoteConfigStore` — feature/config copy.
 - `useRewardsStore` — rewards summary.
-- `useFavoriteStore` — favourites.
+- `useFavoriteStore` — favourites (Favourites surface, not the account screens).
 
 ## Data path
 
-- `getAccountNav`, `getProfile`, `getDetails`, `getMembership`, `getOrderStatus` → `GET /account-nav`,
-  `/profile`, `/profile/details`, `/membership`, `/order-status` → `accounts.*`.
+- `getAccountNav`, `getProfile`, `getDetails` → `GET /account-nav`, `/profile`, `/profile/details` →
+  `accounts.*`.
+- `gateway.getMembership` / `getOrderStatus` exist on the client but no profile screen calls them.
 - No `@data` account rows are substituted on a live read failure.
 
 ## Success / error / empty

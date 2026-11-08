@@ -33,7 +33,7 @@
 - `PUT /seller/pricing/{productId}` → `catalog.products`.
 - `PUT /seller/inventory/{productId}` → `inventory.stock`.
 - `POST/PUT/DELETE /seller/menus/*` → `directory.menus`.
-- Cache: `directory:menu:{venueId}` 24 h (invalidated on menu edit).
+- Cache: `faazio:v1:directory:menu:{venueId}` 24 h (invalidated on menu edit).
 
 ## Success / error / empty
 

@@ -1,7 +1,7 @@
 # Phone OTP login (customer)
 
 **App / route:** customer · `Login` (`src/features/auth/LoginScreen.tsx`)
-**Status:** Shipped
+**Status:** Partial (dev-only mock login seam; see Known gaps)
 **Trigger:** Cold start with no session, session expiry, or sign-out.
 
 ## Steps
@@ -33,7 +33,8 @@
 ## Success / error / empty
 
 - **Success:** `LanguageSelection`, then `Location`, then `MainTabs`.
-- **Invalid/expired code:** inline error, shake animation, OTP field cleared; user can retry/resend.
+- **Invalid/expired code:** inline error, shake animation; the entered code remains so the user can
+  correct it, and resend is available.
 - **Unconfigured Firebase:** release build refuses to embed the mock-login config; the screen
   reports that OTP is unavailable rather than fabricating a session.
 - **Empty:** not applicable (auth requires input).
