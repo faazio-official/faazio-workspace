@@ -4,7 +4,14 @@
 // When `NEXT_PUBLIC_GATEWAY_URL` is unset this is a no-op.
 import { remoteConfigured } from "@/lib/config";
 import { remote, toCamel } from "@/lib/api/http";
-import { fetchSellerInventory, fetchSellerPricing, fetchSellerStores, type SellerConsoleRow } from "@/lib/api";
+import {
+  fetchNotificationPreferences,
+  fetchSellerInventory,
+  fetchSellerPricing,
+  fetchSellerStores,
+  fetchSubUsers,
+  type SellerConsoleRow,
+} from "@/lib/api";
 import { usePortalStore } from "@/lib/api/store";
 import type {
   AdSlot,
@@ -35,6 +42,8 @@ import type {
   StockRecord,
   StoreRecord,
   DistrictAdmin,
+  NotificationPreferences,
+  SubUser,
   TicketRecord,
 } from "@/data/types";
 
@@ -210,7 +219,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
   const isAdmin = role === "DISTRICT_ADMIN" || role === "SUPER_ADMIN";
   const canReadPayouts = role === "SELLER" || role === "SUPER_ADMIN";
 
-  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger, orders, inventory, pricing, stores] =
+  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger, orders, inventory, pricing, stores, prefs, subUsers] =
     await Promise.all([
       safe(() => remote.get<RawSeller[]>("/sellers").then(toCamel)),
       safe(() => remote.get<FestivalCampaign[]>("/promo/campaigns").then(toCamel)),
@@ -313,6 +322,15 @@ export async function hydrateFromGateway(): Promise<boolean> {
               ),
             )
           : Promise.resolve<StoreRecord[] | undefined>(undefined),
+      ),
+      // Seller self-service settings (0097): alert preferences + staff sub-users. Sellers only.
+      safe(() =>
+        role === "SELLER"
+          ? fetchNotificationPreferences()
+          : Promise.resolve<NotificationPreferences | null>(null),
+      ),
+      safe(() =>
+        role === "SELLER" ? fetchSubUsers() : Promise.resolve<SubUser[] | undefined>(undefined),
       ),
     ]);
 
@@ -634,6 +652,15 @@ export async function hydrateFromGateway(): Promise<boolean> {
         at: str(e["at"]),
       }),
     );
+    touched = true;
+  }
+
+  if (prefs) {
+    patch["notificationPreferences"] = prefs;
+    touched = true;
+  }
+  if (hasSlice(subUsers)) {
+    patch["subUsers"] = subUsers;
     touched = true;
   }
 

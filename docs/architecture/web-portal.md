@@ -287,7 +287,7 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage — **GST rate master** (sector + category + GST rate, `tax.tax_rates` via `GET/PUT /admin/tax/categories` + `DELETE /admin/tax/categories/{id}`): the approved category list that seller listings and the checkout tax split both consume |
 | `admin/super/rewards` · `admin/super/users` · `admin/super/districts` | platform — `districts` is the per-district drill-down (supply, campaigns, roster) |
 | `admin/{district,super}/fee-change-requests` | seller-initiated platform-fee change review — district admins see their district, super admins every district; approve applies the fee, reject requires a reason (server-enforced one pending request per seller) |
-| `admin/super/district-admins` | district-admin directory — **locked to Tiruchirappalli (TTC)**; coverage summary (1 / 1) + progress bar + uncovered chip; roster read from `GET /district-admins?district=TTC` (store also hydrated at login). **Unified creation:** one form (district fixed to TTC) creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned. No state picker or state fallback |
+| `admin/super/district-admins` | district-admin directory — **locked to Tiruchirappalli (TTC)**; coverage summary (1 / 1) + progress bar + uncovered chip; roster read from `GET /district-admins?district=TTC` (store also hydrated at login). **Unified creation:** one form (district fixed to TTC) creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned. **Edit sheet** updates name/email/phone via `PUT /district-admins/{id}` (the roster identity and its linked `DISTRICT_ADMIN` portal login email/display-name are kept in sync); deactivate/reactivate also use it. No state picker or state fallback |
 | `admin/super/credentials` | issue/disable seller and district-admin portal logins (role + seller/district scope) |
 | `admin/super/app-config` | central remote config — the SUPER_ADMIN-edited app settings every Faazio app reads on boot (`admins.app_config`, `0059`), `GET/PUT/DELETE /admin/app-config(/{key})`. PRIVATE/SECRET rows are masked, writes are audit-logged, and a change is picked up on the next app boot (`getAppConfig` on mobile) with no app-store release. Since `0077` it carries the **Delivery UPI QR upload** section (`GET/PUT /app-config/delivery-upi-qr`, super admin — riders show the QR at COD DROP stops) |
 | `admin/super/security` | superadmin password rotation (same component as `/security`) |
@@ -470,9 +470,10 @@ console and the super admin console on that device.
   `ThemeSegmentedControl` (Settings pages, three labelled options) and
   `ThemeMenu` (the shell header icon menu). Both shells render `ThemeMenu`.
 - **Settings surfaces.** `/seller/settings` (editable Profile, Bank, Notifications,
-  Sub-users and Security tabs plus Appearance; bank uses `GET`/`PUT /sellers/{id}/bank-account`
-  and appearance is browser-local — the profile/notification/sub-user writes are
-  optimistic pending gateway endpoints; **Security** rotates the seller's own sign-in email
+  Sub-users and Security tabs plus Appearance; bank uses `GET`/`PUT /sellers/{id}/bank-account`,
+  profile uses `PATCH /sellers/{id}`, notifications use `GET`/`PUT /seller/notifications/preferences`,
+  sub-users use `GET`/`POST /seller/sub-users` + `DELETE /seller/sub-users/{id}` (tables from `0097`),
+  and appearance is browser-local; **Security** rotates the seller's own sign-in email
   (`PUT /auth/portal/email`, re-auth popup) and password (`PUT /auth/portal/password`), see
   `docs/user-interaction-workflow/seller/web-portal/settings.md`),
   `/admin/super/settings` (Appearance section) and `/admin/district/settings`

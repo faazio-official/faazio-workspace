@@ -224,25 +224,65 @@ func (h *Handler) auditCreate(r *http.Request, res CreateResult) {
 	}
 }
 
-type setActiveRequest struct {
-	Active bool `json:"active"`
+// updateAdminRequest carries the optional fields PUT /district-admins/{id} may change. Pointers
+// distinguish "not provided" from a zero value, so a body of just {"active":false} still works while
+// {"name","email","phone"} edits the roster identity.
+type updateAdminRequest struct {
+	Active       *bool   `json:"active"`
+	Name         *string `json:"name"`
+	Email        *string `json:"email"`
+	Phone        *string `json:"phone"`
+	DistrictCode *string `json:"districtCode"`
 }
 
 func (h *Handler) setAdminActive(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	var req setActiveRequest
+	var req updateAdminRequest
 	if err := httpx.Decode(r, &req); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
 		return
 	}
-	admin, ok, err := h.provisioner.SetActive(r.Context(), id, req.Active)
-	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "district_admin_update_failed", "could not update district admin")
+	hasProfile := req.Name != nil || req.Email != nil || req.Phone != nil || req.DistrictCode != nil
+	if !hasProfile && req.Active == nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "no changes provided")
 		return
 	}
-	if !ok {
-		httpx.Fail(w, http.StatusNotFound, "not_found", "district admin not found")
-		return
+
+	var admin DistrictAdmin
+	var ok bool
+	var err error
+	if hasProfile {
+		admin, ok, err = h.provisioner.UpdateIdentity(r.Context(), id, UpdateIdentityParams{
+			Name: req.Name, Email: req.Email, Phone: req.Phone, DistrictCode: req.DistrictCode,
+		})
+		if err != nil {
+			var ve *ValidationError
+			if errors.As(err, &ve) {
+				httpx.Fail(w, http.StatusBadRequest, ve.Code, ve.Message)
+				return
+			}
+			if conflict := AsConflict(err); conflict != nil {
+				httpx.FailConflict(w, conflict.Code, conflict.Message, conflict.ConflictingRole, conflict.ConflictingID)
+				return
+			}
+			httpx.Fail(w, http.StatusInternalServerError, "district_admin_update_failed", "could not update district admin")
+			return
+		}
+		if !ok {
+			httpx.Fail(w, http.StatusNotFound, "not_found", "district admin not found")
+			return
+		}
+	}
+	if req.Active != nil {
+		admin, ok, err = h.provisioner.SetActive(r.Context(), id, *req.Active)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "district_admin_update_failed", "could not update district admin")
+			return
+		}
+		if !ok {
+			httpx.Fail(w, http.StatusNotFound, "not_found", "district admin not found")
+			return
+		}
 	}
 	after, _ := json.Marshal(admin)
 	_ = h.repo.Audit(r.Context(), contracts.AuditEntry{

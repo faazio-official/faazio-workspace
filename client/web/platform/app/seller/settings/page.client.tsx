@@ -148,13 +148,20 @@ function SellerSettings() {
     });
   };
 
-  const saveProfile = () => {
+  const saveProfile = async () => {
     if (!profileDraft || !sellerId) return;
-    updateSeller(sellerId, profileDraft);
-    toast.success("Profile update submitted", {
-      description: "KYC-bearing changes re-enter admin verification.",
-    });
-    setProfileDraft(null);
+    const patch = profileDraft;
+    try {
+      await updateSeller(sellerId, patch);
+      toast.success("Profile update submitted", {
+        description: "KYC-bearing changes re-enter admin verification.",
+      });
+      setProfileDraft(null);
+    } catch (err) {
+      toast.error("Profile update failed", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
   };
 
   const startBankEdit = () => {
@@ -185,7 +192,7 @@ function SellerSettings() {
     setBankDraft(null);
   };
 
-  const sendInvite = () => {
+  const sendInvite = async () => {
     if (!sellerId) return;
     if (!invite.name.trim() || !invite.email.trim()) {
       toast.error("Enter a name and email");
@@ -195,9 +202,16 @@ function SellerSettings() {
       toast.error("Enter a valid email");
       return;
     }
-    inviteSubUser(sellerId, invite);
-    toast.success("Invite sent", { description: `An invite will go to ${invite.email.trim()}.` });
-    setInvite({ name: "", email: "", role: "STAFF" });
+    const email = invite.email.trim();
+    try {
+      await inviteSubUser(sellerId, invite);
+      toast.success("Invite sent", { description: `An invite will go to ${email}.` });
+      setInvite({ name: "", email: "", role: "STAFF" });
+    } catch (err) {
+      toast.error("Invite failed", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
   };
 
   const openEmailSheet = () => {
@@ -350,7 +364,7 @@ function SellerSettings() {
                   <PrimaryButton variant="outline" className="flex-1" onClick={() => setProfileDraft(null)}>
                     Cancel
                   </PrimaryButton>
-                  <PrimaryButton className="flex-1" onClick={saveProfile}>
+                  <PrimaryButton className="flex-1" onClick={() => void saveProfile()}>
                     Save changes
                   </PrimaryButton>
                 </div>
@@ -516,7 +530,7 @@ function SellerSettings() {
               </div>
               <PrimaryButton
                 className="mt-4 w-full"
-                onClick={sendInvite}
+                onClick={() => void sendInvite()}
                 disabled={!invite.name.trim() || !invite.email.trim()}
               >
                 Send invite
@@ -544,8 +558,16 @@ function SellerSettings() {
                     </span>
                     <button
                       onClick={() => {
-                        removeSubUser(user.subUserId);
-                        toast.success("Sub-user revoked");
+                        void (async () => {
+                          try {
+                            await removeSubUser(user.subUserId);
+                            toast.success("Sub-user revoked");
+                          } catch (err) {
+                            toast.error("Revoke failed", {
+                              description: err instanceof Error ? err.message : undefined,
+                            });
+                          }
+                        })();
                       }}
                       className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
                     >

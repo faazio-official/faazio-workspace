@@ -78,9 +78,9 @@ export interface PortalState {
   tickets: TicketRecord[];
   rewardRates: RewardsRates;
   rewardLedger: RewardLedgerEntry[];
-  /** Seller staff logins (pending gateway `seller.sub_users`). */
+  /** Seller staff logins (`sellers.sub_users`, hydrated for SELLER). */
   subUsers: SubUser[];
-  /** Per-seller alert preferences (pending gateway `seller.notification_preferences`). */
+  /** Per-seller alert preferences (`sellers.notification_preferences`, hydrated for SELLER). */
   notificationPreferences: NotificationPreferences;
   set: (updater: (state: PortalState) => Partial<PortalState>) => void;
   setActiveStoreId: (id: string | null) => void;

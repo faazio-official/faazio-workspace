@@ -594,8 +594,17 @@ function DistrictAdminAccounts() {
                           size="sm"
                           variant="outline"
                           onClick={() => {
-                            updateDistrictAdmin(admin.adminId, { active: !admin.active });
-                            toast.success(admin.active ? "Admin deactivated" : "Admin reactivated");
+                            void (async () => {
+                              const nextActive = !admin.active;
+                              try {
+                                await updateDistrictAdmin(admin.adminId, { active: nextActive });
+                                toast.success(nextActive ? "Admin reactivated" : "Admin deactivated");
+                              } catch (err) {
+                                toast.error("Update failed", {
+                                  description: err instanceof Error ? err.message : undefined,
+                                });
+                              }
+                            })();
                           }}
                         >
                           {admin.active ? "Deactivate" : "Reactivate"}
@@ -680,9 +689,19 @@ function DistrictAdminAccounts() {
                 size="sm"
                 disabled={!EMAIL_RE.test(draft.email) || draft.name.trim().length < 3}
                 onClick={() => {
-                  updateDistrictAdmin(editing.adminId, draft);
-                  toast.success("Admin updated");
-                  setEditing(null);
+                  void (async () => {
+                    try {
+                      await updateDistrictAdmin(editing.adminId, draft);
+                      toast.success("Admin updated");
+                      setEditing(null);
+                      // The linked portal login's email is kept in sync server-side; refresh the
+                      // credential slice so the LOGIN badge follows the new email immediately.
+                      void listPortalCredentials().then(setCreds).catch(() => undefined);
+                    } catch (err) {
+                      const conflict = districtAdminConflictMessage(err);
+                      toast.error("Update failed", { description: conflict.message });
+                    }
+                  })();
                 }}
               >
                 Save changes

@@ -1008,20 +1008,23 @@ function patchSellerLocal(sellerId: string, patch: Partial<SellerRecord>): void 
 }
 
 /**
- * Save a seller's editable business-profile fields. Optimistic with rollback so a rejected write
- * never lingers. KYC-bearing changes (GSTIN/PAN/address) re-enter admin review server-side; there
- * is no generic `PATCH /sellers/{id}` yet — the rollback + toast surface the rejection honestly.
+ * Save a seller's editable business-profile fields through `PATCH /sellers/{id}`. Optimistic with
+ * rollback so a rejected write never lingers. KYC-bearing changes (GSTIN/PAN/address) re-enter admin
+ * review server-side (the account returns to PENDING_REVIEW for a seller-initiated edit).
  */
-export function updateSeller(sellerId: string, patch: SellerProfilePatch): void {
+export async function updateSeller(sellerId: string, patch: SellerProfilePatch): Promise<void> {
   const before = getSeller(sellerId);
   patchSellerLocal(sellerId, patch);
-  pushWrite("Profile update", "patch", `/sellers/${encodeURIComponent(sellerId)}`, patch, () => {
+  try {
+    await writeAwaited("patch", `/sellers/${encodeURIComponent(sellerId)}`, patch);
+  } catch (err) {
     if (before) {
       state().set((s) => ({
         sellers: s.sellers.map((seller) => (seller.sellerId === sellerId ? before : seller)),
       }));
     }
-  });
+    throw err;
+  }
   audit({
     action: "SELLER_PROFILE_UPDATE",
     entity: "sellers.sellers",
@@ -1034,12 +1037,23 @@ export function updateSeller(sellerId: string, patch: SellerProfilePatch): void 
 /* ------------------------------ seller settings --------------------------- */
 
 /**
- * Per-seller alert preferences. No gateway endpoint/table exists yet (pending
- * `seller.notification_preferences`); the optimistic write rolls back + toasts on failure so the
- * switch never lies about being saved.
+ * Per-seller alert preferences (`sellers.notification_preferences`). The optimistic write rolls back
+ * on a rejected gateway call so the switch never lies about being saved.
  */
 export function getNotificationPreferences(): NotificationPreferences {
   return state().notificationPreferences;
+}
+
+/** Hydrates the seller's alert preferences from `GET /seller/notifications/preferences`. */
+export async function fetchNotificationPreferences(): Promise<NotificationPreferences | null> {
+  if (!remoteConfigured()) return null;
+  const raw = await remote.get<Partial<NotificationPreferences>>("/seller/notifications/preferences");
+  return {
+    newOrder: raw.newOrder !== false,
+    lowStock: raw.lowStock !== false,
+    slaBreach: raw.slaBreach !== false,
+    campaigns: raw.campaigns !== false,
+  };
 }
 
 export function updateNotificationPreferences(patch: Partial<NotificationPreferences>): void {
@@ -1051,7 +1065,7 @@ export function updateNotificationPreferences(patch: Partial<NotificationPrefere
   });
   audit({
     action: "NOTIFICATION_PREFS_UPDATE",
-    entity: "seller.notification_preferences",
+    entity: "sellers.notification_preferences",
     entityId: state().session?.sellerId ?? "",
     before,
     after: next,
@@ -1066,6 +1080,11 @@ export function getSubUser(subUserId: string): SubUser | undefined {
   return state().subUsers.find((u) => u.subUserId === subUserId);
 }
 
+/** The seller's staff roster from `GET /seller/sub-users`. */
+export async function fetchSubUsers(): Promise<SubUser[]> {
+  return remote.get<SubUser[]>("/seller/sub-users");
+}
+
 export interface InviteSubUserInput {
   name: string;
   email: string;
@@ -1073,51 +1092,50 @@ export interface InviteSubUserInput {
 }
 
 /**
- * Invite a staff sub-user. No gateway endpoint/table exists yet (pending `seller.sub_users`); the
- * optimistic row rolls back + toasts on failure.
+ * Invite a staff sub-user via `POST /seller/sub-users`. The gateway mints the row id, so this awaits
+ * the response and inserts the server row (no phantom local row that would vanish on refresh).
  */
-export function inviteSubUser(sellerId: string, input: InviteSubUserInput): void {
-  const row: SubUser = {
-    subUserId: `sub-local-${Date.now()}`,
+export async function inviteSubUser(sellerId: string, input: InviteSubUserInput): Promise<SubUser> {
+  if (!remoteConfigured()) {
+    const row: SubUser = {
+      subUserId: `sub-local-${Date.now()}`,
+      sellerId,
+      name: input.name.trim(),
+      email: input.email.trim(),
+      role: input.role,
+      status: "PENDING_INVITE",
+      createdAt: nowIso(),
+    };
+    state().set((s) => ({ subUsers: [row, ...s.subUsers] }));
+    return row;
+  }
+  const row = await remote.post<SubUser>("/seller/sub-users", {
     sellerId,
     name: input.name.trim(),
     email: input.email.trim(),
     role: input.role,
-    status: "PENDING_INVITE",
-    createdAt: nowIso(),
-  };
-  state().set((s) => ({ subUsers: [row, ...s.subUsers] }));
-  pushWrite(
-    "Sub-user invite",
-    "post",
-    "/seller/sub-users",
-    { sellerId, name: row.name, email: row.email, role: row.role },
-    () => {
-      state().set((s) => ({ subUsers: s.subUsers.filter((u) => u.subUserId !== row.subUserId) }));
-    },
-  );
-  audit({ action: "SUBUSER_INVITE", entity: "seller.sub_users", entityId: row.subUserId, after: row });
+  });
+  state().set((s) => ({
+    subUsers: [row, ...s.subUsers.filter((u) => u.subUserId !== row.subUserId)],
+  }));
+  audit({ action: "SUBUSER_INVITE", entity: "sellers.sub_users", entityId: row.subUserId, after: row });
+  return row;
 }
 
-/** Revoke a staff sub-user. Optimistic removal with re-insert on a rejected gateway write. */
-export function removeSubUser(subUserId: string): void {
+/** Revoke a staff sub-user via `DELETE /seller/sub-users/{id}`. Optimistic removal with re-insert on a rejected write. */
+export async function removeSubUser(subUserId: string): Promise<void> {
   const before = getSubUser(subUserId);
   if (!before) return;
   state().set((s) => ({ subUsers: s.subUsers.filter((u) => u.subUserId !== subUserId) }));
-  pushWrite(
-    "Sub-user revoke",
-    "delete",
-    `/seller/sub-users/${encodeURIComponent(subUserId)}`,
-    undefined,
-    () => {
-      state().set((s) =>
-        s.subUsers.some((u) => u.subUserId === subUserId)
-          ? s
-          : { subUsers: [before, ...s.subUsers] },
-      );
-    },
-  );
-  audit({ action: "SUBUSER_REVOKE", entity: "seller.sub_users", entityId: subUserId, before });
+  try {
+    await writeAwaited("delete", `/seller/sub-users/${encodeURIComponent(subUserId)}`);
+  } catch (err) {
+    state().set((s) =>
+      s.subUsers.some((u) => u.subUserId === subUserId) ? s : { subUsers: [before, ...s.subUsers] },
+    );
+    throw err;
+  }
+  audit({ action: "SUBUSER_REVOKE", entity: "sellers.sub_users", entityId: subUserId, before });
 }
 
 /** Admin: set one vendor's platform fee (server re-checks the app's floor). */
@@ -2106,18 +2124,33 @@ export function districtAdminConflictMessage(err: unknown): { field: "email" | "
   }
 }
 
-export function updateDistrictAdmin(adminId: string, patch: Partial<DistrictAdmin>): void {
+/**
+ * Update a district admin via `PUT /district-admins/{id}` — the roster identity (name/email/phone/
+ * district) and/or `active`. Optimistic with rollback so a rejected write never lingers; the caller
+ * awaits it to render an honest success toast.
+ */
+export async function updateDistrictAdmin(adminId: string, patch: Partial<DistrictAdmin>): Promise<void> {
   const before = state().districtAdmins.find((a) => a.adminId === adminId);
   state().set((s) => ({
     districtAdmins: s.districtAdmins.map((a) => (a.adminId === adminId ? { ...a, ...patch } : a)),
   }));
-  if (patch.active !== undefined) {
-    pushWrite("District admin", "put", `/district-admins/${encodeURIComponent(adminId)}`, { active: patch.active }, () => {
-      if (!before) return;
+  const body: Record<string, unknown> = {};
+  if (patch.name !== undefined) body["name"] = patch.name;
+  if (patch.email !== undefined) body["email"] = patch.email;
+  if (patch.phone !== undefined) body["phone"] = patch.phone;
+  if (patch.districtCode !== undefined) body["districtCode"] = patch.districtCode;
+  if (patch.active !== undefined) body["active"] = patch.active;
+  try {
+    if (Object.keys(body).length > 0) {
+      await writeAwaited("put", `/district-admins/${encodeURIComponent(adminId)}`, body);
+    }
+  } catch (err) {
+    if (before) {
       state().set((s) => ({
         districtAdmins: s.districtAdmins.map((a) => (a.adminId === adminId ? before : a)),
       }));
-    });
+    }
+    throw err;
   }
   audit({
     action: "DISTRICT_ADMIN_UPDATE",

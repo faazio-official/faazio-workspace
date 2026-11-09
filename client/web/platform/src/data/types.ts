@@ -114,7 +114,7 @@ export interface SellerProfilePatch {
 export type SubUserRole = "STAFF" | "VIEWER";
 export type SubUserStatus = "PENDING_INVITE" | "ACTIVE" | "REVOKED";
 
-/** A seller staff login with limited console access (pending gateway `seller.sub_users` table). */
+/** A seller staff login with limited console access (`sellers.sub_users`). */
 export interface SubUser {
   subUserId: string;
   sellerId: string;
@@ -126,7 +126,7 @@ export interface SubUser {
   lastLoginAt?: string | undefined;
 }
 
-/** Which alerts a seller wants (pending gateway `seller.notification_preferences`). */
+/** Which alerts a seller wants (`sellers.notification_preferences`). */
 export type NotificationKind = "newOrder" | "lowStock" | "slaBreach" | "campaigns";
 export type NotificationPreferences = Record<NotificationKind, boolean>;
 

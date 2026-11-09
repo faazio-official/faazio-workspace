@@ -362,3 +362,33 @@ func TestSetStatusRecordsReason(t *testing.T) {
 		t.Fatalf("overlong reason status = %d, want 400", overlong.Code)
 	}
 }
+
+// TestSellerSettingsRouteGating exercises the seller-settings routes without a database: the role
+// gate rejects non-sellers and the request validation rejects bad input before any repo call.
+func TestSellerSettingsRouteGating(t *testing.T) {
+	c, err := cache.Connect(context.Background(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := chi.NewRouter()
+	r.Use(authtest.Middleware())
+	NewHandler(New(nil), c, nil, nil).Register(r)
+	sellerH := map[string]string{"X-Dev-Role": "SELLER", "X-Dev-Seller": "sel-1"}
+
+	if rec := do(t, r, http.MethodGet, "/seller/sub-users", "", map[string]string{"X-Dev-Role": "SUPER_ADMIN"}); rec.Code != http.StatusForbidden {
+		t.Fatalf("non-seller GET /seller/sub-users = %d, want 403", rec.Code)
+	}
+	cases := []struct {
+		name, path, body string
+	}{
+		{"bad role", "/seller/sub-users", `{"name":"A","email":"a@b.com","role":"OWNER"}`},
+		{"bad email", "/seller/sub-users", `{"name":"A","email":"nope","role":"STAFF"}`},
+		{"blank name", "/seller/sub-users", `{"name":"  ","email":"a@b.com","role":"STAFF"}`},
+	}
+	for _, tc := range cases {
+		rec := do(t, r, http.MethodPost, tc.path, tc.body, sellerH)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("%s: POST %s = %d, want 400 (body=%s)", tc.name, tc.path, rec.Code, rec.Body.String())
+		}
+	}
+}

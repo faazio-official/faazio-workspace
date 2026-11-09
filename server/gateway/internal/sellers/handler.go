@@ -2,6 +2,8 @@ package sellers
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -61,6 +63,21 @@ func (h *Handler) Register(r chi.Router) {
 		g.Post("/sellers/{id}/reject", h.reject)
 		// Seller resubmission of a rejected application (history preserved until approval).
 		g.Post("/sellers/{id}/edit", h.edit)
+		// Seller self-service business-profile edit (KYC-bearing fields re-enter admin review).
+		// This is the generic PATCH the portal has always called; POST /sellers/{id}/edit stays the
+		// REJECTED-application resubmission path.
+		g.Patch("/sellers/{id}", h.editProfile)
+	})
+
+	// Seller self-service settings: alert preferences + staff sub-users. Scope comes from the JWT
+	// seller_id, never a request body.
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleSeller))
+		g.Get("/seller/notifications/preferences", h.getNotificationPreferences)
+		g.Put("/seller/notifications/preferences", h.putNotificationPreferences)
+		g.Get("/seller/sub-users", h.listSubUsers)
+		g.Post("/seller/sub-users", h.inviteSubUser)
+		g.Delete("/seller/sub-users/{id}", h.revokeSubUser)
 	})
 
 	// Platform-fee change review queue: district admin sees their district, super admin sees all.
@@ -703,6 +720,213 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log(r, "SELLER_RESUBMIT", id, nil, map[string]any{"changedFields": redactHistory(changes)})
 	httpx.JSON(w, http.StatusOK, after)
+}
+
+type editProfileRequest struct {
+	BusinessName    string `json:"businessName"`
+	OwnerName       string `json:"ownerName"`
+	GSTIN           string `json:"gstin"`
+	PAN             string `json:"pan"`
+	BusinessAddress string `json:"businessAddress"`
+	ContactPhone    string `json:"contactPhone"`
+}
+
+// editProfile updates a seller's editable business profile. A seller may only edit their own row; an
+// admin may edit a seller in their district/state scope. A seller's KYC-bearing change (GSTIN/PAN/
+// address) re-enters PENDING_REVIEW so it is re-verified; an admin edit is trusted as-is.
+func (h *Handler) editProfile(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	requeue := auth.Role(r.Context()) == auth.RoleSeller
+	if requeue {
+		if auth.SellerID(r.Context()) != id {
+			httpx.Fail(w, http.StatusForbidden, "forbidden", "only the seller can edit their profile")
+			return
+		}
+	} else {
+		s, ok, err := h.repo.ByID(r.Context(), id)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+			return
+		}
+		if !ok || !auth.CanActForSellerDistrict(r.Context(), s.SellerID, s.DistrictCode, s.StateCode) {
+			httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
+			return
+		}
+	}
+	var req editProfileRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	req.BusinessName = strings.TrimSpace(req.BusinessName)
+	req.OwnerName = strings.TrimSpace(req.OwnerName)
+	req.GSTIN = strings.ToUpper(strings.TrimSpace(req.GSTIN))
+	req.PAN = strings.ToUpper(strings.TrimSpace(req.PAN))
+	req.BusinessAddress = strings.TrimSpace(req.BusinessAddress)
+	req.ContactPhone = strings.TrimSpace(req.ContactPhone)
+	if req.BusinessName == "" || req.OwnerName == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "business and owner name are required")
+		return
+	}
+	after, ok, err := h.repo.UpdateProfile(r.Context(), id, ProfilePatch{
+		BusinessName: req.BusinessName, OwnerName: req.OwnerName, GSTIN: req.GSTIN,
+		PAN: req.PAN, BusinessAddress: req.BusinessAddress, ContactPhone: req.ContactPhone,
+	}, h.actor(r), requeue)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not update profile")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
+		return
+	}
+	h.log(r, "SELLER_PROFILE_UPDATE", id, nil, redactSeller(after))
+	httpx.JSON(w, http.StatusOK, after)
+}
+
+// getNotificationPreferences returns the signed-in seller's alert preferences (all-on by default).
+func (h *Handler) getNotificationPreferences(w http.ResponseWriter, r *http.Request) {
+	sellerID := auth.SellerID(r.Context())
+	if sellerID == "" {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
+		return
+	}
+	prefs, err := h.repo.GetNotificationPreferences(r.Context(), sellerID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "preferences_unavailable", "notification preferences unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, prefs)
+}
+
+type notificationPreferencesRequest struct {
+	NewOrder  bool `json:"newOrder"`
+	LowStock  bool `json:"lowStock"`
+	SLABreach bool `json:"slaBreach"`
+	Campaigns bool `json:"campaigns"`
+}
+
+// putNotificationPreferences stores the signed-in seller's alert preferences.
+func (h *Handler) putNotificationPreferences(w http.ResponseWriter, r *http.Request) {
+	sellerID := auth.SellerID(r.Context())
+	if sellerID == "" {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
+		return
+	}
+	var req notificationPreferencesRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	prefs, err := h.repo.UpsertNotificationPreferences(r.Context(), sellerID, NotificationPreferences{
+		NewOrder: req.NewOrder, LowStock: req.LowStock, SLABreach: req.SLABreach, Campaigns: req.Campaigns,
+	})
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "preferences_update_failed", "could not update notification preferences")
+		return
+	}
+	h.log(r, "NOTIFICATION_PREFS_UPDATE", sellerID, nil, prefs)
+	httpx.JSON(w, http.StatusOK, prefs)
+}
+
+// listSubUsers returns the signed-in seller's staff roster.
+func (h *Handler) listSubUsers(w http.ResponseWriter, r *http.Request) {
+	sellerID := auth.SellerID(r.Context())
+	if sellerID == "" {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
+		return
+	}
+	users, err := h.repo.ListSubUsers(r.Context(), sellerID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sub_users_unavailable", "sub-users unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, users)
+}
+
+type inviteSubUserRequest struct {
+	// SellerID is accepted for wire compatibility with the portal; the real scope is the JWT.
+	SellerID string `json:"sellerId"`
+	Name     string `json:"name"`
+	Email    string `json:"email"`
+	Role     string `json:"role"`
+}
+
+// inviteSubUser adds a PENDING_INVITE staff row scoped to the signed-in seller.
+func (h *Handler) inviteSubUser(w http.ResponseWriter, r *http.Request) {
+	sellerID := auth.SellerID(r.Context())
+	if sellerID == "" {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
+		return
+	}
+	var req inviteSubUserRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	req.Name = strings.TrimSpace(req.Name)
+	req.Email = strings.TrimSpace(req.Email)
+	req.Role = strings.ToUpper(strings.TrimSpace(req.Role))
+	if req.Name == "" || len(req.Name) > 120 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a name is required")
+		return
+	}
+	if !validEmailAddress(req.Email) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a valid email is required")
+		return
+	}
+	if req.Role != "STAFF" && req.Role != "VIEWER" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "role must be STAFF or VIEWER")
+		return
+	}
+	u, err := h.repo.InviteSubUser(r.Context(), sellerID, req.Name, req.Email, req.Role)
+	if err != nil {
+		if errors.Is(err, ErrSubUserExists) {
+			httpx.Fail(w, http.StatusConflict, "sub_user_exists", "a sub-user with this email already exists")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "sub_user_create_failed", "could not invite sub-user")
+		return
+	}
+	h.log(r, "SUBUSER_INVITE", u.SubUserID, nil, map[string]string{"emailHash": shortEmailHash(u.Email), "role": u.Role})
+	httpx.JSON(w, http.StatusCreated, u)
+}
+
+// revokeSubUser marks a seller's sub-user REVOKED.
+func (h *Handler) revokeSubUser(w http.ResponseWriter, r *http.Request) {
+	sellerID := auth.SellerID(r.Context())
+	if sellerID == "" {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	ok, err := h.repo.RevokeSubUser(r.Context(), sellerID, id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sub_user_revoke_failed", "could not revoke sub-user")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "sub-user not found")
+		return
+	}
+	h.log(r, "SUBUSER_REVOKE", id, nil, nil)
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// validEmailAddress is a deliberately small shape check (the portal login is the real identity
+// authority); it rejects empty/oversized values and anything without an @.
+func validEmailAddress(v string) bool {
+	if v == "" || len(v) > 254 {
+		return false
+	}
+	at := strings.IndexByte(v, '@')
+	return at > 0 && at < len(v)-1 && !strings.ContainsAny(v, " \t\r\n")
+}
+
+// shortEmailHash returns a stable 64-bit hex prefix of an email for audit logs (never raw PII).
+func shortEmailHash(v string) string {
+	sum := sha256.Sum256([]byte(strings.ToLower(strings.TrimSpace(v))))
+	return hex.EncodeToString(sum[:8])
 }
 
 type feeChangeRequestBody struct {

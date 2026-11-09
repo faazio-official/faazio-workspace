@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/platform/db"
@@ -350,6 +351,161 @@ func (p *Provisioner) SetActive(ctx context.Context, adminID string, active bool
 		return DistrictAdmin{}, false, err
 	}
 	return a, true, nil
+}
+
+// ValidationError is a 400-class input error from a roster edit (bad name/email/phone/district).
+type ValidationError struct {
+	Code    string
+	Message string
+}
+
+func (e *ValidationError) Error() string { return e.Message }
+
+// UpdateIdentityParams carries the optional profile fields a super admin may change on a roster row.
+// A nil field means "leave unchanged". Phone is raw and is normalised inside the tx.
+type UpdateIdentityParams struct {
+	Name         *string
+	Email        *string
+	Phone        *string
+	DistrictCode *string
+}
+
+// UpdateIdentity edits a district-admin roster row (name/email/phone/district) and keeps the linked
+// DISTRICT_ADMIN portal login in sync (email + display name) so the roster↔login link — which
+// deactivation keys on lower(email) — never breaks. It backs PUT /district-admins/{id} when the body
+// carries profile fields. Identity collisions return a *ConflictError; bad input a *ValidationError.
+func (p *Provisioner) UpdateIdentity(ctx context.Context, adminID string, in UpdateIdentityParams) (DistrictAdmin, bool, error) {
+	if p.pool == nil {
+		return DistrictAdmin{}, false, errors.New("admins: database not configured")
+	}
+	tx, err := p.pool.Begin(ctx)
+	if err != nil {
+		return DistrictAdmin{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var cur DistrictAdmin
+	var createdAt, lastActive time.Time
+	err = tx.QueryRow(ctx, `
+		select admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active, created_at, last_active_at
+		  from admins.district_admins where admin_id = $1 for update`, adminID).
+		Scan(&cur.AdminID, &cur.Name, &cur.Email, &cur.Phone, &cur.DistrictCode, &cur.StateCode, &cur.Active, &createdAt, &lastActive)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return DistrictAdmin{}, false, nil
+	}
+	if err != nil {
+		return DistrictAdmin{}, false, err
+	}
+
+	name := cur.Name
+	if in.Name != nil {
+		name = strings.TrimSpace(*in.Name)
+		if len(name) < 3 || len(name) > 120 {
+			return DistrictAdmin{}, false, &ValidationError{Code: "bad_request", Message: "a name of at least 3 characters is required"}
+		}
+	}
+	email := cur.Email
+	if in.Email != nil {
+		email = strings.ToLower(strings.TrimSpace(*in.Email))
+		if !validEmail(email) {
+			return DistrictAdmin{}, false, &ValidationError{Code: "bad_request", Message: "a valid email is required"}
+		}
+	}
+	phone := cur.Phone
+	if in.Phone != nil {
+		digits, ok := NormalisePhone(*in.Phone)
+		if !ok {
+			return DistrictAdmin{}, false, &ValidationError{Code: "invalid_phone", Message: "phone must be a 10-digit Indian mobile number"}
+		}
+		phone = digits
+	}
+	districtCode, stateCode := cur.DistrictCode, cur.StateCode
+	if in.DistrictCode != nil {
+		districtCode = NormaliseDistrictCode(*in.DistrictCode)
+		if districtCode == "" || !IsValidDistrict(districtCode) {
+			return DistrictAdmin{}, false, &ValidationError{Code: "unknown_district", Message: "unknown district code"}
+		}
+		stateCode = StateForDistrict(districtCode)
+	}
+
+	oldEmail := cur.Email
+	if !strings.EqualFold(email, oldEmail) {
+		conflict, err := identityEmailConflict(ctx, tx, adminID, oldEmail, email)
+		if err != nil {
+			return DistrictAdmin{}, false, err
+		}
+		if conflict != nil {
+			return DistrictAdmin{}, false, conflict
+		}
+	}
+
+	// Keep the linked portal login in sync with the roster identity.
+	if _, err := tx.Exec(ctx, `
+		update admins.portal_users
+		   set email = $2, display_name = $3, updated_at = now()
+		 where lower(email) = lower($1) and role = 'DISTRICT_ADMIN'`, oldEmail, email, name); err != nil {
+		return DistrictAdmin{}, false, err
+	}
+
+	var updated DistrictAdmin
+	err = tx.QueryRow(ctx, `
+		update admins.district_admins
+		   set name = $2, email = $3, phone = $4, district_code = nullif($5,''), state_code = $6
+		 where admin_id = $1
+		 returning admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active, created_at, last_active_at`,
+		adminID, name, email, phone, districtCode, stateCode).
+		Scan(&updated.AdminID, &updated.Name, &updated.Email, &updated.Phone, &updated.DistrictCode, &updated.StateCode, &updated.Active, &createdAt, &lastActive)
+	if err != nil {
+		if isUniqueViolation(err) {
+			return DistrictAdmin{}, false, &ConflictError{Code: "email_has_district_roster", Message: "this email already belongs to another roster row"}
+		}
+		return DistrictAdmin{}, false, err
+	}
+	updated.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+	updated.LastActiveAt = lastActive.UTC().Format(time.RFC3339)
+	if err := tx.Commit(ctx); err != nil {
+		return DistrictAdmin{}, false, err
+	}
+	return updated, true, nil
+}
+
+// identityEmailConflict checks whether newEmail is already owned by a different identity (a portal
+// login of any role, or another roster row). The admin's own login (matched by its current email) is
+// not a conflict.
+func identityEmailConflict(ctx context.Context, tx pgx.Tx, adminID, oldEmail, newEmail string) (*ConflictError, error) {
+	var id, role, districtCode, email string
+	err := tx.QueryRow(ctx, `
+		select user_id, role, coalesce(district_code,''), email
+		  from admins.portal_users where lower(email) = lower($1) limit 1`, newEmail).
+		Scan(&id, &role, &districtCode, &email)
+	switch {
+	case err == nil:
+		if !(strings.EqualFold(email, oldEmail) && role == "DISTRICT_ADMIN") {
+			switch role {
+			case "SUPER_ADMIN":
+				return &ConflictError{Code: "email_used_by_super_admin", Message: "this email already belongs to an active SUPER_ADMIN login", ConflictingRole: role, ConflictingID: id}, nil
+			case "SELLER":
+				return &ConflictError{Code: "email_used_by_seller", Message: "this email already belongs to a seller login", ConflictingRole: role, ConflictingID: id}, nil
+			default:
+				return &ConflictError{Code: "email_has_district_login", Message: "this email already has a DISTRICT_ADMIN login for " + scopeLabel(districtCode), ConflictingRole: role, ConflictingID: id}, nil
+			}
+		}
+	case !errors.Is(err, pgx.ErrNoRows):
+		return nil, err
+	}
+
+	var rosterID, rosterDistrict string
+	err = tx.QueryRow(ctx, `
+		select admin_id, coalesce(district_code,'') from admins.district_admins
+		 where lower(email) = lower($1) and admin_id <> $2 limit 1`, newEmail, adminID).
+		Scan(&rosterID, &rosterDistrict)
+	switch {
+	case err == nil:
+		return &ConflictError{Code: "email_has_district_roster", Message: "this email already has a DISTRICT_ADMIN roster for " + scopeLabel(rosterDistrict), ConflictingRole: "DISTRICT_ADMIN", ConflictingID: rosterID}, nil
+	case !errors.Is(err, pgx.ErrNoRows):
+		return nil, err
+	}
+	return nil, nil
 }
 
 // Delete removes the roster row and its linked DISTRICT_ADMIN portal login (sessions cascade) in one tx.

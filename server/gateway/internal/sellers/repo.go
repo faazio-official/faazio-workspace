@@ -1099,6 +1099,219 @@ func (r *Repo) RejectFeeChangeRequest(ctx context.Context, requestID, reviewer, 
 	return req, true, nil
 }
 
+// ErrSubUserExists is returned when a live (non-revoked) invite already exists for the email.
+var ErrSubUserExists = errors.New("sellers: sub-user already invited")
+
+// ProfilePatch is the set of seller-editable business-profile fields (PATCH /sellers/{id}).
+type ProfilePatch struct {
+	BusinessName    string
+	OwnerName       string
+	GSTIN           string
+	PAN             string
+	BusinessAddress string
+	ContactPhone    string
+}
+
+// kycBearing reports whether the patch touches a field an admin must re-verify (GSTIN/PAN/address).
+func (p ProfilePatch) kycBearing() bool {
+	return p.GSTIN != "" || p.PAN != "" || p.BusinessAddress != ""
+}
+
+// UpdateProfile writes editable business fields for a seller and records the diff. When requeue is
+// true (a seller editing their own profile) a KYC-bearing change resets the account to
+// PENDING_REVIEW so a self-declared GSTIN/PAN/address is never trusted silently. An admin edit
+// (requeue=false) is trusted as-is because the admin is the reviewer. ok=false when the row is gone.
+func (r *Repo) UpdateProfile(ctx context.Context, id string, patch ProfilePatch, actorID string, requeue bool) (Seller, bool, error) {
+	if r.pool == nil {
+		return Seller{}, false, fmt.Errorf("sellers: database not configured")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Seller{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	before, err := scanSeller(tx.QueryRow(ctx, sellerSelect+` where seller_id=$1 for update`, id))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Seller{}, false, nil
+		}
+		return Seller{}, false, err
+	}
+	status := before.Status
+	if requeue && patch.kycBearing() && status != "REJECTED" {
+		status = "PENDING_REVIEW"
+	}
+	after, err := scanSeller(tx.QueryRow(ctx, `
+		update sellers.sellers set
+		  business_name=$2, owner_name=$3, gstin=$4, pan=$5, address=$6,
+		  phone=$7, status=$8, updated_at=now()
+		 where seller_id=$1
+		 returning `+sellerColumns,
+		id, patch.BusinessName, patch.OwnerName, patch.GSTIN, patch.PAN,
+		patch.BusinessAddress, nullIfEmpty(patch.ContactPhone), status))
+	if err != nil {
+		return Seller{}, false, err
+	}
+	for _, c := range diffFields(before, after) {
+		oldValue, newValue := c.oldValue, c.newValue
+		if auditPIIFields[c.field] {
+			oldValue, newValue = "", ""
+		}
+		if _, err := tx.Exec(ctx, `
+			insert into sellers.seller_request_history
+			  (history_id, seller_id, field_name, old_value, new_value, changed_by)
+			values ($1,$2,$3,$4,$5,$6)`,
+			"reqhist-"+shortID(), id, c.field, oldValue, newValue, actorID); err != nil {
+			return Seller{}, false, err
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Seller{}, false, err
+	}
+	return after, true, nil
+}
+
+// NotificationPreferences is one sellers.notification_preferences row. Absent row == all alerts on.
+type NotificationPreferences struct {
+	NewOrder  bool `json:"newOrder"`
+	LowStock  bool `json:"lowStock"`
+	SLABreach bool `json:"slaBreach"`
+	Campaigns bool `json:"campaigns"`
+}
+
+// GetNotificationPreferences returns the seller's alert preferences, defaulting to all-on when the
+// seller has never toggled one (no row).
+func (r *Repo) GetNotificationPreferences(ctx context.Context, sellerID string) (NotificationPreferences, error) {
+	prefs := NotificationPreferences{NewOrder: true, LowStock: true, SLABreach: true, Campaigns: true}
+	if r.pool == nil {
+		return prefs, fmt.Errorf("sellers: database not configured")
+	}
+	err := r.pool.QueryRow(ctx, `
+		select new_order, low_stock, sla_breach, campaigns
+		  from sellers.notification_preferences where seller_id = $1`, sellerID).
+		Scan(&prefs.NewOrder, &prefs.LowStock, &prefs.SLABreach, &prefs.Campaigns)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return prefs, nil
+	}
+	return prefs, err
+}
+
+// UpsertNotificationPreferences stores the seller's alert preferences (one row per seller).
+func (r *Repo) UpsertNotificationPreferences(ctx context.Context, sellerID string, p NotificationPreferences) (NotificationPreferences, error) {
+	if r.pool == nil {
+		return p, fmt.Errorf("sellers: database not configured")
+	}
+	if _, err := r.pool.Exec(ctx, `
+		insert into sellers.notification_preferences (seller_id, new_order, low_stock, sla_breach, campaigns, updated_at)
+		values ($1,$2,$3,$4,$5, now())
+		on conflict (seller_id) do update set
+		  new_order  = excluded.new_order,
+		  low_stock  = excluded.low_stock,
+		  sla_breach = excluded.sla_breach,
+		  campaigns  = excluded.campaigns,
+		  updated_at = now()`,
+		sellerID, p.NewOrder, p.LowStock, p.SLABreach, p.Campaigns); err != nil {
+		return p, err
+	}
+	return p, nil
+}
+
+// SubUser is one sellers.sub_users roster row (a staff login invite, not a portal credential yet).
+type SubUser struct {
+	SubUserID   string `json:"subUserId"`
+	SellerID    string `json:"sellerId"`
+	Name        string `json:"name"`
+	Email       string `json:"email"`
+	Role        string `json:"role"`
+	Status      string `json:"status"`
+	CreatedAt   string `json:"createdAt"`
+	LastLoginAt string `json:"lastLoginAt,omitempty"`
+}
+
+const subUserColumns = `sub_user_id, seller_id, name, email, role, status, created_at, last_login_at`
+
+func scanSubUser(row rowScanner) (SubUser, error) {
+	var (
+		u           SubUser
+		createdAt   time.Time
+		lastLoginAt *time.Time
+	)
+	if err := row.Scan(&u.SubUserID, &u.SellerID, &u.Name, &u.Email, &u.Role, &u.Status, &createdAt, &lastLoginAt); err != nil {
+		return SubUser{}, err
+	}
+	u.CreatedAt = createdAt.UTC().Format(time.RFC3339)
+	if lastLoginAt != nil {
+		u.LastLoginAt = lastLoginAt.UTC().Format(time.RFC3339)
+	}
+	return u, nil
+}
+
+// ListSubUsers returns a seller's staff roster, newest first.
+func (r *Repo) ListSubUsers(ctx context.Context, sellerID string) ([]SubUser, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("sellers: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `select `+subUserColumns+`
+		  from sellers.sub_users where seller_id = $1 order by created_at desc`, sellerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SubUser{}
+	for rows.Next() {
+		u, err := scanSubUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// InviteSubUser adds a PENDING_INVITE staff row. A live duplicate email returns ErrSubUserExists.
+func (r *Repo) InviteSubUser(ctx context.Context, sellerID, name, email, role string) (SubUser, error) {
+	if r.pool == nil {
+		return SubUser{}, fmt.Errorf("sellers: database not configured")
+	}
+	u, err := scanSubUser(r.pool.QueryRow(ctx, `
+		insert into sellers.sub_users (sub_user_id, seller_id, name, email, role, status)
+		values ($1,$2,$3,$4,$5,'PENDING_INVITE')
+		returning `+subUserColumns,
+		"sub-"+shortID(), sellerID, name, email, role))
+	if err != nil {
+		if isUniqueViolation(err) {
+			return SubUser{}, ErrSubUserExists
+		}
+		return SubUser{}, err
+	}
+	return u, nil
+}
+
+// RevokeSubUser marks a seller's sub-user REVOKED. ok=false only when the row does not exist for
+// this seller; an already-revoked row is a successful no-op.
+func (r *Repo) RevokeSubUser(ctx context.Context, sellerID, subUserID string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("sellers: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update sellers.sub_users set status = 'REVOKED'
+		 where sub_user_id = $1 and seller_id = $2 and status <> 'REVOKED'`, subUserID, sellerID)
+	if err != nil {
+		return false, err
+	}
+	if tag.RowsAffected() == 1 {
+		return true, nil
+	}
+	var exists bool
+	if err := r.pool.QueryRow(ctx, `
+		select exists(select 1 from sellers.sub_users where sub_user_id = $1 and seller_id = $2)`,
+		subUserID, sellerID).Scan(&exists); err != nil {
+		return false, err
+	}
+	return exists, nil
+}
+
 func shortID() string {
 	b := make([]byte, 5)
 	_, _ = rand.Read(b)

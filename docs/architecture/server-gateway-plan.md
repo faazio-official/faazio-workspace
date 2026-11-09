@@ -131,7 +131,11 @@ caller) and are event-purged on store live toggle and product edit/status change
   `contracts.SellerLoginProvisioner`, returning a one-time temporary password to the admin — never
   logged — and reusing an existing login idempotently; `PATCH /sellers/:id/status` → `ACTIVE` does
   the same),
-  `POST /sellers/:id/reject`, and seller `POST /sellers/:id/edit` (rejected rows only; field history).
+  `POST /sellers/:id/reject`, seller `POST /sellers/:id/edit` (rejected rows only; field history),
+  and seller self-service `PATCH /sellers/:id` (editable business profile; a KYC-bearing
+  GSTIN/PAN/address change re-queues the account to `PENDING_REVIEW`).
+  Seller settings: `GET|PUT /seller/notifications/preferences` and `GET|POST /seller/sub-users` +
+  `DELETE /seller/sub-users/{id}` (tables from `0097`; scope from the JWT `seller_id`).
   `GET /sellers/:id` returns the seller + masked bank account + KYC docs + verification log; admin KYC
   images render via the existing `GET /media/private/{id}` presigned-GET (creator or admin only).
   `districtCode` is **required on create** (`POST /sellers` → `400 bad_request` `district is required`
@@ -167,6 +171,10 @@ caller) and are event-purged on store live toggle and product edit/status change
   `portal_users`, the roster and `sellers.sellers` is hard-blocked (`409 email_has_district_login`
   / `email_has_district_roster`); duplicate **phone** is a soft `201 warnings[]` notice (shared
   lines are allowed by policy). See `0036`, `0048` + `db-schema.md` §12.19/§12.24.
+  `PUT /district-admins/{id}` updates `active` and/or the roster identity (name/email/phone/district);
+  an email change re-checks the one-person-one-role gate and mirrors the new email + display name onto
+  the linked `DISTRICT_ADMIN` login, so the roster↔login link (deactivation keys on `lower(email)`)
+  never breaks.
 - **District scope (`internal/platform/geo`, migrations `0046`–`0049` + `0057`):** the wire role is
   `DISTRICT_ADMIN`; the 42 TN/PY district codes are validated against `admins.district_master` and
   the Go master. Sellers carry a `district_code` — **required on new onboarding** (`0047`; `POST

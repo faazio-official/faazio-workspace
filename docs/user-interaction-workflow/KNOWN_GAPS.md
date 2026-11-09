@@ -26,7 +26,6 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 
 | Gap | Evidence | Impact |
 |---|---|---|
-| Seller settings profile/notification/sub-user writes need gateway endpoints | `client/web/platform/src/lib/api/index.ts` calls `PATCH /sellers/{id}`, `PUT /seller/notifications/preferences`, `POST|DELETE /seller/sub-users`; none exist in `server/gateway` and there is no `seller.sub_users` / `seller.notification_preferences` table | Those edits optimistically update then roll back + toast; only bank (`PUT /sellers/{id}/bank-account`) and appearance persist today — see `seller/web-portal/settings.md` |
 | Store fee/cover have no seller UI | `PUT /seller/stores/{id}/fee` is admin-only (`server/gateway/internal/directory/handler.go:500-503`); no client calls `PUT /seller/stores/{id}/cover` | Sellers can only file a fee-change request; cover image cannot be set from the console |
 | Local-only seller surfaces | `app/seller/support` (local tickets), `hub` checklist, `restaurant-status`, `rush-hour` (client-only store in `src/lib/sellerUi.ts`) | These screens are not persisted/DB-backed yet |
 | Toast-only admin actions | District `content` publish, `orders` escalate, `pricing-audit` contact, super `settings` save | UI reports success without a gateway write |
@@ -120,7 +119,7 @@ here so the folder never claims full coverage it does not have. Add a page befor
 | Analytics | `/seller/analytics` | `GET /analytics/series|ranks` |
 | Reviews | `/seller/reviews` | `GET /vendors/{id}/reviews*` |
 | Prescriptions | `/seller/prescriptions` | `GET /seller/prescriptions*`, quotes |
-| Settings / outlet info | `/seller/settings`, `/seller/outlet-info` | Settings = profile/bank/notifications/sub-users (bank + appearance shipped; other writes pending gateway endpoints — see `seller/web-portal/settings.md`); outlet-info = read-only store summary |
+| Settings / outlet info | `/seller/settings`, `/seller/outlet-info` | Settings = profile/bank/notifications/sub-users/security, fully shipped — see `seller/web-portal/settings.md`; outlet-info = read-only store summary |
 | Hub / explore | `/seller/hub`, `/seller/explore` | Checklist + discovery surfaces (partly local-only) |
 | Order history / returns | `/seller/order-history`, `/seller/returns` | Referenced from `seller/orders/index.md`; no dedicated page |
 | Product list / edit | `/seller/products`, `/seller/products/[id]/edit` | Product list and edit surface; no dedicated page |

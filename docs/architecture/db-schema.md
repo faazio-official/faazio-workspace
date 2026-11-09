@@ -2533,3 +2533,22 @@ serve their own-status read.
 3. `GET /sellers/me` (`auth.Require`) returns the newest application for the caller's `user_id`, or
    `404 not_found` when none exists. The customer app calls `GatewayClient.getMySellerApplication`
    on mount, so status survives an app restart.
+
+### 12.36 Seller self-service settings (migration `0097`)
+
+**Authority:** `monolith-breakdown.md` §1 (`sellers` row), `server-gateway-plan.md`,
+`user-interaction-workflow/seller/web-portal/settings.md`. The seller console settings page wrote
+profile, notification-preference and sub-user changes to endpoints with no server counterpart, so
+each toggle/invite optimistically updated then rolled back. `0097` gives the last two a durable home
+(the profile write reuses `sellers.sellers` via `PATCH /sellers/{id}`).
+
+1. `sellers.notification_preferences` — one row per seller (`seller_id` PK → `sellers.sellers`), four
+   booleans (`new_order`, `low_stock`, `sla_breach`, `campaigns`, all default `true`) + `updated_at`.
+   An absent row reads as all-on, so a seller who never toggles needs no row.
+2. `sellers.sub_users` — a seller's limited staff roster: `sub_user_id` PK, `seller_id` FK, `name`,
+   `email`, `role` (`STAFF`/`VIEWER`), `status` (`PENDING_INVITE`/`ACTIVE`/`REVOKED`), `created_at`,
+   `last_login_at`. A partial unique index `(seller_id, lower(email)) where status <> 'REVOKED'`
+   stops duplicate live invites while allowing a re-invite after a revoke. These rows are the
+   seller-owned roster; `admins.portal_users` remains the authentication authority.
+3. RLS mirrors `0049`/`0050`: the owning seller reads their own rows; super/state admins read in
+   district scope; writes stay service_role only.
