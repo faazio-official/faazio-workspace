@@ -771,7 +771,13 @@ itself is the Faazio Blue token defined in `docs/UI_DESIGN_SYSTEM.md` §5.
       productIds: ['ph-t1','ph-c1','ph-s1','ph-otc3','ph-om1'] },            // Pharma OTC rail (Rx excluded)
     { id: 'pharmaEssentials', title: 'Health Essentials', accent: '#0E7490',
       productIds: ['ph-cal3','ph-dig4','ph-per2','ph-per3','ph-ayur2'] },    // Pharma essentials rail
-    { id: 'adBanner', title: 'Offers', accent: '#111827', productIds: [], storeIds: [] },
+    { id: 'adBanner', title: 'Offers', accent: '#111827', productIds: [], storeIds: [],
+      banners: [{ id: 'hbh-1', title: 'One App, Everything You Need', subtitle: 'MART · FOOD · PHARMA',
+                  accent: '#E0E7FF', imageUrl: 'https://.../hbh1.jpg' }] },  // Home house hero fallback
+    { id: 'mostRatedDining', title: 'Most Rated Restaurants', accent: '#1E5D44', productIds: [],
+      storeIds: ['store-f1','store-f2','store-f3'] },                         // Home store rail (directory.stores)
+    { id: 'mostRatedVenues', title: 'Top Rated Restaurants', accent: '#1E5D44', productIds: [],
+      storeIds: ['tr-1','tr-2','tr-3'] },                                     // Food venue rail (directory.dining_venues)
     { id: 'hotBrandDeals', title: 'Deals of the day', accent: 'brand-accent',
       productIds: ['hbd-1','hbd-2','hbd-3','hbd-4','hbd-5'],
       campaigns: [{ id: 'camp-darling-mobiles', storeId: 'store-m1',
@@ -790,9 +796,12 @@ itself is the Faazio Blue token defined in `docs/UI_DESIGN_SYSTEM.md` §5.
 
 (provenance `data/home/sdui.ts` — section ids/titles/accents/productIds exact). The `martHero` /
 `martEssentials` sections are the Mart feed's merchandising surface, `foodHero` /
-`foodSpecials` / `mostRatedDining` are Food's (`GET /sdui/food`), and `pharmaHero` /
+`foodSpecials` / `mostRatedVenues` are Food's (`GET /sdui/food`), and `pharmaHero` /
 `pharmaPopular` / `pharmaEssentials` are Pharma's (`GET /sdui/pharma`): the Home renderer ignores
-unknown section ids, so a single doc drives the Home, Mart, Food and Pharma feeds. The
+unknown section ids, so a single doc drives the Home, Mart, Food and Pharma feeds. `mostRatedDining`
+is Home's **store** rail (`directory.stores` ids, joined by the gateway) and `mostRatedVenues` is
+Food's **venue** rail (`directory.dining_venues` ids, resolved client-side against
+`GET /venues?app=FOOD`); keeping them separate prevents the store join from dropping venue ids. The
 `hotBrandDeals.campaigns[]` defs compile into the anon `GET /home/campaigns(/{id})` projection;
 they are ID-only (store + product refs) and never carry money.
 
@@ -2317,7 +2326,7 @@ UPDATE directory.menus m SET seller_id = s.seller_id
 - Seller/app and admin RLS (`0050`) keeps its legacy state fallback; strict scoping is enforced in the
   gateway service layer. Media moderation and `admins` audit/customer reads are unchanged.
 
-### 12.30 Central category taxonomy — superadmin-owned tree (migration `0067`)
+### 12.30 Central category taxonomy — superadmin-owned tree (migrations `0067` + `0091`)
 
 The single source of truth for every sub-app category (Mart, Food, Pharma): one parent/child tree
 owned by the superadmin (portal-only writes; the Go gateway, `service_role`, is the only writer).
@@ -2345,10 +2354,52 @@ CREATE TABLE taxonomy.categories (
 );
 ```
 
-- **Seeded rows** (`0067` + `generate.mjs` → `server/supabase/seed/lib/taxonomy.mjs`): the former
-  `@data/categories/masterCategories.ts` tree (Mart + Pharma) plus new FOOD restaurant categories
-  (North Indian, South Indian, Chinese, Bakery, Cafe, Fast Food, Desserts). Ids are the legacy
-  `cat_*` / `sg_*` / `sub_*` ids so `CATEGORY_TOP` ad targeting and drill-in deep links stay stable.
+- **Seeded rows** (`0067` + `0091`, generated from `server/supabase/seed/lib/taxonomy.mjs`): the
+  former `@data/categories/masterCategories.ts` tree (Mart + Pharma) plus new FOOD restaurant
+  categories (North Indian, South Indian, Chinese, Bakery, Cafe, Fast Food, Desserts). Ids are the
+  legacy `cat_*` / `sg_*` / `sub_*` ids so `CATEGORY_TOP` ad targeting and drill-in deep links stay
+  stable.
+- **Expansion (`0091`, additive):** 89 rows appended at `sort_order` 153-241 (existing ids/sorts
+  never shift) — the base tree is **153 rows** (MART 110, PHARMA 36, FOOD 7) and the expanded tree is
+  **242 rows**:
+  - **MART** — five roots the store/product fixtures already referenced: `cat_beauty`,
+    `cat_home_appliances`, `cat_toys_gifts`, `cat_books_stationery`, `cat_sports`, each with
+    level-2/3 children (60 rows).
+  - **FOOD** — level-2 subdivisions under the original 7 roots (Biryani, Tandoori, Dosa, Meals,
+    Noodles, Momos, Cakes, Breads, Coffee, Tea, Burgers, Pizza, Ice Cream, Indian Sweets) plus seven
+    cuisine roots (Mughlai, Chaat, Healthy, Italian, Korean, Seafood, Tiffin) (21 rows).
+  - **PHARMA** — `sg_chronic` (BP, Diabetes, Asthma, Digestive) + `sg_vaccines` (Vaccines, Immunity)
+    under `cat_medicines` (8 rows).
+  - New rows set `icon_url = NULL` (the superadmin fills icons in the portal); leaf rows carry the
+    drill-in/vendor `search_query`. Seed vendor mapping in `generate.mjs` is extended for the new
+    MART/FOOD roots (`seller_category_id` backfill).
+- **Breadth (`0092`, additive, requires `0091`):** 123 more rows at `sort_order` 242-364 → **365
+  rows** (MART 257, FOOD 44, PHARMA 64), mirroring the department breadth of Amazon.in/Flipkart at
+  superapp scope:
+  - **MART** — new departments `cat_pet_supplies`, `cat_baby_kids`, `cat_automotive`,
+    `cat_kitchen_dining`, `cat_home_decor`, `cat_gaming`, `cat_garden_outdoor`, plus `sg_footwear`
+    and `sg_bags_luggage` under `cat_fashion`.
+  - **FOOD** — dish shelves under the 0091 cuisine roots (Kebabs, Curries, Fish, Prawns, Pasta,
+    Pizza, Korean BBQ, Ramen, Salads, Protein Bowls, Tiffin Meals, Chaat Counter) + roots
+    Continental, Thai, Mexican, Beverages & Shakes.
+  - **PHARMA** — roots `cat_ayurveda`, `cat_baby_care`, `cat_nutrition_drinks`,
+    `cat_sexual_wellness`, `cat_elderly_care`.
+- **Catalog breadth load (`0093`, `@server`, applied to the live DB):** 134 `ACTIVE`
+  `catalog.products` rows (MART 80, FOOD 30, PHARMA 24) under the 0092 categories, each mapped to an
+  existing live store and paired with an `inventory.stock` row; ids are prefixed `martx-`/`foodx-`/
+  `pharmx-`. Search works automatically (`search_vec` is a generated column); `image_url`s reuse
+  asset URLs already live in the catalog. Idempotent (`on conflict do nothing`). Live totals after
+  the load: **555 products** (MART 320, FOOD 126, PHARMA 109), 555 stock rows.
+- **Per-shop demo coverage (`0094`, `@server`, applied to the live DB):** a set-based data load (no
+  schema change) that (1) realigns coarse `catalog.products.category` labels to their superadmin
+  TOP-LEVEL name (Mobiles → Mobiles & Tablets, Snacks → Snacks & Beverages, Sports → Sports &
+  Fitness, PHARMA shelves → Medicines & Rx / Personal Care, FOOD Beverage(s) → Beverages & Shakes;
+  labels already equal to a taxonomy node and editorial emoji/deal buckets are untouched), (2) gives
+  every `store-demo-*` shop one `ACTIVE` product under each top-level category of its app (mapped to
+  the representative leaf; ids `demop-<store>-<cat_*>` + an `inventory.stock` row), and (3) publishes
+  2 LIVE, store-scoped `STORE_TOP` hero campaigns per shop (`ad-cmp-shop-<store>-{1,2}`) targeting
+  that shop's own top-2 products. Idempotent (`on conflict do nothing`); the `store-demo-*` portion
+  self-guards on `seed/demo_sellers_ttc_karaikal.sql`.
 - **`DELETE /categories/{id}` is a soft delete** (`is_active = false`): hidden from the apps/rail,
   but existing sellers/products that reference it are never orphaned.
 - **RLS (Supabase only):** `anon`/`authenticated` SELECT active rows; `service_role` writes.

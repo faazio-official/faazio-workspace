@@ -33,6 +33,9 @@
 - `gateway.getStore(id)` → `GET /store/{id}` → `directory.stores`.
 - `gateway.getStoreProducts(storeId)` → `GET /stores/{id}/products` → `catalog.products` +
   `inventory.stock`.
+- Store page paid band: `gateway.getHeroAds('STORE_TOP', { app, storeId })` → `GET /ads/hero` →
+  `ads.campaigns`. Every shop carries 2 seeded LIVE `STORE_TOP` campaigns (migration `0094`), so the
+  band has fill out of the box; an empty read drops the band rather than showing a placeholder.
 - `gateway.fetchVenues(app?)` / `fetchMenu(venueId)` → `GET /venues`, `/venues/{id}/menu` →
   `directory.dining_venues` / `directory.menus`.
 - Cache: catalog/store-products/geo keys per `monolith-breakdown.md`.

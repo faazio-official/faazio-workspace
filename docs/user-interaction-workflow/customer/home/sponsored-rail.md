@@ -10,6 +10,9 @@
 1. The section requests live ads for its placement (`getLiveAds` or `getHeroAds`).
 2. `getSponsoredProducts` performs `GET /ads/live` then `POST /products/batch` to resolve products.
 3. The rail renders labelled sponsored cards; hero surfaces render the campaign creative.
+   The Home hub (`AdBannerSection`, `HOME_HERO`) is **paid-first with a DB-driven house fallback**:
+   a LIVE `HOME_HERO` campaign wins; otherwise it renders the SDUI `adBanner.banners` house hero
+   (`HomeHouseHero`, no AD pill, no ad events, non-interactive); when both are empty it collapses.
 4. Impression/click calls `recordAdEvent` (`POST /ads/events`). `gateway.reportHeroAd`
    (`POST /ads/campaigns/{placementId}/report`) exists but has no UI caller today.
 
@@ -36,7 +39,11 @@
 
 ## Known gaps
 
-- None specific. Ad availability depends on live `ads` rows.
+- Ad availability depends on live `ads` rows, but the **Home top hero is never blank**: `HOME_HERO`
+  has a seeded LIVE demo creative (`0095`, `ad-cmp-demo-homehero-1`) plus the `adBanner.banners`
+  house fallback in the SDUI doc.
+- Every shop has 2 seeded LIVE `STORE_TOP` campaigns (`0094`, `ad-cmp-shop-<store>-{1,2}`), so the
+  store-page hero band is testable without manually publishing ads.
 
 ## Linked docs
 

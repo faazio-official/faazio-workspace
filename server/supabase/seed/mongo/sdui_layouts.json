@@ -43,7 +43,30 @@
       "accent": "#111827",
       "productIds": [],
       "storeIds": [],
-      "chips": []
+      "chips": [],
+      "banners": [
+        {
+          "id": "hbh-1",
+          "title": "One App, Everything You Need",
+          "subtitle": "MART · FOOD · PHARMA",
+          "accent": "#E0E7FF",
+          "imageUrl": "https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?fm=jpg&fit=crop&q=80&w=800&h=450"
+        },
+        {
+          "id": "hbh-2",
+          "title": "Fresh Groceries Delivered",
+          "subtitle": "FREE DELIVERY ON ₹499+",
+          "accent": "#E8F5E9",
+          "imageUrl": "https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=800&h=450"
+        },
+        {
+          "id": "hbh-3",
+          "title": "Order Food in Minutes",
+          "subtitle": "LOCAL FAVOURITES",
+          "accent": "#FFF3E0",
+          "imageUrl": "https://images.unsplash.com/photo-1504674900247-0877df9cc836?fm=jpg&fit=crop&q=80&w=800&h=450"
+        }
+      ]
     },
     {
       "id": "diningSpecials",
@@ -342,6 +365,28 @@
     {
       "id": "mostRatedDining",
       "title": "Most Rated Restaurants",
+      "subtitle": null,
+      "accent": "#1E5D44",
+      "productIds": [],
+      "storeIds": [
+        "store-f1",
+        "store-f2",
+        "store-f3",
+        "store-f4",
+        "store-f5",
+        "store-f6",
+        "store-f7",
+        "store-f8",
+        "store-f9",
+        "store-f10",
+        "store-f11",
+        "store-f12"
+      ],
+      "chips": []
+    },
+    {
+      "id": "mostRatedVenues",
+      "title": "Top Rated Restaurants",
       "subtitle": null,
       "accent": "#1E5D44",
       "productIds": [],

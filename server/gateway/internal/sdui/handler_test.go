@@ -99,6 +99,7 @@ func TestFoodServesOnlyFoodSections(t *testing.T) {
 		{ID: "foodSpecials", Title: "Specials", ProductIDs: []string{"sp-1"}},
 		{ID: "martDeals", Title: "Deals", ProductIDs: []string{"md-1"}},
 		{ID: "mostRatedDining", Title: "Dining", StoreIDs: []string{"store-f1"}},
+		{ID: "mostRatedVenues", Title: "Top Rated", StoreIDs: []string{"tr-1"}},
 	}}
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/sdui/food", nil)
@@ -113,8 +114,8 @@ func TestFoodServesOnlyFoodSections(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
 		t.Fatal(err)
 	}
-	if len(out) != 3 || out[0].ID != "foodHero" || out[1].ID != "foodSpecials" || out[2].ID != "mostRatedDining" {
-		t.Fatalf("sections = %+v, want [foodHero foodSpecials mostRatedDining]", out)
+	if len(out) != 3 || out[0].ID != "foodHero" || out[1].ID != "foodSpecials" || out[2].ID != "mostRatedVenues" {
+		t.Fatalf("sections = %+v, want [foodHero foodSpecials mostRatedVenues]", out)
 	}
 }
 

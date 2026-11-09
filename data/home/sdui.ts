@@ -68,8 +68,10 @@ function resolveStoreIds(app: AppBrand): string[] {
 
 /**
  * Order of the Food "Top Rated Restaurants" carousel — `directory.dining_venues` ids (tr-*), not the
- * delivery-kitchen `store-f*` ids. The Food feed (`restaurantFeedService`) reorders its curated Top
- * Rated rows by this list, so a stale/delivery id would make the curation a silent no-op.
+ * delivery-kitchen `store-f*` ids. The Food feed (`restaurantFeedService`) resolves these against the
+ * authoritative `GET /venues?app=FOOD` list, so a stale/delivery id makes the curation a no-op.
+ * Home's "Most Rated Restaurants" is a *store* rail, so it uses `mostRatedDining` (store ids)
+ * instead — the two id spaces must never share one section (see `mostRatedVenues` below).
  */
 const MOST_RATED_RESTAURANT_VENUE_IDS = ['tr-1', 'tr-2', 'tr-3', 'tr-4', 'tr-5', 'tr-6'];
 
@@ -111,7 +113,20 @@ export const homeSdui: SduiSection[] = [
       { id: 'hb-3', title: 'Electronics Mega Sale', subtitle: 'FLAT 40% OFF', accent: '#FFF3E0', imageUrl: 'https://images.unsplash.com/photo-1498050108023-c5249f4df085?fm=jpg&fit=crop&q=80&w=400&h=400' },
     ],
   },
-  { id: 'adBanner', title: 'Offers', accent: '#111827', productIds: [] },
+  // Home top hero: the paid `HOME_HERO` placement renders first; these editorial `banners` are the
+  // DB-driven house fallback shown when no LIVE paid fill exists (same contract as `martHero`/
+  // `foodHero`). Without them the top of Home collapsed to a blank band.
+  {
+    id: 'adBanner',
+    title: 'Offers',
+    accent: '#111827',
+    productIds: [],
+    banners: [
+      { id: 'hbh-1', title: 'One App, Everything You Need', subtitle: 'MART · FOOD · PHARMA', accent: '#E0E7FF', imageUrl: 'https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?fm=jpg&fit=crop&q=80&w=800&h=450' },
+      { id: 'hbh-2', title: 'Fresh Groceries Delivered', subtitle: 'FREE DELIVERY ON ₹499+', accent: '#E8F5E9', imageUrl: 'https://images.unsplash.com/photo-1542838132-92c53300491e?fm=jpg&fit=crop&q=80&w=800&h=450' },
+      { id: 'hbh-3', title: 'Order Food in Minutes', subtitle: 'LOCAL FAVOURITES', accent: '#FFF3E0', imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?fm=jpg&fit=crop&q=80&w=800&h=450' },
+    ],
+  },
   { id: 'diningSpecials', title: "Today's Special", accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
   {
     id: 'hotBrandDeals',
@@ -185,7 +200,12 @@ export const homeSdui: SduiSection[] = [
   // Paid placement: the doc owns the slot order, the ad-server (`GET /ads/live`) owns the fill.
   // No productIds are baked in — the app resolves LIVE ads at render time (they expire).
   { id: 'sponsoredRail', title: 'Sponsored picks', accent: '#B45309', productIds: [] },
-  { id: 'mostRatedDining', title: 'Most Rated Restaurants', accent: '#1E5D44', productIds: [], storeIds: MOST_RATED_RESTAURANT_VENUE_IDS },
+  // Home "Most Rated Restaurants": a *store* rail joined by the gateway against `directory.stores`.
+  { id: 'mostRatedDining', title: 'Most Rated Restaurants', accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
+  // Food "Top Rated Restaurants": the `directory.dining_venues` curation, resolved client-side by
+  // the Food feed against `GET /venues?app=FOOD`. Served only on `GET /sdui/food`; `HomeView` skips
+  // the id. Splitting it off `mostRatedDining` is what fixes the store/venue id-space clash.
+  { id: 'mostRatedVenues', title: 'Top Rated Restaurants', accent: '#1E5D44', productIds: [], storeIds: MOST_RATED_RESTAURANT_VENUE_IDS },
   { id: 'recentlyViewedMart', title: 'Recently Viewed — Mart', accent: '#1627E9', productIds: resolveProductIds(['rvm-1', 'rvm-2', 'rvm-3', 'rvm-4']) },
   { id: 'recentlyViewedFood', title: 'Recently Viewed — Food', accent: '#1E5D44', productIds: resolveProductIds(['rvf-1', 'rvf-2', 'rvf-3']) },
   { id: 'recentlyViewedPharma', title: 'Recently Viewed — Pharma', accent: '#065F46', productIds: resolveProductIds(['rvp-1', 'rvp-2', 'rvp-3']) },

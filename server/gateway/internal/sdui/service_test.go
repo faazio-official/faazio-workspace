@@ -166,6 +166,7 @@ func TestFoodCompilesOnlyFoodSections(t *testing.T) {
 			{ID: "martDeals", Title: "Deals", ProductIDs: []string{"md-1"}},
 			{ID: "foodSpecials", Title: "Specials", ProductIDs: []string{"sp-1", "sp-2"}},
 			{ID: "mostRatedDining", Title: "Dining", StoreIDs: []string{"store-f1", "store-f2"}},
+			{ID: "mostRatedVenues", Title: "Top Rated", StoreIDs: []string{"tr-1", "tr-2"}},
 		}},
 		&fakeLayouts{},
 		fakeProducts{byID: map[string]contracts.Product{
@@ -197,11 +198,17 @@ func TestFoodCompilesOnlyFoodSections(t *testing.T) {
 	if _, ok := byID["martDeals"]; ok {
 		t.Fatalf("martDeals leaked into the Food feed")
 	}
+	// Home's store-based `mostRatedDining` must NOT leak into the Food feed; Food's venue rail is
+	// `mostRatedVenues` (its `tr-*` ids resolve client-side against GET /venues, so the gateway store
+	// join is legitimately empty here).
+	if _, ok := byID["mostRatedDining"]; ok {
+		t.Fatalf("mostRatedDining leaked into the Food feed (should be mostRatedVenues)")
+	}
+	if got := byID["mostRatedVenues"].StoreIDs; len(got) != 2 || got[0] != "tr-1" {
+		t.Fatalf("mostRatedVenues storeIds = %+v", got)
+	}
 	if len(byID["foodHero"].Banners) != 1 || byID["foodHero"].Banners[0].ID != "fb-1" {
 		t.Fatalf("foodHero banners = %+v", byID["foodHero"].Banners)
-	}
-	if len(byID["mostRatedDining"].Stores) != 2 || byID["mostRatedDining"].Stores[0].ID != "store-f1" {
-		t.Fatalf("mostRatedDining stores = %+v", byID["mostRatedDining"].Stores)
 	}
 	if len(byID["foodSpecials"].Products) != 2 || byID["foodSpecials"].Products[0].ID != "sp-1" {
 		t.Fatalf("foodSpecials products = %+v", byID["foodSpecials"].Products)

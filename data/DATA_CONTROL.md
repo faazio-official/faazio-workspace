@@ -400,7 +400,7 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `homeSections` | `HomeSectionDescriptor[]` | `HomeView` (section registry) | `@static` |
 | `HomeSectionKind` | type union | `HomeView`, `HomeView` sections | `@static` |
 | `portalSectors` | `PortalSector[]` | home `ExploreSectorsSection` | `@mock` |
-| `topAdSlides` | `AdSlide[]` | home `AdBannerSection` (via shared `AdBannerCarousel`) + food `RestaurantProfileScreen` hero (same carousel) | `@mock` |
+| `topAdSlides` | `AdSlide[]` | **`@unused`** — retired (W42); `AdBannerSection` is paid `HOME_HERO` first, then the SDUI `adBanner.banners` house hero (`HomeHouseHero`) | `@mock` + `@unused` |
 | `hotBrandDeals` | `Product[]` | home `BrandCampaignsSection` (ex-`HotBrandDealsSection`); its `hbd-*` rows remain in the catalog index + search | `@mock` |
 | `adCampaigns` / `getCampaignProducts` / `getCampaignStore` / `carouselOneCampaigns` / `carouselTwoCampaigns` | `AdCampaign[]` + resolvers + carousel slices | home `BrandCampaignsSection` (via `BrandCampaignCard`) → `DealsLandingScreen` (`campaign` mode). Each campaign references a **real Mart vendor by `storeId`** (resolved via `getStoreById`) plus products **by id only**, resolved via `getProductById` (kept to the vendor's `storeId`) | `@static-editorial` → SDUI layout doc |
 | `recentlyViewedMart/Food/Pharma` | `Product[]` | `HomeView` (Recently Viewed rail) | `@mock` |

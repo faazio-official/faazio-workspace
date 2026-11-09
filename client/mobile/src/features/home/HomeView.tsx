@@ -5,7 +5,7 @@ import Animated, { useAnimatedScrollHandler, useSharedValue } from 'react-native
 import type { SharedValue } from 'react-native-reanimated';
 import { homeSections } from '@data/home/sections';
 import type { HomeSectionKind } from '@data/home/sections';
-import type { SduiCampaign } from '@data/home/sdui';
+import type { SduiBanner, SduiCampaign } from '@data/home/sdui';
 import type { Product, StoreProfile } from '@data/types';
 import type { StoreRecord } from '@data/directory/stores';
 import type { SubAppId } from '@/state/uiStore';
@@ -60,6 +60,7 @@ interface HomeRow {
   stores?: StoreRecord[];
   chipProducts?: Record<string, string[]>;
   campaigns?: SduiCampaign[];
+  banners?: SduiBanner[];
 }
 
 export default function HomeView({
@@ -95,6 +96,7 @@ export default function HomeView({
       products: s.products as unknown as Product[],
       stores: s.stores,
       campaigns: s.campaigns,
+      banners: s.banners,
       chipProducts: s.chips?.length
         ? Object.fromEntries(s.chips.map((c) => [c.id, c.productIds]))
         : undefined,
@@ -121,13 +123,13 @@ export default function HomeView({
   });
 
   const renderSection = useCallback(
-    ({ id, products, stores, chipProducts, campaigns }: HomeRow): React.ReactElement | null => {
+    ({ id, products, stores, chipProducts, campaigns, banners }: HomeRow): React.ReactElement | null => {
       // Offline: authored fixtures keep the shell usable. Online: only server rows; a section
       // whose server join is empty is omitted rather than padded with fixtures.
       const rail = (fallback: Product[]) => (offline ? fallback : products ?? []);
       const hasRail = (fallback: Product[]) => offline || (products?.length ?? 0) > 0;
       switch (id) {
-        case 'adBanner': return <AdBannerSection {...sectionProps} />;
+        case 'adBanner': return <AdBannerSection {...sectionProps} banners={banners} />;
         case 'diningSpecials': return <TodaysSpecialsSection {...sectionProps} products={products} />;
         case 'hotBrandDeals': return <BrandCampaignsSection {...sectionProps} campaigns={campaigns} />;
         case 'dealsOfDay': return <DealsOfDaySection {...sectionProps} products={products} />;

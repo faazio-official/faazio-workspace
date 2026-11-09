@@ -21,6 +21,7 @@ export type HomeSectionKind =
   | 'pharmaEssentials'
   | 'sponsoredRail'
   | 'mostRatedDining'
+  | 'mostRatedVenues'
   | 'recentlyViewedMart'
   | 'recentlyViewedFood'
   | 'recentlyViewedPharma'

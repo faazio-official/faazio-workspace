@@ -1265,9 +1265,11 @@ rail and the fixture venues are all dropped and the screen renders an honest
 "No restaurants available right now" empty state — so an all-delisted / state-filtered catalog never
 lingers as stale, openable profiles. The Top Rated rail
 (`TOP_RATED_RESTAURANTS`) also drops venues the server no longer lists (so a delisted `tr-*`
-row never opens a stale profile) and honours `mostRatedDining.storeIds` ordering — those ids are
+row never opens a stale profile) and honours `mostRatedVenues.storeIds` ordering — those ids are
 `directory.dining_venues` ids (`tr-*`), read raw from the section (the server's store join cannot
-resolve them), so a stale/delivery-kitchen id would make the curation a silent no-op. Server-only
+resolve them), so a stale/delivery-kitchen id would make the curation a silent no-op. This is why
+Food uses `mostRatedVenues` (venue ids) while Home's `mostRatedDining` uses `directory.stores` ids
+(joined by the gateway): the two id spaces are separate sections. Server-only
 venues carry neutral presentation defaults (`distance`/`priceForTwo`/`rating` 0); the restaurant cards and
 the Top Rated hero drop the `0.0 km` metric, the `₹0 for two` copy and the blank address, and show a
 **"New"** chip in place of the rating badge rather than printing a fake figure. The house hero banners come from the Food-only SDUI projection

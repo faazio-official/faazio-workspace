@@ -149,21 +149,26 @@ no per-rail SQL table is needed. Note (W41/W43): the Mart hero carousel is **pai
 `CampaignHero` renders the ad-server `MART_HERO` campaigns and only when there is no LIVE fill falls
 back to the SDUI `martHero.banners` house hero (`MartHouseHero`, no AD pill, no ad events,
 non-interactive) and then to nothing (both empty → no slot), never a fabricated ad (see
-`caching-cloudflare-valkey.md` §5a).
+`caching-cloudflare-valkey.md` §5a). The **Home hub top hero** follows the same contract: paid
+`HOME_HERO` first, then the `adBanner.banners` house hero (`HomeHouseHero`), then nothing — so the
+customer's first screen is never a blank band even with no advertiser.
 
 **Food merchandising via the same doc.** Food has its own projection of the same doc, served on
-`GET /sdui/food` (allowlist `foodHero`/`foodSpecials`/`mostRatedDining`) with its own compiled
+`GET /sdui/food` (allowlist `foodHero`/`foodSpecials`/`mostRatedVenues`) with its own compiled
 cache/ETag. `foodHero` is the Food house-hero fallback (`foodHero.banners`, same non-interactive
 editorial contract as `martHero`): `restaurantFeedService.fetchRestaurantFeed` reads it through
 `gateway.getFoodFeed()` and feeds the `CampaignHero` fallback when there is no LIVE paid `FOOD_HERO`
 fill. `foodSpecials.productIds` is the super-admin-editable order of the "Today's Special Near You"
-dish rail (ID-only, money joined from `catalog.products`), and `mostRatedDining.storeIds` orders the
+dish rail (ID-only, money joined from `catalog.products`), and `mostRatedVenues.storeIds` orders the
 Top Rated rail — Food drops delisted venues (server `directory.dining_venues` is the authority) so
-a `tr-*` row the server no longer lists never opens a stale profile. The visible Food offer is the
+a `tr-*` row the server no longer lists never opens a stale profile. **`mostRatedVenues` is
+venue-scoped** (`directory.dining_venues` ids) and is distinct from Home's `mostRatedDining`, which
+is a **store** rail (`directory.stores` ids joined by the gateway); the two id spaces must never
+share one section or the Home join silently drops every row. The visible Food offer is the
 admin-owned coupon (`GET /coupons?app=FOOD`), not the decorative store `offer_tag`. The
-`martHero`/`foodHero` `banners` leaf is the only non-ID leaf in the doc — display copy + an image
-URL, **never money** (prices are joined from `catalog.products` / authored as `directory.menus`
-MRP).
+`adBanner`/`martHero`/`foodHero`/`pharmaHero` `banners` leaf is the only non-ID leaf in the doc —
+display copy + an image URL, **never money** (prices are joined from `catalog.products` / authored
+as `directory.menus` MRP).
 
 `directory.dining_venues` is **restaurant identity only** — it backs food discovery and menu/venue
 lookup. There is no dining/table-booking feature: no reservation tables, time slots, table counts, or

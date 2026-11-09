@@ -105,7 +105,7 @@ function venueRow(v: Venue): FoodRestaurant {
  * - the restaurant grid from the authoritative `GET /venues?app=FOOD` list,
  * - "Today's Special" from the `foodSpecials` joined products,
  * - the hero from `foodHero`,
- * - Top Rated from the curated `mostRatedDining` ids resolved against the server venue list.
+ * - Top Rated from the curated `mostRatedVenues` ids resolved against the server venue list.
  * A network/HTTP error leaves the affected rail empty (honest empty state) — a fixture is never
  * substituted while the gateway is enabled. The authored fixtures render only when the gateway is
  * disabled (explicit offline shell).
@@ -143,7 +143,12 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
 
   const hero = foodFeed.find((s) => (s.id as string) === 'foodHero');
   const specials = foodFeed.find((s) => (s.id as string) === 'foodSpecials');
-  const mostRated = foodFeed.find((s) => (s.id as string) === 'mostRatedDining');
+  // Curated dining-venue order lives on `mostRatedVenues` (directory.dining_venues ids). Fall back
+  // to the legacy `mostRatedDining` id for an older published doc; either way curation is a no-op
+  // on ids that are not real venues (the rail then falls back to server rating order below).
+  const mostRated =
+    foodFeed.find((s) => (s.id as string) === 'mostRatedVenues') ??
+    foodFeed.find((s) => (s.id as string) === 'mostRatedDining');
 
   const venueById = new Map(venues.map((v) => [v.id, v]));
   const curatedIds = mostRated?.storeIds ?? mostRated?.stores?.map((s) => s.id) ?? [];
@@ -168,7 +173,7 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
     const known = new Set(venues.map((v) => v.id));
     const unresolved = curatedIds.filter((id) => !known.has(id));
     if (unresolved.length > 0) {
-      console.warn('[food] mostRatedDining storeIds unresolved (curation no-op):', unresolved);
+      console.warn('[food] mostRatedVenues storeIds unresolved (curation no-op):', unresolved);
     }
   }
 

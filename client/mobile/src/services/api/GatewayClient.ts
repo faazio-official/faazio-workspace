@@ -1791,7 +1791,7 @@ export class GatewayClient {
   }
 
   /**
-   * Resolve only the Food SDUI sections (`foodHero`/`foodSpecials`/`mostRatedDining`) with joined
+   * Resolve only the Food SDUI sections (`foodHero`/`foodSpecials`/`mostRatedVenues`) with joined
    * data (`GET /sdui/food`). The Food feed stays decoupled from the full Home payload/ETag.
    */
   async getFoodFeed(): Promise<(SduiSection & { products: ProductView[]; stores?: StoreRecord[] })[]> {

@@ -122,16 +122,42 @@ const feeForStore = (id) => STORE_FEE[id] ?? 10;
 // `taxonomy.categories` id derived from the store fixture's category labels. Deterministic and small;
 // a vendor whose label has no obvious taxonomy home stays NULL (the FK is nullable — the seller can
 // pick one in the console). FOOD categories are matched by name; PHARMA by shelf; MART by feature.
-const MART_CATEGORY_FEATURES = [
-  [['Mobile & Electronics', 'Electronics'], 'cat_electronics'],
-  [['Fashion', 'Beauty'], 'cat_fashion'],
-  [['Home Appliances', 'Furniture'], 'cat_home'],
-  [['Fresh Produce'], 'cat_fruits_veg'],
-  [['Dairy & Eggs'], 'cat_dairy'],
-  [['Grains', 'Staples'], 'cat_grains'],
-  [['Snacks', 'Beverages'], 'cat_snacks'],
-  [['Smart'], 'cat_smart_gadgets'],
-];
+// MART label → taxonomy root. Matched in the store's own label order so a store that lists its
+// primary line first (e.g. ['Beauty','Fashion']) maps to its primary root. 'Smart' is a fuzzy
+// fallback; a label with no home stays NULL (the seller picks one in the console).
+const MART_CATEGORY_MAP = {
+  'Mobile & Electronics': 'cat_electronics',
+  'Electronics': 'cat_electronics',
+  'Fashion': 'cat_fashion',
+  'Beauty': 'cat_beauty',
+  'Home Appliances': 'cat_home_appliances',
+  'Furniture': 'cat_home',
+  'Fresh Produce': 'cat_fruits_veg',
+  'Dairy & Eggs': 'cat_dairy',
+  'Grains': 'cat_grains',
+  'Staples': 'cat_grains',
+  'Snacks': 'cat_snacks',
+  'Beverages': 'cat_snacks',
+  'Books & Stationery': 'cat_books_stationery',
+  'Toys & Gifts': 'cat_toys_gifts',
+  'Toys': 'cat_toys_gifts',
+  'Sports': 'cat_sports',
+  // Breadth roots (0092).
+  'Pet Supplies': 'cat_pet_supplies',
+  'Baby & Kids': 'cat_baby_kids',
+  'Automotive': 'cat_automotive',
+  'Kitchen & Dining': 'cat_kitchen_dining',
+  'Home Decor': 'cat_home_decor',
+  'Gaming': 'cat_gaming',
+  'Garden & Outdoor': 'cat_garden_outdoor',
+  'Footwear': 'cat_fashion',
+  'Bags & Luggage': 'cat_fashion',
+};
+const matchMartCategory = (cats) => {
+  for (const c of cats) if (MART_CATEGORY_MAP[c]) return MART_CATEGORY_MAP[c];
+  if (cats.some((c) => /smart/i.test(c))) return 'cat_smart_gadgets';
+  return null;
+};
 const FOOD_TOP_CATEGORIES = {
   'North Indian': 'cat_north_indian',
   'South Indian': 'cat_south_indian',
@@ -140,6 +166,21 @@ const FOOD_TOP_CATEGORIES = {
   Desserts: 'cat_desserts',
   Cafe: 'cat_cafe',
   'Fast Food': 'cat_fast_food',
+  // Expansion roots (0091): cuisines the restaurant fixtures reference.
+  Biryani: 'cat_mughlai',
+  Mughlai: 'cat_mughlai',
+  Chaat: 'cat_chaat',
+  Healthy: 'cat_healthy',
+  Italian: 'cat_italian',
+  Korean: 'cat_korean',
+  Seafood: 'cat_seafood',
+  Tiffin: 'cat_tiffin',
+  // Breadth roots (0092).
+  Continental: 'cat_continental',
+  Thai: 'cat_thai',
+  Mexican: 'cat_mexican',
+  Beverages: 'cat_food_beverages',
+  Beverage: 'cat_food_beverages',
 };
 const topCategoryFor = (s) => {
   const cats = (s.categories ?? []).map((c) => String(c));
@@ -155,10 +196,7 @@ const topCategoryFor = (s) => {
     }
     return 'cat_fast_food';
   }
-  for (const [features, id] of MART_CATEGORY_FEATURES) {
-    if (cats.some((c) => features.includes(c))) return id;
-  }
-  return null;
+  return matchMartCategory(cats);
 };
 // The demo ad rail belongs to the account that owns the Mart flagship (store-m1).
 const AD_ACCOUNT = 'sel-tiruchi-01';
@@ -198,6 +236,15 @@ const DEMO_HEROES = [
     category: null, storeId: 'store-m1', title: 'Fresh Groceries Doorstep', subtitle: 'FREE DELIVERY',
     cta: 'View Store', state: 'TN',
     imageUrl: 'https://images.unsplash.com/photo-1579113800032-c38bd1625818?fm=jpg&fit=crop&q=80&w=800&h=450',
+  },
+  // Home hub top hero (HOME_HERO) — one LIVE creative so the customer's first screen is never a
+  // blank band (was unseeded). The house fallback is `adBanner.banners` in the SDUI doc.
+  {
+    placementId: 'ad-cmp-demo-homehero-1', campaignId: 'cmp-demo-homehero', sellerId: AD_ACCOUNT,
+    placement: 'HOME_HERO', targetType: 'PRODUCT', targetId: 'fm-m1', targetApp: 'MART',
+    category: null, storeId: null, title: 'Everything Delivered', subtitle: 'MART · FOOD · PHARMA',
+    cta: 'Shop Now', state: 'TN',
+    imageUrl: 'https://images.unsplash.com/photo-1607083206869-4c7672e72a8a?fm=jpg&fit=crop&q=80&w=800&h=450',
   },
   // Food sub-app hero (FOOD_HERO) — two LIVE poster creatives targeting real FOOD stores so the
   // placement is locally testable (was unseeded). The house fallback is `foodHero.banners`.
@@ -675,15 +722,30 @@ function assertLeanContract() {
       }
     }
   }
-  // Hero house banners (Mart + Food + Pharma) must satisfy the `internal/sdui` publish bounds
+  // Hero house banners (Home + Mart + Food + Pharma) must satisfy the `internal/sdui` publish bounds
   // (≤8 banners, image URL ≤512) or a seeded/published doc would be rejected at PUT time and the
   // house hero silently vanish.
   for (const section of d.homeSdui) {
-    if (section.id !== 'martHero' && section.id !== 'foodHero' && section.id !== 'pharmaHero') continue;
+    if (!['adBanner', 'martHero', 'foodHero', 'pharmaHero'].includes(section.id)) continue;
     const banners = section.banners ?? [];
     if (banners.length > 8) violations.push(`${section.id} banners exceed the 8-banner bound`);
     for (const b of banners) {
       if (b.imageUrl && b.imageUrl.length > 512) violations.push(`${section.id} banner ${b.id}: imageUrl >512 chars`);
+    }
+  }
+  // `mostRatedDining` is Home's *store* rail (joined against `directory.stores`); `mostRatedVenues`
+  // is Food's *dining-venue* rail (resolved client-side against `GET /venues`). Mixing the two id
+  // spaces in one section silently emptied the Home rail — assert each references the right table.
+  for (const section of d.homeSdui) {
+    if (section.id === 'mostRatedDining') {
+      for (const id of section.storeIds ?? []) {
+        if (!storeIds.has(id)) violations.push(`mostRatedDining store ${id} not a directory store`);
+      }
+    }
+    if (section.id === 'mostRatedVenues') {
+      for (const id of section.storeIds ?? []) {
+        if (!venueIds.has(id)) violations.push(`mostRatedVenues venue ${id} not a dining venue`);
+      }
     }
   }
 
