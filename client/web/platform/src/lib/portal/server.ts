@@ -23,6 +23,8 @@ export interface PortalUserPayload {
   name: string;
   role: string;
   mustChange: boolean;
+  subRole?: "STAFF" | "VIEWER";
+  sellerId?: string;
 }
 
 export interface PortalTokenPayload {

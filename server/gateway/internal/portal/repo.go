@@ -30,7 +30,11 @@ type PortalUser struct {
 	SellerID          string
 	StateCode         string
 	DistrictCode      string
-	CreatedAt         time.Time
+	// SubRole is empty for a seller owner/admin; STAFF|VIEWER for a seller sub-user credential.
+	SubRole string
+	// SubUserID links a sub-user credential to its sellers.sub_users roster row (empty for an owner).
+	SubUserID string
+	CreatedAt time.Time
 }
 
 // Session is one admins.portal_sessions row (0038 lifetime columns included).
@@ -65,7 +69,8 @@ func (r *Repo) ready() error {
 
 const userColumns = `user_id, email, display_name, password_hash, role, active, must_change,
 	failed_attempts, locked_until, last_login_at, password_changed_at,
-	coalesce(seller_id, ''), coalesce(state_code, ''), coalesce(district_code, ''), created_at`
+	coalesce(seller_id, ''), coalesce(state_code, ''), coalesce(district_code, ''),
+	coalesce(sub_role, ''), coalesce(sub_user_id, ''), created_at`
 
 // ByEmailLower looks an account up case-insensitively. ok=false when absent.
 func (r *Repo) ByEmailLower(ctx context.Context, email string) (PortalUser, bool, error) {
@@ -104,9 +109,8 @@ func (r *Repo) ByID(ctx context.Context, userID string) (PortalUser, bool, error
 	return u, true, nil
 }
 
-// BySellerID returns a seller's existing SELLER login (oldest first). The approval provisioner uses
-// it so re-approval reuses the seller's login even after the sign-in email was rotated — keying
-// idempotency on seller_id rather than email prevents a duplicate credential on the old address.
+// BySellerID returns a seller's owner login (oldest first). Sub-user credentials are excluded
+// (`sub_role is null`) so the approval provisioner never reuses a staff login as the owner's.
 func (r *Repo) BySellerID(ctx context.Context, sellerID string) (PortalUser, bool, error) {
 	if err := r.ready(); err != nil {
 		return PortalUser{}, false, err
@@ -114,9 +118,29 @@ func (r *Repo) BySellerID(ctx context.Context, sellerID string) (PortalUser, boo
 	u, err := scanUser(r.pool.QueryRow(ctx, `
 		select `+userColumns+`
 		  from admins.portal_users
-		 where seller_id = $1 and role = 'SELLER'
+		 where seller_id = $1 and role = 'SELLER' and sub_role is null
 		 order by created_at
 		 limit 1`, sellerID))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return PortalUser{}, false, nil
+		}
+		return PortalUser{}, false, err
+	}
+	return u, true, nil
+}
+
+// BySubUserID returns the credential linked to a sellers.sub_users row. ok=false when the invite has
+// not been accepted yet.
+func (r *Repo) BySubUserID(ctx context.Context, subUserID string) (PortalUser, bool, error) {
+	if err := r.ready(); err != nil {
+		return PortalUser{}, false, err
+	}
+	u, err := scanUser(r.pool.QueryRow(ctx, `
+		select `+userColumns+`
+		  from admins.portal_users
+		 where sub_user_id = $1
+		 limit 1`, subUserID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return PortalUser{}, false, nil
@@ -155,7 +179,7 @@ func scanUser(row pgx.Row) (PortalUser, error) {
 	var u PortalUser
 	err := row.Scan(&u.UserID, &u.Email, &u.DisplayName, &u.PasswordHash, &u.Role, &u.Active,
 		&u.MustChange, &u.FailedAttempts, &u.LockedUntil, &u.LastLoginAt, &u.PasswordChangedAt,
-		&u.SellerID, &u.StateCode, &u.DistrictCode, &u.CreatedAt)
+		&u.SellerID, &u.StateCode, &u.DistrictCode, &u.SubRole, &u.SubUserID, &u.CreatedAt)
 	return u, err
 }
 
@@ -252,10 +276,11 @@ func (r *Repo) CreateUser(ctx context.Context, u PortalUser) (PortalUser, error)
 	}
 	_, err := r.pool.Exec(ctx, `
 		insert into admins.portal_users
-		  (user_id, email, display_name, password_hash, role, active, must_change, seller_id, state_code, district_code)
-		values ($1,$2,$3,$4,$5,true,$6,$7,$8,$9)`,
+		  (user_id, email, display_name, password_hash, role, active, must_change, seller_id, state_code, district_code, sub_role, sub_user_id)
+		values ($1,$2,$3,$4,$5,true,$6,$7,$8,$9,$10,$11)`,
 		u.UserID, u.Email, u.DisplayName, u.PasswordHash, u.Role, u.MustChange,
-		nullable(u.SellerID), nullable(u.StateCode), nullable(u.DistrictCode))
+		nullable(u.SellerID), nullable(u.StateCode), nullable(u.DistrictCode),
+		nullable(u.SubRole), nullable(u.SubUserID))
 	if err != nil {
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == "23505" {

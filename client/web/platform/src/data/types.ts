@@ -41,6 +41,8 @@ export interface AuthUser {
   /** Legacy parent state scope (2-letter code); sellers still use it. */
   stateCode?: string | undefined; // state_code
   sellerId?: string | undefined; // seller_id
+  /** Seller sub-user role; empty/undefined for the owner and admins. */
+  subRole?: SubUserRole | undefined;
 }
 
 /** sellers.sellers */
@@ -118,6 +120,10 @@ export type SubUserStatus = "PENDING_INVITE" | "ACTIVE" | "REVOKED";
 export interface SubUser {
   subUserId: string;
   sellerId: string;
+  /** One-time accept link expiry (set while PENDING_INVITE). */
+  inviteExpiresAt?: string | undefined;
+  /** When the invite was accepted and the credential minted. */
+  acceptedAt?: string | undefined;
   name: string;
   email: string;
   role: SubUserRole;
@@ -125,6 +131,9 @@ export interface SubUser {
   createdAt: string;
   lastLoginAt?: string | undefined;
 }
+
+/** Create/resend response: the roster row plus the one-time accept secret (shown once). */
+export type SubUserInvite = SubUser & { inviteToken: string };
 
 /** Which alerts a seller wants (`sellers.notification_preferences`). */
 export type NotificationKind = "newOrder" | "lowStock" | "slaBreach" | "campaigns";

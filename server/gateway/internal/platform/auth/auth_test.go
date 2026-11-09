@@ -341,3 +341,54 @@ func TestAdminScope(t *testing.T) {
 		})
 	}
 }
+
+func TestRequireSellerOwner(t *testing.T) {
+	h := RequireSellerOwner(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	cases := []struct {
+		name string
+		id   Identity
+		want int
+	}{
+		{"owner seller", Identity{Role: RoleSeller, SellerID: "s1"}, http.StatusOK},
+		{"staff sub-user", Identity{Role: RoleSeller, SellerID: "s1", SubRole: "STAFF"}, http.StatusForbidden},
+		{"viewer sub-user", Identity{Role: RoleSeller, SellerID: "s1", SubRole: "VIEWER"}, http.StatusForbidden},
+		{"district admin", Identity{Role: RoleDistrictAdmin, DistrictCode: "TCH", StateCode: "TN"}, http.StatusOK},
+	}
+	for _, tc := range cases {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/seller/sub-users", nil)
+		h.ServeHTTP(rec, req.WithContext(WithIdentity(context.Background(), tc.id)))
+		if rec.Code != tc.want {
+			t.Fatalf("%s: status=%d want=%d", tc.name, rec.Code, tc.want)
+		}
+	}
+}
+
+func TestEnforceSubUserReadOnly(t *testing.T) {
+	h := EnforceSubUserReadOnly()(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	cases := []struct {
+		name, method, path, subRole string
+		want                        int
+	}{
+		{"viewer GET", http.MethodGet, "/seller/inventory", "VIEWER", http.StatusOK},
+		{"viewer write", http.MethodPut, "/seller/inventory/p1", "VIEWER", http.StatusForbidden},
+		{"viewer delete", http.MethodDelete, "/seller/products/p1", "VIEWER", http.StatusForbidden},
+		{"viewer password", http.MethodPut, "/auth/portal/password", "VIEWER", http.StatusOK},
+		{"viewer logout", http.MethodPost, "/auth/portal/logout", "VIEWER", http.StatusOK},
+		{"staff write", http.MethodPut, "/seller/inventory/p1", "STAFF", http.StatusOK},
+		{"owner write", http.MethodPut, "/seller/inventory/p1", "", http.StatusOK},
+	}
+	for _, tc := range cases {
+		rec := httptest.NewRecorder()
+		req := httptest.NewRequest(tc.method, tc.path, nil)
+		ctx := WithIdentity(context.Background(), Identity{Role: RoleSeller, SellerID: "s1", SubRole: tc.subRole})
+		h.ServeHTTP(rec, req.WithContext(ctx))
+		if rec.Code != tc.want {
+			t.Fatalf("%s: status=%d want=%d", tc.name, rec.Code, tc.want)
+		}
+	}
+}

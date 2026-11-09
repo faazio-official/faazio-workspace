@@ -2,7 +2,7 @@
 
 > Gateway-native email+password sign-in for the Partner Portal. Three roles are issued:
 > `SUPER_ADMIN` (seeded operationally), `DISTRICT_ADMIN` (scoped to a district + parent state) and
-> `SELLER` (scoped to a seller). Authority: `docs/architecture/web-portal.md` → "Portal auth",
+> `SELLER` (scoped to a seller; a `sub_role` of `STAFF`/`VIEWER` marks a seller team member — `0098`). Authority: `docs/architecture/web-portal.md` → "Portal auth",
 > `db-schema.md` §12.18, `monolith-breakdown.md` §1 (`portal auth` row).
 >
 > Self-signup, email password-reset and mobile auth are **out of scope**. Never commit a password,
@@ -184,6 +184,23 @@ and `false` for `SUPER_ADMIN`; the optional `forceChange` overrides either way. 
 may reset any role, including another superadmin — no OTP/mail, effect is immediate (sessions are
 revoked). Deactivating a superadmin is refused (`last_super_admin`) when it would leave zero active
 superadmins. Do not create `SUPER_ADMIN` rows from this surface; use §2.
+
+### Seller team (sub-user) logins
+
+A seller **owner** invites staff from `/seller/settings` → Sub-users (no superadmin needed). The
+gateway mints a one-time accept token (hashed at rest, 7-day expiry) and returns the raw token once;
+the owner copies the `/accept-invite?token=…` link and shares it. The invitee sets their own password
+there; the gateway mints a scoped `SELLER` credential with `sub_role`:
+
+- `STAFF` — full seller console except owner-only actions (sub-user roster, alert preferences,
+  business profile, payout account, sign-in email).
+- `VIEWER` — read-only: `auth.EnforceSubUserReadOnly` rejects every non-GET request outside
+  `/auth/portal/*`; `auth.RequireSellerOwner` guards owner-only routes.
+
+Re-send rotates the token (old link dies). Revoke marks the roster row `REVOKED` **and** deactivates
+the linked credential + revokes its sessions. `admins.portal_users.sub_role`/`sub_user_id` and the
+`0098` roster columns are the authority; the JWT re-emits `sub_role` and the verifier refuses one on
+any non-SELLER token. There is **no invite email** in the repo — delivery is the copied link.
 
 ## 4. Rotate a superadmin password (operator-initiated)
 

@@ -134,8 +134,14 @@ caller) and are event-purged on store live toggle and product edit/status change
   `POST /sellers/:id/reject`, seller `POST /sellers/:id/edit` (rejected rows only; field history),
   and seller self-service `PATCH /sellers/:id` (editable business profile; a KYC-bearing
   GSTIN/PAN/address change re-queues the account to `PENDING_REVIEW`).
-  Seller settings: `GET|PUT /seller/notifications/preferences` and `GET|POST /seller/sub-users` +
-  `DELETE /seller/sub-users/{id}` (tables from `0097`; scope from the JWT `seller_id`).
+  Seller settings: `GET|PUT /seller/notifications/preferences`, `GET|POST /seller/sub-users`,
+  `POST /seller/sub-users/{id}/resend`, `DELETE /seller/sub-users/{id}` and public
+  `POST /seller/sub-users/accept` (tables from `0097`/`0098`; scope from the JWT `seller_id`).
+  The invite returns a one-time hashed accept token (7-day, single-use); accept mints a scoped
+  `SELLER` credential with `sub_role` STAFF/VIEWER; revoke deactivates it. Owner-only routes use
+  `auth.RequireSellerOwner`; a VIEWER is read-only via `auth.EnforceSubUserReadOnly`.
+  `notifications.EnqueueSeller` gates `SELLER_ORDER_NEW`/`SELLER_SLA_BREACH` (and future
+  `SELLER_LOW_STOCK`/`SELLER_CAMPAIGN`) by the owner's `sellers.notification_preferences`.
   `GET /sellers/:id` returns the seller + masked bank account + KYC docs + verification log; admin KYC
   images render via the existing `GET /media/private/{id}` presigned-GET (creator or admin only).
   `districtCode` is **required on create** (`POST /sellers` → `400 bad_request` `district is required`

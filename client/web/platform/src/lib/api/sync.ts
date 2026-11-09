@@ -218,6 +218,8 @@ export async function hydrateFromGateway(): Promise<boolean> {
   const role = cur.session?.role;
   const isAdmin = role === "DISTRICT_ADMIN" || role === "SUPER_ADMIN";
   const canReadPayouts = role === "SELLER" || role === "SUPER_ADMIN";
+  // Account settings (alert prefs + staff roster) are owner-only; a seller sub-user would get 403s.
+  const isSellerOwner = role === "SELLER" && !cur.session?.subRole;
 
   const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger, orders, inventory, pricing, stores, prefs, subUsers] =
     await Promise.all([
@@ -323,14 +325,14 @@ export async function hydrateFromGateway(): Promise<boolean> {
             )
           : Promise.resolve<StoreRecord[] | undefined>(undefined),
       ),
-      // Seller self-service settings (0097): alert preferences + staff sub-users. Sellers only.
+      // Seller self-service settings (0097): alert preferences + staff sub-users. Owner only.
       safe(() =>
-        role === "SELLER"
+        isSellerOwner
           ? fetchNotificationPreferences()
           : Promise.resolve<NotificationPreferences | null>(null),
       ),
       safe(() =>
-        role === "SELLER" ? fetchSubUsers() : Promise.resolve<SubUser[] | undefined>(undefined),
+        isSellerOwner ? fetchSubUsers() : Promise.resolve<SubUser[] | undefined>(undefined),
       ),
     ]);
 

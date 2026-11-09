@@ -107,6 +107,7 @@ type userDTO struct {
 	SellerID     string `json:"sellerId,omitempty"`
 	StateCode    string `json:"stateCode,omitempty"`
 	DistrictCode string `json:"districtCode,omitempty"`
+	SubRole      string `json:"subRole,omitempty"`
 	LastLoginAt  string `json:"lastLoginAt,omitempty"`
 	CreatedAt    string `json:"createdAt,omitempty"`
 }
@@ -131,7 +132,7 @@ func toUserDTO(u PortalUser) userDTO {
 	return userDTO{
 		ID: u.UserID, Email: u.Email, Name: u.DisplayName, Role: u.Role,
 		MustChange: u.MustChange, Active: u.Active, SellerID: u.SellerID,
-		StateCode: u.StateCode, DistrictCode: u.DistrictCode,
+		StateCode: u.StateCode, DistrictCode: u.DistrictCode, SubRole: u.SubRole,
 		LastLoginAt: lastLogin, CreatedAt: created,
 	}
 }
@@ -406,7 +407,7 @@ const sessionsNew = ""
 // absoluteExpires is the family's hard cap — set to now+RefreshAbsoluteTTL on login and preserved
 // on every rotation so the cap never grows. ipHash/uaHash are one-way fingerprints, never raw PII.
 func (h *Handler) issue(r *http.Request, user PortalUser, familyID, refreshRaw, refreshHash string, refreshExpires, absoluteExpires time.Time, ipHash, uaHash string) (tokenDTO, error) {
-	access, _, _, err := h.minter.MintAccess(user.UserID, user.Role, user.SellerID, user.DistrictCode, user.StateCode, user.MustChange)
+	access, _, _, err := h.minter.MintAccess(user.UserID, user.Role, user.SellerID, user.DistrictCode, user.StateCode, user.SubRole, user.MustChange)
 	if err != nil {
 		return tokenDTO{}, err
 	}
@@ -803,6 +804,12 @@ func (h *Handler) changeEmail(w http.ResponseWriter, r *http.Request) {
 	// a superadmin through the roster, so refuse the rotation here rather than desync it.
 	if user.Role == auth.RoleDistrictAdmin {
 		httpx.Fail(w, http.StatusForbidden, "email_change_not_allowed", "district-admin emails are managed by the district roster; ask a superadmin")
+		return
+	}
+	// A seller sub-user's sign-in email is the roster key the invite/revoke flow owns; the owner
+	// manages it by revoking and re-inviting. Refuse a self-service move so the roster never desyncs.
+	if user.SubRole != "" {
+		httpx.Fail(w, http.StatusForbidden, "email_change_not_allowed", "your sign-in email is managed by the shop owner")
 		return
 	}
 	if !h.hasher.Verify(req.CurrentPassword, user.PasswordHash) {

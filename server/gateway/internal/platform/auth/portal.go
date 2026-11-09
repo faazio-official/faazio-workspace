@@ -91,6 +91,12 @@ func (v *PortalVerifier) Verify(ctx context.Context, token string) (jwtClaims, e
 		if claims.SellerID == "" {
 			return jwtClaims{}, errors.New("portal seller token missing seller_id")
 		}
+		switch strings.ToUpper(strings.TrimSpace(claims.SubRole)) {
+		case "STAFF", "VIEWER":
+			claims.SubRole = strings.ToUpper(strings.TrimSpace(claims.SubRole))
+		default:
+			claims.SubRole = ""
+		}
 	case RoleDistrictAdmin:
 		claims.DistrictCode = geo.Normalise(claims.DistrictCode)
 		claims.StateCode = strings.ToUpper(strings.TrimSpace(claims.StateCode))
@@ -108,6 +114,10 @@ func (v *PortalVerifier) Verify(ctx context.Context, token string) (jwtClaims, e
 		}
 	default:
 		return jwtClaims{}, errors.New("portal token role not allowed")
+	}
+	// Only a SELLER may carry a sub-user role; an admin token can never become a sub-user.
+	if role != RoleSeller {
+		claims.SubRole = ""
 	}
 	if v.cache != nil && v.cache.Exists(ctx, cache.PortalDeny(claims.Jti)) {
 		return jwtClaims{}, errors.New("portal token revoked")

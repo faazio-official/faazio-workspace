@@ -47,6 +47,7 @@ import type {
   SduiSection,
   DistrictAdmin,
   SubUser,
+  SubUserInvite,
   SubUserRole,
   FeeChangeRequest,
   TicketRecord,
@@ -1109,34 +1110,45 @@ export interface InviteSubUserInput {
 }
 
 /**
- * Invite a staff sub-user via `POST /seller/sub-users`. The gateway mints the row id, so this awaits
- * the response and inserts the server row (no phantom local row that would vanish on refresh).
+ * Invite a staff sub-user via `POST /seller/sub-users`. The gateway mints the roster row and a
+ * one-time accept token (returned once, never stored client-side); the caller shows the link to the
+ * owner to share. Requires the gateway — a credential cannot be minted offline.
  */
-export async function inviteSubUser(sellerId: string, input: InviteSubUserInput): Promise<SubUser> {
-  if (!remoteConfigured()) {
-    const row: SubUser = {
-      subUserId: `sub-local-${Date.now()}`,
-      sellerId,
-      name: input.name.trim(),
-      email: input.email.trim(),
-      role: input.role,
-      status: "PENDING_INVITE",
-      createdAt: nowIso(),
-    };
-    state().set((s) => ({ subUsers: [row, ...s.subUsers] }));
-    return row;
-  }
-  const row = await remote.post<SubUser>("/seller/sub-users", {
-    sellerId,
+export async function inviteSubUser(_sellerId: string, input: InviteSubUserInput): Promise<SubUserInvite> {
+  if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
+  const invite = await remote.post<SubUserInvite>("/seller/sub-users", {
     name: input.name.trim(),
     email: input.email.trim(),
     role: input.role,
   });
   state().set((s) => ({
-    subUsers: [row, ...s.subUsers.filter((u) => u.subUserId !== row.subUserId)],
+    subUsers: [invite, ...s.subUsers.filter((u) => u.subUserId !== invite.subUserId)],
   }));
-  audit({ action: "SUBUSER_INVITE", entity: "sellers.sub_users", entityId: row.subUserId, after: row });
-  return row;
+  audit({
+    action: "SUBUSER_INVITE",
+    entity: "sellers.sub_users",
+    entityId: invite.subUserId,
+    after: invite,
+  });
+  return invite;
+}
+
+/** Rotate a pending invite's one-time accept link. Returns the new token (shown once). */
+export async function resendSubUserInvite(_sellerId: string, subUserId: string): Promise<SubUserInvite> {
+  if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
+  const invite = await remote.post<SubUserInvite>(
+    `/seller/sub-users/${encodeURIComponent(subUserId)}/resend`,
+  );
+  state().set((s) => ({
+    subUsers: s.subUsers.map((u) => (u.subUserId === subUserId ? invite : u)),
+  }));
+  audit({
+    action: "SUBUSER_INVITE_RESEND",
+    entity: "sellers.sub_users",
+    entityId: subUserId,
+    after: invite,
+  });
+  return invite;
 }
 
 /** Revoke a staff sub-user via `DELETE /seller/sub-users/{id}`. Optimistic removal with re-insert on a rejected write. */

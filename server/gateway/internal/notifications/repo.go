@@ -79,8 +79,9 @@ func (r *Repo) Enqueue(ctx context.Context, userID, kind, title, body string, da
 	return nil
 }
 
-// EnqueueSeller fans a PENDING row out to every active SELLER portal user owning one of the
-// stores. Store ids only — the outbox row never carries customer PII.
+// EnqueueSeller fans a PENDING row out to the active owner login(s) of the sellers owning the given
+// stores, gated by that seller's alert preferences. Store ids only — the outbox row never carries
+// customer PII. Sub-user staff logins do not receive account alerts (the owner is the account).
 func (r *Repo) EnqueueSeller(ctx context.Context, storeIDs []string, kind, title, body string, data map[string]any) error {
 	if r.pool == nil || len(storeIDs) == 0 {
 		return nil
@@ -89,7 +90,15 @@ func (r *Repo) EnqueueSeller(ctx context.Context, storeIDs []string, kind, title
 		select distinct pu.user_id
 		  from admins.portal_users pu
 		  join directory.stores s on s.seller_id = pu.seller_id
-		 where s.id = any($1) and pu.active and pu.role = 'SELLER'`, storeIDs)
+		  left join sellers.notification_preferences np on np.seller_id = pu.seller_id
+		 where s.id = any($1) and pu.active and pu.role = 'SELLER' and pu.sub_role is null
+		   and (case $2
+		          when 'SELLER_ORDER_NEW' then coalesce(np.new_order, true)
+		          when 'SELLER_LOW_STOCK' then coalesce(np.low_stock, true)
+		          when 'SELLER_SLA_BREACH' then coalesce(np.sla_breach, true)
+		          when 'SELLER_CAMPAIGN' then coalesce(np.campaigns, true)
+		          else true
+		        end)`, storeIDs, kind)
 	if err != nil {
 		return err
 	}

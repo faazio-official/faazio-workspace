@@ -18,6 +18,7 @@ import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import {
   inviteSubUser,
   removeSubUser,
+  resendSubUserInvite,
   signIn,
   signOut,
   updateNotificationPreferences,
@@ -40,6 +41,7 @@ import type {
   BankAccountInput,
   NotificationKind,
   SellerProfilePatch,
+  SubUserInvite,
   SubUserRole,
 } from "@/data/types";
 
@@ -65,6 +67,9 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "users", label: "Sub-users" },
   { key: "security", label: "Security" },
 ];
+
+// Tabs only the shop owner (not a staff sub-user) may open.
+const OWNER_ONLY_TABS: Tab[] = ["profile", "bank", "notifications", "users"];
 
 const STATUS_LABEL: Record<string, string> = {
   PENDING_INVITE: "Invite pending",
@@ -118,6 +123,14 @@ function SellerSettings() {
   const preferences = useNotificationPreferences();
 
   const [tab, setTab] = useState<Tab>("profile");
+  const subRole = session?.subRole;
+  const isSubUser = Boolean(subRole);
+  const isViewer = subRole === "VIEWER";
+  const visibleTabs = isSubUser ? TABS.filter((t) => !OWNER_ONLY_TABS.includes(t.key)) : TABS;
+  const activeTab: Tab = visibleTabs.some((t) => t.key === tab)
+    ? tab
+    : (visibleTabs[0]?.key ?? "security");
+  const [inviteResult, setInviteResult] = useState<SubUserInvite | null>(null);
 
   const [profileDraft, setProfileDraft] = useState<SellerProfilePatch | null>(null);
   const [bankDraft, setBankDraft] = useState<BankAccountInput | null>(null);
@@ -241,11 +254,13 @@ function SellerSettings() {
       toast.error("Enter a valid email");
       return;
     }
-    const email = invite.email.trim();
     setInviteBusy(true);
     try {
-      await inviteSubUser(sellerId, invite);
-      toast.success("Invite sent", { description: `An invite will go to ${email}.` });
+      const created = await inviteSubUser(sellerId, invite);
+      setInviteResult(created);
+      toast.success("Invite ready", {
+        description: "Copy the accept link and share it with your team member.",
+      });
       setInvite({ name: "", email: "", role: "STAFF" });
     } catch (err) {
       toast.error("Invite failed", {
@@ -253,6 +268,29 @@ function SellerSettings() {
       });
     } finally {
       setInviteBusy(false);
+    }
+  };
+
+  const resendInvite = async (subUserId: string) => {
+    try {
+      const rotated = await resendSubUserInvite(sellerId ?? "", subUserId);
+      setInviteResult(rotated);
+      toast.success("New accept link ready", { description: "The previous link no longer works." });
+    } catch (err) {
+      toast.error("Could not resend the invite", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  };
+
+  const copyAcceptLink = async (token: string) => {
+    if (typeof window === "undefined") return;
+    const link = `${window.location.origin}/accept-invite?token=${encodeURIComponent(token)}`;
+    try {
+      await navigator.clipboard.writeText(link);
+      toast.success("Accept link copied");
+    } catch {
+      toast.error("Could not copy — select the link and copy it manually.");
     }
   };
 
@@ -353,11 +391,23 @@ function SellerSettings() {
     <>
       <PageHeader title="Settings" sub="Account" />
       <div className="px-4 pt-3">
-        <UnderlineTabs tabs={TABS} value={tab} onChange={setTab} />
+        <UnderlineTabs tabs={visibleTabs} value={activeTab} onChange={setTab} />
       </div>
 
       <div className="space-y-3 px-4 pt-3 pb-8">
-        {tab === "profile" && (
+        {isSubUser ? (
+          <Card>
+            <p className="text-sm font-bold">
+              {isViewer ? "Viewer access" : "Staff access"}
+            </p>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {isViewer
+                ? "You can view the console but cannot make changes. The shop owner manages the team, bank account and business profile."
+                : "You can run the console. The shop owner manages the team, bank account, business profile and account settings."}
+            </p>
+          </Card>
+        ) : null}
+        {activeTab === "profile" && (
           <Card>
             <p className="mb-2 text-sm font-bold">Business profile</p>
             <p className="mb-2 text-[10px] text-muted-foreground">
@@ -436,7 +486,7 @@ function SellerSettings() {
           </Card>
         )}
 
-        {tab === "bank" && (
+        {activeTab === "bank" && (
           <Card>
             <p className="mb-2 text-sm font-bold">Settlement bank account</p>
             <p className="mb-2 text-[10px] text-muted-foreground">
@@ -512,7 +562,7 @@ function SellerSettings() {
           </Card>
         )}
 
-        {tab === "notifications" && (
+        {activeTab === "notifications" && (
           <Card>
             <p className="mb-2 text-sm font-bold">Notifications</p>
             <p className="mb-1 text-[10px] text-muted-foreground">
@@ -537,7 +587,7 @@ function SellerSettings() {
           </Card>
         )}
 
-        {tab === "appearance" && (
+        {activeTab === "appearance" && (
           <Card>
             <p className="text-sm font-bold">Appearance</p>
             <p className="mb-3 text-[10px] text-muted-foreground">
@@ -556,12 +606,13 @@ function SellerSettings() {
           </Card>
         )}
 
-        {tab === "users" && (
+        {activeTab === "users" && (
           <>
             <Card>
               <p className="mb-2 text-sm font-bold">Invite a sub-user</p>
               <p className="mb-2 text-[10px] text-muted-foreground">
-                Give staff limited access to orders and inventory.
+                Staff can run the console; viewers are read-only. You share a one-time accept link and
+                they choose their own password.
               </p>
               <TextField
                 label="Name"
@@ -593,9 +644,33 @@ function SellerSettings() {
                 onClick={() => void sendInvite()}
                 disabled={inviteBusy || !invite.name.trim() || !invite.email.trim()}
               >
-                {inviteBusy ? "Sending..." : "Send invite"}
+                {inviteBusy ? "Sending..." : "Create invite link"}
               </PrimaryButton>
             </Card>
+
+            {inviteResult ? (
+              <Card>
+                <p className="mb-1 text-sm font-bold">Share this accept link</p>
+                <p className="mb-2 text-[10px] text-muted-foreground">
+                  Send it to {inviteResult.email}. It works once and expires{" "}
+                  {inviteResult.inviteExpiresAt
+                    ? new Date(inviteResult.inviteExpiresAt).toLocaleString()
+                    : "in 7 days"}
+                  .
+                </p>
+                <div className="break-all rounded-lg border border-border bg-muted/40 px-3 py-2 text-[11px]">
+                  {typeof window !== "undefined"
+                    ? `${window.location.origin}/accept-invite?token=${encodeURIComponent(inviteResult.inviteToken)}`
+                    : "Generating link..."}
+                </div>
+                <PrimaryButton
+                  className="mt-3 w-full"
+                  onClick={() => void copyAcceptLink(inviteResult.inviteToken)}
+                >
+                  Copy link
+                </PrimaryButton>
+              </Card>
+            ) : null}
 
             <Card>
               <p className="mb-2 text-sm font-bold">Sub-users</p>
@@ -614,25 +689,41 @@ function SellerSettings() {
                       <span className="block truncate text-[11px] text-muted-foreground">
                         {user.email} · {user.role === "STAFF" ? "Staff" : "Viewer"} ·{" "}
                         {STATUS_LABEL[user.status] ?? user.status}
+                        {user.status === "PENDING_INVITE" && user.inviteExpiresAt
+                          ? ` · link expires ${new Date(user.inviteExpiresAt).toLocaleDateString()}`
+                          : ""}
+                        {user.status === "ACTIVE" && user.lastLoginAt
+                          ? ` · last login ${new Date(user.lastLoginAt).toLocaleDateString()}`
+                          : ""}
                       </span>
                     </span>
-                    <button
-                      onClick={() => {
-                        void (async () => {
-                          try {
-                            await removeSubUser(user.subUserId);
-                            toast.success("Sub-user revoked");
-                          } catch (err) {
-                            toast.error("Revoke failed", {
-                              description: err instanceof Error ? err.message : undefined,
-                            });
-                          }
-                        })();
-                      }}
-                      className="shrink-0 rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
-                    >
-                      Revoke
-                    </button>
+                    <div className="flex shrink-0 items-center gap-2">
+                      {user.status === "PENDING_INVITE" ? (
+                        <button
+                          onClick={() => void resendInvite(user.subUserId)}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+                        >
+                          New link
+                        </button>
+                      ) : null}
+                      <button
+                        onClick={() => {
+                          void (async () => {
+                            try {
+                              await removeSubUser(user.subUserId);
+                              toast.success("Sub-user revoked");
+                            } catch (err) {
+                              toast.error("Revoke failed", {
+                                description: err instanceof Error ? err.message : undefined,
+                              });
+                            }
+                          })();
+                        }}
+                        className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+                      >
+                        Revoke
+                      </button>
+                    </div>
                   </div>
                 ))
               )}
@@ -640,7 +731,7 @@ function SellerSettings() {
           </>
         )}
 
-        {tab === "security" && (
+        {activeTab === "security" && (
           <>
             <Card>
               <p className="mb-2 text-sm font-bold">Sign-in email</p>
@@ -648,13 +739,19 @@ function SellerSettings() {
                 This is the email you use to sign in. Changing it signs you out of your other devices.
               </p>
               <Row label="Email" value={session?.email ?? ""} />
-              <PrimaryButton
-                className="mt-4 w-full"
-                onClick={openEmailSheet}
-                disabled={!session?.email}
-              >
-                Change email
-              </PrimaryButton>
+              {isSubUser ? (
+                <p className="mt-3 text-[11px] text-muted-foreground">
+                  Your sign-in email is managed by the shop owner.
+                </p>
+              ) : (
+                <PrimaryButton
+                  className="mt-4 w-full"
+                  onClick={openEmailSheet}
+                  disabled={!session?.email}
+                >
+                  Change email
+                </PrimaryButton>
+              )}
             </Card>
 
             <Card>

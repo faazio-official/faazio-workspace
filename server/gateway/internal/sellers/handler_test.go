@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/authtest"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/testenv"
@@ -390,5 +391,42 @@ func TestSellerSettingsRouteGating(t *testing.T) {
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("%s: POST %s = %d, want 400 (body=%s)", tc.name, tc.path, rec.Code, rec.Body.String())
 		}
+	}
+}
+
+type stubSubUserProvisioner struct{}
+
+func (stubSubUserProvisioner) EmailInUse(context.Context, string) (bool, error) { return false, nil }
+func (stubSubUserProvisioner) CreateSubUserLogin(context.Context, contracts.SubUserLogin) (contracts.SubUserLoginResult, error) {
+	return contracts.SubUserLoginResult{}, nil
+}
+func (stubSubUserProvisioner) DeactivateSubUser(context.Context, string) error { return nil }
+
+func TestSubUserOwnerOnlyAndAcceptValidation(t *testing.T) {
+	c, err := cache.Connect(context.Background(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := chi.NewRouter()
+	r.Use(authtest.Middleware())
+	NewHandler(New(nil), c, nil, nil).WithSubUsers(stubSubUserProvisioner{}).Register(r)
+
+	sellerH := map[string]string{"X-Dev-Role": "SELLER", "X-Dev-Seller": "sel-1"}
+	staffH := map[string]string{"X-Dev-Role": "SELLER", "X-Dev-Seller": "sel-1", "X-Dev-Sub-Role": "STAFF"}
+	viewerH := map[string]string{"X-Dev-Role": "SELLER", "X-Dev-Seller": "sel-1", "X-Dev-Sub-Role": "VIEWER"}
+
+	for _, header := range []map[string]string{staffH, viewerH} {
+		rec := do(t, r, http.MethodGet, "/seller/sub-users", "", header)
+		if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "owner_only") {
+			t.Fatalf("sub-user roster access = %d %s, want 403 owner_only", rec.Code, rec.Body.String())
+		}
+	}
+	// The owner is not blocked by the owner-only guard (the nil repo then yields a 500, not a 403).
+	if rec := do(t, r, http.MethodGet, "/seller/sub-users", "", sellerH); rec.Code == http.StatusForbidden {
+		t.Fatalf("owner was blocked from the roster: %s", rec.Body.String())
+	}
+	// Accept is public and validates its body before touching the repo.
+	if rec := do(t, r, http.MethodPost, "/seller/sub-users/accept", `{}`, nil); rec.Code != http.StatusBadRequest {
+		t.Fatalf("accept empty body = %d, want 400", rec.Code)
 	}
 }

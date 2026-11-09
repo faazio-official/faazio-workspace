@@ -164,6 +164,9 @@ func NewRouter(d Deps) http.Handler {
 		authConfig.Portal = auth.NewPortalVerifier([]byte(d.Config.PortalJWTSecret), d.Cache)
 	}
 	r.Use(auth.Middleware(authConfig))
+	// Seller sub-users with the VIEWER role are read-only server-side (all contexts, not just
+	// settings); portal credential endpoints stay open so they can rotate their own password.
+	r.Use(auth.EnforceSubUserReadOnly())
 
 	r.Get("/health", healthHandler(d))
 
@@ -197,8 +200,10 @@ func NewRouter(d Deps) http.Handler {
 	// Central remote config (0059): public GET /app-config for the mobile apps + SUPER_ADMIN control
 	// plane (GET/PUT/DELETE /admin/app-config). Audited through the admins context.
 	appconfig.NewHandler(appconfigRepo, adminsRepo).Register(r)
+	portalHasher := portal.NewHasher(d.Config.PortalPepper)
 	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo,
-		portal.NewSellerLoginProvisioner(portalRepo, portal.NewHasher(d.Config.PortalPepper))).Register(r)
+		portal.NewSellerLoginProvisioner(portalRepo, portalHasher)).
+		WithSubUsers(portal.NewSubUserLoginProvisioner(portalRepo, portalHasher)).Register(r)
 	promo.NewHandler(promoRepo, d.Cache, adminsRepo).Register(r)
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Signer.PublicOrigin()).Register(r)
 	// Manual seller payouts: super/state board + seller-read ledger. Razorpay Route/settlement was

@@ -7,6 +7,8 @@ package sellers
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -1253,32 +1255,45 @@ func (r *Repo) UpsertNotificationPreferences(ctx context.Context, sellerID strin
 	return p, nil
 }
 
-// SubUser is one sellers.sub_users roster row (a staff login invite, not a portal credential yet).
+// SubUser is one sellers.sub_users roster row. The invite token hash and the linked portal user id
+// are never projected; `InviteExpiresAt` lets the console show/re-send a live invite.
 type SubUser struct {
-	SubUserID   string `json:"subUserId"`
-	SellerID    string `json:"sellerId"`
-	Name        string `json:"name"`
-	Email       string `json:"email"`
-	Role        string `json:"role"`
-	Status      string `json:"status"`
-	CreatedAt   string `json:"createdAt"`
-	LastLoginAt string `json:"lastLoginAt,omitempty"`
+	SubUserID       string `json:"subUserId"`
+	SellerID        string `json:"sellerId"`
+	Name            string `json:"name"`
+	Email           string `json:"email"`
+	Role            string `json:"role"`
+	Status          string `json:"status"`
+	CreatedAt       string `json:"createdAt"`
+	LastLoginAt     string `json:"lastLoginAt,omitempty"`
+	InviteExpiresAt string `json:"inviteExpiresAt,omitempty"`
+	AcceptedAt      string `json:"acceptedAt,omitempty"`
 }
 
-const subUserColumns = `sub_user_id, seller_id, name, email, role, status, created_at, last_login_at`
+const subUserColumns = `sub_user_id, seller_id, name, email, role, status, created_at, last_login_at,
+	invite_expires_at, accepted_at`
 
 func scanSubUser(row rowScanner) (SubUser, error) {
 	var (
 		u           SubUser
 		createdAt   time.Time
 		lastLoginAt *time.Time
+		expiresAt   *time.Time
+		acceptedAt  *time.Time
 	)
-	if err := row.Scan(&u.SubUserID, &u.SellerID, &u.Name, &u.Email, &u.Role, &u.Status, &createdAt, &lastLoginAt); err != nil {
+	if err := row.Scan(&u.SubUserID, &u.SellerID, &u.Name, &u.Email, &u.Role, &u.Status, &createdAt,
+		&lastLoginAt, &expiresAt, &acceptedAt); err != nil {
 		return SubUser{}, err
 	}
 	u.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 	if lastLoginAt != nil {
 		u.LastLoginAt = lastLoginAt.UTC().Format(time.RFC3339)
+	}
+	if expiresAt != nil {
+		u.InviteExpiresAt = expiresAt.UTC().Format(time.RFC3339)
+	}
+	if acceptedAt != nil {
+		u.AcceptedAt = acceptedAt.UTC().Format(time.RFC3339)
 	}
 	return u, nil
 }
@@ -1305,47 +1320,147 @@ func (r *Repo) ListSubUsers(ctx context.Context, sellerID string) ([]SubUser, er
 	return out, rows.Err()
 }
 
-// InviteSubUser adds a PENDING_INVITE staff row. A live duplicate email returns ErrSubUserExists.
-func (r *Repo) InviteSubUser(ctx context.Context, sellerID, name, email, role string) (SubUser, error) {
-	if r.pool == nil {
-		return SubUser{}, fmt.Errorf("sellers: database not configured")
+// Sub-user invite lifecycle errors.
+var (
+	ErrSubUserNotFound      = errors.New("sellers: sub-user not found")
+	ErrSubUserNotPending    = errors.New("sellers: sub-user invite is no longer pending")
+	ErrSubUserInviteInvalid = errors.New("sellers: invite is invalid, expired or already used")
+)
+
+// InviteTTL is how long a one-time accept link stays valid. There is no scheduler: expiry is checked
+// when the link is used (and re-sending rotates the token + window).
+const InviteTTL = 7 * 24 * time.Hour
+
+// newInviteToken returns the raw token (shareable link secret) and its SHA-256 hash (stored at rest).
+func newInviteToken() (raw, hash string, err error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", "", err
 	}
-	u, err := scanSubUser(r.pool.QueryRow(ctx, `
-		insert into sellers.sub_users (sub_user_id, seller_id, name, email, role, status)
-		values ($1,$2,$3,$4,$5,'PENDING_INVITE')
-		returning `+subUserColumns,
-		"sub-"+shortID(), sellerID, name, email, role))
-	if err != nil {
-		if isUniqueViolation(err) {
-			return SubUser{}, ErrSubUserExists
-		}
-		return SubUser{}, err
-	}
-	return u, nil
+	raw = base64.RawURLEncoding.EncodeToString(b)
+	sum := sha256.Sum256([]byte(raw))
+	return raw, hex.EncodeToString(sum[:]), nil
 }
 
-// RevokeSubUser marks a seller's sub-user REVOKED. ok=false only when the row does not exist for
-// this seller; an already-revoked row is a successful no-op.
-func (r *Repo) RevokeSubUser(ctx context.Context, sellerID, subUserID string) (bool, error) {
+// HashInviteToken is the at-rest representation of an accept token.
+func HashInviteToken(raw string) string {
+	sum := sha256.Sum256([]byte(raw))
+	return hex.EncodeToString(sum[:])
+}
+
+// InviteSubUser adds a PENDING_INVITE staff row and returns its one-time accept token. A live
+// duplicate email returns ErrSubUserExists. The raw token is returned to the inviter once and is
+// never persisted (only its hash is).
+func (r *Repo) InviteSubUser(ctx context.Context, sellerID, name, email, role, invitedBy string) (SubUser, string, error) {
 	if r.pool == nil {
-		return false, fmt.Errorf("sellers: database not configured")
+		return SubUser{}, "", fmt.Errorf("sellers: database not configured")
 	}
-	tag, err := r.pool.Exec(ctx, `
-		update sellers.sub_users set status = 'REVOKED'
-		 where sub_user_id = $1 and seller_id = $2 and status <> 'REVOKED'`, subUserID, sellerID)
+	raw, hash, err := newInviteToken()
 	if err != nil {
-		return false, err
+		return SubUser{}, "", err
 	}
-	if tag.RowsAffected() == 1 {
-		return true, nil
+	u, err := scanSubUser(r.pool.QueryRow(ctx, `
+		insert into sellers.sub_users
+		  (sub_user_id, seller_id, name, email, role, status, invite_token_hash, invite_expires_at, invited_by, last_sent_at)
+		values ($1,$2,$3,$4,$5,'PENDING_INVITE',$6, now() + $7::interval, $8, now())
+		returning `+subUserColumns,
+		"sub-"+shortID(), sellerID, name, email, role, hash, InviteTTL.String(), invitedBy))
+	if err != nil {
+		if isUniqueViolation(err) {
+			return SubUser{}, "", ErrSubUserExists
+		}
+		return SubUser{}, "", err
 	}
-	var exists bool
-	if err := r.pool.QueryRow(ctx, `
-		select exists(select 1 from sellers.sub_users where sub_user_id = $1 and seller_id = $2)`,
-		subUserID, sellerID).Scan(&exists); err != nil {
-		return false, err
+	return u, raw, nil
+}
+
+// ResendSubUserInvite rotates the accept token + expiry for a still-pending invite. The previous
+// link stops working immediately. Returns the new raw token.
+func (r *Repo) ResendSubUserInvite(ctx context.Context, sellerID, subUserID string) (SubUser, string, error) {
+	if r.pool == nil {
+		return SubUser{}, "", fmt.Errorf("sellers: database not configured")
 	}
-	return exists, nil
+	raw, hash, err := newInviteToken()
+	if err != nil {
+		return SubUser{}, "", err
+	}
+	u, err := scanSubUser(r.pool.QueryRow(ctx, `
+		update sellers.sub_users
+		   set invite_token_hash = $3, invite_expires_at = now() + $4::interval, last_sent_at = now()
+		 where sub_user_id = $1 and seller_id = $2 and status = 'PENDING_INVITE'
+		 returning `+subUserColumns,
+		subUserID, sellerID, hash, InviteTTL.String()))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SubUser{}, "", ErrSubUserNotPending
+		}
+		return SubUser{}, "", err
+	}
+	return u, raw, nil
+}
+
+// SubUserByInviteToken resolves a live (pending, unexpired) invite by its raw token. It does not
+// consume the token; AcceptSubUserInvite does that atomically after the credential is minted.
+func (r *Repo) SubUserByInviteToken(ctx context.Context, rawToken string) (SubUser, bool, error) {
+	if r.pool == nil {
+		return SubUser{}, false, fmt.Errorf("sellers: database not configured")
+	}
+	u, err := scanSubUser(r.pool.QueryRow(ctx, `
+		select `+subUserColumns+`
+		  from sellers.sub_users
+		 where invite_token_hash = $1 and status = 'PENDING_INVITE'
+		   and invite_expires_at is not null and invite_expires_at > now()`, HashInviteToken(rawToken)))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SubUser{}, false, nil
+		}
+		return SubUser{}, false, err
+	}
+	return u, true, nil
+}
+
+// AcceptSubUserInvite marks a pending invite ACTIVE and links its credential. The token hash is
+// cleared so the link is single-use. ok=false when the row is no longer a live pending invite.
+func (r *Repo) AcceptSubUserInvite(ctx context.Context, rawToken, portalUserID string) (SubUser, bool, error) {
+	if r.pool == nil {
+		return SubUser{}, false, fmt.Errorf("sellers: database not configured")
+	}
+	u, err := scanSubUser(r.pool.QueryRow(ctx, `
+		update sellers.sub_users
+		   set status = 'ACTIVE', accepted_at = now(), portal_user_id = $2,
+		       invite_token_hash = null, invite_expires_at = null
+		 where invite_token_hash = $1 and status = 'PENDING_INVITE'
+		   and invite_expires_at is not null and invite_expires_at > now()
+		 returning `+subUserColumns,
+		HashInviteToken(rawToken), portalUserID))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SubUser{}, false, nil
+		}
+		return SubUser{}, false, err
+	}
+	return u, true, nil
+}
+
+// RevokeSubUser marks a seller's sub-user REVOKED and clears any live invite. ok=false only when the
+// row does not exist for this seller; an already-revoked row is a successful no-op. The returned row
+// carries the linked credential id so the handler can deactivate it.
+func (r *Repo) RevokeSubUser(ctx context.Context, sellerID, subUserID string) (SubUser, bool, error) {
+	if r.pool == nil {
+		return SubUser{}, false, fmt.Errorf("sellers: database not configured")
+	}
+	u, err := scanSubUser(r.pool.QueryRow(ctx, `
+		update sellers.sub_users
+		   set status = 'REVOKED', invite_token_hash = null, invite_expires_at = null
+		 where sub_user_id = $1 and seller_id = $2
+		 returning `+subUserColumns, subUserID, sellerID))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return SubUser{}, false, nil
+		}
+		return SubUser{}, false, err
+	}
+	return u, true, nil
 }
 
 func shortID() string {

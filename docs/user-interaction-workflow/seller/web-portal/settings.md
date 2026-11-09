@@ -1,9 +1,10 @@
 # Seller settings
 
 **App / route:** portal `/seller/settings` (`app/seller/settings/page.client.tsx`)
-**Status:** Partial — profile, bank, notifications, appearance and **Security** (self-service
-sign-in email + password rotation) are shipped; the sub-user invite is a persisted roster row only
-(no invite delivery or accept/login path yet).
+**Status:** Shipped — profile, bank, notifications, appearance, **Security** (self-service sign-in
+email + password rotation) and the full sub-user invite lifecycle (one-time accept link → credential
+→ login → revoke). A sub-user (STAFF/VIEWER) sees only Appearance + Security; owner-only tabs are
+hidden and enforced server-side. See `accept-invite.md` for the invitee's side.
 **Trigger:** Seller opens `/seller/settings` from the console shell or the Explore menu
 (`app/seller/explore/page.client.tsx`).
 
@@ -27,15 +28,18 @@ sign-in email + password rotation) are shipped; the sub-user invite is a persist
    writes through `updateNotificationPreferences({ [kind]: v })`.
 5. **Appearance** — `ThemeSegmentedControl` persists the browser theme via
    `src/lib/theme.ts` + `localStorage["faazio.theme"]` (unchanged; DB-independent).
-6. **Sub-users (Partial)** — `useSubUsers(sellerId)` lists the staff roster hydrated from
+6. **Sub-users (owner only)** — `useSubUsers(sellerId)` lists the staff roster hydrated from
    `GET /seller/sub-users`; the invite form (name, email, role Staff/Viewer) awaits `inviteSubUser` →
-   `POST /seller/sub-users` (the server mints the row id; duplicate live emails return `409`), and
-   "Revoke" awaits `removeSubUser` → `DELETE /seller/sub-users/{id}` with an optimistic removal +
-   re-insert on rejection. The invite currently persists a `PENDING_INVITE` roster row only — no
-   invite email is sent, no portal credential is minted, and there is no accept path, so an invitee
-   cannot yet sign in (tracked in `KNOWN_GAPS.md`).
+   `POST /seller/sub-users`. The server mints the roster row **and a one-time accept token**; the page
+   shows a copyable `/accept-invite?token=…` link (valid 7 days, single use). Duplicate live emails
+   return `409 sub_user_exists`; an email that already has any portal login returns `409 email_in_use`.
+   Each `PENDING_INVITE` row has **New link** → `resendSubUserInvite` → `POST /seller/sub-users/{id}/resend`
+   (rotates the token; the old link stops working) and **Revoke** → `removeSubUser` →
+   `DELETE /seller/sub-users/{id}` (marks `REVOKED`, deactivates the linked credential and revokes its
+   sessions). An accepted invite flips to `ACTIVE` and the roster shows `last_login_at`.
 7. **Security** — shows the signed-in email (`useSession()?.email`) and two self-service credential
-   rotations, no admin involvement:
+   rotations, no admin involvement (email change is owner-only; a sub-user can rotate the password
+   they chose at accept, but their sign-in email is managed by the owner):
    - **Change email** — "Change email" opens the seller `Sheet` popup with a **new email** field and a
      **current password** re-auth field. Save calls `changePortalEmail(currentPassword, newEmail)` →
      `PUT /auth/portal/email`. On success the gateway revokes every refresh session and denylists the
@@ -68,8 +72,13 @@ sign-in email + password rotation) are shipped; the sub-user invite is a persist
 - Notifications: `fetchNotificationPreferences()` → `GET /seller/notifications/preferences`,
   `updateNotificationPreferences()` → `PUT /seller/notifications/preferences` →
   `sellers.notification_preferences` (one row per seller; absent row reads as all-on, 0097).
-- Sub-users: `fetchSubUsers()` → `GET /seller/sub-users`, `inviteSubUser()` → `POST /seller/sub-users`,
-  `removeSubUser()` → `DELETE /seller/sub-users/{id}` → `sellers.sub_users` (0097).
+- Sub-users: `fetchSubUsers()` → `GET /seller/sub-users`, `inviteSubUser()` → `POST /seller/sub-users`
+  (returns `inviteToken`), `resendSubUserInvite()` → `POST /seller/sub-users/{id}/resend`,
+  `removeSubUser()` → `DELETE /seller/sub-users/{id}` → `sellers.sub_users` (0097 + 0098 lifecycle
+  columns: `invite_token_hash`, `invite_expires_at`, `accepted_at`, `portal_user_id`, `last_sent_at`).
+  Accept is public: `acceptSubUserInvite(token, password)` → `/api/auth/portal/accept-invite` → gateway
+  `POST /seller/sub-users/accept` → mints `admins.portal_users` (`role=SELLER`, `sub_role`, `seller_id`,
+  `sub_user_id`) and flips the roster `ACTIVE`.
 - Appearance: `src/lib/theme.ts` → `localStorage["faazio.theme"]` (no server).
 - Security — email: `changePortalEmail()` → `PUT /api/auth/portal/email` → gateway
   `PUT /auth/portal/email` → `admins.portal_users.email` (existing column + `portal_users_email_lower_uniq`
@@ -78,15 +87,19 @@ sign-in email + password rotation) are shipped; the sub-user invite is a persist
 - Security — password: `changePortalPassword()` → `PUT /api/auth/portal/password` → gateway
   `PUT /auth/portal/password` → `admins.portal_users.password_hash` (Argon2id); revokes sessions +
   denylists the `jti`.
-- Writes are honest: profile, bank, invite and revoke await their gateway write and only then toast
-  success (a rejection rolls back the store and toasts). Notification toggles use `pushWrite`
-  (optimistic + rollback/toast) since the switch is a single small flag.
+- Notification delivery: `notifications.EnqueueSeller` joins `sellers.notification_preferences` and
+  gates at enqueue time by kind (`SELLER_ORDER_NEW`→`new_order`, `SELLER_SLA_BREACH`→`sla_breach`,
+  `SELLER_LOW_STOCK`→`low_stock`, `SELLER_CAMPAIGN`→`campaigns`; absent row = on). Only the seller
+  **owner** login receives account alerts (sub-user logins are excluded).
+- Writes are honest: profile, bank, invite, resend, revoke and accept await their gateway write and
+  only then toast success (a rejection rolls back the store and toasts). Notification toggles use
+  `pushWrite` (optimistic + rollback/toast) since the switch is a single small flag.
 
 ## Success / error / empty
 
-- **Success:** profile, bank, notification, sub-user roster and theme changes all persist; Security
-  rotates the sign-in email/password and re-authenticates in place without a manual `/login`
-  round-trip.
+- **Success:** profile, bank, notification, sub-user roster/invite and theme changes all persist; an
+  invitee can accept the link, set a password and sign in; Security rotates the sign-in email/password
+  and re-authenticates in place without a manual `/login` round-trip.
 - **Loading:** profile and bank show pulse skeletons while the seller row / payout account hydrate;
   Security buttons show "Changing…"/"Saving…" while busy.
 - **Error:** a rejected write rolls back and shows a `sonner` toast with the server message; Security
@@ -96,12 +109,12 @@ sign-in email + password rotation) are shipped; the sub-user invite is a persist
 
 ## Known gaps
 
-- **Sub-user invite lifecycle (Partial):** the invite creates a `PENDING_INVITE` roster row but does
-  not deliver an invite email, mint a `admins.portal_users` credential, or provide an accept/login
-  path; `ACTIVE`/`last_login_at` are never set. Revoke (roster status → `REVOKED`) is shipped.
-- **Notification preferences are stored, not yet consumed:** `sellers.notification_preferences`
-  persists and hydrates correctly, but no alert/worker path currently reads it, so toggling an alert
-  has no delivery effect yet.
+- **Invite delivery is a manual link:** there is no transactional-email provider in the repo, so the
+  owner copies the `/accept-invite?token=…` link and shares it (WhatsApp/email out of band). Adding a
+  mail provider later only changes delivery, not the lifecycle.
+- **`lowStock` and `campaigns` toggles have no producer yet:** `newOrder` and `slaBreach` are wired to
+  real events; the other two persist and are honoured by the enqueue gate the moment a producer emits
+  `SELLER_LOW_STOCK`/`SELLER_CAMPAIGN`.
 
 ## Linked docs
 
@@ -110,3 +123,5 @@ sign-in email + password rotation) are shipped; the sub-user invite is a persist
 - `docs/architecture/db-schema.md` (`sellers.bank_accounts`, §12.36 `sellers.notification_preferences`,
   `sellers.sub_users`)
 - `server/supabase/migrations/0097_seller_settings.sql`
+- `server/supabase/migrations/0098_sub_user_invites.sql`
+- `docs/user-interaction-workflow/seller/web-portal/accept-invite.md`

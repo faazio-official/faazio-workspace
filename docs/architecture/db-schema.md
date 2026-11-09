@@ -2534,7 +2534,7 @@ serve their own-status read.
    `404 not_found` when none exists. The customer app calls `GatewayClient.getMySellerApplication`
    on mount, so status survives an app restart.
 
-### 12.36 Seller self-service settings (migration `0097`)
+### 12.36 Seller self-service settings + sub-user invites (migrations `0097`, `0098`)
 
 **Authority:** `monolith-breakdown.md` §1 (`sellers` row), `server-gateway-plan.md`,
 `user-interaction-workflow/seller/web-portal/settings.md`. The seller console settings page wrote
@@ -2550,5 +2550,16 @@ each toggle/invite optimistically updated then rolled back. `0097` gives the las
    `last_login_at`. A partial unique index `(seller_id, lower(email)) where status <> 'REVOKED'`
    stops duplicate live invites while allowing a re-invite after a revoke. These rows are the
    seller-owned roster; `admins.portal_users` remains the authentication authority.
-3. RLS mirrors `0049`/`0050`: the owning seller reads their own rows; super/state admins read in
+3. `0098` completes the lifecycle. `sellers.sub_users` adds `invite_token_hash` (SHA-256 of the
+   one-time accept token; unique partial index), `invite_expires_at` (7-day window), `accepted_at`,
+   `portal_user_id` (FK → `admins.portal_users`), `invited_by`, `last_sent_at`.
+   `admins.portal_users` adds `sub_role` (`STAFF`/`VIEWER`, null for owners/admins) and `sub_user_id`
+   (FK → `sellers.sub_users`), both constrained so only a `SELLER` row with a `seller_id` may carry
+   them. A DB trigger mirrors `portal_users.last_login_at` onto the roster row on login.
+4. `notifications.outbox.user_id` no longer FKs `checkout.users` — seller portal identities are
+   `pu-*` and not customer rows. Account deletion still deletes outbox rows explicitly by `user_id`.
+   `notifications.EnqueueSeller` joins `sellers.notification_preferences` and gates delivery by kind
+   (`SELLER_ORDER_NEW`→`new_order`, `SELLER_LOW_STOCK`→`low_stock`, `SELLER_SLA_BREACH`→`sla_breach`,
+   `SELLER_CAMPAIGN`→`campaigns`); only the seller owner login is targeted.
+5. RLS mirrors `0049`/`0050`: the owning seller reads their own rows; super/state admins read in
    district scope; writes stay service_role only.

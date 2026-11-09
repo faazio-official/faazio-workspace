@@ -205,25 +205,44 @@ func TestNotificationPreferencesAndSubUsers(t *testing.T) {
 		t.Fatalf("preferences not persisted: %+v err=%v", prefs, err)
 	}
 
-	u, err := repo.InviteSubUser(ctx, s.SellerID, "Staff One", "staff@example.com", "STAFF")
-	if err != nil || u.Status != "PENDING_INVITE" || u.SubUserID == "" {
-		t.Fatalf("invite: %+v err=%v", u, err)
+	u, token, err := repo.InviteSubUser(ctx, s.SellerID, "Staff One", "staff@example.com", "STAFF", "owner-test")
+	if err != nil || u.Status != "PENDING_INVITE" || u.SubUserID == "" || token == "" || u.InviteExpiresAt == "" {
+		t.Fatalf("invite: %+v token=%q err=%v", u, token, err)
 	}
-	if _, err := repo.InviteSubUser(ctx, s.SellerID, "Dup", "STAFF@example.com", "VIEWER"); err != ErrSubUserExists {
+	if _, _, err := repo.InviteSubUser(ctx, s.SellerID, "Dup", "STAFF@example.com", "VIEWER", "owner-test"); err != ErrSubUserExists {
 		t.Fatalf("duplicate invite (case-insensitive) err=%v, want ErrSubUserExists", err)
 	}
 	rows, err := repo.ListSubUsers(ctx, s.SellerID)
 	if err != nil || len(rows) != 1 {
 		t.Fatalf("list: len=%d err=%v", len(rows), err)
 	}
-	if ok, err := repo.RevokeSubUser(ctx, s.SellerID, u.SubUserID); err != nil || !ok {
+	if got, ok, err := repo.SubUserByInviteToken(ctx, token); err != nil || !ok || got.SubUserID != u.SubUserID {
+		t.Fatalf("token lookup: ok=%v err=%v got=%+v", ok, err, got)
+	}
+	_, resendTok, err := repo.ResendSubUserInvite(ctx, s.SellerID, u.SubUserID)
+	if err != nil || resendTok == "" || resendTok == token {
+		t.Fatalf("resend must rotate the token: %q err=%v", resendTok, err)
+	}
+	if _, ok, _ := repo.SubUserByInviteToken(ctx, token); ok {
+		t.Fatal("resending must invalidate the previous invite token")
+	}
+	token = resendTok
+	active, ok, err := repo.AcceptSubUserInvite(ctx, token, "pu-test-sub")
+	if err != nil || !ok || active.Status != "ACTIVE" || active.AcceptedAt == "" {
+		t.Fatalf("accept: ok=%v err=%v row=%+v", ok, err, active)
+	}
+	// The accept link is single-use.
+	if _, ok, _ := repo.SubUserByInviteToken(ctx, token); ok {
+		t.Fatal("an accepted invite token must no longer resolve")
+	}
+	if _, ok, err := repo.RevokeSubUser(ctx, s.SellerID, u.SubUserID); err != nil || !ok {
 		t.Fatalf("revoke: ok=%v err=%v", ok, err)
 	}
-	if ok, err := repo.RevokeSubUser(ctx, s.SellerID, u.SubUserID); err != nil || !ok {
+	if _, ok, err := repo.RevokeSubUser(ctx, s.SellerID, u.SubUserID); err != nil || !ok {
 		t.Fatalf("revoke must be idempotent: ok=%v err=%v", ok, err)
 	}
 	// After revoke the same email can be invited again.
-	if _, err := repo.InviteSubUser(ctx, s.SellerID, "Staff One", "staff@example.com", "STAFF"); err != nil {
+	if _, _, err := repo.InviteSubUser(ctx, s.SellerID, "Staff One", "staff@example.com", "STAFF", "owner-test"); err != nil {
 		t.Fatalf("re-invite after revoke: %v", err)
 	}
 }

@@ -12,6 +12,7 @@ interface PortalUser {
   sellerId?: string;
   districtCode?: string;
   stateCode?: string;
+  subRole?: "STAFF" | "VIEWER";
 }
 
 interface PortalResponse {
@@ -85,6 +86,7 @@ function toAuthUser(user: PortalUser): AuthUser {
     sellerId: user.sellerId,
     districtCode: user.districtCode,
     stateCode: user.stateCode,
+    subRole: user.subRole,
   };
 }
 
@@ -269,4 +271,13 @@ export async function changePortalEmail(
   newEmail: string,
 ): Promise<void> {
   await call("/api/auth/portal/email", "PUT", { currentPassword, newEmail });
+}
+
+/**
+ * Accepts a seller sub-user invite: consumes the one-time token and sets the invitee's password. This
+ * is public (the invitee has no session yet) and goes through a dedicated same-origin proxy so no
+ * portal cookie is required.
+ */
+export async function acceptSubUserInvite(token: string, password: string): Promise<void> {
+  await call("/api/auth/portal/accept-invite", "POST", { token, password });
 }

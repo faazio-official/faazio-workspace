@@ -468,6 +468,39 @@ type SellerLoginProvisioner interface {
 	ProvisionSellerLogin(ctx context.Context, sellerID, email, displayName string) (SellerLogin, error)
 }
 
+// Sub-user invite/credential errors (portal implements the provisioner; sellers maps them to HTTP).
+var (
+	ErrSubUserEmailInUse = errors.New("contracts: sub-user email already has a portal login")
+	ErrWeakPassword      = errors.New("contracts: password does not meet the policy")
+)
+
+// SubUserLogin is the input for minting a seller staff credential when an invite is accepted. The
+// password is chosen by the invitee; it is hashed immediately and never persisted or logged.
+type SubUserLogin struct {
+	SellerID    string
+	SubUserID   string
+	Email       string
+	DisplayName string
+	Password    string
+	SubRole     string // STAFF | VIEWER
+}
+
+// SubUserLoginResult is the created/reused credential identity (never the password).
+type SubUserLoginResult struct {
+	UserID string `json:"userId"`
+	Email  string `json:"email"`
+}
+
+// SubUserProvisioner mints and deactivates a seller sub-user portal credential (implemented by
+// internal/portal, which owns admins.portal_users). Create is idempotent by SubUserID.
+type SubUserProvisioner interface {
+	// EmailInUse reports whether the email already belongs to any portal login (the global
+	// one-person-one-role gate), so an invite can be rejected before it is stored.
+	EmailInUse(ctx context.Context, email string) (bool, error)
+	CreateSubUserLogin(ctx context.Context, in SubUserLogin) (SubUserLoginResult, error)
+	DeactivateSubUser(ctx context.Context, subUserID string) error
+}
+
 // Drainer runs one synchronous notification-outbox drain (implemented by notifications.Worker). The
 // admin endpoint uses it as a manual trigger when no background worker is deployed.
 type Drainer interface {

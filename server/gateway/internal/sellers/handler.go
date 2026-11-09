@@ -26,11 +26,20 @@ type Handler struct {
 	audit contracts.AuditWriter
 	// logins auto-provisions the seller's portal credential on approval; nil disables it.
 	logins contracts.SellerLoginProvisioner
+	// subUsers mints/deactivates a staff sub-user credential when an invite is accepted/revoked.
+	// nil leaves invites roster-only (unit/test wiring) and refuses accept with 503.
+	subUsers contracts.SubUserProvisioner
 }
 
 // NewHandler builds the sellers handler.
 func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, logins contracts.SellerLoginProvisioner) *Handler {
 	return &Handler{repo: repo, cache: c, audit: audit, logins: logins}
+}
+
+// WithSubUsers wires the portal sub-user credential provisioner (accept/revoke lifecycle).
+func (h *Handler) WithSubUsers(p contracts.SubUserProvisioner) *Handler {
+	h.subUsers = p
+	return h
 }
 
 // Register mounts the sellers routes.
@@ -50,8 +59,9 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/sellers/{id}/detail", h.get)
 		g.Get("/sellers/{id}/kyc", h.listKYC)
 		g.Post("/sellers/{id}/kyc", h.addKYC)
-		g.Get("/sellers/{id}/bank-account", h.getBank)
-		g.Put("/sellers/{id}/bank-account", h.putBank)
+		// Payout account + business profile are owner-only for a seller sub-user (admins unaffected).
+		g.With(auth.RequireSellerOwner).Get("/sellers/{id}/bank-account", h.getBank)
+		g.With(auth.RequireSellerOwner).Put("/sellers/{id}/bank-account", h.putBank)
 		g.Patch("/sellers/{id}/status", h.setStatus)
 		// Seller-initiated platform-fee change (the fee itself is immutable once set at registration).
 		g.Post("/sellers/{id}/platform-fee-request", h.requestPlatformFeeChange)
@@ -66,19 +76,26 @@ func (h *Handler) Register(r chi.Router) {
 		// Seller self-service business-profile edit (KYC-bearing fields re-enter admin review).
 		// This is the generic PATCH the portal has always called; POST /sellers/{id}/edit stays the
 		// REJECTED-application resubmission path.
-		g.Patch("/sellers/{id}", h.editProfile)
+		g.With(auth.RequireSellerOwner).Patch("/sellers/{id}", h.editProfile)
 	})
 
 	// Seller self-service settings: alert preferences + staff sub-users. Scope comes from the JWT
-	// seller_id, never a request body.
+	// seller_id, never a request body. These are owner-only: a sub-user (STAFF/VIEWER) may work the
+	// console but cannot manage the roster, account preferences or the sign-in identity.
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller))
+		g.Use(auth.RequireSellerOwner)
 		g.Get("/seller/notifications/preferences", h.getNotificationPreferences)
 		g.Put("/seller/notifications/preferences", h.putNotificationPreferences)
 		g.Get("/seller/sub-users", h.listSubUsers)
 		g.Post("/seller/sub-users", h.inviteSubUser)
+		g.Post("/seller/sub-users/{id}/resend", h.resendSubUserInvite)
 		g.Delete("/seller/sub-users/{id}", h.revokeSubUser)
 	})
+
+	// Accept an invite: public (the invitee has no session yet). The one-time token in the body is
+	// the capability; the invitee sets their password here and the credential is minted.
+	r.Post("/seller/sub-users/accept", h.acceptSubUserInvite)
 
 	// Platform-fee change review queue: district admin sees their district, super admin sees all.
 	r.Group(func(g chi.Router) {
@@ -878,7 +895,15 @@ type inviteSubUserRequest struct {
 	Role     string `json:"role"`
 }
 
-// inviteSubUser adds a PENDING_INVITE staff row scoped to the signed-in seller.
+// subUserInviteResponse is the roster row plus the one-time accept token (returned only on create /
+// resend; it is never projected by list).
+type subUserInviteResponse struct {
+	SubUser
+	InviteToken string `json:"inviteToken"`
+}
+
+// inviteSubUser adds a PENDING_INVITE staff row scoped to the signed-in seller and returns the
+// one-time accept token for the seller to share.
 func (h *Handler) inviteSubUser(w http.ResponseWriter, r *http.Request) {
 	sellerID := auth.SellerID(r.Context())
 	if sellerID == "" {
@@ -905,7 +930,17 @@ func (h *Handler) inviteSubUser(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "role must be STAFF or VIEWER")
 		return
 	}
-	u, err := h.repo.InviteSubUser(r.Context(), sellerID, req.Name, req.Email, req.Role)
+	// Reject an email that already has a portal login up front (the accept step would fail otherwise).
+	if h.subUsers != nil {
+		if inUse, err := h.subUsers.EmailInUse(r.Context(), req.Email); err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "sub_user_create_failed", "could not invite sub-user")
+			return
+		} else if inUse {
+			httpx.Fail(w, http.StatusConflict, "email_in_use", "that email already has a portal login")
+			return
+		}
+	}
+	u, token, err := h.repo.InviteSubUser(r.Context(), sellerID, req.Name, req.Email, req.Role, h.actor(r))
 	if err != nil {
 		if errors.Is(err, ErrSubUserExists) {
 			httpx.Fail(w, http.StatusConflict, "sub_user_exists", "a sub-user with this email already exists")
@@ -915,10 +950,94 @@ func (h *Handler) inviteSubUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.log(r, "SUBUSER_INVITE", u.SubUserID, nil, map[string]string{"emailHash": shortEmailHash(u.Email), "role": u.Role})
-	httpx.JSON(w, http.StatusCreated, u)
+	httpx.JSON(w, http.StatusCreated, subUserInviteResponse{SubUser: u, InviteToken: token})
 }
 
-// revokeSubUser marks a seller's sub-user REVOKED.
+// resendSubUserInvite rotates the accept token + expiry for a still-pending invite.
+func (h *Handler) resendSubUserInvite(w http.ResponseWriter, r *http.Request) {
+	sellerID := auth.SellerID(r.Context())
+	if sellerID == "" {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no seller scope on this account")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	u, token, err := h.repo.ResendSubUserInvite(r.Context(), sellerID, id)
+	if err != nil {
+		if errors.Is(err, ErrSubUserNotPending) {
+			httpx.Fail(w, http.StatusConflict, "invite_not_pending", "this invite can no longer be resent")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "sub_user_resend_failed", "could not resend the invite")
+		return
+	}
+	h.log(r, "SUBUSER_INVITE_RESEND", id, nil, map[string]string{"role": u.Role})
+	httpx.JSON(w, http.StatusOK, subUserInviteResponse{SubUser: u, InviteToken: token})
+}
+
+type acceptSubUserRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+// acceptSubUserInvite consumes a one-time invite token, mints the scoped staff credential with the
+// invitee's chosen password and activates the roster row. Public: the invitee has no session yet.
+func (h *Handler) acceptSubUserInvite(w http.ResponseWriter, r *http.Request) {
+	if h.subUsers == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "sub_user_accept_unavailable", "sub-user invites are not enabled")
+		return
+	}
+	var req acceptSubUserRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	req.Token = strings.TrimSpace(req.Token)
+	if req.Token == "" || req.Password == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "token and password are required")
+		return
+	}
+	u, ok, err := h.repo.SubUserByInviteToken(r.Context(), req.Token)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sub_user_accept_failed", "could not accept the invite")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusBadRequest, "invite_invalid", "this invite link is invalid or has expired")
+		return
+	}
+	result, err := h.subUsers.CreateSubUserLogin(r.Context(), contracts.SubUserLogin{
+		SellerID:    u.SellerID,
+		SubUserID:   u.SubUserID,
+		Email:       u.Email,
+		DisplayName: u.Name,
+		Password:    req.Password,
+		SubRole:     u.Role,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, contracts.ErrWeakPassword):
+			httpx.Fail(w, http.StatusBadRequest, "weak_password", "use at least 12 characters and avoid common passwords")
+		case errors.Is(err, contracts.ErrSubUserEmailInUse):
+			httpx.Fail(w, http.StatusConflict, "email_in_use", "that email already has a portal login")
+		default:
+			httpx.Fail(w, http.StatusInternalServerError, "sub_user_accept_failed", "could not accept the invite")
+		}
+		return
+	}
+	active, ok, err := h.repo.AcceptSubUserInvite(r.Context(), req.Token, result.UserID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sub_user_accept_failed", "could not accept the invite")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusConflict, "invite_invalid", "this invite link has already been used or expired")
+		return
+	}
+	h.log(r, "SUBUSER_ACCEPT", active.SubUserID, nil, map[string]string{"role": active.Role})
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "email": result.Email})
+}
+
+// revokeSubUser marks a seller's sub-user REVOKED and deactivates its portal credential.
 func (h *Handler) revokeSubUser(w http.ResponseWriter, r *http.Request) {
 	sellerID := auth.SellerID(r.Context())
 	if sellerID == "" {
@@ -926,7 +1045,7 @@ func (h *Handler) revokeSubUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "id")
-	ok, err := h.repo.RevokeSubUser(r.Context(), sellerID, id)
+	_, ok, err := h.repo.RevokeSubUser(r.Context(), sellerID, id)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "sub_user_revoke_failed", "could not revoke sub-user")
 		return
@@ -934,6 +1053,13 @@ func (h *Handler) revokeSubUser(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "sub-user not found")
 		return
+	}
+	// Deactivate the linked credential + revoke its sessions (no-op when the invite was never accepted).
+	if h.subUsers != nil {
+		if err := h.subUsers.DeactivateSubUser(r.Context(), id); err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "sub_user_revoke_failed", "could not revoke sub-user")
+			return
+		}
 	}
 	h.log(r, "SUBUSER_REVOKE", id, nil, nil)
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})

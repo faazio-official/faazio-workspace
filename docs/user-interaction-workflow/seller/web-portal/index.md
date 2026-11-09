@@ -13,6 +13,7 @@
 | Seller products list (+ scroll-to-reload) | [products.md](./products.md) |
 | Seller notifications inbox | [notifications.md](./notifications.md) |
 | Seller settings (profile, bank, notifications, sub-users, security) | [settings.md](./settings.md) |
+| Team invite acceptance | [accept-invite.md](./accept-invite.md) |
 | Super admin category taxonomy + home rail | [super-admin-categories.md](./super-admin-categories.md) |
 
 ## Route groups
@@ -47,10 +48,9 @@
 
 ## Known gaps
 
-- Local-only support/rush-hour/restaurant-status, toast-only admin actions, the sub-user invite
-  being roster-only (no send/accept/login), notification preferences not yet consumed by a delivery
-  path, and the TTC-hardcoded district-admins page. See
-  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- Local-only support/rush-hour/restaurant-status, toast-only admin actions, manual invite-link
+  delivery (no email provider), `lowStock`/`campaigns` having no event producer yet, and the
+  TTC-hardcoded district-admins page. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

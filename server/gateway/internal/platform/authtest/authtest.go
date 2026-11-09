@@ -25,6 +25,7 @@ func Middleware() func(http.Handler) http.Handler {
 				SellerID:     strings.TrimSpace(r.Header.Get("X-Dev-Seller")),
 				StateCode:    strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-State"))),
 				DistrictCode: geo.Normalise(r.Header.Get("X-Dev-District")),
+				SubRole:      strings.ToUpper(strings.TrimSpace(r.Header.Get("X-Dev-Sub-Role"))),
 				Phone:        strings.TrimSpace(r.Header.Get("X-Dev-Phone")),
 			}
 			if id.UserID == "" {

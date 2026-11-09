@@ -56,6 +56,9 @@ type Identity struct {
 	SellerID     string
 	StateCode    string
 	DistrictCode string
+	// SubRole distinguishes a seller sub-user credential: STAFF (full console except owner-only
+	// actions) or VIEWER (read-only). Empty for a seller owner and every admin.
+	SubRole string
 	// Jti is the access-token id (portal tokens only) — used for logout denylisting.
 	Jti string
 	// Portal marks a gateway-native portal session (sub is a admins.portal_users id, not an app
@@ -122,6 +125,7 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				id.SellerID = claims.sellerID()
 				id.StateCode = claims.stateCode()
 				id.DistrictCode = claims.districtCode()
+				id.SubRole = claims.subRole()
 				id.Jti = claims.Jti
 				id.MustChange = claims.MustChange
 				id.Phone = claims.Phone
@@ -179,6 +183,45 @@ func RequireRole(roles ...string) func(http.Handler) http.Handler {
 	}
 }
 
+// RequireSellerOwner blocks a seller sub-user (STAFF or VIEWER) from an owner-only action: managing
+// the staff roster, account-level alert preferences, the business profile/bank account and the
+// sign-in identity. Admins are unaffected (this is a sub-user boundary, not a role gate).
+func RequireSellerOwner(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if Role(r.Context()) == RoleSeller && SubRole(r.Context()) != "" {
+			w.Header().Set("Content-Type", "application/json; charset=utf-8")
+			w.WriteHeader(http.StatusForbidden)
+			_, _ = w.Write([]byte(`{"error":"the shop owner only","code":"owner_only"}`))
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+// EnforceSubUserReadOnly makes VIEWER credentials read-only server-side. It is mounted globally
+// after the auth middleware so it covers every seller-scoped write across contexts, not just the
+// settings routes. Portal credential endpoints are exempt so a viewer can rotate their own password,
+// refresh and sign out. Non-sub-user callers are unaffected.
+func EnforceSubUserReadOnly() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if SubRole(r.Context()) == "VIEWER" {
+				switch r.Method {
+				case http.MethodGet, http.MethodHead, http.MethodOptions:
+				default:
+					if !strings.HasPrefix(r.URL.Path, "/auth/portal/") {
+						w.Header().Set("Content-Type", "application/json; charset=utf-8")
+						w.WriteHeader(http.StatusForbidden)
+						_, _ = w.Write([]byte(`{"error":"viewer accounts are read-only","code":"read_only"}`))
+						return
+					}
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 func unauthorized(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(http.StatusUnauthorized)
@@ -211,6 +254,14 @@ func Role(ctx context.Context) string {
 func SellerID(ctx context.Context) string {
 	if id, ok := ctx.Value(identityKey{}).(Identity); ok {
 		return id.SellerID
+	}
+	return ""
+}
+
+// SubRole returns the seller sub-user role (STAFF/VIEWER), or "" for an owner/admin.
+func SubRole(ctx context.Context) string {
+	if id, ok := ctx.Value(identityKey{}).(Identity); ok {
+		return id.SubRole
 	}
 	return ""
 }
@@ -389,6 +440,7 @@ type jwtClaims struct {
 	SellerID     string `json:"seller_id"`
 	StateCode    string `json:"state_code"`
 	DistrictCode string `json:"district_code"`
+	SubRole      string `json:"sub_role"`
 	AppMetadata  struct {
 		AppRole      string `json:"app_role"`
 		Role         string `json:"role"`
@@ -436,6 +488,18 @@ func (c jwtClaims) districtCode() string {
 		return geo.Normalise(c.DistrictCode)
 	}
 	return geo.Normalise(c.AppMetadata.DistrictCode)
+}
+
+// subRole canonicalises the seller sub-user role; anything other than STAFF/VIEWER becomes "".
+func (c jwtClaims) subRole() string {
+	switch strings.ToUpper(strings.TrimSpace(c.SubRole)) {
+	case "STAFF":
+		return "STAFF"
+	case "VIEWER":
+		return "VIEWER"
+	default:
+		return ""
+	}
 }
 
 // verifyToken accepts a Firebase ID token when configured, then falls back to the legacy

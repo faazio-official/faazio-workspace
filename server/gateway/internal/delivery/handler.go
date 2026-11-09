@@ -980,10 +980,29 @@ func (h *Handler) dispatch(ctx context.Context, req dispatchRequest, stateCode s
 		"riderId": best.Rider.RiderID, "customerOrderId": req.CustomerOrderID,
 	})
 	h.notifyRider(ctx, best.Rider, created)
+	h.notifySellerSLARisk(ctx, req.StoreID, req.CustomerOrderID, etaSeconds)
 	if otp != "" && req.CustomerUserID != "" {
 		h.notifyCustomerOTP(ctx, req.CustomerUserID, req.CustomerOrderID, otp)
 	}
 	return created, otp, true, nil
+}
+
+// sellerSLABreachSeconds is the projected end-to-end delivery time at/above which a fresh assignment
+// is treated as an at-risk pickup for the seller. Evaluated only when an order is dispatched, so no
+// scheduler is involved.
+const sellerSLABreachSeconds int64 = 30 * 60
+
+// notifySellerSLARisk warns the seller when a new assignment's projected end-to-end ETA is already at
+// or over the delivery-risk threshold. Best-effort: the dispatch result never depends on the alert.
+func (h *Handler) notifySellerSLARisk(ctx context.Context, storeID, customerOrderID string, etaSeconds int64) {
+	if h.notifier == nil || storeID == "" || etaSeconds < sellerSLABreachSeconds {
+		return
+	}
+	minutes := (etaSeconds + 59) / 60
+	_ = h.notifier.EnqueueSeller(ctx, []string{storeID}, "SELLER_SLA_BREACH",
+		"Delivery SLA at risk",
+		fmt.Sprintf("A delivery for order %s is projected to take about %d minutes.", customerOrderID, minutes),
+		map[string]any{"orderId": customerOrderID})
 }
 
 // notifyCustomerOTP enqueues the handover OTP to the customer's durable notification inbox so the

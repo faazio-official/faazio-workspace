@@ -11,7 +11,7 @@ import (
 
 func TestMintAccessVerifies(t *testing.T) {
 	m := NewMinter("portal-secret")
-	token, jti, exp, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", "", false)
+	token, jti, exp, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", "", "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestScopedAccessTokens(t *testing.T) {
 	m := NewMinter("portal-secret")
 	v := auth.NewPortalVerifier([]byte("portal-secret"), nil)
 
-	seller, _, _, err := m.MintAccess("pu-seller-1", auth.RoleSeller, "slr-1", "", "", false)
+	seller, _, _, err := m.MintAccess("pu-seller-1", auth.RoleSeller, "slr-1", "", "", "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestScopedAccessTokens(t *testing.T) {
 		t.Fatalf("unexpected seller claims: %+v", claims)
 	}
 
-	state, _, _, err := m.MintAccess("pu-district-1", auth.RoleDistrictAdmin, "", "tch", "tn", false)
+	state, _, _, err := m.MintAccess("pu-district-1", auth.RoleDistrictAdmin, "", "tch", "tn", "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestScopedAccessTokens(t *testing.T) {
 		t.Fatalf("district/state scope not normalized: %+v", claims)
 	}
 
-	noScope, _, _, err := m.MintAccess("pu-seller-2", auth.RoleSeller, "", "", "", false)
+	noScope, _, _, err := m.MintAccess("pu-seller-2", auth.RoleSeller, "", "", "", "", false)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestScopedAccessTokens(t *testing.T) {
 func TestExpiredAccessRejected(t *testing.T) {
 	m := NewMinter("portal-secret")
 	m.now = func() time.Time { return time.Now().Add(-2 * AccessTTL) }
-	token, _, _, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", "", true)
+	token, _, _, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", "", "", true)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,5 +102,35 @@ func TestRefreshTokenShape(t *testing.T) {
 	}
 	if raw == again {
 		t.Fatal("refresh tokens must be unique")
+	}
+}
+
+func TestSubRoleClaim(t *testing.T) {
+	m := NewMinter("portal-secret")
+	v := auth.NewPortalVerifier([]byte("portal-secret"), nil)
+
+	viewer, _, _, err := m.MintAccess("pu-staff-1", auth.RoleSeller, "slr-1", "", "", "VIEWER", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := v.Verify(context.Background(), viewer)
+	if err != nil {
+		t.Fatalf("viewer verify: %v", err)
+	}
+	if claims.SubRole != "VIEWER" || claims.SellerID != "slr-1" {
+		t.Fatalf("unexpected viewer claims: %+v", claims)
+	}
+
+	// A non-seller token can never carry a sub-user role.
+	admin, _, _, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", "", "VIEWER", false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err = v.Verify(context.Background(), admin)
+	if err != nil {
+		t.Fatalf("admin verify: %v", err)
+	}
+	if claims.SubRole != "" {
+		t.Fatalf("admin token kept a sub_role: %+v", claims)
 	}
 }

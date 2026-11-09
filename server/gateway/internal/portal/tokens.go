@@ -49,8 +49,10 @@ func (m *Minter) Enabled() bool { return m != nil && len(m.secret) > 0 }
 
 // MintAccess returns a signed HS256 access JWT and its jti/expiry. A seller login carries
 // seller_id; a district-admin login carries district_code plus the parent state_code (legacy
-// state-scoped admins may carry only state_code). The verifier rejects a missing scope.
-func (m *Minter) MintAccess(userID, role, sellerID, districtCode, stateCode string, mustChange bool) (token, jti string, expiresAt time.Time, err error) {
+// state-scoped admins may carry only state_code). A seller sub-user also carries sub_role
+// (STAFF|VIEWER) so the gateway can enforce the read-only / owner-only boundary server-side. The
+// verifier rejects a missing scope.
+func (m *Minter) MintAccess(userID, role, sellerID, districtCode, stateCode, subRole string, mustChange bool) (token, jti string, expiresAt time.Time, err error) {
 	if !m.Enabled() {
 		return "", "", time.Time{}, errors.New("portal: jwt secret not configured")
 	}
@@ -69,6 +71,7 @@ func (m *Minter) MintAccess(userID, role, sellerID, districtCode, stateCode stri
 		"seller_id":     sellerID,
 		"district_code": districtCode,
 		"state_code":    stateCode,
+		"sub_role":      subRole,
 		"jti":           jti,
 		"must_change":   mustChange,
 		"iat":           now.Unix(),

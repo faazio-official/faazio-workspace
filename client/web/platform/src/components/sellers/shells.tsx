@@ -326,6 +326,11 @@ export function SellerAppShell({ children }: { children: ReactNode }) {
         <SellerDesktopShell />
         <div className="flex min-w-0 flex-1 flex-col">
           <main className="relative mx-auto w-full flex-1 pb-[calc(var(--seller-nav-gap)+var(--seller-nav-h)+1.5rem+env(safe-area-inset-bottom))] md:max-w-[1024px] md:pb-10">
+            {session?.subRole === "VIEWER" ? (
+              <div className="mx-4 mt-3 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[12px] text-warning">
+                Viewer access — you can browse the console but cannot make changes.
+              </div>
+            ) : null}
             {scopeSwitching ? (
               <div className="pointer-events-none absolute inset-x-0 top-0 z-40 h-0.5 animate-fade bg-info/70" />
             ) : null}

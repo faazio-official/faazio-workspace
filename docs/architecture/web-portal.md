@@ -472,8 +472,10 @@ console and the super admin console on that device.
 - **Settings surfaces.** `/seller/settings` (editable Profile, Bank, Notifications,
   Sub-users and Security tabs plus Appearance; bank uses `GET`/`PUT /sellers/{id}/bank-account`,
   profile uses `PATCH /sellers/{id}`, notifications use `GET`/`PUT /seller/notifications/preferences`,
-  sub-users use `GET`/`POST /seller/sub-users` + `DELETE /seller/sub-users/{id}` (tables from `0097`;
-  invite is roster-only today — no send/accept/login),
+  sub-users use `GET`/`POST /seller/sub-users` + `POST /seller/sub-users/{id}/resend` + `DELETE
+  /seller/sub-users/{id}` (tables from `0097`/`0098`; the invite returns a one-time accept link the
+  owner shares, `/accept-invite?token=…` completes it — see
+  `docs/user-interaction-workflow/seller/web-portal/accept-invite.md`),
   and appearance is browser-local; **Security** rotates the seller's own sign-in email
   (`PUT /auth/portal/email`, re-auth popup) and password (`PUT /auth/portal/password`), see
   `docs/user-interaction-workflow/seller/web-portal/settings.md`),
@@ -773,10 +775,11 @@ browser                        Next.js route handlers                 Go gateway
   re-authenticates with the new password (`signIn`) and redirects to `homeFor(role)` — the session
   is replaced in one step instead of forcing a manual `/login` round-trip (fallback: sign-out →
   `/login`), and validation errors (`weak_password`, `invalid_current_password`) are surfaced.
-- **Email change** — a signed-in seller rotates their own sign-in email from `/seller/settings` →
-  Security (the UI today; `PUT /auth/portal/email` is also available to `SUPER_ADMIN` via the API,
-  but `/security`, which is password-only, has no email form yet). The endpoint is open to `SELLER`
-  and `SUPER_ADMIN`; a
+- **Email change** — a signed-in seller **owner** rotates their own sign-in email from
+  `/seller/settings` → Security (the UI today; `PUT /auth/portal/email` is also available to
+  `SUPER_ADMIN` via the API, but `/security`, which is password-only, has no email form yet). A
+  seller sub-user cannot change it (the roster owns the key; `403 email_change_not_allowed`). The
+  endpoint is open to `SELLER` and `SUPER_ADMIN`; a
   roster-bound `DISTRICT_ADMIN` is refused (`403 email_change_not_allowed`) because the district
   roster deactivates the login by `lower(email)`. The endpoint re-verifies the **current password** (a
   stolen access token alone cannot move the login identity), rejects a duplicate
