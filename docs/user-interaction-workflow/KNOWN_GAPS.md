@@ -125,7 +125,7 @@ here so the folder never claims full coverage it does not have. Add a page befor
 | Product list / edit | `/seller/products`, `/seller/products/[id]/edit` | Product list and edit surface; no dedicated page |
 | Local-only seller surfaces | `/seller/support`, `/seller/restaurant-status`, `/seller/rush-hour` | Client-local; see the seller gaps table above |
 | District admin | `/admin/district/*` | Documented only where a seller flow references it (KYC review, payouts) |
-| Super admin | `/admin/super/*` | Documented only where a seller flow references it |
+| Super admin | `/admin/super/*` (categories documented) | Category taxonomy + home-rail curation has a dedicated page ([web-portal/super-admin-categories.md](./seller/web-portal/super-admin-categories.md)); the rest are documented only where a seller flow references them |
 
 ## How to close a gap
 

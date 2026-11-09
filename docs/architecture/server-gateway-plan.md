@@ -213,13 +213,18 @@ caller) and are event-purged on store live toggle and product edit/status change
   stored secret; `is_public` + `value_secret` combined is rejected; key/category/variant are
   validated and values capped at 4 KiB. Only non-chicken-and-egg settings live here —
   `GATEWAY_URL`/`APP_VARIANT`/`TRANSPORT` stay build-time baked.
-- **Central category taxonomy (`internal/categories`, `0067`):** `GET /categories?app=&parent_id=`
-  (any signed-in account) and `GET /categories/rail` serve the superadmin-owned `taxonomy.categories`
-  tree — the Home header rail and the Mart/Pharma drill-in read it (no category fixture). Portal:
-  `GET /admin/categories` (includes deactivated rows), `POST /categories`, `PUT /categories/{id}`,
-  `DELETE /categories/{id}` (soft delete — `is_active=false`, references preserved; SUPER_ADMIN).
-  Seller onboarding selects a `categoryId` (validated app-scoped against the tree, optional) carried
-  on `POST /sellers` and `POST /sellers/{id}/edit`.
+- **Central category taxonomy (`internal/categories`, `0067` + `0096`):** `GET /categories?app=&parent_id=`
+  (any signed-in account) and `GET /categories/rail` (only active top-level rows with
+  `show_on_home_rail = true`, max 3 globally) serve the superadmin-owned `taxonomy.categories` tree —
+  the Home header rail and the Mart/Pharma drill-in read it (no category fixture). Portal:
+  `GET /admin/categories` (includes deactivated rows + `showOnHomeRail`), `POST /categories`,
+  `PUT /categories/{id}`, `DELETE /categories/{id}` (soft delete — `is_active=false`, references
+  preserved; SUPER_ADMIN). `showOnHomeRail` is accepted on create/update; FOOD and child categories
+  are rejected (`400`) and a fourth active rail row returns `409 rail_full`. Seller onboarding selects
+  a `categoryId` (validated app-scoped against the tree, optional) carried on `POST /sellers` and
+  `POST /sellers/{id}/edit`. Seller product creation accepts an optional `taxonomyCategoryId`
+  (active leaf for the store's app); the gateway validates it and folds the leaf `search_query` into
+  `catalog.products.search_tokens` (`0096`).
 - **Rider payouts (`internal/delivery`, `0052` + `0054`):** `GET /delivery/payouts` (rider history)
   and `GET /delivery/payouts/{orderId}` (upsert a PENDING calculation). The payout reuses the
   customer-billed distance + surge stored on `checkout.orders` (`delivery_distance_km`,

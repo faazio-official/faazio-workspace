@@ -103,6 +103,7 @@ describe("createProduct (live gateway mode)", () => {
     expect(body).toMatchObject({ storeId: "store-1", name: "Test Product", price: 199 });
     // 19900 paisa round-trips to 199 whole rupees on the wire.
     expect((body as { price: number }).price).toBe(parseRupeesToPaisa("199") / 100);
+    expect((body as { taxonomyCategoryId?: string }).taxonomyCategoryId).toBeUndefined();
 
     // The local store row adopts the server id and seeds a matching stock row.
     expect((h.state.products[0] as { productId: string }).productId).toBe("prod-x");
@@ -112,6 +113,15 @@ describe("createProduct (live gateway mode)", () => {
       lowStockThreshold: 12,
       etaMinutes: 30,
     });
+  });
+
+  it("forwards the taxonomy category id for discovery", async () => {
+    h.remotePost.mockResolvedValue({ id: "prod-tax", status: "PENDING_REVIEW" });
+
+    await createProduct(dto({ taxonomyCategoryId: "sub_snacks" }));
+
+    const body = h.remotePost.mock.calls[0]![1] as { taxonomyCategoryId?: string };
+    expect(body.taxonomyCategoryId).toBe("sub_snacks");
   });
 
   it("rejects a still-base64 data: photo (upload never reached media)", async () => {

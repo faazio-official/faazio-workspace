@@ -358,6 +358,8 @@ export interface CategoryRow {
   parentId: string | null;
   searchQuery?: string;
   isActive: boolean;
+  /** Curated onto the mobile Home header rail (max 3 active globally; FOOD is not eligible). */
+  showOnHomeRail: boolean;
   sortOrder: number;
   createdAt?: string;
   updatedAt?: string;
@@ -374,6 +376,7 @@ export interface CategoryInput {
   searchQuery?: string;
   sortOrder?: number;
   isActive?: boolean;
+  showOnHomeRail?: boolean;
 }
 
 /** Superadmin-only: every category (including deactivated) for the portal, optionally app-scoped. */
@@ -430,7 +433,10 @@ export function getProduct(productId: string): ProductRecord | undefined {
   return state().products.find((p) => p.productId === productId);
 }
 
-export type CreateProductInput = Omit<ProductRecord, "createdAt" | "productId">;
+export type CreateProductInput = Omit<ProductRecord, "createdAt" | "productId"> & {
+  /** Active taxonomy leaf for the store's app; the gateway validates and derives search tokens. */
+  taxonomyCategoryId?: string;
+};
 
 export async function createProduct(dto: CreateProductInput): Promise<ProductRecord> {
   // The gateway owns the product id. Seed/dev mode (no gateway) still needs a local row id.
@@ -451,6 +457,7 @@ export async function createProduct(dto: CreateProductInput): Promise<ProductRec
       storeId: dto.storeId,
       name: dto.name,
       category: dto.category,
+      taxonomyCategoryId: dto.taxonomyCategoryId,
       description: dto.description,
       // Gateway speaks whole rupees; the DB stores paisa.
       price: toRupees(dto.pricePaisa),
@@ -1282,6 +1289,12 @@ export async function fetchPlacements(): Promise<PlacementSummary[]> {
 export async function fetchCategories(app: Sector): Promise<CategoryRow[]> {
   if (!remoteConfigured()) return [];
   return remote.get<CategoryRow[]>(`/categories?app=${app}&top_level=true`);
+}
+
+/** Full active category tree of one app (`GET /categories?app=`), used by seller product creation. */
+export async function fetchCategoryTree(app: Sector): Promise<CategoryRow[]> {
+  if (!remoteConfigured()) return [];
+  return remote.get<CategoryRow[]>(`/categories?app=${app}`);
 }
 
 export function updateStore(storeId: string, patch: Partial<import("@/data/types").StoreRecord>): void {

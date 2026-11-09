@@ -11,6 +11,7 @@
 |---|---|
 | Portal auth + seller console shell | [seller-console.md](./seller-console.md) |
 | Seller notifications inbox | [notifications.md](./notifications.md) |
+| Super admin category taxonomy + home rail | [super-admin-categories.md](./super-admin-categories.md) |
 
 ## Route groups
 

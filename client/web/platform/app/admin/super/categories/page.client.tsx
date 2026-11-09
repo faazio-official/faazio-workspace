@@ -82,6 +82,7 @@ export function CategoriesPage() {
   const [formSearchQuery, setFormSearchQuery] = useState("");
   const [formSortOrder, setFormSortOrder] = useState("0");
   const [formActive, setFormActive] = useState(true);
+  const [formRail, setFormRail] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -107,6 +108,7 @@ export function CategoriesPage() {
     setFormSearchQuery("");
     setFormSortOrder("0");
     setFormActive(true);
+    setFormRail(false);
   }
 
   function openCreate() {
@@ -123,6 +125,7 @@ export function CategoriesPage() {
     setFormSearchQuery(row.searchQuery ?? "");
     setFormSortOrder(String(row.sortOrder));
     setFormActive(row.isActive);
+    setFormRail(row.showOnHomeRail);
     setEditing(row);
     setCreating(false);
   }
@@ -137,12 +140,42 @@ export function CategoriesPage() {
       toast.error("Category name is required.");
       return;
     }
+    if (formRail && formApp === "FOOD") {
+      toast.error("Food categories cannot appear on the home rail.");
+      return;
+    }
+    if (formRail && formParentId.trim()) {
+      toast.error("Only top-level categories can appear on the home rail.");
+      return;
+    }
+    if (formRail && formActive) {
+      // The rail is capped globally (Mart + Pharma share the three chips). Fetch the full tree so a
+      // per-app tab cannot hide an existing slot.
+      try {
+        const all = await listCategories("ALL");
+        const used = all.filter(
+          (c) => c.showOnHomeRail && c.isActive && c.id !== editing?.id,
+        ).length;
+        if (used >= 3) {
+          toast.error("The home rail is full", {
+            description: "Turn off another category first — only 3 can be on the home rail.",
+          });
+          return;
+        }
+      } catch (err) {
+        toast.error("Could not check the home rail", {
+          description: err instanceof Error ? err.message : undefined,
+        });
+        return;
+      }
+    }
     const input: CategoryInput = {
       app: formApp,
       name: formName.trim(),
       parentId: formParentId.trim() ? formParentId.trim() : null,
       sortOrder: Number.isFinite(Number(formSortOrder)) ? Number(formSortOrder) : 0,
       isActive: formActive,
+      showOnHomeRail: formRail,
       ...(formIconUrl.trim() ? { iconUrl: formIconUrl.trim() } : {}),
       ...(formSearchQuery.trim() ? { searchQuery: formSearchQuery.trim() } : {}),
     };
@@ -193,7 +226,7 @@ export function CategoriesPage() {
     <div className="space-y-4">
       <PageHeader
         title="Categories"
-        description="The central category taxonomy (Mart, Food, Pharma). Every app and seller picks from this list — delete hides a category without breaking existing references."
+        description="The central category taxonomy (Mart, Food, Pharma). Every app and seller picks from this list — delete hides a category without breaking existing references. Mark up to 3 top-level Mart/Pharma categories as the mobile home rail."
         actions={
           <Button size="sm" className="gap-2" onClick={openCreate}>
             <Plus className="size-4" /> New category
@@ -231,6 +264,7 @@ export function CategoriesPage() {
                 <TableHead>App</TableHead>
                 <TableHead>Parent</TableHead>
                 <TableHead>Active</TableHead>
+                <TableHead>Rail</TableHead>
                 <TableHead>Sort</TableHead>
                 <TableHead>Updated</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -249,6 +283,15 @@ export function CategoriesPage() {
                   </TableCell>
                   <TableCell>
                     <StatusPill status={row.isActive ? "ACTIVE" : "INACTIVE"} />
+                  </TableCell>
+                  <TableCell>
+                    {row.showOnHomeRail ? (
+                      <span className="rounded bg-brand-soft px-1.5 py-0.5 text-[10px] font-semibold text-brand">
+                        Rail
+                      </span>
+                    ) : (
+                      <span className="text-[12px] text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell className="num text-[12px] text-muted-foreground">
                     {row.sortOrder}
@@ -295,7 +338,14 @@ export function CategoriesPage() {
           <div className="space-y-4 px-4 pb-6">
             <div className="space-y-1.5">
               <Label>App</Label>
-              <Select value={formApp} onValueChange={(v) => setFormApp(v as Sector)}>
+              <Select
+                value={formApp}
+                onValueChange={(v) => {
+                  const next = v as Sector;
+                  setFormApp(next);
+                  if (next === "FOOD") setFormRail(false);
+                }}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
@@ -324,7 +374,10 @@ export function CategoriesPage() {
               <Input
                 id="category-parent"
                 value={formParentId}
-                onChange={(e) => setFormParentId(e.target.value)}
+                onChange={(e) => {
+                  setFormParentId(e.target.value);
+                  if (e.target.value.trim()) setFormRail(false);
+                }}
                 placeholder="blank = top level (e.g. cat_north_indian)"
                 disabled={Boolean(editing) && formParentId === editing?.id}
               />
@@ -368,6 +421,22 @@ export function CategoriesPage() {
                 </span>
               </label>
               <Switch id="category-active" checked={formActive} onCheckedChange={setFormActive} />
+            </div>
+
+            <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5">
+              <label htmlFor="category-rail" className="text-[13px]">
+                Home rail
+                <span className="block text-[11px] text-muted-foreground">
+                  Shows as a chip on the mobile home header. Max 3 active; food and child categories
+                  are not eligible.
+                </span>
+              </label>
+              <Switch
+                id="category-rail"
+                checked={formRail}
+                disabled={formApp === "FOOD" || Boolean(formParentId.trim())}
+                onCheckedChange={setFormRail}
+              />
             </div>
 
             <div className="flex justify-end gap-2">

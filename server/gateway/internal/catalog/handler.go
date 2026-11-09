@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"math"
 	"net/http"
 	"strconv"
@@ -137,16 +138,17 @@ func (h *Handler) purgeNearbyProductTiles(r *http.Request, storeID string) {
 func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Price          *int64  `json:"price"`
-		InStockQty     *int64  `json:"inStockQty"`
-		Available      *bool   `json:"available"`
-		ImageAssetID   *string `json:"imageAssetId"`
-		ImageKey       *string `json:"imageKey"`
-		Name           *string `json:"name"`
-		Description    *string `json:"description"`
-		Category       *string `json:"category"`
-		IsVeg          *bool   `json:"isVeg"`
-		IsPrescription *bool   `json:"isPrescription"`
+		Price              *int64  `json:"price"`
+		InStockQty         *int64  `json:"inStockQty"`
+		Available          *bool   `json:"available"`
+		ImageAssetID       *string `json:"imageAssetId"`
+		ImageKey           *string `json:"imageKey"`
+		Name               *string `json:"name"`
+		Description        *string `json:"description"`
+		Category           *string `json:"category"`
+		TaxonomyCategoryID *string `json:"taxonomyCategoryId"`
+		IsVeg              *bool   `json:"isVeg"`
+		IsPrescription     *bool   `json:"isPrescription"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
@@ -184,6 +186,10 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		}
 		body.Category = &category
 	}
+	if body.TaxonomyCategoryID != nil {
+		taxonomyCategoryID := strings.TrimSpace(*body.TaxonomyCategoryID)
+		body.TaxonomyCategoryID = &taxonomyCategoryID
+	}
 	sellerID, district, scopeOK := managementScope(r)
 	if !scopeOK {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
@@ -197,9 +203,14 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		Price: body.Price, InStockQty: body.InStockQty, Available: body.Available,
 		ImageKey: imageKey, ImageAssetID: imageAssetID,
 		Name: body.Name, Description: body.Description, Category: body.Category,
-		IsVeg: body.IsVeg, IsPrescription: body.IsPrescription,
+		TaxonomyCategoryID: body.TaxonomyCategoryID,
+		IsVeg:              body.IsVeg, IsPrescription: body.IsPrescription,
 	})
 	if err != nil {
+		if errors.Is(err, ErrInvalidTaxonomy) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "taxonomy category is invalid for this product")
+			return
+		}
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
 		return
 	}
@@ -430,20 +441,21 @@ func (h *Handler) storeProducts(w http.ResponseWriter, r *http.Request) {
 // as PENDING_REVIEW and both catalog.products + inventory.stock are written in one transaction.
 func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		StoreID        string         `json:"storeId"`
-		Name           string         `json:"name"`
-		Category       string         `json:"category"`
-		Desc           string         `json:"desc"`
-		Description    string         `json:"description"`
-		Price          int64          `json:"price"`
-		Unit           string         `json:"unit"`
-		Emoji          string         `json:"emoji"`
-		ImageURL       string         `json:"imageUrl"`
-		ImageKey       *string        `json:"imageKey"`
-		ImageAssetID   *string        `json:"imageAssetId"`
-		IsVeg          *bool          `json:"isVeg"`
-		IsPrescription bool           `json:"isPrescription"`
-		Attributes     map[string]any `json:"attributes"`
+		StoreID            string         `json:"storeId"`
+		Name               string         `json:"name"`
+		Category           string         `json:"category"`
+		TaxonomyCategoryID string         `json:"taxonomyCategoryId"`
+		Desc               string         `json:"desc"`
+		Description        string         `json:"description"`
+		Price              int64          `json:"price"`
+		Unit               string         `json:"unit"`
+		Emoji              string         `json:"emoji"`
+		ImageURL           string         `json:"imageUrl"`
+		ImageKey           *string        `json:"imageKey"`
+		ImageAssetID       *string        `json:"imageAssetId"`
+		IsVeg              *bool          `json:"isVeg"`
+		IsPrescription     bool           `json:"isPrescription"`
+		Attributes         map[string]any `json:"attributes"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
@@ -456,11 +468,12 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 	storeID := strings.TrimSpace(body.StoreID)
 	name := strings.TrimSpace(body.Name)
 	category := strings.TrimSpace(body.Category)
+	taxonomyCategoryID := strings.TrimSpace(body.TaxonomyCategoryID)
 	desc := strings.TrimSpace(body.Desc)
 	if desc == "" {
 		desc = strings.TrimSpace(body.Description)
 	}
-	if storeID == "" || name == "" || category == "" {
+	if storeID == "" || name == "" || (category == "" && taxonomyCategoryID == "") {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "storeId, name and category are required")
 		return
 	}
@@ -494,12 +507,16 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		imageURL = ""
 	}
 	p, found, err := h.repo.CreateProduct(r.Context(), sellerID, district, ProductCreateInput{
-		StoreID: storeID, Name: name, Category: category, Desc: desc,
+		StoreID: storeID, Name: name, Category: category, TaxonomyCategoryID: taxonomyCategoryID, Desc: desc,
 		Price: body.Price, Unit: body.Unit, Emoji: body.Emoji,
 		ImageURL: imageURL, ImageKey: imageKey, ImageAssetID: imageAssetID,
 		IsVeg: body.IsVeg, IsPrescription: body.IsPrescription, Attributes: body.Attributes,
 	})
 	if err != nil {
+		if errors.Is(err, ErrInvalidTaxonomy) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "taxonomy category is invalid for this store")
+			return
+		}
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
 		return
 	}

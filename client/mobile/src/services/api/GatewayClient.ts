@@ -399,6 +399,8 @@ export interface Category {
   /** Free-text vendor query for a leaf category (drill-in). Null on parent rows. */
   searchQuery?: string;
   isActive: boolean;
+  /** True when the superadmin curated this category onto the Home header rail. */
+  showOnHomeRail: boolean;
   sortOrder: number;
 }
 
@@ -1192,7 +1194,10 @@ export class GatewayClient {
     );
   }
 
-  /** Flat active top-level categories for the Home/Mart header rail (`GET /categories/rail`). */
+  /**
+   * Flat active top-level categories curated onto the Home/Mart header rail
+   * (`GET /categories/rail`, `show_on_home_rail = true`).
+   */
   async fetchCategoryRail(): Promise<Category[]> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     return this.http<Category[]>('/categories/rail');

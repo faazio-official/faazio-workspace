@@ -26,7 +26,8 @@
   `directory.stores`.
 - Cache: `faazio:v1:gateway:sdui:{locale}:/home` (300 s), purged on SDUI publish.
 - Supporting: `getProductsByIds` (`POST /products/batch`), `getActiveDiscounts`
-  (`GET /promo/active-discounts`), `fetchCategoryRail` (`GET /categories/rail`).
+  (`GET /promo/active-discounts`), `fetchCategoryRail` (`GET /categories/rail` — only active
+  top-level rows curated with `show_on_home_rail`, max 3 globally; FOOD is not eligible).
 - Offline shell: `@data/home/sections` registry + section fixtures, used only when the gateway is
   disabled. Online rails render server rows or an honest empty/error state.
 

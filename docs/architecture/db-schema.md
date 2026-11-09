@@ -166,7 +166,8 @@ CREATE TYPE app_brand AS ENUM ('MART','FOOD','PHARMA');
 CREATE TABLE catalog.products (
   id            TEXT PRIMARY KEY,            -- stable slug, e.g. 'md-1'
   app           app_brand NOT NULL,
-  category      TEXT NOT NULL,
+  category      TEXT NOT NULL,               -- GST/tax label, resolved against tax.tax_rates
+  taxonomy_category_id TEXT REFERENCES taxonomy.categories(id), -- discovery leaf (0096)
   name          TEXT NOT NULL,
   search_tokens TEXT[] NOT NULL DEFAULT '{}',
   price_paisa   INT8 NOT NULL,               -- money as paisa (₹1 = 100)
@@ -193,7 +194,8 @@ CREATE TABLE catalog.products (
 |---|---|---|---|---|
 | `id` | TEXT PK | ~4–8 | stable slug public key | PK, hash index |
 | `app` | ENUM | 1–4 | validation + filtering | partial index `(app)` |
-| `category` | TEXT | ~12 | grouping | btree |
+| `category` | TEXT | ~12 | GST/tax grouping (matched against `tax.tax_rates`) | btree |
+| `taxonomy_category_id` | TEXT | ~12 | active leaf of the app's `taxonomy.categories` tree (nullable, `0096`); the server folds the leaf `search_query` into `search_tokens` so the product is discoverable in the category drill-in | partial (`taxonomy_category_id IS NOT NULL`) |
 | `name` | TEXT | ~24 | display | — |
 | `search_tokens` | TEXT[] | var | Tantivy source | — |
 | `price_paisa` | INT8 | 8 | money as paisa | btree (price sort/filter) |
@@ -2326,12 +2328,12 @@ UPDATE directory.menus m SET seller_id = s.seller_id
 - Seller/app and admin RLS (`0050`) keeps its legacy state fallback; strict scoping is enforced in the
   gateway service layer. Media moderation and `admins` audit/customer reads are unchanged.
 
-### 12.30 Central category taxonomy — superadmin-owned tree (migrations `0067` + `0091`)
+### 12.30 Central category taxonomy — superadmin-owned tree (migrations `0067` + `0091` + `0096`)
 
 The single source of truth for every sub-app category (Mart, Food, Pharma): one parent/child tree
 owned by the superadmin (portal-only writes; the Go gateway, `service_role`, is the only writer).
-The app Home rail, the Mart/Pharma category drill-in and the seller-onboarding category picker all
-read it — there is no category fixture.
+The app Home rail, the Mart/Pharma category drill-in, the seller product category picker and seller
+onboarding all read it — there is no category fixture.
 
 ```sql
 CREATE SCHEMA taxonomy;
@@ -2346,6 +2348,7 @@ CREATE TABLE taxonomy.categories (
   parent_id    TEXT REFERENCES taxonomy.categories(id),  -- NULL = top-level
   search_query TEXT,                      -- leaf only: the drill-in vendor query
   is_active    BOOLEAN NOT NULL DEFAULT true,
+  show_on_home_rail BOOLEAN NOT NULL DEFAULT false,      -- curated Home chip (0096)
   sort_order   INT8 NOT NULL DEFAULT 0,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -2400,6 +2403,18 @@ CREATE TABLE taxonomy.categories (
   2 LIVE, store-scoped `STORE_TOP` hero campaigns per shop (`ad-cmp-shop-<store>-{1,2}`) targeting
   that shop's own top-2 products. Idempotent (`on conflict do nothing`); the `store-demo-*` portion
   self-guards on `seed/demo_sellers_ttc_karaikal.sql`.
+- **Home rail curation (`0096`):** `show_on_home_rail` marks the categories the mobile Home header
+  renders as chips. `GET /categories/rail` returns only `is_active AND show_on_home_rail` top-level
+  rows. The cap is **3 active rail categories globally** (Mart + Pharma share the slots; FOOD is
+  rejected because it has no consumer vendor pool), enforced by the gateway (`409 rail_full`) for
+  both create and update. `0096` seeds the previous first three MART roots (`cat_smart_gadgets`,
+  `cat_mobiles`, `cat_electronics`) so the rail never blanks on deploy.
+- **Product ↔ taxonomy link (`0096`):** `catalog.products.taxonomy_category_id` (nullable FK) points
+  at an **active leaf** of the store's app brand. Seller product creation sends the id; the gateway
+  validates the leaf and folds its `search_query` + name into `catalog.products.search_tokens`, so a
+  seller listing is discoverable through the same leaf query the category drill-in runs. The
+  human/GST-facing `catalog.products.category` column is unchanged (checkout still matches it against
+  `tax.tax_rates`).
 - **`DELETE /categories/{id}` is a soft delete** (`is_active = false`): hidden from the apps/rail,
   but existing sellers/products that reference it are never orphaned.
 - **RLS (Supabase only):** `anon`/`authenticated` SELECT active rows; `service_role` writes.

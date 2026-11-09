@@ -423,19 +423,45 @@ func (r *Repo) SetProductStatus(ctx context.Context, id, sellerID, district, sta
 // ProductCreateInput is the seller create-product payload. Money is whole rupees on the wire (the
 // repo converts to paisa at the insert boundary, matching ProductEdit).
 type ProductCreateInput struct {
-	StoreID        string
-	Name           string
-	Category       string
-	Desc           string
-	Price          int64 // rupees
-	Unit           string
-	Emoji          string
-	ImageURL       string
-	ImageKey       *string
-	ImageAssetID   *string
-	IsVeg          *bool
-	IsPrescription bool
-	Attributes     map[string]any
+	StoreID            string
+	Name               string
+	Category           string
+	TaxonomyCategoryID string
+	Desc               string
+	Price              int64 // rupees
+	Unit               string
+	Emoji              string
+	ImageURL           string
+	ImageKey           *string
+	ImageAssetID       *string
+	IsVeg              *bool
+	IsPrescription     bool
+	Attributes         map[string]any
+}
+
+// ErrInvalidTaxonomy is returned when a product's taxonomy_category_id is not an active leaf of the
+// store's app brand. The handler maps it to 400 (the store itself was valid).
+var ErrInvalidTaxonomy = errors.New("catalog: invalid taxonomy category")
+
+// taxonomyLeaf resolves an active leaf category for the app and returns its name + vendor search
+// query. A top-level/non-leaf id is rejected: products must attach to a drill-in leaf.
+func (r *Repo) taxonomyLeaf(ctx context.Context, q pgxQuerier, app, id string) (name, query string, err error) {
+	err = q.QueryRow(ctx, `
+		select t.name, coalesce(t.search_query, '')
+		  from taxonomy.categories t
+		 where t.id = $1 and t.app::text = $2 and t.is_active
+		   and not exists (
+		     select 1 from taxonomy.categories c where c.parent_id = t.id and c.is_active
+		   )`, id, app).Scan(&name, &query)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", "", ErrInvalidTaxonomy
+	}
+	return name, query, err
+}
+
+// pgxQuerier is satisfied by both *pgxpool.Pool and pgx.Tx.
+type pgxQuerier interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
 }
 
 // CreateProduct inserts a new catalog product owned by the calling seller and seeds its
@@ -457,7 +483,8 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 	storeID := strings.TrimSpace(e.StoreID)
 	name := strings.TrimSpace(e.Name)
 	category := strings.TrimSpace(e.Category)
-	if storeID == "" || name == "" || category == "" {
+	taxonomyID := strings.TrimSpace(e.TaxonomyCategoryID)
+	if storeID == "" || name == "" || (category == "" && taxonomyID == "") {
 		return SellerProduct{}, false, fmt.Errorf("catalog: store, name and category are required")
 	}
 
@@ -504,6 +531,21 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 		attrJSON = b
 	}
 
+	taxonomyName, taxonomyQuery := "", ""
+	var taxonomyPtr *string
+	if taxonomyID != "" {
+		taxonomyName, taxonomyQuery, err = r.taxonomyLeaf(ctx, tx, app, taxonomyID)
+		if err != nil {
+			return SellerProduct{}, false, err
+		}
+		taxonomyPtr = &taxonomyID
+		if category == "" {
+			// The GST label was omitted: fall back to the leaf name (GST resolves to the 5% default
+			// until a matching tax.tax_rates row exists). Discovery still uses the leaf query below.
+			category = taxonomyName
+		}
+	}
+
 	id := newProductID(app)
 	pricePaisa := e.Price * 100
 	// Ownership is not written here: the product's owner is its store's owner (0070).
@@ -511,14 +553,15 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 		insert into catalog.products
 		  (id, app, category, name, search_tokens, price_paisa, rating, reviews_count,
 		   emoji, image_url, image_key, image_asset_id, desc_text, unit, store_id, is_prescription,
-		   is_veg, attributes, status)
+		   is_veg, attributes, taxonomy_category_id, status)
 		values ($1, $2::app_brand, $3, $4, $5, $6, 0, 0,
 		        $7, $8, $9, $10, $11, $12, $13, $14,
-		        $15, $16, 'PENDING_REVIEW'::product_status)`,
-		id, app, category, name, searchTokens(name, category, e.Desc), pricePaisa,
+		        $15, $16, $17, 'PENDING_REVIEW'::product_status)`,
+		id, app, category, name,
+		searchTokens(name, category, e.Desc, taxonomyName, taxonomyQuery), pricePaisa,
 		strings.TrimSpace(e.Emoji), strings.TrimSpace(e.ImageURL), e.ImageKey, e.ImageAssetID,
 		strings.TrimSpace(e.Desc), strings.TrimSpace(e.Unit), storeID, e.IsPrescription, e.IsVeg,
-		attrJSON); err != nil {
+		attrJSON, taxonomyPtr); err != nil {
 		return SellerProduct{}, false, err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -567,17 +610,18 @@ func newProductID(app string) string {
 // ProductEdit is the seller price/stock/image edit payload (money in whole rupees; nil = leave
 // unchanged). ImageKey/ImageAssetID link a confirmed media asset; a pointer to "" clears the image.
 type ProductEdit struct {
-	Price          *int64
-	InStockQty     *int64
-	Available      *bool
-	Eta            *string
-	ImageKey       *string
-	ImageAssetID   *string
-	Name           *string
-	Description    *string
-	Category       *string
-	IsVeg          *bool
-	IsPrescription *bool
+	Price              *int64
+	InStockQty         *int64
+	Available          *bool
+	Eta                *string
+	ImageKey           *string
+	ImageAssetID       *string
+	Name               *string
+	Description        *string
+	Category           *string
+	TaxonomyCategoryID *string
+	IsVeg              *bool
+	IsPrescription     *bool
 }
 
 // UpdateProduct edits price/stock for a seller's product. The row must belong to sellerID, or
@@ -597,18 +641,20 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 	var (
 		owner         *string
 		ownerDistrict string
+		app           string
 		curName       string
 		curDesc       string
 		curCategory   string
+		curTaxonomy   string
 	)
 	if err := tx.QueryRow(ctx, `
-		select st.seller_id, coalesce(se.district_code, ''), p.name,
-		       coalesce(p.desc_text,''), p.category
+		select st.seller_id, coalesce(se.district_code, ''), st.app::text, p.name,
+		       coalesce(p.desc_text,''), p.category, coalesce(p.taxonomy_category_id, '')
 		  from catalog.products p
 		  join directory.stores st on st.id = p.store_id
 		  left join sellers.sellers se on se.seller_id = st.seller_id
 		 where p.id = $1 and p.deleted_at is null
-		 for update of p`, id).Scan(&owner, &ownerDistrict, &curName, &curDesc, &curCategory); err != nil {
+		 for update of p`, id).Scan(&owner, &ownerDistrict, &app, &curName, &curDesc, &curCategory, &curTaxonomy); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerProduct{}, false, nil
 		}
@@ -624,7 +670,7 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 			return SellerProduct{}, false, nil
 		}
 	}
-	if e.Name != nil || e.Description != nil || e.Category != nil || e.IsVeg != nil || e.IsPrescription != nil {
+	if e.Name != nil || e.Description != nil || e.Category != nil || e.TaxonomyCategoryID != nil || e.IsVeg != nil || e.IsPrescription != nil {
 		newName, newDesc, newCategory := curName, curDesc, curCategory
 		if e.Name != nil {
 			newName = strings.TrimSpace(*e.Name)
@@ -635,6 +681,24 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 		if e.Category != nil {
 			newCategory = strings.TrimSpace(*e.Category)
 		}
+		taxonomyID := curTaxonomy
+		if e.TaxonomyCategoryID != nil {
+			taxonomyID = strings.TrimSpace(*e.TaxonomyCategoryID)
+		}
+		taxonomyName, taxonomyQuery := "", ""
+		if taxonomyID != "" {
+			taxonomyName, taxonomyQuery, err = r.taxonomyLeaf(ctx, tx, app, taxonomyID)
+			if err != nil {
+				return SellerProduct{}, false, err
+			}
+			if newCategory == "" {
+				newCategory = taxonomyName
+			}
+		}
+		var taxonomyPtr *string
+		if taxonomyID != "" {
+			taxonomyPtr = &taxonomyID
+		}
 		if _, err := tx.Exec(ctx, `
 			update catalog.products
 			   set name            = $2,
@@ -642,10 +706,12 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 			       category        = $4,
 			       search_tokens   = $5,
 			       is_veg          = coalesce($6, is_veg),
-			       is_prescription = coalesce($7, is_prescription)
+			       is_prescription = coalesce($7, is_prescription),
+			       taxonomy_category_id = $8
 			 where id = $1`,
-			id, newName, newDesc, newCategory, searchTokens(newName, newCategory, newDesc),
-			e.IsVeg, e.IsPrescription); err != nil {
+			id, newName, newDesc, newCategory,
+			searchTokens(newName, newCategory, newDesc, taxonomyName, taxonomyQuery),
+			e.IsVeg, e.IsPrescription, taxonomyPtr); err != nil {
 			return SellerProduct{}, false, err
 		}
 	}

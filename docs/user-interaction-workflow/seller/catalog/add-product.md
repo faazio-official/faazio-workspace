@@ -6,15 +6,22 @@
 
 ## Steps
 
-1. Seller fills name, category, app, price, unit, description, image, and stock.
-2. Image upload uses the media pipeline (`POST /media/upload-url` → R2 `PUT` → `POST /media/confirm`).
-3. Save calls `createProduct(input)` (`POST /seller/products`).
-4. The gateway writes `catalog.products` + `inventory.stock` in one transaction and defaults the
-   product to `PENDING_REVIEW`.
-5. `updateStock` (`PUT /seller/inventory/{productId}`) sets qty/ETA.
-6. The product appears in `GET /seller/products` and the admin review queue
+1. Seller picks the store, then a **Category** — the active taxonomy **leaf** for that store's app
+   (`GET /categories?app=`, `taxonomy.categories`) — and a **GST category** from the platform rate
+   master (`GET /tax/categories`, `tax.tax_rates`). Picking a leaf pre-selects the matching GST
+   bucket when the names align; the seller can change it. GST stays a separate bucket because
+   checkout resolves the rate from `catalog.products.category`.
+2. Seller fills name, price, unit, description, image, and stock.
+3. Image upload uses the media pipeline (`POST /media/upload-url` → R2 `PUT` → `POST /media/confirm`).
+4. Save calls `createProduct(input)` (`POST /seller/products`) with `taxonomyCategoryId`.
+5. The gateway verifies the taxonomy id is an **active leaf of the store's app brand**, folds its
+   `search_query` + name into `catalog.products.search_tokens` (so the listing is discoverable in the
+   category drill-in), then writes `catalog.products` + `inventory.stock` in one transaction and
+   defaults the product to `PENDING_REVIEW`.
+6. `updateStock` (`PUT /seller/inventory/{productId}`) sets qty/ETA.
+7. The product appears in `GET /seller/products` and the admin review queue
    (`/admin/*/products/queue`).
-7. Admin activation: the listing appears in the district/super admin product queue
+8. Admin activation: the listing appears in the district/super admin product queue
    (`/admin/*/products/queue`). **Approve** calls `setProductStatus(id, "ACTIVE")`; **Reject** opens a
    dialog that collects a required reason and calls `setProductStatus(id, "REJECTED", reason)` →
    `PUT /seller/products/{id}/status`. The reason is persisted and shown to the seller.
@@ -44,7 +51,8 @@
 
 ## Data path
 
-- `POST /seller/products` → `catalog.products`, `inventory.stock`.
+- `POST /seller/products` → `catalog.products` (`category` = GST label, `taxonomy_category_id` =
+  validated active leaf, `search_tokens` enriched with the leaf's `search_query`), `inventory.stock`.
 - `PUT /seller/products/{id}/status` → `catalog.products.status`, `catalog.products.review_reason`;
   ACTIVE/REJECTED enqueues `notifications.outbox` (seller fan-out).
 - `PUT /seller/inventory/{productId}` → `inventory.stock`.

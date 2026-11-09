@@ -29,6 +29,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Orders | Payouts / ledger / invoices | portal `/seller/payments` | [payouts-ledger.md](./orders/payouts-ledger.md) |
 | Web portal | Console shell + auth | `/seller/*` | [web-portal/index.md](./web-portal/index.md) · [seller-console.md](./web-portal/seller-console.md) |
 | Web portal | Notifications inbox | `/seller/notifications` | [web-portal/notifications.md](./web-portal/notifications.md) |
+| Web portal | Super admin categories + home rail | `/admin/super/categories` | [web-portal/super-admin-categories.md](./web-portal/super-admin-categories.md) |
 
 ## Cross-cutting rules
 

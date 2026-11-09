@@ -48,6 +48,34 @@ func TestValidID(t *testing.T) {
 	}
 }
 
+func TestHomeRailError(t *testing.T) {
+	yes, no := true, false
+	parent := "cat_smart_gadgets"
+	for _, tt := range []struct {
+		name   string
+		app    string
+		parent *string
+		show   *bool
+		want   string
+	}{
+		{"unset", "MART", nil, nil, ""},
+		{"off", "MART", nil, &no, ""},
+		{"mart top level", "MART", nil, &yes, ""},
+		{"pharma top level", "PHARMA", nil, &yes, ""},
+		{"food rejected", "FOOD", nil, &yes, "FOOD categories cannot appear on the home rail"},
+		{"child rejected", "MART", &parent, &yes, "only top-level categories can appear on the home rail"},
+		{"empty child id allowed", "MART", ptr(""), &yes, ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := homeRailError(tt.app, tt.parent, tt.show); got != tt.want {
+				t.Fatalf("homeRailError(%q, %v, %v) = %q, want %q", tt.app, tt.parent, tt.show, got, tt.want)
+			}
+		})
+	}
+}
+
+func ptr(s string) *string { return &s }
+
 // TestCreateValidation pins the 400s that run before any DB access: with a nil pool every accepted
 // body would 500, so a 400 proves the validator rejected it first.
 func TestCreateValidation(t *testing.T) {
@@ -58,6 +86,8 @@ func TestCreateValidation(t *testing.T) {
 		{"name too long", `{"app":"MART","name":"` + strings.Repeat("a", 121) + `"}`},
 		{"bad id", `{"app":"MART","name":"X","id":"bad id!"}`},
 		{"body not json", `{`},
+		{"food rail", `{"app":"FOOD","name":"X","showOnHomeRail":true}`},
+		{"child rail", `{"app":"MART","name":"X","parentId":"cat_smart_gadgets","showOnHomeRail":true}`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/categories", strings.NewReader(tt.body))

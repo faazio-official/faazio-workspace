@@ -65,9 +65,19 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	h.respond(w, r, opts)
 }
 
-// rail returns the flat active top-level categories for the home header rail.
+// rail returns the curated active top-level categories for the home header rail.
 func (h *Handler) rail(w http.ResponseWriter, r *http.Request) {
-	h.respond(w, r, ListOptions{TopLevel: true, ActiveOnly: true})
+	opts := ListOptions{
+		App:          strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("app"))),
+		TopLevel:     true,
+		ActiveOnly:   true,
+		HomeRailOnly: true,
+	}
+	if opts.App != "" && !validApp(opts.App) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "unknown app")
+		return
+	}
+	h.respond(w, r, opts)
 }
 
 // adminList returns every category (including deactivated) for the portal.
@@ -110,10 +120,18 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "parent category is invalid")
 		return
 	}
+	if msg := homeRailError(req.App, req.ParentID, req.ShowOnHomeRail); msg != "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", msg)
+		return
+	}
 	item, err := h.repo.Create(r.Context(), req, auth.UserID(r.Context()))
 	if err != nil {
 		if errors.Is(err, ErrDuplicate) {
 			httpx.Fail(w, http.StatusConflict, "conflict", "a category with this id already exists")
+			return
+		}
+		if errors.Is(err, ErrRailLimit) {
+			httpx.Fail(w, http.StatusConflict, "rail_full", "the home rail already has 3 active categories")
 			return
 		}
 		httpx.Fail(w, http.StatusInternalServerError, "categories_write_failed", "could not save category")
@@ -143,10 +161,18 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "parent category is invalid")
 		return
 	}
+	if msg := homeRailError(req.App, req.ParentID, req.ShowOnHomeRail); msg != "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", msg)
+		return
+	}
 	item, err := h.repo.Update(r.Context(), id, req, auth.UserID(r.Context()))
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			httpx.Fail(w, http.StatusNotFound, "not_found", "category not found")
+			return
+		}
+		if errors.Is(err, ErrRailLimit) {
+			httpx.Fail(w, http.StatusConflict, "rail_full", "the home rail already has 3 active categories")
 			return
 		}
 		httpx.Fail(w, http.StatusInternalServerError, "categories_write_failed", "could not save category")
@@ -167,6 +193,21 @@ func (h *Handler) remove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "deactivated": true, "id": id})
+}
+
+// homeRailError rejects rail selections the customer app cannot render: FOOD has no consumer vendor
+// pool, and only top-level rows can be a rail chip (the drill-in expects a root tab).
+func homeRailError(app string, parentID *string, show *bool) string {
+	if show == nil || !*show {
+		return ""
+	}
+	if app == "FOOD" {
+		return "FOOD categories cannot appear on the home rail"
+	}
+	if parentID != nil && strings.TrimSpace(*parentID) != "" {
+		return "only top-level categories can appear on the home rail"
+	}
+	return ""
 }
 
 // validParent accepts a nil parent, or a parent that exists for the same app.

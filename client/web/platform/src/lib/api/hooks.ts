@@ -282,6 +282,27 @@ export function useCategories(app: import("@/data/types").Sector): api.CategoryR
   return items;
 }
 
+/** Full active category tree of one app (`GET /categories?app=`), for seller product creation. */
+export function useCategoryTree(app: import("@/data/types").Sector): api.CategoryRow[] {
+  const [items, setItems] = useState<api.CategoryRow[]>([]);
+  useEffect(() => {
+    if (!remoteConfigured()) return;
+    let cancelled = false;
+    api
+      .fetchCategoryTree(app)
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [app]);
+  return items;
+}
+
 /** One IST-day analytics bucket (from checkout.orders via GET /analytics/series). */
 type AnalyticsDailyPoint = import("@/data/types").DailyPoint;
 

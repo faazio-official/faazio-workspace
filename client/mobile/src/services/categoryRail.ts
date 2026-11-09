@@ -3,7 +3,8 @@ import type { VendorApp } from '@/services/categoryVendors';
 
 /**
  * One tappable chip in the Home/Mart header category rail. Sourced from the superadmin-owned
- * `taxonomy.categories` top-level rows (`GET /categories/rail`) — never a local fixture.
+ * `taxonomy.categories` top-level rows curated with `show_on_home_rail` (`GET /categories/rail`) —
+ * never a local fixture.
  */
 export interface CategoryRailItem {
   /** `taxonomy.categories.id` — deep-links the CategoryDrillIn page. */

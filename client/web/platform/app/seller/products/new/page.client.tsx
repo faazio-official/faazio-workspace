@@ -1,12 +1,12 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader, Card, Sheet, RadioRow, TextField, Toggle, EmptyState, FixedActionBar } from "@/components/sellers/kit";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { createProduct, updateStock } from "@/lib/api";
-import { useSellerScope, useTaxCategories } from "@/lib/api/hooks";
+import { useCategoryTree, useSellerScope, useTaxCategories } from "@/lib/api/hooks";
 import { sectorLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
@@ -29,17 +29,31 @@ function NewProduct() {
   }, [storeId, activeStore]);
   const [step, setStep] = useState(0);
   const [category, setCategory] = useState("");
+  const [taxonomyCategoryId, setTaxonomyCategoryId] = useState("");
+  const [taxonomyName, setTaxonomyName] = useState("");
 
   // Sector follows the picked store — a seller can own Mart + Food + Pharma shops, so the listing
   // must carry the picked store's sector (productId prefix, category list, veg/Rx toggles).
   const pickedStore = storeId ? stores.find((s) => s.storeId === storeId) : undefined;
   const sector: Sector = pickedStore?.sector ?? activeStore?.sector ?? "MART";
   const categories = useTaxCategories(sector);
+  // Discovery category: the active taxonomy leaf the home rail / drill-in reads. App-scoped.
+  const tree = useCategoryTree(sector);
+  const leaves = useMemo(() => {
+    const parents = new Set(tree.map((c) => c.parentId).filter((id): id is string => Boolean(id)));
+    return tree.filter((c) => !parents.has(c.id));
+  }, [tree]);
+  const taxonomyParentName = (id: string | null) =>
+    id ? tree.find((c) => c.id === id)?.name ?? "" : "";
 
-  // If the chosen store belongs to another sector, the previously picked category no longer exists.
+  // If the chosen store belongs to another sector, the previously picked categories no longer exist.
   const [sectorForCategory, setSectorForCategory] = useState("");
   useEffect(() => {
-    if (sectorForCategory && sectorForCategory !== sector) setCategory("");
+    if (sectorForCategory && sectorForCategory !== sector) {
+      setCategory("");
+      setTaxonomyCategoryId("");
+      setTaxonomyName("");
+    }
     setSectorForCategory(sector);
   }, [sector, sectorForCategory]);
 
@@ -53,7 +67,8 @@ function NewProduct() {
   const [quantity, setQuantity] = useState("0");
 
   const [storePicker, setStorePicker] = useState(false);
-  const [catPicker, setCatPicker] = useState(false);
+  const [taxPicker, setTaxPicker] = useState(false);
+  const [gstPicker, setGstPicker] = useState(false);
 
   const pricePaisa = parseRupeesToPaisa(price);
   const selected = categories.find((c) => c.category === category);
@@ -72,7 +87,7 @@ function NewProduct() {
   const sellerNetPaisa = pricePaisa - commissionPaisa - tcsPaisa - tdsPaisa;
 
   const stepValid = [
-    Boolean(sector && storeId && category.trim()),
+    Boolean(sector && storeId && taxonomyCategoryId && category.trim()),
     name.trim().length > 2 && description.trim().length > 5 && images.length > 0,
     pricePaisa > 0,
     Number(quantity) >= 0,
@@ -90,6 +105,7 @@ function NewProduct() {
         description: description.trim(),
         sector,
         category: category.trim(),
+        taxonomyCategoryId,
         emoji: "",
         imageUrl: images[0] ?? "",
         galleryUrls: images.slice(1),
@@ -182,10 +198,19 @@ function NewProduct() {
                 {stores.find((s) => s.storeId === storeId)?.name ?? "Pick the store that stocks this listing"}
               </p>
             </Card>
-            <Card onClick={() => setCatPicker(true)} className="cursor-pointer">
+            <Card onClick={() => setTaxPicker(true)} className="cursor-pointer">
               <p className="text-xs font-medium text-muted-foreground">Category</p>
               <p className="mt-1 text-sm font-semibold">
-                {category ? `${category} · GST ${taxRatePct}%` : "Pick an approved category"}
+                {taxonomyName || "Pick an approved category"}
+              </p>
+              <p className="mt-0.5 text-[11px] text-muted-foreground">
+                The app-scoped taxonomy used by the home rail and category drill-in.
+              </p>
+            </Card>
+            <Card onClick={() => setGstPicker(true)} className="cursor-pointer">
+              <p className="text-xs font-medium text-muted-foreground">GST category</p>
+              <p className="mt-1 text-sm font-semibold">
+                {category ? `${category} · GST ${taxRatePct}%` : "Pick the GST category"}
               </p>
             </Card>
           </>
@@ -279,7 +304,8 @@ function NewProduct() {
               ))}
             </div>
             <dl className="divide-y divide-border text-sm">
-              <Row label="Sector / category" value={`${sectorLabel(sector)} · ${category}`} />
+              <Row label="Sector / category" value={`${sectorLabel(sector)} · ${taxonomyName}`} />
+              <Row label="GST category" value={category} />
               <Row label="Name" value={name} />
               <Row label="Unit" value={unit} />
               <Row label="Price (GST incl.)" value={formatINR(pricePaisa)} />
@@ -349,7 +375,35 @@ function NewProduct() {
         ))}
       </Sheet>
 
-      <Sheet open={catPicker} onClose={() => setCatPicker(false)} title="Category">
+      <Sheet open={taxPicker} onClose={() => setTaxPicker(false)} title="Category">
+        {leaves.length === 0 ? (
+          <p className="px-1 py-3 text-[12px] text-muted-foreground">
+            No categories are configured for {sectorLabel(sector)} yet. Ask an admin to add one.
+          </p>
+        ) : (
+          leaves.map((c) => (
+            <RadioRow
+              key={c.id}
+              label={c.name}
+              sub={taxonomyParentName(c.parentId) || "Top level"}
+              checked={taxonomyCategoryId === c.id}
+              onClick={() => {
+                setTaxonomyCategoryId(c.id);
+                setTaxonomyName(c.name);
+                // Pre-select the matching GST bucket when the names line up; the seller can still
+                // change it in the GST category picker.
+                const match = categories.find(
+                  (t) => t.category.toLowerCase() === c.name.toLowerCase(),
+                );
+                if (match) setCategory(match.category);
+                setTaxPicker(false);
+              }}
+            />
+          ))
+        )}
+      </Sheet>
+
+      <Sheet open={gstPicker} onClose={() => setGstPicker(false)} title="GST category">
         {categories.map((c) => (
           <RadioRow
             key={c.taxRateId}
@@ -358,7 +412,7 @@ function NewProduct() {
             checked={category === c.category}
             onClick={() => {
               setCategory(c.category);
-              setCatPicker(false);
+              setGstPicker(false);
             }}
           />
         ))}
