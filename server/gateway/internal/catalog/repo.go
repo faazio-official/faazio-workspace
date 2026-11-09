@@ -200,7 +200,9 @@ func (r *Repo) Search(ctx context.Context, q, app string, limit int) ([]contract
 	return r.SearchScoped(ctx, q, app, limit)
 }
 
-// SearchScoped is Search with an explicit app filter.
+// SearchScoped is Search with an explicit app filter. Only ACTIVE rows surface (mirroring Nearby and
+// ByStorePage) so a PENDING_REVIEW/DRAFT/REJECTED/DELISTED listing never leaks into shopper search or
+// the category drill-in before an admin approves it.
 func (r *Repo) SearchScoped(ctx context.Context, q, app string, limit int) ([]contracts.Product, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("catalog: database not configured")
@@ -214,12 +216,13 @@ func (r *Repo) SearchScoped(ctx context.Context, q, app string, limit int) ([]co
 	)
 	if q == "" {
 		rows, err = r.pool.Query(ctx, productListSelect+
-			` where p.deleted_at is null and ($1 = '' or p.app::text = $1) order by p.rating desc, p.reviews_count desc limit $2`, app, limit)
+			` where p.deleted_at is null and p.status = 'ACTIVE' and ($1 = '' or p.app::text = $1) order by p.rating desc, p.reviews_count desc limit $2`, app, limit)
 	} else {
 		// FTS only: the pg_trgm `%` fallback was dropped with products_name_trgm_idx (0005) so the
 		// planner stays on products_search_vec_idx instead of seq-scanning the OR.
 		rows, err = r.pool.Query(ctx, productListSelect+`
 			where p.deleted_at is null
+			  and p.status = 'ACTIVE'
 			  and p.search_vec @@ websearch_to_tsquery('simple', catalog.immutable_unaccent($1))
 			  and ($2 = '' or p.app::text = $2)
 			order by ts_rank(p.search_vec, websearch_to_tsquery('simple', catalog.immutable_unaccent($1))) desc,

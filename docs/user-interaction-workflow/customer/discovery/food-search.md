@@ -9,7 +9,7 @@
 1. `FoodHomeScreen` navigates `FoodStack` → `Search` (`navigation/FoodStack.tsx:24`).
 2. `FoodSearchScreen` composes the shared `SearchScreen` shell with the Food config
    (`createFoodSearchConfig`): dishes-only, toggle-less, with restaurant filter chips.
-3. Results come from `config.fetch` → `searchProducts` (`GET /search/products`), filtered by the
+3. Results come from `config.fetch` → `searchProducts` (`GET /search`), filtered by the
    Food veg/non-veg `useFoodFilterStore.dietFilter`.
 4. Tapping a dish maps it with `dishToProduct` and navigates the root stack to
    `ProductDetail` (`{ product }`).
@@ -23,7 +23,7 @@
 
 ## Data path
 
-- `searchProducts` → `GET /search/products` → `catalog.products` / `directory.stores`.
+- `searchProducts` → `GET /search` → `catalog.products` / `directory.stores` (ACTIVE rows only).
 - Offline: `SearchScreen` renders an explicitly labelled "Showing offline results" shell; it never
   presents fixture rows as live.
 

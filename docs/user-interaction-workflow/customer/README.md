@@ -59,8 +59,9 @@ Domain indexes are the entry point for each area; every flow page is linked from
 
 See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Customer-specific gaps currently include the dead
 `PaymentOptions` route registration, the unreachable `Checkout` button in `SubAppWrapper`, the
-invoice-PDF stub, the root `Search` `FOOD` config mismatch, Home rail fixture substitution, and the
-`@mock` self-pickup resolver.
+invoice-PDF stub, the root `Search` `FOOD` config mismatch, and the `@mock` self-pickup resolver.
+The Home header category rail reads the server taxonomy only (`GET /categories/rail`) — there is no
+fixture substitution.
 
 ## Not yet documented (tracked in KNOWN_GAPS.md)
 

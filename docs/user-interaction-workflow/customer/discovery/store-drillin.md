@@ -29,7 +29,9 @@
 - `gateway.fetchCategories(app?, parentId?)` → `GET /categories` → `taxonomy.categories`.
 - `gateway.getStores(app?)` / `getStoresNearby(origin)` → `GET /stores`, `/stores/nearby` →
   `directory.stores`.
-- `gateway.searchProducts(query, app?)` → `GET /search` → `catalog.products` FTS.
+- `gateway.searchProducts(query, app?)` → `GET /search` → `catalog.products` FTS. Only `status =
+  'ACTIVE'` (and non-deleted) rows surface, so a seller listing still in `PENDING_REVIEW` never
+  reaches the drill-in before an admin approves it.
 - `gateway.getStore(id)` → `GET /store/{id}` → `directory.stores`.
 - `gateway.getStoreProducts(storeId)` → `GET /stores/{id}/products` → `catalog.products` +
   `inventory.stock`.

@@ -140,3 +140,54 @@ func TestByStorePageActiveOnly(t *testing.T) {
 		t.Fatalf("keyset page = %+v, want %s first", next, active2)
 	}
 }
+
+// TestSearchActiveOnly pins that FTS search surfaces ACTIVE rows only: a PENDING_REVIEW listing
+// (and any other non-ACTIVE status) must never reach a shopper through GET /search, which is what
+// backs both the global search screen and the category drill-in. Mirrors the ByStorePage guarantee.
+func TestSearchActiveOnly(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	storeID := "st-search-" + manageID("")
+	sellerID := "sel-search-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		values ($1,'Search Test','O','KA')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, rating, seller_id)
+		values ($1,'MART','Search Vendor Test', 4.0, $2)`, storeID, sellerID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID)
+	})
+
+	// A unique probe token lives in both rows' search_tokens, so the only difference is status.
+	const probe = "zzsearchactiveprobe"
+	active, pending := "prod-"+manageID(""), "prod-"+manageID("")
+	seed := func(id, status string) {
+		if _, err := pool.Exec(ctx, `
+			insert into catalog.products (id, app, category, name, search_tokens, price_paisa, store_id, rating, status)
+			values ($1,'MART','Test','Search Probe', ARRAY[$2]::text[], 10000, $3, 4.0, $4)`,
+			id, probe, storeID, status); err != nil {
+			t.Fatalf("seed product %s: %v", id, err)
+		}
+	}
+	seed(active, "ACTIVE")
+	seed(pending, "PENDING_REVIEW")
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from catalog.products where id = any($1)`, []string{active, pending})
+	})
+
+	got, err := repo.Search(ctx, probe, "MART", 0)
+	if err != nil {
+		t.Fatalf("Search: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != active {
+		t.Fatalf("Search returned %d rows (%+v), want only ACTIVE %s", len(got), got, active)
+	}
+}
