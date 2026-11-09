@@ -9,6 +9,7 @@ import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
 import AppText from '@/components/AppText';
 import { useRestaurantFeed } from '../hooks/useRestaurantFeed';
+import { storeToRestaurant } from '../services/restaurantFeedService';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { FoodRestaurant, SpecialDish, FoodType } from '../types';
 import { dishToProduct } from '@data/food/specials';
@@ -67,9 +68,10 @@ export function FoodHomeScreen({ navigation }: Props) {
     [navigation],
   );
 
-  /** Resolve a paid FOOD_HERO venue target to a known restaurant; otherwise resolve the store/venue
-   *  directly (delivery kitchens store-f* never appear in the restaurant feed) so a paid tap is never
-   *  a silent no-op. Unknown ids stay a safe no-op. */
+  /** Resolve a paid FOOD_HERO venue target to a known restaurant; the vendor feed already includes
+   *  seller-owned FOOD stores, so the fallback only covers an id the feed does not carry (e.g. a
+   *  delisted store) — resolve it directly so a paid tap is never a silent no-op. Unknown ids stay a
+   *  safe no-op. */
   const openVenue = useCallback(
     async (venueId: string) => {
       const known =
@@ -80,23 +82,7 @@ export function FoodHomeScreen({ navigation }: Props) {
       }
       const store = await gateway.getStore(venueId).catch(() => undefined);
       if (!store) return;
-      openRestaurant({
-        id: store.id,
-        name: store.name,
-        image: store.coverImage,
-        rating: store.rating ?? 0,
-        ratingCount: store.reviewsCount ?? 0,
-        distance: store.distanceKm ?? (parseFloat(store.distance) || 0),
-        priceForTwo: 0,
-        cuisine: store.categories.join(' • '),
-        cuisines: store.categories,
-        neighborhood: store.address ?? '',
-        address: store.address ?? '',
-        latitude: store.latitude ?? 0,
-        longitude: store.longitude ?? 0,
-        isFavourite: false,
-        dietType: 'both',
-      });
+      openRestaurant(storeToRestaurant(store));
     },
     [feed, openRestaurant],
   );
@@ -218,11 +204,11 @@ export function FoodHomeScreen({ navigation }: Props) {
 
   const restaurants = feed.restaurants.filter((r) => venueMatches(dietFilter, r));
 
-  // Honest empty state: the server authoritatively lists no venues (all delisted / state-filtered)
+  // Honest empty state: the server authoritatively lists no vendors (all delisted / state-filtered)
   // and no diet filter is hiding anything — don't fall back to stale fixture restaurants.
   // A diet-emptied grid keeps the filter note.
   const gridEmpty =
-    restaurants.length > 0 ? undefined : feed.venueAuthoritative && feed.restaurants.length === 0 ? (
+    restaurants.length > 0 ? undefined : feed.vendorsAuthoritative && feed.restaurants.length === 0 ? (
       <View style={styles.emptyState}>
         <AppText style={styles.emptyTitle}>No restaurants available right now</AppText>
         <AppText style={styles.emptySub}>Please check back soon.</AppText>

@@ -1275,25 +1275,31 @@ pure-non-veg venues drop in Veg mode; `both` venues stay in both. Unclassifiable
 (`isVeg` undefined) are hidden while a filter is active. Match semantics live in
 `features/food/utils/dietFilter.ts` (`venueMatches` / `dishMatches`).
 
-The restaurant grid ("Restaurants") is driven by the durable
-`directory.dining_venues` list — `restaurantFeedService.fetchRestaurantFeed` calls the server-only
-`GatewayClient.fetchVenues('FOOD')`. Because `fetchVenues` throws instead of silently falling back,
-a network/HTTP failure leaves the grid and the Top Rated rail empty (honest empty state, no bundled
-fixture), while an **authoritative empty** list (server returns `[]`) also drops the Top Rated rail
-and renders an honest "No restaurants available right now" empty state — so an all-delisted /
-state-filtered catalog never lingers as stale, openable profiles. The Top Rated rail honours
-`mostRatedVenues.storeIds` ordering — those ids are `directory.dining_venues` ids (`tr-*`), read raw
-from the section (the server's store join cannot resolve them), so a stale/delivery-kitchen id would
-make the curation a silent no-op; when the doc does not curate, the rail falls back to the server's
-rating order (never to bundled fixture-only venues). This is why Food uses `mostRatedVenues` (venue
-ids) while Home's `mostRatedDining` uses `directory.stores` ids (joined by the gateway): the two id
-spaces are separate sections. Venues without presentation data carry neutral defaults
+The restaurant grid ("Restaurants") is the union of the durable seller-owned FOOD
+`directory.stores` list and the `directory.dining_venues` list —
+`restaurantFeedService.fetchRestaurantFeed` calls the server-only `GatewayClient.fetchStores('FOOD')`
+and `GatewayClient.fetchVenues('FOOD')` in parallel, maps stores via `storeToRestaurant`, and orders
+the de-duplicated union by rating (null last), then name. The two id spaces are disjoint (`store-f*`
+delivery kitchens from `directory.stores` vs `tr-*`/`dn-*` dining venues), so the rich store rows
+surface first and the presentation-thin venues follow. Because both reads throw instead of silently
+falling back, a network/HTTP failure drops that half of the union (honest empty state, no bundled
+fixture); when both halves answer and are empty, the Top Rated rail drops and the grid renders an
+honest "No restaurants available right now" empty state — so an all-delisted / state-filtered catalog
+never lingers as stale, openable profiles. A `store-f*` profile resolves its menu through
+`GET /venues/{id}/menu` (the `directory.menus.venue_id` union resolves a store id) and its `STORE_TOP`
+band through the store id. The Top Rated rail honours `mostRatedVenues.storeIds` ordering — those ids
+are `directory.dining_venues` ids (`tr-*`), read raw from the section (the server's store join cannot
+resolve them) and resolved against the union, so a stale id makes the curation a silent no-op; when
+the doc does not curate, the rail falls back to the union's rating order (never to bundled
+fixture-only venues). This is why Food uses `mostRatedVenues` (venue ids) while Home's
+`mostRatedDining` uses `directory.stores` ids (joined by the gateway): the two id spaces stay separate
+sections. Venues without presentation data carry neutral defaults
 (`distance`/`priceForTwo` 0); the restaurant cards and the Top Rated hero drop the `0.0 km` metric,
 the `₹0 for two` copy and the blank address, and show a **"New"** chip in place of the rating badge
 rather than printing a fake figure. The house hero banners come from the Food-only SDUI projection
 (`GET /sdui/food` → `foodHero.banners`, via `GatewayClient.getFoodFeed`). The "Today's Special" rail
 is built from the server-joined `foodSpecials.products` (server money/image/rating) and the Top Rated
-rail from the authoritative venue list; the "What's on your mind?" and snack rails render empty
+rail from the authoritative vendor list; the "What's on your mind?" and snack rails render empty
 because no server feed backs them (no bundled fixture).
 
 > **No dining/table-booking feature exists.** The Food workflow is discover → menu → cart → checkout,
@@ -1353,17 +1359,16 @@ is a fallback only (no price promise) when no coupon exists.
   white `ViewCartPill`. `MenuItemRow` shows the authored **MRP strike** (`₹price ~~₹mrp~~`) when the
   dish's `mrp > price`, matching the offers page/search card — the same `directory.menus.mrp_paisa`
   the seller authors. Both read the menu through `features/food/hooks/useRestaurantMenu`, which is
-  **remote-first**: it seeds from the `@data/food/menus.ts` fixture (via
-  `features/food/utils/menu.ts` `getMenuForRestaurant` → `menuForVenueName`, extracted from the
-  profile so the two can't drift), then swaps in the durable `directory.menus` dishes from the
-  server-only `GatewayClient.fetchMenu(venueId)` once they arrive (mapping the gateway `MenuDish`
-  onto `SpecialDish`). The server list is trusted as the venue's own (no name re-filter, so a rename
-  can't drop rows). The remote result is **authoritative**: a live `[]` (the seller has no public
-  `ACTIVE` dishes) clears the seed and shows the honest empty menu, so a delisted/emptied venue never
-  lingers as stale fixture rows; only a real failure (offline / HTTP error) keeps the seed, so the
-  profile is never blank offline. `menuForVenueName` returns the authored restaurant menu or the `storeMenus` delivery menu
-  (derived from `foodProducts` by `storeId`) for the 12 `store-f*` kitchens; an unseeded venue shows
-  an **honest empty menu** — the old `TODAYS_SPECIALS` cuisine-match padding (which could leak other
+  **server-only**: it starts with `[]` and loads the durable `directory.menus` dishes from the
+  server-only `GatewayClient.fetchMenu(venueId)` (mapping the gateway `MenuDish` onto `SpecialDish`);
+  no `@data` fixture is substituted. A `store-f*` store id and a `tr-*`/`dn-*` dining-venue id are
+  both valid `directory.menus.venue_id`s (the `directory.vendors` union), so the same call resolves a
+  grid row's menu whether it is a seller-owned FOOD store or a dining venue. The server list is
+  trusted as the venue's own (no name re-filter, so a rename can't drop rows), and is
+  **authoritative**: a live `[]` (the seller has no public `ACTIVE` dishes) shows the honest empty
+  menu; a failed/offline read also shows that honest empty menu (the previous `@data` seed was
+  removed — see `data/DATA_CONTROL.md`). An unseeded venue shows an **honest empty menu** — the old
+  `TODAYS_SPECIALS` cuisine-match padding (which could leak other
   restaurants' dishes into a profile) was removed. Festival
   discounts are **deliberately not** overlaid on menu rows: `promo.festival_optins` keys on
   `catalog.products.product_id` and the checkout `DiscountReader` ignores `directory.menus`, so a
@@ -1371,10 +1376,9 @@ is a fallback only (no price promise) when no coupon exists.
   instead carries the seller's authored `mrp_paisa > price_paisa` strike (migration `0022`; authored
   through the portal `seller/menus` MRP field — W58); the old
   per-open `GET /promo/active-discounts` call was removed. `getMenuCategories` operates on the resolved list unchanged.
-  The hook returns `{ menu, loading }`; `loading` is set **only when the fixture seed is empty** (a
-  server-only venue), so the profile/menu show an inline spinner instead of flashing the honest
-  "no dishes" empty state before the server replies — a seeded venue keeps its first paint and never
-  shows the spinner.
+  The hook returns `{ menu, loading }`; `loading` starts `true` and clears when the server read
+  settles, so the profile/menu show an inline spinner instead of flashing the honest "no dishes"
+  empty state before the server replies.
 - Both category rails are the shared `features/food/components/MenuCategoryRail` (pill chips,
   `hs/vs/ms` metrics, gap-based content container). **Layout contract:** the rail is a **fixed,
   non-flexing** sibling — `flexGrow: 0` / `flexShrink: 0`. RN injects `flexGrow: 1, flexShrink: 1`

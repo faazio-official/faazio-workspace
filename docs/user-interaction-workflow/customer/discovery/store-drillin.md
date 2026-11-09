@@ -10,7 +10,8 @@
 1. Home launches `SubApp` (`FA_MART`/`PHARMA`) or `FoodApp` (`FoodStack`).
 2. The surface loads its feed:
    - Mart: `getMartFeed` (`GET /sdui/mart`) + `getStores('MART')` + `getStoresNearby`.
-   - Food: `getFoodFeed` (`GET /sdui/food`) + `fetchVenues('FOOD')`.
+   - Food: `getFoodFeed` (`GET /sdui/food`) + `fetchStores('FOOD')` + `fetchVenues('FOOD')` — the
+     restaurant grid is the union of seller-owned FOOD stores and dining venues.
    - Pharma: `fetchPharmaSections` (`GET /sdui/pharma`) + `fetchStores('PHARMA')`.
 3. Category tap → `CategoryDrillIn`; the hook `useCategoryVendors` groups server search results by
    `storeId` (`GET /search?q=&app=` + `GET /stores?app=`).
@@ -41,8 +42,11 @@
 - Store page paid band: `gateway.getHeroAds('STORE_TOP', { app, storeId })` → `GET /ads/hero` →
   `ads.campaigns`. Every shop carries 2 seeded LIVE `STORE_TOP` campaigns (migration `0094`), so the
   band has fill out of the box; an empty read drops the band rather than showing a placeholder.
+- `gateway.fetchStores('FOOD')` → `GET /stores?app=FOOD` → `directory.stores` (seller-owned FOOD
+  delivery kitchens, `is_live`-filtered) — the Food grid's store half.
 - `gateway.fetchVenues(app?)` / `fetchMenu(venueId)` → `GET /venues`, `/venues/{id}/menu` →
-  `directory.dining_venues` / `directory.menus`.
+  `directory.dining_venues` / `directory.menus`. The Food grid unions both lists; a `store-f*`
+  profile resolves its menu through the same `/venues/{id}/menu` (`directory.menus.venue_id`).
 - Cache: catalog/store-products/geo keys per `monolith-breakdown.md`.
 - No local fallback in `useCategoryVendors`: a failed or empty server read leaves the drill-in empty
   and offers "Report issue".

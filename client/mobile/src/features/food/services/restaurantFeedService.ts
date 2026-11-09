@@ -1,4 +1,5 @@
 import { gateway, type Venue, type ProductView } from '@/services/api/GatewayClient';
+import type { StoreRecord } from '@data/directory/stores';
 import type { SduiBanner, SduiSection } from '@data/home/sdui';
 import type { FoodType, FoodRestaurant } from '../types';
 import type { SpecialDish } from '@data/types';
@@ -11,12 +12,13 @@ export interface RestaurantFeed {
   /** Editorial house hero (`foodHero.banners` from `GET /sdui/food`); paid FOOD_HERO renders first. */
   heroBanners: SduiBanner[];
   /**
-   * True when the venue list is the authoritative server result (even when empty), false when it
-   * is the offline fixture. When true, the screen must NOT fall back to fixture venues on an
-   * empty list — an all-delisted/state-filtered catalog should show an honest empty state, not
-   * stale restaurants that open dead profiles.
+   * True when the vendor list — the union of seller-owned FOOD delivery kitchens (`directory.stores`,
+   * server-side `is_live`-filtered) and dining venues (`directory.dining_venues`) — came back from
+   * the authoritative server (even when empty). False when a read failed / offline. When true, the
+   * screen must NOT fall back to fixture venues on an empty list — an all-delisted/state-filtered
+   * catalog should show an honest empty state, not stale restaurants that open dead profiles.
    */
-  venueAuthoritative: boolean;
+  vendorsAuthoritative: boolean;
   /** True when the Food SDUI feed answered, so an empty `specials`/`topFoods` rail is authoritative. */
   feedAuthoritative: boolean;
 }
@@ -69,14 +71,44 @@ function venueToRestaurant(v: Venue): FoodRestaurant {
 }
 
 /**
+ * Build a `FoodRestaurant` for a seller-owned FOOD `directory.stores` vendor (delivery kitchen).
+ * These carry the real rating/cover/categories/geo the dining-venue stubs lack. The store id is also
+ * a valid `directory.menus.venue_id`, so the menu resolves through `GET /venues/{id}/menu`.
+ */
+export function storeToRestaurant(s: StoreRecord): FoodRestaurant {
+  const parsedDistance = s.distanceKm ?? parseFloat(s.distance);
+  return {
+    id: s.id,
+    name: s.name,
+    image: s.coverImage,
+    rating: s.rating ?? 0,
+    ratingCount: s.reviewsCount ?? 0,
+    distance: Number.isFinite(parsedDistance) ? parsedDistance : 0,
+    priceForTwo: 0,
+    cuisine: s.categories.join(' • '),
+    cuisines: s.categories,
+    neighborhood: s.address ?? '',
+    offerTag: s.offerTag,
+    address: s.address ?? '',
+    latitude: s.latitude ?? 0,
+    longitude: s.longitude ?? 0,
+    isFavourite: false,
+    dietType: s.isVeg === undefined ? 'both' : s.isVeg ? 'veg' : 'nonveg',
+  };
+}
+
+/**
  * Food-first home feed. Online, every rail is server-derived:
- * - the restaurant grid from the authoritative `GET /venues?app=FOOD` list,
+ * - the restaurant grid from the union of the authoritative `GET /stores?app=FOOD` (seller-owned
+ *   delivery kitchens, `is_live`-filtered server-side) and `GET /venues?app=FOOD` lists,
  * - "Today's Special" from the `foodSpecials` joined products,
  * - the hero from `foodHero`,
- * - Top Rated from the curated `mostRatedVenues` ids resolved against the server venue list.
- * A network/HTTP error leaves the affected rail empty (honest empty state) — there is no bundled
- * fixture to substitute while the gateway is enabled. When the gateway is disabled the feed is
- * empty (offline shell) rather than a bundled demo catalog.
+ * - Top Rated from the curated `mostRatedVenues` ids resolved against that vendor list.
+ * The two vendor id spaces (`store-f*` stores and `tr-*`/`dn-*` dining venues) are disjoint, so the
+ * grid is their de-duplicated union, richest (rating) first. A network/HTTP error leaves the
+ * affected read out (honest empty state) — there is no bundled fixture to substitute while the
+ * gateway is enabled. When the gateway is disabled the feed is empty (offline shell) rather than a
+ * bundled demo catalog.
  */
 export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
   const offline = !gateway.remoteEnabled;
@@ -87,7 +119,7 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
       restaurants: [],
       topFoods: [],
       heroBanners: [],
-      venueAuthoritative: false,
+      vendorsAuthoritative: false,
       feedAuthoritative: false,
     };
   }
@@ -95,15 +127,30 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
   // Independent legs — one failing route never blanks the whole feed (Mart W43 pattern).
   const foodLeg = gateway.getFoodFeed().catch(() => null);
 
+  let stores: StoreRecord[] = [];
   let venues: Venue[] = [];
-  let venueAuthoritative = false;
-  try {
-    venues = await gateway.fetchVenues('FOOD');
-    venueAuthoritative = true;
-  } catch {
-    // Offline / HTTP error: the grid is empty — never a stale fixture pretending to be live.
-    venues = [];
-  }
+  let storesAuthoritative = false;
+  let venuesAuthoritative = false;
+  await Promise.all([
+    gateway
+      .fetchStores('FOOD')
+      .then((rows) => {
+        stores = rows;
+        storesAuthoritative = true;
+      })
+      .catch(() => {
+        // Server-only read failed: drop the store half, never a stale fixture.
+      }),
+    gateway
+      .fetchVenues('FOOD')
+      .then((rows) => {
+        venues = rows;
+        venuesAuthoritative = true;
+      })
+      .catch(() => {
+        // Server-only read failed: drop the venue half, never a stale fixture.
+      }),
+  ]);
 
   const food = await foodLeg;
   const feedAuthoritative = food !== null;
@@ -113,23 +160,36 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
   const specials = foodFeed.find((s) => (s.id as string) === 'foodSpecials');
   // Curated dining-venue order lives on `mostRatedVenues` (directory.dining_venues ids). Fall back
   // to the legacy `mostRatedDining` id for an older published doc; either way curation is a no-op
-  // on ids that are not real venues (the rail then falls back to server rating order below).
+  // on ids that are not real vendors (the rail then falls back to rating order below).
   const mostRated =
     foodFeed.find((s) => (s.id as string) === 'mostRatedVenues') ??
     foodFeed.find((s) => (s.id as string) === 'mostRatedDining');
 
-  const venueById = new Map(venues.map((v) => [v.id, v]));
+  // Vendor union: seller-owned FOOD stores first (they carry the rich presentation data), then the
+  // dining venues, de-duplicated by id and ordered by rating (null/0 last), then name.
+  const seen = new Set<string>();
+  const vendors: FoodRestaurant[] = [];
+  for (const s of stores) {
+    if (seen.has(s.id)) continue;
+    seen.add(s.id);
+    vendors.push(storeToRestaurant(s));
+  }
+  for (const v of venues) {
+    if (seen.has(v.id)) continue;
+    seen.add(v.id);
+    vendors.push(venueToRestaurant(v));
+  }
+  vendors.sort((a, b) => b.rating - a.rating || a.name.localeCompare(b.name));
+
+  const vendorById = new Map(vendors.map((r) => [r.id, r]));
   const curatedIds = mostRated?.storeIds ?? mostRated?.stores?.map((s) => s.id) ?? [];
 
-  // Top Rated: the curated ids resolved against the authoritative venue list; when the doc does
+  // Top Rated: the curated ids resolved against the authoritative vendor list; when the doc does
   // not curate, fall back to the server's rating order (never to bundled fixture-only venues).
   const curatedTop = curatedIds
-    .map((id) => venueById.get(id))
-    .filter((v): v is Venue => Boolean(v));
-  const topVenues =
-    curatedTop.length > 0
-      ? curatedTop
-      : [...venues].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 6);
+    .map((id) => vendorById.get(id))
+    .filter((r): r is FoodRestaurant => Boolean(r));
+  const topRated = curatedTop.length > 0 ? curatedTop : vendors.slice(0, 6);
 
   // Specials: the server-joined `foodSpecials` rows (money/image/rating from the gateway). An
   // empty join is an honest empty rail online, never an authored fixture list.
@@ -138,21 +198,20 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
     : [];
 
   if (__DEV__ && curatedIds.length > 0) {
-    const known = new Set(venues.map((v) => v.id));
-    const unresolved = curatedIds.filter((id) => !known.has(id));
+    const unresolved = curatedIds.filter((id) => !vendorById.has(id));
     if (unresolved.length > 0) {
       console.warn('[food] mostRatedVenues storeIds unresolved (curation no-op):', unresolved);
     }
   }
 
   return {
-    topRated: topVenues.map(venueToRestaurant),
+    topRated,
     specials: specialDishes,
-    restaurants: venues.map(venueToRestaurant),
+    restaurants: vendors,
     // There is no server-backed category/snack feed yet: an online rail is an honest empty.
     topFoods: [],
     heroBanners: feedAuthoritative ? hero?.banners ?? [] : [],
-    venueAuthoritative,
+    vendorsAuthoritative: storesAuthoritative && venuesAuthoritative,
     feedAuthoritative,
   };
 }

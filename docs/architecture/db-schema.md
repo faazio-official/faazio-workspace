@@ -802,8 +802,9 @@ itself is the Faazio Blue token defined in `docs/UI_DESIGN_SYSTEM.md` §5.
 `pharmaPopular` / `pharmaEssentials` are Pharma's (`GET /sdui/pharma`): the Home renderer ignores
 unknown section ids, so a single doc drives the Home, Mart, Food and Pharma feeds. `mostRatedDining`
 is Home's **store** rail (`directory.stores` ids, joined by the gateway) and `mostRatedVenues` is
-Food's **venue** rail (`directory.dining_venues` ids, resolved client-side against
-`GET /venues?app=FOOD`); keeping them separate prevents the store join from dropping venue ids. The
+Food's **venue** rail (`directory.dining_venues` ids, resolved client-side against the Food grid's
+vendor union of `GET /stores?app=FOOD` + `GET /venues?app=FOOD`); keeping them separate prevents the
+store join from dropping venue ids. The
 `hotBrandDeals.campaigns[]` defs compile into the anon `GET /home/campaigns(/{id})` projection;
 they are ID-only (store + product refs) and never carry money.
 

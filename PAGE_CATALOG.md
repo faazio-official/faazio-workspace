@@ -346,11 +346,11 @@ Feed order and paid/organic classification:
 | # | Section | Component | Kind | Placement / fallback |
 | --- | --- | --- | --- | --- |
 | Fd1 | Hero carousel (top) | `CampaignHero` (`components/shared`) | **PAID** | `FOOD_HERO` (venue/product target); fallback = `foodHero.banners` via `FoodHouseHero` (non-interactive) |
-| Fd2 | Top Rated carousel | `TopRestaurantCarousel` | Organic directory | `TOP_RATED_RESTAURANTS` ordered by SDUI `mostRatedDining.storeIds` (restaurant `tr-*` ids) |
+| Fd2 | Top Rated carousel | `TopRestaurantCarousel` | Organic directory | SDUI `mostRatedVenues.storeIds` (`directory.dining_venues` `tr-*` ids) resolved against the Food vendor union; else union rating order (server-only, no fixture) |
 | Fd3 | Today's Special rail | `FeaturedDishCarousel` | Organic offer | SDUI `foodSpecials.productIds`; `TODAYS_SPECIALS` fallback (fixture) |
 | Fd4 | What's on your mind? | `MindGridRail` | Organic category | Fixture-owned (not server-driven) |
 | Fd5 | Snacks & Beverages rail | `SnacksRail` | Organic offer | Fixture-owned (not server-driven) |
-| Fd6 | Restaurants grid | `RestaurantGrid` | Organic directory | `gateway.fetchVenues('FOOD')` (server-only) merged with the `@data` venue fixture; authoritative empty → honest empty state (never stale fixture) |
+| Fd6 | Restaurants grid | `RestaurantGrid` | Organic directory | Union of `gateway.fetchStores('FOOD')` (seller-owned FOOD stores, `is_live`-filtered) + `gateway.fetchVenues('FOOD')` (`directory.dining_venues`), both server-only; authoritative empty → honest empty state (never stale fixture) |
 | Fd7 | Restaurant-profile hero | `CampaignHero` (`components/shared`) | **PAID** | `STORE_TOP` scoped to the venue's `storeId`; whole band drops when no LIVE fill |
 | Fd8 | Restaurant-profile offer slot | inline banner | Organic offer | live coupon `useBestCoupon('FOOD')` → tap opens cart; decorative `offerTag` fallback |
 

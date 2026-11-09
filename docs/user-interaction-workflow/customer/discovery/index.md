@@ -43,7 +43,9 @@
 - Product reviews: `getProduct` (reviews leg) → `GET /product/{id}/reviews`; write
   `submitProductReview` → `PUT /products/{id}/review` → `reviews.reviews` (delivered purchase only,
   latest wins).
-- Menus: `fetchVenues`, `fetchMenu` → `directory.dining_venues` / `directory.menus`.
+- Food vendors: `fetchStores('FOOD')` + `fetchVenues('FOOD')` → `directory.stores` (FOOD delivery
+  kitchens, `is_live`-filtered) ∪ `directory.dining_venues` — the restaurant grid unions both.
+- Menus: `fetchMenu` → `directory.menus` (`venue_id` resolves a store or a dining venue).
 - Mart, Food and Pharma use no `@data/*` substitution on a failed live read: empty/error is honest.
   Pharma's category grid shows a retryable error instead of authored rows; Food's restaurant grid,
   top-rated and specials rails are server-derived (no server snack/category feed exists yet, so
