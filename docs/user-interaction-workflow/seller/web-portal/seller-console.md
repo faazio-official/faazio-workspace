@@ -56,6 +56,11 @@
 - Mobile headers (`OrdersTopBar`, `HubHeader`, `OutletHeader`) share one hairline bottom border,
   `px-4` padding and the `env(safe-area-inset-top)` offset; action clusters are `shrink-0` so the
   shop name truncates instead of crowding the icons.
+- Product rows on `/seller/products` are viewport-clamped (`min-w-0 max-w-full overflow-hidden`):
+  the image + chevron + status pill are `shrink-0` and pinned, while the name, `category · productId`
+  and price truncate via `min-w-0`. The image is `h-12 w-12` below `sm` and `h-14 w-14` at `sm`+, so
+  a long name ellipsizes instead of pushing the right side out of the viewport. See
+  [products.md](./products.md).
 - All fixed action bars use the shared `FixedActionBar` (`src/components/sellers/kit.tsx`), which
   also aligns to the content column (right of the sidebar) at `md` and sits at `z-40`.
 - `Sheet` uses `88dvh`, respects the bottom safe area, and is offset by the sidebar at `md`.

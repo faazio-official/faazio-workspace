@@ -1,9 +1,12 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
-import { ChevronRight, Package, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { ChevronRight, Loader2, Package, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import { PageHeader, Card, EmptyState, Sheet } from "@/components/sellers/kit";
 import { formatINR } from "@/lib/format";
+import { remoteConfigured } from "@/lib/config";
+import { refreshSellerProducts } from "@/lib/api/sync";
 import { usePortalLoading, useProducts, useSellerScope } from "@/lib/api/hooks";
 import { sectorLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
@@ -32,6 +35,42 @@ function SellerProducts() {
   const products = useProducts({ sellerId, storeId, query, sector, status });
   const rows = products.slice(0, limit);
   const filtersActive = sector !== "ALL" || status !== "ALL";
+
+  const [refreshing, setRefreshing] = useState(false);
+  const refreshingRef = useRef(false);
+  const lastRefreshRef = useRef(0);
+
+  const handleRefresh = useCallback(async () => {
+    if (refreshingRef.current || !remoteConfigured()) return;
+    const now = Date.now();
+    if (now - lastRefreshRef.current < 30_000) return;
+    lastRefreshRef.current = now;
+    refreshingRef.current = true;
+    setRefreshing(true);
+    try {
+      await refreshSellerProducts();
+      toast.success("Products refreshed");
+    } catch {
+      toast.error("Couldn't refresh products", {
+        description: "Showing the last loaded list.",
+      });
+    } finally {
+      refreshingRef.current = false;
+      setRefreshing(false);
+    }
+  }, []);
+
+  // Web-native equivalent of the customer app's pull-to-refresh: scrolling to the bottom of the
+  // page re-fetches live rows from the gateway. The 30s cooldown stops it from looping.
+  useEffect(() => {
+    const onScroll = () => {
+      const doc = document.documentElement;
+      const nearBottom = doc.scrollHeight - (doc.scrollTop + doc.clientHeight) <= 100;
+      if (nearBottom) void handleRefresh();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => window.removeEventListener("scroll", onScroll);
+  }, [handleRefresh]);
 
   return (
     <>
@@ -136,6 +175,13 @@ function SellerProducts() {
             Add your first product
           </Link>
         )}
+
+        {refreshing && (
+          <div className="flex items-center justify-center gap-2 py-3 text-xs font-medium text-brand">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Refreshing…
+          </div>
+        )}
       </div>
 
       <Sheet open={filtersOpen} onClose={() => setFiltersOpen(false)} title="Filters">
@@ -170,9 +216,9 @@ function SellerProducts() {
 
 function ProductRow({ product }: { product: ProductRecord }) {
   return (
-    <Link href={`/seller/products/${product.productId}/edit`} className="block">
-      <Card className="flex items-center gap-3 p-3">
-        <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-2xl">
+    <Link href={`/seller/products/${product.productId}/edit`} className="block min-w-0 max-w-full">
+      <Card className="flex min-w-0 max-w-full items-center gap-2.5 overflow-hidden p-3 sm:gap-3">
+        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-xl sm:h-14 sm:w-14 sm:text-2xl">
           {product.imageUrl ? (
             <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
           ) : (
@@ -180,17 +226,17 @@ function ProductRow({ product }: { product: ProductRecord }) {
           )}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
+          <div className="flex min-w-0 items-center gap-1.5">
             <p className="min-w-0 truncate text-sm font-semibold">{product.name}</p>
             <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
               {product.sector}
             </span>
           </div>
-          <p className="truncate text-[11px] text-muted-foreground">
+          <p className="min-w-0 truncate text-[11px] text-muted-foreground">
             {product.category} · {product.productId}
           </p>
-          <div className="mt-1 flex items-center gap-2 text-xs">
-            <b>{formatINR(product.pricePaisa)}</b>
+          <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
+            <b className="min-w-0 truncate">{formatINR(product.pricePaisa)}</b>
             <span
               className={cn(
                 "ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
@@ -201,7 +247,7 @@ function ProductRow({ product }: { product: ProductRecord }) {
             </span>
           </div>
           {product.status === "REJECTED" && product.reviewReason ? (
-            <p className="mt-1 rounded bg-brand-soft px-2 py-1 text-[11px] text-brand">
+            <p className="mt-1 rounded bg-brand-soft px-2 py-1 text-[11px] break-words text-brand">
               {product.reviewReason}
             </p>
           ) : null}

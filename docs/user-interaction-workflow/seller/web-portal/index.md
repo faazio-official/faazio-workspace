@@ -10,6 +10,7 @@
 | Flow | Doc |
 |---|---|
 | Portal auth + seller console shell | [seller-console.md](./seller-console.md) |
+| Seller products list (+ scroll-to-reload) | [products.md](./products.md) |
 | Seller notifications inbox | [notifications.md](./notifications.md) |
 | Seller settings (profile, bank, notifications, sub-users, security) | [settings.md](./settings.md) |
 | Super admin category taxonomy + home rail | [super-admin-categories.md](./super-admin-categories.md) |

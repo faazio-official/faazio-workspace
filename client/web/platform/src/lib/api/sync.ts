@@ -183,6 +183,20 @@ function mapSellerProductRow(raw: SellerConsoleRow): ProductRecord {
 }
 
 /**
+ * Re-fetches the seller catalog (`GET /seller/pricing`) and replaces the `products` slice, reusing
+ * the canonical hydration mapping so live rows keep the exact same shape. Throws on a
+ * gateway/transport failure; the slice is only written after a successful fetch, so the caller
+ * keeps the last-loaded rows. When the gateway is unconfigured this is a no-op that returns the
+ * current slice, so local dev never blanks the store.
+ */
+export async function refreshSellerProducts(): Promise<ProductRecord[]> {
+  if (!remoteConfigured()) return usePortalStore.getState().products;
+  const rows = (await fetchSellerPricing()).map(mapSellerProductRow);
+  usePortalStore.getState().set(() => ({ products: rows }));
+  return rows;
+}
+
+/**
  * Fetches every gateway-owned slice and writes it into the store. Returns true
  * when at least one slice was hydrated.
  */
