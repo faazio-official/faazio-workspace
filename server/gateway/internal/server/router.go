@@ -154,6 +154,11 @@ func NewRouter(d Deps) http.Handler {
 	}
 	if d.Config.FirebaseProjectID != "" {
 		authConfig.Firebase = auth.NewFirebaseVerifier(d.Config.FirebaseProjectID)
+	} else {
+		// Mobile phone-OTP sessions carry Firebase ID tokens (RS256). With no project id the verifier
+		// is nil, so every Firebase token is rejected with 401 (only portal/legacy HS256 tokens
+		// verify). Flag the misconfig loudly at startup so it shows up in the host logs.
+		slog.Warn("FIREBASE_PROJECT_ID is empty — Firebase ID tokens (mobile phone OTP) will be rejected with 401; set it to the client's Firebase project id")
 	}
 	if d.Config.PortalJWTSecret != "" {
 		authConfig.Portal = auth.NewPortalVerifier([]byte(d.Config.PortalJWTSecret), d.Cache)

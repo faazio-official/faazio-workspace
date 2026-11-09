@@ -33,7 +33,10 @@
 ## Data path
 
 - Categories: `fetchCategories` / `fetchCategoryRail` → `GET /categories`, `/categories/rail` →
-  `taxonomy.categories`.
+  `taxonomy.categories` (both behind `auth.Require`). The Home/Mart header rail (`HeaderCategoryRail`
+  → `usePagedRail`) never blanks silently: a failed read keeps the chips already loaded for the
+  current app scope and, when it has none, shows a **Retry** chip (dev logs the error, e.g.
+  `GatewayHttpError status: 401`).
 - Stores: `getStores`, `getStoresNearby`, `getStore` → `directory.stores`.
 - Products: `searchProducts`, `getStoreProducts`, `getProductsByIds`, `getProduct` →
   `catalog.products` / `inventory.stock`.

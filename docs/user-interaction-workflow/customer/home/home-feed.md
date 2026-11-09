@@ -15,7 +15,11 @@
 5. Section components may fire their own supporting reads (ads, discounts, ratings) and add to cart.
 6. Pull-to-refresh (`AppRefreshControl`) on the body re-fetches the feed and bumps the shared
    `refreshStore` `home` counter, which also re-fetches the sibling header category rail
-   (`HeaderCategoryRail` → `usePagedRail`). Stale rows stay visible while the spinner runs.
+   (`HeaderCategoryRail` → `usePagedRail`). Stale rows stay visible while the spinner runs; a failed
+   rail fetch keeps the already-loaded chips (only an `app` scope change clears them) and logs the
+   failure in dev.
+7. If the rail has never loaded and the fetch fails, `HeaderCategoryRail` renders a single **Retry**
+   chip (instead of a silent blank strip) that re-runs `usePagedRail().refresh`.
 
 ## State
 
@@ -34,7 +38,10 @@
 - Cache: `faazio:v1:gateway:sdui:{locale}:/home` (300 s), purged on SDUI publish.
 - Supporting: `getProductsByIds` (`POST /products/batch`), `getActiveDiscounts`
   (`GET /promo/active-discounts`), `fetchCategoryRail` (`GET /categories/rail` — only active
-  top-level rows curated with `show_on_home_rail`, max 3 globally; FOOD is not eligible).
+  top-level rows curated with `show_on_home_rail`, max 3 globally; FOOD is not eligible). The rail
+  endpoint sits behind the same `auth.Require` middleware as the rest of the app, so an
+  unauthenticated/expired session gets a `401 authentication required` (surfaced by the Retry chip),
+  not an empty server list.
 - Offline shell: `@data/home/sections` registry + section fixtures, used only when the gateway is
   disabled. Online rails render server rows or an honest empty/error state.
 
@@ -45,6 +52,10 @@
 - **Refreshing:** `refreshing` true drives the branded spinner; existing rows stay on screen. A
   failed pull keeps the rows, stops the spinner and flips `error` — it never blanks or fabricates.
 - **Error/offline:** online error → retry; gateway disabled → static registry + fixtures.
+- **Rail error:** the header rail never silently blanks. On failure it keeps the chips already
+  loaded for the current scope (the shared `home` pull does not clear them) and, when it has no
+  chips, renders a Retry chip. The failure is logged in dev with the error (e.g.
+  `GatewayHttpError 401 unauthorized`).
 - **Empty:** a section with no rows is omitted or shows an honest empty note.
 
 ## Known gaps
