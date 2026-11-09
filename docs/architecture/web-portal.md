@@ -469,7 +469,11 @@ console and the super admin console on that device.
 - **Controls.** `src/components/layout/ThemeToggle.tsx` exports
   `ThemeSegmentedControl` (Settings pages, three labelled options) and
   `ThemeMenu` (the shell header icon menu). Both shells render `ThemeMenu`.
-- **Settings surfaces.** `/seller/settings` (Appearance tab),
+- **Settings surfaces.** `/seller/settings` (editable Profile, Bank, Notifications
+  and Sub-users tabs plus Appearance; bank uses `GET`/`PUT /sellers/{id}/bank-account`
+  and appearance is browser-local — the profile/notification/sub-user writes are
+  optimistic pending gateway endpoints, see
+  `docs/user-interaction-workflow/seller/web-portal/settings.md`),
   `/admin/super/settings` (Appearance section) and `/admin/district/settings`
   (new page, added to `DISTRICT_ADMIN_NAV`).
 - **The sidebar is a surface, not a slab.** The shells use the `--sidebar-*`

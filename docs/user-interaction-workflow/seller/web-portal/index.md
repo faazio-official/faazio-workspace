@@ -11,6 +11,7 @@
 |---|---|
 | Portal auth + seller console shell | [seller-console.md](./seller-console.md) |
 | Seller notifications inbox | [notifications.md](./notifications.md) |
+| Seller settings (profile, bank, notifications, sub-users) | [settings.md](./settings.md) |
 | Super admin category taxonomy + home rail | [super-admin-categories.md](./super-admin-categories.md) |
 
 ## Route groups
@@ -45,8 +46,9 @@
 
 ## Known gaps
 
-- Local-only support/rush-hour/restaurant-status, toast-only admin and settings actions, and the
-  TTC-hardcoded district-admins page. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- Local-only support/rush-hour/restaurant-status, toast-only admin actions, the settings
+  profile/notification/sub-user endpoints still pending on the gateway, and the TTC-hardcoded
+  district-admins page. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

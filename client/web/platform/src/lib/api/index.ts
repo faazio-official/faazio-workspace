@@ -19,6 +19,8 @@ import type {
   AppConfigRow,
   AppConfigVariant,
   AuthUser,
+  BankAccount,
+  BankAccountInput,
   CampaignScope,
   CouponRecord,
   CustomerRecord,
@@ -26,6 +28,7 @@ import type {
   HeroCampaign,
   HeroPlacement,
   MenuItemRecord,
+  NotificationPreferences,
   OrderStatus,
   PortalCredential,
   PrescriptionStatus,
@@ -37,11 +40,14 @@ import type {
   Role,
   Sector,
   SellerDetail,
+  SellerProfilePatch,
   SellerRecord,
   SellerStatus,
   SellerOptin,
   SduiSection,
   DistrictAdmin,
+  SubUser,
+  SubUserRole,
   FeeChangeRequest,
   TicketRecord,
   TicketStatus,
@@ -886,6 +892,84 @@ export function getBankAccount(sellerId: string) {
   return state().bankAccounts.find((b) => b.sellerId === sellerId);
 }
 
+/** Mask a full account number to the tail the gateway stores. An already-masked value is kept. */
+export function maskAccountNumber(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed.includes("*")) return trimmed;
+  const digits = trimmed.replace(/\D/g, "");
+  return digits.length > 4 ? `****${digits.slice(-4)}` : "*".repeat(Math.max(4, digits.length));
+}
+
+/**
+ * Live payout account from `GET /sellers/{id}/bank-account`. A 404 is an honest "no account yet"
+ * (not an error), so the store slice is cleared rather than left stale.
+ */
+export async function fetchBankAccount(sellerId: string): Promise<BankAccount | null> {
+  if (!remoteConfigured()) return getBankAccount(sellerId) ?? null;
+  const row = await remote.get<BankAccount>(
+    `/sellers/${encodeURIComponent(sellerId)}/bank-account`,
+    { allow404: true },
+  );
+  if (!row) {
+    state().set((s) => ({
+      bankAccounts: s.bankAccounts.filter((b) => b.sellerId !== sellerId),
+    }));
+    return null;
+  }
+  const account = toCamel(row);
+  state().set((s) => ({
+    bankAccounts: [...s.bankAccounts.filter((b) => b.sellerId !== sellerId), account],
+  }));
+  return account;
+}
+
+/**
+ * Save the seller payout account (upsert — one per seller, `PUT /sellers/{id}/bank-account`).
+ * The gateway accepts only a masked tail, so a full number is masked before it leaves the client.
+ */
+export function upsertBankAccount(sellerId: string, input: BankAccountInput): void {
+  const before = getBankAccount(sellerId);
+  const accountNumberMasked = maskAccountNumber(input.accountNumber);
+  const ifsc = input.ifsc.toUpperCase();
+  const optimistic: BankAccount = {
+    bankAccountId: before?.bankAccountId ?? `bank-local-${sellerId}`,
+    sellerId,
+    bankName: input.bankName,
+    accountNumberMasked,
+    ifsc,
+    beneficiaryName: input.beneficiaryName,
+  };
+  state().set((s) => ({
+    bankAccounts: [...s.bankAccounts.filter((b) => b.sellerId !== sellerId), optimistic],
+  }));
+  pushWrite(
+    "Bank account",
+    "put",
+    `/sellers/${encodeURIComponent(sellerId)}/bank-account`,
+    {
+      bankName: input.bankName ?? "",
+      accountNumberMasked,
+      ifsc,
+      beneficiaryName: input.beneficiaryName,
+    },
+    () => {
+      state().set((s) => ({
+        bankAccounts: [
+          ...s.bankAccounts.filter((b) => b.sellerId !== sellerId),
+          ...(before ? [before] : []),
+        ],
+      }));
+    },
+  );
+  audit({
+    action: "BANK_UPDATE",
+    entity: "sellers.bank_accounts",
+    entityId: sellerId,
+    before: before ?? null,
+    after: optimistic,
+  });
+}
+
 export function setSellerStatus(sellerId: string, status: SellerStatus, reason?: string): void {
   const before = getSeller(sellerId);
   state().set((s) => ({
@@ -921,6 +1005,119 @@ function patchSellerLocal(sellerId: string, patch: Partial<SellerRecord>): void 
       seller.sellerId === sellerId ? { ...seller, ...patch } : seller,
     ),
   }));
+}
+
+/**
+ * Save a seller's editable business-profile fields. Optimistic with rollback so a rejected write
+ * never lingers. KYC-bearing changes (GSTIN/PAN/address) re-enter admin review server-side; there
+ * is no generic `PATCH /sellers/{id}` yet — the rollback + toast surface the rejection honestly.
+ */
+export function updateSeller(sellerId: string, patch: SellerProfilePatch): void {
+  const before = getSeller(sellerId);
+  patchSellerLocal(sellerId, patch);
+  pushWrite("Profile update", "patch", `/sellers/${encodeURIComponent(sellerId)}`, patch, () => {
+    if (before) {
+      state().set((s) => ({
+        sellers: s.sellers.map((seller) => (seller.sellerId === sellerId ? before : seller)),
+      }));
+    }
+  });
+  audit({
+    action: "SELLER_PROFILE_UPDATE",
+    entity: "sellers.sellers",
+    entityId: sellerId,
+    before: before && { ...patch },
+    after: patch,
+  });
+}
+
+/* ------------------------------ seller settings --------------------------- */
+
+/**
+ * Per-seller alert preferences. No gateway endpoint/table exists yet (pending
+ * `seller.notification_preferences`); the optimistic write rolls back + toasts on failure so the
+ * switch never lies about being saved.
+ */
+export function getNotificationPreferences(): NotificationPreferences {
+  return state().notificationPreferences;
+}
+
+export function updateNotificationPreferences(patch: Partial<NotificationPreferences>): void {
+  const before = getNotificationPreferences();
+  const next = { ...before, ...patch };
+  state().set(() => ({ notificationPreferences: next }));
+  pushWrite("Notification preferences", "put", "/seller/notifications/preferences", next, () => {
+    state().set(() => ({ notificationPreferences: before }));
+  });
+  audit({
+    action: "NOTIFICATION_PREFS_UPDATE",
+    entity: "seller.notification_preferences",
+    entityId: state().session?.sellerId ?? "",
+    before,
+    after: next,
+  });
+}
+
+export function listSubUsers(sellerId: string): SubUser[] {
+  return state().subUsers.filter((u) => u.sellerId === sellerId);
+}
+
+export function getSubUser(subUserId: string): SubUser | undefined {
+  return state().subUsers.find((u) => u.subUserId === subUserId);
+}
+
+export interface InviteSubUserInput {
+  name: string;
+  email: string;
+  role: SubUserRole;
+}
+
+/**
+ * Invite a staff sub-user. No gateway endpoint/table exists yet (pending `seller.sub_users`); the
+ * optimistic row rolls back + toasts on failure.
+ */
+export function inviteSubUser(sellerId: string, input: InviteSubUserInput): void {
+  const row: SubUser = {
+    subUserId: `sub-local-${Date.now()}`,
+    sellerId,
+    name: input.name.trim(),
+    email: input.email.trim(),
+    role: input.role,
+    status: "PENDING_INVITE",
+    createdAt: nowIso(),
+  };
+  state().set((s) => ({ subUsers: [row, ...s.subUsers] }));
+  pushWrite(
+    "Sub-user invite",
+    "post",
+    "/seller/sub-users",
+    { sellerId, name: row.name, email: row.email, role: row.role },
+    () => {
+      state().set((s) => ({ subUsers: s.subUsers.filter((u) => u.subUserId !== row.subUserId) }));
+    },
+  );
+  audit({ action: "SUBUSER_INVITE", entity: "seller.sub_users", entityId: row.subUserId, after: row });
+}
+
+/** Revoke a staff sub-user. Optimistic removal with re-insert on a rejected gateway write. */
+export function removeSubUser(subUserId: string): void {
+  const before = getSubUser(subUserId);
+  if (!before) return;
+  state().set((s) => ({ subUsers: s.subUsers.filter((u) => u.subUserId !== subUserId) }));
+  pushWrite(
+    "Sub-user revoke",
+    "delete",
+    `/seller/sub-users/${encodeURIComponent(subUserId)}`,
+    undefined,
+    () => {
+      state().set((s) =>
+        s.subUsers.some((u) => u.subUserId === subUserId)
+          ? s
+          : { subUsers: [before, ...s.subUsers] },
+      );
+    },
+  );
+  audit({ action: "SUBUSER_REVOKE", entity: "seller.sub_users", entityId: subUserId, before });
 }
 
 /** Admin: set one vendor's platform fee (server re-checks the app's floor). */

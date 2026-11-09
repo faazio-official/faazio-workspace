@@ -92,6 +92,44 @@ export interface BankAccount {
   beneficiaryName: string;
 }
 
+/** Upsert input for `PUT /sellers/{id}/bank-account`. The gateway stores only the masked tail;
+ *  `accountNumber` may be a full number (masked client-side) or an already-masked value. */
+export interface BankAccountInput {
+  bankName?: string | undefined;
+  accountNumber: string;
+  ifsc: string;
+  beneficiaryName: string;
+}
+
+/** Editable business-profile fields on `sellers.sellers`. KYC-bearing fields re-enter admin review. */
+export interface SellerProfilePatch {
+  businessName?: string;
+  ownerName?: string;
+  gstin?: string;
+  pan?: string;
+  businessAddress?: string;
+  contactPhone?: string;
+}
+
+export type SubUserRole = "STAFF" | "VIEWER";
+export type SubUserStatus = "PENDING_INVITE" | "ACTIVE" | "REVOKED";
+
+/** A seller staff login with limited console access (pending gateway `seller.sub_users` table). */
+export interface SubUser {
+  subUserId: string;
+  sellerId: string;
+  name: string;
+  email: string;
+  role: SubUserRole;
+  status: SubUserStatus;
+  createdAt: string;
+  lastLoginAt?: string | undefined;
+}
+
+/** Which alerts a seller wants (pending gateway `seller.notification_preferences`). */
+export type NotificationKind = "newOrder" | "lowStock" | "slaBreach" | "campaigns";
+export type NotificationPreferences = Record<NotificationKind, boolean>;
+
 /** One manual PAN/GSTIN/FSSAI/passbook verification decision (sellers.kyc_verification_log). */
 export interface SellerVerificationLog {
   logId: string;

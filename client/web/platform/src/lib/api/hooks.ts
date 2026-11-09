@@ -5,7 +5,14 @@ import { usePortalStore } from "@/lib/api/store";
 import { remote } from "@/lib/api/http";
 import { remoteConfigured } from "@/lib/config";
 import * as api from "@/lib/api";
-import type { OrderStatus, Role, SellerStatus } from "@/data/types";
+import type {
+  BankAccount,
+  NotificationPreferences,
+  OrderStatus,
+  Role,
+  SellerStatus,
+  SubUser,
+} from "@/data/types";
 
 /** One ID-only behaviour event (`GET /admin/user-trail`); never carries a raw user id or PII. */
 export interface UserTrailEvent {
@@ -583,6 +590,54 @@ export function useOrder(orderId: string) {
 export function useSeller(sellerId: string) {
   const sellers = usePortalStore((s) => s.sellers);
   return useMemo(() => api.getSeller(sellerId), [sellers, sellerId]);
+}
+
+/**
+ * The seller's payout account (`GET /sellers/{id}/bank-account`), hydrated on mount. A 404 is an
+ * honest empty (no account yet); a transport error leaves the last-known slice in place.
+ */
+export function useBankAccount(sellerId: string): {
+  account: BankAccount | undefined;
+  loading: boolean;
+  reload: () => void;
+} {
+  const accounts = usePortalStore((s) => s.bankAccounts);
+  const [loading, setLoading] = useState(true);
+  const [version, setVersion] = useState(0);
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
+  useEffect(() => {
+    if (!sellerId || !remoteConfigured()) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .fetchBankAccount(sellerId)
+      .catch(() => {
+        /* keep the last-known slice; the gateway is the only source */
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sellerId, version]);
+  const account = useMemo(() => api.getBankAccount(sellerId), [accounts, sellerId]);
+  return { account, loading, reload };
+}
+
+/** The seller's staff sub-users (local slice; pending gateway `seller.sub_users`). */
+export function useSubUsers(sellerId: string): SubUser[] {
+  const subUsers = usePortalStore((s) => s.subUsers);
+  return useMemo(() => api.listSubUsers(sellerId), [subUsers, sellerId]);
+}
+
+/** The seller's alert preferences (local slice; pending gateway `seller.notification_preferences`). */
+export function useNotificationPreferences(): NotificationPreferences {
+  const prefs = usePortalStore((s) => s.notificationPreferences);
+  return useMemo(() => api.getNotificationPreferences(), [prefs]);
 }
 
 export function usePrescriptions(

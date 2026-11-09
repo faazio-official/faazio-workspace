@@ -18,6 +18,7 @@ import type {
   KycDocument,
   LedgerEntry,
   MenuItemRecord,
+  NotificationPreferences,
   OrderRecord,
   PayoutRecord,
   PrescriptionRecord,
@@ -31,6 +32,7 @@ import type {
   SellerRecord,
   DistrictAdmin,
   StockRecord,
+  SubUser,
   StoreRecord,
   TicketRecord,
 } from "@/data/types";
@@ -76,6 +78,10 @@ export interface PortalState {
   tickets: TicketRecord[];
   rewardRates: RewardsRates;
   rewardLedger: RewardLedgerEntry[];
+  /** Seller staff logins (pending gateway `seller.sub_users`). */
+  subUsers: SubUser[];
+  /** Per-seller alert preferences (pending gateway `seller.notification_preferences`). */
+  notificationPreferences: NotificationPreferences;
   set: (updater: (state: PortalState) => Partial<PortalState>) => void;
   setActiveStoreId: (id: string | null) => void;
 }
@@ -118,6 +124,13 @@ const emptySeed = {
     cardValidityDays: 5,
   } as RewardsRates,
   rewardLedger: [] as RewardLedgerEntry[],
+  subUsers: [] as SubUser[],
+  notificationPreferences: {
+    newOrder: true,
+    lowStock: true,
+    slaBreach: true,
+    campaigns: true,
+  } as NotificationPreferences,
 };
 
 export const usePortalStore = create<PortalState>()(
