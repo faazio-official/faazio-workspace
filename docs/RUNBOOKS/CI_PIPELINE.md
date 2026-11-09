@@ -115,6 +115,8 @@ App Store provisioning profile. Values are the GitHub secrets/variables listed i
 | `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` | secret | `base64 -i GoogleService-Info-Delivery.plist` |
 | `GOOGLE_SERVICE_INFO_SELLER_PLIST` | secret | `base64 -i GoogleService-Info-Seller.plist` |
 
+📖 The full step-by-step UI workflow for creating and downloading this `.p8` key (including the "App Manager" role choice and the one-time download warning) is on the dedicated runbook **`docs/RUNBOOKS/APPSTORE_API_KEY.md`**.
+
 `CERT_PINS` (already set for Android) is reused by the iOS release configure step; `GATEWAY_URL`
 (default `https://api.faazio.com`), `WEB_PORTAL_URL` (variable, default `https://app.faazio.com`),
 `GOOGLE_MAPS_API_KEY_IOS` and `GOOGLE_PLACES_API_KEY` are optional overrides.
@@ -131,6 +133,44 @@ iOS is one `.env.ios`; each complete/standalone with the shared values duplicate
 `APP_VARIANT`, and pass the same names as GitHub secrets, so the committed files are local defaults
 only and **never affect a CI release**.
 
+### 🚫 iOS provisioning profile — local macOS setup
+
+The App Store provisioning profile is **not a repo file**. It is created in the Apple Developer Console and installed **only on your local Mac** (or via CI as a base64-encoded GitHub Actions secret).
+
+#### Required local file placement (Xcode 16 with `CODE_SIGN_STYLE=Manual`)
+
+The `.mobileprovision` file **must** exist at one of these paths on the Mac that runs `xcodebuild`:
+
+| Path | Priority |
+|------|----------|
+| `~/Library/Developer/Xcode/UserData/Provisioning Profiles/` | ✅ Primary (Xcode 16) |
+| `~/Library/MobileDevice/Provisioning Profiles/` | ⚠️ Legacy fallback (Xcode ≤ 15) |
+
+**Workflow:**
+1. Create an **App Store** provisioning profile for `com.faazio.customer` in Apple Developer Console (not Development, not Ad Hoc)
+2. Download `Faazio Customer AppStore.mobileprovision` (or equivalent)
+3. Install it to `~/Library/Developer/Xcode/UserData/Provisioning Profiles/` (or the legacy path)
+4. Restart Xcode or run `xcodebuild` fresh — the profile is discovered by its embedded UUID
+
+**CRITICAL: The `.mobileprovision` file lives ONLY on the local Mac or as a CI secret. It is never committed to the repo.**
+
+#### Required GitHub Actions secret
+
+The CI workflow (`ios-release.yml` → `scripts/restore-ios-signing.sh`) reads the profile as a base64 secret:
+
+```bash
+# On a Mac with the .mobileprovision file:
+base64 -i <path-to-mobileprovision> | pbcopy   # copy base64 to clipboard
+# Then in GitHub: Settings → Secrets and variables → Actions → New secret
+#   Name: APPSTORE_PROVISIONING_PROFILE_CUSTOMER
+#   Value: <the base64 string you copied>
+```
+
+#### Env files (mobile)
+
+`scripts/configure.js` layers, lowest → highest: the selected env file (Android is per-app — `.env.android.customer` / `.env.android.delivery` / `.env.android.seller`, chosen by `APP_VARIANT`; iOS is one `.env.ios`; each complete/standalone with the shared values duplicated) → `.env.local` (gitignored) → process env. Both release workflows set `CONFIGURE_PLATFORM` (`android` / `ios`) plus `APP_VARIANT`, and pass the same names as GitHub secrets, so the committed files are local defaults only and **never affect a CI release**.
+
+## 🚀 Trigger a release
 ## 🚀 Trigger a release
 
 ```bash
@@ -168,6 +208,50 @@ marketing version, and the build number is derived from the semver (`1.0.6` → 
 Connect rejects a duplicate build number for the same marketing version, so **bump the semver for
 each upload**. Product → tag conventions match Android (`v<version>`, `v<version>-delivery`,
 `v<version>-seller`).
+
+### 🍎 iOS Release from Linux (no macOS needed)
+
+iOS releases are built by GitHub Actions on `macos-15` runners; you trigger them from Linux via
+`gh`. No local Mac is required at any step — CI handles signing, export, verification, and upload.
+
+**Prerequisites** — GitHub secrets/variables (copy exact names from `.github/workflows/ios-release.yml`):
+
+| Secret / variable | Kind | Value |
+|---|---|---|
+| `APPSTORE_CERTIFICATE_BASE64` | secret | base64 of the shared distribution `.p12` |
+| `APPSTORE_CERTIFICATE_PASSWORD` | secret | that `.p12` password |
+| `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` | secret | base64 App Store `.mobileprovision` (`com.faazio.customer`) |
+| `APPSTORE_PROVISIONING_PROFILE_DELIVERY` | secret | base64 App Store `.mobileprovision` (`com.faazio.deliverypartner`) |
+| `APPSTORE_PROVISIONING_PROFILE_SELLER` | secret | base64 App Store `.mobileprovision` (`com.faazio.sellerpartner`) |
+| `APPSTORE_API_PRIVATE_KEY` | secret | contents of the App Store Connect `AuthKey_*.p8` |
+| `CERT_PINS` | secret | comma-separated base64 SHA-256 SPKI pins |
+| `APPSTORE_TEAM_ID` | variable (or secret) | 10-char Apple Developer Team ID |
+| `APPSTORE_ISSUER_ID` | variable (or secret) | App Store Connect API issuer ID |
+| `APPSTORE_API_KEY_ID` | variable (or secret) | App Store Connect API key ID |
+
+**The exact command:**
+
+```bash
+gh workflow run ios-release.yml -f app=customer   # or delivery | seller
+gh run watch
+```
+
+**The `upload` input:**
+
+- `upload: true` (default): CI uploads the `.ipa` to TestFlight via the App Store Connect API.
+- `upload: false`: CI skips TestFlight, leaves the `.ipa` only as a GitHub Actions artifact and a GitHub Release attachment.
+
+> **⚠️ Critical warning:** From Linux there is no official tool to push an `.ipa` into App Store
+> Connect (Xcode and Transporter are Mac-only). If you set `upload: false`, you cannot easily get
+> that binary into App Store Connect without a Mac. Leave `upload` true (or omit it) unless you have
+> a Mac available to handle the `.ipa` manually.
+
+**What happens after CI succeeds:**
+
+The build appears in App Store Connect → TestFlight → Builds. You then submit for review from the
+website (App Store → Add Build). Inviting TestFlight testers is optional — you can submit the CI
+build directly to App Store review. For the full end-to-end Linux path, see
+`docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md`.
 
 ## 🐞 Trigger a debug build (device testing)
 

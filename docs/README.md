@@ -32,6 +32,8 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 | [user-interaction-workflow/KNOWN_GAPS.md](./user-interaction-workflow/KNOWN_GAPS.md) | Living audit of partial/incomplete flows and no-mocks violations | Engineers / reviewers |
 | [RUNBOOKS/RELEASE.md](./RUNBOOKS/RELEASE.md) | Build, sign, and ship Android + iOS | Release / DevOps |
 | [RUNBOOKS/CI_PIPELINE.md](./RUNBOOKS/CI_PIPELINE.md) | GitHub Actions build + release flow (gh CLI, secrets, dev-vs-CI) | Release / DevOps |
+| [RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md](./RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md) | iOS releases from Linux — trigger CI via gh, submit to App Store review from the browser, no macOS needed | Release / DevOps |
+| [RUNBOOKS/APPSTORE_API_KEY.md](./RUNBOOKS/APPSTORE_API_KEY.md) | App Store Connect API key (.p8) creation + GitHub secrets setup | Release / DevOps |
 | [RUNBOOKS/DATA_FIXTURES.md](./RUNBOOKS/DATA_FIXTURES.md) | Authoring rules for `@data/*` fixtures | Engineers |
 | [RUNBOOKS/DATABASE_MIGRATIONS.md](./RUNBOOKS/DATABASE_MIGRATIONS.md) | Apply Supabase migrations from a dev terminal (Render never runs them) | Engineers / ops |
 | [RUNBOOKS/FIREBASE_AUTH.md](./RUNBOOKS/FIREBASE_AUTH.md) | Firebase Phone OTP setup, gateway verification, Part 6 anti-abuse backlog | Engineers / release |

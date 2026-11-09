@@ -42,7 +42,7 @@ docs/
 ├── BRAND_COLOR_MIGRATION.md        # historical royal-purple → brand-blue accent change log + revert (not the colour definition)
 ├── architecture/                   # deep-dives (mvp-backend, monolith-breakdown, mobile-app, web-portal, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
 ├── user-interaction-workflow/      # authoritative end-to-end flows per app (customer, seller, delivery, shared) + KNOWN_GAPS.md
-└── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, DATA_FIXTURES, DATABASE_MIGRATIONS, FIREBASE_AUTH, PORTAL_AUTH, TROUBLESHOOTING)
+└── RUNBOOKS/                       # operational guides (RELEASE, CI_PIPELINE, IOS_RELEASE_WITHOUT_MACOS, DATA_FIXTURES, DATABASE_MIGRATIONS, FIREBASE_AUTH, PORTAL_AUTH, TROUBLESHOOTING)
 ```
 
 Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →

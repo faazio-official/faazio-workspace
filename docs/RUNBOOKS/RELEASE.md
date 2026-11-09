@@ -521,6 +521,18 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 - [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
 - [ ] Store metadata / data-safety updated (see Google Play §4 answer sheet; delete-account URL + in-app flow verified).
 
+## 🍎 iOS Release Checklist
+
+- [ ] `APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`, `APPSTORE_TEAM_ID` set in GitHub secrets/variables.
+- [ ] `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` / `_DELIVERY` / `_SELLER` set as base64 App Store `.mobileprovision` secrets for each product being released.
+- [ ] `APPSTORE_API_PRIVATE_KEY` (full `.p8` contents), `APPSTORE_ISSUER_ID`, `APPSTORE_API_KEY_ID` set (App Store Connect API key; needs App Manager role).
+- [ ] `CERT_PINS` set in GitHub secrets (reused from Android; derived via `scripts/cert-pins.sh`).
+- [ ] `gh workflow run ios-release.yml -f app=<customer|delivery|seller> -f version=<semver> -f tag=v<semver>` succeeds (`gh run watch` green).
+- [ ] Build appears in App Store Connect → TestFlight → Builds (default `upload: true`; CI uploads automatically — no Xcode Organizer needed).
+- [ ] Store metadata complete in the browser: description, screenshots, privacy policy URL (`https://faazio.com/privacy`), App Privacy questionnaire.
+- [ ] Build selected under **App Store → Add Build** and submitted for review (inviting TestFlight testers is optional).
+- [ ] Do **not** use `upload: false` unless you have a Mac to handle the `.ipa` — from Linux there is no official tool to push the binary into App Store Connect.
+
 ### Expected build-time / size impact (CI workflow)
 
 | Metric | Before | After (arm64-only + R8) |

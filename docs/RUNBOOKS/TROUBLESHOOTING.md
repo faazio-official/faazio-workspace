@@ -697,7 +697,8 @@ build on the Linux host.
 - **TestFlight upload rejects the build** → bump the semver: the build number is derived from it
   (`1.0.6` → `10006`), and App Store Connect rejects a duplicate build number for the same
   marketing version. Also check `APPSTORE_ISSUER_ID` / `APPSTORE_API_KEY_ID` /
-  `APPSTORE_API_PRIVATE_KEY` and that the API key has the App Manager role.
+  `APPSTORE_API_PRIVATE_KEY` and that the API key has the App Manager role. See
+   `docs/RUNBOOKS/APPSTORE_API_KEY.md` for the full key-creation workflow.
 - **Partner build fails with "requires GoogleService-Info-Delivery.plist"** → the
   `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` (or `_SELLER_`) secret is not set; the build phase copies it
   over the bundled customer plist.

@@ -1,0 +1,89 @@
+# iOS Release Without macOS
+
+> Build, sign, and ship Faazio iOS releases entirely from GitHub Actions + a browser — no Mac required.
+
+## 1. Situation
+
+You no longer have a Mac (or never had one). All iOS work happens via GitHub Actions on `macos-15`
+runners, triggered from Linux with the `gh` CLI, and submitted to App Store review from a browser.
+The committed `ios/` Xcode project is the source of truth; CI builds the `.ipa` on Apple's own
+runners using Xcode 16.4.
+
+## 2. One-time setup (done on the Mac before giving it back)
+
+Complete these once while you still have access to a Mac and Apple Developer / App Store Connect:
+
+- **Apple Developer Program enrollment** — active membership for the Faazio team.
+- **App Store Connect app records** — one listing per product:
+  - `com.faazio.customer` (Faazio)
+  - `com.faazio.deliverypartner` (Faazio Delivery Partner)
+  - `com.faazio.sellerpartner` (Faazio Seller Partner)
+- **Export the shared distribution certificate** as a `.p12` from Keychain Access →
+  `APPSTORE_CERTIFICATE_BASE64` + `APPSTORE_CERTIFICATE_PASSWORD`.
+- **Create App Store provisioning profiles** (one per bundle id) in the Apple Developer Console →
+  download `.mobileprovision` → base64-encode →
+  `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` / `_DELIVERY` / `_SELLER`.
+- **Create an App Store Connect API key** (App Manager role) → download `AuthKey_XXXXXXXXXX.p8` →
+  `APPSTORE_API_PRIVATE_KEY`. Note the issuer ID → `APPSTORE_ISSUER_ID` and key ID →
+  `APPSTORE_API_KEY_ID`.
+- **Back up provisioning profiles** (they are not repo files).
+- **Configure GitHub secrets** (copy exact names from `.github/workflows/ios-release.yml`):
+  - `APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`
+  - `APPSTORE_PROVISIONING_PROFILE_CUSTOMER`, `_DELIVERY`, `_SELLER`
+  - `APPSTORE_API_PRIVATE_KEY`
+  - `APPSTORE_TEAM_ID` (variable or secret)
+  - `APPSTORE_ISSUER_ID`, `APPSTORE_API_KEY_ID` (variables or secrets)
+  - `CERT_PINS` (from `scripts/cert-pins.sh`)
+
+See `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store" for the full secrets table.
+
+## 3. Every release (from Linux)
+
+```bash
+cd client/mobile
+# Bump package.json version first (or pass -f version=<semver>).
+gh workflow run ios-release.yml -f app=customer -f version=1.0.6 -f tag=v1.0.6
+gh run watch
+gh run view --log-failed   # only if it fails
+```
+
+CI signs, exports, verifies, and uploads the `.ipa` to TestFlight automatically (default
+`upload: true`). No Xcode Organizer, no Transporter, no local Mac.
+
+Then in the browser:
+
+1. Open https://appstoreconnect.apple.com/.
+2. **My Apps → your app → TestFlight → Builds** → the CI build appears there.
+3. **App Store → Add Build → select the CI build → submit for review**.
+
+Inviting TestFlight testers is optional — you can submit the CI build directly to App Store review.
+
+## 4. TestFlight: skip or not?
+
+TestFlight is the **upload pipe**, not a testing requirement:
+
+- `upload: true` (default): CI pushes the `.ipa` to TestFlight; the build appears in App Store Connect → TestFlight → Builds, and you submit it for review from the browser.
+- You do **not** need to invite internal or external testers to submit for review. Direct App Store review submission is done entirely in the browser.
+
+## 5. What breaks if you skip TestFlight (`upload=false`)
+
+CI skips the TestFlight upload and leaves the `.ipa` only as:
+- a GitHub Actions artifact (`faazio-<app>-<version>-ipa`), and
+- a GitHub Release attachment (via `gh release upload --clobber`).
+
+From Linux there is **no official tool** to push an `.ipa` into App Store Connect — Xcode and
+Transporter are Mac-only. So with `upload: false` and no Mac, the binary is effectively stuck in
+GitHub and cannot reach App Store Connect. Leave `upload` true unless you have a Mac available to
+handle the `.ipa` manually.
+
+## 6. Troubleshooting
+
+| Symptom | Likely cause | Fix |
+|---|---|---|
+| `restore-ios-signing.sh` fails | `APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`, `APPSTORE_TEAM_ID`, or `APPSTORE_PROVISIONING_PROFILE_<APP>` missing/wrong | `gh secret list`; confirm profile is an **App Store** profile for that product's bundle id |
+| Archive/export signing error | Profile bundle id doesn't match built config; `APPSTORE_TEAM_ID` doesn't own the cert/profile | Confirm bundle id (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.sellerpartner`) and team ownership |
+| TestFlight upload fails | `APPSTORE_ISSUER_ID`/`APPSTORE_API_KEY_ID` (variables) or `APPSTORE_API_PRIVATE_KEY` (secret) wrong; API key lacks App Manager role | Verify secrets; confirm the `.p8` key has the App Manager role |
+| Build not appearing in TestFlight | Duplicate build number (App Store Connect rejects duplicate build numbers for the same marketing version) | Bump the semver (`-f version`) for each upload |
+| `.ipa` stuck with `upload: false` | No official Linux tool to push to App Store Connect | Obtain a Mac to handle the binary, or re-run with `upload: true` |
+
+For workflow errors, `gh run view --log-failed <run-id>` surfaces the xcodebuild / signing error.

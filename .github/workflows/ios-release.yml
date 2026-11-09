@@ -59,6 +59,9 @@ on:
         required: false
         type: boolean
         default: true
+        # NOTE for Linux-only developers: setting this to false skips TestFlight,
+        # but there is no official Linux tool to push the .ipa into App Store Connect.
+        # Leave it true unless you have a Mac available to handle the .ipa manually.
 
 permissions:
   contents: write
