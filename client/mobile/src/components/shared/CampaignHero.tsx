@@ -21,6 +21,10 @@ interface CampaignHeroProps {
   fallback?: ReactNode;
   /** Tap handler — the host resolves the target (see `services/adsTarget`). */
   onPress?: (ad: HeroAd) => void;
+  /** Corner for the paid "AD" pill. Default `top-right`. */
+  adLabelPosition?: 'top-right' | 'bottom-right';
+  /** Pill styling: `dark` (default) or `light` (gray pill + black "Ad"). */
+  adLabelTone?: 'dark' | 'light';
   style?: StyleProp<ViewStyle>;
 }
 
@@ -37,6 +41,8 @@ const CampaignHero = memo(function CampaignHero({
   storeId,
   fallback = null,
   onPress,
+  adLabelPosition,
+  adLabelTone,
   style,
 }: CampaignHeroProps) {
   const { ads } = useCampaignHero(placement, { app, category, storeId });
@@ -73,6 +79,8 @@ const CampaignHero = memo(function CampaignHero({
     <AdBannerCarousel
       slides={slides}
       showAdLabel
+      adLabelPosition={adLabelPosition}
+      adLabelTone={adLabelTone}
       accessibilityLabel="Sponsored"
       slideKey={(slide) => (slide as HeroSlide).ad.placementId}
       style={style}

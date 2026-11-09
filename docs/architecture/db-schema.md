@@ -779,7 +779,7 @@ itself is the Faazio Blue token defined in `docs/UI_DESIGN_SYSTEM.md` §5.
     { id: 'mostRatedDining', title: 'Most Rated Restaurants', accent: '#1E5D44', productIds: [],
       storeIds: ['store-f1','store-f2','store-f3'] },                         // Home store rail (directory.stores)
     { id: 'mostRatedVenues', title: 'Top Rated Restaurants', accent: '#1E5D44', productIds: [],
-      storeIds: ['tr-1','tr-2','tr-3'] },                                     // Food venue rail (directory.dining_venues)
+      storeIds: ['tr-1','tr-2','tr-3'] },                                     // venue catalogue (retained; Food home no longer renders it)
     { id: 'hotBrandDeals', title: 'Deals of the day', accent: 'brand-accent',
       productIds: ['hbd-1','hbd-2','hbd-3','hbd-4','hbd-5'],
       campaigns: [{ id: 'camp-darling-mobiles', storeId: 'store-m1',
@@ -801,10 +801,11 @@ itself is the Faazio Blue token defined in `docs/UI_DESIGN_SYSTEM.md` §5.
 `foodSpecials` / `mostRatedVenues` are Food's (`GET /sdui/food`), and `pharmaHero` /
 `pharmaPopular` / `pharmaEssentials` are Pharma's (`GET /sdui/pharma`): the Home renderer ignores
 unknown section ids, so a single doc drives the Home, Mart, Food and Pharma feeds. `mostRatedDining`
-is Home's **store** rail (`directory.stores` ids, joined by the gateway) and `mostRatedVenues` is
-Food's **venue** rail (`directory.dining_venues` ids, resolved client-side against the Food grid's
-vendor union of `GET /stores?app=FOOD` + `GET /venues?app=FOOD`); keeping them separate prevents the
-store join from dropping venue ids. The
+is Home's **store** rail (`directory.stores` ids, joined by the gateway) and `mostRatedVenues` is the
+**venue**-scoped catalogue (`directory.dining_venues` ids). The mobile Food home no longer renders a
+Top Rated rail — the `FOOD_HERO` ad banner occupies that slot — but the section stays in the doc and
+the `GET /sdui/food` allowlist as the venue-id catalogue; keeping it separate from `mostRatedDining`
+prevents the store join from dropping venue ids. The
 `hotBrandDeals.campaigns[]` defs compile into the anon `GET /home/campaigns(/{id})` projection;
 they are ID-only (store + product refs) and never carry money.
 

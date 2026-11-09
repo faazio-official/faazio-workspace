@@ -1,5 +1,5 @@
 import React from 'react';
-import { RefreshControl } from 'react-native';
+import { RefreshControl, type RefreshControlProps } from 'react-native';
 import { neutral, parentRamp } from '@/theme/brandTokens';
 
 export interface AppRefreshControlProps {
@@ -16,13 +16,20 @@ export interface AppRefreshControlProps {
  * The single pull-to-refresh control for the Faazio shell. Every surface wraps
  * the native `RefreshControl` with the Faazio Blue tint so the indicator never
  * drifts per screen (`parentRamp.base` is defined once in the theme tokens).
+ *
+ * Android's `ScrollView` clones the `refreshControl` element and passes the
+ * scroll content as its `children` (ScrollView.js wraps it in an
+ * `AndroidSwipeRefreshLayout`). This component must therefore forward
+ * `children`/`style` and any extra props to the native control — dropping them
+ * silently discards the whole list body.
  */
 export function AppRefreshControl({
   refreshing,
   onRefresh,
   progressViewOffset,
   accessibilityLabel = 'Pull to refresh',
-}: AppRefreshControlProps) {
+  ...rest
+}: AppRefreshControlProps & Omit<RefreshControlProps, 'refreshing' | 'onRefresh'>) {
   return (
     <RefreshControl
       refreshing={refreshing}
@@ -32,6 +39,7 @@ export function AppRefreshControl({
       progressBackgroundColor={neutral.card}
       progressViewOffset={progressViewOffset}
       accessibilityLabel={accessibilityLabel}
+      {...rest}
     />
   );
 }

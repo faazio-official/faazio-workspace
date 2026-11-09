@@ -1,4 +1,3 @@
-export { default as TopRestaurantCarousel } from './TopRestaurantCarousel';
 export { default as FeaturedDishCarousel } from './FeaturedDishCarousel';
 export { default as SpecialDishCard } from './SpecialDishCard';
 export { default as RestaurantGrid } from './RestaurantGrid';

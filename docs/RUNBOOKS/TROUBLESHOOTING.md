@@ -383,6 +383,22 @@ adb shell dumpsys gfxinfo com.faazio.customer
 Look at `Janky frames` % / 90th-percentile frame time. Don't judge smoothness on a debug
 build (Reanimated is far slower in debug); use a **CI release** build.
 
+## 🔧 Blank list body (Home / Pharma / drill-in / restaurant grid)
+
+If a screen renders its header/chrome but the list body (products, Home feed, vendors) is empty —
+with no loading or empty-state text — the `refreshControl` is the prime suspect on Android.
+
+Android's `ScrollView` clones the `refreshControl` element and passes the scroll content as its
+`children` (it wraps everything in an `AndroidSwipeRefreshLayout`; see
+`node_modules/react-native/Libraries/Components/ScrollView/ScrollView.js`). Any custom component
+used as `refreshControl` **must forward `children` and extra props** to the native `RefreshControl`,
+or the entire list body is discarded. `AppRefreshControl` (`src/components/shared/`) is the single
+owner of that contract — never drop `...rest`.
+
+React Native cannot diagnose the call site — it throws nothing and logs nothing, `renderItem` is
+never called, and the list's `onLayout` never fires. Do not "fix" it by swapping
+`Animated.FlatList` for `FlatList` or removing `onScroll`; the cause is the `refreshControl` wrapper.
+
 ## 🔧 Typecheck / boundary failures
 
 - `npm run ts:check` — if it only fails with

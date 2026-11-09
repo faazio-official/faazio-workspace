@@ -25,6 +25,10 @@ interface AdBannerCarouselProps {
   onSlidePress?: (slide: AdSlide) => void;
   /** Overlay the shared "AD" disclosure pill (for genuinely paid placements). */
   showAdLabel?: boolean;
+  /** Corner for the "AD" pill. Default `top-right`. */
+  adLabelPosition?: 'top-right' | 'bottom-right';
+  /** Pill styling: `dark` (default) or `light` (gray pill + black "Ad"). */
+  adLabelTone?: 'dark' | 'light';
   /** Screen-reader label for each slide (e.g. "Sponsored" on paid placements). */
   accessibilityLabel?: string;
   /** Stable React key per slide. Defaults to `slide.title` (callers with duplicate titles pass one). */
@@ -43,6 +47,8 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
   slides,
   onSlidePress,
   showAdLabel = false,
+  adLabelPosition = 'top-right',
+  adLabelTone = 'dark',
   accessibilityLabel,
   slideKey,
   style,
@@ -126,11 +132,22 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
                   </View>
                 )}
                 {showAdLabel && (
-                  <View style={styles.adLabelWrap}>
-                    <AdLabelBadge />
+                  <View
+                    style={
+                      adLabelPosition === 'bottom-right'
+                        ? styles.adLabelWrapBottom
+                        : styles.adLabelWrap
+                    }
+                  >
+                    <AdLabelBadge tone={adLabelTone} />
                   </View>
                 )}
-                <View style={styles.content}>
+                <View
+                  style={[
+                    styles.content,
+                    adLabelPosition === 'bottom-right' && styles.contentRaised,
+                  ]}
+                >
                   <AppText style={styles.title}>{slide.title}</AppText>
                   <View style={styles.taglineRow}>
                     <AppText style={styles.tagline} numberOfLines={1}>{slide.tagline}</AppText>
@@ -143,7 +160,7 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
         )}
         {width > 0 && slides.length > 1 && (
           <View
-            style={styles.dots}
+            style={[styles.dots, adLabelPosition === 'bottom-right' && styles.dotsBottomLeft]}
             accessible
             accessibilityRole="progressbar"
             accessibilityLabel="Advertisement carousel"
@@ -218,11 +235,19 @@ const styles = StyleSheet.create({
     top: vs(14),
     right: hs(14),
   },
+  adLabelWrapBottom: {
+    position: 'absolute',
+    bottom: vs(10),
+    right: hs(12),
+  },
   content: {
     position: 'absolute',
     bottom: vs(16),
     left: hs(16),
     right: hs(16),
+  },
+  contentRaised: {
+    bottom: vs(38),
   },
   title: {
     color: '#ffffff',
@@ -248,6 +273,10 @@ const styles = StyleSheet.create({
     right: hs(14),
     flexDirection: 'row',
     gap: hs(4),
+  },
+  dotsBottomLeft: {
+    right: undefined,
+    left: hs(14),
   },
   dot: {
     width: hs(5),

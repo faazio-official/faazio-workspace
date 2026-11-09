@@ -17,7 +17,6 @@ import { useFoodFilterStore } from '@/state/foodFilterStore';
 import { venueMatches, dishMatches } from '../utils/dietFilter';
 import FoodHeader from '../components/FoodHeader';
 import SectionHeader from '../components/SectionHeader';
-import TopRestaurantCarousel from '../components/TopRestaurantCarousel';
 import FeaturedDishCarousel from '../components/FeaturedDishCarousel';
 import FoodSectionHeader from '../components/FoodSectionHeader';
 import MindGridRail from '../components/MindGridRail';
@@ -37,9 +36,9 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
 
 /**
  * Food-first sub-app home. Single scroll surface: the pre-grid sections
- * (FoodHeader, Top Rated carousel, Today's Special, "What's on your mind?",
- * "Snacks & Beverages") render as the RestaurantGrid's list header, and the
- * "Restaurants" grid is the body — no nested vertical lists.
+ * (FoodHeader, the FOOD_HERO ad banner, Today's Special, "What's on your mind?")
+ * render as the RestaurantGrid's list header, and the "Restaurants" grid is the
+ * body — no nested vertical lists.
  */
 export function FoodHomeScreen({ navigation }: Props) {
   const { feed, error, reload, refreshing, refresh } = useRestaurantFeed();
@@ -74,8 +73,7 @@ export function FoodHomeScreen({ navigation }: Props) {
    *  safe no-op. */
   const openVenue = useCallback(
     async (venueId: string) => {
-      const known =
-        feed?.topRated.find((r) => r.id === venueId) ?? feed?.restaurants.find((r) => r.id === venueId);
+      const known = feed?.restaurants.find((r) => r.id === venueId);
       if (known) {
         openRestaurant(known);
         return;
@@ -121,16 +119,20 @@ export function FoodHomeScreen({ navigation }: Props) {
 
   const renderTopSections = useCallback((): ReactNode => {
     if (!feed) return null;
-    const topRated = feed.topRated.filter((r) => venueMatches(dietFilter, r));
     const specials = feed.specials.filter((d) => dishMatches(dietFilter, d));
     const mind = feed.topFoods.filter((f) => venueMatches(dietFilter, f));
     return (
       <>
         <Animated.View entering={FadeIn.duration(260)}>
+          <FoodHeader onBack={goBack} />
+        </Animated.View>
+        <Animated.View entering={FadeIn.duration(260)}>
           <CampaignHero
             placement="FOOD_HERO"
             app="FOOD"
             style={styles.heroWrap}
+            adLabelPosition="bottom-right"
+            adLabelTone="light"
             fallback={feed.heroBanners.length ? <FoodHouseHero banners={feed.heroBanners} /> : null}
             onPress={(ad) =>
               void openHeroTarget(ad, {
@@ -143,23 +145,6 @@ export function FoodHomeScreen({ navigation }: Props) {
               })
             }
           />
-        </Animated.View>
-        <Animated.View entering={FadeIn.duration(260)}>
-          <FoodHeader onBack={goBack} />
-        </Animated.View>
-        <Animated.View entering={FadeInDown.duration(320)}>
-          <View style={styles.sectionHeaderWrap}>
-            <SectionHeader title="Top Rated Restaurants" />
-          </View>
-          {topRated.length > 0 ? (
-            <TopRestaurantCarousel restaurants={topRated} onPress={openRestaurant} />
-          ) : feed.topRated.length === 0 ? (
-            <View style={styles.sectionEmpty}>
-              <AppText style={styles.emptySub}>No top-rated restaurants available right now.</AppText>
-            </View>
-          ) : (
-            <DietEmptyNote />
-          )}
         </Animated.View>
         <Animated.View entering={FadeInDown.duration(360)}>
           <View style={styles.sectionHeaderWrap}>
@@ -183,7 +168,7 @@ export function FoodHomeScreen({ navigation }: Props) {
         ) : null}
       </>
     );
-  }, [feed, dietFilter, openRestaurant, openDishProduct, openSearch, openMindSearch, goBack, openVenue, navigation]);
+  }, [feed, dietFilter, openDishProduct, openMindSearch, goBack, openVenue, navigation]);
 
   if (!feed) {
     return (

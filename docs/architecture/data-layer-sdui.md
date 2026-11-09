@@ -160,11 +160,10 @@ cache/ETag. `foodHero` is the Food house-hero fallback (`foodHero.banners`, same
 editorial contract as `martHero`): `restaurantFeedService.fetchRestaurantFeed` reads it through
 `gateway.getFoodFeed()` and feeds the `CampaignHero` fallback when there is no LIVE paid `FOOD_HERO`
 fill. `foodSpecials.productIds` is the super-admin-editable order of the "Today's Special Near You"
-dish rail (ID-only, money joined from `catalog.products`), and `mostRatedVenues.storeIds` orders the
-Top Rated rail — the ids are resolved against the Food home's vendor union (seller-owned FOOD
-`directory.stores` + `directory.dining_venues`, both server-authoritative), so a row the server no
-longer lists never opens a stale profile. **`mostRatedVenues` is
-venue-scoped** (`directory.dining_venues` ids) and is distinct from Home's `mostRatedDining`, which
+dish rail (ID-only, money joined from `catalog.products`). The Food home no longer renders a Top Rated
+rail — the `FOOD_HERO` ad banner (`CampaignHero`) sits directly below `FoodHeader` — so
+`mostRatedVenues` is retained only as the venue-id catalogue served on `GET /sdui/food`. It is
+**venue-scoped** (`directory.dining_venues` ids) and is distinct from Home's `mostRatedDining`, which
 is a **store** rail (`directory.stores` ids joined by the gateway); the two id spaces must never
 share one section or the Home join silently drops every row (the Food grid reads both lists
 separately and unions them client-side, keeping them in distinct id spaces). The visible Food offer is the

@@ -11,7 +11,9 @@
 2. The surface loads its feed:
    - Mart: `getMartFeed` (`GET /sdui/mart`) + `getStores('MART')` + `getStoresNearby`.
    - Food: `getFoodFeed` (`GET /sdui/food`) + `fetchStores('FOOD')` + `fetchVenues('FOOD')` — the
-     restaurant grid is the union of seller-owned FOOD stores and dining venues.
+     restaurant grid is the union of seller-owned FOOD stores and dining venues. The `FOOD_HERO` ad
+     banner renders directly below the diet-toggle `FoodHeader` (paid fill; `foodHero.banners` house
+     fallback when empty); there is no Top Rated rail.
    - Pharma: `fetchPharmaSections` (`GET /sdui/pharma`) + `fetchStores('PHARMA')`.
 3. Category tap → `CategoryDrillIn`; the hook `useCategoryVendors` groups server search results by
    `storeId` (`GET /search?q=&app=` + `GET /stores?app=`).
@@ -47,6 +49,8 @@
 - `gateway.fetchVenues(app?)` / `fetchMenu(venueId)` → `GET /venues`, `/venues/{id}/menu` →
   `directory.dining_venues` / `directory.menus`. The Food grid unions both lists; a `store-f*`
   profile resolves its menu through the same `/venues/{id}/menu` (`directory.menus.venue_id`).
+- Food home ad banner: `gateway.getHeroAds('FOOD_HERO', { app: 'FOOD' })` → `GET /ads/hero` →
+  `ads.campaigns`; empty read falls back to `foodHero.banners` (non-interactive house banners).
 - Cache: catalog/store-products/geo keys per `monolith-breakdown.md`.
 - No local fallback in `useCategoryVendors`: a failed or empty server read leaves the drill-in empty
   and offers "Report issue".

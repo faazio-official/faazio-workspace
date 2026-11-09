@@ -15,6 +15,29 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W89 — Food home: remove Top Rated, move the FOOD_HERO banner
+
+**Status:** 🟢 Shipped.
+
+- **Removed** the organic "Top Rated Restaurants" section (`SectionHeader` + `TopRestaurantCarousel`)
+  from `FoodHomeScreen`; the `TopRestaurantCarousel` component (and its barrel export) is deleted.
+- **Moved** the paid `FOOD_HERO` `CampaignHero` from above `FoodHeader` to directly below it — no ad
+  banner above the header, no section title.
+- **Ad pill** now renders bottom-right with a gray background and black "Ad" text
+  (`CampaignHero`/`AdBannerCarousel`/`AdLabelBadge` gained `adLabelPosition`/`adLabelTone`; every
+  other surface keeps the default top-right dark "AD"). The page's pagination dots move to the
+  bottom-left for the bottom-right pill variant.
+- `restaurantFeedService`/`useRestaurantFeed` no longer expose `topRated`; `openVenue` resolves
+  against `feed.restaurants`. **No endpoint or DB change** — the existing `FOOD_HERO` placement is
+  reused; the server-side `mostRatedVenues` SDUI section is retained but no longer consumed by the
+  mobile Food feed.
+
+Docs touched: `docs/architecture/mobile-app.md`, `docs/architecture/db-schema.md`,
+`docs/architecture/data-layer-sdui.md`, `docs/user-interaction-workflow/customer/discovery/store-drillin.md`,
+`PAGE_CATALOG.md`.
+
+---
+
 ## W87 — PDP: render reviews, gate stock, add retry
 
 **Status:** 🟢 Shipped. Closes the three flagged PDP gaps.

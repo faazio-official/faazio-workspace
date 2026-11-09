@@ -171,8 +171,8 @@ adds no new
 endpoint/table/cache key of its own. The public `GET /sdui/mart` read (`internal/sdui`, cache
 `faazio:v1:gateway:sdui:{locale}:/mart`) serves the Mart-only section subset, `GET /sdui/food`
 (cache `faazio:v1:gateway:sdui:{locale}:/food`) the Food-only subset (`foodHero` fields the house
-hero, `foodSpecials` the "Today's Special" dish order, `mostRatedVenues` the curated dining-venue
-rail — distinct from Home's store-based `mostRatedDining`) and
+hero, `foodSpecials` the "Today's Special" dish order, `mostRatedVenues` the venue-id catalogue —
+distinct from Home's store-based `mostRatedDining`; retained, not rendered by the mobile Food home) and
 `GET /sdui/pharma` (cache `faazio:v1:gateway:sdui:{locale}:/pharma`) the Pharma-only subset
 (`pharmaHero` house banners, `pharmaPopular`/`pharmaEssentials` OTC product rails; Rx-gated products
 excluded). The anon `GET /home/campaigns(/{id})` (`internal/sdui`, cache

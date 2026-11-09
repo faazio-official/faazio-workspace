@@ -5,7 +5,6 @@ import type { FoodType, FoodRestaurant } from '../types';
 import type { SpecialDish } from '@data/types';
 
 export interface RestaurantFeed {
-  topRated: FoodRestaurant[];
   specials: SpecialDish[];
   restaurants: FoodRestaurant[];
   topFoods: FoodType[];
@@ -102,8 +101,7 @@ export function storeToRestaurant(s: StoreRecord): FoodRestaurant {
  * - the restaurant grid from the union of the authoritative `GET /stores?app=FOOD` (seller-owned
  *   delivery kitchens, `is_live`-filtered server-side) and `GET /venues?app=FOOD` lists,
  * - "Today's Special" from the `foodSpecials` joined products,
- * - the hero from `foodHero`,
- * - Top Rated from the curated `mostRatedVenues` ids resolved against that vendor list.
+ * - the hero from `foodHero`.
  * The two vendor id spaces (`store-f*` stores and `tr-*`/`dn-*` dining venues) are disjoint, so the
  * grid is their de-duplicated union, richest (rating) first. A network/HTTP error leaves the
  * affected read out (honest empty state) — there is no bundled fixture to substitute while the
@@ -114,7 +112,6 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
   const offline = !gateway.remoteEnabled;
   if (offline) {
     return {
-      topRated: [],
       specials: [],
       restaurants: [],
       topFoods: [],
@@ -158,12 +155,6 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
 
   const hero = foodFeed.find((s) => (s.id as string) === 'foodHero');
   const specials = foodFeed.find((s) => (s.id as string) === 'foodSpecials');
-  // Curated dining-venue order lives on `mostRatedVenues` (directory.dining_venues ids). Fall back
-  // to the legacy `mostRatedDining` id for an older published doc; either way curation is a no-op
-  // on ids that are not real vendors (the rail then falls back to rating order below).
-  const mostRated =
-    foodFeed.find((s) => (s.id as string) === 'mostRatedVenues') ??
-    foodFeed.find((s) => (s.id as string) === 'mostRatedDining');
 
   // Vendor union: seller-owned FOOD stores first (they carry the rich presentation data), then the
   // dining venues, de-duplicated by id and ordered by rating (null/0 last), then name.
@@ -181,31 +172,13 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
   }
   vendors.sort((a, b) => b.rating - a.rating || a.name.localeCompare(b.name));
 
-  const vendorById = new Map(vendors.map((r) => [r.id, r]));
-  const curatedIds = mostRated?.storeIds ?? mostRated?.stores?.map((s) => s.id) ?? [];
-
-  // Top Rated: the curated ids resolved against the authoritative vendor list; when the doc does
-  // not curate, fall back to the server's rating order (never to bundled fixture-only venues).
-  const curatedTop = curatedIds
-    .map((id) => vendorById.get(id))
-    .filter((r): r is FoodRestaurant => Boolean(r));
-  const topRated = curatedTop.length > 0 ? curatedTop : vendors.slice(0, 6);
-
   // Specials: the server-joined `foodSpecials` rows (money/image/rating from the gateway). An
   // empty join is an honest empty rail online, never an authored fixture list.
   const specialDishes = feedAuthoritative
     ? (specials?.products ?? []).map(productToDish)
     : [];
 
-  if (__DEV__ && curatedIds.length > 0) {
-    const unresolved = curatedIds.filter((id) => !vendorById.has(id));
-    if (unresolved.length > 0) {
-      console.warn('[food] mostRatedVenues storeIds unresolved (curation no-op):', unresolved);
-    }
-  }
-
   return {
-    topRated,
     specials: specialDishes,
     restaurants: vendors,
     // There is no server-backed category/snack feed yet: an online rail is an honest empty.

@@ -1283,24 +1283,21 @@ the de-duplicated union by rating (null last), then name. The two id spaces are 
 delivery kitchens from `directory.stores` vs `tr-*`/`dn-*` dining venues), so the rich store rows
 surface first and the presentation-thin venues follow. Because both reads throw instead of silently
 falling back, a network/HTTP failure drops that half of the union (honest empty state, no bundled
-fixture); when both halves answer and are empty, the Top Rated rail drops and the grid renders an
+fixture); when both halves answer and are empty, the grid renders an
 honest "No restaurants available right now" empty state — so an all-delisted / state-filtered catalog
 never lingers as stale, openable profiles. A `store-f*` profile resolves its menu through
 `GET /venues/{id}/menu` (the `directory.menus.venue_id` union resolves a store id) and its `STORE_TOP`
-band through the store id. The Top Rated rail honours `mostRatedVenues.storeIds` ordering — those ids
-are `directory.dining_venues` ids (`tr-*`), read raw from the section (the server's store join cannot
-resolve them) and resolved against the union, so a stale id makes the curation a silent no-op; when
-the doc does not curate, the rail falls back to the union's rating order (never to bundled
-fixture-only venues). This is why Food uses `mostRatedVenues` (venue ids) while Home's
-`mostRatedDining` uses `directory.stores` ids (joined by the gateway): the two id spaces stay separate
-sections. Venues without presentation data carry neutral defaults
-(`distance`/`priceForTwo` 0); the restaurant cards and the Top Rated hero drop the `0.0 km` metric,
+band through the store id. The Food home has no organic Top Rated rail: the `FOOD_HERO` ad banner
+(`CampaignHero`) renders directly below `FoodHeader`, with no section title and an "Ad" pill
+bottom-right (gray pill, black text). The server-side `mostRatedVenues` SDUI section — Home's
+`mostRatedDining` uses `directory.stores` ids, joined by the gateway — is retained for the rail
+catalogue but no longer consumed by the Food feed. Venues without presentation data carry neutral
+defaults (`distance`/`priceForTwo` 0); the restaurant cards drop the `0.0 km` metric,
 the `₹0 for two` copy and the blank address, and show a **"New"** chip in place of the rating badge
 rather than printing a fake figure. The house hero banners come from the Food-only SDUI projection
 (`GET /sdui/food` → `foodHero.banners`, via `GatewayClient.getFoodFeed`). The "Today's Special" rail
-is built from the server-joined `foodSpecials.products` (server money/image/rating) and the Top Rated
-rail from the authoritative vendor list; the "What's on your mind?" and snack rails render empty
-because no server feed backs them (no bundled fixture).
+is built from the server-joined `foodSpecials.products` (server money/image/rating); the "What's on
+your mind?" and snack rails render empty because no server feed backs them (no bundled fixture).
 
 > **No dining/table-booking feature exists.** The Food workflow is discover → menu → cart → checkout,
 > with only two fulfillment modes: `FulfillmentMode = 'DELIVERY' | 'PICKUP'`. There is no

@@ -337,22 +337,21 @@ The feed's paid/organic order is codified in
 | F4 | `RestaurantOffers` | **RestaurantOffersScreen** | `src/features/food/screens/RestaurantOffersScreen.tsx` |
 | F5 | `RestaurantMenu` | **RestaurantMenuScreen** | `src/features/food/screens/RestaurantMenuScreen.tsx` |
 
-`FoodHome` = `FOOD_HERO` (paid, SDUI `foodHero` house fallback) + Top Rated + Today's Special +
-"What's on your mind?" + Snacks & Beverages order rails + Restaurants grid. Food cart is
-restaurant-scoped (one common cart, isolated by ownership) + Food `RateVendor`.
+`FoodHome` = `FoodHeader` (diet toggle) + `FOOD_HERO` ad banner (paid, SDUI `foodHero` house
+fallback) + Today's Special + "What's on your mind?" + Snacks & Beverages order rails + Restaurants
+grid. Food cart is restaurant-scoped (one common cart, isolated by ownership) + Food `RateVendor`.
 
 Feed order and paid/organic classification:
 
 | # | Section | Component | Kind | Placement / fallback |
 | --- | --- | --- | --- | --- |
-| Fd1 | Hero carousel (top) | `CampaignHero` (`components/shared`) | **PAID** | `FOOD_HERO` (venue/product target); fallback = `foodHero.banners` via `FoodHouseHero` (non-interactive) |
-| Fd2 | Top Rated carousel | `TopRestaurantCarousel` | Organic directory | SDUI `mostRatedVenues.storeIds` (`directory.dining_venues` `tr-*` ids) resolved against the Food vendor union; else union rating order (server-only, no fixture) |
-| Fd3 | Today's Special rail | `FeaturedDishCarousel` | Organic offer | SDUI `foodSpecials.productIds`; `TODAYS_SPECIALS` fallback (fixture) |
-| Fd4 | What's on your mind? | `MindGridRail` | Organic category | Fixture-owned (not server-driven) |
-| Fd5 | Snacks & Beverages rail | `SnacksRail` | Organic offer | Fixture-owned (not server-driven) |
-| Fd6 | Restaurants grid | `RestaurantGrid` | Organic directory | Union of `gateway.fetchStores('FOOD')` (seller-owned FOOD stores, `is_live`-filtered) + `gateway.fetchVenues('FOOD')` (`directory.dining_venues`), both server-only; authoritative empty → honest empty state (never stale fixture) |
-| Fd7 | Restaurant-profile hero | `CampaignHero` (`components/shared`) | **PAID** | `STORE_TOP` scoped to the venue's `storeId`; whole band drops when no LIVE fill |
-| Fd8 | Restaurant-profile offer slot | inline banner | Organic offer | live coupon `useBestCoupon('FOOD')` → tap opens cart; decorative `offerTag` fallback |
+| Fd1 | Hero banner (below `FoodHeader`) | `CampaignHero` (`components/shared`) | **PAID** | `FOOD_HERO` (venue/product target); no section title; "Ad" pill bottom-right (gray, black text); fallback = `foodHero.banners` via `FoodHouseHero` (non-interactive, unlabeled) |
+| Fd2 | Today's Special rail | `FeaturedDishCarousel` | Organic offer | SDUI `foodSpecials.productIds`; `TODAYS_SPECIALS` fallback (fixture) |
+| Fd3 | What's on your mind? | `MindGridRail` | Organic category | Fixture-owned (not server-driven) |
+| Fd4 | Snacks & Beverages rail | `SnacksRail` | Organic offer | Fixture-owned (not server-driven) |
+| Fd5 | Restaurants grid | `RestaurantGrid` | Organic directory | Union of `gateway.fetchStores('FOOD')` (seller-owned FOOD stores, `is_live`-filtered) + `gateway.fetchVenues('FOOD')` (`directory.dining_venues`), both server-only; authoritative empty → honest empty state (never stale fixture) |
+| Fd6 | Restaurant-profile hero | `CampaignHero` (`components/shared`) | **PAID** | `STORE_TOP` scoped to the venue's `storeId`; whole band drops when no LIVE fill |
+| Fd7 | Restaurant-profile offer slot | inline banner | Organic offer | live coupon `useBestCoupon('FOOD')` → tap opens cart; decorative `offerTag` fallback |
 
 Rail "View All" → shared `RestaurantOffers` / `DealsLanding`; profile dish rows are the shared
 `MenuItemRow`. The profile diet toggle is a **screen-local override** seeded once from

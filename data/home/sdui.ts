@@ -67,11 +67,12 @@ function resolveStoreIds(app: AppBrand): string[] {
 }
 
 /**
- * Order of the Food "Top Rated Restaurants" carousel — `directory.dining_venues` ids (tr-*), not the
- * delivery-kitchen `store-f*` ids. The Food feed (`restaurantFeedService`) resolves these against the
- * authoritative `GET /venues?app=FOOD` list, so a stale/delivery id makes the curation a no-op.
- * Home's "Most Rated Restaurants" is a *store* rail, so it uses `mostRatedDining` (store ids)
- * instead — the two id spaces must never share one section (see `mostRatedVenues` below).
+ * Curated dining-venue catalogue — `directory.dining_venues` ids (tr-*), not the delivery-kitchen
+ * `store-f*` ids. Retained in the Food SDUI doc as the venue-id catalogue; the mobile Food home no
+ * longer renders a Top Rated rail (the `FOOD_HERO` ad banner occupies that slot), so this is not
+ * resolved by `restaurantFeedService` today. Home's "Most Rated Restaurants" is a *store* rail, so
+ * it uses `mostRatedDining` (store ids) instead — the two id spaces must never share one section
+ * (see `mostRatedVenues` below).
  */
 const MOST_RATED_RESTAURANT_VENUE_IDS = ['tr-1', 'tr-2', 'tr-3', 'tr-4', 'tr-5', 'tr-6'];
 
@@ -202,9 +203,10 @@ export const homeSdui: SduiSection[] = [
   { id: 'sponsoredRail', title: 'Sponsored picks', accent: '#B45309', productIds: [] },
   // Home "Most Rated Restaurants": a *store* rail joined by the gateway against `directory.stores`.
   { id: 'mostRatedDining', title: 'Most Rated Restaurants', accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
-  // Food "Top Rated Restaurants": the `directory.dining_venues` curation, resolved client-side by
-  // the Food feed against `GET /venues?app=FOOD`. Served only on `GET /sdui/food`; `HomeView` skips
-  // the id. Splitting it off `mostRatedDining` is what fixes the store/venue id-space clash.
+  // Food venue catalogue: the `directory.dining_venues` curation. Served only on `GET /sdui/food`;
+  // `HomeView` skips the id. Retained as the venue-id catalogue (the mobile Food home no longer
+  // renders a Top Rated rail); splitting it off `mostRatedDining` keeps the store/venue id spaces
+  // apart.
   { id: 'mostRatedVenues', title: 'Top Rated Restaurants', accent: '#1E5D44', productIds: [], storeIds: MOST_RATED_RESTAURANT_VENUE_IDS },
   { id: 'recentlyViewedMart', title: 'Recently Viewed — Mart', accent: '#1627E9', productIds: resolveProductIds(['rvm-1', 'rvm-2', 'rvm-3', 'rvm-4']) },
   { id: 'recentlyViewedFood', title: 'Recently Viewed — Food', accent: '#1E5D44', productIds: resolveProductIds(['rvf-1', 'rvf-2', 'rvf-3']) },

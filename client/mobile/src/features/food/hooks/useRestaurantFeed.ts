@@ -79,7 +79,6 @@ export function useRestaurantFeed(): RestaurantFeedState {
     if (!feed) return null;
     return {
       ...feed,
-      topRated: byLiveDistance(feed.topRated, origin),
       restaurants: byLiveDistance(feed.restaurants, origin),
     };
   }, [feed, origin]);
