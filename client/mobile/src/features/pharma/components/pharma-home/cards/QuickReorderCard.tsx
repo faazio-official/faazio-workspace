@@ -3,8 +3,8 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Plus } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
-import type { PharmaQuickReorderItem } from '../../../mocks/pharmaHomeFeed';
-import { PHARMA_GREY, PHARMA_INK, PHARMA_TEAL } from '../../../mocks/pharmaHomeFeed';
+import type { PharmaQuickReorderItem } from '../../../types';
+import { PHARMA_GREY, PHARMA_INK, PHARMA_TEAL } from '@/theme/pharmaTokens';
 
 interface QuickReorderCardProps {
   item: PharmaQuickReorderItem;

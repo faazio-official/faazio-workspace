@@ -1,18 +1,15 @@
 import { gateway, type ProductView, type ReadSource } from '@/services/api/GatewayClient';
 import { effectivePrice, fetchActiveDiscounts } from '@/services/pricing';
 import type { SduiBanner, SduiSection } from '@data/home/sdui';
-import {
-  PHARMA_QUICK_REORDER_IDS,
-  PHARMA_TOP_OFFERS,
-  PHARMA_FEATURED_BRANDS,
-  PHARMA_HEALTH_CORNER,
-  type PharmaQuickReorderItem,
-  type PharmaTopOffer,
-  type PharmaPopularMedicine,
-  type PharmaHealthEssential,
-  type PharmaFeaturedBrand,
-  type PharmaHealthCornerArticle,
-} from '../mocks/pharmaHomeFeed';
+import type { Product } from '@data/types';
+import type {
+  PharmaQuickReorderItem,
+  PharmaTopOffer,
+  PharmaPopularMedicine,
+  PharmaHealthEssential,
+  PharmaFeaturedBrand,
+  PharmaHealthCornerArticle,
+} from '../types';
 
 export interface PharmaFeed {
   quickReorder: PharmaQuickReorderItem[];
@@ -33,6 +30,25 @@ export interface PharmaFeed {
   source: ReadSource;
 }
 
+const PHARMA_PLACEHOLDER_IMG =
+  'https://images.unsplash.com/photo-1584308666744-24d5c474f2ae?fm=jpg&fit=crop&q=80&w=400&h=400';
+
+/** Map a Quick Reorder medicine to a unified Product. Quick Reorder items carry
+ *  no image/rating, so a medicine icon placeholder and a default rating are used. */
+export const quickReorderToProduct = (item: PharmaQuickReorderItem): Product => ({
+  id: item.id,
+  app: 'PHARMA',
+  category: 'medicine',
+  name: item.name,
+  price: item.price,
+  emoji: 'pharma',
+  rating: 4.5,
+  desc: item.stripDetails,
+  image: PHARMA_PLACEHOLDER_IMG,
+  unit: item.stripDetails,
+  attributes: { type: 'Medicine', brand: 'Faazio Pharma', packSize: item.stripDetails },
+});
+
 /** The list price to strike through beside an effective price (authored MRP, else base). */
 function listPrice(p: ProductView): number {
   return p.originalPrice && p.originalPrice > p.price ? p.originalPrice : p.price;
@@ -52,49 +68,19 @@ function toPopularMedicine(p: ProductView, discountPercent = 0): PharmaPopularMe
   };
 }
 
-function toQuickReorder(p: ProductView, discountPercent = 0): PharmaQuickReorderItem {
-  const price = effectivePrice(p.price, discountPercent);
-  const mrp = listPrice(p);
-  return {
-    id: p.id,
-    name: p.name,
-    stripDetails: p.unit ?? p.desc ?? '',
-    price,
-    ...(price < mrp ? { mrp } : {}),
-  };
-}
-
 function toHealthEssential(p: ProductView): PharmaHealthEssential {
   return { id: p.id, title: p.name, imageUrl: p.image };
 }
 
 /**
- * The set of coupon codes the server actually honours for Pharma, or `null` in mock mode (where the
- * checkout is local). In remote mode this is ALWAYS a Set — on a failed/empty read it is an empty
- * Set, so the rail hides rather than advertising a fixture code (`MED20`/`FREEDEL`/…) that
- * `contracts.CouponValidator` would reject at checkout. Mock mode never renders the editorial
- * fixtures either (the rail is empty when the codes are unknown).
- */
-async function livePharmaOfferCodes(): Promise<Set<string> | null> {
-  if (!gateway.remoteEnabled) return null;
-  try {
-    const coupons = await gateway.getCoupons('PHARMA');
-    return new Set(coupons.map((c) => c.code));
-  } catch {
-    return new Set();
-  }
-}
-
-/**
  * Pharma home feed. Pharmacy **stores** are server-backed (`directory.stores`, app=PHARMA) via
- * `usePharmaStores`. The two product rails and the house hero are server-backed too: they read the
+ * `usePharmaStores`. The product rails and the house hero are server-backed too: they read the
  * super-admin SDUI sections (`pharmaPopular`/`pharmaEssentials`/`pharmaHero`) through
  * `GET /sdui/pharma`, joined to the catalog, with approved festival discounts overlaid on the
- * shopper price (same `services/pricing` pipeline as Mart). Quick Reorder resolves its REAL catalog
- * ids (`getProductsByIds`) so a tap opens a canonical PDP and an add-to-cart id checkout can price;
- * Top Offers are filtered to live server coupons when online. The product rails are strictly
+ * shopper price (same `services/pricing` pipeline as Mart). The product rails are strictly
  * server-backed: a failed/absent SDUI section leaves the rail empty (never a bundled fixture).
- * Rx-gated products are never referenced by the public pharma rails.
+ * Rx-gated products are never referenced by the public pharma rails. Quick Reorder, Top Offers,
+ * Featured Brands and Health Corner have no server source yet, so they render empty until wired.
  */
 export async function fetchPharmaFeed(): Promise<PharmaFeed> {
   let sections: (SduiSection & { products: ProductView[] })[];
@@ -114,41 +100,24 @@ export async function fetchPharmaFeed(): Promise<PharmaFeed> {
 
   const popularProducts = popular?.products?.length ? popular.products : null;
 
-  // One discount batch covering both product rails so every shown price matches the price
+  // One discount batch covering the shown product rail so every shown price matches the price
   // `internal/checkout` settles (`contracts.DiscountReader`).
-  const [quickReorderResolved, discounts, liveCodes] = await Promise.all([
-    gateway.getProductsByIds(PHARMA_QUICK_REORDER_IDS).catch(() => [] as ProductView[]),
-    fetchActiveDiscounts([
-      ...(popularProducts?.map((p) => p.id) ?? []),
-      ...PHARMA_QUICK_REORDER_IDS,
-    ]),
-    livePharmaOfferCodes(),
-  ]);
-
-  // Remote: only the server-honoured codes. Offline/disabled: the rail is empty — a fixture code
-  // (`MED20`/`FREEDEL`/…) is never advertised when `contracts.CouponValidator` cannot honour it.
-  const topOffers = liveCodes
-    ? PHARMA_TOP_OFFERS.filter((offer) => liveCodes.has(offer.code))
-    : [];
+  const discounts = await fetchActiveDiscounts(popularProducts?.map((p) => p.id) ?? []);
 
   return {
-    quickReorder: quickReorderResolved.map(
-      (p) => toQuickReorder(p, discounts[p.id]?.discountPercent ?? 0),
-    ),
-    topOffers,
+    quickReorder: [],
+    topOffers: [],
     popularMedicines: popularProducts
       ? popularProducts.map((p) => toPopularMedicine(p, discounts[p.id]?.discountPercent ?? 0))
       : [],
     healthEssentials: essentials?.products?.length
       ? essentials.products.map(toHealthEssential)
       : [],
-    featuredBrands: PHARMA_FEATURED_BRANDS,
-    healthCorner: PHARMA_HEALTH_CORNER,
+    featuredBrands: [],
+    healthCorner: [],
     heroBanners: hero?.banners ?? [],
-    // The hero advertises exactly the first Top Offer code (server-honoured in remote, the editorial
-    // fixture in mock) — so the banner can never claim a code the rail below doesn't show, and never
-    // one checkout would reject.
-    heroCouponCode: topOffers[0]?.code ?? null,
+    // No server-honoured offer feed exists yet, so the house hero never advertises a code.
+    heroCouponCode: null,
     source,
   };
 }

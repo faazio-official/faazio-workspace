@@ -4,7 +4,7 @@ import { ChevronRight } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { PHARMA_TEAL } from '../../mocks/pharmaHomeFeed';
+import { PHARMA_TEAL } from '@/theme/pharmaTokens';
 
 interface PharmaSectionHeaderProps {
   title: string;

@@ -16,6 +16,9 @@
    `storeId` (`GET /search?q=&app=` + `GET /stores?app=`).
 4. Store tap → `VendorDetails`; `getStore` + `getStoreProducts` load the store profile and catalog.
 5. Product tap → `ProductDetail`.
+6. Pull-to-refresh is available on the drill-in body (`AppRefreshControl`): one pull re-runs both
+   `useCategoryTree` (taxonomy/chips) and `useCategoryVendors` (store-grouped body). Category chips
+   are not server-cached, so they update instantly. Stale rows stay visible while the spinner runs.
 
 ## State
 
@@ -47,11 +50,16 @@
 ## Success / error / empty
 
 - **Success:** server stores/products render; prices match checkout.
+- **Refreshing:** `refreshing` from both drill-in hooks drives the branded spinner; a failed pull
+  keeps the current rows and only sets `failed` (a category/query change still clears, so another
+  category's vendors are never shown under the new chip).
 - **Error:** empty surface + report-issue affordance; no stale fixture grouping.
 - **Empty:** honest "no stores/products" state.
 
 ## Known gaps
 
+- A pull re-reads the upstream 300 s cache for the server-backed lists (feed/taxonomy), so it can
+  return identical content until the key lapses — see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 - Root `Search` `FOOD` config mismatch (see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md)).
 - `services/categoryVendors.ts` still exports unused fixture-backed `getVendorsForApp` /
   `getVendorsWithProducts` / `getVendorProducts`. The live drill-in (`useCategoryVendors`) uses the

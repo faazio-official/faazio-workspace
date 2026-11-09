@@ -8,7 +8,7 @@ import type { StoreProfile } from '@data/types';
 import type { FulfillmentMode } from '@data/types';
 import PharmaVendorCard from './PharmaVendorCard';
 import PharmaFulfilmentSheet from './PharmaFulfilmentSheet';
-import { PHARMA_INK } from '../mocks/pharmaHomeFeed';
+import { PHARMA_INK } from '@/theme/pharmaTokens';
 import { usePharmaStores } from '../hooks/usePharmaStores';
 
 interface PharmaVendorListProps {

@@ -3,9 +3,13 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppGradient } from '@/components/shared/AppGradient';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
-import { PHARMA_HERO_IMAGE, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../../mocks/pharmaHomeFeed';
+import { PHARMA_TEAL, PHARMA_TEAL_DARK } from '@/theme/pharmaTokens';
 import type { SduiBanner } from '@data/home/sdui';
 import PharmaImage from './PharmaImage';
+
+/** House hero image used when there is no portal-owned `pharmaHero` banner. */
+const PHARMA_HERO_IMAGE =
+  'https://images.unsplash.com/photo-1603398938378-e54eab446dde?fm=jpg&fit=crop&q=80&w=500&h=500';
 
 interface PharmaHeroBannerProps {
   onOrderNow?: () => void;

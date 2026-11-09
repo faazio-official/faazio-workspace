@@ -18,8 +18,8 @@ import { PHARMA_RECENT_ORDERS } from '@data/pharma/recentOrders';
 import type { PharmaRecentOrder } from '@data/pharma/recentOrders';
 import type { RootStackParamList } from '@/navigation/types';
 
-import type { PharmaPopularMedicine, PharmaQuickReorderItem } from './mocks/pharmaHomeFeed';
-import { quickReorderToProduct } from './mocks/pharmaHomeFeed';
+import type { PharmaPopularMedicine, PharmaQuickReorderItem } from './types';
+import { quickReorderToProduct } from './services/pharmaService';
 
 import PharmaHeroBanner from './components/pharma-home/PharmaHeroBanner';
 import CampaignHero from '@/components/shared/CampaignHero';
@@ -37,6 +37,7 @@ import UploadPrescriptionFAB from './components/pharma-home/UploadPrescriptionFA
 import { usePharmaFeed } from './hooks/usePharmaFeed';
 import { usePharmaStores } from './hooks/usePharmaStores';
 import PharmaHomeSkeleton from './components/skeletons/PharmaHomeSkeleton';
+import AppRefreshControl from '@/components/shared/AppRefreshControl';
 import { DonorDashboard } from './blood-donor/DonorDashboard';
 import { useOrdersStore, type PlacedOrder } from '@/state/ordersStore';
 import { brandRamp } from '@/theme/brandTokens';
@@ -110,7 +111,7 @@ export function PharmaScreen({
   const [categoryReloadNonce, setCategoryReloadNonce] = useState(0);
 
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
-  const feed = usePharmaFeed();
+  const { feed, refreshing, refresh } = usePharmaFeed();
   const { stores, source: storesSource } = usePharmaStores();
 
   // History tab: real orders (in-session + durable `GET /orders`) filtered to Pharma, newest first.
@@ -337,18 +338,26 @@ export function PharmaScreen({
 
   const feedView = feed ? (
     <View style={styles.feedWrap}>
-      <ScrollView showsVerticalScrollIndicator={false} bounces={false}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        bounces={false}
+        refreshControl={
+          <AppRefreshControl refreshing={refreshing} onRefresh={refresh} />
+        }
+      >
         <CampaignHero placement="PHARMA_HERO" app="PHARMA" onPress={handlePharmaHeroPress} />
         <PharmaHeroBanner
           banner={feed.heroBanners[0]}
           couponCode={feed.heroCouponCode}
           onOrderNow={() => { setSelectedCategoryId('vitamin'); setCurrentView('CATEGORY_PRODUCTS'); }}
         />
-        <QuickReorderRail
-          items={feed.quickReorder}
-          onPress={handleQuickReorderPress}
-          onAdd={handleFeedAdd}
-        />
+        {feed.quickReorder.length > 0 ? (
+          <QuickReorderRail
+            items={feed.quickReorder}
+            onPress={handleQuickReorderPress}
+            onAdd={handleFeedAdd}
+          />
+        ) : null}
         {feed.topOffers.length > 0 ? (
           <TopOffersRail offers={feed.topOffers} />
         ) : null}
@@ -362,11 +371,13 @@ export function PharmaScreen({
           items={feed.healthEssentials}
           onPress={handleHealthEssentialPress}
         />
-        <FeaturedBrandsRail
-          brands={feed.featuredBrands}
-          onPress={handleFeaturedBrandPress}
-        />
-        <HealthCornerRail items={feed.healthCorner} />
+        {feed.featuredBrands.length > 0 ? (
+          <FeaturedBrandsRail
+            brands={feed.featuredBrands}
+            onPress={handleFeaturedBrandPress}
+          />
+        ) : null}
+        {feed.healthCorner.length > 0 ? <HealthCornerRail items={feed.healthCorner} /> : null}
         {storesSource !== 'live' ? (
           <View style={styles.offlineChip}>
             <CloudOff size={ms(13)} color="#64748b" strokeWidth={2.2} />

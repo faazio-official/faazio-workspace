@@ -44,7 +44,7 @@ writes the dropped columns. `@data/*` stays seed input + types only, never a run
 | Domain | Owner (feature) | Entry files | Status |
 |---|---|---|---|
 | `mart` | `features/ecommerce` | `products.ts`, `stores.ts` | `@server` (fixtures are type/offline seeds) |
-| `food` | `features/food` | `products.ts`, `stores.ts`, `menus.ts`, `specials.ts`, `diningVenues.ts` | mixed `@mock` / `@server` — `menus.ts` + `diningVenues.ts` seed `directory.menus`/`directory.dining_venues` and fall back locally (`getList` → `GatewayClient.fetchMenu`/`fetchVenues`); `features/food/mocks/*` (`restaurants`, `homeFeed`, `specials`) are the client-side first-paint for the restaurant grid + mind/snack rails (see `@data/food` below) |
+| `food` | `features/food` | `products.ts`, `stores.ts`, `menus.ts`, `specials.ts`, `diningVenues.ts` | mixed `@mock` / `@server` — `menus.ts` + `diningVenues.ts` seed `directory.menus`/`directory.dining_venues` and fall back locally (`getList` → `GatewayClient.fetchMenu`/`fetchVenues`); the `@data/food` fixtures are the offline shell (type/seed source); online rails read the server (see `@data/food` below) |
 | `pharma` | `features/pharma` | `products.ts`, `stores.ts`, `bloodRequests.ts`, `recentOrders.ts` | mixed `@mock` / `@server` — pharma home feed (SDUI sections, coupons, hero) + History read `GatewayClient`; `PHARMA_PRODUCTS_DB` supplies authored category ids/copy while `POST /products/batch` overlays money/rating/image online; authored rows are the offline/error shell only |
 | `explore` | `features/catalog` (Categories/Favourites) | `stacks.ts` | `@server` (fixtures are type seeds) |
 | `categories` | `features/catalog` | `searchDatabase.ts` | `@static` taxonomy |
@@ -95,7 +95,7 @@ surface for these tables). These tables **pull from the legacy sources via impor
 | `catalog/products.ts` | Rust + Tantivy (search index) | mart/food/pharma/home/explore/categories product records, deduped by `id`, tokenized. Exposes `getProductById` (resolves a real `Product` from the domain arrays + converted deal/special products) used by `OrderDetailsScreen`'s **View Product** drill-in; `CatalogEntry.storeId` + `getCatalogEntriesByStore` back the offline mirror of `GET /stores/{id}/products` (Mart vendor drill-in) | `@mock` |
 | `directory/stores.ts` | Go + PostgreSQL (store directory) | `mart/stores`, `food/stores` | `@mock` |
 | `directory/vendors.ts` | Go + PostgreSQL (vendor identity view) | `directory/stores` + `food/diningVenues` — deduped `VendorRef[]` with `resolveVendorForProduct` (identity resolver, single owner). Snapshotted onto orders at placement | `@mock` |
-| `food/diningVenues.ts` | Go + PostgreSQL (restaurant-venue identity only — no booking/reservation fields) | ids/names mirroring `features/food/mocks/restaurants.ts` + `food/stores`; exports `restaurantVenues`/`getRestaurantVenueById`/`findRestaurantVenueByName`. `directory.dining_venues` now carries `app`/`rating`/`cover_image`/`categories` (+ gated `address`/`phone`/`hours`) — migration `0013` | `@mock` → `@server` |
+| `food/diningVenues.ts` | Go + PostgreSQL (restaurant-venue identity only — no booking/reservation fields) | ids/names mirroring `food/stores`; exports `restaurantVenues`/`getRestaurantVenueById`/`findRestaurantVenueByName`. `directory.dining_venues` now carries `app`/`rating`/`cover_image`/`categories` (+ gated `address`/`phone`/`hours`) — migration `0013` | `@mock` → `@server` |
 | `reviews/vendorReviews.ts` | Go + PostgreSQL (vendor reviews) | vendor-scoped public reviews (full name only) keyed by vendor id; merged with the user's live rating from `state/vendorRatingStore` by `services/vendorRatings` | `@mock` |
 | `reviews/reviews.ts` | Go + PostgreSQL (reviews/specs) | `productMeta/reviews`. Reviews are now **product-keyed** — per-product rows attached to real catalog ids (`fm-*`/`sp-*`/`ph-*` bestsellers) with an app-scoped fallback so `getReviewsByProductId` never returns empty | `@mock` |
 | `inventory/stock.ts` | Go + DynamoDB (key-value stock) | net new — one row per catalog product id | `@mock` |
@@ -141,8 +141,6 @@ wiring order in `docs/architecture/data-layer-sdui.md`.
 | `MartProduct.storeId` | `string` (**required**) | Vendor link for campaigns, vendor drill-in, product-detail store section, self-pickup. Every `martProducts` row must set **top-level** `storeId` — enforced by the type; `ts:check` fails otherwise | contract |
 | `martStores` | `StoreProfile[]` | `FaMartScreen` "Local Vendors Near You" rail + vendor drill-in (replaces the retired `MART_LOCAL_VENDORS` mock); also the PDP store-block offline/error fallback (server-first via `GET /store/{id}`). Server-first nearby rail via `getStoresNearby` (fixture only when offline / no fix) | `@mock` → `@server` (offline fallback) |
 | `MART_DEALS` / `dealToProduct` | `MartDeal[]` / `(MartDeal) => Product` | `FaMartScreen` `DealsOfDayRail` — **server-controlled** via the SDUI doc (`martDeals.productIds`, read by `martService.fetchMartFeed` → `getMartFeed`); `dealToProduct` and this fixture are the offline first-paint fallback only. `home/DealsOfDaySection` (Home) still resolves `md-*` through the catalog independently. Rows seeded into `catalog.products`. `MartDeal` gained optional `rating?`/`priceNote?` for the minimal deal card | `@static-editorial` (copy) + `@fallback` → SDUI ids, server-priced |
-| `MART_DAILY_ESSENTIALS` (`features/ecommerce/mocks/martHomeFeed.ts`) | `MartEssential[]` | `DailyEssentialsRail` — now **server-controlled** via the SDUI home doc (`martEssentials.productIds`, read by `martService.fetchMartFeed` → `getMartFeed`); this fixture is the offline first-paint fallback only. The retired `mf-*` ghost ids were replaced with real `gr-*` catalog ids. The old `MART_HERO_BANNERS` fixture + `MartHeroCarousel` are **retired** (`W42`) — the Mart hero is a paid `MART_HERO` placement; when there is no LIVE fill it falls back to the SDUI `martHero.banners` house hero (`MartHouseHero`), and to nothing when empty | `@fallback` → SDUI |
-
 > **Mart feed resilience + price parity (W43).** `martService.fetchMartFeed` now degrades each leg
 > independently (per-leg `catch` + a body guard) so a failing `GET /stores`/`GET /sdui/home` renders
 > the remaining rails rather than a stuck skeleton. The Deals + Daily-Essentials rails overlay the
@@ -157,9 +155,11 @@ wiring order in `docs/architecture/data-layer-sdui.md`.
 > offline fallback (via `useVendorProducts`/`useCategoryVendors`). The **hero** (`MART_HERO` paid +
 > `martHero.banners` house fallback), **Deals** (`martDeals.productIds`) and **Daily Essentials**
 > (`martEssentials.productIds`) sections are **server-controlled** through the Mongo SDUI doc
-> (`GET /sdui/mart`) and `ads.campaigns`; the `MART_DEALS`/`MART_DAILY_ESSENTIALS` fixtures are
-> first-paint fallbacks only. `campaign` mode (`@data/home/campaigns.ts`) is now **server-owned
-> too (W50)**: the `hotBrandDeals.campaigns[]` SDUI leaf compiles into the anon
+> (`GET /sdui/mart`) and `ads.campaigns`; the `MART_DEALS` fixture (`@data/mart/deals`) remains a
+> first-paint fallback. The former feature-local `MART_DAILY_ESSENTIALS` fixture
+> (`features/ecommerce/mocks/martHomeFeed.ts`) was **removed** — the Daily-Essentials rail is
+> server-only and renders empty offline. `campaign` mode (`@data/home/campaigns.ts`) is now
+> **server-owned too (W50)**: the `hotBrandDeals.campaigns[]` SDUI leaf compiles into the anon
 > `GET /home/campaigns(/{id})` projection (`GatewayClient.getHomeCampaigns`/`getHomeCampaign`),
 > with the `@data` fixture as the offline fallback.
 
@@ -480,12 +480,14 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 > End-to-end user-flow gaps and no-mocks violations are tracked per app in
 > `docs/user-interaction-workflow/KNOWN_GAPS.md`; this section covers data-layer ownership only.
 
-1. **Duplicated mock data in screens.** `PharmaScreen` (home feed arrays in `mocks/pharmaHomeFeed.ts`),
-   `FaMartScreen` (mart home feed in `mocks/martHomeFeed.ts`), and
-   `CommonProductDetailView` each keep inline/feature copies of data. The `PharmaScreen` recent-orders
-   copy has been de-duplicated into `data/pharma/recentOrders.ts`; the pharma/mart **home-feed**
-   arrays remain feature-local (feature-specific UI types) and are a deliberate de-dup priority.
-   Canonical copies are marked `@unused` until those screens switch to `@data/*`.
+1. **Feature-local mock data (resolved).** The feature-local Food/Mart/Pharma home-feed fixtures
+   (`features/food/mocks/*`, `features/ecommerce/mocks/martHomeFeed.ts`,
+   `features/pharma/mocks/pharmaHomeFeed.ts`) were **removed**. Their UI types now live in feature
+   `types.ts` modules and the pharma-home palette in `src/theme/pharmaTokens.ts`. Rails without a
+   server source (Food "What's on your mind?"/snack rails, Pharma Quick Reorder / Top Offers /
+   Featured Brands / Health Corner) render empty until a server feed exists — no bundled fixture.
+   `CommonProductDetailView` still keeps a feature copy of data; canonical copies are marked `@unused`
+   until those screens switch to `@data/*`.
 2. **Unused rail exports.** Several `@data/home/rails` exports (`todaysOffers`, `mixedRecommendations`,
    `popularDining`, `recentlyViewedHistory`, `sponsoredAds`, `faMartFinds`, `restaurantSpecials`)
    are exported but not consumed by mobile. They were built for the frozen Vite reference.

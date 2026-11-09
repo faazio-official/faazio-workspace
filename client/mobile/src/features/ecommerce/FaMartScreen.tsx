@@ -17,11 +17,9 @@ import { useViewableTracking } from '@/hooks/useViewableTracking';
 import { useVendorProducts } from '@/features/catalog/hooks/useVendorProducts';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
-import {
-  dealToProduct,
-  essentialToProduct,
-} from './mocks/martHomeFeed';
-import type { MartDeal, MartEssential } from './mocks/martHomeFeed';
+import { dealToProduct } from '@data/mart/deals';
+import { essentialToProduct } from './services/martService';
+import type { MartDeal, MartEssential } from './types';
 import { useMartFeed } from './hooks/useMartFeed';
 import { priceDeals, priceEssentials } from './services/martService';
 import { MART_FEED_SECTION_IDS } from './services/martFeedSections';

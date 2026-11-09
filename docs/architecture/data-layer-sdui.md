@@ -142,9 +142,9 @@ same `sdui_layouts/home` doc, served on their own endpoint `GET /sdui/mart` (so 
 downloads or couples to the full Home payload/ETag): `martHero` (an array of editorial `banners` with
 image + copy), `martDeals` and `martEssentials` (real `catalog` product ids). Because the Home renderer
 ignores unknown section ids, one doc drives both feeds. `martService.fetchMartFeed` reads them through
-`gateway.getMartFeed()` and falls back to the `mocks/martHomeFeed.ts` fixture offline. A section
-present-but-empty renders empty (a portal typo is visible, not masked); only an absent section falls
-back to the fixture. `banners` is the only non-ID leaf in the doc — it carries display copy + an image
+`gateway.getMartFeed()`; there is no bundled Mart feed fixture, so an offline/disabled read renders
+the rails empty. A section present-but-empty renders empty (a portal typo is visible, not masked) and
+an absent section renders the same honest empty. `banners` is the only non-ID leaf in the doc — it carries display copy + an image
 URL, **never money** (prices are always joined from `catalog.products`), so the ID-only rule holds and
 no per-rail SQL table is needed. Note (W41/W43): the Mart hero carousel is **paid inventory first** —
 `CampaignHero` renders the ad-server `MART_HERO` campaigns and only when there is no LIVE fill falls

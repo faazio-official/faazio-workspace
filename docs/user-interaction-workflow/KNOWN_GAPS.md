@@ -20,6 +20,7 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | Order cancellation is a support hand-off, not an API | `client/mobile/src/features/profile/OrderDetailsScreen.tsx:188-199` opens a `mailto:` | No in-app cancel state or cancellation endpoint |
 | Dev-only placeholder login | `client/mobile/src/features/auth/LoginScreen.tsx` `submitOtp` path under `__DEV__` when Firebase is unconfigured | Not a release path, but it is a mock session seam |
 | Food PDP has no restaurant affordance | `client/mobile/src/features/food/utils/restaurantForProduct.ts:46-57` is an intentional server-only stub returning `undefined` | Deliberate no-fabrication choice; do not "fix" with a fixture |
+| Pull-to-refresh can return the same cached doc for ~300 s | Gateway reads are Valkey-cached (e.g. `GET /sdui/*` at 300 s; see `docs/architecture/caching-cloudflare-valkey.md`). `useHomeFeed`/`useRestaurantFeed`/`usePharmaFeed`/`useCategoryVendors`/`useCategoryTree`/`usePagedRail` re-read the cache, not a bypass | A pull may show identical content until the key lapses. A true "live" pull needs a gateway cache bypass (`Cache-Control: no-cache` or `?fresh=1`) — a server-side decision, out of client scope; the client still refreshes correctly and never fabricates |
 
 ## Seller (portal + partner app)
 

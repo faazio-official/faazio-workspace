@@ -2,7 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { hs, vs } from '@/utils/responsive';
-import type { PharmaPopularMedicine } from '../../mocks/pharmaHomeFeed';
+import type { PharmaPopularMedicine } from '../../types';
 import PharmaSectionHeader from './PharmaSectionHeader';
 import PopularMedicineCard from './cards/PopularMedicineCard';
 

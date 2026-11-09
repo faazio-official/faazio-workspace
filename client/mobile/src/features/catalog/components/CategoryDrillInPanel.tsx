@@ -13,6 +13,7 @@ import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import CampaignHero from '@/components/shared/CampaignHero';
+import AppRefreshControl from '@/components/shared/AppRefreshControl';
 import { ReportIssueButton } from '@/components/shared/ReportIssueButton';
 import type { Product } from '@data/types';
 import { openHeroTarget } from '@/services/adsTarget';
@@ -57,7 +58,12 @@ export function CategoryDrillInPanel({
   const bodyRef = useRef<FlatList<VendorProducts>>(null);
 
   // Server-backed taxonomy for this sub-app (superadmin-owned; no fixture fallback).
-  const { categories, loading: treeLoading } = useCategoryTree(app);
+  const {
+    categories,
+    loading: treeLoading,
+    refreshing: treeRefreshing,
+    refresh: refreshTree,
+  } = useCategoryTree(app);
 
   // Parent id → children map, built from the flat `GET /categories?app=` list.
   const byParent = useMemo(() => {
@@ -108,10 +114,16 @@ export function CategoryDrillInPanel({
   // Store-grouped body for the selected title: server products (FTS), grouped by store and joined
   // to the directory, with approved festival discounts overlaid — the local pool is the offline
   // fallback. Then filtered by the inline vendor search.
-  const { vendors: categoryVendors, loading, failed } = useCategoryVendors(
+  const { vendors: categoryVendors, loading, failed, refreshing: vendorsRefreshing, refresh: refreshVendors } = useCategoryVendors(
     app,
     activeItem?.searchQuery ?? '',
   );
+
+  // One pull refreshes both the taxonomy chips (instant, not server-cached) and the vendor body.
+  const handleRefresh = useCallback(() => {
+    refreshTree();
+    refreshVendors();
+  }, [refreshTree, refreshVendors]);
 
   const vendors = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
@@ -215,6 +227,12 @@ export function CategoryDrillInPanel({
         contentContainerStyle={styles.bodyContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <AppRefreshControl
+            refreshing={treeRefreshing || vendorsRefreshing}
+            onRefresh={handleRefresh}
+          />
+        }
         ListHeaderComponent={
           <CampaignHero
             placement="CATEGORY_TOP"

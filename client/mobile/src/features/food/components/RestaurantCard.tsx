@@ -6,7 +6,7 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { DURATION, EASE_ENTRANCE, SCALE } from '@/theme/motion';
 import AppText from '@/components/AppText';
 import { foodTheme } from '../constants/theme';
-import type { FoodRestaurant } from '../mocks/types';
+import type { FoodRestaurant } from '../types';
 import RemoteImage from './RemoteImage';
 import RatingBadge from './RatingBadge';
 import FavoriteButton from './FavoriteButton';

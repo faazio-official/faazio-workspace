@@ -10,10 +10,8 @@ import { foodTheme } from '../constants/theme';
 import AppText from '@/components/AppText';
 import { useRestaurantFeed } from '../hooks/useRestaurantFeed';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
-import type { FoodRestaurant, SpecialDish } from '../mocks/types';
-import type { FoodType } from '../mocks/homeFeed';
-import { SNACKS_BEVERAGES } from '../mocks/homeFeed';
-import { dishToProduct } from '../mocks/specials';
+import type { FoodRestaurant, SpecialDish, FoodType } from '../types';
+import { dishToProduct } from '@data/food/specials';
 import { useFoodFilterStore } from '@/state/foodFilterStore';
 import { venueMatches, dishMatches } from '../utils/dietFilter';
 import FoodHeader from '../components/FoodHeader';
@@ -22,7 +20,6 @@ import TopRestaurantCarousel from '../components/TopRestaurantCarousel';
 import FeaturedDishCarousel from '../components/FeaturedDishCarousel';
 import FoodSectionHeader from '../components/FoodSectionHeader';
 import MindGridRail from '../components/MindGridRail';
-import SnacksRail from '../components/SnacksRail';
 import RestaurantGrid from '../components/RestaurantGrid';
 import DietEmptyNote from '../components/DietEmptyNote';
 import FoodBottomNav, { type FoodTab } from '../components/FoodBottomNav';
@@ -44,7 +41,7 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
  * "Restaurants" grid is the body — no nested vertical lists.
  */
 export function FoodHomeScreen({ navigation }: Props) {
-  const { feed, error, reload } = useRestaurantFeed();
+  const { feed, error, reload, refreshing, refresh } = useRestaurantFeed();
   const [activeTab, setActiveTab] = useState<FoodTab>('Home');
   const scrollY = useSharedValue(0);
   const dietFilter = useFoodFilterStore((s) => s.dietFilter);
@@ -110,7 +107,6 @@ export function FoodHomeScreen({ navigation }: Props) {
   );
 
   const openMindSearch = useCallback((item: FoodType) => openSearch(item.name), [openSearch]);
-  const openSnackSearch = useCallback((snack: { name: string }) => openSearch(snack.name), [openSearch]);
 
   const handleTabChange = useCallback(
     (tab: FoodTab) => {
@@ -139,13 +135,9 @@ export function FoodHomeScreen({ navigation }: Props) {
 
   const renderTopSections = useCallback((): ReactNode => {
     if (!feed) return null;
-    const offline = !gateway.remoteEnabled;
     const topRated = feed.topRated.filter((r) => venueMatches(dietFilter, r));
     const specials = feed.specials.filter((d) => dishMatches(dietFilter, d));
     const mind = feed.topFoods.filter((f) => venueMatches(dietFilter, f));
-    // The authored snack rail is an offline shell only; there is no server snack feed yet, so the
-    // online rail is omitted rather than showing fixture tiles as live.
-    const snacks = offline ? SNACKS_BEVERAGES.filter((s) => dishMatches(dietFilter, s)) : [];
     return (
       <>
         <Animated.View entering={FadeIn.duration(260)}>
@@ -203,15 +195,9 @@ export function FoodHomeScreen({ navigation }: Props) {
             <MindGridRail items={mind} onPress={openMindSearch} />
           </Animated.View>
         ) : null}
-        {snacks.length > 0 ? (
-          <Animated.View entering={FadeInDown.duration(400)}>
-            <FoodSectionHeader title="Snacks & Beverages" />
-            <SnacksRail snacks={snacks} onPress={openSnackSearch} />
-          </Animated.View>
-        ) : null}
       </>
     );
-  }, [feed, dietFilter, openRestaurant, openDishProduct, openSearch, openMindSearch, openSnackSearch, goBack, openVenue, navigation]);
+  }, [feed, dietFilter, openRestaurant, openDishProduct, openSearch, openMindSearch, goBack, openVenue, navigation]);
 
   if (!feed) {
     return (
@@ -253,6 +239,8 @@ export function FoodHomeScreen({ navigation }: Props) {
         empty={gridEmpty}
         onPress={openRestaurant}
         onScroll={onScroll}
+        refreshing={refreshing}
+        onRefresh={refresh}
       />
       <FoodStatusBarStrip scrollY={scrollY} />
       <FoodBottomNav activeTab={activeTab} onChange={handleTabChange} onCartPress={openCart} onYouPress={openYou} onHomePress={openHubHome} />

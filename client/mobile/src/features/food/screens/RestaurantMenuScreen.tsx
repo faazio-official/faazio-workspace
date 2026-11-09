@@ -15,7 +15,7 @@ import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { SpecialDish } from '@data/types';
 import { getMenuCategories } from '../utils/menu';
-import { dishToProduct } from '../mocks/specials';
+import { dishToProduct } from '@data/food/specials';
 import { useRestaurantMenu } from '../hooks/useRestaurantMenu';
 import { dishMatches } from '../utils/dietFilter';
 import { useCartStore } from '@/state/cartStore';

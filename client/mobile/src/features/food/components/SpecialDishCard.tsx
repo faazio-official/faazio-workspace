@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { hs } from '@/utils/responsive';
 import FoodProductCard from '../cards/FoodProductCard';
 import { dishToProduct } from '@data/food/specials';
-import type { SpecialDish } from '../mocks/types';
+import type { SpecialDish } from '../types';
 
 export const SPECIAL_CARD_W = hs(116);
 

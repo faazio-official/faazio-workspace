@@ -3,8 +3,8 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Percent, Truck, Wallet } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
-import type { PharmaTopOffer } from '../../../mocks/pharmaHomeFeed';
-import { PHARMA_GREY, PHARMA_INK, PHARMA_PALE, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../../../mocks/pharmaHomeFeed';
+import type { PharmaTopOffer } from '../../../types';
+import { PHARMA_GREY, PHARMA_INK, PHARMA_PALE, PHARMA_TEAL, PHARMA_TEAL_DARK } from '@/theme/pharmaTokens';
 
 interface TopOfferCardProps {
   item: PharmaTopOffer;

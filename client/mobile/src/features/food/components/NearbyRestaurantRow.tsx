@@ -4,7 +4,7 @@ import { MapPin } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
-import type { NearbyRestaurant } from '../mocks/homeFeed';
+import type { NearbyRestaurant } from '../types';
 import RemoteImage from './RemoteImage';
 import RatingBadge from './RatingBadge';
 

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Soup, Zap, Leaf, Star } from 'lucide-react-native';
-import type { SpecialDish } from '@/features/food/mocks/types';
-import { TODAYS_SPECIALS } from '@/features/food/mocks/specials';
+import type { SpecialDish } from '@/features/food/types';
+import { TODAYS_SPECIALS } from '@data/food/specials';
 import { getProductById } from '@data/catalog/products';
 import { gateway, type ProductView } from '@/services/api/GatewayClient';
 import { withActiveDiscounts } from '@/services/pricing';

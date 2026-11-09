@@ -36,6 +36,7 @@ import FilterFeedSection from '@/features/home/sections/FilterFeedSection';
 import { recentlyViewedMart, recentlyViewedFood, recentlyViewedPharma } from '@data/home/rails';
 import { brandRamp } from '@/theme/brandTokens';
 import AppText from '@/components/AppText';
+import AppRefreshControl from '@/components/shared/AppRefreshControl';
 import { ms, vs, hs } from '@/utils/responsive';
 import { neutral } from '@/theme/brandTokens';
 
@@ -83,7 +84,7 @@ export default function HomeView({
   // Server-driven SDUI registry: section order and joined product/store rows come from the
   // gateway doc. The static registry + authored fixtures are used only when the gateway is
   // disabled (offline shell); while online, an empty/failed read shows an honest state.
-  const { feed, loading, error, reload } = useHomeFeed();
+  const { feed, loading, error, reload, refreshing, refresh } = useHomeFeed();
   const offline = !gateway.remoteEnabled;
 
   const rows = useMemo<HomeRow[]>(() => {
@@ -198,6 +199,13 @@ export default function HomeView({
       showsVerticalScrollIndicator={false}
       onScroll={scrollHandler}
       scrollEventThrottle={16}
+      refreshControl={
+        <AppRefreshControl
+          refreshing={refreshing}
+          onRefresh={refresh}
+          progressViewOffset={contentPaddingTop}
+        />
+      }
       initialNumToRender={2}
       maxToRenderPerBatch={6}
       windowSize={5}

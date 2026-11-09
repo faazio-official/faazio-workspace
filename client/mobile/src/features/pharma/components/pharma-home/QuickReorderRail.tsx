@@ -3,8 +3,8 @@ import { View, ScrollView, StyleSheet } from 'react-native';
 import { FileText } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
-import type { PharmaQuickReorderItem } from '../../mocks/pharmaHomeFeed';
-import { PHARMA_PALE, PHARMA_TEAL, PHARMA_TEAL_DARK } from '../../mocks/pharmaHomeFeed';
+import type { PharmaQuickReorderItem } from '../../types';
+import { PHARMA_PALE, PHARMA_TEAL, PHARMA_TEAL_DARK } from '@/theme/pharmaTokens';
 import PharmaSectionHeader from './PharmaSectionHeader';
 import QuickReorderCard from './cards/QuickReorderCard';
 

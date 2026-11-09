@@ -14,7 +14,7 @@ import { SCREEN_W, hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import { foodTheme } from '../constants/theme';
-import type { FoodRestaurant } from '../mocks/types';
+import type { FoodRestaurant } from '../types';
 import RatingBadge from './RatingBadge';
 import DistanceBadge from './DistanceBadge';
 import FavoriteButton from './FavoriteButton';

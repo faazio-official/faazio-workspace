@@ -1,6 +1,6 @@
 /**
  * @mock Static fixture — per-venue menu items for both the restaurants surfaced
- * in the Food tab (see `features/food/mocks/restaurants.ts`) and the 12
+ * in the Food tab (the restaurant-venue ids in `diningVenues.ts`) and the 12
  * food-delivery kitchens (`foodStores`, `store-f1…f12`). Restaurant rows are
  * authored as `SpecialDish` (keyed by restaurant name); delivery rows are derived
  * from `foodProducts` by `storeId`. `RestaurantProfileScreen.getMenuForRestaurant()`

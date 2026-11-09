@@ -35,6 +35,37 @@ Docs touched: `docs/user-interaction-workflow/customer/discovery/product-detail.
 
 ---
 
+## W88 — Pull-to-refresh on the 5 remaining surfaces
+
+**Status:** 🟡 Partial — refresh wired on all 5 surfaces; the refresh-failure toast is not built.
+
+- **Shared control:** new `components/shared/AppRefreshControl.tsx` is the single branded
+  `RefreshControl` (Faazio Blue `parentRamp.base` tint/colours + card `progressBackgroundColor`),
+  so every pull indicator matches the theme. Exported from `components/shared/index.ts`.
+- **Hook contract:** `useHomeFeed`, `useRestaurantFeed`, `usePharmaFeed`, `useCategoryVendors`,
+  `useCategoryTree`, `usePagedRail` now expose `{ refreshing, refresh }` (mirroring `useMartFeed`).
+  `refresh` sets `refreshing`, re-runs the read and stops the spinner in `finally`. A failed pull
+  keeps the previously loaded rows (never blanks, never fabricates); a category/query/app change
+  still clears so another category's data is never shown.
+- **Surfaces wired:** Home body (`Animated.FlatList` + `progressViewOffset` under the overlay
+  header), Food home grid (`RestaurantGrid` FlashList `refreshControl`), Pharma home feed
+  `ScrollView`, category drill-in body (`FlatList`; one pull re-runs `useCategoryTree` +
+  `useCategoryVendors`), and the Home header category rail.
+- **Cross-component signal:** `HeaderCategoryRail` is a sibling of the Home body in the collapsing
+  header, so the pull cannot reach it by props. New `src/state/refreshStore.ts` (`home`/`mart`
+  counters) carries the signal: `useHomeFeed.refresh` bumps `home`, and `usePagedRail` re-reads on
+  it, so one pull refreshes the feed and the rail together.
+- **Remaining:** on a failed pull with rows already on screen there is no visible "Couldn't
+  refresh" cue (the spinner just stops). Add a lightweight per-surface notice (reuse
+  `OfflineToast` styling) without fabricating data. Server-side cache caveat recorded in
+  `docs/user-interaction-workflow/KNOWN_GAPS.md` (a pull re-reads the 300 s Valkey doc).
+
+Docs touched: `docs/architecture/mobile-app.md`,
+`docs/user-interaction-workflow/customer/{home/home-feed,discovery/store-drillin,pharma/index}.md`,
+`docs/user-interaction-workflow/KNOWN_GAPS.md`.
+
+---
+
 ## W86 — Close behavioural gaps found during the UI audit
 
 **Status:** 🟢 Shipped. Fixes the honest-state bugs surfaced by the token-migration audit.
@@ -390,10 +421,13 @@ landed.
   but never selected — `sellerColumns`/`scanSeller`); `DELETE /categories/{id}` is idempotent; an
   empty `?parent_id=` is treated as absent; a duplicate create id returns `409` (not `500`).
 
-**Remaining (follow-up):** the feature-local Food/Mart fixtures (`features/food/mocks/*`,
-`features/ecommerce/mocks/martHomeFeed.ts`, `data/categories/searchDatabase.ts`) are **not yet**
-removed — that needs a server-backed Food/Mart home feed first (products/catalog, not the category
-taxonomy). `check:drillin` now validates against `server/supabase/seed/lib/taxonomy.mjs`.
+**Resolved (follow-up):** the feature-local Food/Mart/Pharma fixtures (`features/food/mocks/*`,
+`features/ecommerce/mocks/martHomeFeed.ts`, `features/pharma/mocks/pharmaHomeFeed.ts`) were
+**removed**. Their UI types now live in feature `types.ts` modules and the pharma-home palette in
+`src/theme/pharmaTokens.ts`; rails without a server source (Food mind/snack rails, Pharma Quick
+Reorder / Top Offers / Featured Brands / Health Corner) render empty until a server feed exists — no
+bundled fixture. `data/categories/searchDatabase.ts` remains `@static` taxonomy. `check:drillin`
+validates against `server/supabase/seed/lib/taxonomy.mjs`.
 
 **Date:** 2026-11-01
 

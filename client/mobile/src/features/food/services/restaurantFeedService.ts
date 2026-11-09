@@ -1,10 +1,7 @@
 import { gateway, type Venue, type ProductView } from '@/services/api/GatewayClient';
 import type { SduiBanner, SduiSection } from '@data/home/sdui';
-import { TOP_RATED_RESTAURANTS, FOOD_RESTAURANTS } from '../mocks/restaurants';
-import { TODAYS_SPECIALS } from '../mocks/specials';
-import { TOP_FOODS_TO_ORDER } from '../mocks/homeFeed';
-import type { FoodType } from '../mocks/homeFeed';
-import type { FoodRestaurant, SpecialDish } from '../mocks/types';
+import type { FoodType, FoodRestaurant } from '../types';
+import type { SpecialDish } from '@data/types';
 
 export interface RestaurantFeed {
   topRated: FoodRestaurant[];
@@ -47,11 +44,9 @@ function productToDish(p: ProductView): SpecialDish {
 }
 
 /**
- * Build a `FoodRestaurant` for a venue the fixture does not cover. The durable
- * `directory.dining_venues` projection carries only the public catalog fields
- * (rating/cover/categories), so the presentation-only fields (distance,
- * price-for-two, neighbourhood, geo) fall back to neutral values. Seeded venues keep their
- * richer presentation row while the server-owned public fields are overlaid.
+ * Build a `FoodRestaurant` for a venue. The durable `directory.dining_venues` projection carries
+ * only the public catalog fields (rating/cover/categories), so the presentation-only fields
+ * (distance, price-for-two, neighbourhood, geo) are neutral unless the server supplies them.
  */
 function venueToRestaurant(v: Venue): FoodRestaurant {
   return {
@@ -73,51 +68,24 @@ function venueToRestaurant(v: Venue): FoodRestaurant {
   };
 }
 
-const PRESENTATION_ROWS = [...FOOD_RESTAURANTS, ...TOP_RATED_RESTAURANTS];
-const PRESENTATION_BY_ID = new Map(PRESENTATION_ROWS.map((r) => [r.id, r]));
-
-/**
- * Build a server-venue-backed row, reusing the curated presentation fields (distance,
- * price-for-two, diet) when known while the server's public fields (name/rating/cover/
- * categories/address/geo) always win.
- */
-function venueRow(v: Venue): FoodRestaurant {
-  const base = PRESENTATION_BY_ID.get(v.id) ?? venueToRestaurant(v);
-  const cuisines = v.categories.length > 0 ? v.categories : base.cuisines;
-  return {
-    ...base,
-    id: v.id,
-    name: v.name,
-    image: v.coverImage || base.image,
-    rating: v.rating ?? base.rating,
-    cuisines,
-    cuisine: cuisines.join(' • '),
-    address: v.address ?? base.address,
-    neighborhood: v.address ?? base.neighborhood,
-    latitude: v.latitude ?? base.latitude,
-    longitude: v.longitude ?? base.longitude,
-    distance: v.distanceKm ?? base.distance,
-  };
-}
-
 /**
  * Food-first home feed. Online, every rail is server-derived:
  * - the restaurant grid from the authoritative `GET /venues?app=FOOD` list,
  * - "Today's Special" from the `foodSpecials` joined products,
  * - the hero from `foodHero`,
  * - Top Rated from the curated `mostRatedVenues` ids resolved against the server venue list.
- * A network/HTTP error leaves the affected rail empty (honest empty state) — a fixture is never
- * substituted while the gateway is enabled. The authored fixtures render only when the gateway is
- * disabled (explicit offline shell).
+ * A network/HTTP error leaves the affected rail empty (honest empty state) — there is no bundled
+ * fixture to substitute while the gateway is enabled. When the gateway is disabled the feed is
+ * empty (offline shell) rather than a bundled demo catalog.
  */
 export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
   const offline = !gateway.remoteEnabled;
   if (offline) {
     return {
-      topRated: TOP_RATED_RESTAURANTS,
-      specials: TODAYS_SPECIALS,
-      restaurants: FOOD_RESTAURANTS,
-      topFoods: TOP_FOODS_TO_ORDER,
+      topRated: [],
+      specials: [],
+      restaurants: [],
+      topFoods: [],
       heroBanners: [],
       venueAuthoritative: false,
       feedAuthoritative: false,
@@ -164,7 +132,7 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
       : [...venues].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0)).slice(0, 6);
 
   // Specials: the server-joined `foodSpecials` rows (money/image/rating from the gateway). An
-  // empty join is an honest empty rail online, never the authored fixture list.
+  // empty join is an honest empty rail online, never an authored fixture list.
   const specialDishes = feedAuthoritative
     ? (specials?.products ?? []).map(productToDish)
     : [];
@@ -178,9 +146,9 @@ export async function fetchRestaurantFeed(): Promise<RestaurantFeed> {
   }
 
   return {
-    topRated: topVenues.map(venueRow),
+    topRated: topVenues.map(venueToRestaurant),
     specials: specialDishes,
-    restaurants: venues.map(venueRow),
+    restaurants: venues.map(venueToRestaurant),
     // There is no server-backed category/snack feed yet: an online rail is an honest empty.
     topFoods: [],
     heroBanners: feedAuthoritative ? hero?.banners ?? [] : [],

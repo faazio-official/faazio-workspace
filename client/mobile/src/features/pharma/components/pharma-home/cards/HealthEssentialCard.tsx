@@ -2,8 +2,8 @@ import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import AppText from '@/components/AppText';
 import { ms, vs } from '@/utils/responsive';
-import type { PharmaHealthEssential } from '../../../mocks/pharmaHomeFeed';
-import { PHARMA_INK } from '../../../mocks/pharmaHomeFeed';
+import type { PharmaHealthEssential } from '../../../types';
+import { PHARMA_INK } from '@/theme/pharmaTokens';
 import PharmaImage from '../PharmaImage';
 
 interface HealthEssentialCardProps {

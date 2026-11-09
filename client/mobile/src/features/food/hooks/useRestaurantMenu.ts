@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { SpecialDish } from '@data/types';
 import { gateway, type MenuDish } from '@/services/api/GatewayClient';
-import type { FoodRestaurant } from '../mocks/types';
+import type { FoodRestaurant } from '../types';
 
 /** Map one durable `directory.menus` dish onto the app's `SpecialDish` card shape. */
 function toSpecialDish(dish: MenuDish, restaurantName: string): SpecialDish {

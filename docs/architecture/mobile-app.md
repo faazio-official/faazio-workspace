@@ -100,8 +100,9 @@ Mongo SDUI home doc (`martService.fetchMartFeed` → `gateway.getMartFeed()`, `G
 page, so rail membership and rotation change with no app release. Both rails now have a **"View All"**
 that opens `DealsLanding` in a catalog-resolved list mode (`martDeals`/`martEssentials`), and a tap
 resolves the canonical catalog row (`openCatalogTarget` → `getProduct`) before the PDP, so a renamed /
-redacted product never opens a stale copy. The `mocks/martHomeFeed.ts` fixtures (`MART_DAILY_ESSENTIALS`,
-`@data/mart/deals`) are the offline first-paint fallback only; a present-but-empty Mart SDUI section
+redacted product never opens a stale copy. `@data/mart/deals` is the offline first-paint fallback
+only (the former feature-local `MART_DAILY_ESSENTIALS` fixture was removed, so the Daily-Essentials
+rail renders empty offline); a present-but-empty Mart SDUI section
 renders empty (a portal typo stays visible). The **Home** SDUI rails follow the same rule: online they
 render server rows or an honest empty/error state, and the `@mock`/`@static-editorial` rows are the
 offline shell only. `fetchMartFeed` degrades each leg independently (`Promise.all` +
@@ -515,7 +516,25 @@ so cards decode ahead of the fold. The header collapse is **1:1** with the finge
 `AppImage` (RN `Image`, `resizeMode="cover"`, native HTTP cache) via the shared
 `ProductCardBase` — never plain RN `Image` (no cache control / raw pop-in). The Home feed reads
 through `useHomeFeed` → `GatewayClient.getHomeFeed` (`GET /sdui/home`); the old fixture-backed
-`src/services/homeFeed.ts` repository seam was removed (zero live importers). Startup
+`src/services/homeFeed.ts` repository seam was removed (zero live importers).
+
+**Pull-to-refresh** — `components/shared/AppRefreshControl.tsx` is the single branded
+`RefreshControl` (Faazio Blue `parentRamp.base` tint/colours, `progressBackgroundColor` on the card
+token) used by every pull surface, so the indicator never drifts per screen. Page hooks expose the
+`useMartFeed` contract `{ refreshing, refresh }` and **never clear loaded rows on a failed pull** —
+the spinner stops and the surface keeps its data; only a first-load failure shows the honest
+empty/error state. Wired surfaces: Home body (`useHomeFeed` on the `Animated.FlatList`, with
+`progressViewOffset` so the spinner starts below the overlay header), Food home grid
+(`useRestaurantFeed` → `RestaurantGrid` FlashList `refreshControl`), Pharma home (`usePharmaFeed`
+feed `ScrollView`), and the category drill-in body (`useCategoryVendors` + `useCategoryTree`; one
+pull re-runs both the vendor body and the taxonomy chips). The Home header category rail
+(`HeaderCategoryRail` → `usePagedRail`) is a sibling of the body inside the collapsing header, so it
+cannot receive props from the body's pull; the signal is shared through `src/state/refreshStore.ts`
+(a `home` counter — `useHomeFeed.refresh` bumps it and `usePagedRail` re-reads on it), so one pull
+refreshes the feed and the rail together. A pull re-reads the same 300 s Valkey-cached server doc
+until the key lapses (see [`../../user-interaction-workflow/KNOWN_GAPS.md`](../../user-interaction-workflow/KNOWN_GAPS.md)).
+
+Startup
  defers non-initial routes with `React.lazy` (kept eager: `Onboarding`, `Login`,
  `LanguageSelection`, `Location`, `MainTabs`/`Home`) and loads only the used Roboto weights
  (`400`–`900`), gated to Android (iOS uses `System`). The whole `Stack.Navigator` is wrapped in one
@@ -1258,27 +1277,24 @@ pure-non-veg venues drop in Veg mode; `both` venues stay in both. Unclassifiable
 
 The restaurant grid ("Restaurants") is driven by the durable
 `directory.dining_venues` list — `restaurantFeedService.fetchRestaurantFeed` calls the server-only
-`GatewayClient.fetchVenues('FOOD')` and merges the result with the feature fixture by id
-(known venues keep their rich distance/price-for-two copy; server-only venues get neutral
-defaults). Because `fetchVenues` throws instead of silently falling back, the feed distinguishes a
-real failure (network/HTTP → `@data` venue identity table + fixture, grid never blank) from an
-**authoritative empty** list (server returns `[]`): on an authoritative empty the grid, the Top Rated
-rail and the fixture venues are all dropped and the screen renders an honest
-"No restaurants available right now" empty state — so an all-delisted / state-filtered catalog never
-lingers as stale, openable profiles. The Top Rated rail
-(`TOP_RATED_RESTAURANTS`) also drops venues the server no longer lists (so a delisted `tr-*`
-row never opens a stale profile) and honours `mostRatedVenues.storeIds` ordering — those ids are
-`directory.dining_venues` ids (`tr-*`), read raw from the section (the server's store join cannot
-resolve them), so a stale/delivery-kitchen id would make the curation a silent no-op. This is why
-Food uses `mostRatedVenues` (venue ids) while Home's `mostRatedDining` uses `directory.stores` ids
-(joined by the gateway): the two id spaces are separate sections. Server-only
-venues carry neutral presentation defaults (`distance`/`priceForTwo`/`rating` 0); the restaurant cards and
-the Top Rated hero drop the `0.0 km` metric, the `₹0 for two` copy and the blank address, and show a
-**"New"** chip in place of the rating badge rather than printing a fake figure. The house hero banners come from the Food-only SDUI projection
+`GatewayClient.fetchVenues('FOOD')`. Because `fetchVenues` throws instead of silently falling back,
+a network/HTTP failure leaves the grid and the Top Rated rail empty (honest empty state, no bundled
+fixture), while an **authoritative empty** list (server returns `[]`) also drops the Top Rated rail
+and renders an honest "No restaurants available right now" empty state — so an all-delisted /
+state-filtered catalog never lingers as stale, openable profiles. The Top Rated rail honours
+`mostRatedVenues.storeIds` ordering — those ids are `directory.dining_venues` ids (`tr-*`), read raw
+from the section (the server's store join cannot resolve them), so a stale/delivery-kitchen id would
+make the curation a silent no-op; when the doc does not curate, the rail falls back to the server's
+rating order (never to bundled fixture-only venues). This is why Food uses `mostRatedVenues` (venue
+ids) while Home's `mostRatedDining` uses `directory.stores` ids (joined by the gateway): the two id
+spaces are separate sections. Venues without presentation data carry neutral defaults
+(`distance`/`priceForTwo` 0); the restaurant cards and the Top Rated hero drop the `0.0 km` metric,
+the `₹0 for two` copy and the blank address, and show a **"New"** chip in place of the rating badge
+rather than printing a fake figure. The house hero banners come from the Food-only SDUI projection
 (`GET /sdui/food` → `foodHero.banners`, via `GatewayClient.getFoodFeed`). The "Today's Special" rail
 is built from the server-joined `foodSpecials.products` (server money/image/rating) and the Top Rated
-rail from the authoritative venue list; the online mind/snack rails are omitted because no server
-feed backs them (offline they use the authored fixture).
+rail from the authoritative venue list; the "What's on your mind?" and snack rails render empty
+because no server feed backs them (no bundled fixture).
 
 > **No dining/table-booking feature exists.** The Food workflow is discover → menu → cart → checkout,
 > with only two fulfillment modes: `FulfillmentMode = 'DELIVERY' | 'PICKUP'`. There is no

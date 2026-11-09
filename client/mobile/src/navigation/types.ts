@@ -1,7 +1,7 @@
 import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { SubAppId } from '@/state/uiStore';
 import type { DietFilter } from '@/state/foodFilterStore';
-import type { FoodRestaurant, SpecialDish } from '@/features/food/mocks/types';
+import type { FoodRestaurant, SpecialDish } from '@/features/food/types';
 import type { MyOrdersStatusFilter } from '@data/types';
 
 export type MainTabParamList = {

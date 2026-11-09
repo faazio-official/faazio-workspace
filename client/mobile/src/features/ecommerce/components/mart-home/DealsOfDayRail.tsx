@@ -3,7 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { hs, vs } from '@/utils/responsive';
 import { useViewableTracking } from '@/hooks/useViewableTracking';
-import type { MartDeal } from '../../mocks/martHomeFeed';
+import type { MartDeal } from '../../types';
 import MartSectionHeader from './MartSectionHeader';
 import MartDealCard from './MartDealCard';
 

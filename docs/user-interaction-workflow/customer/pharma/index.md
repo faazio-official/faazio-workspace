@@ -17,6 +17,10 @@
 
 - `PharmaScreen` loads `fetchPharmaSections` (`GET /sdui/pharma`), `fetchStores('PHARMA')`,
   coupons (`GET /coupons?app=PHARMA`), and server discounts (`GET /promo/active-discounts`).
+- Pull-to-refresh on the Pharma home feed (`AppRefreshControl`) re-runs `usePharmaFeed`
+  (`{ feed, refreshing, refresh }`). A failed read keeps the current rails and stops the spinner —
+  it never fabricates or blanks. The underlying 300 s Valkey cache means a pull can return the same
+  doc until the key lapses (see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md)).
 - `MedicalShopDetailsScreen` loads `getStore` + products.
 - Product detail uses the shared PDP path.
 
@@ -38,6 +42,7 @@
 
 - **Success:** pharmacy rail/detail render server rows; prescription submits with a server Rx id;
   donor profile/request writes return a sync outcome.
+- **Refreshing:** branded pull-to-refresh on the Pharma home; rails stay visible while it runs.
 - **Error:** inline error on the failing step; prescription/donor/match reads never fabricate rows.
   The category grid shows a retryable error after a failed read — never authored rows while online.
 - **Empty:** no nearby pharmacies / no blood requests → honest empty state.

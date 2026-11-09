@@ -5,7 +5,7 @@ import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { StoreProfile } from '@data/types';
 import type { FulfillmentMode } from '@data/types';
-import { PHARMA_TEAL, PHARMA_INK } from '../mocks/pharmaHomeFeed';
+import { PHARMA_TEAL, PHARMA_INK } from '@/theme/pharmaTokens';
 
 interface PrescriptionOrderConfirmedViewProps {
   orderId: string;

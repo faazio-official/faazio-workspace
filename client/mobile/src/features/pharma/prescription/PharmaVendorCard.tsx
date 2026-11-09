@@ -5,7 +5,7 @@ import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { StoreProfile } from '@data/types';
 import PharmaImage from '../components/pharma-home/PharmaImage';
-import { PHARMA_TEAL } from '../mocks/pharmaHomeFeed';
+import { PHARMA_TEAL } from '@/theme/pharmaTokens';
 
 const IMG_SIZE = 96;
 

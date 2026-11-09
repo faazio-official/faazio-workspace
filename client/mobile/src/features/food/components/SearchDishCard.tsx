@@ -5,7 +5,7 @@ import { useCartStore } from '@/state/store';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
-import type { SpecialDish } from '../mocks/types';
+import type { SpecialDish } from '../types';
 import RemoteImage from './RemoteImage';
 
 interface SearchDishCardProps {

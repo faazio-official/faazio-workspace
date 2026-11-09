@@ -3,8 +3,8 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Star, Plus, Check } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
-import type { PharmaPopularMedicine } from '../../../mocks/pharmaHomeFeed';
-import { PHARMA_GREY, PHARMA_INK, PHARMA_TEAL } from '../../../mocks/pharmaHomeFeed';
+import type { PharmaPopularMedicine } from '../../../types';
+import { PHARMA_GREY, PHARMA_INK, PHARMA_TEAL } from '@/theme/pharmaTokens';
 import PharmaImage from '../PharmaImage';
 
 interface PopularMedicineCardProps {

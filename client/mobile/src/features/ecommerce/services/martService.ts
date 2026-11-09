@@ -1,15 +1,26 @@
-import {
-  dealToProduct,
-  essentialToProduct,
-  type MartDeal,
-  type MartEssential,
-} from '../mocks/martHomeFeed';
+import { dealToProduct } from '@data/mart/deals';
 import { gateway, type ActiveDiscount, type ProductView } from '@/services/api/GatewayClient';
 import { applyActiveDiscount } from '@/services/pricing';
 import type { Coordinates } from '@/services/location';
 import { formatDistanceKm } from '@/utils/distance';
 import type { SduiBanner } from '@data/home/sdui';
-import type { StoreProfile } from '@data/types';
+import type { MartDeal, MartEssential } from '../types';
+import type { Product, StoreProfile } from '@data/types';
+
+/** Project a daily-essentials card onto the unified catalog product (used for discount pricing). */
+export const essentialToProduct = (item: MartEssential): Product => ({
+  id: item.id,
+  app: 'MART',
+  category: 'Groceries',
+  name: item.name,
+  price: item.price,
+  emoji: item.emoji,
+  rating: item.rating ?? 4.5,
+  desc: `${item.brand} · ${item.size}`,
+  badge: item.discountTag,
+  badgeBg: '#F25C3D',
+  image: item.imageUrl,
+});
 
 export interface MartFeed {
   deals: MartDeal[];

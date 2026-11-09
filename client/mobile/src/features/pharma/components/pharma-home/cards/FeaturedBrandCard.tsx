@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { TouchableOpacity, StyleSheet } from 'react-native';
 import { ms } from '@/utils/responsive';
-import type { PharmaFeaturedBrand } from '../../../mocks/pharmaHomeFeed';
+import type { PharmaFeaturedBrand } from '../../../types';
 import PharmaImage from '../PharmaImage';
 
 interface FeaturedBrandCardProps {

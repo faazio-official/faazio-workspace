@@ -3,8 +3,8 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
-import type { PharmaHealthCornerArticle } from '../../../mocks/pharmaHomeFeed';
-import { PHARMA_GREY, PHARMA_INK, PHARMA_TEAL } from '../../../mocks/pharmaHomeFeed';
+import type { PharmaHealthCornerArticle } from '../../../types';
+import { PHARMA_GREY, PHARMA_INK, PHARMA_TEAL } from '@/theme/pharmaTokens';
 import PharmaImage from '../PharmaImage';
 
 interface HealthCornerCardProps {

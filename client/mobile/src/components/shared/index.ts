@@ -1,6 +1,7 @@
 export { default as ProductCardBase } from './ProductCardBase';
 export { default as StoreCardBase } from './StoreCardBase';
 export { default as AdLabelBadge } from './AdLabelBadge';
+export { default as AppRefreshControl } from './AppRefreshControl';
 export { default as AdBannerCarousel } from './AdBannerCarousel';
 export { default as SubAppHeader } from './SubAppHeader';
 export { default as Screen } from './Screen';

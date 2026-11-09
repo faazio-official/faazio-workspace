@@ -1,6 +1,6 @@
 import type { SpecialDish } from '@data/types';
 import { menuForVenueName } from '@data/food/menus';
-import type { FoodRestaurant } from '../mocks/types';
+import type { FoodRestaurant } from '../types';
 
 /** The venue's own menu — the per-venue restaurant menu or the derived delivery-kitchen menu. Empty
  *  when the venue is unseeded: we show an honest empty menu rather than padding the shared specials

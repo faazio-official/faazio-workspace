@@ -2,7 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { hs, vs } from '@/utils/responsive';
-import type { SpecialDish } from '../mocks/types';
+import type { SpecialDish } from '../types';
 import SpecialDishCard from './SpecialDishCard';
 
 interface FeaturedDishCarouselProps {

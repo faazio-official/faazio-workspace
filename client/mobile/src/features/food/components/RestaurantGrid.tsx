@@ -4,10 +4,11 @@ import { FlashList, type FlashListRef } from '@shopify/flash-list';
 import { ChevronDown, Search, X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
+import AppRefreshControl from '@/components/shared/AppRefreshControl';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
-import type { FoodRestaurant } from '../mocks/types';
+import type { FoodRestaurant } from '../types';
 import SectionHeader from './SectionHeader';
 import RestaurantCard from './RestaurantCard';
 
@@ -30,6 +31,10 @@ interface RestaurantGridProps {
   empty?: ReactNode;
   onPress?: (restaurant: FoodRestaurant) => void;
   onScroll?: (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+  /** True while the parent's feed pull is in flight. */
+  refreshing?: boolean;
+  /** Re-fetch the parent's feed (pull-to-refresh). */
+  onRefresh?: () => void;
 }
 
 /**
@@ -45,6 +50,8 @@ const RestaurantGrid = memo(function RestaurantGrid({
   empty,
   onPress,
   onScroll,
+  refreshing,
+  onRefresh,
 }: RestaurantGridProps) {
   const [sort, setSort] = useState<RestaurantSort>('nearest');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -155,6 +162,11 @@ const RestaurantGrid = memo(function RestaurantGrid({
         keyboardShouldPersistTaps="handled"
         onScroll={onScroll}
         scrollEventThrottle={16}
+        refreshControl={
+          onRefresh ? (
+            <AppRefreshControl refreshing={Boolean(refreshing)} onRefresh={onRefresh} />
+          ) : undefined
+        }
       />
       <SortMenu
         visible={menuOpen}

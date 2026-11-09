@@ -3,7 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
-import type { FoodType } from '../mocks/homeFeed';
+import type { FoodType } from '../types';
 import RemoteImage from './RemoteImage';
 
 const ITEM_W = 76;

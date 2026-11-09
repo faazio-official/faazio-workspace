@@ -4,7 +4,7 @@
  * has no tappable restaurant affordance (the server `GET /store/:id` path is the only source).
  */
 import type { Product } from '@data/types';
-import type { FoodRestaurant } from '../mocks/types';
+import type { FoodRestaurant } from '../types';
 
 /** Adapt a server `StoreProfile` (food store) into a `FoodRestaurant` (presentation-only fields
  *  that the server doesn't project default to neutral values). */

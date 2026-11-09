@@ -13,11 +13,18 @@
    `storeIds` through `contracts.ProductReader` / `contracts.StoreReader`.
 4. The app maps each section to a `HomeRow` and renders the matching section component.
 5. Section components may fire their own supporting reads (ads, discounts, ratings) and add to cart.
+6. Pull-to-refresh (`AppRefreshControl`) on the body re-fetches the feed and bumps the shared
+   `refreshStore` `home` counter, which also re-fetches the sibling header category rail
+   (`HeaderCategoryRail` → `usePagedRail`). Stale rows stay visible while the spinner runs.
 
 ## State
 
 - `useLocationStore` — nearby origin for geo rails.
 - `useCartStore` — add-to-cart from cards.
+- `useRefreshStore` — cross-component pull signal (`home` counter) shared by the feed and the
+  header rail, which are siblings in the collapsing header.
+- `useHomeFeed` returns `{ feed, loading, error, refreshing, refresh, reload }`; `refresh` sets
+  `refreshing` and bumps the store, `reload` retries from the empty/error state.
 - Local section state for carousels and pagination.
 
 ## Data path
@@ -34,13 +41,16 @@
 ## Success / error / empty
 
 - **Success:** server section order and joined rows.
-- **Loading:** honest "Loading your feed…" until the SDUI read answers.
+- **Loading:** honest "Loading your feed..." until the SDUI read answers.
+- **Refreshing:** `refreshing` true drives the branded spinner; existing rows stay on screen. A
+  failed pull keeps the rows, stops the spinner and flips `error` — it never blanks or fabricates.
 - **Error/offline:** online error → retry; gateway disabled → static registry + fixtures.
 - **Empty:** a section with no rows is omitted or shows an honest empty note.
 
 ## Known gaps
 
-- None for live fixture substitution (removed); see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- A pull re-reads the same 300 s Valkey-cached SDUI doc, so it can return identical content until
+  the key lapses — see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md). No fixture substitution.
 
 ## Linked docs
 

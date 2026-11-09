@@ -5,9 +5,9 @@
  * PICKUP fulfillment. The file name mirrors the server table
  * `directory.dining_venues`; exported types/helpers use restaurant naming.
  *
- * Mirrors the restaurants surfaced by `features/food/mocks/restaurants.ts` plus
- * the food `StoreProfile`s in `data/food/stores.ts`, so the data layer can
- * resolve a food order's venue identity without importing feature code. Only
+ * Mirrors the food `StoreProfile`s in `data/food/stores.ts` plus the
+ * restaurant-venue identity rows seeded into `directory.dining_venues`, so the
+ * data layer can resolve a food order's venue identity without importing feature code. Only
  * identity is held here — the full venue-data migration (rating, images,
  * hours…) stays a separate task. See data/DATA_CONTROL.md.
  */
@@ -22,8 +22,8 @@ export interface RestaurantVenue {
 }
 
 /**
- * Restaurants that exist only in the feature food mocks (hero carousel +
- * restaurant grid). Ids/names mirror `features/food/mocks/restaurants.ts` exactly.
+ * Restaurant-venue identity rows seeded into `directory.dining_venues` (the hero
+ * carousel + restaurant-grid ids the Food feed resolves against the server).
  */
 const MOCK_RESTAURANT_VENUES: RestaurantVenue[] = [
   { id: 'tr-1', name: 'Skyline Bistro', latitude: 17.422, longitude: 78.442 },

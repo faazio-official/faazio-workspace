@@ -3,7 +3,7 @@ import { TouchableOpacity, StyleSheet } from 'react-native';
 import { Upload } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
-import { PHARMA_TEAL } from '../../mocks/pharmaHomeFeed';
+import { PHARMA_TEAL } from '@/theme/pharmaTokens';
 
 interface UploadPrescriptionFABProps {
   onPress?: () => void;

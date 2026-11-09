@@ -4,7 +4,7 @@ import { ChevronRight, Clock, MapPin, Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { StoreProfile } from '@data/types';
-import { PHARMA_TEAL } from '../../mocks/pharmaHomeFeed';
+import { PHARMA_TEAL } from '@/theme/pharmaTokens';
 import PharmaImage from './PharmaImage';
 
 const IMG_SIZE = 96;
