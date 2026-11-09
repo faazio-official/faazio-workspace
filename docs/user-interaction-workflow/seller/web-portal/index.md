@@ -47,9 +47,10 @@
 
 ## Known gaps
 
-- Local-only support/rush-hour/restaurant-status, toast-only admin actions, the settings
-  profile/notification/sub-user endpoints still pending on the gateway, and the TTC-hardcoded
-  district-admins page. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+- Local-only support/rush-hour/restaurant-status, toast-only admin actions, the sub-user invite
+  being roster-only (no send/accept/login), notification preferences not yet consumed by a delivery
+  path, and the TTC-hardcoded district-admins page. See
+  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

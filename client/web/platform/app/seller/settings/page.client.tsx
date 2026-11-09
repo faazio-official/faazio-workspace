@@ -122,6 +122,9 @@ function SellerSettings() {
   const [profileDraft, setProfileDraft] = useState<SellerProfilePatch | null>(null);
   const [bankDraft, setBankDraft] = useState<BankAccountInput | null>(null);
   const [invite, setInvite] = useState<InviteSubUserInput>({ name: "", email: "", role: "STAFF" });
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [bankBusy, setBankBusy] = useState(false);
+  const [inviteBusy, setInviteBusy] = useState(false);
 
   // Security — email edit runs in a sheet (re-auth popup); password edit is an inline form.
   const [emailOpen, setEmailOpen] = useState(false);
@@ -149,18 +152,45 @@ function SellerSettings() {
   };
 
   const saveProfile = async () => {
-    if (!profileDraft || !sellerId) return;
-    const patch = profileDraft;
+    if (!profileDraft || !sellerId || !seller || profileBusy) return;
+    // Send only what changed so a phone-only edit can never clear the stored GSTIN/PAN/address and
+    // so the server only re-queues for review when a KYC field actually changed.
+    const patch: SellerProfilePatch = {};
+    const changed = (draft: string | undefined, current: string) => (draft ?? "") !== current;
+    if (changed(profileDraft.businessName, seller.businessName)) {
+      patch.businessName = profileDraft.businessName ?? "";
+    }
+    if (changed(profileDraft.ownerName, seller.ownerName)) {
+      patch.ownerName = profileDraft.ownerName ?? "";
+    }
+    if (changed(profileDraft.gstin, seller.gstin)) patch.gstin = profileDraft.gstin ?? "";
+    if (changed(profileDraft.pan, seller.pan)) patch.pan = profileDraft.pan ?? "";
+    if (changed(profileDraft.businessAddress, seller.businessAddress)) {
+      patch.businessAddress = profileDraft.businessAddress ?? "";
+    }
+    if (changed(profileDraft.contactPhone, seller.contactPhone)) {
+      patch.contactPhone = profileDraft.contactPhone ?? "";
+    }
+    if (Object.keys(patch).length === 0) {
+      setProfileDraft(null);
+      return;
+    }
+    const kycChanged = patch.gstin !== undefined || patch.pan !== undefined || patch.businessAddress !== undefined;
+    setProfileBusy(true);
     try {
       await updateSeller(sellerId, patch);
       toast.success("Profile update submitted", {
-        description: "KYC-bearing changes re-enter admin verification.",
+        description: kycChanged
+          ? "KYC-bearing changes re-enter admin verification."
+          : "Your profile has been updated.",
       });
       setProfileDraft(null);
     } catch (err) {
       toast.error("Profile update failed", {
         description: err instanceof Error ? err.message : undefined,
       });
+    } finally {
+      setProfileBusy(false);
     }
   };
 
@@ -173,8 +203,8 @@ function SellerSettings() {
     });
   };
 
-  const saveBank = () => {
-    if (!bankDraft || !sellerId) return;
+  const saveBank = async () => {
+    if (!bankDraft || !sellerId || bankBusy) return;
     if (!bankDraft.beneficiaryName.trim()) {
       toast.error("Enter the beneficiary name");
       return;
@@ -187,13 +217,22 @@ function SellerSettings() {
       toast.error("Enter an 11-character IFSC");
       return;
     }
-    upsertBankAccount(sellerId, bankDraft);
-    toast.success("Bank account saved");
-    setBankDraft(null);
+    setBankBusy(true);
+    try {
+      await upsertBankAccount(sellerId, bankDraft);
+      toast.success("Bank account saved");
+      setBankDraft(null);
+    } catch (err) {
+      toast.error("Bank account update failed", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setBankBusy(false);
+    }
   };
 
   const sendInvite = async () => {
-    if (!sellerId) return;
+    if (!sellerId || inviteBusy) return;
     if (!invite.name.trim() || !invite.email.trim()) {
       toast.error("Enter a name and email");
       return;
@@ -203,6 +242,7 @@ function SellerSettings() {
       return;
     }
     const email = invite.email.trim();
+    setInviteBusy(true);
     try {
       await inviteSubUser(sellerId, invite);
       toast.success("Invite sent", { description: `An invite will go to ${email}.` });
@@ -211,6 +251,8 @@ function SellerSettings() {
       toast.error("Invite failed", {
         description: err instanceof Error ? err.message : undefined,
       });
+    } finally {
+      setInviteBusy(false);
     }
   };
 
@@ -361,11 +403,20 @@ function SellerSettings() {
                   onChange={(v) => setProfileDraft({ ...profileDraft, businessAddress: v })}
                 />
                 <div className="mt-3 flex gap-2">
-                  <PrimaryButton variant="outline" className="flex-1" onClick={() => setProfileDraft(null)}>
+                  <PrimaryButton
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setProfileDraft(null)}
+                    disabled={profileBusy}
+                  >
                     Cancel
                   </PrimaryButton>
-                  <PrimaryButton className="flex-1" onClick={() => void saveProfile()}>
-                    Save changes
+                  <PrimaryButton
+                    className="flex-1"
+                    onClick={() => void saveProfile()}
+                    disabled={profileBusy}
+                  >
+                    {profileBusy ? "Saving..." : "Save changes"}
                   </PrimaryButton>
                 </div>
               </>
@@ -417,11 +468,20 @@ function SellerSettings() {
                   onChange={(v) => setBankDraft({ ...bankDraft, bankName: v })}
                 />
                 <div className="mt-3 flex gap-2">
-                  <PrimaryButton variant="outline" className="flex-1" onClick={() => setBankDraft(null)}>
+                  <PrimaryButton
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => setBankDraft(null)}
+                    disabled={bankBusy}
+                  >
                     Cancel
                   </PrimaryButton>
-                  <PrimaryButton className="flex-1" onClick={saveBank}>
-                    Save account
+                  <PrimaryButton
+                    className="flex-1"
+                    onClick={() => void saveBank()}
+                    disabled={bankBusy}
+                  >
+                    {bankBusy ? "Saving..." : "Save account"}
                   </PrimaryButton>
                 </div>
               </>
@@ -531,9 +591,9 @@ function SellerSettings() {
               <PrimaryButton
                 className="mt-4 w-full"
                 onClick={() => void sendInvite()}
-                disabled={!invite.name.trim() || !invite.email.trim()}
+                disabled={inviteBusy || !invite.name.trim() || !invite.email.trim()}
               >
-                Send invite
+                {inviteBusy ? "Sending..." : "Send invite"}
               </PrimaryButton>
             </Card>
 

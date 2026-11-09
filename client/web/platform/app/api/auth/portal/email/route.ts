@@ -46,10 +46,22 @@ export async function PUT(req: NextRequest) {
       body: JSON.stringify({ currentPassword, newEmail }),
     });
 
+  // A 401 from the gateway is not always an expired session: a wrong current password is also 401.
+  // Only refresh the access token when the failure is an auth-token problem, otherwise surface the
+  // real error (and avoid needlessly rotating the refresh token / resending the password).
+  const isSessionExpiry = async (response: Response): Promise<boolean> => {
+    try {
+      const data = (await response.clone().json()) as { code?: unknown };
+      return data.code !== "invalid_current_password";
+    } catch {
+      return true;
+    }
+  };
+
   let res: Response;
   try {
     res = await call();
-    if (res.status === 401) {
+    if (res.status === 401 && (await isSessionExpiry(res))) {
       const refreshed = await refreshTokens(refreshCookie(req));
       if (!refreshed.ok || !refreshed.data) {
         const expired = NextResponse.json(

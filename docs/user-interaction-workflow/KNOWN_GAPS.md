@@ -33,6 +33,8 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | Native seller auth is unused | `GatewayClient.portalLogin/portalRefresh/portalLogout` exist (`src/services/api/GatewayClient.ts:826-866`) but the seller app is a WebView shell (`SellerPartnerNavigator.tsx`); the portal owns the session | Intentional today; prune or wire if native seller auth is ever built |
 | Admin dispatch boards have no dedicated flow page | Manual allocation (`app/admin/district/delivery/manual-allocation/page.client.tsx`, `app/admin/super/delivery/manual-allocation/page.client.tsx`) and delivery-boy boards (`app/admin/*/delivery-boys/page.client.tsx`) write through `server/gateway/internal/delivery/handler.go:90-99` but are only mentioned in passing | Flow under-documented; add a delivery-admin page before changing it |
 | Hardcoded tax constants on new-product display | New-product page shows GST/TCS/TDS constants | Display-only; the server remains the money authority |
+| Sub-user invite is roster-only | `POST /seller/sub-users` inserts a `PENDING_INVITE` row (`server/gateway/internal/sellers/repo.go` InviteSubUser) but sends no invite email, mints no `admins.portal_users` credential, and has no accept endpoint | An invited sub-user cannot sign in; status never reaches `ACTIVE` and `last_login_at` stays null |
+| Notification preferences have no consumer | `sellers.notification_preferences` is written/hydrated (`/seller/notifications/preferences`) but no worker/notifier reads it | Toggling an alert persists the flag but does not change delivery yet |
 
 **By design — not gaps:** seller registration is intentionally mobile-only (`POST /sellers` from
 the customer app's `SellWithUs`). On approval (`POST /sellers/{id}/verify-kyc`, or
@@ -119,7 +121,7 @@ here so the folder never claims full coverage it does not have. Add a page befor
 | Analytics | `/seller/analytics` | `GET /analytics/series|ranks` |
 | Reviews | `/seller/reviews` | `GET /vendors/{id}/reviews*` |
 | Prescriptions | `/seller/prescriptions` | `GET /seller/prescriptions*`, quotes |
-| Settings / outlet info | `/seller/settings`, `/seller/outlet-info` | Settings = profile/bank/notifications/sub-users/security, fully shipped — see `seller/web-portal/settings.md`; outlet-info = read-only store summary |
+| Settings / outlet info | `/seller/settings`, `/seller/outlet-info` | Settings = profile/bank/notifications/appearance/security shipped; sub-user invite is roster-only (Partial) — see `seller/web-portal/settings.md`; outlet-info = read-only store summary |
 | Hub / explore | `/seller/hub`, `/seller/explore` | Checklist + discovery surfaces (partly local-only) |
 | Order history / returns | `/seller/order-history`, `/seller/returns` | Referenced from `seller/orders/index.md`; no dedicated page |
 | Product list / edit | `/seller/products`, `/seller/products/[id]/edit` | Product list and edit surface; no dedicated page |

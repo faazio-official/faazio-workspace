@@ -1102,24 +1102,52 @@ func (r *Repo) RejectFeeChangeRequest(ctx context.Context, requestID, reviewer, 
 // ErrSubUserExists is returned when a live (non-revoked) invite already exists for the email.
 var ErrSubUserExists = errors.New("sellers: sub-user already invited")
 
-// ProfilePatch is the set of seller-editable business-profile fields (PATCH /sellers/{id}).
+// ProfilePatch is the set of seller-editable business-profile fields (PATCH /sellers/{id}). A nil
+// field is left unchanged (true PATCH semantics); a pointer to "" clears an optional KYC field.
 type ProfilePatch struct {
-	BusinessName    string
-	OwnerName       string
-	GSTIN           string
-	PAN             string
-	BusinessAddress string
-	ContactPhone    string
+	BusinessName    *string
+	OwnerName       *string
+	GSTIN           *string
+	PAN             *string
+	BusinessAddress *string
+	ContactPhone    *string
 }
 
-// kycBearing reports whether the patch touches a field an admin must re-verify (GSTIN/PAN/address).
-func (p ProfilePatch) kycBearing() bool {
-	return p.GSTIN != "" || p.PAN != "" || p.BusinessAddress != ""
+// apply merges the provided fields onto a seller row (nil = unchanged).
+func (p ProfilePatch) apply(s Seller) Seller {
+	if p.BusinessName != nil {
+		s.BusinessName = *p.BusinessName
+	}
+	if p.OwnerName != nil {
+		s.OwnerName = *p.OwnerName
+	}
+	if p.GSTIN != nil {
+		s.GSTIN = *p.GSTIN
+	}
+	if p.PAN != nil {
+		s.PAN = *p.PAN
+	}
+	if p.BusinessAddress != nil {
+		s.BusinessAddress = *p.BusinessAddress
+	}
+	if p.ContactPhone != nil {
+		s.ContactPhone = *p.ContactPhone
+	}
+	return s
+}
+
+// kycChanged reports whether a KYC-bearing field (GSTIN/PAN/address) actually changed. Presence alone
+// is not enough: a seller saving an unchanged prefilled form must not be re-queued for review.
+func kycChanged(before, after Seller) bool {
+	return before.GSTIN != after.GSTIN ||
+		before.PAN != after.PAN ||
+		before.BusinessAddress != after.BusinessAddress
 }
 
 // UpdateProfile writes editable business fields for a seller and records the diff. When requeue is
-// true (a seller editing their own profile) a KYC-bearing change resets the account to
-// PENDING_REVIEW so a self-declared GSTIN/PAN/address is never trusted silently. An admin edit
+// true (a seller editing their own profile) an actual KYC-bearing change resets an ACTIVE account to
+// PENDING_REVIEW so a self-declared GSTIN/PAN/address is never trusted silently. A non-KYC edit, or
+// an account that is already pending/suspended/rejected, keeps its current status. An admin edit
 // (requeue=false) is trusted as-is because the admin is the reviewer. ok=false when the row is gone.
 func (r *Repo) UpdateProfile(ctx context.Context, id string, patch ProfilePatch, actorID string, requeue bool) (Seller, bool, error) {
 	if r.pool == nil {
@@ -1138,18 +1166,21 @@ func (r *Repo) UpdateProfile(ctx context.Context, id string, patch ProfilePatch,
 		}
 		return Seller{}, false, err
 	}
-	status := before.Status
-	if requeue && patch.kycBearing() && status != "REJECTED" {
-		status = "PENDING_REVIEW"
+	merged := patch.apply(before)
+	merged.Status = before.Status
+	// Re-queue from ACTIVE only: a moderator's SUSPENDED/REJECTED decision must not be lifted by a
+	// self-service profile edit, and an already-pending review stays pending.
+	if requeue && kycChanged(before, merged) && before.Status == "ACTIVE" {
+		merged.Status = "PENDING_REVIEW"
 	}
 	after, err := scanSeller(tx.QueryRow(ctx, `
 		update sellers.sellers set
 		  business_name=$2, owner_name=$3, gstin=$4, pan=$5, address=$6,
-		  phone=$7, status=$8, updated_at=now()
+		  phone=nullif($7,''), status=$8, updated_at=now()
 		 where seller_id=$1
 		 returning `+sellerColumns,
-		id, patch.BusinessName, patch.OwnerName, patch.GSTIN, patch.PAN,
-		patch.BusinessAddress, nullIfEmpty(patch.ContactPhone), status))
+		id, merged.BusinessName, merged.OwnerName, merged.GSTIN, merged.PAN,
+		merged.BusinessAddress, merged.ContactPhone, merged.Status))
 	if err != nil {
 		return Seller{}, false, err
 	}
@@ -1165,6 +1196,11 @@ func (r *Repo) UpdateProfile(ctx context.Context, id string, patch ProfilePatch,
 			"reqhist-"+shortID(), id, c.field, oldValue, newValue, actorID); err != nil {
 			return Seller{}, false, err
 		}
+	}
+	// Re-read through the shared rollup projection so the response carries vendorCount/vendorApps
+	// like every other seller read (the write path's RETURNING cannot join).
+	if enriched, rerr := scanSellerWithVendors(tx.QueryRow(ctx, sellerSelectWithVendors+` where s.seller_id = $1`, id)); rerr == nil {
+		after = enriched
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Seller{}, false, err

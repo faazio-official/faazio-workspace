@@ -27,6 +27,8 @@ vi.mock("@/lib/api", () => ({
   fetchSellerPricing: h.fetchSellerPricing,
   fetchSellerInventory: vi.fn(),
   fetchSellerStores: vi.fn(),
+  fetchNotificationPreferences: vi.fn(),
+  fetchSubUsers: vi.fn(),
 }));
 
 vi.mock("@/lib/api/store", () => ({

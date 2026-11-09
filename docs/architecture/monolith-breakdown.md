@@ -148,7 +148,8 @@ flow.
 
 **Portal-only management endpoints** (role-scoped, audited via `admins`; no `GatewayClient` method):
 `POST /seller/products` (catalog create: owned-store scope, `PENDING_REVIEW`, catalog+stock txn) + `GET /seller/products` + `PUT /seller/products/{id}` (descriptive edit: name/description/category/isVeg/isPrescription; re-tokenizes search) + `PUT /seller/products/{id}/status` (catalog; `REJECTED` requires a bounded `reason` stored in `catalog.products.review_reason`, cleared on approve/delist — `0087`) + `DELETE /seller/products/{id}` (soft delete → `deleted_at`, `0089`) + `GET /seller/products/trash` + `POST /seller/products/{id}/restore` (7-day trash window; `catalog.purge_deleted_products` removes product+stock after it),
-seller console stock/pricing `GET /seller/inventory` + `PUT /seller/inventory/{productId}` + `GET /seller/pricing` + `PUT /seller/pricing/{productId}` (catalog, reads join `inventory.stock`), `GET /seller/stores` +
+seller console stock/pricing `GET /seller/inventory` + `PUT /seller/inventory/{productId}` + `GET /seller/pricing` + `PUT /seller/pricing/{productId}` (catalog, reads join `inventory.stock`),
+seller settings `PATCH /sellers/{id}` + `GET|PUT /seller/notifications/preferences` + `GET|POST /seller/sub-users` + `DELETE /seller/sub-users/{id}` (sellers, `0097`; partial profile write, JWT-scoped settings), `GET /seller/stores` +
 `PUT /seller/stores/{id}/live` (directory), `GET /seller/orders` + `PUT /orders/{id}/status` (checkout, maps mobile `Processing ↔ NEW/PACKED`),
 `GET/seller/orders/{id}` + accept/reject (seller app), `GET /seller/prescriptions` +
 `PUT /prescriptions/{id}/status` (pharma), `GET /seller/promotions` + `POST /seller/promotions/optin` (promo), `GET /seller/payments` + `GET /seller/payments/{cycleId}` (payouts), `DELETE /blood-requests/{id}` (blood moderation), plus the

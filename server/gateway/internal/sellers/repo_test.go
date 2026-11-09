@@ -88,3 +88,142 @@ func TestSellerLifecycle(t *testing.T) {
 		t.Fatalf("List(KA, ACTIVE) missing %s", s.SellerID)
 	}
 }
+
+func strPtr(s string) *string { return &s }
+
+func TestProfilePatchMergeAndKYCChange(t *testing.T) {
+	before := Seller{
+		BusinessName: "Old Name", OwnerName: "Owner", GSTIN: "29AAAAA0000A1Z5",
+		PAN: "AAAAA0000A", BusinessAddress: "1 Old St", ContactPhone: "+91 9000000000",
+		Status: "ACTIVE",
+	}
+	merged := ProfilePatch{ContactPhone: strPtr("+91 9111111111")}.apply(before)
+	if merged.BusinessName != before.BusinessName || merged.GSTIN != before.GSTIN {
+		t.Fatalf("partial patch must leave untouched fields unchanged: %+v", merged)
+	}
+	if merged.ContactPhone != "+91 9111111111" {
+		t.Fatalf("contact phone not applied: %q", merged.ContactPhone)
+	}
+	if kycChanged(before, merged) {
+		t.Fatal("a phone-only edit must not count as a KYC change")
+	}
+	kyc := before
+	kyc.GSTIN = "29BBBBB1111B1Z5"
+	if !kycChanged(before, kyc) {
+		t.Fatal("a GSTIN edit must count as a KYC change")
+	}
+}
+
+func TestUpdateProfileRequeueSemantics(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	s, err := repo.Create(ctx, "user-profile-test", Seller{
+		BusinessName: "Profile Test", OwnerName: "P. Test",
+		GSTIN: "29ABCDE1234F1Z5", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
+		ContactPhone: "+91 9000000000", ContactEmail: "profile-test@example.com", StateCode: "KA",
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from sellers.notification_preferences where seller_id = $1`, s.SellerID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sub_users where seller_id = $1`, s.SellerID)
+		_, _ = pool.Exec(ctx, `delete from sellers.seller_request_history where seller_id = $1`, s.SellerID)
+		_, _ = pool.Exec(ctx, `delete from directory.stores where seller_id = $1`, s.SellerID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id = $1`, s.SellerID)
+	})
+	if _, ok, err := repo.SetStatus(ctx, s.SellerID, "ACTIVE", "", "admin-test"); err != nil || !ok {
+		t.Fatalf("set active: ok=%v err=%v", ok, err)
+	}
+
+	// A phone-only edit keeps ACTIVE and does not require re-verification.
+	after, ok, err := repo.UpdateProfile(ctx, s.SellerID, ProfilePatch{ContactPhone: strPtr("+91 9222222222")}, "seller-test", true)
+	if err != nil || !ok {
+		t.Fatalf("phone edit: ok=%v err=%v", ok, err)
+	}
+	if after.Status != "ACTIVE" {
+		t.Fatalf("phone-only edit re-queued the seller: status=%s", after.Status)
+	}
+	if after.GSTIN != "29ABCDE1234F1Z5" || after.BusinessName != "Profile Test" {
+		t.Fatalf("partial edit wiped untouched fields: %+v", after)
+	}
+
+	// A real KYC change from ACTIVE re-enters review.
+	after, ok, err = repo.UpdateProfile(ctx, s.SellerID, ProfilePatch{GSTIN: strPtr("29ZZZZZ9999Z1Z5")}, "seller-test", true)
+	if err != nil || !ok {
+		t.Fatalf("kyc edit: ok=%v err=%v", ok, err)
+	}
+	if after.Status != "PENDING_REVIEW" {
+		t.Fatalf("KYC edit did not re-queue: status=%s", after.Status)
+	}
+
+	// A suspended seller cannot lift the suspension with a KYC edit.
+	if _, ok, err := repo.SetStatus(ctx, s.SellerID, "SUSPENDED", "policy", "admin-test"); err != nil || !ok {
+		t.Fatalf("suspend: ok=%v err=%v", ok, err)
+	}
+	after, ok, err = repo.UpdateProfile(ctx, s.SellerID, ProfilePatch{PAN: strPtr("ZZZZZ9999Z")}, "seller-test", true)
+	if err != nil || !ok {
+		t.Fatalf("suspended kyc edit: ok=%v err=%v", ok, err)
+	}
+	if after.Status != "SUSPENDED" {
+		t.Fatalf("self-service edit lifted a suspension: status=%s", after.Status)
+	}
+}
+
+func TestNotificationPreferencesAndSubUsers(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	s, err := repo.Create(ctx, "user-settings-test", Seller{
+		BusinessName: "Settings Test", OwnerName: "S. Test", StateCode: "KA",
+	})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from sellers.notification_preferences where seller_id = $1`, s.SellerID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sub_users where seller_id = $1`, s.SellerID)
+		_, _ = pool.Exec(ctx, `delete from sellers.seller_request_history where seller_id = $1`, s.SellerID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id = $1`, s.SellerID)
+	})
+
+	prefs, err := repo.GetNotificationPreferences(ctx, s.SellerID)
+	if err != nil {
+		t.Fatalf("get defaults: %v", err)
+	}
+	if !prefs.NewOrder || !prefs.LowStock || !prefs.SLABreach || !prefs.Campaigns {
+		t.Fatalf("absent row must default all-on: %+v", prefs)
+	}
+	if _, err := repo.UpsertNotificationPreferences(ctx, s.SellerID, NotificationPreferences{NewOrder: false, LowStock: true, SLABreach: true, Campaigns: true}); err != nil {
+		t.Fatalf("upsert: %v", err)
+	}
+	prefs, err = repo.GetNotificationPreferences(ctx, s.SellerID)
+	if err != nil || prefs.NewOrder {
+		t.Fatalf("preferences not persisted: %+v err=%v", prefs, err)
+	}
+
+	u, err := repo.InviteSubUser(ctx, s.SellerID, "Staff One", "staff@example.com", "STAFF")
+	if err != nil || u.Status != "PENDING_INVITE" || u.SubUserID == "" {
+		t.Fatalf("invite: %+v err=%v", u, err)
+	}
+	if _, err := repo.InviteSubUser(ctx, s.SellerID, "Dup", "STAFF@example.com", "VIEWER"); err != ErrSubUserExists {
+		t.Fatalf("duplicate invite (case-insensitive) err=%v, want ErrSubUserExists", err)
+	}
+	rows, err := repo.ListSubUsers(ctx, s.SellerID)
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("list: len=%d err=%v", len(rows), err)
+	}
+	if ok, err := repo.RevokeSubUser(ctx, s.SellerID, u.SubUserID); err != nil || !ok {
+		t.Fatalf("revoke: ok=%v err=%v", ok, err)
+	}
+	if ok, err := repo.RevokeSubUser(ctx, s.SellerID, u.SubUserID); err != nil || !ok {
+		t.Fatalf("revoke must be idempotent: ok=%v err=%v", ok, err)
+	}
+	// After revoke the same email can be invited again.
+	if _, err := repo.InviteSubUser(ctx, s.SellerID, "Staff One", "staff@example.com", "STAFF"); err != nil {
+		t.Fatalf("re-invite after revoke: %v", err)
+	}
+}

@@ -1,8 +1,9 @@
 # Seller settings
 
 **App / route:** portal `/seller/settings` (`app/seller/settings/page.client.tsx`)
-**Status:** Shipped (profile, bank, notifications, appearance, sub-users, and **Security** —
-self-service sign-in email + password rotation)
+**Status:** Partial — profile, bank, notifications, appearance and **Security** (self-service
+sign-in email + password rotation) are shipped; the sub-user invite is a persisted roster row only
+(no invite delivery or accept/login path yet).
 **Trigger:** Seller opens `/seller/settings` from the console shell or the Explore menu
 (`app/seller/explore/page.client.tsx`).
 
@@ -12,22 +13,27 @@ self-service sign-in email + password rotation)
    renders six underline tabs: Profile, Bank, Notifications, Appearance, Sub-users, Security.
 2. **Profile** — read rows come from the hydrated `sellers` slice (`useSeller`). "Edit profile"
    opens inline `TextField`s for business name, owner name, GSTIN, PAN, contact phone and registered
-   address; "Save changes" awaits `updateSeller(sellerId, patch)` → `PATCH /sellers/{id}`. A change to
-   a KYC-bearing field (GSTIN/PAN/address) resets the account to `PENDING_REVIEW` for re-verification;
-   the success toast only fires after the gateway accepts the write.
+   address; "Save changes" sends **only the fields that changed** to `updateSeller(sellerId, patch)`
+   → `PATCH /sellers/{id}` (true partial write — an omitted field is never cleared). An actual change
+   to a KYC-bearing field (GSTIN/PAN/address) resets an `ACTIVE` account to `PENDING_REVIEW` for
+   re-verification; a non-KYC edit (or an already pending/suspended account) keeps its status. The
+   success toast only fires after the gateway accepts the write.
 3. **Bank** — `useBankAccount(sellerId)` hydrates the payout account from
    `GET /sellers/{id}/bank-account` on mount (a 404 is an honest "not added"). With no account it
    shows an empty state + "Add settlement account"; with one it shows the masked rows + "Change
-   account". The form saves through `upsertBankAccount(sellerId, input)`, which masks a full number
-   to the stored tail before sending.
+   account". The form awaits `upsertBankAccount(sellerId, input)` (masking a full number to the stored
+   tail) and only shows success after the `PUT` lands; a rejection rolls back and toasts.
 4. **Notifications** — `useNotificationPreferences()` reads the local preference map; each `Toggle`
    writes through `updateNotificationPreferences({ [kind]: v })`.
 5. **Appearance** — `ThemeSegmentedControl` persists the browser theme via
    `src/lib/theme.ts` + `localStorage["faazio.theme"]` (unchanged; DB-independent).
-6. **Sub-users** — `useSubUsers(sellerId)` lists the staff roster hydrated from `GET /seller/sub-users`;
-   the invite form (name, email, role Staff/Viewer) awaits `inviteSubUser` → `POST /seller/sub-users`
-   (the server mints the row id), and "Revoke" awaits `removeSubUser` → `DELETE /seller/sub-users/{id}`
-   with an optimistic removal + re-insert on rejection.
+6. **Sub-users (Partial)** — `useSubUsers(sellerId)` lists the staff roster hydrated from
+   `GET /seller/sub-users`; the invite form (name, email, role Staff/Viewer) awaits `inviteSubUser` →
+   `POST /seller/sub-users` (the server mints the row id; duplicate live emails return `409`), and
+   "Revoke" awaits `removeSubUser` → `DELETE /seller/sub-users/{id}` with an optimistic removal +
+   re-insert on rejection. The invite currently persists a `PENDING_INVITE` roster row only — no
+   invite email is sent, no portal credential is minted, and there is no accept path, so an invitee
+   cannot yet sign in (tracked in `KNOWN_GAPS.md`).
 7. **Security** — shows the signed-in email (`useSession()?.email`) and two self-service credential
    rotations, no admin involvement:
    - **Change email** — "Change email" opens the seller `Sheet` popup with a **new email** field and a
@@ -72,13 +78,15 @@ self-service sign-in email + password rotation)
 - Security — password: `changePortalPassword()` → `PUT /api/auth/portal/password` → gateway
   `PUT /auth/portal/password` → `admins.portal_users.password_hash` (Argon2id); revokes sessions +
   denylists the `jti`.
-- Writes are optimistic: `pushWrite` rolls back the store and toasts if the gateway rejects, so a
-  swallowed change never lingers on screen.
+- Writes are honest: profile, bank, invite and revoke await their gateway write and only then toast
+  success (a rejection rolls back the store and toasts). Notification toggles use `pushWrite`
+  (optimistic + rollback/toast) since the switch is a single small flag.
 
 ## Success / error / empty
 
-- **Success:** profile, bank, notification, sub-user and theme changes all persist; Security rotates
-  the sign-in email/password and re-authenticates in place without a manual `/login` round-trip.
+- **Success:** profile, bank, notification, sub-user roster and theme changes all persist; Security
+  rotates the sign-in email/password and re-authenticates in place without a manual `/login`
+  round-trip.
 - **Loading:** profile and bank show pulse skeletons while the seller row / payout account hydrate;
   Security buttons show "Changing…"/"Saving…" while busy.
 - **Error:** a rejected write rolls back and shows a `sonner` toast with the server message; Security
@@ -88,7 +96,12 @@ self-service sign-in email + password rotation)
 
 ## Known gaps
 
-- None. Every write on this page now has a gateway endpoint + table backing it.
+- **Sub-user invite lifecycle (Partial):** the invite creates a `PENDING_INVITE` roster row but does
+  not deliver an invite email, mint a `admins.portal_users` credential, or provide an accept/login
+  path; `ACTIVE`/`last_login_at` are never set. Revoke (roster status → `REVOKED`) is shipped.
+- **Notification preferences are stored, not yet consumed:** `sellers.notification_preferences`
+  persists and hydrates correctly, but no alert/worker path currently reads it, so toggling an alert
+  has no delivery effect yet.
 
 ## Linked docs
 

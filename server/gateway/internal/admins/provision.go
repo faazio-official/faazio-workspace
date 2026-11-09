@@ -368,6 +368,9 @@ type UpdateIdentityParams struct {
 	Email        *string
 	Phone        *string
 	DistrictCode *string
+	// Active, when set, is applied in the same transaction as the identity edit so a PUT carrying both
+	// can never commit a half-applied change.
+	Active *bool
 }
 
 // UpdateIdentity edits a district-admin roster row (name/email/phone/district) and keeps the linked
@@ -427,6 +430,10 @@ func (p *Provisioner) UpdateIdentity(ctx context.Context, adminID string, in Upd
 		}
 		stateCode = StateForDistrict(districtCode)
 	}
+	active := cur.Active
+	if in.Active != nil {
+		active = *in.Active
+	}
 
 	oldEmail := cur.Email
 	if !strings.EqualFold(email, oldEmail) {
@@ -439,21 +446,32 @@ func (p *Provisioner) UpdateIdentity(ctx context.Context, adminID string, in Upd
 		}
 	}
 
-	// Keep the linked portal login in sync with the roster identity.
+	// Keep the linked portal login in sync with the roster identity (and active flag) so the
+	// roster↔login link — which deactivation keys on lower(email) — never breaks.
 	if _, err := tx.Exec(ctx, `
 		update admins.portal_users
-		   set email = $2, display_name = $3, updated_at = now()
-		 where lower(email) = lower($1) and role = 'DISTRICT_ADMIN'`, oldEmail, email, name); err != nil {
+		   set email = $2, display_name = $3, active = $4, updated_at = now()
+		 where lower(email) = lower($1) and role = 'DISTRICT_ADMIN'`, oldEmail, email, name, active); err != nil {
 		return DistrictAdmin{}, false, err
+	}
+	if !active {
+		if _, err := tx.Exec(ctx, `
+			update admins.portal_sessions set revoked_at = now()
+			 where revoked_at is null
+			   and user_id in (
+			     select user_id from admins.portal_users
+			      where lower(email) = lower($1) and role = 'DISTRICT_ADMIN')`, email); err != nil {
+			return DistrictAdmin{}, false, err
+		}
 	}
 
 	var updated DistrictAdmin
 	err = tx.QueryRow(ctx, `
 		update admins.district_admins
-		   set name = $2, email = $3, phone = $4, district_code = nullif($5,''), state_code = $6
+		   set name = $2, email = $3, phone = $4, district_code = nullif($5,''), state_code = $6, active = $7
 		 where admin_id = $1
 		 returning admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active, created_at, last_active_at`,
-		adminID, name, email, phone, districtCode, stateCode).
+		adminID, name, email, phone, districtCode, stateCode, active).
 		Scan(&updated.AdminID, &updated.Name, &updated.Email, &updated.Phone, &updated.DistrictCode, &updated.StateCode, &updated.Active, &createdAt, &lastActive)
 	if err != nil {
 		if isUniqueViolation(err) {

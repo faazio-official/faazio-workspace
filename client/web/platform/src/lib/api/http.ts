@@ -151,25 +151,8 @@ export const remote = {
 };
 
 /**
- * Fire-and-forget write-behind. The portal writes optimistically to the local store first; this
- * pushes the same change to the gateway when configured, and silently keeps the optimistic state
- * (seed fallback) if the call fails. Callers never await, so pages stay synchronous.
- */
-export function writeBehind(
-  method: "post" | "put" | "patch" | "delete",
-  path: string,
-  body?: unknown,
-): void {
-  if (!remoteConfigured()) return;
-  const pending = method === "delete" ? remote.delete(path) : remote[method](path, body);
-  Promise.resolve(pending).catch(() => {
-    /* keep the optimistic local state; the next hydrate reconciles */
-  });
-}
-
-/**
- * Awaited write to the gateway. Unlike `writeBehind`, the returned promise rejects on failure, so a
- * caller can roll back its optimistic state and surface the error. No-op (resolved) in seed mode.
+ * Awaited write to the gateway. The returned promise rejects on failure, so a caller can roll back
+ * its optimistic state and surface the error. No-op (resolved) in seed mode.
  */
 export function writeAwaited(
   method: "post" | "put" | "patch" | "delete",

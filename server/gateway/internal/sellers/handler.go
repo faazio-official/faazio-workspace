@@ -722,13 +722,31 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, after)
 }
 
+// editProfileRequest is a partial PATCH body. Pointer fields distinguish "not provided" (leave
+// unchanged) from a zero value, so editing only the phone never clears the stored GSTIN/PAN/address.
 type editProfileRequest struct {
-	BusinessName    string `json:"businessName"`
-	OwnerName       string `json:"ownerName"`
-	GSTIN           string `json:"gstin"`
-	PAN             string `json:"pan"`
-	BusinessAddress string `json:"businessAddress"`
-	ContactPhone    string `json:"contactPhone"`
+	BusinessName    *string `json:"businessName"`
+	OwnerName       *string `json:"ownerName"`
+	GSTIN           *string `json:"gstin"`
+	PAN             *string `json:"pan"`
+	BusinessAddress *string `json:"businessAddress"`
+	ContactPhone    *string `json:"contactPhone"`
+}
+
+func trimmedPtr(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	t := strings.TrimSpace(*v)
+	return &t
+}
+
+func upperPtr(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	t := strings.ToUpper(strings.TrimSpace(*v))
+	return &t
 }
 
 // editProfile updates a seller's editable business profile. A seller may only edit their own row; an
@@ -758,20 +776,28 @@ func (h *Handler) editProfile(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
 		return
 	}
-	req.BusinessName = strings.TrimSpace(req.BusinessName)
-	req.OwnerName = strings.TrimSpace(req.OwnerName)
-	req.GSTIN = strings.ToUpper(strings.TrimSpace(req.GSTIN))
-	req.PAN = strings.ToUpper(strings.TrimSpace(req.PAN))
-	req.BusinessAddress = strings.TrimSpace(req.BusinessAddress)
-	req.ContactPhone = strings.TrimSpace(req.ContactPhone)
-	if req.BusinessName == "" || req.OwnerName == "" {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "business and owner name are required")
+	patch := ProfilePatch{
+		BusinessName:    trimmedPtr(req.BusinessName),
+		OwnerName:       trimmedPtr(req.OwnerName),
+		GSTIN:           upperPtr(req.GSTIN),
+		PAN:             upperPtr(req.PAN),
+		BusinessAddress: trimmedPtr(req.BusinessAddress),
+		ContactPhone:    trimmedPtr(req.ContactPhone),
+	}
+	if patch.BusinessName == nil && patch.OwnerName == nil && patch.GSTIN == nil &&
+		patch.PAN == nil && patch.BusinessAddress == nil && patch.ContactPhone == nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "no changes provided")
 		return
 	}
-	after, ok, err := h.repo.UpdateProfile(r.Context(), id, ProfilePatch{
-		BusinessName: req.BusinessName, OwnerName: req.OwnerName, GSTIN: req.GSTIN,
-		PAN: req.PAN, BusinessAddress: req.BusinessAddress, ContactPhone: req.ContactPhone,
-	}, h.actor(r), requeue)
+	if patch.BusinessName != nil && *patch.BusinessName == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a business name is required")
+		return
+	}
+	if patch.OwnerName != nil && *patch.OwnerName == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "an owner name is required")
+		return
+	}
+	after, ok, err := h.repo.UpdateProfile(r.Context(), id, patch, h.actor(r), requeue)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not update profile")
 		return

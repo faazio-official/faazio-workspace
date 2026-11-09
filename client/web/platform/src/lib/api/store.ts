@@ -164,11 +164,25 @@ export const usePortalStore = create<PortalState>()(
           setActiveStoreId: _setActive,
           sessionStatus: _status,
           hydrated: _hydrated,
+          subUsers: _subUsers,
+          notificationPreferences: _notificationPreferences,
           ...rest
         } = state;
         // The portal session and hydration flag are never persisted: the session is refreshed from
-        // the HttpOnly cookie and hydration always starts fresh on load.
-        return { ...rest, session: null };
+        // the HttpOnly cookie and hydration always starts fresh on load. Seller-scoped staff/PII
+        // slices are also excluded so a different seller signing in never sees the previous
+        // account's roster or preferences flash before hydration overwrites them.
+        return {
+          ...rest,
+          session: null,
+          subUsers: [],
+          notificationPreferences: {
+            newOrder: true,
+            lowStock: true,
+            slaBreach: true,
+            campaigns: true,
+          },
+        };
       },
     },
   ),

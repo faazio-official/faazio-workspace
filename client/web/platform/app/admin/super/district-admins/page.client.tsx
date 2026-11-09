@@ -628,9 +628,21 @@ function DistrictAdminAccounts() {
                               <AlertDialogCancel>Cancel</AlertDialogCancel>
                               <AlertDialogAction
                                 onClick={() => {
-                                  deleteDistrictAdmin(admin.adminId);
-                                  setCreds((prev) => prev.filter((c) => c.email.toLowerCase() !== admin.email.toLowerCase()));
-                                  toast.success("Admin deleted");
+                                  void (async () => {
+                                    try {
+                                      await deleteDistrictAdmin(admin.adminId);
+                                      setCreds((prev) =>
+                                        prev.filter(
+                                          (c) => c.email.toLowerCase() !== admin.email.toLowerCase(),
+                                        ),
+                                      );
+                                      toast.success("Admin deleted");
+                                    } catch (err) {
+                                      toast.error("Delete failed", {
+                                        description: err instanceof Error ? err.message : undefined,
+                                      });
+                                    }
+                                  })();
                                 }}
                               >
                                 Delete admin

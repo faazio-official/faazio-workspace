@@ -68,8 +68,7 @@ function toRupees(paisa: number): number {
 
 /**
  * Push an optimistic mutation to the gateway and, on failure, restore the caller's pre-mutation
- * snapshot and surface a toast. Replaces fire-and-forget `writeBehind` for the promo/ads writes so a
- * seller/admin always knows the change did not persist (Phase 5).
+ * snapshot and surface a toast, so a seller/admin always knows the change did not persist (Phase 5).
  */
 function pushWrite(
   label: string,
@@ -926,8 +925,10 @@ export async function fetchBankAccount(sellerId: string): Promise<BankAccount | 
 /**
  * Save the seller payout account (upsert — one per seller, `PUT /sellers/{id}/bank-account`).
  * The gateway accepts only a masked tail, so a full number is masked before it leaves the client.
+ * Awaitable so the caller only shows success once the write has actually landed; a rejection rolls
+ * the optimistic row back and rethrows.
  */
-export function upsertBankAccount(sellerId: string, input: BankAccountInput): void {
+export async function upsertBankAccount(sellerId: string, input: BankAccountInput): Promise<void> {
   const before = getBankAccount(sellerId);
   const accountNumberMasked = maskAccountNumber(input.accountNumber);
   const ifsc = input.ifsc.toUpperCase();
@@ -942,25 +943,22 @@ export function upsertBankAccount(sellerId: string, input: BankAccountInput): vo
   state().set((s) => ({
     bankAccounts: [...s.bankAccounts.filter((b) => b.sellerId !== sellerId), optimistic],
   }));
-  pushWrite(
-    "Bank account",
-    "put",
-    `/sellers/${encodeURIComponent(sellerId)}/bank-account`,
-    {
+  try {
+    await writeAwaited("put", `/sellers/${encodeURIComponent(sellerId)}/bank-account`, {
       bankName: input.bankName ?? "",
       accountNumberMasked,
       ifsc,
       beneficiaryName: input.beneficiaryName,
-    },
-    () => {
-      state().set((s) => ({
-        bankAccounts: [
-          ...s.bankAccounts.filter((b) => b.sellerId !== sellerId),
-          ...(before ? [before] : []),
-        ],
-      }));
-    },
-  );
+    });
+  } catch (err) {
+    state().set((s) => ({
+      bankAccounts: [
+        ...s.bankAccounts.filter((b) => b.sellerId !== sellerId),
+        ...(before ? [before] : []),
+      ],
+    }));
+    throw err;
+  }
   audit({
     action: "BANK_UPDATE",
     entity: "sellers.bank_accounts",
@@ -1016,7 +1014,16 @@ export async function updateSeller(sellerId: string, patch: SellerProfilePatch):
   const before = getSeller(sellerId);
   patchSellerLocal(sellerId, patch);
   try {
-    await writeAwaited("patch", `/sellers/${encodeURIComponent(sellerId)}`, patch);
+    if (remoteConfigured()) {
+      const row = await remote.patch<SellerRecord>(`/sellers/${encodeURIComponent(sellerId)}`, patch);
+      // Reconcile with the authoritative row: a KYC edit may have re-queued the account's status.
+      const server = toCamel(row);
+      state().set((s) => ({
+        sellers: s.sellers.map((seller) =>
+          seller.sellerId === sellerId ? { ...seller, ...server } : seller,
+        ),
+      }));
+    }
   } catch (err) {
     if (before) {
       state().set((s) => ({
@@ -1025,11 +1032,20 @@ export async function updateSeller(sellerId: string, patch: SellerProfilePatch):
     }
     throw err;
   }
+  const beforeValues: SellerProfilePatch = {};
+  if (before) {
+    if (patch.businessName !== undefined) beforeValues.businessName = before.businessName;
+    if (patch.ownerName !== undefined) beforeValues.ownerName = before.ownerName;
+    if (patch.gstin !== undefined) beforeValues.gstin = before.gstin;
+    if (patch.pan !== undefined) beforeValues.pan = before.pan;
+    if (patch.businessAddress !== undefined) beforeValues.businessAddress = before.businessAddress;
+    if (patch.contactPhone !== undefined) beforeValues.contactPhone = before.contactPhone;
+  }
   audit({
     action: "SELLER_PROFILE_UPDATE",
     entity: "sellers.sellers",
     entityId: sellerId,
-    before: before && { ...patch },
+    before: beforeValues,
     after: patch,
   });
 }
@@ -1080,8 +1096,9 @@ export function getSubUser(subUserId: string): SubUser | undefined {
   return state().subUsers.find((u) => u.subUserId === subUserId);
 }
 
-/** The seller's staff roster from `GET /seller/sub-users`. */
+/** The seller's staff roster from `GET /seller/sub-users` (local slice in seed mode). */
 export async function fetchSubUsers(): Promise<SubUser[]> {
+  if (!remoteConfigured()) return state().subUsers;
   return remote.get<SubUser[]>("/seller/sub-users");
 }
 
@@ -2161,13 +2178,21 @@ export async function updateDistrictAdmin(adminId: string, patch: Partial<Distri
   });
 }
 
-export function deleteDistrictAdmin(adminId: string): void {
+/**
+ * Delete a district admin via `DELETE /district-admins/{id}`. Optimistic with rollback; the caller
+ * awaits it so it only reports success once the delete has landed.
+ */
+export async function deleteDistrictAdmin(adminId: string): Promise<void> {
   const before = state().districtAdmins.find((a) => a.adminId === adminId);
   state().set((s) => ({ districtAdmins: s.districtAdmins.filter((a) => a.adminId !== adminId) }));
-  pushWrite("District admin delete", "delete", `/district-admins/${encodeURIComponent(adminId)}`, undefined, () => {
-    if (!before) return;
-    state().set((s) => ({ districtAdmins: [before, ...s.districtAdmins] }));
-  });
+  try {
+    await writeAwaited("delete", `/district-admins/${encodeURIComponent(adminId)}`);
+  } catch (err) {
+    if (before) {
+      state().set((s) => ({ districtAdmins: [before, ...s.districtAdmins] }));
+    }
+    throw err;
+  }
   audit({ action: "DISTRICT_ADMIN_DELETE", entity: "admins.district_admins", entityId: adminId, before });
 }
 

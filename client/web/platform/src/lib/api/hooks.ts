@@ -628,13 +628,13 @@ export function useBankAccount(sellerId: string): {
   return { account, loading, reload };
 }
 
-/** The seller's staff sub-users (local slice; pending gateway `seller.sub_users`). */
+/** The seller's staff sub-users (hydrated from `sellers.sub_users`). */
 export function useSubUsers(sellerId: string): SubUser[] {
   const subUsers = usePortalStore((s) => s.subUsers);
   return useMemo(() => api.listSubUsers(sellerId), [subUsers, sellerId]);
 }
 
-/** The seller's alert preferences (local slice; pending gateway `seller.notification_preferences`). */
+/** The seller's alert preferences (hydrated from `sellers.notification_preferences`). */
 export function useNotificationPreferences(): NotificationPreferences {
   const prefs = usePortalStore((s) => s.notificationPreferences);
   return useMemo(() => api.getNotificationPreferences(), [prefs]);

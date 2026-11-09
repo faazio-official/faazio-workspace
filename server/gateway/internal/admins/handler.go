@@ -252,8 +252,11 @@ func (h *Handler) setAdminActive(w http.ResponseWriter, r *http.Request) {
 	var ok bool
 	var err error
 	if hasProfile {
+		// Apply identity + active in one transaction; a body carrying both must not commit a
+		// half-applied edit when the second write fails.
 		admin, ok, err = h.provisioner.UpdateIdentity(r.Context(), id, UpdateIdentityParams{
 			Name: req.Name, Email: req.Email, Phone: req.Phone, DistrictCode: req.DistrictCode,
+			Active: req.Active,
 		})
 		if err != nil {
 			var ve *ValidationError
@@ -273,7 +276,7 @@ func (h *Handler) setAdminActive(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if req.Active != nil {
+	if !hasProfile && req.Active != nil {
 		admin, ok, err = h.provisioner.SetActive(r.Context(), id, *req.Active)
 		if err != nil {
 			httpx.Fail(w, http.StatusInternalServerError, "district_admin_update_failed", "could not update district admin")
