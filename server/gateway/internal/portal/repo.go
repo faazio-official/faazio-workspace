@@ -104,6 +104,28 @@ func (r *Repo) ByID(ctx context.Context, userID string) (PortalUser, bool, error
 	return u, true, nil
 }
 
+// BySellerID returns a seller's existing SELLER login (oldest first). The approval provisioner uses
+// it so re-approval reuses the seller's login even after the sign-in email was rotated — keying
+// idempotency on seller_id rather than email prevents a duplicate credential on the old address.
+func (r *Repo) BySellerID(ctx context.Context, sellerID string) (PortalUser, bool, error) {
+	if err := r.ready(); err != nil {
+		return PortalUser{}, false, err
+	}
+	u, err := scanUser(r.pool.QueryRow(ctx, `
+		select `+userColumns+`
+		  from admins.portal_users
+		 where seller_id = $1 and role = 'SELLER'
+		 order by created_at
+		 limit 1`, sellerID))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return PortalUser{}, false, nil
+		}
+		return PortalUser{}, false, err
+	}
+	return u, true, nil
+}
+
 // List returns every portal credential (never the password hash), newest first.
 func (r *Repo) List(ctx context.Context) ([]PortalUser, error) {
 	if err := r.ready(); err != nil {
@@ -182,6 +204,27 @@ func (r *Repo) SetPasswordHash(ctx context.Context, userID, hash string) error {
 		   set password_hash = $2, must_change = false, password_changed_at = now(), updated_at = now()
 		 where user_id = $1`, userID, hash)
 	return err
+}
+
+// UpdateEmail stores a new sign-in email for the user. The unique index on lower(email) is the
+// authority: a collision is reported as ErrEmailTaken so the handler can answer 409 without leaking
+// the other row. ok=false when the user no longer exists.
+func (r *Repo) UpdateEmail(ctx context.Context, userID, email string) (bool, error) {
+	if err := r.ready(); err != nil {
+		return false, err
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update admins.portal_users
+		   set email = $2, updated_at = now()
+		 where user_id = $1`, userID, email)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return false, ErrEmailTaken
+		}
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
 }
 
 // ResetPassword stores a new hash, sets must_change to the requested value and clears any lockout.

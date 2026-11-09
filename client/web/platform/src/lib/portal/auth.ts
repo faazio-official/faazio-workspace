@@ -259,3 +259,14 @@ export async function changePortalPassword(
 ): Promise<void> {
   await call("/api/auth/portal/password", "PUT", { currentPassword, newPassword });
 }
+
+/**
+ * Rotates the sign-in email for the signed-in portal account. The current password is required as a
+ * re-auth gate; on success the gateway revokes every session and the caller restores in place.
+ */
+export async function changePortalEmail(
+  currentPassword: string,
+  newEmail: string,
+): Promise<void> {
+  await call("/api/auth/portal/email", "PUT", { currentPassword, newEmail });
+}

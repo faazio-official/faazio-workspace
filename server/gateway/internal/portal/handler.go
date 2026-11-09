@@ -62,6 +62,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.Require)
 		g.Get("/auth/portal/me", h.me)
 		g.Put("/auth/portal/password", h.changePassword)
+		g.Put("/auth/portal/email", h.changeEmail)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(httpx.MaxBytes(maxBodyBytes))
@@ -89,6 +90,11 @@ type logoutRequest struct {
 type changePasswordRequest struct {
 	CurrentPassword string `json:"currentPassword"`
 	NewPassword     string `json:"newPassword"`
+}
+
+type changeEmailRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewEmail        string `json:"newEmail"`
 }
 
 type userDTO struct {
@@ -760,6 +766,72 @@ func (h *Handler) changePassword(w http.ResponseWriter, r *http.Request) {
 	}
 	h.record(r, "PORTAL_PASSWORD_CHANGE", user.UserID, user.Role, shortHash(clientIP(r)), "success")
 	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// changeEmail rotates the sign-in email for the signed-in portal account. It re-verifies the current
+// password first — a stolen access token alone must not let an attacker move the login identity — then
+// updates the row (the lower(email) unique index is the authority: a duplicate is a 409, never a leak
+// of the other row). Because the login identifier changed, every refresh session is revoked and the
+// presented access token is denylisted; the client re-authenticates in place with the new email, the
+// same pattern as changePassword.
+func (h *Handler) changeEmail(w http.ResponseWriter, r *http.Request) {
+	if !auth.IsPortal(r.Context()) {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "portal session required")
+		return
+	}
+	if !isJSON(r) {
+		httpx.Fail(w, http.StatusUnsupportedMediaType, "unsupported_media_type", "Content-Type must be application/json")
+		return
+	}
+	var req changeEmailRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	newEmail := strings.ToLower(strings.TrimSpace(req.NewEmail))
+	if !validEmail(newEmail) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a valid email is required")
+		return
+	}
+	user, found, err := h.repo.ByID(r.Context(), auth.UserID(r.Context()))
+	if err != nil || !found || !user.Active {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "portal session required")
+		return
+	}
+	// A DISTRICT_ADMIN login is bound to its district roster row by email (the roster deactivation
+	// keys on lower(email) + role); a self-service move would orphan it. Those emails are managed by
+	// a superadmin through the roster, so refuse the rotation here rather than desync it.
+	if user.Role == auth.RoleDistrictAdmin {
+		httpx.Fail(w, http.StatusForbidden, "email_change_not_allowed", "district-admin emails are managed by the district roster; ask a superadmin")
+		return
+	}
+	if !h.hasher.Verify(req.CurrentPassword, user.PasswordHash) {
+		httpx.Fail(w, http.StatusUnauthorized, "invalid_current_password", "current password is incorrect")
+		return
+	}
+	if strings.EqualFold(newEmail, user.Email) {
+		httpx.Fail(w, http.StatusBadRequest, "email_unchanged", "that is already your email")
+		return
+	}
+	ok, err := h.repo.UpdateEmail(r.Context(), user.UserID, newEmail)
+	if err != nil {
+		if errors.Is(err, ErrEmailTaken) {
+			httpx.Fail(w, http.StatusConflict, "email_taken", "that email already has a login")
+			return
+		}
+		failUnavailable(w, "email_change", "could not change email", err)
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "portal session required")
+		return
+	}
+	_ = h.repo.RevokeUserSessions(r.Context(), user.UserID)
+	if jti := auth.Jti(r.Context()); jti != "" {
+		h.cache.Set(r.Context(), cache.PortalDeny(jti), "1", cache.TTLPortalDeny)
+	}
+	h.record(r, "PORTAL_EMAIL_CHANGE", user.UserID, user.Role, shortHash(clientIP(r)), "success")
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "email": newEmail})
 }
 
 // allowLogin applies the shared Valkey counters (per-IP + per-email) in front of the DB lockout.

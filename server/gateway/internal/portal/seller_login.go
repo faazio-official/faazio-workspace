@@ -35,6 +35,15 @@ func (p *SellerLoginProvisioner) ProvisionSellerLogin(ctx context.Context, selle
 		return contracts.SellerLogin{Skipped: true, Reason: "seller has no valid contact email"}, nil
 	}
 
+	// Idempotent reuse by seller first: a seller may have rotated their sign-in email since approval,
+	// so matching on email alone could mint a second login on the old contact address. Reusing the
+	// seller's existing login keeps "one approval → one credential" true across an email change.
+	if existing, ok, err := p.repo.BySellerID(ctx, sellerID); err != nil {
+		return contracts.SellerLogin{}, err
+	} else if ok {
+		return contracts.SellerLogin{UserID: existing.UserID, Email: existing.Email}, nil
+	}
+
 	// Idempotent reuse: the same seller + email already has a login.
 	if existing, ok, err := p.repo.ByEmailLower(ctx, email); err != nil {
 		return contracts.SellerLogin{}, err

@@ -469,10 +469,11 @@ console and the super admin console on that device.
 - **Controls.** `src/components/layout/ThemeToggle.tsx` exports
   `ThemeSegmentedControl` (Settings pages, three labelled options) and
   `ThemeMenu` (the shell header icon menu). Both shells render `ThemeMenu`.
-- **Settings surfaces.** `/seller/settings` (editable Profile, Bank, Notifications
-  and Sub-users tabs plus Appearance; bank uses `GET`/`PUT /sellers/{id}/bank-account`
+- **Settings surfaces.** `/seller/settings` (editable Profile, Bank, Notifications,
+  Sub-users and Security tabs plus Appearance; bank uses `GET`/`PUT /sellers/{id}/bank-account`
   and appearance is browser-local — the profile/notification/sub-user writes are
-  optimistic pending gateway endpoints, see
+  optimistic pending gateway endpoints; **Security** rotates the seller's own sign-in email
+  (`PUT /auth/portal/email`, re-auth popup) and password (`PUT /auth/portal/password`), see
   `docs/user-interaction-workflow/seller/web-portal/settings.md`),
   `/admin/super/settings` (Appearance section) and `/admin/district/settings`
   (new page, added to `DISTRICT_ADMIN_NAV`).
@@ -678,7 +679,8 @@ browser                        Next.js route handlers                 Go gateway
 ```
 
 - **Endpoints** (all gateway-native, see `docs/architecture/monolith-breakdown.md` §1):
-  `POST /auth/portal/{login,refresh,logout}`, `GET /auth/portal/me`, `PUT /auth/portal/password`
+  `POST /auth/portal/{login,refresh,logout}`, `GET /auth/portal/me`, `PUT /auth/portal/password`,
+  `PUT /auth/portal/email`
   (any role), plus the superadmin credential surface
   `GET|POST /admin/portal-users`, `PUT /admin/portal-users/{id}`,
   `PUT /admin/portal-users/{id}/password`. Creating/resetting a scoped credential defaults to
@@ -769,6 +771,19 @@ browser                        Next.js route handlers                 Go gateway
   re-authenticates with the new password (`signIn`) and redirects to `homeFor(role)` — the session
   is replaced in one step instead of forcing a manual `/login` round-trip (fallback: sign-out →
   `/login`), and validation errors (`weak_password`, `invalid_current_password`) are surfaced.
+- **Email change** — a signed-in operator rotates their own sign-in email from `/seller/settings` →
+  Security or `/security`. `PUT /auth/portal/email` is open to `SELLER` and `SUPER_ADMIN`; a
+  roster-bound `DISTRICT_ADMIN` is refused (`403 email_change_not_allowed`) because the district
+  roster deactivates the login by `lower(email)`. The endpoint re-verifies the **current password** (a
+  stolen access token alone cannot move the login identity), rejects a duplicate
+  (`409 email_taken`, the `lower(email)` unique index is the authority) and an unchanged address
+  (`400 email_unchanged`), then updates `admins.portal_users` and **revokes every refresh session +
+  denylists the presented `jti`** (the login identifier changed). The page then re-authenticates in
+  place with the new email + the password just entered (`signIn` + `hydrateFromGateway`), so no
+  zombie session is left behind; fallback: sign-out → `/login`. Audited as `PORTAL_EMAIL_CHANGE`.
+  No new migration — the `email` column already exists. The approval provisioner is idempotent by
+  `seller_id`, so a re-approval after an email change reuses the existing login instead of minting a
+  second one on the old address.
 - **Throttling** — per-IP (10/min) + per-email (5/min) Valkey counters (hashed keys) plus a
   durable 5-failure → 15-minute `locked_until`; failures return a generic
   `invalid_credentials` (no user enumeration). Cloudflare adds an edge WAF rule on

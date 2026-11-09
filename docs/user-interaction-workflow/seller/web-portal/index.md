@@ -11,7 +11,7 @@
 |---|---|
 | Portal auth + seller console shell | [seller-console.md](./seller-console.md) |
 | Seller notifications inbox | [notifications.md](./notifications.md) |
-| Seller settings (profile, bank, notifications, sub-users) | [settings.md](./settings.md) |
+| Seller settings (profile, bank, notifications, sub-users, security) | [settings.md](./settings.md) |
 | Super admin category taxonomy + home rail | [super-admin-categories.md](./super-admin-categories.md) |
 
 ## Route groups
@@ -25,7 +25,7 @@
 ## State
 
 - `usePortalStore` (client store) + HttpOnly cookies (tokens never exposed to JS).
-- `src/lib/portal/auth.ts` — login/restore/refresh/logout/password.
+- `src/lib/portal/auth.ts` — login/restore/refresh/logout/password/email.
 - `src/lib/portal/server.ts` — cookie contract and refresh singleflight.
 - `src/lib/api/*` hooks + `src/lib/sellerUi.ts` (client-only seller UI state).
 

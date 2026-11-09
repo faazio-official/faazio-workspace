@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
   PageHeader,
@@ -11,11 +12,14 @@ import {
   SectionTitle,
   RadioRow,
   EmptyState,
+  Sheet,
 } from "@/components/sellers/kit";
 import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import {
   inviteSubUser,
   removeSubUser,
+  signIn,
+  signOut,
   updateNotificationPreferences,
   updateSeller,
   upsertBankAccount,
@@ -29,6 +33,9 @@ import {
   useSellerScope,
   useSubUsers,
 } from "@/lib/api/hooks";
+import { hydrateFromGateway } from "@/lib/api/sync";
+import { useSession } from "@/lib/hooks/useSession";
+import { changePortalEmail, changePortalPassword, PortalError } from "@/lib/portal/auth";
 import type {
   BankAccountInput,
   NotificationKind,
@@ -36,7 +43,7 @@ import type {
   SubUserRole,
 } from "@/data/types";
 
-type Tab = "profile" | "bank" | "notifications" | "appearance" | "users";
+type Tab = "profile" | "bank" | "notifications" | "appearance" | "users" | "security";
 
 const NOTIFICATIONS: { kind: NotificationKind; label: string; sub: string }[] = [
   { kind: "newOrder", label: "New order alerts", sub: "A new order lands in your queue" },
@@ -56,6 +63,7 @@ const TABS: { key: Tab; label: string }[] = [
   { key: "notifications", label: "Notifications" },
   { key: "appearance", label: "Appearance" },
   { key: "users", label: "Sub-users" },
+  { key: "security", label: "Security" },
 ];
 
 const STATUS_LABEL: Record<string, string> = {
@@ -63,6 +71,31 @@ const STATUS_LABEL: Record<string, string> = {
   ACTIVE: "Active",
   REVOKED: "Revoked",
 };
+
+/** Surface the specific server validation code instead of the generic fallback. */
+function passwordErrorMessage(err: unknown): string {
+  if (err instanceof PortalError) {
+    if (err.code === "weak_password") {
+      return "Use a stronger, different password: at least 12 characters, not a common value.";
+    }
+    if (err.code === "invalid_current_password") {
+      return "Your current password is incorrect.";
+    }
+    return err.message;
+  }
+  return err instanceof Error ? err.message : "Could not change the password.";
+}
+
+function emailErrorMessage(err: unknown): string {
+  if (err instanceof PortalError) {
+    if (err.code === "email_taken") return "That email already has a login.";
+    if (err.code === "invalid_current_password") return "Your current password is incorrect.";
+    if (err.code === "email_unchanged") return "That is already your email.";
+    if (err.code === "bad_request") return "Enter a valid email address.";
+    return err.message;
+  }
+  return err instanceof Error ? err.message : "Could not change the email.";
+}
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
@@ -77,6 +110,8 @@ function SellerSettings() {
   const { sellerId } = useSellerScope();
   const seller = useSeller(sellerId);
   const loading = usePortalLoading();
+  const session = useSession();
+  const router = useRouter();
 
   const { account: bank, loading: bankLoading } = useBankAccount(sellerId);
   const subUsers = useSubUsers(sellerId);
@@ -87,6 +122,19 @@ function SellerSettings() {
   const [profileDraft, setProfileDraft] = useState<SellerProfilePatch | null>(null);
   const [bankDraft, setBankDraft] = useState<BankAccountInput | null>(null);
   const [invite, setInvite] = useState<InviteSubUserInput>({ name: "", email: "", role: "STAFF" });
+
+  // Security — email edit runs in a sheet (re-auth popup); password edit is an inline form.
+  const [emailOpen, setEmailOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailPassword, setEmailPassword] = useState("");
+  const [emailBusy, setEmailBusy] = useState(false);
+  const [emailError, setEmailError] = useState<string | null>(null);
+
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordBusy, setPasswordBusy] = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
 
   const startProfileEdit = () => {
     if (!seller) return;
@@ -150,6 +198,99 @@ function SellerSettings() {
     inviteSubUser(sellerId, invite);
     toast.success("Invite sent", { description: `An invite will go to ${invite.email.trim()}.` });
     setInvite({ name: "", email: "", role: "STAFF" });
+  };
+
+  const openEmailSheet = () => {
+    setNewEmail(session?.email ?? "");
+    setEmailPassword("");
+    setEmailError(null);
+    setEmailOpen(true);
+  };
+
+  const saveEmail = async () => {
+    setEmailError(null);
+    const email = newEmail.trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setEmailError("Enter a valid email address.");
+      return;
+    }
+    if (!emailPassword) {
+      setEmailError("Enter your current password to confirm.");
+      return;
+    }
+    setEmailBusy(true);
+    try {
+      await changePortalEmail(emailPassword, email);
+    } catch (err) {
+      setEmailError(emailErrorMessage(err));
+      setEmailBusy(false);
+      return;
+    }
+    // The gateway revoked every session (the sign-in identity changed) — mint a fresh one with the
+    // new email + the password just entered, then resync the hydrated slices, so the operator stays
+    // signed in on this device without a zombie session.
+    try {
+      await signIn(email, emailPassword);
+      await hydrateFromGateway();
+      setEmailOpen(false);
+      setNewEmail("");
+      setEmailPassword("");
+      toast.success("Email updated", { description: `You now sign in with ${email}.` });
+    } catch {
+      await signOut();
+      toast.success("Email updated — sign in again with the new email.");
+      router.push("/login");
+    } finally {
+      setEmailBusy(false);
+    }
+  };
+
+  const savePassword = async () => {
+    setPasswordError(null);
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError("Fill in all three password fields.");
+      return;
+    }
+    if (newPassword.length < 12) {
+      setPasswordError("Use at least 12 characters.");
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError("The new passwords do not match.");
+      return;
+    }
+    if (newPassword === currentPassword) {
+      setPasswordError("Choose a different password.");
+      return;
+    }
+    if (!session?.email) {
+      setPasswordError("Your session email is unavailable — sign in again.");
+      return;
+    }
+    setPasswordBusy(true);
+    // changePortalPassword revokes every refresh session and denylists the current access token, so
+    // re-authenticate in place with the new password (do NOT signOut — that would drop this device's
+    // push token for a voluntary rotation).
+    try {
+      await changePortalPassword(currentPassword, newPassword);
+    } catch (err) {
+      setPasswordError(passwordErrorMessage(err));
+      setPasswordBusy(false);
+      return;
+    }
+    try {
+      await signIn(session.email, newPassword);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+      toast.success("Password changed", { description: "You are signed in with your new password." });
+    } catch {
+      await signOut();
+      toast.success("Password changed — sign in again with the new password.");
+      router.push("/login");
+    } finally {
+      setPasswordBusy(false);
+    }
   };
 
   return (
@@ -416,7 +557,103 @@ function SellerSettings() {
             </Card>
           </>
         )}
+
+        {tab === "security" && (
+          <>
+            <Card>
+              <p className="mb-2 text-sm font-bold">Sign-in email</p>
+              <p className="mb-2 text-[10px] text-muted-foreground">
+                This is the email you use to sign in. Changing it signs you out of your other devices.
+              </p>
+              <Row label="Email" value={session?.email ?? ""} />
+              <PrimaryButton
+                className="mt-4 w-full"
+                onClick={openEmailSheet}
+                disabled={!session?.email}
+              >
+                Change email
+              </PrimaryButton>
+            </Card>
+
+            <Card>
+              <p className="mb-2 text-sm font-bold">Change password</p>
+              <p className="mb-2 text-[10px] text-muted-foreground">
+                Enter your current password, then choose a new one. You stay signed in here.
+              </p>
+              <TextField
+                label="Current password"
+                type="password"
+                value={currentPassword}
+                onChange={setCurrentPassword}
+              />
+              <TextField
+                label="New password"
+                type="password"
+                value={newPassword}
+                onChange={setNewPassword}
+              />
+              <TextField
+                label="Confirm new password"
+                type="password"
+                value={confirmPassword}
+                onChange={setConfirmPassword}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                At least 12 characters. Choose a strong, different password.
+              </p>
+              {passwordError ? (
+                <p className="mt-2 text-[12px] text-destructive">{passwordError}</p>
+              ) : null}
+              <PrimaryButton
+                className="mt-4 w-full"
+                onClick={() => void savePassword()}
+                disabled={passwordBusy}
+              >
+                {passwordBusy ? "Changing..." : "Update password"}
+              </PrimaryButton>
+            </Card>
+          </>
+        )}
       </div>
+
+      <Sheet
+        open={emailOpen}
+        onClose={() => {
+          if (!emailBusy) setEmailOpen(false);
+        }}
+        title="Change email"
+        footer={
+          <PrimaryButton
+            className="w-full"
+            onClick={() => void saveEmail()}
+            disabled={
+              emailBusy ||
+              newEmail.trim().toLowerCase() === (session?.email ?? "").toLowerCase()
+            }
+          >
+            {emailBusy ? "Saving..." : "Save email"}
+          </PrimaryButton>
+        }
+      >
+        <p className="mb-2 text-[11px] text-muted-foreground">
+          For your security, confirm your current password before changing the email you sign in
+          with.
+        </p>
+        <TextField
+          label="New email"
+          type="email"
+          value={newEmail}
+          onChange={setNewEmail}
+          placeholder="you@example.com"
+        />
+        <TextField
+          label="Current password"
+          type="password"
+          value={emailPassword}
+          onChange={setEmailPassword}
+        />
+        {emailError ? <p className="mt-2 text-[12px] text-destructive">{emailError}</p> : null}
+      </Sheet>
     </>
   );
 }
