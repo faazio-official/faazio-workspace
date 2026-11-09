@@ -6,6 +6,17 @@
 -- a generated column, so search works automatically). Images reuse asset URLs already live in the
 -- catalog (no new hosts). Ids are prefixed martx-/foodx-/pharmx- so they never collide with seed or
 -- seller-minted ids. Idempotent: safe to re-run.
+--
+-- The rows carry a `store_id` FK into `directory.stores`, which the seed creates. CI applies
+-- migrations *before* the seed on a fresh database, so guard the load: with no stores present this
+-- is a correct no-op (the seed itself does not carry these breadth rows). On a seeded DB it loads.
+
+do $$
+begin
+  if not exists (select 1 from directory.stores) then
+    raise notice '0093: directory.stores empty (pre-seed) — skipping catalog breadth load';
+    return;
+  end if;
 
 insert into catalog.products
   (id, app, category, name, search_tokens, price_paisa, rating, reviews_count,
@@ -285,3 +296,5 @@ values
   ('pharmx-el-3', true, 49, 89900, '45 min', false),
   ('pharmx-el-4', true, 86, 79900, '45 min', false)
 on conflict (product_id) do nothing;
+
+end $$;
