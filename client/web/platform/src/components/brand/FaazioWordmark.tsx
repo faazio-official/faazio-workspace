@@ -12,8 +12,8 @@ import type { SVGProps } from "react";
  * background (no blue plate, no raster, no second colour).
  *
  * This is the header/footer (and login) lockup primitive — do NOT use it as a
- * favicon (2171x724 downscaled to 16px is illegible); the favicon is the knot
- * on the brand-gradient tile (see `public/favicon.svg`).
+ * favicon (2171x724 downscaled to 16px is illegible); the favicon is the Fa
+ * mark on the brand-gradient tile (see `public/favicon.svg`).
  */
 export function FaazioWordmark(props: SVGProps<SVGSVGElement>) {
   return (

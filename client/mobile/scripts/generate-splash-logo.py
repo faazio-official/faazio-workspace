@@ -22,11 +22,9 @@ toolchain rather than assumed:
    ring starting at radius ~150.5dp, so the fitted wordmark is fully visible
    there too. One asset satisfies both paths.
 
-2. The source PNG is opaque RGB (no alpha) with a blue field that is NOT flat
-   (corners run to #4952F3). Compositing that field onto the splash background
-   would leave a faint rectangle edge. We key the field out to transparency and
-   keep only the white wordmark, so the asset is background-independent and
-   works on any splash colour, on both platforms.
+2. The source PNG is opaque RGB (no alpha) with a flat #1627E9 field. We key
+   the field out to transparency and keep only the white wordmark, so the asset
+   is background-independent and works on any splash colour, on both platforms.
 
 Outputs
 -------
@@ -82,11 +80,9 @@ def _luma(p: tuple[int, int, int]) -> float:
 def load_wordmark() -> tuple[Image.Image, tuple[int, int, int, int]]:
     """Return the source as RGBA with the blue field keyed out to transparency.
 
-    The source is an opaque blue field (luma ~85, and NOT flat: corners drift to
-    #4952F3) carrying a white wordmark (luma ~250). Keying per-channel against a
-    single field colour leaks a few units of alpha from that drift, which makes
-    the whole canvas look like ink. Luma with a dead zone is robust to it: every
-    field pixel lands below the threshold and every ink pixel above.
+    The source is a flat #1627E9 field carrying a white wordmark. Luma with a
+    dead zone separates the two cleanly: every field pixel lands below the
+    threshold and every ink pixel above.
     """
     src = Image.open(SOURCE).convert("RGB")
     w, h = src.size

@@ -18,11 +18,11 @@ manager, and there is no prebuild/EAS step.
 3. CocoaPods (`gem install cocoapods` or Bundler).
 4. An App Store Connect app record for `com.faazio.customer`.
 
-The partner apps are **separate listings** built from the same target: Delivery Partner bundle id
-`com.faazio.deliverypartner` (`Delivery-Release`, display name "Faazio Delivery Partner"), Seller
-Partner bundle id `com.faazio.sellerpartner` (`Seller-Release`, display name "Faazio Seller Partner").
-Each needs its own Firebase app's `GoogleService-Info-*.plist` (ops-supplied) and an App Store Connect
-record.
+The **customer app** (`com.faazio.customer`) is the only App Store listing. The partner apps are
+**Google Play (Android) only** — the Delivery Partner (`com.faazio.deliverypartner`, `Delivery-*`)
+and Seller Partner (`com.faazio.sellerpartner`, `Seller-*`) configurations exist in the committed
+iOS shell for local/dev completeness but have **no planned iOS build or App Store release** and need
+no iOS Firebase plist.
 
 ---
 
@@ -37,9 +37,7 @@ browser for App Store Connect submission. No Xcode is required on your machine.
 |---|---|
 | `APPSTORE_CERTIFICATE_BASE64` | base64 of your shared Apple Distribution `.p12` (exported from Keychain on a Mac) |
 | `APPSTORE_CERTIFICATE_PASSWORD` | the `.p12` password |
-| `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` | base64 of the App Store `.mobileprovision` for `com.faazio.customer` |
-| `APPSTORE_PROVISIONING_PROFILE_DELIVERY` | base64 of the App Store `.mobileprovision` for `com.faazio.deliverypartner` |
-| `APPSTORE_PROVISIONING_PROFILE_SELLER` | base64 of the App Store `.mobileprovision` for `com.faazio.sellerpartner` |
+| `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` | base64 of the App Store `.mobileprovision` for `com.faazio.customer` (must include Push Notifications) |
 | `APPSTORE_API_PRIVATE_KEY` | contents of the App Store Connect `AuthKey_*.p8` key |
 | `APPSTORE_TEAM_ID` | your 10-char Apple Developer Team ID |
 | `APPSTORE_ISSUER_ID` | App Store Connect API issuer ID |

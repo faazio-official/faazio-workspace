@@ -147,3 +147,26 @@ same value:
   (`brand.primary_color`) and `server/supabase/seed/mongo/*`.
 - **PWA/manifest + icon script** — `theme_color` in both `site.webmanifest`
   files and the first gradient stop in `generate-brand-icons.py`.
+
+## Follow-up (2026-11-10): bitmap brand assets re-generated from `#1627E9` masters
+
+The bitmap set still carried older blue/purple fields (for example `#434BFD` in
+`logo.svg`, `#3952FB` in `icon.png`, `#204EFC`/`#2653FC` in the partner icons and
+`#3952FA` in the landing favicons). All derived customer bitmaps were regenerated
+from two flat `#1627E9` masters:
+
+- `client/mobile/assets/brand/logo-square.png` — `Fa` mark.
+- `client/mobile/assets/brand/logo-rectangle.png` — `Faazio` wordmark.
+
+The delivery/seller icons keep their own `Faazio Delivery` / `Faazio Seller`
+artwork and are recoloured to the same field.
+
+Regenerated: mobile source assets (`icon.png`, `adaptive-icon.png`,
+`faazio-logo.png`, `logo.png`, `logo-welcomepage.png`, `logo.svg`), customer +
+delivery + seller Android mipmaps and iOS app-icon sets, native splash logos,
+the partner colors, `client/faazio-logo.ico`, and both web favicon/PWA sets.
+Scripts: `client/mobile/scripts/regenerate-icons.py`,
+`client/mobile/scripts/generate-partner-icons.py`,
+`client/mobile/scripts/generate-splash-logo.py` and
+`client/web/platform/scripts/generate-brand-icons.py`. The brand definition
+remains `docs/UI_DESIGN_SYSTEM.md` §5.

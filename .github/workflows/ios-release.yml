@@ -110,6 +110,7 @@ jobs:
         run: npm ci
 
       - name: Set version (package.json + Xcode MARKETING_VERSION/CURRENT_PROJECT_VERSION)
+        id: version
         # Aligns the iOS marketing version + build number with the resolved version.
         # Info.plist reads $(MARKETING_VERSION)/$(CURRENT_PROJECT_VERSION), so this is
         # the single source of truth for the submitted build. With -f version it also
@@ -123,20 +124,23 @@ jobs:
               p.version = process.env.VERSION;
               fs.writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n');
             }
-            // Derive the build number deterministically from the semver (e.g. 1.0.6 ->
-            // 10006). Must strictly increase per upload of the same marketing version.
-            const parts = String(version).split('.').map(Number);
-            let vc = null;
-            if (parts.length >= 3 && parts.every((n) => Number.isInteger(n) && n >= 0)) {
-              vc = parts[0] * 10000 + parts[1] * 100 + parts[2];
-            }
+            // App Store Connect requires every upload to have a build number strictly
+            // higher than the last one, even when the marketing version is unchanged.
+            // A UTC timestamp (YYYYMMDDHHmm) guarantees that across re-runs; a
+            // semver-derived number would repeat (1.0.8 -> 10008) and be rejected.
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, '0');
+            const vc = String(now.getUTCFullYear()) + pad(now.getUTCMonth() + 1) +
+              pad(now.getUTCDate()) + pad(now.getUTCHours()) + pad(now.getUTCMinutes());
             const f = 'ios/Faazio.xcodeproj/project.pbxproj';
             let s = fs.readFileSync(f, 'utf8');
             s = s.replace(/MARKETING_VERSION = [^;]+;/g, 'MARKETING_VERSION = ' + version + ';');
-            if (vc != null) {
-              s = s.replace(/CURRENT_PROJECT_VERSION = \d+;/g, 'CURRENT_PROJECT_VERSION = ' + vc + ';');
-            }
+            s = s.replace(/CURRENT_PROJECT_VERSION = \d+;/g, 'CURRENT_PROJECT_VERSION = ' + vc + ';');
             fs.writeFileSync(f, s);
+            console.log('MARKETING_VERSION=' + version + ' CURRENT_PROJECT_VERSION=' + vc);
+            if (process.env.GITHUB_OUTPUT) {
+              fs.appendFileSync(process.env.GITHUB_OUTPUT, 'build_number=' + vc + '\n');
+            }
           "
 
       - name: Delivery Firebase config
@@ -309,7 +313,7 @@ jobs:
           if [[ -n "${{ github.event.inputs.tag }}" ]]; then
             TAG="${{ github.event.inputs.tag }}"
           fi
-          NOTES="Automated ${APP_NAME} iOS build via GitHub Actions.\n\nVersion: ${VERSION}\n"
+          NOTES="Automated ${APP_NAME} iOS build via GitHub Actions.\n\nVersion: ${VERSION}\nBuild: ${{ steps.version.outputs.build_number }}\n"
           PRERELEASE=""
           if [[ "${{ github.event.inputs.prerelease }}" == "true" ]]; then
             PRERELEASE="--prerelease"
@@ -323,7 +327,7 @@ jobs:
 
           gh release upload "$TAG" "${{ steps.export.outputs.ipa_path }}" --clobber
 
-          echo "::notice::Published ${APP_NAME} ${VERSION} iOS build to release ${TAG}"
+          echo "::notice::Published ${APP_NAME} ${VERSION} (build ${{ steps.version.outputs.build_number }}) iOS build to release ${TAG}"
 
       - name: Clean up signing keychain
         if: ${{ always() }}

@@ -87,8 +87,8 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   - Android legacy (API 24–25): `mipmap-*/ic_launcher.webp` + `ic_launcher_round.webp`.
   - Android adaptive (API 26+): shared `res/mipmap-anydpi-v26/ic_launcher.xml` +
     `ic_launcher_round.xml` (in `src/main`), using the flavor's `@color/iconBackground` and
-    `res/drawable/ic_launcher_foreground_inset.xml` — a 20dp safe-zone inset around
-    `@mipmap/ic_launcher_foreground` so the knot is never clipped by the launcher mask.
+    `@mipmap/ic_launcher_foreground` directly. The generated foreground already fits the mark
+    inside the 66% adaptive safe circle, so no inset drawable is needed.
   - iOS: full app-icon set per variant (iPhone + iPad legacy sizes plus the 1024×1024
     App Store icon), flattened from the same per-variant artwork as Android, RGB with no alpha.
     iOS does not support adaptive icons, so the variant background colour is baked into each PNG.
@@ -98,9 +98,12 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   `AppIcon` / `Delivery-AppIcon` / `Seller-AppIcon` per configuration.
 - Regenerate the delivery/seller icons from the committed artwork
   (`src/assets/icon-delivery.png` / `icon-seller.png`) with
-  `python3 scripts/generate-partner-icons.py`. `src/assets/icon.png`, `adaptive-icon.png` and
-  `faazio-logo.png` are **not** packaged as launcher icons — `scripts/regenerate-icons.py` only
-  writes into `src/assets/`, so running it does **not** change the APK/IPA icon.
+  `python3 scripts/generate-partner-icons.py`; it recolours the old blue field to `#1627E9`
+  and rewrites the Android mipmaps + iOS sets. Regenerate the customer icons, adaptive
+  foregrounds, iOS `AppIcon` set, ICO and splash with `python3 scripts/regenerate-icons.py`
+  and `python3 scripts/generate-splash-logo.py`. All of these read the two masters under
+  `client/mobile/assets/brand/` (`logo-square.png`, `logo-rectangle.png`); do not hand-edit
+  derived bitmaps.
 
 ## 📍 Location / maps
 
@@ -705,27 +708,20 @@ build on the Linux host.
 - **`xcodebuild` "No signing certificate" / "provisioning profile doesn't match"** → the profile's
   bundle id must equal the built configuration's (`com.faazio.customer` / `com.faazio.deliverypartner`
   / `com.faazio.sellerpartner`), and the certificate, profile and `APPSTORE_TEAM_ID` must belong to
-  the same team. Signing is manual: the archive is built unsigned and `-exportArchive`
-  applies the identity + profile from `ExportOptions.plist`.
+  the same team. The workflow uses `CODE_SIGN_STYLE=Manual`.
 - **Xcode can't find the profile** → profiles must be installed under
   `~/Library/Developer/Xcode/UserData/Provisioning Profiles` (Xcode 26) as well as the legacy
   `~/Library/MobileDevice/Provisioning Profiles`. The script writes both, named by the profile UUID.
-- **Archive fails with "<target> does not support provisioning profiles"** → do not pass
-  `PROVISIONING_PROFILE_SPECIFIER` / `CODE_SIGN_STYLE` on the `xcodebuild` command line: those
-  propagate to every Pod/SPM target and Xcode 26 rejects them. The workflow archives with
-  `CODE_SIGNING_ALLOWED=NO` and signs during `-exportArchive` from `ExportOptions.plist`.
-- **TestFlight upload says "Test Information is missing"** → App Store Connect needs the app's beta
-  localization (locale, Beta App Description, feedback email). Create it once via
-  `POST /v1/betaAppLocalizations` with the ASC API key (done for `com.faazio.customer`, `en-US`),
-  or fill App Store Connect → TestFlight → Test Information.
-- **TestFlight upload rejects the build** → bump the semver: the build number is derived from it
-  (`1.0.6` → `10006`), and App Store Connect rejects a duplicate build number for the same
-  marketing version. Also check `APPSTORE_ISSUER_ID` / `APPSTORE_API_KEY_ID` /
+- **TestFlight upload rejects the build** → the workflow sets `CFBundleVersion` to a UTC timestamp
+  (`YYYYMMDDHHmm`) on every run so each upload outranks the previous build. A collision means the
+  same `.ipa` was submitted twice (or the build number was overridden) — re-run the workflow to
+  generate a higher build number. Also check `APPSTORE_ISSUER_ID` / `APPSTORE_API_KEY_ID` /
   `APPSTORE_API_PRIVATE_KEY` and that the API key has the App Manager role. See
    `docs/RUNBOOKS/APPSTORE_API_KEY.md` for the full key-creation workflow.
-- **Partner build fails with "requires GoogleService-Info-Delivery.plist"** → the
-  `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` (or `_SELLER_`) secret is not set; the build phase copies it
-  over the bundled customer plist.
+- **Partner build fails with "requires GoogleService-Info-Delivery.plist"** → only relevant to a
+  local partner iOS build (the delivery/seller iOS apps are **not released** — customer-only on
+  iOS). The `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` (or `_SELLER_`) secret is not set; the build phase
+  copies it over the bundled customer plist.
 - **"no such module 'React'" with `ld: warning: search path '…/Debug-iphonesimulator/<Pod>' not
   found` for every pod** → you opened/built `Faazio.xcodeproj` instead of `Faazio.xcworkspace`.
   Building the `.xcodeproj` skips the `Pods` project, so React and every pod framework are never

@@ -2317,9 +2317,10 @@ swapped the whole native tree for `SplashFallback` mid-navigation.
 
 **Status:** 🟢 Shipped (PNG); design follow-up open.
 
-The onboarding header wordmark (`variant="welcome"`) ships as a 99 KB raster
-(`src/assets/logo-welcomepage.png`), extracted from `assets/brand/logo-welcomepage.svg`
-because that SVG wraps a base64 PNG (an `<image>` child) rather than vector paths.
+The onboarding header wordmark (`variant="welcome"`) ships as a raster
+(`src/assets/logo-welcomepage.png`, ~95 KB), generated from the canonical wordmark
+master; `assets/brand/logo-welcomepage.svg` wraps that PNG (an `<image>` child) rather
+than vector paths.
 Rendering it via react-native-svg's `<Image>` is fragile on the New Architecture, and the
 base64 would inline ~132 KB into the eagerly-loaded JS bundle. **Follow-up:** ask design
 for a true vector export (no badge, transparent background) to cut ~100 KB from the app.

@@ -25,16 +25,15 @@ The console chrome lockup is wordmark-only (`src/components/brand/FaazioWordmark
   Used standalone in the landing header (`app/page.client.tsx`), both console
   shells, and the login screen.
 
-The favicon/PWA raster set in `public/` is generated from the canonical mobile
-knot PNG (`client/mobile/src/assets/faazio-logo.png`), filled white on the
+The favicon/PWA raster set in `public/` is generated from the transparent
+`Fa` mark (`client/mobile/src/assets/adaptive-icon.png`), filled white on the
 brand-gradient tile, by `scripts/generate-brand-icons.py`
 (dev-only; python3 + Pillow, no npm dep). It writes the multi-size
-`favicon.ico` (16/32/48), the PNG set and the opaque `apple-touch-icon.png`.
-The shipped `public/favicon.ico` and `public/favicon.svg` are now the brand
-`client/faazio-logo.ico` art (the SVG embeds that 64×64 raster as base64) —
-re-copy/re-generate both if the script is run again. Icons are
-wired through `app/layout.tsx` `metadata.icons` with a `?v=4` cache-bust on the
-ico and svg, `?v=3` on the rest.
+`favicon.ico` (16/32/48), `favicon.svg` (a 64×64 raster wrapper), the PNG set
+and the opaque full-bleed `apple-touch-icon.png` — into both this `public/` and
+`client/web/landingpage/public/`. Icons are wired through `app/layout.tsx`
+`metadata.icons` with a `?v=5` cache-bust on the ico/svg and `?v=4` on the
+rest.
 
 ## Data + auth
 

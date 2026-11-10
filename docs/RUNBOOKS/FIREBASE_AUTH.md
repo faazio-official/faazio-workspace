@@ -18,9 +18,9 @@
 | Android | Customer SuperApp | `com.faazio.customer` | `client/mobile/android/app/build.gradle` (`applicationId`) |
 | Android | Delivery Partner | `com.faazio.deliverypartner` | `client/mobile/android/app/build.gradle` (`delivery` flavor) |
 | Android | Seller Partner | `com.faazio.sellerpartner` | `client/mobile/android/app/build.gradle` (`seller` flavor) |
-| iOS | Customer SuperApp | `com.faazio.customer` | `ios/Faazio.xcodeproj` (`PRODUCT_BUNDLE_IDENTIFIER`) |
-| iOS | Delivery Partner | `com.faazio.deliverypartner` | `ios/Faazio.xcodeproj` (`Delivery-*` configurations) |
-| iOS | Seller Partner | `com.faazio.sellerpartner` | `ios/Faazio.xcodeproj` (`Seller-*` configurations) |
+| iOS | Customer SuperApp | `com.faazio.customer` | `ios/Faazio.xcodeproj` (`PRODUCT_BUNDLE_IDENTIFIER`; the only iOS app released to the App Store) |
+| iOS | Delivery Partner | `com.faazio.deliverypartner` | `ios/Faazio.xcodeproj` (`Delivery-*` configurations — Android/Play only, no iOS release) |
+| iOS | Seller Partner | `com.faazio.sellerpartner` | `ios/Faazio.xcodeproj` (`Seller-*` configurations — Android/Play only, no iOS release) |
 | Firebase project | all apps | `project-65696e12-8def-460e-b29` | public client config + `FIREBASE_PROJECT_ID` |
 
 Each native app must be registered against its own ID. One typo makes
@@ -33,9 +33,9 @@ Each native app must be registered against its own ID. One typo makes
 | `client/mobile/android/app/google-services.json` | Customer Android Firebase app registration + public API key |
 | `client/mobile/ios/Faazio/GoogleService-Info.plist` | Customer iOS Firebase app registration (Xcode `Copy Bundle Resources`) |
 | `client/mobile/android/app/src/delivery/google-services.json` | Delivery Android app config — **committed** (public client config); CI overwrites it from `GOOGLE_SERVICES_DELIVERY_JSON` |
-| `client/mobile/ios/Faazio/GoogleService-Info-Delivery.plist` | Delivery iOS app config — **supplied by ops/CI**, not committed |
+| `client/mobile/ios/Faazio/GoogleService-Info-Delivery.plist` | Delivery iOS app config — **not needed** (Android/Play only; no partner iOS release) |
 | `client/mobile/android/app/src/seller/google-services.json` | Seller Android app config — **committed** (public client config); CI overwrites it from `GOOGLE_SERVICES_SELLER_JSON` |
-| `client/mobile/ios/Faazio/GoogleService-Info-Seller.plist` | Seller iOS app config — **supplied by ops/CI**, not committed |
+| `client/mobile/ios/Faazio/GoogleService-Info-Seller.plist` | Seller iOS app config — **not needed** (Android/Play only; no partner iOS release) |
 | `client/mobile/android/build.gradle` | `com.google.gms:google-services:4.5.0` classpath |
 | `client/mobile/android/app/build.gradle` | applies `com.google.gms.google-services` |
 | `client/mobile/ios/Faazio/Info.plist` (customer) / `Info-Delivery.plist` / `Info-Seller.plist` | Per-variant `UIBackgroundModes → remote-notification`; delivery also declares `location` |
@@ -139,10 +139,11 @@ is what unlinks the identity server-side; the client delete is the cleanup of th
 itself.
 
 The **seller partner app** does not use Firebase Auth (the portal owns its session). It only needs
-the native Firebase app for FCM: register `com.faazio.sellerpartner`, store its `google-services.json` as
-the `GOOGLE_SERVICES_SELLER_JSON` CI secret (iOS: `GoogleService-Info-Seller.plist`), and grant the
-notification permission. The FCM token is injected into the portal WebView, which registers it via
-`POST /api/gateway/notifications/register`.
+the native Firebase app for FCM on Android: register `com.faazio.sellerpartner`, store its
+`google-services.json` as the `GOOGLE_SERVICES_SELLER_JSON` CI secret, and grant the notification
+permission. The FCM token is injected into the portal WebView, which registers it via
+`POST /api/gateway/notifications/register`. (The seller app has no iOS release, so no iOS plist is
+needed.)
 
 The **customer app** uses the same Firebase project for FCM. `services/customerPush.ts` requests
 permission after sign-in and registers the token via `POST /notifications/register`; `logout.ts`
@@ -246,9 +247,9 @@ edit is needed; the customer scheme is also committed in `Info.plist` as a fallb
   ```
 - [x] iOS app registered with `com.faazio.customer`.
 - [x] Delivery Android app registered with `com.faazio.deliverypartner` (config -> `GOOGLE_SERVICES_DELIVERY_JSON`).
-- [ ] Delivery iOS app registered with `com.faazio.deliverypartner` (config -> `GoogleService-Info-Delivery.plist`). The `Delivery Firebase config` build phase derives the phone-OTP callback scheme from that plist automatically.
+- [x] ~~Delivery iOS app~~ — not required (Android/Play only; no partner iOS release).
 - [x] Seller Android app registered with `com.faazio.sellerpartner` (config -> `GOOGLE_SERVICES_SELLER_JSON`).
-- [ ] Seller iOS app registered with `com.faazio.sellerpartner` (config -> `GoogleService-Info-Seller.plist`). The build phase injects its callback scheme automatically (FCM only today, but correct if phone auth is added).
+- [x] ~~Seller iOS app~~ — not required (Android/Play only; no partner iOS release).
 - [x] Authentication → Sign-in method → **Phone** enabled.
 - [x] SMS region policy allow-list includes **+91 (India)**.
 - [x] Test numbers added (use them for Metro + CI); real SMS for device tests.

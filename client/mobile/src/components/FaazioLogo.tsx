@@ -7,7 +7,7 @@ import welcomeLogo from '@/assets/logo-welcomepage.png';
  * Brand mark geometry, measured from the assets (no guessing):
  *  - default: 2171×724 vector badge, artwork is full-bleed → visible == canvas.
  *  - welcome: 855×292 raster wordmark on a transparent canvas; the visible
- *    glyph box is 829×227 @ (15,34), i.e. the canvas is 1.286× taller than the
+ *    glyph box is 814×227 @ (20,32), i.e. the canvas is 1.286× taller than the
  *    mark. `size` is therefore applied to the *visible* mark so both variants
  *    share one optical scale.
  */

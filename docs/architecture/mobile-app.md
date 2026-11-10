@@ -28,10 +28,10 @@ src/
 ├── App.tsx                     # root — providers + AppNavigator
 ├── components/                 # global atomic UI (AppText, FaazioLogo, shared/, …)
 │   # FaazioLogo: `default` = 2171×724 vector badge (Home/Splash); `welcome` = 855×292
-│   # raster wordmark (onboarding header). `welcome` ships as a PNG extracted from
-│   # the designer SVG (source at assets/brand/logo-welcomepage.svg) to avoid the
-│   # fragile react-native-svg `<Image>` + base64 data-URI path; size is applied to
-│   # the visible glyph box (829×227) so both variants share one optical scale.
+│   # raster wordmark (onboarding header). `welcome` ships as a PNG generated from
+│   # the canonical wordmark master; assets/brand/logo-welcomepage.svg wraps that PNG.
+│   # This avoids the fragile react-native-svg `<Image>` + base64 data-URI path; size
+│   # is applied to the visible glyph box (814×227) so both variants share one scale.
 │   └── shared/                 # 17 reusable primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, OfflinePage, OfflineToast, …)
 ├── features/                   # vertical feature modules (16)
 ├── lib/                        # config, externalLinks, site, tokenClaims, smsUserConsent (Android SMS User Consent hook)
@@ -579,9 +579,15 @@ Startup
     Android mdpi/xhdpi/xxhdpi), and the storyboard carries an explicit `width = 200` plus a
     `width:height = 1.0` square constraint. All three iOS apps share the Faazio Blue splash
     background (see `docs/UI_DESIGN_SYSTEM.md` §5).
-  The source PNG is opaque RGB with a non-flat blue field, so the script keys the field out to
-  transparency (luma key with a dead zone) and keeps only the white wordmark. That makes the
-  native assets background-independent on both platforms.
+  `src/assets/logo.png` is a flat `#1627E9` field carrying the white wordmark, derived from
+  `client/mobile/assets/brand/logo-rectangle.png`. The script keys the field out to transparency
+  (luma key with a dead zone) and keeps only the white wordmark, so the native assets are
+  background-independent on both platforms.
+- **Store upload assets** — `client/mobile/store-assets/` is a separate, generated bundle for the
+  consoles, not the in-app launcher/adaptive set: Play 512×512 RGBA icon + 1024×500 no-alpha feature
+  graphic, App Store 1024×1024 opaque icon, and the web/PWA favicon set, per app variant. Regenerate
+  with `python3 scripts/generate-store-assets.py`; see `store-assets/README.md` for the exact
+  upload targets and size rules.
 - **Hydration timeout** — `hydrateAuth()` / `hydrateLanguage()` run under a 4 s `withTimeout`
   guard; a hanging or failing storage module no longer blocks startup (defaults to unauthenticated)
   and can't become a silent unhandled rejection.
@@ -863,9 +869,12 @@ product flavors (`com.faazio.customer`, launcher label "Faazio" / `com.faazio.de
 "Faazio Delivery Partner" / `com.faazio.sellerpartner`, "Faazio Seller Partner") and the
 iOS `Debug`/`Release` plus `Delivery-*`/`Seller-*` configurations (same bundle split and display
 names via `FAAZIO_APP_NAME`).
-The partner builds need their own Firebase Android app + iOS plist; `APP_VARIANT=delivery` / `=seller`
-selects that config in `configure.js` (the iOS bundle phase hard-fails otherwise). CI builds them
-explicitly (`assembleCustomerDebug` / `assembleDeliveryDebug` / `assembleSellerDebug`); see
+On **Android** all three ship (Google Play); on **iOS only the customer app** (`com.faazio.customer`,
+`Release` config) is built and released to the App Store — the `Delivery-*`/`Seller-*` iOS
+configurations exist for local/dev completeness only, with no planned iOS release. The partner
+Android builds need their own Firebase app (`APP_VARIANT=delivery` / `=seller` selects that config in
+`configure.js`). CI builds them explicitly
+(`assembleCustomerDebug` / `assembleDeliveryDebug` / `assembleSellerDebug`); see
 `docs/RUNBOOKS/RELEASE.md`.
 
 **iOS push entitlement.** One committed file pair covers all three products: the three `*Release`

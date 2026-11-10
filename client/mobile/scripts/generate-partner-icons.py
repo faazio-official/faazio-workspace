@@ -1,41 +1,53 @@
 #!/usr/bin/env python3
 """Regenerate the Faazio partner-app launcher icons (delivery + seller).
 
-Dev-only helper. Requires Pillow. Idempotent; paths resolve relative to this file.
+Sources (recoloured in place):
+  src/assets/icon-delivery.png
+  src/assets/icon-seller.png
 
-The customer app icons are committed under `android/app/src/main/res/` and
-`ios/Faazio/Images.xcassets/AppIcon.appiconset/` and are NOT touched here.
-
-Sources (never overwritten):
-  src/assets/icon-delivery.png   (1254x1254 RGBA)
-  src/assets/icon-seller.png     (1254x1254 RGBA)
+The source artwork is keyed off its old blue field, re-filled with the canonical
+Faazio Blue (#1627E9), and written back as a 1254x1254 full-bleed master. The
+same ink then produces the per-density Android assets and the flattened iOS set.
 
 Outputs, per variant:
   android/app/src/<flavor>/res/mipmap-{mdpi,hdpi,xhdpi,xxhdpi,xxxhdpi}/
       ic_launcher.webp             legacy launcher (API 24-25)
       ic_launcher_round.webp       legacy round
       ic_launcher_foreground.webp  adaptive foreground (API 26+)
-  android/app/src/<flavor>/res/values/colors.xml   iconBackground matching the tile
+  android/app/src/<flavor>/res/values/colors.xml
   ios/Faazio/Images.xcassets/<Variant>-AppIcon.appiconset/Icon-*.png
-      full iOS app-icon set (iPhone + iPad + 1024 App Store), flattened
 
-The adaptive foreground is drawn full-bleed; the shared drawable
-`res/drawable/ic_launcher_foreground_inset.xml` applies the 20dp safe-zone inset
-so the logo stays inside the launcher mask (see docs/RUNBOOKS/TROUBLESHOOTING.md).
+Requires Pillow + numpy. Usage: python3 scripts/generate-partner-icons.py
 """
+
 from __future__ import annotations
 
 import json
 import os
+import sys
+from pathlib import Path
 
-import numpy as np
-from PIL import Image, ImageChops, ImageDraw
+from PIL import Image
 
-HERE = os.path.dirname(os.path.abspath(__file__))
-MOBILE = os.path.normpath(os.path.join(HERE, ".."))
-ASSETS = os.path.join(MOBILE, "src", "assets")
-ANDROID = os.path.join(MOBILE, "android", "app", "src")
-XCASSETS = os.path.join(MOBILE, "ios", "Faazio", "Images.xcassets")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from brand_assets import (  # noqa: E402
+    BRAND_BLUE,
+    RESAMPLE,
+    center_on,
+    circle_mask,
+    fit_box,
+    fit_circle,
+    key_white_ink,
+    rounded_mask,
+    save_webp,
+    with_mask,
+)
+
+MOBILE = Path(__file__).resolve().parent.parent
+ASSETS = MOBILE / "src" / "assets"
+ANDROID = MOBILE / "android" / "app" / "src"
+XCASSETS = MOBILE / "ios" / "Faazio" / "Images.xcassets"
 
 DENSITIES = {"mdpi": 1.0, "hdpi": 1.5, "xhdpi": 2.0, "xxhdpi": 3.0, "xxxhdpi": 4.0}
 LEGACY_BASE = 48
@@ -46,9 +58,10 @@ VARIANTS = [
     ("seller", "icon-seller.png", "Seller-AppIcon"),
 ]
 
-RESAMPLE = Image.LANCZOS
+APP_ICON_FILL = 0.70
+ADAPTIVE_FILL = 0.66
+LEGACY_RADIUS = 0.226
 
-# (filename, point size, scale, idiom, platform) for the flattened iOS icon set.
 IOS_SIZES = [
     ("Icon-20.png", "20x20", "1x", "ipad", None),
     ("Icon-20@2x.png", "20x20", "2x", "iphone", None),
@@ -71,72 +84,50 @@ IOS_SIZES = [
 ]
 
 
-def full_bleed(art: Image.Image, size: int) -> Image.Image:
-    """Crop to the opaque artwork then scale so the tile fills a square `size` canvas."""
-    alpha = np.array(art)[:, :, 3]
-    ys, xs = np.where(alpha > 8)
-    cx = (xs.min() + xs.max()) / 2
-    cy = (ys.min() + ys.max()) / 2
-    side = float(max(xs.max() - xs.min() + 1, ys.max() - ys.min() + 1))
-    left = int(round(cx - side / 2))
-    top = int(round(cy - side / 2))
-    crop = art.crop((left, top, left + int(side), top + int(side)))
-    return crop.resize((size, size), RESAMPLE)
+def generate(values: list[tuple[str, str, str]]) -> None:
+    for flavor, source_name, ios_name in values:
+        source = ASSETS / source_name
+        ink = key_white_ink(source)
 
-
-def round_mask(im: Image.Image) -> Image.Image:
-    """Mask `im` to an inscribed circle (legacy round launcher icon)."""
-    size = im.size[0]
-    ss = 4
-    mask = Image.new("L", (size * ss, size * ss), 0)
-    ImageDraw.Draw(mask).ellipse((0, 0, size * ss - 1, size * ss - 1), fill=255)
-    mask = mask.resize((size, size), RESAMPLE)
-    out = im.convert("RGBA")
-    out.putalpha(ImageChops.multiply(out.getchannel("A"), mask))
-    return out
-
-
-def tile_color(art: Image.Image) -> str:
-    """Median colour of the tile background (ignores the white glyph), as #RRGGBB."""
-    a = np.array(art)
-    r, g, b, alpha = a[..., 0], a[..., 1], a[..., 2], a[..., 3]
-    mask = (alpha > 250) & ~((r > 150) & (g > 150) & (b > 150))
-    med = np.median(a[..., :3][mask], axis=0).astype(int)
-    return "#%02X%02X%02X" % tuple(int(v) for v in med)
-
-
-def save_webp(im: Image.Image, path: str) -> None:
-    os.makedirs(os.path.dirname(path), exist_ok=True)
-    im.save(path, "WEBP", lossless=True, quality=100, method=6)
-
-
-def generate(values: dict) -> None:
-    for flavor, source, ios_name in values:
-        art = Image.open(os.path.join(ASSETS, source)).convert("RGBA")
+        master = center_on(fit_box(ink, 1254, APP_ICON_FILL), 1254, 1254, BRAND_BLUE)
+        master.convert("RGB").save(source, "PNG", optimize=True)
 
         for density, scale in DENSITIES.items():
-            out_dir = os.path.join(ANDROID, flavor, "res", f"mipmap-{density}")
-            legacy = full_bleed(art, int(round(LEGACY_BASE * scale)))
-            foreground = full_bleed(art, int(round(FOREGROUND_BASE * scale)))
-            save_webp(legacy, os.path.join(out_dir, "ic_launcher.webp"))
-            save_webp(round_mask(legacy), os.path.join(out_dir, "ic_launcher_round.webp"))
-            save_webp(foreground, os.path.join(out_dir, "ic_launcher_foreground.webp"))
+            out_dir = ANDROID / flavor / "res" / f"mipmap-{density}"
+            legacy_px = round(LEGACY_BASE * scale)
+            legacy = center_on(
+                fit_box(ink, legacy_px, APP_ICON_FILL), legacy_px, legacy_px, BRAND_BLUE
+            )
+            save_webp(
+                with_mask(legacy, rounded_mask(legacy_px, LEGACY_RADIUS)),
+                out_dir / "ic_launcher.webp",
+            )
+            save_webp(
+                with_mask(legacy, circle_mask(legacy_px)),
+                out_dir / "ic_launcher_round.webp",
+            )
+            foreground_px = round(FOREGROUND_BASE * scale)
+            foreground = center_on(
+                fit_circle(ink, foreground_px, ADAPTIVE_FILL),
+                foreground_px,
+                foreground_px,
+            )
+            save_webp(foreground, out_dir / "ic_launcher_foreground.webp")
 
-        colors = os.path.join(ANDROID, flavor, "res", "values", "colors.xml")
-        os.makedirs(os.path.dirname(colors), exist_ok=True)
-        with open(colors, "w") as fh:
-            fh.write("<resources>\n")
-            fh.write(f'  <color name="iconBackground">{tile_color(art)}</color>\n')
-            fh.write("</resources>\n")
+        colors = ANDROID / flavor / "res" / "values" / "colors.xml"
+        colors.parent.mkdir(parents=True, exist_ok=True)
+        colors.write_text(
+            "<resources>\n"
+            '  <color name="iconBackground">#1627E9</color>\n'
+            "</resources>\n",
+            encoding="utf-8",
+        )
 
-        icon = full_bleed(art, 1024)
-        background = Image.new("RGB", (1024, 1024), tile_color(art))
-        background.paste(icon, (0, 0), icon)
-        appicon_dir = os.path.join(XCASSETS, f"{ios_name}.appiconset")
-        os.makedirs(appicon_dir, exist_ok=True)
+        appicon_dir = XCASSETS / f"{ios_name}.appiconset"
+        appicon_dir.mkdir(parents=True, exist_ok=True)
         images = []
         for filename, size, scale, idiom, platform in IOS_SIZES:
-            px = int(round(float(size.split("x")[0]) * float(scale.rstrip("x"))))
+            px = round(float(size.split("x")[0]) * float(scale.rstrip("x")))
             entry = {
                 "filename": filename,
                 "idiom": idiom,
@@ -146,15 +137,17 @@ def generate(values: dict) -> None:
             if platform:
                 entry["platform"] = platform
             images.append(entry)
-            background.resize((px, px), RESAMPLE).save(
-                os.path.join(appicon_dir, filename), "PNG", optimize=True
+            center_on(
+                fit_box(ink, px, APP_ICON_FILL), px, px, BRAND_BLUE
+            ).convert("RGB").save(
+                appicon_dir / filename, "PNG", optimize=True
             )
         contents = {"images": images, "info": {"version": 1, "author": "Faazio"}}
-        with open(os.path.join(appicon_dir, "Contents.json"), "w") as fh:
+        with open(appicon_dir / "Contents.json", "w", encoding="utf-8") as fh:
             json.dump(contents, fh, indent=2)
             fh.write("\n")
 
-        print(f"{flavor}: regenerated Android mipmaps + {ios_name}.appiconset")
+        print(f"{flavor}: recoloured source + Android mipmaps + {ios_name}.appiconset")
 
 
 def main() -> None:
@@ -163,4 +156,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    os.chdir(MOBILE)
     main()
