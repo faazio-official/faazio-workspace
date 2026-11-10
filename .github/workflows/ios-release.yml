@@ -69,7 +69,9 @@ permissions:
 env:
   NODE_VERSION: "24"
   # Pin the Xcode version explicitly; the runner has several installed side by side.
-  XCODE_VERSION: "16.4"
+  # Must ship Swift >= 6.2.1: Firebase iOS SDK 13 (via @react-native-firebase 27 + SPM)
+  # declares swift-tools-version 6.2.1, which Xcode 16.x (Swift 6.1) cannot resolve.
+  XCODE_VERSION: "26.3"
 
 # Never run two release builds at once — they share tag/artifact names.
 concurrency:

@@ -7,7 +7,7 @@
 You no longer have a Mac (or never had one). All iOS work happens via GitHub Actions on `macos-15`
 runners, triggered from Linux with the `gh` CLI, and submitted to App Store review from a browser.
 The committed `ios/` Xcode project is the source of truth; CI builds the `.ipa` on Apple's own
-runners using Xcode 16.4.
+runners using Xcode 26.3.
 
 ## 2. One-time setup (done on the Mac before giving it back)
 

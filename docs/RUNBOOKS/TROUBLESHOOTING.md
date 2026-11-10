@@ -691,8 +691,12 @@ runtime, not build time.
 
 ## 🔧 iOS CI (signing / archive / TestFlight)
 
-`ios-release.yml` builds on a GitHub-hosted `macos-15` runner (Xcode 16.4). There is no local iOS
+`ios-release.yml` builds on a GitHub-hosted `macos-15` runner (Xcode 26.3). There is no local iOS
 build on the Linux host.
+
+- **Firebase SPM resolution fails with "using Swift tools version 6.2.1 but the installed version is
+  6.1.0"** → the pinned `XCODE_VERSION` is too old. `@react-native-firebase` 27 resolves Firebase iOS
+  SDK 13 via Swift Package Manager, which requires Xcode 26.1+ (Swift 6.2.1). Bump `XCODE_VERSION`.
 
 - **`restore-ios-signing.sh` fails** → `APPSTORE_CERTIFICATE_BASE64` / `APPSTORE_CERTIFICATE_PASSWORD`
   / `APPSTORE_TEAM_ID` / `APPSTORE_PROVISIONING_PROFILE_<APP>` are missing or wrong
@@ -702,8 +706,8 @@ build on the Linux host.
   bundle id must equal the built configuration's (`com.faazio.customer` / `com.faazio.deliverypartner`
   / `com.faazio.sellerpartner`), and the certificate, profile and `APPSTORE_TEAM_ID` must belong to
   the same team. The workflow uses `CODE_SIGN_STYLE=Manual`.
-- **Xcode 16 can't find the profile** → profiles must be installed under
-  `~/Library/Developer/Xcode/UserData/Provisioning Profiles` (Xcode 16) as well as the legacy
+- **Xcode can't find the profile** → profiles must be installed under
+  `~/Library/Developer/Xcode/UserData/Provisioning Profiles` (Xcode 26) as well as the legacy
   `~/Library/MobileDevice/Provisioning Profiles`. The script writes both, named by the profile UUID.
 - **TestFlight upload rejects the build** → bump the semver: the build number is derived from it
   (`1.0.6` → `10006`), and App Store Connect rejects a duplicate build number for the same

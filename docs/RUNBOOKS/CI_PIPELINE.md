@@ -121,7 +121,7 @@ App Store provisioning profile. Values are the GitHub secrets/variables listed i
 (default `https://api.faazio.com`), `WEB_PORTAL_URL` (variable, default `https://app.faazio.com`),
 `GOOGLE_MAPS_API_KEY_IOS` and `GOOGLE_PLACES_API_KEY` are optional overrides.
 `scripts/restore-ios-signing.sh <app>` imports the certificate into a temporary keychain, installs that
-product's profile (Xcode 16 + legacy paths), and writes `ios/ExportOptions.plist` (manual signing,
+product's profile (Xcode 26 + legacy paths), and writes `ios/ExportOptions.plist` (manual signing,
 `method: app-store-connect`). No fastlane.
 
 ### Env files (mobile)
@@ -137,13 +137,13 @@ only and **never affect a CI release**.
 
 The App Store provisioning profile is **not a repo file**. It is created in the Apple Developer Console and installed **only on your local Mac** (or via CI as a base64-encoded GitHub Actions secret).
 
-#### Required local file placement (Xcode 16 with `CODE_SIGN_STYLE=Manual`)
+#### Required local file placement (Xcode 26 with `CODE_SIGN_STYLE=Manual`)
 
 The `.mobileprovision` file **must** exist at one of these paths on the Mac that runs `xcodebuild`:
 
 | Path | Priority |
 |------|----------|
-| `~/Library/Developer/Xcode/UserData/Provisioning Profiles/` | ✅ Primary (Xcode 16) |
+| `~/Library/Developer/Xcode/UserData/Provisioning Profiles/` | ✅ Primary (Xcode 26) |
 | `~/Library/MobileDevice/Provisioning Profiles/` | ⚠️ Legacy fallback (Xcode ≤ 15) |
 
 **Workflow:**
@@ -186,7 +186,7 @@ attaches the `.aab`; the default dispatch produces the signed APK alone.
 
 ## 🍎 iOS release
 
-Builds a release-signed `.ipa` on a GitHub-hosted `macos-15` runner (Xcode 16.4), uploads it to
+Builds a release-signed `.ipa` on a GitHub-hosted `macos-15` runner (Xcode 26.3), uploads it to
 TestFlight via the App Store Connect API, and attaches it to a GitHub Release. The committed `ios/`
 Xcode project is the source of truth — no prebuild. See the "iOS / App Store" secrets table above.
 
