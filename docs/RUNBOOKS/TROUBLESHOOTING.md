@@ -694,46 +694,41 @@ runtime, not build time.
 
 ## 🔧 iOS CI (signing / archive / TestFlight)
 
-`ios-release.yml` defaults to a GitHub-hosted `macos-15-intel` runner (Xcode 26.3); dispatch with
-`-f runner=macos-15` to use the ~3× faster arm64 pool when capacity allows. There is no local iOS
-build on the Linux host.
+`codemagic.yaml` runs on a Codemagic macOS M2 machine with Xcode 26.3. The GitHub
+`ios-release.yml` workflow is disabled. There is no local iOS build on the Linux host.
 
 - **Firebase SPM resolution fails with "using Swift tools version 6.2.1 but the installed version is
-  6.1.0"** → the pinned `XCODE_VERSION` is too old. `@react-native-firebase` 27 resolves Firebase iOS
-  SDK 13 via Swift Package Manager, which requires Xcode 26.1+ (Swift 6.2.1). Bump `XCODE_VERSION`.
+  6.1.0"** → the configured Xcode is too old. `@react-native-firebase` 27 resolves Firebase iOS
+  SDK 13 via Swift Package Manager, which requires Xcode 26.1+ (Swift 6.2.1). Bump
+  `environment.xcode` in `codemagic.yaml`.
 
 - **`restore-ios-signing.sh` fails** → `APPSTORE_CERTIFICATE_BASE64` / `APPSTORE_CERTIFICATE_PASSWORD`
-  / `APPSTORE_TEAM_ID` / `APPSTORE_PROVISIONING_PROFILE_<APP>` are missing or wrong
-  (`gh secret list`, `gh variable list`). The `.p12` password must match; the profile must be an
-  **App Store** profile for that product's bundle id.
+  / `APPSTORE_TEAM_ID` / `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` are missing or wrong in the
+  Codemagic group `faazio_ios_release`. The `.p12` password must match; the profile must be an
+  **App Store** profile for `com.faazio.customer`.
 - **`xcodebuild` "No signing certificate" / "provisioning profile doesn't match"** → the profile's
-  bundle id must equal the built configuration's (`com.faazio.customer` / `com.faazio.deliverypartner`
-  / `com.faazio.sellerpartner`), and the certificate, profile and `APPSTORE_TEAM_ID` must belong to
-  the same team. The workflow uses `CODE_SIGN_STYLE=Manual`.
+  bundle id must equal the built configuration's (`com.faazio.customer`), and the certificate,
+  profile and `APPSTORE_TEAM_ID` must belong to the same team. The workflow uses
+  `CODE_SIGN_STYLE=Manual` via the generated `ios/ExportOptions.plist`.
 - **Xcode can't find the profile** → profiles must be installed under
   `~/Library/Developer/Xcode/UserData/Provisioning Profiles` (Xcode 26) as well as the legacy
   `~/Library/MobileDevice/Provisioning Profiles`. The script writes both, named by the profile UUID.
-- **TestFlight upload rejects the build** → the workflow sets `CFBundleVersion` to a UTC timestamp
-  (`YYYYMMDDHHmm`) on every run so each upload outranks the previous build. A collision means the
-  same `.ipa` was submitted twice (or the build number was overridden) — re-run the workflow to
-  generate a higher build number. Also check `APPSTORE_ISSUER_ID` / `APPSTORE_API_KEY_ID` /
-  `APPSTORE_API_PRIVATE_KEY` and that the API key has the App Manager role. See
-   `docs/RUNBOOKS/APPSTORE_API_KEY.md` for the full key-creation workflow.
-- **TestFlight upload fails with `409 … usesNonExemptEncryption … You cannot update when the value
-  is already set`** → the upload action was patching encryption compliance that App Store Connect
-  already derived from `ITSAppUsesNonExemptEncryption=false` in `Info.plist`. Do not pass
-  `uses-non-exempt-encryption` to `apple-actions/upload-testflight-build`; the plist is the single
-  source for that declaration.
-- **Release run takes >1 hour / archive is slow** → the Intel pool cross-compiles the arm64 archive
-  (~45 min); the arm64 pool (`-f runner=macos-15`) is ~3× faster (~15 min) but has been
-  capacity-constrained, failing with "job was not acquired by Runner of type hosted". Default to
-  `macos-15-intel` for reliability and use `macos-15` when capacity is healthy. The SwiftPM cache is
-  restored before `xcodebuild` and saved right after the archive, so a later TestFlight failure no
-  longer throws the cache away and forces another SPM fetch on retry.
+- **App Store Connect upload rejects the build** → the workflow sets `CFBundleVersion` to a UTC
+  timestamp (`YYYYMMDDHHmm`) on every run so each upload outranks the previous build. A collision
+  means the same `.ipa` was submitted twice (or the build number was overridden) — re-run the
+  workflow to generate a higher build number. Also check `APPSTORE_ISSUER_ID` /
+  `APPSTORE_API_KEY_ID` / `APPSTORE_API_PRIVATE_KEY` and that the API key has the App Manager role.
+  See `docs/RUNBOOKS/APPSTORE_API_KEY.md` for the full key-creation workflow.
+- **Upload fails with `409 … usesNonExemptEncryption … You cannot update when the value is already
+  set`** → App Store Connect already derived encryption compliance from
+  `ITSAppUsesNonExemptEncryption=false` in `Info.plist`. Do not add a manual encryption PATCH; the
+  plist is the single source for that declaration.
+- **Archive is slow / build times out** → Codemagic's M2 machines build natively (no Intel
+  cross-compile); if it still exceeds 120 minutes, check the CocoaPods/SPM cache and confirm the
+  build is not re-resolving packages. Clear the workflow cache in Codemagic and retry.
 - **Partner build fails with "requires GoogleService-Info-Delivery.plist"** → only relevant to a
   local partner iOS build (the delivery/seller iOS apps are **not released** — customer-only on
-  iOS). The `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` (or `_SELLER_`) secret is not set; the build phase
-  copies it over the bundled customer plist.
+  iOS). `codemagic.yaml` only builds the customer app; the partner plists are not needed.
 - **"no such module 'React'" with `ld: warning: search path '…/Debug-iphonesimulator/<Pod>' not
   found` for every pod** → you opened/built `Faazio.xcodeproj` instead of `Faazio.xcworkspace`.
   Building the `.xcodeproj` skips the `Pods` project, so React and every pod framework are never

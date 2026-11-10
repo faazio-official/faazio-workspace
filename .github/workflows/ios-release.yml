@@ -1,5 +1,9 @@
 name: Release iOS
 
+# DISABLED in GitHub Actions (2026-11-10). iOS releases now run on Codemagic via
+# the root `codemagic.yaml`; this file is kept for history and rollback. Re-enable
+# with: gh workflow enable "Release iOS".
+#
 # Builds a release-signed iOS .ipa on a GitHub-hosted macOS runner, uploads it to
 # TestFlight (App Store Connect API), and optionally attaches it to a GitHub Release
 # (replacing any existing .ipa on that tag via --clobber). Triggered manually so you

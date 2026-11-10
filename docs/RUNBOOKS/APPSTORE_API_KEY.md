@@ -2,16 +2,16 @@
 
 > **Purpose:** Complete, human-operated guide for generating the App Store Connect API key that the **iOS release pipeline** uses to upload your app to TestFlight.
 >
-> The CI workflow (`.github/workflows/ios-release.yml`) calls Apple's App Store Connect API with this key. Nobody builds the `.ipa` locally, so the key is created **once** in your browser, on any machine (Linux, Mac, or Windows).
+> The Codemagic workflow (`codemagic.yaml`) calls Apple's App Store Connect API with this key. Nobody builds the `.ipa` locally, so the key is created **once** in your browser, on any machine (Linux, Mac, or Windows).
 
 ## What you will produce
 
 | Item | What it is | Where it goes |
 |---|---|---|
 | `AuthKey_....p8` file | The private API key. **Download it exactly once.** | `client/mobile/keystore/AuthKey_....p8` (never committed) |
-| **Key ID** (e.g. `A1B2C3D4E5`) | Public identifier for the key. | GitHub secret `APPSTORE_API_KEY_ID` |
-| **Issuer ID** (e.g. `abc12345-...`) | Identifies your Apple Developer team. | GitHub secret `APPSTORE_ISSUER_ID` |
-| `.p8` **contents** (the full file body) | The private key itself — treat as a secret. | GitHub secret `APPSTORE_API_PRIVATE_KEY` |
+| **Key ID** (e.g. `A1B2C3D4E5`) | Public identifier for the key. | Codemagic variable `APPSTORE_API_KEY_ID` |
+| **Issuer ID** (e.g. `abc12345-...`) | Identifies your Apple Developer team. | Codemagic variable `APPSTORE_ISSUER_ID` |
+| `.p8` **contents** (the full file body) | The private key itself — treat as a secret. | Codemagic secret `APPSTORE_API_PRIVATE_KEY` |
 
 ## Pre-requisites
 
@@ -33,14 +33,14 @@
 10. Move the `.p8` file somewhere safe that is **not committed to git**, e.g. `client/mobile/keystore/AuthKey_....p8`.
 11. **Copy the Key ID** (looks like `A1B2C3D4E5`) and save it.
 12. **Copy the Issuer ID** (looks like `abc12345-...`) and save it.
-13. In GitHub, open your repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**:
-    - Name: `APPSTORE_API_KEY_ID` → value: the Key ID
-    - Name: `APPSTORE_ISSUER_ID` → value: the Issuer ID
-    - Name: `APPSTORE_API_PRIVATE_KEY` → value: the **whole contents** of the `.p8` file, including the `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----` lines
+13. In Codemagic, open the Faazio app → **Environment variables** → group `faazio_ios_release` and add:
+    - `APPSTORE_API_KEY_ID` → value: the Key ID
+    - `APPSTORE_ISSUER_ID` → value: the Issuer ID
+    - `APPSTORE_API_PRIVATE_KEY` → value: the **whole contents** of the `.p8` file, including the `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----` lines (mark it **Secret**)
 
 ## Checkpoint 5 — do you have everything?
 
-- ✅ **Yes** — you have the `.p8` file downloaded, plus the Key ID and Issuer ID copied. Add `APPSTORE_API_PRIVATE_KEY` (the full `.p8` contents) to GitHub secrets, then continue to the iOS release workflow.
+- ✅ **Yes** — you have the `.p8` file downloaded, plus the Key ID and Issuer ID copied. Add all three to the Codemagic group `faazio_ios_release`, then continue to the iOS release workflow.
 - ❌ **No** — go back and create the key again. You cannot re-download the same `.p8`.
 
 ## What NOT to do
@@ -49,15 +49,16 @@
 - Never share the `.p8` contents. Only the API key ID and Issuer ID are meant to be copied into config or CI.
 - If you close the page before downloading the `.p8`, you cannot get it back — create a new key instead.
 
-## How CI uses this
+## How Codemagic uses this
 
-The `ios-release.yml` workflow reads the key from GitHub secrets/variables and hands it to `apple-actions/upload-testflight-build@v5`:
+`codemagic.yaml` reads the key from the `faazio_ios_release` group and hands it to the App Store
+Connect publishing step:
 
-| Workflow input | Value |
+| `codemagic.yaml` field | Value |
 |---|---|
-| `issuer-id` | `APPSTORE_ISSUER_ID` |
-| `api-key-id` | `APPSTORE_API_KEY_ID` |
-| `api-private-key` | `APPSTORE_API_PRIVATE_KEY` |
+| `issuer_id` | `$APPSTORE_ISSUER_ID` |
+| `key_id` | `$APPSTORE_API_KEY_ID` |
+| `api_key` | `$APPSTORE_API_PRIVATE_KEY` |
 
 ## Failure triage
 

@@ -4,10 +4,10 @@ This document covers compiling, signing, and uploading the **Faazio** iOS app to
 The project is a **bare React Native 0.86.3** app: `ios/` is committed, CocoaPods is the dependency
 manager, and there is no prebuild/EAS step.
 
-> **CI can build, sign and upload the `.ipa` now.** Prefer
-> `gh workflow run ios-release.yml -f app=customer` (see `docs/RUNBOOKS/CI_PIPELINE.md` →
-> "🍎 iOS release" and `docs/RUNBOOKS/RELEASE.md` → "App Store (iOS)"). The Xcode steps below remain
-> the manual fallback when no CI run is wanted.
+> **Codemagic builds, signs and uploads the `.ipa`.** Start the **iOS Customer Release** workflow in
+> Codemagic (see `docs/RUNBOOKS/CI_PIPELINE.md` → "🍎 iOS release" and
+> `docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md`). The GitHub `ios-release.yml` workflow is disabled.
+> The Xcode steps below remain the manual fallback when no CI run is wanted.
 
 ---
 
@@ -26,14 +26,14 @@ no iOS Firebase plist.
 
 ---
 
-## CI-First Release (Linux Developer Path)
+## Codemagic Release (Linux Developer Path)
 
-If you develop on Linux and have no Mac, use GitHub Actions for the build/sign/upload and the
-browser for App Store Connect submission. No Xcode is required on your machine.
+If you develop on Linux and have no Mac, use Codemagic for the build/sign/upload and the browser for
+App Store Connect submission. No Xcode is required on your machine.
 
-**Step 0: Confirm GitHub repo secrets are set.**
+**Step 0: Confirm the Codemagic variable group `faazio_ios_release` is set.**
 
-| Secret | Where it comes from |
+| Variable | Where it comes from |
 |---|---|
 | `APPSTORE_CERTIFICATE_BASE64` | base64 of your shared Apple Distribution `.p12` (exported from Keychain on a Mac) |
 | `APPSTORE_CERTIFICATE_PASSWORD` | the `.p12` password |
@@ -43,23 +43,21 @@ browser for App Store Connect submission. No Xcode is required on your machine.
 | `APPSTORE_ISSUER_ID` | App Store Connect API issuer ID |
 | `APPSTORE_API_KEY_ID` | App Store Connect API key ID |
 | `CERT_PINS` | comma-separated base64 SHA-256 SPKI pins (from `scripts/cert-pins.sh`) |
+| `GOOGLE_MAPS_API_KEY_IOS` | restricted iOS Maps key |
+| `GOOGLE_PLACES_API_KEY` | Places API (New) key |
 
-Verify with `gh secret list` in the repo.
+The gateway/portal origins, `USE_GATEWAY`, `STRICT` and `USE_FIREBASE_AUTH` are set in
+`codemagic.yaml`. See `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store" for the full table.
 
-**Step 1: Trigger the workflow.**
+**Step 1: Start the build.**
 
-```bash
-cd client/mobile
-gh workflow run ios-release.yml -f app=customer -f version=1.0.6 -f tag=v1.0.6
-# or: gh workflow run ios-release.yml -f app=delivery -f version=1.0.6 -f tag=v1.0.6-delivery
-# or: gh workflow run ios-release.yml -f app=seller -f version=1.0.6 -f tag=v1.0.6-seller
-```
+In Codemagic, open the Faazio application → **Start new build** → branch `main` → workflow
+**iOS Customer Release**. Optionally enter `version` (blank uses `package.json`) and start.
 
-**Step 2: Wait for CI.**
+**Step 2: Wait for Codemagic.**
 
-Run `gh run watch`. CI signs, exports, verifies, and uploads the `.ipa` to TestFlight automatically
-(via `apple-actions/upload-testflight-build@v5`) unless you passed `-f upload=false`. You do not
-open Xcode Organizer or Transporter.
+Codemagic signs, exports, verifies, and uploads the `.ipa` to App Store Connect automatically. You
+do not open Xcode Organizer or Transporter. The IPA is also kept as a Codemagic artifact.
 
 **Step 3: Open App Store Connect.**
 
@@ -67,13 +65,13 @@ Open https://appstoreconnect.apple.com/ in a browser and sign in with your Apple
 
 **Step 4: Select the build in TestFlight.**
 
-Go to **My Apps → your app → TestFlight → Builds**. The CI build appears there once processing
+Go to **My Apps → your app → TestFlight → Builds**. The build appears there once processing
 finishes. Select it.
 
 **Step 5: Submit for review.**
 
-Go to **App Store → Add Build → select the CI build → submit for review**. Inviting TestFlight
-testers is optional — you can submit the CI build directly to App Store review without inviting
+Go to **App Store → Add Build → select the build → submit for review**. Inviting TestFlight
+testers is optional — you can submit the build directly to App Store review without inviting
 testers.
 
 **Metadata checklist (complete in the browser):**
@@ -83,10 +81,9 @@ testers.
 - Screenshots for each device size
 - App Privacy questionnaire (data collected, linked to identity, tracking)
 
-> **Note on `upload=false`:** Skipping TestFlight traps the `.ipa` in the GitHub Actions artifact and
-> GitHub Release attachment. From Linux there is no official tool to push an `.ipa` into App Store
-> Connect (Xcode/Transporter are Mac-only), so leave `upload` true unless you have a Mac to handle
-> the binary manually. See `docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md` for the full no-Mac runbook.
+> **Note:** `codemagic.yaml` always uploads on a successful build; beta review and App Store
+> submission stay manual. The GitHub `ios-release.yml` `upload` input no longer applies. See
+> `docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md` for the full no-Mac runbook.
 
 ## Step 1: iOS configuration
 
@@ -150,21 +147,20 @@ For a quick debug run in the simulator, `npm run ios` builds the debug app and s
 
 ## Step 5: TestFlight and App Store review
 
-CI already uploads the signed `.ipa` to TestFlight automatically (via `apple-actions/upload-testflight-build@v5`); you do **not** open Xcode Organizer or manually upload a build.
+Codemagic already uploads the signed `.ipa` to App Store Connect automatically; you do **not** open
+Xcode Organizer or manually upload a build.
 
 1. In [App Store Connect](https://appstoreconnect.apple.com/), open the app → **TestFlight → Builds**.
-2. Select the CI build once processing finishes.
+2. Select the Codemagic build once processing finishes.
 3. Complete store metadata: description, keywords, support URL, screenshots, privacy policy URL.
 4. Answer the **App Privacy** questionnaire (data collected, linked to identity, tracking).
-5. Go to **App Store → Add Build → select the CI build → submit for review**.
+5. Go to **App Store → Add Build → select the build → submit for review**.
 
-Inviting TestFlight testers is optional — you can submit the CI build directly to App Store review
+Inviting TestFlight testers is optional — you can submit the build directly to App Store review
 without adding testers.
 
-> **Note on `upload=false`:** Skipping TestFlight traps the `.ipa` in the GitHub Actions artifact and
-> GitHub Release attachment. From Linux there is no official tool to push an `.ipa` into App Store
-> Connect (Xcode/Transporter are Mac-only), so leave `upload` true unless you have a Mac to handle
-> the binary manually.
+> **Note:** `codemagic.yaml` always uploads on a successful build; beta review and App Store
+> submission stay manual.
 
 ---
 

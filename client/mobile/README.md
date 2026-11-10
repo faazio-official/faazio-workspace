@@ -29,4 +29,5 @@ npm run start
   (shared values duplicated); a gitignored `.env.local` overrides. `CONFIGURE_PLATFORM=android|ios`
   selects the platform (`npm run configure:android:<app>` / `configure:ios`).
 - iOS requires macOS + Xcode for a manual build (`cd ios && pod install`, open `Faazio.xcworkspace`).
-  Releases build, sign and upload to TestFlight in CI: `gh workflow run ios-release.yml`.
+  Releases build, sign and upload to App Store Connect in Codemagic (root `codemagic.yaml`, workflow
+  **iOS Customer Release**; see `docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md`).

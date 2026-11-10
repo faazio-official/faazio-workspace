@@ -317,7 +317,7 @@ Prescription **gallery import** uses `react-native-image-picker` (autolinked; sy
 no Android media permission). It is a native module, so a JS-only update is not enough: a **CI native
 rebuild is required** on both platforms, and iOS carries `NSPhotoLibraryUsageDescription` in
 `ios/Faazio/Info.plist`, `Info-Delivery.plist` and `Info-Seller.plist` (the `pod install` step in
-`ios-release.yml` picks up the autolinked pod).
+`codemagic.yaml` picks up the autolinked pod).
 
 To verify a **downloaded** APK is signed with the release cert (not the debug cert):
 ```bash
@@ -359,31 +359,30 @@ signature, so use `apksigner`.
 
 ## 🍎 App Store (iOS)
 
-### CI release (preferred)
+### Codemagic release (preferred)
 
-Build the signed `.ipa` and upload it to TestFlight in GitHub Actions — no local Mac needed:
+Build the signed `.ipa` and upload it to App Store Connect (TestFlight) on Codemagic — no local Mac
+needed:
 
-```bash
-gh workflow run ios-release.yml -f app=customer -f version=1.0.6 -f tag=v1.0.6
-gh run watch
-gh run view --log-failed       # xcodebuild errors on failure
-```
+1. Codemagic → **Start new build** → branch `main` → workflow **iOS Customer Release**.
+2. Optionally enter `version` (blank uses `package.json`).
+3. Start the build. It signs, exports, verifies, and uploads automatically; the IPA is also kept as
+   a Codemagic artifact.
 
 > **iOS / App Store is customer-only.** Only the Faazio SuperApp (`com.faazio.customer`) is built and
 > released to the App Store. The Delivery Partner and Seller Partner apps ship on **Google Play
 > (Android) only** — their iOS configurations exist in the committed `ios/` shell for local/dev
-> completeness, but there is **no planned iOS build or App Store release** for them. Always dispatch
-> with `-f app=customer`; the `delivery` / `seller` inputs are not used for iOS.
+> completeness, but there is **no planned iOS build or App Store release** for them.
 
-`.github/workflows/ios-release.yml` runs on `macos-15-intel` by default (Xcode 26.3), or `macos-15`
-(arm64, ~3× faster) with `-f runner=macos-15`: `npm ci` → version rewrite →
-`ts:check`/`check:boundaries` → `npm run configure` (release) →
-`scripts/restore-ios-signing.sh <app>` (imports the shared distribution cert into a temporary
-keychain, installs that product's App Store profile, writes `ios/ExportOptions.plist`) → `pod install`
-→ `xcodebuild archive` → `xcodebuild -exportArchive` → `codesign` verify (Apple Distribution) →
-TestFlight (`apple-actions/upload-testflight-build@v5`, App Store Connect API) → GitHub Release.
-Pass `-f upload=false` to skip the TestFlight upload (artifact/release only). Required secrets are in
-`docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store" and `client/mobile/.env.ios`.
+[`codemagic.yaml`](../../codemagic.yaml) runs on a Codemagic macOS M2 machine (Xcode 26.3):
+`npm ci` → `ts:check`/`check:boundaries`/`check:ui` → version rewrite →
+`npm run configure` (release) → `scripts/restore-ios-signing.sh customer` (imports the shared
+distribution cert into a temporary keychain, installs the App Store profile, writes
+`ios/ExportOptions.plist`) → `pod install` → `xcodebuild archive` → `xcodebuild -exportArchive` →
+`codesign` verify (Apple Distribution) → App Store Connect upload. Credentials are in the Codemagic
+environment variable group `faazio_ios_release` (see `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App
+Store" and `client/mobile/.env.ios`). The GitHub `ios-release.yml` workflow is disabled; re-enable
+it only as a rollback (see `docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md`).
 
 The version input (or `package.json`) sets `MARKETING_VERSION`; `CURRENT_PROJECT_VERSION` is a UTC
 timestamp (`YYYYMMDDHHmm`) generated on every run. `Info.plist` reads
@@ -535,16 +534,16 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 
 ## 🍎 iOS Release Checklist (customer only)
 
-- [ ] `APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`, `APPSTORE_TEAM_ID` set in GitHub secrets/variables.
+- [ ] `APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`, `APPSTORE_TEAM_ID` set in the Codemagic group `faazio_ios_release`.
 - [ ] `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` set as the base64 App Store `.mobileprovision` (must include the Push Notifications capability). `_DELIVERY` / `_SELLER` profiles are not needed — no partner iOS release.
 - [ ] `APPSTORE_API_PRIVATE_KEY` (full `.p8` contents), `APPSTORE_ISSUER_ID`, `APPSTORE_API_KEY_ID` set (App Store Connect API key; needs App Manager role).
-- [ ] `CERT_PINS` set in GitHub secrets (reused from Android; derived via `scripts/cert-pins.sh`).
+- [ ] `CERT_PINS` set in the Codemagic group `faazio_ios_release` (derived via `scripts/cert-pins.sh`); `REQUIRE_CERT_PINS=1` fails the build if missing.
+- [ ] `GOOGLE_MAPS_API_KEY_IOS` and `GOOGLE_PLACES_API_KEY` set in the same group.
 - [ ] Export compliance: `ITSAppUsesNonExemptEncryption=false` is present in all three `ios/Faazio/Info*.plist` (the app uses only exempt HTTPS + OS Keychain encryption), so App Store Connect does not flag the build as "Missing Compliance".
-- [ ] `gh workflow run ios-release.yml -f app=customer -f version=<semver> -f tag=v<semver>` succeeds (`gh run watch` green).
-- [ ] Build appears in App Store Connect → TestFlight → Builds (default `upload: true`; CI uploads automatically — no Xcode Organizer needed).
+- [ ] Codemagic workflow **iOS Customer Release** (branch `main`, optional `version`) succeeds.
+- [ ] Build appears in App Store Connect → TestFlight → Builds (the workflow uploads automatically — no Xcode Organizer needed).
 - [ ] Store metadata complete in the browser: description, screenshots, privacy policy URL (`https://faazio.com/privacy`), App Privacy questionnaire.
 - [ ] Build selected under **App Store → Add Build** and submitted for review (inviting TestFlight testers is optional).
-- [ ] Do **not** use `upload: false` unless you have a Mac to handle the `.ipa` — from Linux there is no official tool to push the binary into App Store Connect.
 
 ### Expected build-time / size impact (CI workflow)
 

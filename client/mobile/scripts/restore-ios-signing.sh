@@ -46,9 +46,19 @@ CERT_PATH="$TMP/ios_signing_certificate.p12"
 PP_PATH="$TMP/ios_signing_profile.mobileprovision"
 KEYCHAIN_PATH="$TMP/ios-signing.keychain-db"
 
-# 1. Decode the certificate + profile from their base64 secrets.
-printf '%s' "$APPSTORE_CERTIFICATE_BASE64" | base64 --decode > "$CERT_PATH"
-printf '%s' "${!profile_var}" | base64 --decode > "$PP_PATH"
+# 1. Decode the certificate + profile from their base64 secrets. GNU base64
+#    (Linux, Homebrew coreutils) accepts --decode; the BSD base64 shipped with
+#    macOS only accepts -D, so try both.
+decode_base64() {
+  local src="$1" dest="$2"
+  if ! base64 --decode < "$src" > "$dest" 2>/dev/null; then
+    base64 -D < "$src" > "$dest"
+  fi
+}
+printf '%s' "$APPSTORE_CERTIFICATE_BASE64" > "$TMP/signing-certificate.b64"
+printf '%s' "${!profile_var}" > "$TMP/signing-profile.b64"
+decode_base64 "$TMP/signing-certificate.b64" "$CERT_PATH"
+decode_base64 "$TMP/signing-profile.b64" "$PP_PATH"
 
 # 2. Import the certificate into a dedicated temporary keychain (GitHub Docs boilerplate).
 security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"

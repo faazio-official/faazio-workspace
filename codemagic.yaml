@@ -1,0 +1,177 @@
+# Codemagic CI/CD — Faazio iOS customer App Store release.
+#
+# The GitHub Actions workflow (.github/workflows/ios-release.yml) is disabled
+# (kept for history); this file is the production iOS release pipeline. It ports
+# the same stages: npm ci -> checks -> version/build number -> release config ->
+# signing -> archive -> export -> signature verification -> TestFlight upload.
+#
+# One-time setup (Codemagic UI):
+#   1. Add this repository as an application and select the branch to build.
+#   2. Create the environment variable group `faazio_ios_release` with the Apple
+#      credentials, certificate pins and Google keys listed in
+#      docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md.
+#   3. Click "Check for configuration file" in the top-right corner.
+#
+# Trigger: manual only (Start new build). The `version` input overrides
+# package.json; leaving it blank uses the committed version.
+
+workflows:
+  ios-customer-release:
+    name: iOS Customer Release
+    instance_type: mac_mini_m2
+    max_build_duration: 120
+    working_directory: client/mobile
+    labels:
+      - iOS
+      - customer
+      - App Store
+    inputs:
+      version:
+        description: "Release version (e.g. 1.0.6). Leave blank to use package.json."
+        type: string
+        default: ""
+    environment:
+      # Xcode 26.3 ships Swift >= 6.2.1, required by Firebase iOS SDK 13
+      # (resolved through SPM by @react-native-firebase 27).
+      xcode: 26.3
+      node: 24
+      cocoapods: default
+      groups:
+        - faazio_ios_release
+      vars:
+        APP_VARIANT: customer
+        CONFIGURE_PLATFORM: ios
+        GATEWAY_URL: https://api.faazio.com
+        WEB_PORTAL_URL: https://app.faazio.com
+        USE_GATEWAY: "true"
+        STRICT: "true"
+        USE_FIREBASE_AUTH: "true"
+    cache:
+      cache_paths:
+        - $HOME/.npm
+        - $HOME/Library/Caches/CocoaPods
+        - $HOME/Library/Caches/org.swift.swiftpm
+    scripts:
+      - name: Install JS dependencies
+        script: npm ci
+
+      - name: Typecheck + module boundaries + UI hygiene
+        script: |
+          set -euo pipefail
+          npm run ts:check
+          npm run check:boundaries
+          npm run check:ui
+
+      - name: Set version and build number
+        # Aligns the iOS marketing version + build number with the resolved
+        # version. Info.plist reads $(MARKETING_VERSION)/$(CURRENT_PROJECT_VERSION),
+        # so this is the single source of truth for the submitted build.
+        script: |
+          set -euo pipefail
+          VERSION="${{ inputs.version }}" node -e '
+            const fs = require("fs");
+            const p = require("./package.json");
+            const version = process.env.VERSION || p.version;
+            if (process.env.VERSION) {
+              p.version = process.env.VERSION;
+              fs.writeFileSync("./package.json", JSON.stringify(p, null, 2) + "\n");
+            }
+            const now = new Date();
+            const pad = (n) => String(n).padStart(2, "0");
+            const vc = String(now.getUTCFullYear()) + pad(now.getUTCMonth() + 1) +
+              pad(now.getUTCDate()) + pad(now.getUTCHours()) + pad(now.getUTCMinutes());
+            const f = "ios/Faazio.xcodeproj/project.pbxproj";
+            let s = fs.readFileSync(f, "utf8");
+            s = s.replace(/MARKETING_VERSION = [^;]+;/g, "MARKETING_VERSION = " + version + ";");
+            s = s.replace(/CURRENT_PROJECT_VERSION = \d+;/g, "CURRENT_PROJECT_VERSION = " + vc + ";");
+            fs.writeFileSync(f, s);
+            console.log("MARKETING_VERSION=" + version + " CURRENT_PROJECT_VERSION=" + vc);
+          '
+
+      - name: Generate JS/native config (release)
+        # CERT_PINS and the Maps/Places keys come from the faazio_ios_release
+        # group; REQUIRE_CERT_PINS=1 makes a missing pin set fatal.
+        script: |
+          set -euo pipefail
+          export CONFIGURE_RELEASE=1
+          export REQUIRE_CERT_PINS=1
+          npm run configure
+
+      - name: Restore Apple signing certificate + provisioning profile
+        script: |
+          set -euo pipefail
+          export RUNNER_TEMP="$CM_BUILD_DIR/build/ios/tmp"
+          mkdir -p "$RUNNER_TEMP"
+          bash scripts/restore-ios-signing.sh customer
+
+      - name: Install CocoaPods
+        script: |
+          set -euo pipefail
+          cd ios
+          pod install
+
+      - name: Archive
+        # Archive without signing, then let -exportArchive apply the distribution
+        # identity + App Store profile from the generated ExportOptions.plist.
+        # Passing PROVISIONING_PROFILE_SPECIFIER on the xcodebuild command line
+        # applies it to every Pod/SPM target, which Xcode 26 rejects with
+        # "<target> does not support provisioning profiles".
+        script: |
+          set -euo pipefail
+          mkdir -p "$CM_BUILD_DIR/build/ios/xcarchive"
+          xcodebuild \
+            -workspace ios/Faazio.xcworkspace \
+            -scheme Faazio \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$CM_BUILD_DIR/build/ios/xcarchive/Faazio.xcarchive" \
+            -quiet \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            COMPILATION_CACHE_ENABLE_CACHING=YES \
+            archive
+
+      - name: Export signed .ipa
+        script: |
+          set -euo pipefail
+          mkdir -p "$CM_BUILD_DIR/build/ios/ipa"
+          xcodebuild \
+            -exportArchive \
+            -archivePath "$CM_BUILD_DIR/build/ios/xcarchive/Faazio.xcarchive" \
+            -exportPath "$CM_BUILD_DIR/build/ios/ipa" \
+            -exportOptionsPlist ios/ExportOptions.plist
+
+      - name: Verify the .ipa is signed for distribution
+        # The .app must verify AND carry an Apple Distribution authority.
+        script: |
+          set -euo pipefail
+          IPA="$(ls "$CM_BUILD_DIR"/build/ios/ipa/*.ipa | head -1)"
+          rm -rf "$CM_BUILD_DIR/build/ios/ipa-check"
+          unzip -q "$IPA" -d "$CM_BUILD_DIR/build/ios/ipa-check"
+          APP="$(ls -d "$CM_BUILD_DIR"/build/ios/ipa-check/Payload/*.app | head -1)"
+          echo "ipa: $IPA"
+          echo "app: $APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          codesign -dv --verbose=4 "$APP" 2>&1 | tee /tmp/codesign.txt
+          if ! grep -q "Apple Distribution" /tmp/codesign.txt; then
+            echo "The exported .app is not signed with an Apple Distribution certificate"
+            exit 1
+          fi
+
+      - name: Clean up signing keychain
+        ignore_failure: true
+        script: |
+          security default-keychain -s login.keychain-db || true
+          security delete-keychain "$CM_BUILD_DIR/build/ios/tmp/ios-signing.keychain-db" || true
+    artifacts:
+      - $CM_BUILD_DIR/build/ios/ipa/*.ipa
+    publishing:
+      app_store_connect:
+        # Uploads the .ipa to App Store Connect; it appears under
+        # TestFlight -> Builds. Beta review / App Store submission stays manual.
+        api_key: $APPSTORE_API_PRIVATE_KEY
+        key_id: $APPSTORE_API_KEY_ID
+        issuer_id: $APPSTORE_ISSUER_ID

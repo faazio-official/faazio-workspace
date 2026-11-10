@@ -1,90 +1,124 @@
 # iOS Release Without macOS
 
-> Build, sign, and ship Faazio iOS releases entirely from GitHub Actions + a browser — no Mac required.
+> Build, sign, and ship Faazio iOS releases entirely from Codemagic + a browser — no Mac required.
+> GitHub Actions' `ios-release.yml` is **disabled** (kept for history/rollback); the root
+> [`codemagic.yaml`](../../codemagic.yaml) is the production pipeline.
 
 ## 1. Situation
 
-You no longer have a Mac (or never had one). All iOS work happens via GitHub Actions on
-`macos-15-intel` runners (or `macos-15` arm64 with `-f runner=macos-15`), triggered from Linux with
-the `gh` CLI, and submitted to App Store review from a browser.
-The committed `ios/` Xcode project is the source of truth; CI builds the `.ipa` on Apple's own
-runners using Xcode 26.3.
+You no longer have a Mac (or never had one). All iOS work runs on Codemagic's macOS M2 build
+machines (Xcode 26.3), started from the Codemagic web UI, and submitted to App Store review from a
+browser. The committed `ios/` Xcode project is the source of truth; there is no prebuild step.
 
-## 2. One-time setup (done on the Mac before giving it back)
+## 2. One-time setup
 
-Complete these once while you still have access to a Mac and Apple Developer / App Store Connect:
+Complete these once while you have access to Apple Developer / App Store Connect:
 
 - **Apple Developer Program enrollment** — active membership for the Faazio team.
 - **App Store Connect app record** — one listing:
   - `com.faazio.customer` (Faazio)
-  - The Delivery Partner and Seller Partner apps (`com.faazio.deliverypartner` / `com.faazio.sellerpartner`)
-    are **Android/Play only** — they have no App Store listing and no planned iOS release.
-- **Export the shared distribution certificate** as a `.p12` from Keychain Access →
-  `APPSTORE_CERTIFICATE_BASE64` + `APPSTORE_CERTIFICATE_PASSWORD`.
+  - The Delivery Partner and Seller Partner apps (`com.faazio.deliverypartner` /
+    `com.faazio.sellerpartner`) are **Android/Play only** — they have no App Store listing and no
+    planned iOS release.
+- **Export the shared distribution certificate** as a `.p12` from Keychain Access.
 - **Create the App Store provisioning profile** for `com.faazio.customer` (with the **Push
-  Notifications** capability) in the Apple Developer Console → download `.mobileprovision` →
-  base64-encode → `APPSTORE_PROVISIONING_PROFILE_CUSTOMER`.
-- **Create an App Store Connect API key** (App Manager role) → download `AuthKey_XXXXXXXXXX.p8` →
-  `APPSTORE_API_PRIVATE_KEY`. Note the issuer ID → `APPSTORE_ISSUER_ID` and key ID →
-  `APPSTORE_API_KEY_ID`.
+  Notifications** capability) in the Apple Developer Console and download the `.mobileprovision`.
+- **Create an App Store Connect API key** (App Manager role) → download `AuthKey_XXXXXXXXXX.p8`.
+  Note the issuer ID and key ID.
 - **Back up provisioning profiles** (they are not repo files).
-- **Configure GitHub secrets** (copy exact names from `.github/workflows/ios-release.yml`):
-  - `APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`
-  - `APPSTORE_PROVISIONING_PROFILE_CUSTOMER`
-  - `APPSTORE_API_PRIVATE_KEY`
-  - `APPSTORE_TEAM_ID` (variable or secret)
-  - `APPSTORE_ISSUER_ID`, `APPSTORE_API_KEY_ID` (variables or secrets)
-  - `CERT_PINS` (from `scripts/cert-pins.sh`)
 
-See `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store" for the full secrets table.
+### 2.1 Add the app to Codemagic
+
+1. Sign in to [codemagic.io](https://codemagic.io) and choose the Faazio team.
+2. **Add application** → GitHub → `faazio-official/faazio-workspace`.
+3. Select the project type and finish. Codemagic can build the committed `client/mobile/ios`
+   project directly; do not run a native prebuild.
+4. Push the committed [`codemagic.yaml`](../../codemagic.yaml), then click **Check for
+   configuration file** in the top-right corner. The **iOS Customer Release** workflow appears.
+
+### 2.2 Create the `faazio_ios_release` variable group
+
+App settings → **Environment variables** → create group `faazio_ios_release`:
+
+| Variable | Kind | Value |
+|---|---|---|
+| `APPSTORE_CERTIFICATE_BASE64` | secret | `base64 -w0 faazio-customer.p12` (single line) |
+| `APPSTORE_CERTIFICATE_PASSWORD` | secret | that `.p12` password |
+| `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` | secret | `base64 -w0 customer.mobileprovision` (App Store, Push-enabled) |
+| `APPSTORE_API_PRIVATE_KEY` | secret | contents of the App Store Connect `AuthKey_*.p8` |
+| `APPSTORE_TEAM_ID` | plain | 10-char Apple Developer Team ID |
+| `APPSTORE_ISSUER_ID` | plain | App Store Connect API issuer ID |
+| `APPSTORE_API_KEY_ID` | plain | App Store Connect API key ID |
+| `CERT_PINS` | plain | comma-separated base64 SHA-256 SPKI pins (from `scripts/cert-pins.sh`) |
+| `GOOGLE_MAPS_API_KEY_IOS` | secret | restricted iOS Maps key |
+| `GOOGLE_PLACES_API_KEY` | secret | Places API (New) key |
+
+`GATEWAY_URL`, `WEB_PORTAL_URL`, `USE_GATEWAY`, `STRICT` and `USE_FIREBASE_AUTH` are set in
+`codemagic.yaml`. `REQUIRE_CERT_PINS=1` makes a missing pin set fatal, so the pins must be in the
+group.
+
+See `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store" for the full secrets table. The step-by-step
+UI workflow for the `.p8` key is in `docs/RUNBOOKS/APPSTORE_API_KEY.md`.
 
 ## 3. Every release (from Linux)
 
 ```bash
 cd client/mobile
-# Bump package.json version first (or pass -f version=<semver>).
-gh workflow run ios-release.yml -f app=customer -f version=1.0.6 -f tag=v1.0.6
-gh run watch
-gh run view --log-failed   # only if it fails
+# Bump package.json version first, or enter the version in Codemagic.
 ```
 
-CI signs, exports, verifies, and uploads the `.ipa` to TestFlight automatically (default
-`upload: true`). No Xcode Organizer, no Transporter, no local Mac.
+Then in Codemagic:
+
+1. Open the Faazio application → **Start new build**.
+2. Select branch `main` and workflow **iOS Customer Release**.
+3. Optionally enter `version` (e.g. `1.0.6`); blank uses `package.json`.
+4. Start the build.
+
+Codemagic signs, exports, verifies, and uploads the `.ipa` to App Store Connect automatically; it
+appears under **TestFlight → Builds**. The IPA is also kept as a Codemagic artifact. No GitHub
+Release is created.
 
 Then in the browser:
 
 1. Open https://appstoreconnect.apple.com/.
-2. **My Apps → your app → TestFlight → Builds** → the CI build appears there.
-3. **App Store → Add Build → select the CI build → submit for review**.
+2. **My Apps → your app → TestFlight → Builds** → the Codemagic build appears there.
+3. **App Store → Add Build → select the build → submit for review**.
 
-Inviting TestFlight testers is optional — you can submit the CI build directly to App Store review.
+Inviting TestFlight testers is optional — you can submit the build directly to App Store review.
 
 ## 4. TestFlight: skip or not?
 
 TestFlight is the **upload pipe**, not a testing requirement:
 
-- `upload: true` (default): CI pushes the `.ipa` to TestFlight; the build appears in App Store Connect → TestFlight → Builds, and you submit it for review from the browser.
-- You do **not** need to invite internal or external testers to submit for review. Direct App Store review submission is done entirely in the browser.
+- Every successful Codemagic build uploads to App Store Connect; the build appears under
+  **TestFlight → Builds**, and you submit it for review from the browser.
+- You do **not** need to invite internal or external testers to submit for review. Direct App Store
+  review submission is done entirely in the browser.
+- `codemagic.yaml` deliberately does not submit the build for **beta review** or **App Store
+  review**; those remain manual.
 
-## 5. What breaks if you skip TestFlight (`upload=false`)
+## 5. Rollback to GitHub Actions
 
-CI skips the TestFlight upload and leaves the `.ipa` only as:
-- a GitHub Actions artifact (`faazio-<app>-<version>-ipa`), and
-- a GitHub Release attachment (via `gh release upload --clobber`).
+The GitHub workflow is disabled, not deleted. If Codemagic is unavailable:
 
-From Linux there is **no official tool** to push an `.ipa` into App Store Connect — Xcode and
-Transporter are Mac-only. So with `upload: false` and no Mac, the binary is effectively stuck in
-GitHub and cannot reach App Store Connect. Leave `upload` true unless you have a Mac available to
-handle the `.ipa` manually.
+```bash
+gh workflow enable "Release iOS"
+gh workflow run ios-release.yml -f app=customer -f version=1.0.6
+gh run watch
+```
+
+The GitHub secrets listed in `docs/RUNBOOKS/CI_PIPELINE.md` must still be present for that path.
 
 ## 6. Troubleshooting
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `restore-ios-signing.sh` fails | `APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`, `APPSTORE_TEAM_ID`, or `APPSTORE_PROVISIONING_PROFILE_<APP>` missing/wrong | `gh secret list`; confirm profile is an **App Store** profile for that product's bundle id |
-| Archive/export signing error | Profile bundle id doesn't match built config; `APPSTORE_TEAM_ID` doesn't own the cert/profile | Confirm bundle id (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.sellerpartner`) and team ownership |
-| TestFlight upload fails | `APPSTORE_ISSUER_ID`/`APPSTORE_API_KEY_ID` (variables) or `APPSTORE_API_PRIVATE_KEY` (secret) wrong; API key lacks App Manager role | Verify secrets; confirm the `.p8` key has the App Manager role |
-| Build not appearing in TestFlight | App Store Connect rejects a build number that is not higher than the last upload. The workflow generates a UTC-timestamp build number (`YYYYMMDDHHmm`) on every run | Re-run the workflow so it produces a higher `CURRENT_PROJECT_VERSION`; bump `-f version` only when you intend a new App Store version |
-| `.ipa` stuck with `upload: false` | No official Linux tool to push to App Store Connect | Obtain a Mac to handle the binary, or re-run with `upload: true` |
+| `restore-ios-signing.sh` fails | `APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`, `APPSTORE_TEAM_ID`, or `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` missing/wrong | Check the `faazio_ios_release` group; confirm the profile is an **App Store** profile for `com.faazio.customer` |
+| Archive/export signing error | Profile bundle id doesn't match the built config; `APPSTORE_TEAM_ID` doesn't own the cert/profile | Confirm `com.faazio.customer` and team ownership |
+| App Store Connect upload fails | `APPSTORE_ISSUER_ID`/`APPSTORE_API_KEY_ID` or `APPSTORE_API_PRIVATE_KEY` wrong; API key lacks App Manager role | Verify the group; confirm the `.p8` key has the App Manager role |
+| Build not appearing in TestFlight | App Store Connect rejects a build number that is not higher than the last upload. The workflow generates a UTC-timestamp build number (`YYYYMMDDHHmm`) on every run | Re-run the workflow so it produces a higher `CURRENT_PROJECT_VERSION`; bump `version` only when you intend a new App Store version |
+| `Check for configuration file` finds nothing | `codemagic.yaml` is not at the repository root or was not pushed | Commit/push it, then re-check the branch in Codemagic |
+| CocoaPods/SPM dependency failure | Stale cache or a new native dependency | Clear the workflow cache in Codemagic and rebuild |
 
-For workflow errors, `gh run view --log-failed <run-id>` surfaces the xcodebuild / signing error.
+Build logs live on the Codemagic build page; the failing script step and its full output are shown
+inline.
