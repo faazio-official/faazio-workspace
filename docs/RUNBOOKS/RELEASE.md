@@ -170,12 +170,13 @@ scripts/cert-pins.sh          # prints "<leaf-pin>,<intermediate-pin>" (subject 
 ```
 
 Put that comma-separated value in every Android env file (`client/mobile/.env.android.customer`,
-`.env.android.delivery`, `.env.android.seller`) and `client/mobile/.env.ios` **and** the `CERT_PINS`
-GitHub secret (`gh secret set CERT_PINS`).
+`.env.android.delivery`, `.env.android.seller`) and `client/mobile/.env.ios`. For CI, the Android
+release workflow reads the `CERT_PINS` GitHub secret (`gh secret set CERT_PINS`); the iOS Codemagic
+workflow reads it from the `faazio_ios_release` environment variable group.
 
 Rotation playbook:
-1. Re-run `scripts/cert-pins.sh` after any chain change and update all four env files + the
-   `CERT_PINS` secret.
+1. Re-run `scripts/cert-pins.sh` after any chain change and update all four env files, the
+   `CERT_PINS` GitHub secret, and the Codemagic `faazio_ios_release` group.
 2. Ship a release with the fresh pins; during an overlap window keep the previous pins too so an
    in-flight app never fails closed.
 3. Never pin the root (servers may omit it from the served chain).
@@ -381,8 +382,8 @@ distribution cert into a temporary keychain, installs the App Store profile, wri
 `ios/ExportOptions.plist`) → `pod install` → `xcodebuild archive` → `xcodebuild -exportArchive` →
 `codesign` verify (Apple Distribution) → App Store Connect upload. Credentials are in the Codemagic
 environment variable group `faazio_ios_release` (see `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App
-Store" and `client/mobile/.env.ios`). The GitHub `ios-release.yml` workflow is disabled; re-enable
-it only as a rollback (see `docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md`).
+Store"). The GitHub `ios-release.yml` workflow is disabled; re-enable it only as a rollback (see
+`docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md`).
 
 The version input (or `package.json`) sets `MARKETING_VERSION`; `CURRENT_PROJECT_VERSION` is a UTC
 timestamp (`YYYYMMDDHHmm`) generated on every run. `Info.plist` reads

@@ -213,7 +213,7 @@ Codemagic builds on Apple silicon in the cloud; you start builds and submit for 
 browser. No local Mac is required at any step.
 
 **Prerequisites** — create the Codemagic environment variable group `faazio_ios_release` with these
-names (App settings → Environment variables; mark the three secrets as **Secret**):
+names (App settings → Environment variables; mark the rows listed as secret **Secret**):
 
 | Variable | Kind | Value |
 |---|---|---|
@@ -224,9 +224,14 @@ names (App settings → Environment variables; mark the three secrets as **Secre
 | `APPSTORE_TEAM_ID` | plain | 10-char Apple Developer Team ID |
 | `APPSTORE_ISSUER_ID` | plain | App Store Connect API issuer ID |
 | `APPSTORE_API_KEY_ID` | plain | App Store Connect API key ID |
+| `CERT_PINS` | plain | comma-separated base64 SHA-256 SPKI pins (from `scripts/cert-pins.sh`) |
+| `GOOGLE_MAPS_API_KEY_IOS` | secret | restricted iOS Maps key |
+| `GOOGLE_PLACES_API_KEY` | secret | Places API (New) key |
 
-`CERT_PINS`, `GOOGLE_MAPS_API_KEY_IOS`, `GOOGLE_PLACES_API_KEY`, the gateway URL and the portal URL
-come from the committed `client/mobile/.env.ios`; do not duplicate them in Codemagic.
+The gateway URL, portal URL, `USE_GATEWAY`, `STRICT` and `USE_FIREBASE_AUTH` are set in
+`codemagic.yaml`; the group supplies the certificate/profile, App Store Connect key, pins and Google
+keys. Do not rely on the local `client/mobile/.env.ios` file — it is gitignored and absent on the
+Codemagic build machine.
 
 **What happens after the build succeeds:**
 
