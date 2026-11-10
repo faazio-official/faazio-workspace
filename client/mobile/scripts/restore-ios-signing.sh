@@ -95,6 +95,8 @@ cat > "$ROOT/ios/ExportOptions.plist" <<EOF
   <string>app-store-connect</string>
   <key>signingStyle</key>
   <string>manual</string>
+  <key>signingCertificate</key>
+  <string>Apple Distribution</string>
   <key>teamID</key>
   <string>${APPSTORE_TEAM_ID}</string>
   <key>uploadSymbols</key>

@@ -3,7 +3,9 @@
 # The GitHub Actions workflow (.github/workflows/ios-release.yml) is disabled
 # (kept for history); this file is the production iOS release pipeline. It ports
 # the same stages: npm ci -> checks -> version/build number -> release config ->
-# signing -> archive -> export -> signature verification -> TestFlight upload.
+# archive -> signing + export -> signature verification -> TestFlight upload.
+# (Signing is restored in the export step itself: each Codemagic step gets a
+# fresh shell/session, so keychain state does not reliably survive between steps.)
 #
 # One-time setup (Codemagic UI):
 #   1. Add this repository as an application and select the branch to build.
@@ -97,13 +99,6 @@ workflows:
           export REQUIRE_CERT_PINS=1
           npm run configure
 
-      - name: Restore Apple signing certificate + provisioning profile
-        script: |
-          set -euo pipefail
-          export RUNNER_TEMP="$CM_BUILD_DIR/build/ios/tmp"
-          mkdir -p "$RUNNER_TEMP"
-          bash scripts/restore-ios-signing.sh customer
-
       - name: Install CocoaPods
         script: |
           set -euo pipefail
@@ -134,15 +129,32 @@ workflows:
             COMPILATION_CACHE_ENABLE_CACHING=YES \
             archive
 
-      - name: Export signed .ipa
+      - name: Restore signing + export signed .ipa
+        # Codemagic runs every script step in a fresh shell/session, so a keychain
+        # created in an earlier step can be locked and invisible to -exportArchive
+        # ("No signing certificate 'iOS Distribution' found"). Restore the
+        # certificate/profile immediately before exporting, in this same step.
+        # The archive itself is unsigned (CODE_SIGNING_ALLOWED=NO above).
         script: |
           set -euo pipefail
+          export RUNNER_TEMP="$CM_BUILD_DIR/build/ios/tmp"
+          mkdir -p "$RUNNER_TEMP"
+          export KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          bash scripts/restore-ios-signing.sh customer
+          echo "--- keychains ---"
+          security list-keychains -d user
+          echo "--- signing identities ---"
+          security find-identity -v -p codesigning
+          echo "--- installed profiles ---"
+          ls -l "$HOME/Library/MobileDevice/Provisioning Profiles" || true
+          ls -l "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" || true
           mkdir -p "$CM_BUILD_DIR/build/ios/ipa"
-          xcodebuild \
-            -exportArchive \
-            -archivePath "$CM_BUILD_DIR/build/ios/xcarchive/Faazio.xcarchive" \
-            -exportPath "$CM_BUILD_DIR/build/ios/ipa" \
-            -exportOptionsPlist ios/ExportOptions.plist
+          OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/ios-signing.keychain-db" \
+            xcodebuild \
+              -exportArchive \
+              -archivePath "$CM_BUILD_DIR/build/ios/xcarchive/Faazio.xcarchive" \
+              -exportPath "$CM_BUILD_DIR/build/ios/ipa" \
+              -exportOptionsPlist ios/ExportOptions.plist
 
       - name: Verify the .ipa is signed for distribution
         # The .app must verify AND carry an Apple Distribution authority.

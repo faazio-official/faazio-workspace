@@ -706,9 +706,15 @@ runtime, not build time.
   / `APPSTORE_TEAM_ID` / `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` are missing or wrong in the
   Codemagic group `ios app`. The `.p12` password must match; the profile must be an
   **App Store** profile for `com.faazio.customer`.
-- **`xcodebuild` "No signing certificate" / "provisioning profile doesn't match"** → the profile's
-  bundle id must equal the built configuration's (`com.faazio.customer`), and the certificate,
-  profile and `APPSTORE_TEAM_ID` must belong to the same team. The workflow uses
+- **`xcodebuild` "No signing certificate" / "provisioning profile doesn't match"** → on Codemagic,
+  this usually means the temporary keychain created by `restore-ios-signing.sh` is no longer visible:
+  each script step runs in a fresh shell/session. The workflow therefore runs the restore and
+  `-exportArchive` in the **same step** (right after the unsigned archive). If it still fails, check
+  the step's `security find-identity -v -p codesigning` output — zero valid identities means the
+  keychain is locked/not in the search list or the certificate chain is untrusted; an identity whose
+  team/name is unexpected points at the wrong `.p12` in `APPSTORE_CERTIFICATE_BASE64`.
+  The profile's bundle id must equal the built configuration's (`com.faazio.customer`), and the
+  certificate, profile and `APPSTORE_TEAM_ID` must belong to the same team. The workflow uses
   `CODE_SIGN_STYLE=Manual` via the generated `ios/ExportOptions.plist`.
 - **Xcode can't find the profile** → profiles must be installed under
   `~/Library/Developer/Xcode/UserData/Provisioning Profiles` (Xcode 26) as well as the legacy

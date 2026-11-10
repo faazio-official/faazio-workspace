@@ -377,13 +377,14 @@ needed:
 
 [`codemagic.yaml`](../../codemagic.yaml) runs on a Codemagic macOS M2 machine (Xcode 26.3):
 `npm ci` → `ts:check`/`check:boundaries`/`check:ui` → version rewrite →
-`npm run configure` (release) → `scripts/restore-ios-signing.sh customer` (imports the shared
-distribution cert into a temporary keychain, installs the App Store profile, writes
-`ios/ExportOptions.plist`) → `pod install` → `xcodebuild archive` → `xcodebuild -exportArchive` →
-`codesign` verify (Apple Distribution) → App Store Connect upload. Credentials are in the Codemagic
-environment variable group `ios app` (see `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App
-Store"). The GitHub `ios-release.yml` workflow is disabled; re-enable it only as a rollback (see
-`docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md`).
+`npm run configure` (release) → `pod install` → `xcodebuild archive` (unsigned) → `scripts/restore-ios-signing.sh customer`
+(imports the shared distribution cert into a temporary keychain, installs the App Store profile,
+writes `ios/ExportOptions.plist`) + `xcodebuild -exportArchive` in the same step → `codesign` verify
+(Apple Distribution) → App Store Connect upload. The restore runs immediately before export because
+Codemagic gives each script step a fresh shell/session, so keychain state does not survive between
+steps. Credentials are in the Codemagic environment variable group `ios app` (see
+`docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store"). The GitHub `ios-release.yml` workflow is
+disabled; re-enable it only as a rollback (see `docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md`).
 
 The version input (or `package.json`) sets `MARKETING_VERSION`; `CURRENT_PROJECT_VERSION` is a UTC
 timestamp (`YYYYMMDDHHmm`) generated on every run. `Info.plist` reads
