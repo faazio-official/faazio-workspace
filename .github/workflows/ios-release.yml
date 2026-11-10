@@ -80,7 +80,10 @@ concurrency:
 
 jobs:
   build-release-ipa:
-    runs-on: macos-15
+    # Intel pool: the arm64 macos-15 runners have been capacity-constrained
+    # ("job was not acquired by Runner of type hosted"). macos-15-intel also
+    # ships Xcode 26.3 (see actions/runner-images macos-15-Readme.md).
+    runs-on: macos-15-intel
     defaults:
       run:
         working-directory: client/mobile
