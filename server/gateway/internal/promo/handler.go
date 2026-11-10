@@ -40,6 +40,9 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/promo/campaigns", h.listCampaigns)
 		g.Get("/promo/optins", h.listOptins)
 		g.Put("/promo/optins", h.upsertOptin)
+		// Sector caps are non-PII control data; sellers need them to validate their opt-in against
+		// the same cap the gateway applies when it prices the discount.
+		g.Get("/promo/sector-caps", h.listCaps)
 		// Seller-facing combined promotions surface (campaigns + own opt-ins, one read) and opt-in.
 		g.Get("/seller/promotions", h.sellerPromotions)
 		g.Post("/seller/promotions/optin", h.upsertOptin)
@@ -47,7 +50,6 @@ func (h *Handler) Register(r chi.Router) {
 	// Admin-only management.
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))
-		g.Get("/promo/sector-caps", h.listCaps)
 		g.Put("/promo/sector-caps", h.setCap)
 		g.Get("/promo/campaigns/{id}", h.getCampaign)
 		g.Post("/promo/campaigns", h.createCampaign)

@@ -141,10 +141,21 @@ export const PAGE_HINTS: Record<string, PageHint> = {
   },
   "/seller/promotions": {
     what: "Your own discounts plus the festival campaigns you can opt listings into.",
-    how: "Opt in products you have real stock for; campaign pricing overrides your normal price.",
+    how: "Opt in products you have real stock for; the discount is capped by your district's limit.",
     whyCreated: "So a seller can run offers and join Faazio campaigns that drive traffic.",
     boundedWorkflow: "Promotions: create a discount or opt listings into a live campaign.",
-    changesMade: "Opting in applies campaign pricing shoppers see during the campaign window.",
+    changesMade:
+      "Opting in submits the discount for district-admin approval; shoppers see it once approved.",
+    app: ["consumer"],
+  },
+  "/seller/offers": {
+    what: "Product-first festival offers for Mart and Pharmacy shops.",
+    how: "Pick a product, enter a whole-number discount within your sector cap, then opt in.",
+    whyCreated:
+      "So a non-food shop can join a live campaign from the product it wants to promote.",
+    boundedWorkflow: "Offers: choose a product → enter a discount → submit for approval.",
+    changesMade:
+      "The opt-in is saved as PENDING; shoppers see the live price only after district-admin approval.",
     app: ["consumer"],
   },
   "/seller/ads": {

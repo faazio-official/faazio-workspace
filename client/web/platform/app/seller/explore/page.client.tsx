@@ -59,6 +59,7 @@ const SECTIONS: { title: string; tiles: Tile[] }[] = [
       { label: "Pricing", icon: Tags, to: "/seller/pricing" },
       { label: "Inventory", icon: Boxes, to: "/seller/inventory" },
       { label: "Menu", icon: BookOpen, to: "/seller/menus" },
+      { label: "Offers", icon: BadgePercent, to: "/seller/offers" },
     ],
   },
   {
@@ -99,6 +100,8 @@ function Explore() {
       .map((t) => (t.label === "Rush hour" ? { ...t, badge: rush.on ? "ON" : "OFF" } : t))
       .filter((t) => sector == null || sector === "FOOD" || (t.label !== "Restaurant status" && t.label !== "Rush hour"))
       .filter((t) => sector == null || sector === "PHARMA" || t.label !== "Prescriptions")
+      .filter((t) => sector == null || sector === "FOOD" || t.label !== "Menu")
+      .filter((t) => sector == null || sector !== "FOOD" || t.label !== "Offers")
       .filter((t) => t.label.toLowerCase().includes(ql)),
   })).filter((s) => s.tiles.length);
 

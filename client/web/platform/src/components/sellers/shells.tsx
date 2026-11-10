@@ -8,6 +8,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import {
   ArrowLeftRight,
+  BadgePercent,
   Bell,
   BookOpen,
   Boxes,
@@ -30,24 +31,34 @@ import { SellerPushBridge } from "@/components/layout/SellerPushBridge";
 import { SellerDesktopShell } from "@/components/sellers/desktop-shell";
 import { StoreSwitcher } from "@/components/sellers/StoreSwitcher";
 import { sectorLabel } from "@/lib/sector";
+import type { Sector } from "@/data/types";
 
 type NavItem = { to: string; label: string; icon: typeof ClipboardList };
 
-/** Orders-mode tab bar (reference OrdersShell). Short, plain words shop owners already use. */
-const ORDERS_NAV: NavItem[] = [
-  { to: "/seller/orders", label: "Orders", icon: ClipboardList },
-  { to: "/seller/inventory", label: "Stock", icon: Boxes },
-  { to: "/seller/menus", label: "Menu", icon: BookOpen },
-  { to: "/seller/reviews", label: "Reviews", icon: MessageSquareText },
-];
+/** Orders-mode tab bar (reference OrdersShell). Short, plain words shop owners already use.
+ *  Food shops get Menu (dish editor); Mart/Pharmacy shops get the product-first Offers surface. */
+function ordersNav(sector?: Sector | null): NavItem[] {
+  return [
+    { to: "/seller/orders", label: "Orders", icon: ClipboardList },
+    { to: "/seller/inventory", label: "Stock", icon: Boxes },
+    sector === "FOOD"
+      ? { to: "/seller/menus", label: "Menu", icon: BookOpen }
+      : { to: "/seller/offers", label: "Offers", icon: BadgePercent },
+    { to: "/seller/reviews", label: "Reviews", icon: MessageSquareText },
+  ];
+}
 
 /** Hub-mode tab bar (reference HubShell). Ads/Payments map onto the platform's routes. */
-const HUB_NAV: NavItem[] = [
-  { to: "/seller/hub", label: "Home", icon: LayoutGrid },
-  { to: "/seller/ads", label: "Ads", icon: TrendingUp },
-  { to: "/seller/menus", label: "Menu", icon: BookOpen },
-  { to: "/seller/payments", label: "Payments", icon: Wallet },
-];
+function hubNav(sector?: Sector | null): NavItem[] {
+  return [
+    { to: "/seller/hub", label: "Home", icon: LayoutGrid },
+    { to: "/seller/ads", label: "Ads", icon: TrendingUp },
+    sector === "FOOD"
+      ? { to: "/seller/menus", label: "Menu", icon: BookOpen }
+      : { to: "/seller/offers", label: "Offers", icon: BadgePercent },
+    { to: "/seller/payments", label: "Payments", icon: Wallet },
+  ];
+}
 
 /** Routes that render with the hub-mode tab bar.
  *  /seller/analytics, /seller/products and /seller/pricing could also be considered catalog (hub)
@@ -90,15 +101,17 @@ export function SwitchingOverlay({ to }: { to: "hub" | "orders" }) {
  */
 export function SellerBottomNav({
   mode,
+  sector,
   onSwitch,
   className,
 }: {
   mode: "orders" | "hub";
+  sector?: Sector | null | undefined;
   onSwitch: () => void;
   className?: string;
 }) {
   const pathname = usePathname();
-  const items = mode === "orders" ? ORDERS_NAV : HUB_NAV;
+  const items = mode === "orders" ? ordersNav(sector) : hubNav(sector);
   // Single short word on the switch button: the arrow icon already says "switch".
   const switchLabel = mode === "orders" ? "Home" : "Orders";
   const switchLeft = mode === "hub";
@@ -302,6 +315,7 @@ export function SellerAppShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const [switching, setSwitching] = useState<null | "hub" | "orders">(null);
   const scopeSwitching = useStoreSwitching();
+  const { activeStore } = useActiveStore();
 
   useEffect(() => {
     if (session?.mustChange && session.role !== "SUPER_ADMIN" && pathname !== "/security") {
@@ -339,6 +353,7 @@ export function SellerAppShell({ children }: { children: ReactNode }) {
           {pathname === "/seller/explore" ? null : (
             <SellerBottomNav
               mode={mode}
+              sector={activeStore?.sector}
               onSwitch={() => go(mode === "orders" ? "hub" : "orders")}
               className="md:hidden"
             />

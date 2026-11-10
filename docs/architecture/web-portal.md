@@ -45,7 +45,7 @@ Vite reference (all 3 consoles).
 | `/admin/super/security` | superadmin shortcut to the same password rotation |
 | `/admin/super/credentials` | superadmin issues/disables every login and resets any role's password |
 
-**Seller console — own data (`app/seller/**`)** — ads, catalog, pricing, promotions, stores,
+**Seller console — own data (`app/seller/**`)** — ads, catalog, pricing, promotions, offers, stores,
 menus, orders, prescriptions, returns, reviews, payments, analytics, support, settings,
 onboarding. This is where paid hero campaigns (`seller/ads` wizard) and organic offers are authored.
 The campaign wizard's **what→where** placements map 1:1 to the paid mobile surfaces documented in
@@ -115,7 +115,9 @@ vocabulary (`src/lib/sector.ts` — `sectorLabel` / `sectorIcon` / `sectorChip` 
 the `SectorBadge` kit primitive render "Mart / Food / Pharmacy" instead of raw enum strings. Food-only
 surfaces are gated to FOOD shops (hub rush link + the "Kitchen" tab label, `/seller/rush-hour`, the
 restaurant-status title, kitchen reject reasons, the vegeterian/`isVeg` toggles, dish/cuisine menus
-fields); the prescriptions queue is gated to PHARMA shops; rest of the chrome uses neutral copy
+fields); the prescriptions queue is gated to PHARMA shops; the bottom nav, desktop sidebar and
+Explore catalog grid swap **Menu** for **Offers** (`/seller/offers`) on Mart/Pharmacy shops; rest of
+the chrome uses neutral copy
 ("New"/"Packed" vs "Preparing"/"Ready", "Pending orders", "Store status", `BookOpen` for the Menu
 nav/tiles instead of `UtensilsCrossed`).
 
@@ -145,11 +147,14 @@ width-1440 `SellerShell` (plus its `VendorSwitcher`) is removed. Below `md` the 
 full-width with a floating dark pill tab bar (a centred `max-w-[430px]` dock, hidden on
 `/seller/explore`) and an explore icon that opens `/seller/explore`; the seller-only root is raised to
 16px below `md` (`html:has(.font-seller)`) so mobile type/tap targets are not scaled to the desktop
-13px density. On ≥ 768px a persistent left sidebar (all `SELLER_NAV` groups — the first entry is now
-**Business Hub** → `/seller/hub`) sits beside a wider `max-w-[1024px]` content column. The pill nav is mode-aware like the reference app:
-**Orders mode** tabs (Orders / Stock / Menu / Reviews) vs **Hub mode** tabs (Home / Ads / Menu /
-Payments, mapped onto the platform's `hub`/`ads`/`menus`/`payments` routes), with an animated
-`SwitchingOverlay` on the round "Home" / "Orders" switch button. Labels are single plain words shop
+13px density. On ≥ 768px a persistent left sidebar (all sector-aware seller nav groups — the first
+entry is now **Business Hub** → `/seller/hub`) sits beside a wider `max-w-[1024px]` content column.
+The pill nav is mode-aware like the reference app: **Orders mode** tabs (Orders / Stock /
+Menu|Offers / Reviews) vs **Hub mode** tabs (Home / Ads / Menu|Offers / Payments, mapped onto the
+platform's `hub`/`ads`/`menus`|`offers`/`payments` routes), with an animated
+`SwitchingOverlay` on the round "Home" / "Orders" switch button. The third tab is sector-aware:
+Food shops get **Menu** → `/seller/menus`; Mart/Pharmacy shops get **Offers** → `/seller/offers`
+(product-first campaign opt-in). Labels are single plain words shop
 owners already use; the nav follows the 4px spacing grid with `--seller-nav-h`/`--seller-nav-gap`.
 `/seller` redirects to `/seller/orders`
 (orders stay the first page you land on); the old dashboard's KPIs / GMV trend / shop health / checklist /
@@ -249,11 +254,12 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `seller/inventory` | stock — hydrated from `GET /seller/inventory`; qty/ETA writes `PUT /seller/inventory/{productId}` | all |
 | `seller/pricing` | price — hydrated from `GET /seller/pricing`; edits `PUT /seller/pricing/{productId}` (MRP retired by `0079`) | all |
 | `seller/promotions` | festival opt-ins + live price — hydrated `GET /seller/promotions` (campaigns + own opt-ins); opt-in `POST /seller/promotions/optin` | all |
+| `seller/offers` | product-first festival offers — same campaigns/opt-ins, scoped to the active non-food store; validates the discount against the seller-readable `GET /promo/sector-caps` before `POST /seller/promotions/optin` | MART · PHARMA |
 | `seller/stores` | store profile | all |
 | `seller/menus` | dish menus (+ authoritative MRP strike) | FOOD |
 | `seller/orders` · `seller/orders/[id]` | order queue + detail (hydrated `GET /seller/orders`; NEW cards use the explicit accept/reject endpoints) | all |
 | `seller/order-history` | past-orders search (order id + date range sheet) over the same `/seller/orders` data | all |
-| `seller/restaurant-status` · `seller/rush-hour` · `seller/explore` | online/offline + delivery settings, rush-mode timer, and the grouped "all tools" grid that opens from the hamburger (covers every `SELLER_NAV` item) | all |
+| `seller/restaurant-status` · `seller/rush-hour` · `seller/explore` | online/offline + delivery settings, rush-mode timer, and the grouped "all tools" grid that opens from the hamburger (mirrors the sector-aware seller nav) | all |
 | `seller/prescriptions` | Rx quote → READY reveal | PHARMA |
 | `seller/returns` · `seller/reviews` · `seller/payments` | after-sales — settlement ledger (platform fee, TCS, TDS 0.1%, product GST) | all |
 | `seller/analytics` · `seller/support` · `seller/settings` · `seller/onboarding` | console | all |

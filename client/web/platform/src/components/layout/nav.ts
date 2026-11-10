@@ -1,4 +1,5 @@
 import type { LucideIcon } from "lucide-react";
+import type { Sector } from "@/data/types";
 import {
   Activity,
   BadgePercent,
@@ -65,24 +66,35 @@ export function activeNavHref(pathname: string, nav: NavItem[]) {
   return best;
 }
 
-export const SELLER_NAV: NavItem[] = [
-  { label: "Business Hub", to: "/seller/hub", icon: LayoutGrid, group: "Overview", exact: true },
-  { label: "Products", to: "/seller/products", icon: Package, group: "Catalog" },
-  { label: "Pricing", to: "/seller/pricing", icon: Tags, group: "Catalog" },
-  { label: "Inventory", to: "/seller/inventory", icon: Boxes, group: "Catalog" },
-  { label: "Menu", to: "/seller/menus", icon: BookOpen, group: "Catalog" },
-  { label: "Orders", to: "/seller/orders", icon: ShoppingCart, group: "Operations" },
-  { label: "Returns", to: "/seller/returns", icon: RotateCcw, group: "Operations" },
-  { label: "Prescriptions", to: "/seller/prescriptions", icon: FileText, group: "Operations" },
-  { label: "Payments", to: "/seller/payments", icon: Receipt, group: "Operations" },
-  { label: "Promotions", to: "/seller/promotions", icon: BadgePercent, group: "Growth" },
-  { label: "Ads", to: "/seller/ads", icon: Megaphone, group: "Growth" },
-  { label: "Analytics", to: "/seller/analytics", icon: BarChart3, group: "Growth" },
-  { label: "Stores", to: "/seller/stores", icon: Store, group: "Account" },
-  { label: "Reviews", to: "/seller/reviews", icon: MessageSquare, group: "Account" },
-  { label: "Settings", to: "/seller/settings", icon: Settings, group: "Account" },
-  { label: "Support", to: "/seller/support", icon: LifeBuoy, group: "Account" },
-];
+/**
+ * Seller console sidebar. Food shops get the dish-menu editor; Mart and Pharmacy shops get the
+ * product-first offers surface instead, so a non-food shop never sees a "Menu" entry that leads to
+ * a food-only editor.
+ */
+export function sellerNavItems(sector?: Sector | null): NavItem[] {
+  const catalogMenu: NavItem =
+    sector === "FOOD"
+      ? { label: "Menu", to: "/seller/menus", icon: BookOpen, group: "Catalog" }
+      : { label: "Offers", to: "/seller/offers", icon: BadgePercent, group: "Catalog" };
+  return [
+    { label: "Business Hub", to: "/seller/hub", icon: LayoutGrid, group: "Overview", exact: true },
+    { label: "Products", to: "/seller/products", icon: Package, group: "Catalog" },
+    { label: "Pricing", to: "/seller/pricing", icon: Tags, group: "Catalog" },
+    { label: "Inventory", to: "/seller/inventory", icon: Boxes, group: "Catalog" },
+    catalogMenu,
+    { label: "Orders", to: "/seller/orders", icon: ShoppingCart, group: "Operations" },
+    { label: "Returns", to: "/seller/returns", icon: RotateCcw, group: "Operations" },
+    { label: "Prescriptions", to: "/seller/prescriptions", icon: FileText, group: "Operations" },
+    { label: "Payments", to: "/seller/payments", icon: Receipt, group: "Operations" },
+    { label: "Promotions", to: "/seller/promotions", icon: BadgePercent, group: "Growth" },
+    { label: "Ads", to: "/seller/ads", icon: Megaphone, group: "Growth" },
+    { label: "Analytics", to: "/seller/analytics", icon: BarChart3, group: "Growth" },
+    { label: "Stores", to: "/seller/stores", icon: Store, group: "Account" },
+    { label: "Reviews", to: "/seller/reviews", icon: MessageSquare, group: "Account" },
+    { label: "Settings", to: "/seller/settings", icon: Settings, group: "Account" },
+    { label: "Support", to: "/seller/support", icon: LifeBuoy, group: "Account" },
+  ];
+}
 
 export const DISTRICT_ADMIN_NAV: NavItem[] = [
   { label: "Dashboard", to: "/admin/district", icon: Gauge, group: "Overview", exact: true },

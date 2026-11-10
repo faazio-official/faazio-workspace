@@ -50,8 +50,11 @@
   nav height/gap; the nav carries `h-[var(--seller-nav-h)]`, and `main` bottom padding + every
   fixed action bar/FAB derive from them plus `env(safe-area-inset-bottom)`.
 - The bottom nav is hidden on `/seller/explore` (that page is the navigation itself). Its labels
-  are plain single words shop owners already use: Orders / Stock / Menu / Reviews (Orders mode) and
-  Home / Ads / Menu / Payments (Hub mode); the round switch reads Home / Orders. Spacing follows the
+  are plain single words shop owners already use. The third tab is sector-aware: Food shops get
+  **Menu** → `/seller/menus`; Mart/Pharmacy shops get **Offers** → `/seller/offers`. Orders mode is
+  Orders / Stock / Menu|Offers / Reviews and Hub mode is Home / Ads / Menu|Offers / Payments; the
+  round switch reads Home / Orders. `/seller/offers` deliberately stays out of `HUB_MODE_PATHS`, so
+  opening it keeps the Orders-mode bar and the Offers tab highlighted. Spacing follows the
   4px grid and derives from `--seller-nav-h` / `--seller-nav-gap`.
 - Mobile headers (`OrdersTopBar`, `HubHeader`, `OutletHeader`) share one hairline bottom border,
   `px-4` padding and the `env(safe-area-inset-top)` offset; action clusters are `shrink-0` so the

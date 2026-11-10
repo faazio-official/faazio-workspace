@@ -1,11 +1,11 @@
 "use client";
 // Desktop expansion of the seller console (vite reference → PC view). On ≥ md the mobile frame and
-// floating tab bar are replaced by this persistent left sidebar (all SELLER_NAV groups) beside a
+// floating tab bar are replaced by this persistent left sidebar (all seller nav groups) beside a
 // wider content column. Admin shells keep their own chrome — this file is seller-only.
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
-import { activeNavHref, normalizeNavPath, SELLER_NAV } from "@/components/layout/nav";
+import { activeNavHref, normalizeNavPath, sellerNavItems } from "@/components/layout/nav";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 import { signOut } from "@/lib/api";
 import { useSession } from "@/lib/hooks/useSession";
@@ -19,8 +19,9 @@ export function SellerDesktopShell({ className }: { className?: string }) {
   const router = useRouter();
   const pathname = usePathname();
   const { activeStore } = useActiveStore();
-  const groups = Array.from(new Set(SELLER_NAV.map((i) => i.group)));
-  const current = activeNavHref(pathname, SELLER_NAV);
+  const nav = sellerNavItems(activeStore?.sector);
+  const groups = Array.from(new Set(nav.map((i) => i.group)));
+  const current = activeNavHref(pathname, nav);
 
   return (
     <aside
@@ -52,7 +53,7 @@ export function SellerDesktopShell({ className }: { className?: string }) {
         {groups.map((group) => (
           <div key={group} className="mb-4">
             <p className="px-2 pb-1 text-[11px] font-medium text-muted-foreground">{group}</p>
-            {SELLER_NAV.filter((i) => i.group === group).map((item) => {
+            {nav.filter((i) => i.group === group).map((item) => {
               const active = normalizeNavPath(item.to) === current;
               return (
                 <Link

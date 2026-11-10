@@ -11,6 +11,7 @@
 |---|---|
 | Portal auth + seller console shell | [seller-console.md](./seller-console.md) |
 | Seller products list (+ scroll-to-reload) | [products.md](./products.md) |
+| Product-first festival offers (Mart/Pharmacy) | [../catalog/offers.md](../catalog/offers.md) |
 | Dish add-ons (create, link, review) | [addons.md](./addons.md) |
 | Seller notifications inbox | [notifications.md](./notifications.md) |
 | Seller settings (profile, bank, notifications, sub-users, security) | [settings.md](./settings.md) |
@@ -21,7 +22,7 @@
 
 | Group | Routes |
 |---|---|
-| Seller console | `/seller` → `/seller/orders`, `hub`, `products`, `products/new`, `products/[id]/edit`, `inventory`, `menus`, `pricing`, `orders`, `orders/[id]`, `order-history`, `returns`, `prescriptions`, `payments`, `promotions`, `ads`, `analytics`, `stores`, `reviews`, `settings`, `support`, `notifications`, `onboarding`, `outlet-info`, `restaurant-status`, `rush-hour`, `explore` |
+| Seller console | `/seller` → `/seller/orders`, `hub`, `products`, `products/new`, `products/[id]/edit`, `inventory`, `menus`, `pricing`, `orders`, `orders/[id]`, `order-history`, `returns`, `prescriptions`, `payments`, `promotions`, `offers`, `ads`, `analytics`, `stores`, `reviews`, `settings`, `support`, `notifications`, `onboarding`, `outlet-info`, `restaurant-status`, `rush-hour`, `explore` |
 | District admin | `/admin/district` + analytics, addons/queue, audit, blood, content, coupons, customers, delivery-boys, delivery/manual-allocation, delivery/payouts, fee-change-requests, festival, orders, pricing-audit, products, products/queue, sellers, sellers/[id], settings, support |
 | Super admin | `/admin/super` + ads, analytics, app-config, audit, categories, coupons, coverage, credentials, delivery-boys, delivery/manual-allocation, delivery/payouts, district-admins, districts, fee-change-requests, festival, payouts, products, rewards, sdui, sectors, security, sellers, settings, users |
 

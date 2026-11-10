@@ -120,6 +120,7 @@ here so the folder never claims full coverage it does not have. Add a page befor
 |---|---|---|
 | Ads | `/seller/ads` | `GET/POST /ads/*`, campaigns/slots |
 | Promotions | `/seller/promotions` | `GET /seller/promotions`, opt-in |
+| Offers | `/seller/offers` | product-first festival opt-in for Mart/Pharmacy; `GET /promo/sector-caps`, `POST /seller/promotions/optin`; seller write does not yet state-scope the campaign |
 | Analytics | `/seller/analytics` | `GET /analytics/series|ranks` |
 | Reviews | `/seller/reviews` | `GET /vendors/{id}/reviews*` |
 | Prescriptions | `/seller/prescriptions` | `GET /seller/prescriptions*`, quotes |

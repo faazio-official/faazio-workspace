@@ -89,7 +89,9 @@ caller) and are event-purged on store live toggle and product edit/status change
   `POST /orders` line items may carry `addonIds`; the server re-validates each id against
   `directory.menu_addon_links` + `directory.addons` (ACTIVE), re-prices it, and snapshots the
   selection into `checkout.order_item_addons` in the same transaction. Promotions read
-  `GET /seller/promotions` (campaigns + own opt-ins) with opt-in `POST /seller/promotions/optin`; the
+  `GET /seller/promotions` (campaigns + own opt-ins) with opt-in `POST /seller/promotions/optin`;
+  sellers also read the non-PII `GET /promo/sector-caps` to validate the discount cap before opting
+  in (the gateway re-applies it at price time); the
   money ledger reads `GET /seller/payments` and `GET /seller/payments/{cycleId}` (seller id from the token).
   `POST /orders` also enqueues a PII-free seller new-order notification per active seller portal user
   owning a store in the order (`contracts.Notifier.EnqueueSeller`). Notification devices register

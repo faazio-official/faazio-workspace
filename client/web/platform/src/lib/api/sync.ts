@@ -231,7 +231,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
           : Promise.resolve<RawCoupon[] | undefined>(undefined),
       ),
       safe(() =>
-        isAdmin
+        isAdmin || role === "SELLER"
           ? remote.get<Raw[]>("/promo/sector-caps").then(toCamel)
           : Promise.resolve<Raw[] | undefined>(undefined),
       ),
