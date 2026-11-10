@@ -691,7 +691,7 @@ runtime, not build time.
 
 ## 🔧 iOS CI (signing / archive / TestFlight)
 
-`ios-release.yml` builds on a GitHub-hosted `macos-15` runner (Xcode 26.3). There is no local iOS
+`ios-release.yml` builds on a GitHub-hosted `macos-15-intel` runner (Xcode 26.3). There is no local iOS
 build on the Linux host.
 
 - **Firebase SPM resolution fails with "using Swift tools version 6.2.1 but the installed version is

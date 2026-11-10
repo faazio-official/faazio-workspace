@@ -20,7 +20,7 @@ Four workflows:
   land on a `-delivery` / `-seller` tag and need `GOOGLE_SERVICES_DELIVERY_JSON` /
   `GOOGLE_SERVICES_SELLER_JSON`.
 - [`.github/workflows/ios-release.yml`](../../.github/workflows/ios-release.yml) — signed release
-  `.ipa` on `macos-15` → TestFlight (App Store Connect API) + GitHub Release. Also takes
+  `.ipa` on `macos-15-intel` → TestFlight (App Store Connect API) + GitHub Release. Also takes
   `app: customer|delivery|seller`; see "🍎 iOS release" below.
 - [`.github/workflows/android-debug.yml`](../../.github/workflows/android-debug.yml) — debug APK →
   downloadable Actions artifact (for device testing with a local Metro). Also takes
@@ -186,7 +186,7 @@ attaches the `.aab`; the default dispatch produces the signed APK alone.
 
 ## 🍎 iOS release
 
-Builds a release-signed `.ipa` on a GitHub-hosted `macos-15` runner (Xcode 26.3), uploads it to
+Builds a release-signed `.ipa` on a GitHub-hosted `macos-15-intel` runner (Xcode 26.3), uploads it to
 TestFlight via the App Store Connect API, and attaches it to a GitHub Release. The committed `ios/`
 Xcode project is the source of truth — no prebuild. See the "iOS / App Store" secrets table above.
 
@@ -211,7 +211,7 @@ each upload**. Product → tag conventions match Android (`v<version>`, `v<versi
 
 ### 🍎 iOS Release from Linux (no macOS needed)
 
-iOS releases are built by GitHub Actions on `macos-15` runners; you trigger them from Linux via
+iOS releases are built by GitHub Actions on `macos-15-intel` runners; you trigger them from Linux via
 `gh`. No local Mac is required at any step — CI handles signing, export, verification, and upload.
 
 **Prerequisites** — GitHub secrets/variables (copy exact names from `.github/workflows/ios-release.yml`):
