@@ -113,7 +113,7 @@ const styles = StyleSheet.create({
     marginBottom: SPACE.BLOCK,
   },
   headerText: { flex: 1 },
-  title: { fontSize: ms(18), fontWeight: '800', color: foodTheme.textPrimary },
+  title: { fontSize: ms(18), fontWeight: '600', color: foodTheme.textPrimary },
   subtitle: { marginTop: vs(2), fontSize: ms(12), color: foodTheme.textSecondary },
   closeBtn: {
     width: 44,
@@ -134,7 +134,7 @@ const styles = StyleSheet.create({
   rowText: { flex: 1, marginLeft: hs(10) },
   rowName: { fontSize: ms(14), fontWeight: '600', color: foodTheme.textPrimary },
   rowGroup: { marginTop: vs(1), fontSize: ms(11), color: foodTheme.textMuted },
-  rowPrice: { fontSize: ms(14), fontWeight: '700', color: foodTheme.textPrimary },
+  rowPrice: { fontSize: ms(14), fontWeight: '600', color: foodTheme.textPrimary },
   checkbox: {
     width: ms(20),
     height: ms(20),
@@ -155,5 +155,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingVertical: vs(13),
   },
-  confirmText: { fontSize: ms(14), fontWeight: '800', color: foodTheme.white },
+  confirmText: { fontSize: ms(14), fontWeight: '600', color: foodTheme.white },
 });
