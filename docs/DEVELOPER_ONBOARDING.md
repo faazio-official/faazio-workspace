@@ -57,12 +57,15 @@ produce the Play-bound AAB (see `docs/RUNBOOKS/RELEASE.md`).
 npm run ts:check          # TypeScript typecheck
 npm run check:boundaries  # dependency-cruiser — enforces cross-module import rules
 npm run check:drillin     # category taxonomy ↔ mart/pharma catalog coverage guard
+npm test                  # Jest unit tests (React Native Testing Library; no device/native build)
 ```
 
-All three must pass before pushing. `check:boundaries` fails on any sub-app importing another
+All of these must pass before pushing. `check:boundaries` fails on any sub-app importing another
 sub-app's internals (only `Home` is allowed to cross sub-apps). `check:drillin` fails if any
 taxonomy title (from `server/supabase/seed/lib/taxonomy.mjs`) resolves no vendor (the category
-drill-in would render empty).
+drill-in would render empty). `npm test` renders screens/logic under Jest with `GatewayClient`
+mocked as the network seam (no fixtures-as-live, no fake latency); real-device E2E stays in CI
+(builds are CI-only).
 
 ### 4b. Central remote config (the "Central Digital Menu")
 
@@ -112,6 +115,14 @@ TEST_DATABASE_URL='postgres://postgres:faazio@localhost:5432/faazio?sslmode=disa
 TEST_VALKEY_URL='redis://localhost:6379/0' \
 go test ./...
 ```
+
+The COD order + delivery fulfilment workflows have end-to-end contract coverage at the HTTP-handler
+level (real handlers + real Postgres, identity injected via the `authtest` seam):
+`internal/checkout/place_order_integration_test.go` (place COD order, transaction, idempotency,
+pay-order), `internal/delivery/handover_integration_test.go` (accept/reject, seller-QR pickup scan,
+the scan and payment gates, OTP delivery) and `internal/reviews/order_feedback_integration_test.go`
+(order feedback). Run just that sequence from the repo root with `scripts/e2e-delivery-flow.sh`, and
+scan for workflow anti-patterns (read-only) with `scripts/find-flow-flaws.sh [--strict]`.
 
 > Managed Atlas M0 does **not** auto-run `seed.js` (only the local `mongo` image does). Seed Atlas
 > manually: `mongosh "$MONGO_URI/faazio" --file server/supabase/seed/mongo/seed.js`.

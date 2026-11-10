@@ -453,6 +453,17 @@ never called, and the list's `onLayout` never fires. Do not "fix" it by swapping
   no-op cache has no keys to purge. Set `TEST_VALKEY_URL` to run it.
 - **Portal unit tests** (`client/web/platform`): `npm test` (vitest). No DB/Docker needed —
   `createProduct` is exercised with mocked network/store.
+- **Workflow integration tests** (COD order + delivery fulfilment): `scripts/e2e-delivery-flow.sh`
+  runs the checkout/delivery/reviews HTTP-handler contracts against the local stack. The same tests
+  skip without `TEST_DATABASE_URL`. Compile/behaviour checks: `go vet ./...` and
+  `go test ./internal/checkout ./internal/delivery ./internal/reviews`.
+- **Mobile unit tests** (`client/mobile`): `npm test` (Jest + React Native Testing Library). No
+  device, emulator or Gradle. The suite runs `scripts/configure.js` first so generated
+  `src/lib/config.ts` exists; `GatewayClient` is mocked per-file as the network seam. If a render
+  fails with "render has not been called", `await` the RNTL 14 async `render`/`fireEvent` calls.
+- **Local DB migration drift** (`column ... does not exist` in `catalog`/`categories`/`sellers`
+  tests) means the `faazio-local-pg` volume predates the newest migrations. Reset and re-seed with
+  `docker compose down -v && docker compose up -d` (see `DEVELOPER_ONBOARDING.md` §4a).
 - **Seller-product simulation** (`server/gateway/scripts/test-seller-product-create.sh`) drives the
   real HTTP contract against a **running** gateway and needs: `SUPABASE_JWT_SECRET` (same value the
   gateway uses), `SELLER_ID` (an ACTIVE seller with a live store; look it up with

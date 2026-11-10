@@ -15,6 +15,39 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W90 — Workflow test coverage (COD order + delivery fulfilment)
+
+**Status:** 🟡 Partial.
+
+**Shipped (2026-11-10):** Jest + React Native Testing Library unit layer (`jest.config.js`,
+`jest.setup.js`, `npm test`) — no device/emulator/Gradle. Server HTTP-contract integration tests
+under `server/gateway/internal/{checkout,delivery,reviews}` run against local Postgres via the
+`authtest` seam; repo-root `scripts/e2e-delivery-flow.sh` + `scripts/find-flow-flaws.sh`.
+
+**Client tests landed:** `delivery-partner/__tests__/acceptReject.test.tsx` (Workflow 2),
+`delivery-partner/__tests__/pickupScanModal.test.tsx` (Workflow 3), and
+`profile/__tests__/orderFeedback.test.tsx` (Workflow 7).
+
+**Remaining (not yet covered — do not mark done):**
+- **`RouteScreen` client tests** (Workflows 3–6: arrival → scan → payment-received → OTP → route
+  complete). Blocked on mocking `react-native-maps` + reanimated; not yet written.
+- **`CartView` / `handlePlaceOrder` client test** (Workflow 1: stable idempotency key, empty-cart
+  guard, COD receipt vs UPI retry). `CartView.tsx` is large and pulls Maps/Reanimated gates; needs
+  a focused extraction or heavier mocking before it is testable in Jest.
+- **Live-server E2E** (real JWT): the scripts drive the handlers in-process; a curl loop against a
+  running gateway would need Firebase/Supabase token minting and remains TODO.
+
+**Server bug fixed while writing the tests:** `delivery.Repo.riderByID`/`List` scanned
+`delivery_boys.created_at` (timestamptz) into a `string`, so every rider read (all delivery
+workflows) returned `delivery_unavailable` against a real DB. Fixed to scan into `time.Time` +
+`iso()` (matches `orderByID`). See `server/gateway/internal/delivery/repo.go`.
+
+**Server gap found (not fixed):** `POST /orders/{id}/payments` is not idempotent — each call inserts
+another `checkout.payments` row (`internal/checkout/handler.go:590-647`). Logged in
+`docs/user-interaction-workflow/KNOWN_GAPS.md`.
+
+---
+
 ## W89 — Food home: remove Top Rated, move the FOOD_HERO banner
 
 **Status:** 🟢 Shipped.

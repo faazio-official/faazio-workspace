@@ -164,13 +164,15 @@ func (r *Repo) List(ctx context.Context, f ListFilter) ([]Rider, error) {
 	for rows.Next() {
 		var x Rider
 		var last *time.Time
+		var created time.Time
 		if err := rows.Scan(&x.RiderID, &x.UserID, &x.Phone, &x.FullName, &x.StateCode, &x.HubZone,
 			&x.Address, &x.City, &x.Pincode, &x.EmergencyContact, &x.VehicleType, &x.MaxCapacity, &x.Status,
 			&x.IsAvailable, &x.CurrentLoad, &x.Rating, &x.CompletedOrders, &last, &x.RejectionReason,
-			&x.CreatedAt); err != nil {
+			&created); err != nil {
 			return nil, err
 		}
 		x.LastHeartbeatAt = iso(last)
+		x.CreatedAt = created.UTC().Format(time.RFC3339)
 		out = append(out, x)
 	}
 	return out, rows.Err()
@@ -211,6 +213,7 @@ func (r *Repo) riderByID(ctx context.Context, q interface {
 }, riderID string) (Rider, error) {
 	var x Rider
 	var last *time.Time
+	var created time.Time
 	err := q.QueryRow(ctx, `
 		select rider_id, coalesce(user_id,''), phone, full_name, state_code, hub_zone, address, city,
 		       pincode, emergency_contact, vehicle_type::text, max_capacity, status::text, is_available,
@@ -219,11 +222,12 @@ func (r *Repo) riderByID(ctx context.Context, q interface {
 		Scan(&x.RiderID, &x.UserID, &x.Phone, &x.FullName, &x.StateCode, &x.HubZone, &x.Address, &x.City,
 			&x.Pincode, &x.EmergencyContact, &x.VehicleType, &x.MaxCapacity, &x.Status,
 			&x.IsAvailable, &x.CurrentLoad, &x.Rating, &x.CompletedOrders, &last,
-			&x.RejectionReason, &x.CreatedAt)
+			&x.RejectionReason, &created)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Rider{}, ErrNotFound
 	}
 	x.LastHeartbeatAt = iso(last)
+	x.CreatedAt = created.UTC().Format(time.RFC3339)
 	return x, err
 }
 
