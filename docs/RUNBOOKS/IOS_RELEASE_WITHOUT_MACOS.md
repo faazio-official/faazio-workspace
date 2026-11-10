@@ -4,8 +4,9 @@
 
 ## 1. Situation
 
-You no longer have a Mac (or never had one). All iOS work happens via GitHub Actions on `macos-15` (arm64)
-runners, triggered from Linux with the `gh` CLI, and submitted to App Store review from a browser.
+You no longer have a Mac (or never had one). All iOS work happens via GitHub Actions on
+`macos-15-intel` runners (or `macos-15` arm64 with `-f runner=macos-15`), triggered from Linux with
+the `gh` CLI, and submitted to App Store review from a browser.
 The committed `ios/` Xcode project is the source of truth; CI builds the `.ipa` on Apple's own
 runners using Xcode 26.3.
 

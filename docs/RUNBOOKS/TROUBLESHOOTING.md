@@ -694,7 +694,8 @@ runtime, not build time.
 
 ## 🔧 iOS CI (signing / archive / TestFlight)
 
-`ios-release.yml` builds on a GitHub-hosted `macos-15` (arm64) runner (Xcode 26.3). There is no local iOS
+`ios-release.yml` defaults to a GitHub-hosted `macos-15-intel` runner (Xcode 26.3); dispatch with
+`-f runner=macos-15` to use the ~3× faster arm64 pool when capacity allows. There is no local iOS
 build on the Linux host.
 
 - **Firebase SPM resolution fails with "using Swift tools version 6.2.1 but the installed version is
@@ -723,13 +724,12 @@ build on the Linux host.
   already derived from `ITSAppUsesNonExemptEncryption=false` in `Info.plist`. Do not pass
   `uses-non-exempt-encryption` to `apple-actions/upload-testflight-build`; the plist is the single
   source for that declaration.
-- **Release run takes >1 hour / archive is slow** → the archive must compile on the native arm64
-  pool (`macos-15`); the Intel pool cross-compiles the same workspace and roughly triples archive
-  time plus TestFlight waits. Keep `runs-on: macos-15` unless GitHub reports
-  "job was not acquired by Runner of type hosted" capacity errors, in which case temporarily use
-  `macos-15-intel`. The SwiftPM cache is restored before `xcodebuild` and saved right after the
-  archive, so a later TestFlight failure no longer throws the cache away and forces another SPM
-  fetch on retry.
+- **Release run takes >1 hour / archive is slow** → the Intel pool cross-compiles the arm64 archive
+  (~45 min); the arm64 pool (`-f runner=macos-15`) is ~3× faster (~15 min) but has been
+  capacity-constrained, failing with "job was not acquired by Runner of type hosted". Default to
+  `macos-15-intel` for reliability and use `macos-15` when capacity is healthy. The SwiftPM cache is
+  restored before `xcodebuild` and saved right after the archive, so a later TestFlight failure no
+  longer throws the cache away and forces another SPM fetch on retry.
 - **Partner build fails with "requires GoogleService-Info-Delivery.plist"** → only relevant to a
   local partner iOS build (the delivery/seller iOS apps are **not released** — customer-only on
   iOS). The `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` (or `_SELLER_`) secret is not set; the build phase
