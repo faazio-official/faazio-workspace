@@ -705,10 +705,19 @@ build on the Linux host.
 - **`xcodebuild` "No signing certificate" / "provisioning profile doesn't match"** → the profile's
   bundle id must equal the built configuration's (`com.faazio.customer` / `com.faazio.deliverypartner`
   / `com.faazio.sellerpartner`), and the certificate, profile and `APPSTORE_TEAM_ID` must belong to
-  the same team. The workflow uses `CODE_SIGN_STYLE=Manual`.
+  the same team. Signing is manual: the archive is built unsigned and `-exportArchive`
+  applies the identity + profile from `ExportOptions.plist`.
 - **Xcode can't find the profile** → profiles must be installed under
   `~/Library/Developer/Xcode/UserData/Provisioning Profiles` (Xcode 26) as well as the legacy
   `~/Library/MobileDevice/Provisioning Profiles`. The script writes both, named by the profile UUID.
+- **Archive fails with "<target> does not support provisioning profiles"** → do not pass
+  `PROVISIONING_PROFILE_SPECIFIER` / `CODE_SIGN_STYLE` on the `xcodebuild` command line: those
+  propagate to every Pod/SPM target and Xcode 26 rejects them. The workflow archives with
+  `CODE_SIGNING_ALLOWED=NO` and signs during `-exportArchive` from `ExportOptions.plist`.
+- **TestFlight upload says "Test Information is missing"** → App Store Connect needs the app's beta
+  localization (locale, Beta App Description, feedback email). Create it once via
+  `POST /v1/betaAppLocalizations` with the ASC API key (done for `com.faazio.customer`, `en-US`),
+  or fill App Store Connect → TestFlight → Test Information.
 - **TestFlight upload rejects the build** → bump the semver: the build number is derived from it
   (`1.0.6` → `10006`), and App Store Connect rejects a duplicate build number for the same
   marketing version. Also check `APPSTORE_ISSUER_ID` / `APPSTORE_API_KEY_ID` /
