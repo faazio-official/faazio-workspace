@@ -13,6 +13,7 @@ import {
   restorePortalSession,
 } from "@/lib/portal/auth";
 import type {
+  AddonRecord,
   AdStatus,
   AdTargetType,
   AppConfigCategory,
@@ -28,6 +29,7 @@ import type {
   HeroCampaign,
   HeroPlacement,
   MenuItemRecord,
+  MenuAddonRecord,
   NotificationPreferences,
   OrderStatus,
   PortalCredential,
@@ -2624,6 +2626,87 @@ export function deleteMenu(venueId: string, dishId: string): void {
     state().set((s) => ({ menus: [before, ...s.menus] }));
   });
   audit({ action: "MENU_DELETE", entity: "directory.menus", entityId: `${venueId}:${dishId}`, before });
+}
+
+/* --------------------------------- add-ons ------------------------------- */
+
+/** Server-scoped add-on list. DRAFT/PENDING_REVIEW rows are seller/admin-only. */
+export async function listAddons(
+  filter: { venueId?: string | undefined; status?: ProductStatus | "ALL" | undefined } = {},
+): Promise<AddonRecord[]> {
+  const query: Record<string, string | undefined> = {};
+  if (filter.venueId) query["venueId"] = filter.venueId;
+  if (filter.status && filter.status !== "ALL") query["status"] = filter.status;
+  return remote.get<AddonRecord[]>("/seller/addons", { query });
+}
+
+export async function fetchAddon(addonId: string): Promise<AddonRecord> {
+  return remote.get<AddonRecord>(`/seller/addons/${encodeURIComponent(addonId)}`);
+}
+
+export interface AddonDto {
+  venueId: string;
+  name: string;
+  groupName: string;
+  pricePaisa: number;
+  isVeg: boolean;
+}
+
+export async function createAddon(dto: AddonDto): Promise<AddonRecord> {
+  return remote.post<AddonRecord>("/seller/addons", {
+    venueId: dto.venueId,
+    name: dto.name,
+    groupName: dto.groupName,
+    price: toRupees(dto.pricePaisa),
+    isVeg: dto.isVeg,
+  });
+}
+
+export async function updateAddon(
+  addonId: string,
+  dto: { name: string; groupName: string; pricePaisa: number; isVeg: boolean },
+): Promise<AddonRecord> {
+  return remote.put<AddonRecord>(`/seller/addons/${encodeURIComponent(addonId)}`, {
+    name: dto.name,
+    groupName: dto.groupName,
+    price: toRupees(dto.pricePaisa),
+    isVeg: dto.isVeg,
+  });
+}
+
+export async function submitAddonForReview(addonId: string): Promise<AddonRecord> {
+  return remote.post<AddonRecord>(`/seller/addons/${encodeURIComponent(addonId)}/submit-for-review`);
+}
+
+export async function delistAddon(addonId: string): Promise<AddonRecord> {
+  return remote.delete<AddonRecord>(`/seller/addons/${encodeURIComponent(addonId)}`);
+}
+
+/** Admin moderation: approve a pending add-on. */
+export async function approveAddon(addonId: string): Promise<AddonRecord> {
+  return remote.post<AddonRecord>(`/seller/addons/${encodeURIComponent(addonId)}/approve`);
+}
+
+/** Admin moderation: return a pending add-on to DRAFT with a required note. */
+export async function rejectAddon(addonId: string, reason: string): Promise<AddonRecord> {
+  return remote.post<AddonRecord>(`/seller/addons/${encodeURIComponent(addonId)}/reject`, { reason });
+}
+
+/** Dish ↔ add-on links for one dish (dishId omitted = the whole venue). */
+export async function listMenuAddons(venueId: string, dishId?: string): Promise<MenuAddonRecord[]> {
+  const query: Record<string, string> = { venueId };
+  if (dishId) query["dishId"] = dishId;
+  return remote.get<MenuAddonRecord[]>("/seller/menu-addons", { query });
+}
+
+export async function linkAddonToDish(venueId: string, dishId: string, addonId: string): Promise<void> {
+  await remote.post<{ ok: boolean }>("/seller/menu-addons", { venueId, dishId, addonId });
+}
+
+export async function unlinkAddonFromDish(venueId: string, dishId: string, addonId: string): Promise<void> {
+  await remote.delete<{ ok: boolean }>(
+    `/seller/menu-addons/${encodeURIComponent(venueId)}/${encodeURIComponent(dishId)}/${encodeURIComponent(addonId)}`,
+  );
 }
 
 /* --------------------------------- tickets ------------------------------- */

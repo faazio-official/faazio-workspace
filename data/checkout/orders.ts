@@ -74,6 +74,15 @@ export const couponsTable: CouponRow[] = legacyCoupons.map((c: Coupon) => ({
   isFreeDelivery: c.isFreeDelivery,
 }));
 
+export interface OrderLineAddon {
+  addonId?: string;
+  name: string;
+  /** Per-unit add-on price in whole rupees. */
+  unitPrice: number;
+  /** Quantity attached to this line (equals the dish qty at placement). */
+  qty: number;
+}
+
 export interface OrderLineItem {
   lineId: string;
   productId?: string;
@@ -82,6 +91,7 @@ export interface OrderLineItem {
   qty: number;
   unitPrice: number;
   emoji?: string;
+  addons?: OrderLineAddon[];
 }
 
 export interface OrderRow {

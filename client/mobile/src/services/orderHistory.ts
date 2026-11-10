@@ -40,8 +40,15 @@ export function orderRowToPlaced(row: OrderRow): PlacedOrder {
     price: li.unitPrice,
     quantity: li.qty,
     emoji: li.emoji ?? 'mart',
+    addons: li.addons,
   }));
-  const lineTotal = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+  const lineTotal = items.reduce(
+    (sum, i) =>
+      sum +
+      i.price * i.quantity +
+      (i.addons?.reduce((s, a) => s + a.unitPrice * a.qty, 0) ?? 0),
+    0,
+  );
   // Prefer the server's charged total: it includes delivery/tax/coupon and matches the invoice.
   const total = row.totalChargedPaisa && row.totalChargedPaisa > 0 ? row.totalChargedPaisa / 100 : lineTotal;
   const fulfillment = row.fulfillment ?? 'DELIVERY';

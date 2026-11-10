@@ -25,6 +25,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Catalog | Add product | portal `/seller/products/new` | [catalog/index.md](./catalog/index.md) · [add-product.md](./catalog/add-product.md) |
 | Catalog | Products list (+ scroll-to-reload) | portal `/seller/products` | [web-portal/products.md](./web-portal/products.md) |
 | Catalog | Price / inventory update | portal `/seller/pricing`, `/seller/inventory` | [price-update.md](./catalog/price-update.md) |
+| Catalog | Dish add-ons (create, link, review) | portal `/seller/inventory` (Add-ons), admin `/admin/district/addons/queue` | [web-portal/addons.md](./web-portal/addons.md) |
 | Catalog | Edit / delete / restore (trash) | portal `/seller/products/[id]/edit`, `/seller/products/trash` | [product-trash.md](./catalog/product-trash.md) |
 | Orders | Seller order board + lifecycle | portal `/seller/orders`, `/seller/orders/[id]` | [orders/index.md](./orders/index.md) · [order-lifecycle.md](./orders/order-lifecycle.md) |
 | Orders | Payouts / ledger / invoices | portal `/seller/payments` | [payouts-ledger.md](./orders/payouts-ledger.md) |

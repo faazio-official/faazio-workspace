@@ -52,11 +52,18 @@ var ErrInvalidDiscountCard = errors.New("discount card not valid for this order"
 // once the pharmacy has priced it.
 var ErrRxNotPayable = errors.New("prescription is not ready to pay")
 
+// ErrInvalidAddon is returned when a selected add-on is not ACTIVE or not linked to the ordered dish.
+var ErrInvalidAddon = errors.New("invalid add-on selection")
+
 // PlaceOrderRequest is the POST /orders body.
 type PlaceOrderRequest struct {
 	Items []struct {
 		ProductID string `json:"productId"`
 		Qty       int64  `json:"qty"`
+		// AddonIDs are the selected add-on ids for this line. The server re-validates that each is
+		// ACTIVE and linked to the ordered dish, then re-prices from directory.addons — the client
+		// never dictates the add-on price.
+		AddonIDs []string `json:"addonIds,omitempty"`
 	} `json:"items"`
 	AddressID      string          `json:"addressId"`
 	Fulfillment    string          `json:"fulfillment"`
@@ -182,6 +189,54 @@ func discountCardPaisa(subtotalRupees, percent int64) int64 {
 	return ((subtotalRupees*percent + 50) / 100) * 100
 }
 
+// priceAddons re-validates the selected add-ons against the ordered dish and returns the line
+// snapshots plus their paisa total (per-unit add-on price × line qty). Unknown, delisted or
+// unlinked add-ons fail the whole order — the client price is never trusted.
+func (s *Service) priceAddons(ctx context.Context, venueID, dishID string, qty int64, ids []string) ([]OrderLineAddon, int64, error) {
+	if len(ids) == 0 {
+		return nil, 0, nil
+	}
+	seen := make(map[string]struct{}, len(ids))
+	unique := make([]string, 0, len(ids))
+	for _, raw := range ids {
+		id := strings.TrimSpace(raw)
+		if id == "" {
+			continue
+		}
+		if _, ok := seen[id]; ok {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	if len(unique) == 0 {
+		return nil, 0, nil
+	}
+	if len(unique) > 20 {
+		return nil, 0, ErrInvalidAddon
+	}
+	snaps, err := s.repo.AddonSnapshots(ctx, venueID, dishID, unique)
+	if err != nil {
+		return nil, 0, err
+	}
+	out := make([]OrderLineAddon, 0, len(unique))
+	var totalPaisa int64
+	for _, id := range unique {
+		snap, ok := snaps[id]
+		if !ok {
+			return nil, 0, ErrInvalidAddon
+		}
+		out = append(out, OrderLineAddon{
+			AddonID:   snap.ID,
+			Name:      snap.Name,
+			UnitPrice: snap.PricePaisa / 100,
+			Qty:       qty,
+		})
+		totalPaisa += snap.PricePaisa * qty
+	}
+	return out, totalPaisa, nil
+}
+
 // CreateOrder places an order: idempotency lock → price → stock decrement → insert.
 func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrderRequest) (Order, error) {
 	if len(req.Items) == 0 {
@@ -274,7 +329,15 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		}
 		// Money is computed in paisa (the catalog truth); the line item wire shape stays rupees.
 		unitPaisa := discountedUnitPaisa(snap.PricePaisa, discountByID[it.ProductID])
-		grossPaisa := qty * unitPaisa
+		venueID := snap.VenueID
+		if venueID == "" {
+			venueID = derefStr(snap.StoreID)
+		}
+		lineAddons, addonTotalPaisa, err := s.priceAddons(ctx, venueID, it.ProductID, qty, it.AddonIDs)
+		if err != nil {
+			return Order{}, err
+		}
+		grossPaisa := qty*unitPaisa + addonTotalPaisa
 		unit := unitPaisa / 100
 		storeID := derefStr(snap.StoreID)
 		lines = append(lines, OrderLineItem{
@@ -283,11 +346,12 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 			Name:      snap.Name,
 			Qty:       qty,
 			UnitPrice: unit,
+			Addons:    lineAddons,
 			// StoreID is persisted on the line (0078) so the payout board can charge this store's
 			// own platform_fee_pct on this line's gross instead of guessing from vendor_store_ids[1].
 			StoreID: storeID,
 		})
-		totalRupees += qty * unit
+		totalRupees += qty*unit + addonTotalPaisa/100
 		priced = append(priced, pricedLine{
 			grossPaisa: grossPaisa,
 			ratePct:    taxRateFor(categoryRates, snap.App, snap.Category),
@@ -523,6 +587,11 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	// insert (bad FK, replay-step write error, …) can never drain inventory without an order.
 	if err := s.repo.WithTx(ctx, func(tx pgx.Tx) error {
 		for _, it := range req.Items {
+			// `directory.menus` dishes are made-to-order and have no inventory.stock row; only
+			// catalog products participate in stock reservation.
+			if snap, ok := snapshots[it.ProductID]; ok && snap.IsMenuDish {
+				continue
+			}
 			if _, ok, err := s.stock.Decrement(ctx, tx, it.ProductID, it.Qty); err != nil {
 				return err
 			} else if !ok {

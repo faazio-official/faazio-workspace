@@ -11,6 +11,8 @@ import DietToggle from '../components/DietToggle';
 import MenuItemRow from '../components/MenuItemRow';
 import MenuCategoryRail from '../components/MenuCategoryRail';
 import ViewCartPill from '../components/ViewCartPill';
+import AddonPickerSheet from '../components/AddonPickerSheet';
+import { gateway, type DishAddon } from '@/services/api/GatewayClient';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { SpecialDish } from '@data/types';
@@ -35,6 +37,8 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
   const [searchQuery, setSearchQuery] = useState('');
   const [dietFilter, setDietFilter] = useState<DietFilter>(() => route.params.dietFilter);
+  const [picker, setPicker] = useState<{ dish: SpecialDish; addons: DishAddon[] } | null>(null);
+  const [addonLoadingId, setAddonLoadingId] = useState<string | null>(null);
 
   const searchRef = useRef<TextInput>(null);
 
@@ -99,10 +103,45 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
   }, [navigation, restaurant.id, restaurant.name]);
 
   const handleAdd = useCallback(
-    (dish: SpecialDish) => {
-      addToCart(dish.id, dish.dishName, dish.price, 'dining', restaurant.id);
+    async (dish: SpecialDish) => {
+      if (addonLoadingId === dish.id) return;
+      setAddonLoadingId(dish.id);
+      try {
+        // Only open the extras sheet when the dish actually has approved add-ons; otherwise keep
+        // the existing one-tap add. An offline read falls back to the direct add (no extras).
+        const addons = await gateway.getDishAddons(restaurant.id, dish.id);
+        if (addons.length === 0) {
+          void addToCart(dish.id, dish.dishName, dish.price, 'dining', restaurant.id);
+        } else {
+          setPicker({ dish, addons });
+        }
+      } catch {
+        void addToCart(dish.id, dish.dishName, dish.price, 'dining', restaurant.id);
+      } finally {
+        setAddonLoadingId(null);
+      }
     },
-    [addToCart, restaurant.id],
+    [addToCart, addonLoadingId, restaurant.id],
+  );
+
+  const confirmAddons = useCallback(
+    (selected: DishAddon[]) => {
+      if (!picker) return;
+      const addonPrice = selected.reduce((sum, a) => sum + a.price, 0);
+      const addonSummary = selected.map((a) => a.name).join(', ');
+      void addToCart(
+        picker.dish.id,
+        picker.dish.dishName,
+        picker.dish.price,
+        'dining',
+        restaurant.id,
+        selected.map((a) => a.id),
+        addonPrice,
+        addonSummary,
+      );
+      setPicker(null);
+    },
+    [addToCart, picker, restaurant.id],
   );
 
   const dishQuantity = useCallback(
@@ -205,6 +244,15 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
       {restaurantCartCount > 0 && (
         <ViewCartPill count={restaurantCartCount} onPress={openCart} />
       )}
+
+      <AddonPickerSheet
+        visible={picker !== null}
+        dishName={picker?.dish.dishName ?? ''}
+        basePrice={picker?.dish.price ?? 0}
+        addons={picker?.addons ?? []}
+        onClose={() => setPicker(null)}
+        onConfirm={confirmAddons}
+      />
     </View>
   );
 }

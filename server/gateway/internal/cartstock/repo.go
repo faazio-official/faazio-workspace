@@ -17,10 +17,14 @@ import (
 // ErrInsufficientStock is returned when a decrement cannot be satisfied.
 var ErrInsufficientStock = errors.New("insufficient stock")
 
-// CartItem is one cart line (inventory.carts.items JSON).
+// CartItem is one cart line (inventory.carts.items JSON). Addon fields are display-only hints:
+// checkout re-validates and re-prices every add-on from directory.addons.
 type CartItem struct {
-	ProductID string `json:"productId"`
-	Qty       int64  `json:"qty"`
+	ProductID    string   `json:"productId"`
+	Qty          int64    `json:"qty"`
+	AddonIDs     []string `json:"addonIds,omitempty"`
+	AddonPrice   int64    `json:"addonPrice,omitempty"` // rupees, per unit
+	AddonSummary string   `json:"addonSummary,omitempty"`
 }
 
 // Repo reads/writes inventory.
@@ -134,7 +138,7 @@ func (r *Repo) GetCart(ctx context.Context, userID string) ([]CartItem, error) {
 }
 
 // SetCartItem adds or updates a line (qty <= 0 removes it).
-func (r *Repo) SetCartItem(ctx context.Context, userID, productID string, qty int64) ([]CartItem, error) {
+func (r *Repo) SetCartItem(ctx context.Context, userID, productID string, qty int64, addonIDs []string, addonPrice int64, addonSummary string) ([]CartItem, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("cartstock: database not configured")
 	}
@@ -152,7 +156,7 @@ func (r *Repo) SetCartItem(ctx context.Context, userID, productID string, qty in
 	} else if err != nil && !isNoRows(err) {
 		return nil, err
 	}
-	items = mergeItem(items, productID, qty)
+	items = mergeItem(items, productID, qty, addonIDs, addonPrice, addonSummary)
 
 	encoded, err := json.Marshal(items)
 	if err != nil {
@@ -172,21 +176,28 @@ func (r *Repo) SetCartItem(ctx context.Context, userID, productID string, qty in
 	return items, nil
 }
 
-func mergeItem(items []CartItem, productID string, qty int64) []CartItem {
+func mergeItem(items []CartItem, productID string, qty int64, addonIDs []string, addonPrice int64, addonSummary string) []CartItem {
 	out := make([]CartItem, 0, len(items)+1)
 	found := false
 	for _, it := range items {
 		if it.ProductID == productID {
 			found = true
 			if qty > 0 {
-				out = append(out, CartItem{ProductID: productID, Qty: qty})
+				next := CartItem{ProductID: productID, Qty: qty, AddonIDs: addonIDs, AddonPrice: addonPrice, AddonSummary: addonSummary}
+				// An omitted addonIds (nil) keeps the existing selection; an explicit empty list clears it.
+				if addonIDs == nil {
+					next.AddonIDs = it.AddonIDs
+					next.AddonPrice = it.AddonPrice
+					next.AddonSummary = it.AddonSummary
+				}
+				out = append(out, next)
 			}
 			continue
 		}
 		out = append(out, it)
 	}
 	if !found && qty > 0 {
-		out = append(out, CartItem{ProductID: productID, Qty: qty})
+		out = append(out, CartItem{ProductID: productID, Qty: qty, AddonIDs: addonIDs, AddonPrice: addonPrice, AddonSummary: addonSummary})
 	}
 	return out
 }

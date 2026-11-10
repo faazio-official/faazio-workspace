@@ -43,6 +43,8 @@ func (h *Handler) Register(r chi.Router) {
 	r.Get("/products/nearby", h.nearby)
 	r.Post("/products/batch", h.batch)
 	r.Get("/stores/{id}/products", h.storeProducts)
+	// Dish add-ons (extras) are published only once an admin approves the add-on (ACTIVE).
+	r.Get("/venues/{venueId}/menu/{dishId}/addons", h.dishAddons)
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Post("/seller/products", h.createProduct)
@@ -57,6 +59,18 @@ func (h *Handler) Register(r chi.Router) {
 		g.Put("/seller/inventory/{productId}", h.setSellerInventory)
 		g.Get("/seller/pricing", h.sellerPricing)
 		g.Put("/seller/pricing/{productId}", h.setSellerPricing)
+		// Add-on catalogue + dish links (DRAFT → PENDING_REVIEW → ACTIVE moderation).
+		g.Get("/seller/addons", h.listAddons)
+		g.Post("/seller/addons", h.createAddon)
+		g.Get("/seller/addons/{addonId}", h.getAddon)
+		g.Put("/seller/addons/{addonId}", h.updateAddon)
+		g.Delete("/seller/addons/{addonId}", h.deleteAddon)
+		g.Post("/seller/addons/{addonId}/submit-for-review", h.submitAddon)
+		g.Post("/seller/addons/{addonId}/approve", h.approveAddon)
+		g.Post("/seller/addons/{addonId}/reject", h.rejectAddon)
+		g.Get("/seller/menu-addons", h.listMenuAddons)
+		g.Post("/seller/menu-addons", h.linkAddon)
+		g.Delete("/seller/menu-addons/{venueId}/{dishId}/{addonId}", h.unlinkAddon)
 	})
 }
 

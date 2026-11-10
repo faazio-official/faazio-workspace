@@ -69,7 +69,7 @@ func (h *Handler) updateItem(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) removeItem(w http.ResponseWriter, r *http.Request) {
-	items, err := h.repo.SetCartItem(r.Context(), auth.UserID(r.Context()), chi.URLParam(r, "productId"), 0)
+	items, err := h.repo.SetCartItem(r.Context(), auth.UserID(r.Context()), chi.URLParam(r, "productId"), 0, nil, 0, "")
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "cart_unavailable", "cart unavailable")
 		return
@@ -79,8 +79,11 @@ func (h *Handler) removeItem(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) mutate(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		ProductID string `json:"productId"`
-		Qty       int64  `json:"qty"`
+		ProductID    string   `json:"productId"`
+		Qty          int64    `json:"qty"`
+		AddonIDs     []string `json:"addonIds"`
+		AddonPrice   int64    `json:"addonPrice"`
+		AddonSummary string   `json:"addonSummary"`
 	}
 	if err := httpx.Decode(r, &body); err != nil || body.ProductID == "" {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "productId required")
@@ -92,7 +95,11 @@ func (h *Handler) mutate(w http.ResponseWriter, r *http.Request) {
 	if body.Qty > 99 {
 		body.Qty = 99
 	}
-	items, err := h.repo.SetCartItem(r.Context(), auth.UserID(r.Context()), body.ProductID, body.Qty)
+	if body.AddonPrice < 0 {
+		body.AddonPrice = 0
+	}
+	items, err := h.repo.SetCartItem(r.Context(), auth.UserID(r.Context()), body.ProductID, body.Qty,
+		body.AddonIDs, body.AddonPrice, body.AddonSummary)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "cart_unavailable", "cart unavailable")
 		return

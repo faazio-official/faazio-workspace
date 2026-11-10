@@ -635,6 +635,26 @@ export interface MenuItemRecord {
   status: ProductStatus;
 }
 
+/** directory.addons — venue-scoped paid extras with the same moderation lifecycle as menus. */
+export interface AddonRecord {
+  addonId: string;
+  venueId: string;
+  name: string;
+  groupName: string;
+  pricePaisa: number;
+  isVeg: boolean;
+  status: ProductStatus;
+  /** Admin note when a submitted add-on is returned to DRAFT. */
+  reviewReason?: string | undefined;
+  updatedAt?: string | undefined;
+}
+
+/** directory.menu_addon_links joined with the add-on fields the inventory tab renders. */
+export interface MenuAddonRecord extends AddonRecord {
+  dishId: string;
+  enabled: boolean;
+}
+
 export type TicketStatus = "OPEN" | "IN_PROGRESS" | "RESOLVED" | "CLOSED";
 
 /** support.tickets */

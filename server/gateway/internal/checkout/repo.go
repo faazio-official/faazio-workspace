@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/platform/cache"
@@ -17,17 +18,24 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+// OrderLineAddon is one selected extra snapshot on an order line (checkout.order_item_addons).
+type OrderLineAddon struct {
+	AddonID   string `json:"addonId,omitempty"`
+	Name      string `json:"name"`
+	UnitPrice int64  `json:"unitPrice"` // rupees
+	Qty       int64  `json:"qty"`
+}
+
 // OrderLineItem is one order_items row, JSON shaped for OrderLineItem.
 type OrderLineItem struct {
-	LineID    string `json:"lineId"`
-	ProductID string `json:"productId,omitempty"`
-	Name      string `json:"name"`
-	Variant   string `json:"variant,omitempty"`
-	Qty       int64  `json:"qty"`
-	UnitPrice int64  `json:"unitPrice"` // rupees
-	// StoreID pins the line to its vendor store (0078). Persistent, but not part of the public
-	// line-item shape by default; the payout board uses it to charge each store's own fee.
-	StoreID string `json:"storeId,omitempty"`
+	LineID    string           `json:"lineId"`
+	ProductID string           `json:"productId,omitempty"`
+	Name      string           `json:"name"`
+	Variant   string           `json:"variant,omitempty"`
+	Qty       int64            `json:"qty"`
+	UnitPrice int64            `json:"unitPrice"` // rupees
+	StoreID   string           `json:"storeId,omitempty"`
+	Addons    []OrderLineAddon `json:"addons,omitempty"`
 }
 
 // Order is a checkout.orders row with its line items, JSON shaped for OrderRow.
@@ -384,6 +392,35 @@ func scanOrderHeaders(rows pgx.Rows) ([]Order, error) {
 	return orders, rows.Err()
 }
 
+// loadOrderAddons returns the selected extras for the given orders keyed by line id.
+func (r *Repo) loadOrderAddons(ctx context.Context, orderIDs []string) (map[string][]OrderLineAddon, error) {
+	out := map[string][]OrderLineAddon{}
+	if len(orderIDs) == 0 {
+		return out, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		select line_id, coalesce(addon_id,''), addon_name, addon_price_paisa, qty
+		  from checkout.order_item_addons
+		 where order_id = any($1)
+		 order by addon_name asc`, orderIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var (
+			lineID string
+			a      OrderLineAddon
+		)
+		if err := rows.Scan(&lineID, &a.AddonID, &a.Name, &a.UnitPrice, &a.Qty); err != nil {
+			return nil, err
+		}
+		a.UnitPrice = a.UnitPrice / 100
+		out[lineID] = append(out[lineID], a)
+	}
+	return out, rows.Err()
+}
+
 func (r *Repo) attachOrderItems(ctx context.Context, orders []Order) ([]Order, error) {
 	if len(orders) == 0 {
 		return orders, nil
@@ -413,7 +450,22 @@ func (r *Repo) attachOrderItems(ctx context.Context, orders []Order) ([]Order, e
 			orders[idx].LineItems = append(orders[idx].LineItems, li)
 		}
 	}
-	return orders, itemRows.Err()
+	if err := itemRows.Err(); err != nil {
+		return nil, err
+	}
+	addons, err := r.loadOrderAddons(ctx, orderIDs(orders))
+	if err != nil {
+		return nil, err
+	}
+	for idx := range orders {
+		for i := range orders[idx].LineItems {
+			line := &orders[idx].LineItems[i]
+			if list, ok := addons[line.LineID]; ok {
+				line.Addons = list
+			}
+		}
+	}
+	return orders, nil
 }
 
 // sellerScopePredicate is the shared order-authorization predicate. Parameters:
@@ -654,7 +706,19 @@ func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, bool, erro
 		li.UnitPrice = li.UnitPrice / 100
 		o.LineItems = append(o.LineItems, li)
 	}
-	return o, true, itemRows.Err()
+	if err := itemRows.Err(); err != nil {
+		return Order{}, false, err
+	}
+	addons, err := r.loadOrderAddons(ctx, []string{orderID})
+	if err != nil {
+		return Order{}, false, err
+	}
+	for i := range o.LineItems {
+		if list, ok := addons[o.LineItems[i].LineID]; ok {
+			o.LineItems[i].Addons = list
+		}
+	}
+	return o, true, nil
 }
 
 func orderIDs(orders []Order) []string {
@@ -737,6 +801,11 @@ type ProductSnapshot struct {
 	PricePaisa int64
 	SellerID   string
 	StoreID    *string
+	// VenueID is the ordering venue used to resolve add-on links. For catalog products it is the
+	// store id; for a `directory.menus` dish it is the menu venue id.
+	VenueID string
+	// IsMenuDish marks a `directory.menus` fallback row (no inventory.stock row to decrement).
+	IsMenuDish bool
 }
 
 // ProductSnapshots reads catalog.products rows for the given ids.
@@ -763,7 +832,100 @@ func (r *Repo) ProductSnapshots(ctx context.Context, ids []string) (map[string]P
 		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.Category, &s.PricePaisa, &s.SellerID, &s.StoreID); err != nil {
 			return nil, err
 		}
+		s.VenueID = derefStr(s.StoreID)
 		out[s.ID] = s
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	// Food menus live in directory.menus (dish ids are not catalog.products ids), so a menu dish
+	// ordered from the Food surface needs a second snapshot source. Only ACTIVE menu rows are
+	// orderable. A store-backed venue (venue_id = directory.stores.id) supplies the payout/seller
+	// identity; a pure dining venue has no store and is rejected later with the same
+	// "no vendor store" error as any unbillable item.
+	missing := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := out[id]; !ok {
+			missing = append(missing, id)
+		}
+	}
+	if len(missing) == 0 {
+		return out, nil
+	}
+	menuRows, err := r.pool.Query(ctx, `
+		select m.dish_id, m.name, coalesce(m.cuisine, ''), m.price_paisa, m.venue_id,
+		       coalesce(st.app::text, 'FOOD'), coalesce(st.seller_id, ''), coalesce(st.id, '')
+		  from directory.menus m
+		  left join directory.stores st on st.id = m.venue_id
+		 where m.dish_id = any($1) and m.status = 'ACTIVE'::product_status`, missing)
+	if err != nil {
+		return nil, err
+	}
+	defer menuRows.Close()
+	for menuRows.Next() {
+		var (
+			dishID, name, category, venueID, app, sellerID, storeID string
+			pricePaisa                                              int64
+		)
+		if err := menuRows.Scan(&dishID, &name, &category, &pricePaisa, &venueID, &app, &sellerID, &storeID); err != nil {
+			return nil, err
+		}
+		if _, exists := out[dishID]; exists {
+			continue
+		}
+		category = strings.TrimSpace(category)
+		if category == "" {
+			category = "Food"
+		}
+		snap := ProductSnapshot{
+			ID: dishID, Name: name, App: app, Category: category, PricePaisa: pricePaisa,
+			SellerID: sellerID, VenueID: venueID, IsMenuDish: true,
+		}
+		// Only a store-backed venue can carry the payout/pricing identity. A dining venue leaves
+		// StoreID nil and fails the "no vendor store" check in CreateOrder.
+		if storeID != "" {
+			snap.StoreID = &storeID
+		}
+		out[dishID] = snap
+	}
+	return out, menuRows.Err()
+}
+
+// AddonSnapshot is the authoritative add-on price used to re-price a line at placement.
+type AddonSnapshot struct {
+	ID         string
+	Name       string
+	PricePaisa int64
+}
+
+// AddonSnapshots reads the ACTIVE, enabled add-ons linked to one dish. An unknown/removed id is
+// simply absent from the map, which the caller treats as an invalid selection.
+func (r *Repo) AddonSnapshots(ctx context.Context, venueID, dishID string, ids []string) (map[string]AddonSnapshot, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	out := map[string]AddonSnapshot{}
+	if len(ids) == 0 || venueID == "" || dishID == "" {
+		return out, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		select a.addon_id, a.name, a.price_paisa
+		  from directory.menu_addon_links l
+		  join directory.addons a on a.addon_id = l.addon_id and a.venue_id = l.venue_id
+		 where l.venue_id = $1 and l.dish_id = $2 and l.is_enabled
+		   and a.status = 'ACTIVE'::product_status
+		   and a.addon_id = any($3)`, venueID, dishID, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var a AddonSnapshot
+		if err := rows.Scan(&a.ID, &a.Name, &a.PricePaisa); err != nil {
+			return nil, err
+		}
+		out[a.ID] = a
 	}
 	return out, rows.Err()
 }
@@ -1052,6 +1214,15 @@ func (r *Repo) InsertOrderTx(ctx context.Context, tx pgx.Tx, o Order, lines []Or
 			li.LineID, o.ID, nullIfEmpty(li.ProductID), li.Name, nullIfEmpty(li.Variant), li.Qty, li.UnitPrice*100, li.StoreID); err != nil {
 			return err
 		}
+		for _, a := range li.Addons {
+			if _, err := tx.Exec(ctx, `
+				insert into checkout.order_item_addons
+				  (order_item_addon_id, order_id, line_id, addon_id, addon_name, addon_price_paisa, qty)
+				values ($1,$2,$3,nullif($4,''),$5,$6,$7)`,
+				newOrderAddonID(), o.ID, li.LineID, a.AddonID, a.Name, a.UnitPrice*100, a.Qty); err != nil {
+				return err
+			}
+		}
 	}
 	for _, inv := range invoices {
 		if _, err := tx.Exec(ctx, `
@@ -1095,8 +1266,17 @@ func totalPaisa(lines []OrderLineItem) int64 {
 	var total int64
 	for _, li := range lines {
 		total += li.Qty * li.UnitPrice * 100
+		for _, a := range li.Addons {
+			total += a.Qty * a.UnitPrice * 100
+		}
 	}
 	return total
+}
+
+func newOrderAddonID() string {
+	b := make([]byte, 6)
+	_, _ = crand.Read(b)
+	return "OA-" + hex.EncodeToString(b)
 }
 
 // OrderByRxForUser returns the checkout order materialised for a prescription (rx_id), scoped to its

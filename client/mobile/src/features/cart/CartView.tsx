@@ -559,7 +559,11 @@ export default function CartView({
         // and settled server-side; the applied discount in the UI is display-only.
         const attributedSlotId = consumeLastClickedSlotId();
         const placed = await gateway.placeOrder({
-          items: selectedItems.map((i) => ({ productId: i.id, qty: i.quantity })),
+          items: selectedItems.map((i) => ({
+            productId: i.id,
+            qty: i.quantity,
+            ...(i.addonIds && i.addonIds.length > 0 ? { addonIds: i.addonIds } : {}),
+          })),
           ...(addressId ? { addressId } : {}),
           fulfillment: mode,
           paymentMethod: method,
@@ -951,6 +955,9 @@ export default function CartView({
                             <View style={styles.itemDetails}>
                               <AppText style={styles.itemName} numberOfLines={2}>{item.name}</AppText>
                               {item.qtyDesc ? <AppText style={styles.itemQtyDesc}>{item.qtyDesc}</AppText> : null}
+                              {item.addonSummary ? (
+                                <AppText style={styles.itemAddonDesc} numberOfLines={2}>+ {item.addonSummary}</AppText>
+                              ) : null}
                               <View style={styles.stepperPill}>
                                 <TouchableOpacity onPress={() => updateCartQuantity(item.id, -1)} style={styles.stepperBtn} activeOpacity={0.8} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                                   <Minus size={ms(12)} color={semantic.success} strokeWidth={2.6} />
@@ -1347,9 +1354,14 @@ export default function CartView({
                   <AppText style={styles.purchasedItemName} numberOfLines={1}>
                     {item.name}
                   </AppText>
-                  <AppText style={styles.purchasedItemQty}>x {item.quantity}</AppText>
+                  <AppText style={styles.purchasedItemQty}>
+                    x {item.quantity}
+                    {item.addonSummary ? ` · + ${item.addonSummary}` : ''}
+                  </AppText>
                 </View>
-                <AppText style={styles.purchasedItemPrice}>₹{(item.price * item.quantity).toLocaleString('en-IN')}</AppText>
+                <AppText style={styles.purchasedItemPrice}>
+                  ₹{((item.price + (item.addonPrice ?? 0)) * item.quantity).toLocaleString('en-IN')}
+                </AppText>
               </View>
             ))}
           </View>
@@ -2516,6 +2528,11 @@ const styles = StyleSheet.create({
     color: neutral.ink,
   },
   itemQtyDesc: {
+    fontSize: ms(11),
+    color: neutral.inkMuted,
+    marginTop: vs(2),
+  },
+  itemAddonDesc: {
     fontSize: ms(11),
     color: neutral.inkMuted,
     marginTop: vs(2),

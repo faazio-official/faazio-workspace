@@ -91,6 +91,7 @@ export const DISTRICT_ADMIN_NAV: NavItem[] = [
   { label: "Delivery partners", to: "/admin/district/delivery-boys", icon: Truck, group: "Supply" },
   { label: "Products", to: "/admin/district/products", icon: Package, group: "Supply" },
   { label: "Listing queue", to: "/admin/district/products/queue", icon: ClipboardList, group: "Supply" },
+  { label: "Add-on queue", to: "/admin/district/addons/queue", icon: ClipboardList, group: "Supply" },
   { label: "Fee change requests", to: "/admin/district/fee-change-requests", icon: Receipt, group: "Supply" },
   { label: "Pricing audit", to: "/admin/district/pricing-audit", icon: FileSearch, group: "Supply" },
   { label: "Festival", to: "/admin/district/festival", icon: PartyPopper, group: "Growth" },

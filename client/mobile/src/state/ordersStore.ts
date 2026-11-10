@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { OrderRow } from '@data/checkout/orders';
+import type { OrderLineAddon, OrderRow } from '@data/checkout/orders';
 import type { FulfillmentMode, OrderStatus } from '@data/types';
 import { orderRowToPlaced, prescriptionToPlaced } from '@/services/orderHistory';
 import { gateway } from '@/services/api/GatewayClient';
@@ -12,6 +12,8 @@ export interface PlacedOrderItem {
   price: number;
   quantity: number;
   emoji: string;
+  /** Selected extras snapshotted on the order line (server-persisted). */
+  addons?: OrderLineAddon[];
 }
 
 export interface PlacedOrder {

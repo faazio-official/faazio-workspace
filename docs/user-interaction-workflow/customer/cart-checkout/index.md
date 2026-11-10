@@ -10,7 +10,7 @@
 
 | Flow | Doc |
 |---|---|
-| Add to cart / quantity changes | [add-to-cart.md](./add-to-cart.md) |
+| Add to cart / quantity changes (+ dish add-ons) | [add-to-cart.md](./add-to-cart.md) |
 | Delivery-fee quote | [delivery-fee-quote.md](./delivery-fee-quote.md) |
 | Place order + payment | [place-order.md](./place-order.md) |
 

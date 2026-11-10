@@ -148,7 +148,10 @@ export function computeTotals(
   mode: FulfillmentMode = 'DELIVERY',
   deliveryFeeOverridePaisa?: number,
 ): CartTotals {
-  const subtotal = items.reduce((acc, curr) => acc + curr.price * curr.quantity, 0);
+  const subtotal = items.reduce(
+    (acc, curr) => acc + (curr.price + (curr.addonPrice ?? 0)) * curr.quantity,
+    0,
+  );
   const deliveryFeePaisa =
     mode === 'PICKUP' ? 0 : deliveryFeeOverridePaisa ?? DEFAULT_DELIVERY_FEE_PAISA;
   const deliveryFee = deliveryFeePaisa / 100;

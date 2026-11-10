@@ -18,6 +18,12 @@ export interface CartItem {
    * cart view without a second store.
    */
   restaurantId?: string;
+  /** Selected add-on ids for this line (validated + re-priced by checkout). */
+  addonIds?: string[];
+  /** Per-unit add-on total in whole rupees (display only; checkout is authoritative). */
+  addonPrice?: number;
+  /** Human summary of the selected extras, shown under the line in the cart. */
+  addonSummary?: string;
 }
 
 export type CartCategory = 'MART' | 'FOOD' | 'PHARMA';
@@ -32,7 +38,16 @@ interface CartState {
   syncing: boolean;
   /** Last failed write, cleared on the next successful one. */
   syncError: string | null;
-  addToCart: (id: string, name: string, price: number, emoji: string, restaurantId?: string) => Promise<void>;
+  addToCart: (
+    id: string,
+    name: string,
+    price: number,
+    emoji: string,
+    restaurantId?: string,
+    addonIds?: string[],
+    addonPrice?: number,
+    addonSummary?: string,
+  ) => Promise<void>;
   removeFromCart: (itemId: string) => Promise<void>;
   updateQuantity: (itemId: string, delta: number) => Promise<void>;
   clearCart: () => Promise<void>;
@@ -58,7 +73,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
   syncing: false,
   syncError: null,
 
-  addToCart: async (id, name, price, emoji, restaurantId) => {
+  addToCart: async (id, name, price, emoji, restaurantId, addonIds, addonPrice, addonSummary) => {
     const prev = get().cart;
     const existing = prev.find((i) => i.id === id);
     const nextQty = (existing?.quantity ?? 0) + 1;
@@ -70,10 +85,27 @@ export const useCartStore = create<CartState>()((set, get) => ({
                 quantity: nextQty,
                 // Adopt an untagged line into the restaurant that re-adds it.
                 restaurantId: i.restaurantId ?? restaurantId,
+                // A new add-on selection replaces the line's extras; omitted keeps them.
+                addonIds: addonIds ?? i.addonIds,
+                addonPrice: addonPrice ?? i.addonPrice,
+                addonSummary: addonSummary ?? i.addonSummary,
               }
             : i,
         )
-      : [...prev, { id, name, price, quantity: 1, emoji, restaurantId }];
+      : [
+          ...prev,
+          {
+            id,
+            name,
+            price,
+            quantity: 1,
+            emoji,
+            restaurantId,
+            ...(addonIds ? { addonIds } : {}),
+            ...(addonPrice !== undefined ? { addonPrice } : {}),
+            ...(addonSummary ? { addonSummary } : {}),
+          },
+        ];
     set({ cart: nextCart, syncError: null });
 
     if (!gateway.remoteEnabled) return;
@@ -82,8 +114,8 @@ export const useCartStore = create<CartState>()((set, get) => ({
     try {
       // The gateway's POST/PUT both SET the absolute quantity (not increment), so an existing line
       // must send its next total — otherwise re-adding an item would reset it to 1.
-      if (existing) await gateway.updateCartItem(id, nextQty);
-      else await gateway.addToCart(id, 1);
+      if (existing) await gateway.updateCartItem(id, nextQty, addonIds, addonPrice, addonSummary);
+      else await gateway.addToCart(id, 1, addonIds, addonPrice, addonSummary);
       void gateway.trackEvent(id, 'cart_add').catch(() => {});
     } catch {
       set({ cart: prev, syncError: SYNC_ERROR });
@@ -124,7 +156,8 @@ export const useCartStore = create<CartState>()((set, get) => ({
 
     set({ syncing: true });
     try {
-      if (nextQty > 0) await gateway.updateCartItem(itemId, nextQty);
+      if (nextQty > 0)
+        await gateway.updateCartItem(itemId, nextQty, current.addonIds, current.addonPrice, current.addonSummary);
       else await gateway.removeCartItem(itemId);
     } catch {
       set({ cart: prev, syncError: SYNC_ERROR });
@@ -210,6 +243,9 @@ export const useCartStore = create<CartState>()((set, get) => ({
           imageUrl: p?.image || undefined,
           originalPrice: p?.originalPrice,
           category: p?.app,
+          addonIds: ci.addonIds,
+          addonPrice: ci.addonPrice,
+          addonSummary: ci.addonSummary,
         };
       });
       set({ cart: items, hydrated: true, syncError: null });

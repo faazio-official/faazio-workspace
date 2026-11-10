@@ -35,6 +35,8 @@ import FoodStatusBarStrip from '../components/FoodStatusBarStrip';
 import MenuItemRow from '../components/MenuItemRow';
 import MenuCategoryRail from '../components/MenuCategoryRail';
 import ViewCartPill from '../components/ViewCartPill';
+import AddonPickerSheet from '../components/AddonPickerSheet';
+import { gateway, type DishAddon } from '@/services/api/GatewayClient';
 import { foodTheme } from '../constants/theme';
 import type { FoodStackParamList, RootStackParamList } from '@/navigation/types';
 import type { SpecialDish } from '@data/types';
@@ -55,6 +57,8 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   const restaurant = route.params.restaurant;
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
+  const [picker, setPicker] = useState<{ dish: SpecialDish; addons: DishAddon[] } | null>(null);
+  const [addonLoadingId, setAddonLoadingId] = useState<string | null>(null);
 
   // Screen-local diet override seeded once from the shared store. Toggling here
   // never writes back, so home/search keep their value; re-opening this screen
@@ -152,10 +156,43 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
   }, [navigation, restaurant.id, restaurant.name]);
 
   const handleAdd = useCallback(
-    (dish: SpecialDish) => {
-      addToCart(dish.id, dish.dishName, dish.price, 'dining', restaurant.id);
+    async (dish: SpecialDish) => {
+      if (addonLoadingId === dish.id) return;
+      setAddonLoadingId(dish.id);
+      try {
+        const addons = await gateway.getDishAddons(restaurant.id, dish.id);
+        if (addons.length === 0) {
+          void addToCart(dish.id, dish.dishName, dish.price, 'dining', restaurant.id);
+        } else {
+          setPicker({ dish, addons });
+        }
+      } catch {
+        void addToCart(dish.id, dish.dishName, dish.price, 'dining', restaurant.id);
+      } finally {
+        setAddonLoadingId(null);
+      }
     },
-    [addToCart, restaurant.id],
+    [addToCart, addonLoadingId, restaurant.id],
+  );
+
+  const confirmAddons = useCallback(
+    (selected: DishAddon[]) => {
+      if (!picker) return;
+      const addonPrice = selected.reduce((sum, a) => sum + a.price, 0);
+      const addonSummary = selected.map((a) => a.name).join(', ');
+      void addToCart(
+        picker.dish.id,
+        picker.dish.dishName,
+        picker.dish.price,
+        'dining',
+        restaurant.id,
+        selected.map((a) => a.id),
+        addonPrice,
+        addonSummary,
+      );
+      setPicker(null);
+    },
+    [addToCart, picker, restaurant.id],
   );
 
   /** Paid STORE_TOP tap-through on this restaurant page: product/dish → PDP; other venues no-op. */
@@ -414,6 +451,15 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
       )}
 
       <FoodStatusBarStrip scrollY={scrollY} />
+
+      <AddonPickerSheet
+        visible={picker !== null}
+        dishName={picker?.dish.dishName ?? ''}
+        basePrice={picker?.dish.price ?? 0}
+        addons={picker?.addons ?? []}
+        onClose={() => setPicker(null)}
+        onConfirm={confirmAddons}
+      />
 
     </View>
   );

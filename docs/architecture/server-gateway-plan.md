@@ -80,7 +80,15 @@ caller) and are event-purged on store live toggle and product edit/status change
   seller-scoped and audit-logged. `DELETE /seller/products/{id}` soft-deletes to a 7-day trash
   (`catalog.products.deleted_at`, `0089`), `GET /seller/products/trash` lists it and `POST
   /seller/products/{id}/restore` restores it; `catalog.purge_deleted_products` removes the product +
-  stock after the window. Promotions read
+  stock after the window. Dish add-ons share the same moderation lifecycle: `GET/POST /seller/addons`,
+  `GET/PUT/DELETE /seller/addons/{addonId}`, `POST /seller/addons/{addonId}/submit-for-review`
+  (DRAFT→PENDING_REVIEW), admin `POST /seller/addons/{addonId}/approve` (→ACTIVE) and
+  `POST /seller/addons/{addonId}/reject` (→DRAFT + `review_reason`), plus dish links
+  `GET/POST /seller/menu-addons` and `DELETE /seller/menu-addons/{venueId}/{dishId}/{addonId}`.
+  The public customer read is `GET /venues/{venueId}/menu/{dishId}/addons` (ACTIVE + enabled only).
+  `POST /orders` line items may carry `addonIds`; the server re-validates each id against
+  `directory.menu_addon_links` + `directory.addons` (ACTIVE), re-prices it, and snapshots the
+  selection into `checkout.order_item_addons` in the same transaction. Promotions read
   `GET /seller/promotions` (campaigns + own opt-ins) with opt-in `POST /seller/promotions/optin`; the
   money ledger reads `GET /seller/payments` and `GET /seller/payments/{cycleId}` (seller id from the token).
   `POST /orders` also enqueues a PII-free seller new-order notification per active seller portal user

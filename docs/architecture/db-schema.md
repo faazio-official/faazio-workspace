@@ -2563,3 +2563,30 @@ each toggle/invite optimistically updated then rolled back. `0097` gives the las
    `SELLER_CAMPAIGN`→`campaigns`); only the seller owner login is targeted.
 5. RLS mirrors `0049`/`0050`: the owning seller reads their own rows; super/state admins read in
    district scope; writes stay service_role only.
+
+### 12.37 Dish add-ons (migration `0099`)
+
+**Authority:** `monolith-breakdown.md` §1 (`catalog/directory` + `checkout` rows),
+`server-gateway-plan.md`, `user-interaction-workflow/seller/web-portal/addons.md`. Menu dishes had
+no way to order paid extras. Add-ons are venue-scoped catalogue rows with the same
+DRAFT → PENDING_REVIEW → ACTIVE moderation lifecycle as menu products.
+
+1. `directory.addons` — `addon_id` PK, `venue_id` (menu venue; deliberately no FK, matching
+   `directory.menus.venue_id` which resolves a vendor store or a dining venue), `name`,
+   `group_name`, `price_paisa` (`>= 0`), `is_veg`, `status product_status default 'DRAFT'`,
+   `review_reason` (`<= 500` bytes), `created_at`, `updated_at`. Indexes: `venue_id`, `status`,
+   `(venue_id, status)`. A rejected add-on returns to `DRAFT` with the admin note, so the seller can
+   fix and resubmit.
+2. `directory.menu_addon_links` — many-to-many dish links: `(venue_id, dish_id, addon_id)` PK,
+   `is_enabled` (seller on/off for that dish), `created_at`, FK `addon_id → directory.addons`
+   (`on delete cascade`). Indexes: `addon_id`, `(venue_id, dish_id)`.
+3. `checkout.order_item_addons` — immutable placement snapshot: `order_item_addon_id` PK,
+   `order_id` FK → `checkout.orders` (`on delete cascade`), `line_id` FK → `checkout.order_items`
+   (`on delete cascade`), `addon_id` (no FK — history survives catalogue deletion), `addon_name`,
+   `addon_price_paisa` (per unit, `>= 0`), `qty` (`> 0`). Indexes: `order_id`, `line_id`. Checkout
+   re-validates that each selected add-on is ACTIVE and linked to the ordered dish, then re-prices
+   from `directory.addons`; `checkout.order_items.unit_price_paisa` stays the base dish price and the
+   invoice/order totals include the add-on snapshot.
+4. RLS (Supabase only): anon/authenticated read `directory.addons` + `directory.menu_addon_links`
+   (public catalogue, DRAFT rows are filtered by the gateway); `checkout.order_item_addons` is
+   owner-read via the parent order (`checkout.current_app_user_id()`). Writes stay service_role only.

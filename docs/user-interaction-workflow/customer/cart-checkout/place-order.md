@@ -9,9 +9,13 @@
 
 1. `handlePlaceOrder` validates the delivery address (Delivery only) and builds a stable
    idempotency key.
-2. `gateway.placeOrder(input)` → `POST /orders`. The gateway re-prices from `catalog.products`,
+2. `gateway.placeOrder(input)` → `POST /orders`. The gateway re-prices from `catalog.products` (with
+   a `directory.menus` fallback for Food dish ids). Each line may carry `addonIds`; the server
+   re-validates that every one is ACTIVE + linked to the ordered dish, re-prices it from
+   `directory.addons`, adds the add-on total to the line/invoice gross, and snapshots the selection
+   into `checkout.order_item_addons`. It also
    validates the coupon / streak discount card and coin balance, decrements stock, and writes the
-   order, items, invoice, payment, and idempotency key in **one transaction**. The streak card is
+   order, items, add-on snapshots, invoice, payment, and idempotency key in **one transaction**. The streak card is
    sent as `useDiscountCard: true` (mutually exclusive with `couponCode`); the server reads its
    percent from `rewards.balances`, applies the same whole-rupee discount the client showed, and
    clears the card after the order commits. An absent/expired card fails with
@@ -39,7 +43,7 @@
 ## Data path
 
 - `gateway.placeOrder` → `POST /orders` → `checkout.orders`, `checkout.order_items`,
-  `checkout.payments`, `checkout.idempotency_keys`, `tax.tax_invoices`.
+  `checkout.order_item_addons`, `checkout.payments`, `checkout.idempotency_keys`, `tax.tax_invoices`.
 - `gateway.validateCoupon` → `POST /checkout/validate-coupon` → `promo.coupons`.
 - Streak discount card: `rewards.balances.card` (read at settlement, cleared after commit).
 - `gateway.createRazorpayOrder` → `POST /razorpay/customer/orders` → `checkout.payments`.

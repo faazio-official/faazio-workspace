@@ -185,10 +185,15 @@ export interface HomeCampaignDetail {
   products: ProductView[];
 }
 
-/** One auth-scoped cart line (inventory.carts). */
+/** One auth-scoped cart line (inventory.carts). Addon fields are display hints re-priced at checkout. */
 export interface CartItem {
   productId: string;
   qty: number;
+  addonIds?: string[];
+  /** Per-unit add-on total in whole rupees (display only). */
+  addonPrice?: number;
+  /** Human summary of the selected extras ("Extra Cheese, Extra Gravy"). */
+  addonSummary?: string;
 }
 
 /** The auth-scoped cart payload. */
@@ -362,6 +367,15 @@ export interface MenuDish {
   image?: string;
   description?: string;
   emoji?: string;
+}
+
+/** One approved add-on linked to a dish (customer-facing, whole rupees). */
+export interface DishAddon {
+  id: string;
+  name: string;
+  groupName: string;
+  price: number;
+  isVeg: boolean;
 }
 
 /** One restaurant venue (directory.dining_venues) as served by `GET /venues`. */
@@ -1564,6 +1578,17 @@ export class GatewayClient {
   }
 
   /**
+   * The approved add-ons linked to one dish. Server-only: an offline read throws so the caller can
+   * fall back to a direct add instead of inventing extras.
+   */
+  async getDishAddons(venueId: string, dishId: string): Promise<DishAddon[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DishAddon[]>(
+      `/venues/${encodeURIComponent(venueId)}/menu/${encodeURIComponent(dishId)}/addons`,
+    );
+  }
+
+  /**
    * Upload one Rx photo to the private `prescriptions` bucket via a signed upload URL, returning the
    * Storage object key (never a URL). Returns null in mock mode or on any failure so the caller can
    * still create the Rx with whatever keys succeeded. The key/bytes are never logged.
@@ -2177,15 +2202,35 @@ export class GatewayClient {
     );
   }
 
-  async addToCart(productId: string, qty = 1): Promise<Cart> {
+  async addToCart(
+    productId: string,
+    qty = 1,
+    addonIds?: string[],
+    addonPrice?: number,
+    addonSummary?: string,
+  ): Promise<Cart> {
     return this.serverOnly(
-      () => this.http<Cart>('/cart/items', { method: 'POST', body: JSON.stringify({ productId, qty }) }),
+      () =>
+        this.http<Cart>('/cart/items', {
+          method: 'POST',
+          body: JSON.stringify({ productId, qty, addonIds, addonPrice, addonSummary }),
+        }),
     );
   }
 
-  async updateCartItem(productId: string, qty: number): Promise<Cart> {
+  async updateCartItem(
+    productId: string,
+    qty: number,
+    addonIds?: string[],
+    addonPrice?: number,
+    addonSummary?: string,
+  ): Promise<Cart> {
     return this.serverOnly(
-      () => this.http<Cart>('/cart/items', { method: 'PUT', body: JSON.stringify({ productId, qty }) }),
+      () =>
+        this.http<Cart>('/cart/items', {
+          method: 'PUT',
+          body: JSON.stringify({ productId, qty, addonIds, addonPrice, addonSummary }),
+        }),
     );
   }
 
