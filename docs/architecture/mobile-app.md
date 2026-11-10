@@ -1505,11 +1505,14 @@ need the **customer + delivery** packages on their allowlist. Do not delete the 
 dependency to achieve this — that would break customer and delivery.
 The customer product itself never requests background location. iOS plists are split per variant:
 only the delivery variant (`ios/Faazio/Info-Delivery.plist`) declares `UIBackgroundModes: location`
-and `NSLocationAlwaysAndWhenInUseUsageDescription` (the partner app is the only caller of the
-background watch); the customer `ios/Faazio/Info.plist` and seller `ios/Faazio/Info-Seller.plist`
-declare `remote-notification` only and are foreground-only, so they never prompt for "Always"
-location. `INFOPLIST_FILE` selects the plist per Xcode build configuration. Android keeps background
-location scoped to the delivery flavor manifest.
+(the partner app is the only caller of the background watch). Both the customer
+`ios/Faazio/Info.plist` and the delivery plist carry `NSLocationAlwaysAndWhenInUseUsageDescription`
+because linked CoreLocation modules (`react-native-maps`, the native geocoder) reference the API and
+App Store validation (ITMS-90683) requires the purpose string; the seller
+`ios/Faazio/Info-Seller.plist` mounts no map and declares no location keys. The customer and seller
+plists declare `remote-notification` only and remain foreground-only — the customer never requests
+"Always" authorization or background location. `INFOPLIST_FILE` selects the plist per Xcode build
+configuration. Android keeps background location scoped to the delivery flavor manifest.
 
 ## Cart checkout — BAG → FULFILLMENT → PAYMENT → (PAYMENT_STATUS → PAYMENT_FAILED) → RECEIPT
 

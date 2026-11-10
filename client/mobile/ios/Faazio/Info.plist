@@ -65,6 +65,8 @@
 	<string>Faazio uses the camera so you can capture medical prescriptions and upload seller verification documents.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Faazio uses your location while the app is open to show nearby stores, estimate delivery distance, suggest your city for blood donation and auto-fill your delivery address.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Faazio uses your location while the app is open to show nearby stores, estimate delivery distance, suggest your city for blood donation and auto-fill your delivery address. Faazio does not track your location in the background.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Faazio lets you choose existing prescription photos from your photo library.</string>
 	<key>RCTMetroPort</key>
