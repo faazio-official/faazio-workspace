@@ -80,12 +80,15 @@ concurrency:
 
 jobs:
   build-release-ipa:
-    # Intel pool: the arm64 macos-15 runners have been capacity-constrained
-    # ("job was not acquired by Runner of type hosted"). macos-15-intel also
-    # ships Xcode 26.3 (see actions/runner-images macos-15-Readme.md).
-    # Larger macos-15-* runners are arm64 and require configured larger-runner
-    # billing, so they are intentionally not used here.
-    runs-on: macos-15-intel
+    # Arm64 pool (macos-15). Native arm64 compiles this workspace in ~15 min;
+    # the x86_64 macos-15-intel pool cross-compiles the same archive in ~40-48 min,
+    # which is what pushed release runs past an hour. If GitHub reports
+    # "job was not acquired by Runner of type hosted" capacity errors, temporarily
+    # switch this to macos-15-intel (Xcode 26.3 is installed on both pools).
+    # Larger macos-15-* runners require configured larger-runner billing.
+    runs-on: macos-15
+    # Guard against a stuck TestFlight upload/archive keeping the job alive forever.
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: client/mobile
@@ -207,8 +210,9 @@ jobs:
       - name: Install CocoaPods
         run: cd ios && pod install
 
-      - name: Cache Swift Packages
-        uses: actions/cache@v4
+      - name: Restore Swift Packages cache
+        id: spm-cache
+        uses: actions/cache/restore@v4
         with:
           # Xcode stores resolved SwiftPM repositories here. `.build` is only used
           # by the `swift build` CLI, not by an Xcode workspace archive, so it is
@@ -229,7 +233,10 @@ jobs:
         # - COMPILER_INDEX_STORE_ENABLE=NO: skips index-store generation for release
         # - -skipPackagePluginValidation -skipMacroValidation: avoids plugin/macro validation stalls
         # - -quiet: reduces log noise (warnings/errors still print)
-        # - COMPILATION_CACHE_ENABLE_CACHING=YES: native Xcode 26+ compilation caching
+        # - COMPILATION_CACHE_ENABLE_CACHING=YES: requests Xcode 26's compilation
+        #   cache. Xcode logs "Compile caching is not supported with implicit
+        #   modules", so it is a no-op for these pods until explicit modules are
+        #   enabled; kept for when React Native supports them.
         run: |
           xcodebuild \
             -workspace ios/Faazio.xcworkspace \
@@ -245,6 +252,16 @@ jobs:
             COMPILER_INDEX_STORE_ENABLE=NO \
             COMPILATION_CACHE_ENABLE_CACHING=YES \
             archive
+
+      # Save the SPM cache before any sign/export/upload step. The combined
+      # actions/cache post-step only runs on success, so a later TestFlight
+      # failure used to discard the cache and make every retry re-fetch SPM.
+      - name: Save Swift Packages cache
+        if: ${{ always() && steps.spm-cache.outputs.cache-hit != 'true' && steps.spm-cache.outputs.cache-primary-key != '' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: ${{ steps.spm-cache.outputs.cache-primary-key }}
 
       - name: Export signed .ipa
         id: export
@@ -289,10 +306,11 @@ jobs:
           issuer-id: ${{ vars.APPSTORE_ISSUER_ID || secrets.APPSTORE_ISSUER_ID }}
           api-key-id: ${{ vars.APPSTORE_API_KEY_ID || secrets.APPSTORE_API_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
-          # The app only uses exempt encryption (HTTPS + OS Keychain), so declare that at
-          # upload time too. Info.plist carries ITSAppUsesNonExemptEncryption=false; this
-          # keeps App Store Connect from flagging the build as "Missing Compliance".
-          uses-non-exempt-encryption: "false"
+          # Do NOT pass `uses-non-exempt-encryption`. The archive's Info.plist
+          # already carries ITSAppUsesNonExemptEncryption=false, so App Store
+          # Connect sets compliance at upload. The action's follow-up PATCH then
+          # fails with 409 "You cannot update when the value is already set",
+          # which is what broke releases. Omitting the input skips that PATCH.
 
       - name: Publish GitHub Release
         env:

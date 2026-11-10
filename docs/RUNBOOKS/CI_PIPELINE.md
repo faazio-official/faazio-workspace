@@ -20,7 +20,7 @@ Four workflows:
   land on a `-delivery` / `-seller` tag and need `GOOGLE_SERVICES_DELIVERY_JSON` /
   `GOOGLE_SERVICES_SELLER_JSON`.
 - [`.github/workflows/ios-release.yml`](../../.github/workflows/ios-release.yml) — signed release
-  `.ipa` on `macos-15-intel` → TestFlight (App Store Connect API) + GitHub Release. **Customer only**
+  `.ipa` on `macos-15` (arm64) → TestFlight (App Store Connect API) + GitHub Release. **Customer only**
   (`-f app=customer`): the delivery/seller partner apps are Android/Play releases, not iOS
   (see "🍎 iOS release" below).
 - [`.github/workflows/android-debug.yml`](../../.github/workflows/android-debug.yml) — debug APK →
@@ -187,7 +187,7 @@ attaches the `.aab`; the default dispatch produces the signed APK alone.
 
 ## 🍎 iOS release (customer only)
 
-Builds a release-signed `.ipa` for the **customer app** on a GitHub-hosted `macos-15-intel` runner
+Builds a release-signed `.ipa` for the **customer app** on a GitHub-hosted `macos-15` (arm64) runner
 (Xcode 26.3), uploads it to TestFlight via the App Store Connect API, and attaches it to a GitHub
 Release. The committed `ios/` Xcode project is the source of truth — no prebuild. Delivery/seller
 have no planned iOS release (Android/Play only). See the "iOS / App Store" secrets table above.
@@ -200,8 +200,14 @@ gh run view --log-failed                 # if it fails, pull the xcodebuild erro
 
 Steps: `npm ci` → rewrite `package.json` + Xcode `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` →
 `ts:check` + `check:boundaries` → `npm run configure` (release) → `restore-ios-signing.sh customer`
-→ `pod install` → `xcodebuild archive` → `xcodebuild -exportArchive` → `codesign` verify (must be an
-"Apple Distribution" authority) → upload IPA artifact → TestFlight → `gh release upload --clobber`.
+→ `pod install` → restore SwiftPM cache → `xcodebuild archive` → save SwiftPM cache →
+`xcodebuild -exportArchive` → `codesign` verify (must be an "Apple Distribution" authority) → upload
+IPA artifact → TestFlight → `gh release upload --clobber`.
+
+The archive runs on the native arm64 pool (`macos-15`, Xcode 26.3) because the Intel pool
+cross-compiles the same workspace in roughly 3× the time (≈45 min vs ≈15 min). The SwiftPM cache is
+saved immediately after the archive, so a later TestFlight failure does not discard it and force a
+fresh SPM fetch on the retry.
 
 The input (or `package.json`) sets `MARKETING_VERSION`; `CFBundleVersion` is a UTC timestamp
 (`YYYYMMDDHHmm`) generated on every run, so each upload is strictly higher than the last one —
@@ -211,7 +217,7 @@ not higher than the previously uploaded build, so never hardcode it. Release tag
 
 ### 🍎 iOS Release from Linux (no macOS needed)
 
-iOS releases are built by GitHub Actions on `macos-15-intel` runners; you trigger them from Linux via
+iOS releases are built by GitHub Actions on `macos-15` (arm64) runners; you trigger them from Linux via
 `gh`. No local Mac is required at any step — CI handles signing, export, verification, and upload.
 
 **Prerequisites** — GitHub secrets/variables (copy exact names from `.github/workflows/ios-release.yml`):

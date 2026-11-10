@@ -375,7 +375,7 @@ gh run view --log-failed       # xcodebuild errors on failure
 > completeness, but there is **no planned iOS build or App Store release** for them. Always dispatch
 > with `-f app=customer`; the `delivery` / `seller` inputs are not used for iOS.
 
-`.github/workflows/ios-release.yml` runs on `macos-15-intel` (Xcode 26.3): `npm ci` → version rewrite →
+`.github/workflows/ios-release.yml` runs on `macos-15` (arm64, Xcode 26.3): `npm ci` → version rewrite →
 `ts:check`/`check:boundaries` → `npm run configure` (release) →
 `scripts/restore-ios-signing.sh <app>` (imports the shared distribution cert into a temporary
 keychain, installs that product's App Store profile, writes `ios/ExportOptions.plist`) → `pod install`
