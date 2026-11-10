@@ -256,6 +256,10 @@ jobs:
           issuer-id: ${{ vars.APPSTORE_ISSUER_ID || secrets.APPSTORE_ISSUER_ID }}
           api-key-id: ${{ vars.APPSTORE_API_KEY_ID || secrets.APPSTORE_API_KEY_ID }}
           api-private-key: ${{ secrets.APPSTORE_API_PRIVATE_KEY }}
+          # The app only uses exempt encryption (HTTPS + OS Keychain), so declare that at
+          # upload time too. Info.plist carries ITSAppUsesNonExemptEncryption=false; this
+          # keeps App Store Connect from flagging the build as "Missing Compliance".
+          uses-non-exempt-encryption: "false"
 
       - name: Publish GitHub Release
         env:
