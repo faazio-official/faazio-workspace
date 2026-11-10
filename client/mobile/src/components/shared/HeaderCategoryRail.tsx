@@ -5,6 +5,7 @@ import { AppImage } from './AppImage';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { HEADER_RAIL_PAGE_SIZE, usePagedRail } from '@/hooks/usePagedRail';
+import { neutral } from '@/theme/brandTokens';
 import type { CategoryRailItem } from '@/services/categoryRail';
 import type { VendorApp } from '@/services/categoryVendors';
 
@@ -55,7 +56,7 @@ const HeaderCategoryRail = memo(function HeaderCategoryRail({
           accessibilityRole="button"
           accessibilityLabel="Retry loading categories"
         >
-          <RefreshCw size={ms(14)} color="#000000" strokeWidth={2.2} />
+          <RefreshCw size={ms(14)} color={neutral.ink} strokeWidth={2.2} />
           <AppText style={styles.chipLabel} numberOfLines={1}>
             Retry
           </AppText>

@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
+import { neutral } from '@/theme/brandTokens';
 
 interface AdLabelBadgeProps {
   size?: 'sm' | 'md';
@@ -56,7 +57,7 @@ const styles = StyleSheet.create({
     letterSpacing: 0.2,
   },
   textLight: {
-    color: '#111827',
+    color: neutral.ink,
     letterSpacing: 0,
   },
   textMd: {
