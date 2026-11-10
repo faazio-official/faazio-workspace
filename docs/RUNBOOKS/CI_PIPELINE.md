@@ -101,7 +101,7 @@ currently **unset** (upload key purged 2026-11-06) — reset it in Play Console 
 
 The **customer app** (`com.faazio.customer`) is the only iOS/App Store release; delivery/seller are
 Android/Play only, so no partner iOS profile or Firebase plist secret is needed. These values live in
-the Codemagic environment variable group `faazio_ios_release` and are consumed by
+the Codemagic environment variable group `ios app` and are consumed by
 [`codemagic.yaml`](../../codemagic.yaml).
 
 | Secret / variable | Kind | Value |
@@ -163,12 +163,12 @@ The `.mobileprovision` file **must** exist at one of these paths on the Mac that
 #### Required Codemagic environment variable
 
 Codemagic (`codemagic.yaml` → `scripts/restore-ios-signing.sh customer`) reads the profile as a
-base64 secret in the `faazio_ios_release` group:
+base64 secret in the `ios app` group:
 
 ```bash
 # On a Mac with the .mobileprovision file:
 base64 -i <path-to-mobileprovision> | pbcopy   # copy base64 to clipboard
-# Then in Codemagic: App settings → Environment variables → group faazio_ios_release
+# Then in Codemagic: App settings → Environment variables → group ios app
 #   Name: APPSTORE_PROVISIONING_PROFILE_CUSTOMER
 #   Value: <the base64 string you copied>
 #   Secret: checked
@@ -212,7 +212,7 @@ Distribution" authority) → App Store Connect upload. iOS builds do **not** cre
 Codemagic builds on Apple silicon in the cloud; you start builds and submit for review from a
 browser. No local Mac is required at any step.
 
-**Prerequisites** — create the Codemagic environment variable group `faazio_ios_release` with these
+**Prerequisites** — create the Codemagic environment variable group `ios app` with these
 names (App settings → Environment variables; mark the rows listed as secret **Secret**):
 
 | Variable | Kind | Value |
@@ -349,7 +349,7 @@ adb install -r app-customer-release.apk   # flavor-named: app-delivery-release.a
 - **iOS `restore-ios-signing.sh` fails** → the `APPSTORE_CERTIFICATE_BASE64` /
   `APPSTORE_CERTIFICATE_PASSWORD` / `APPSTORE_TEAM_ID` / `APPSTORE_PROVISIONING_PROFILE_CUSTOMER`
   variables are missing or wrong (Codemagic → App settings → Environment variables → group
-  `faazio_ios_release`); the profile must be an **App Store** profile for `com.faazio.customer`.
+  `ios app`); the profile must be an **App Store** profile for `com.faazio.customer`.
 - **iOS archive/export fails with a signing error** → the profile's bundle id must match the built
   configuration (`com.faazio.customer`), and `APPSTORE_TEAM_ID` must be the team that owns both the
   certificate and the profile.

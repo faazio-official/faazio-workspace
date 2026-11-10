@@ -33,14 +33,14 @@
 10. Move the `.p8` file somewhere safe that is **not committed to git**, e.g. `client/mobile/keystore/AuthKey_....p8`.
 11. **Copy the Key ID** (looks like `A1B2C3D4E5`) and save it.
 12. **Copy the Issuer ID** (looks like `abc12345-...`) and save it.
-13. In Codemagic, open the Faazio app → **Environment variables** → group `faazio_ios_release` and add:
+13. In Codemagic, open the Faazio app → **Environment variables** → group `ios app` and add:
     - `APPSTORE_API_KEY_ID` → value: the Key ID
     - `APPSTORE_ISSUER_ID` → value: the Issuer ID
     - `APPSTORE_API_PRIVATE_KEY` → value: the **whole contents** of the `.p8` file, including the `-----BEGIN PRIVATE KEY-----` and `-----END PRIVATE KEY-----` lines (mark it **Secret**)
 
 ## Checkpoint 5 — do you have everything?
 
-- ✅ **Yes** — you have the `.p8` file downloaded, plus the Key ID and Issuer ID copied. Add all three to the Codemagic group `faazio_ios_release`, then continue to the iOS release workflow.
+- ✅ **Yes** — you have the `.p8` file downloaded, plus the Key ID and Issuer ID copied. Add all three to the Codemagic group `ios app`, then continue to the iOS release workflow.
 - ❌ **No** — go back and create the key again. You cannot re-download the same `.p8`.
 
 ## What NOT to do
@@ -51,7 +51,7 @@
 
 ## How Codemagic uses this
 
-`codemagic.yaml` reads the key from the `faazio_ios_release` group and hands it to the App Store
+`codemagic.yaml` reads the key from the `ios app` group and hands it to the App Store
 Connect publishing step:
 
 | `codemagic.yaml` field | Value |

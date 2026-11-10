@@ -704,7 +704,7 @@ runtime, not build time.
 
 - **`restore-ios-signing.sh` fails** → `APPSTORE_CERTIFICATE_BASE64` / `APPSTORE_CERTIFICATE_PASSWORD`
   / `APPSTORE_TEAM_ID` / `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` are missing or wrong in the
-  Codemagic group `faazio_ios_release`. The `.p12` password must match; the profile must be an
+  Codemagic group `ios app`. The `.p12` password must match; the profile must be an
   **App Store** profile for `com.faazio.customer`.
 - **`xcodebuild` "No signing certificate" / "provisioning profile doesn't match"** → the profile's
   bundle id must equal the built configuration's (`com.faazio.customer`), and the certificate,

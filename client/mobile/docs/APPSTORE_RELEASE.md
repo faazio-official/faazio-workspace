@@ -31,7 +31,7 @@ no iOS Firebase plist.
 If you develop on Linux and have no Mac, use Codemagic for the build/sign/upload and the browser for
 App Store Connect submission. No Xcode is required on your machine.
 
-**Step 0: Confirm the Codemagic variable group `faazio_ios_release` is set.**
+**Step 0: Confirm the Codemagic variable group `ios app` is set.**
 
 | Variable | Where it comes from |
 |---|---|

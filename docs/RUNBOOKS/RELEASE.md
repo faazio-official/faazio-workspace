@@ -172,11 +172,11 @@ scripts/cert-pins.sh          # prints "<leaf-pin>,<intermediate-pin>" (subject 
 Put that comma-separated value in every Android env file (`client/mobile/.env.android.customer`,
 `.env.android.delivery`, `.env.android.seller`) and `client/mobile/.env.ios`. For CI, the Android
 release workflow reads the `CERT_PINS` GitHub secret (`gh secret set CERT_PINS`); the iOS Codemagic
-workflow reads it from the `faazio_ios_release` environment variable group.
+workflow reads it from the `ios app` environment variable group.
 
 Rotation playbook:
 1. Re-run `scripts/cert-pins.sh` after any chain change and update all four env files, the
-   `CERT_PINS` GitHub secret, and the Codemagic `faazio_ios_release` group.
+   `CERT_PINS` GitHub secret, and the Codemagic `ios app` group.
 2. Ship a release with the fresh pins; during an overlap window keep the previous pins too so an
    in-flight app never fails closed.
 3. Never pin the root (servers may omit it from the served chain).
@@ -381,7 +381,7 @@ needed:
 distribution cert into a temporary keychain, installs the App Store profile, writes
 `ios/ExportOptions.plist`) → `pod install` → `xcodebuild archive` → `xcodebuild -exportArchive` →
 `codesign` verify (Apple Distribution) → App Store Connect upload. Credentials are in the Codemagic
-environment variable group `faazio_ios_release` (see `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App
+environment variable group `ios app` (see `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App
 Store"). The GitHub `ios-release.yml` workflow is disabled; re-enable it only as a rollback (see
 `docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md`).
 
@@ -535,10 +535,10 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 
 ## 🍎 iOS Release Checklist (customer only)
 
-- [ ] `APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`, `APPSTORE_TEAM_ID` set in the Codemagic group `faazio_ios_release`.
+- [ ] `APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`, `APPSTORE_TEAM_ID` set in the Codemagic group `ios app`.
 - [ ] `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` set as the base64 App Store `.mobileprovision` (must include the Push Notifications capability). `_DELIVERY` / `_SELLER` profiles are not needed — no partner iOS release.
 - [ ] `APPSTORE_API_PRIVATE_KEY` (full `.p8` contents), `APPSTORE_ISSUER_ID`, `APPSTORE_API_KEY_ID` set (App Store Connect API key; needs App Manager role).
-- [ ] `CERT_PINS` set in the Codemagic group `faazio_ios_release` (derived via `scripts/cert-pins.sh`); `REQUIRE_CERT_PINS=1` fails the build if missing.
+- [ ] `CERT_PINS` set in the Codemagic group `ios app` (derived via `scripts/cert-pins.sh`); `REQUIRE_CERT_PINS=1` fails the build if missing.
 - [ ] `GOOGLE_MAPS_API_KEY_IOS` and `GOOGLE_PLACES_API_KEY` set in the same group.
 - [ ] Export compliance: `ITSAppUsesNonExemptEncryption=false` is present in all three `ios/Faazio/Info*.plist` (the app uses only exempt HTTPS + OS Keychain encryption), so App Store Connect does not flag the build as "Missing Compliance".
 - [ ] Codemagic workflow **iOS Customer Release** (branch `main`, optional `version`) succeeds.

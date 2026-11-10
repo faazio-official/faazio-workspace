@@ -7,7 +7,7 @@
 #
 # One-time setup (Codemagic UI):
 #   1. Add this repository as an application and select the branch to build.
-#   2. Create the environment variable group `faazio_ios_release` with the Apple
+#   2. Create the environment variable group `ios app` with the Apple
 #      credentials, certificate pins and Google keys listed in
 #      docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md.
 #   3. Click "Check for configuration file" in the top-right corner.
@@ -37,7 +37,7 @@ workflows:
       node: 24
       cocoapods: default
       groups:
-        - faazio_ios_release
+        - "ios app"
       vars:
         APP_VARIANT: customer
         CONFIGURE_PLATFORM: ios
@@ -89,7 +89,7 @@ workflows:
           '
 
       - name: Generate JS/native config (release)
-        # CERT_PINS and the Maps/Places keys come from the faazio_ios_release
+        # CERT_PINS and the Maps/Places keys come from the ios app
         # group; REQUIRE_CERT_PINS=1 makes a missing pin set fatal.
         script: |
           set -euo pipefail
