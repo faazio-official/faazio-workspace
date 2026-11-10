@@ -83,6 +83,8 @@ jobs:
     # Intel pool: the arm64 macos-15 runners have been capacity-constrained
     # ("job was not acquired by Runner of type hosted"). macos-15-intel also
     # ships Xcode 26.3 (see actions/runner-images macos-15-Readme.md).
+    # Larger macos-15-* runners are arm64 and require configured larger-runner
+    # billing, so they are intentionally not used here.
     runs-on: macos-15-intel
     defaults:
       run:
@@ -201,12 +203,29 @@ jobs:
       - name: Install CocoaPods
         run: cd ios && pod install
 
+      - name: Cache Swift Packages
+        uses: actions/cache@v4
+        with:
+          # Xcode stores resolved SwiftPM repositories here. `.build` is only used
+          # by the `swift build` CLI, not by an Xcode workspace archive, so it is
+          # not cached. The key follows the tracked workspace resolver file.
+          path: ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-spm-${{ env.XCODE_VERSION }}-${{ hashFiles('client/mobile/ios/Faazio.xcworkspace/xcshareddata/swiftpm/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-spm-${{ env.XCODE_VERSION }}-
+            ${{ runner.os }}-spm-
+
       - name: Archive
         # Archive without signing, then let `-exportArchive` apply the
         # distribution identity + App Store profile from ExportOptions.plist.
         # Passing PROVISIONING_PROFILE_SPECIFIER on the xcodebuild command line
         # applies it to every Pod/SPM target, which Xcode 26 rejects with
         # "<target> does not support provisioning profiles".
+        # Optimizations (build settings must be xcodebuild arguments, not env vars):
+        # - COMPILER_INDEX_STORE_ENABLE=NO: skips index-store generation for release
+        # - -skipPackagePluginValidation -skipMacroValidation: avoids plugin/macro validation stalls
+        # - -quiet: reduces log noise (warnings/errors still print)
+        # - COMPILATION_CACHE_ENABLE_CACHING=YES: native Xcode 26+ compilation caching
         run: |
           xcodebuild \
             -workspace ios/Faazio.xcworkspace \
@@ -215,7 +234,12 @@ jobs:
             -sdk iphoneos \
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Faazio.xcarchive" \
+            -quiet \
+            -skipPackagePluginValidation \
+            -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO \
+            COMPILER_INDEX_STORE_ENABLE=NO \
+            COMPILATION_CACHE_ENABLE_CACHING=YES \
             archive
 
       - name: Export signed .ipa
