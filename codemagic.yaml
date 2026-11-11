@@ -201,6 +201,24 @@ workflows:
             exit 1
           fi
 
+      - name: Upload to TestFlight
+        # Codemagic's built-in `publishing.app_store_connect` step hands the
+        # stored secret straight to the CLI. A key that was pasted into a
+        # single-line UI field (literal "\n" escapes, quotes, CRLF) then fails
+        # with "Provided value ... is not a valid PEM encoded private key".
+        # Normalise and validate the key here, then upload it explicitly from a
+        # real .p8 file.
+        script: |
+          set -euo pipefail
+          source scripts/ios-appstore-key.sh
+          IPA="$(ls "$CM_BUILD_DIR"/build/ios/ipa/*.ipa | head -1)"
+          echo "Uploading $IPA to App Store Connect (TestFlight)"
+          app-store-connect publish \
+            --path "$IPA" \
+            --key-id "$APPSTORE_KEY_ID" \
+            --issuer-id "$APPSTORE_ISSUER_ID" \
+            --private-key "@file:$APPSTORE_KEY_FILE"
+
       - name: Clean up signing keychain
         ignore_failure: true
         script: |
@@ -208,10 +226,3 @@ workflows:
           security delete-keychain "$CM_BUILD_DIR/build/ios/tmp/ios-signing.keychain-db" || true
     artifacts:
       - $CM_BUILD_DIR/build/ios/ipa/*.ipa
-    publishing:
-      app_store_connect:
-        # Uploads the .ipa to App Store Connect; it appears under
-        # TestFlight -> Builds. Beta review / App Store submission stays manual.
-        api_key: $APPSTORE_API_PRIVATE_KEY
-        key_id: $APPSTORE_API_KEY_ID
-        issuer_id: $APPSTORE_ISSUER_ID

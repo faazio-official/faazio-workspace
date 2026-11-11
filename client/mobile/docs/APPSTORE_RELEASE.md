@@ -49,6 +49,11 @@ App Store Connect submission. No Xcode is required on your machine.
 The gateway/portal origins, `USE_GATEWAY`, `STRICT` and `USE_FIREBASE_AUTH` are set in
 `codemagic.yaml`. See `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store" for the full table.
 
+The upload step materialises `APPSTORE_API_PRIVATE_KEY` with
+`client/mobile/scripts/ios-appstore-key.sh`, which repairs literal `\n`, quotes, CRLF, paths and
+base64 before calling `app-store-connect publish`, so a paste-style value no longer fails with
+"not a valid PEM encoded private key".
+
 **Step 1: Start the build.**
 
 In Codemagic, open the Faazio application → **Start new build** → branch `main` → workflow

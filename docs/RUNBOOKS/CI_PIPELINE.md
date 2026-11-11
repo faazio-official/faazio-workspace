@@ -361,3 +361,8 @@ adb install -r app-customer-release.apk   # flavor-named: app-delivery-release.a
   certificate and the profile.
 - **Codemagic App Store Connect upload fails** → check `APPSTORE_ISSUER_ID`/`APPSTORE_API_KEY_ID`
   and `APPSTORE_API_PRIVATE_KEY` (the full `.p8` contents). The API key needs the App Manager role.
+- **`Provided value ... is not a valid PEM encoded private key`** → the upload step runs
+  `scripts/ios-appstore-key.sh`, which repairs literal `\n`, quotes, CRLF, file paths and base64
+  before calling `app-store-connect publish`. If it still fails, the stored value is not the key
+  itself (Key ID pasted instead of the `.p8`, truncated paste, or a revoked key) — re-copy the whole
+  file from App Store Connect. See `docs/RUNBOOKS/APPSTORE_API_KEY.md`.

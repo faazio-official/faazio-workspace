@@ -51,19 +51,27 @@
 
 ## How Codemagic uses this
 
-`codemagic.yaml` reads the key from the `ios app` group and hands it to the App Store
-Connect publishing step:
+`codemagic.yaml` runs `scripts/ios-appstore-key.sh`, which reads the key from the `ios app`
+group (or, when the group secret is absent, from the Developer Portal integration variable
+`APP_STORE_CONNECT_PUBLISHER_PRIVATE_KEY`), normalises it into a real `.p8` file and validates it
+with `openssl`. The upload step then calls:
 
-| `codemagic.yaml` field | Value |
-|---|---|
-| `issuer_id` | `$APPSTORE_ISSUER_ID` |
-| `key_id` | `$APPSTORE_API_KEY_ID` |
-| `api_key` | `$APPSTORE_API_PRIVATE_KEY` |
+```bash
+source scripts/ios-appstore-key.sh
+app-store-connect publish --path <ipa> \
+  --key-id "$APPSTORE_KEY_ID" --issuer-id "$APPSTORE_ISSUER_ID" \
+  --private-key "@file:$APPSTORE_KEY_FILE"
+```
+
+The normaliser accepts the whole PEM, a PEM stored as one line with literal `\n` escapes, a
+quoted/CRLF value, a path to the `.p8`, and base64 of either the PEM or its DER body. Secrets are
+never printed.
 
 ## Failure triage
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
+| `Provided value ... is not a valid PEM encoded private key` | The value is not the `.p8` contents (e.g. only the Key ID, a file path that doesn't exist, or a truncated paste). Literal `\n`, quotes, CRLF and base64 are auto-repaired by `scripts/ios-appstore-key.sh`; anything else means the value itself is wrong. | Re-copy the **whole** file, `-----BEGIN PRIVATE KEY-----` through `-----END PRIVATE KEY-----`, into `APPSTORE_API_PRIVATE_KEY` (or re-upload it in the Developer Portal integration). The helper prints a safe diagnostic (value length + literal `\n` count) when it cannot parse the value. |
 | TestFlight upload fails with an auth error | Key is missing, wrong role, or secrets don't match | Regenerate the key, re-add `APPSTORE_API_PRIVATE_KEY` + `APPSTORE_API_KEY_ID` + `APPSTORE_ISSUER_ID` |
 | "Unknown team or host" / invalid issuer | `APPSTORE_TEAM_ID` doesn't match the team that owns the key | Set `APPSTORE_TEAM_ID` to your Apple Developer Team ID (10-char) |
 | Key doesn't appear in the Keys tab | Wrong user account signed in | Sign in with the account that owns the Developer Program membership |

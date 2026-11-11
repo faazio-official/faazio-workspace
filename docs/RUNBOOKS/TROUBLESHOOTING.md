@@ -746,6 +746,11 @@ runtime, not build time.
   workflow to generate a higher build number. Also check `APPSTORE_ISSUER_ID` /
   `APPSTORE_API_KEY_ID` / `APPSTORE_API_PRIVATE_KEY` and that the API key has the App Manager role.
   See `docs/RUNBOOKS/APPSTORE_API_KEY.md` for the full key-creation workflow.
+- **`Provided value ... is not a valid PEM encoded private key`** → `scripts/ios-appstore-key.sh`
+  already normalises literal `\n` escapes, quotes, CRLF, file paths and base64. If the build still
+  stops here, the stored value is not the `.p8` (often the Key ID or a truncated paste in
+  `APPSTORE_API_PRIVATE_KEY`, or a stale Developer Portal integration key). Re-copy the whole file,
+  regenerate the key if needed, and update the group `ios app`.
 - **Upload fails with `409 … usesNonExemptEncryption … You cannot update when the value is already
   set`** → App Store Connect already derived encryption compliance from
   `ITSAppUsesNonExemptEncryption=false` in `Info.plist`. Do not add a manual encryption PATCH; the

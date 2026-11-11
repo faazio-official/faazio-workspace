@@ -60,6 +60,11 @@ group.
 See `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store" for the full secrets table. The step-by-step
 UI workflow for the `.p8` key is in `docs/RUNBOOKS/APPSTORE_API_KEY.md`.
 
+The upload step normalises `APPSTORE_API_PRIVATE_KEY` through
+`client/mobile/scripts/ios-appstore-key.sh`: a value stored as one line with literal `\n` escapes,
+with quotes/CRLF, as a file path, or base64 is repaired before upload, so the "not a valid PEM
+encoded private key" failure only means the value is not the key at all.
+
 ## 3. Every release (from Linux)
 
 ```bash
