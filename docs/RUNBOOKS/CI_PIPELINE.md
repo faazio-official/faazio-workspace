@@ -205,7 +205,8 @@ release (Android/Play only). The GitHub `ios-release.yml` workflow is disabled; 
 
 Steps in [`codemagic.yaml`](../../codemagic.yaml): `npm ci` → `ts:check` + `check:boundaries` +
 `check:ui` → rewrite `package.json` + Xcode `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` →
-`npm run configure` (release) → `pod install` → `xcodebuild archive` (unsigned) →
+`npm run configure` (release) → `pod install` → `xcodebuild -resolvePackageDependencies` →
+`xcodebuild archive` (unsigned) →
 `restore-ios-signing.sh customer` + `xcodebuild -exportArchive` (same step, so the temporary keychain
 and profile are live for the export) → `codesign` verify (must be an "Apple
 Distribution" authority) → App Store Connect upload. iOS builds do **not** create a GitHub Release.

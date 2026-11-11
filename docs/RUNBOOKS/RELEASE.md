@@ -377,7 +377,7 @@ needed:
 
 [`codemagic.yaml`](../../codemagic.yaml) runs on a Codemagic macOS M2 machine (Xcode 26.3):
 `npm ci` → `ts:check`/`check:boundaries`/`check:ui` → version rewrite →
-`npm run configure` (release) → `pod install` → `xcodebuild archive` (unsigned) → `scripts/restore-ios-signing.sh customer`
+`npm run configure` (release) → `pod install` → `xcodebuild -resolvePackageDependencies` → `xcodebuild archive` (unsigned) → `scripts/restore-ios-signing.sh customer`
 (imports the shared distribution cert into a temporary keychain, installs the App Store profile,
 writes `ios/ExportOptions.plist`) + `xcodebuild -exportArchive` in the same step → `codesign` verify
 (Apple Distribution) → App Store Connect upload. The restore runs immediately before export because

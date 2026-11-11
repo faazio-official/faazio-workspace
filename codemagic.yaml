@@ -105,6 +105,17 @@ workflows:
           cd ios
           pod install
 
+      - name: Resolve Swift packages
+        # Codemagic caches ~/Library/Caches/org.swift.swiftpm across builds. If a
+        # previous run saved an incomplete cache, the archive can fail midway.
+        # Resolve explicitly so a bad cache fails here with a clear error instead.
+        script: |
+          set -euo pipefail
+          cd ios
+          xcodebuild -resolvePackageDependencies \
+            -workspace Faazio.xcworkspace \
+            -scheme Faazio
+
       - name: Archive
         # Archive without signing, then let -exportArchive apply the distribution
         # identity + App Store profile from the generated ExportOptions.plist.
@@ -126,7 +137,6 @@ workflows:
             -skipMacroValidation \
             CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
-            COMPILATION_CACHE_ENABLE_CACHING=YES \
             archive
 
       - name: Restore signing + export signed .ipa

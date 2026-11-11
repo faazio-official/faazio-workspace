@@ -702,6 +702,13 @@ runtime, not build time.
   SDK 13 via Swift Package Manager, which requires Xcode 26.1+ (Swift 6.2.1). Bump
   `environment.xcode` in `codemagic.yaml`.
 
+- **`ARCHIVE FAILED` with only warnings above it** → the "Compile caching is not supported with
+  implicit modules" and "'FirebaseCore' is missing a dependency on 'FirebaseCoreInternal'" lines are
+  warnings, not the cause; xcodebuild prints the real cause as an `error:` line earlier in the step
+  log. Look for `error:` above the first warning. If there is no error line, clear the workflow
+  cache (Codemagic → Caching tab) and re-run — a stale SwiftPM cache can fail the archive midway.
+  The workflow resolves packages explicitly before archiving so a bad cache fails with a clear error.
+
 - **`restore-ios-signing.sh` fails** → `APPSTORE_CERTIFICATE_BASE64` / `APPSTORE_CERTIFICATE_PASSWORD`
   / `APPSTORE_TEAM_ID` / `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` are missing or wrong in the
   Codemagic group `ios app`. The `.p12` password must match; the profile must be an
