@@ -120,6 +120,8 @@ fi
 CERT_SHA1="$(printf '%s\n' "$IDENTITIES" | awk '/Apple Distribution/ {print $2; exit}')"
 CERT_NAME="$(printf '%s\n' "$IDENTITIES" | sed -n 's/.*"\(Apple Distribution[^"]*\)".*/\1/p' | head -1)"
 echo "[restore-ios-signing] identity sha1=$CERT_SHA1 name=\"$CERT_NAME\""
+# The workflow pins the export options to this exact identity.
+printf '%s' "$CERT_SHA1" > "$TMP/identity-sha1"
 # Prove the keychain grants codesign access before paying for the whole export.
 # Sign a copy of a Mach-O binary (codesign rejects plain text files).
 cp /bin/echo "$TMP/sign-probe"

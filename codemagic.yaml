@@ -3,9 +3,9 @@
 # The GitHub Actions workflow (.github/workflows/ios-release.yml) is disabled
 # (kept for history); this file is the production iOS release pipeline. It ports
 # the same stages: npm ci -> checks -> version/build number -> release config ->
-# archive -> signing + export -> signature verification -> TestFlight upload.
-# (Signing is restored in the export step itself: each Codemagic step gets a
-# fresh shell/session, so keychain state does not reliably survive between steps.)
+# resolve packages -> signing setup + archive + export -> verification ->
+# TestFlight upload. Signing, archiving and export share one step because each
+# Codemagic step gets a fresh shell/session (keychain state does not survive).
 #
 # One-time setup (Codemagic UI):
 #   1. Add this repository as an application and select the branch to build.
@@ -116,14 +116,52 @@ workflows:
             -workspace Faazio.xcworkspace \
             -scheme Faazio
 
-      - name: Archive
-        # Archive without signing, then let -exportArchive apply the distribution
-        # identity + App Store profile from the generated ExportOptions.plist.
-        # Passing PROVISIONING_PROFILE_SPECIFIER on the xcodebuild command line
-        # applies it to every Pod/SPM target, which Xcode 26 rejects with
-        # "<target> does not support provisioning profiles".
+      - name: Set up signing, archive and export .ipa
+        # One step for the whole signing flow: Codemagic starts each script in a
+        # fresh shell/session, so the temporary keychain, the installed profile,
+        # the app project's signing settings and the export must all be used here.
+        #
+        # `xcode-project use-profiles` is Codemagic's supported setup: it applies
+        # the installed App Store profile to the Faazio app target only (never to
+        # node_modules projects) and writes the export options plist that
+        # -exportArchive must use. A hand-written plist is only a fallback.
         script: |
           set -euo pipefail
+          export RUNNER_TEMP="$CM_BUILD_DIR/build/ios/tmp"
+          mkdir -p "$RUNNER_TEMP"
+          export KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
+          bash scripts/restore-ios-signing.sh customer
+
+          echo "--- keychains ---"
+          security list-keychains -d user
+          echo "--- signing identities ---"
+          security find-identity -v -p codesigning
+          echo "--- installed profiles ---"
+          ls -l "$HOME/Library/MobileDevice/Provisioning Profiles" || true
+          ls -l "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" || true
+
+          xcode-project use-profiles \
+            --project ios/Faazio.xcodeproj \
+            --export-options-plist "$HOME/export_options.plist" \
+            --archive-method app-store \
+            --custom-export-options '{"uploadSymbols": true, "stripSwiftSymbols": true, "compileBitcode": false}' \
+            --warn-only
+
+          EXPORT_OPTS="$HOME/export_options.plist"
+          if [ -f "$EXPORT_OPTS" ]; then
+            # Xcode 26 asks for "iOS Distribution" while the certificate is named
+            # "Apple Distribution"; pin the exact identity by SHA-1 fingerprint.
+            CERT_SHA1="$(cat "$RUNNER_TEMP/identity-sha1")"
+            plutil -replace signingCertificate -string "$CERT_SHA1" "$EXPORT_OPTS" 2>/dev/null || \
+              plutil -insert signingCertificate -string "$CERT_SHA1" "$EXPORT_OPTS"
+            echo "--- generated ExportOptions.plist ---"
+            plutil -p "$EXPORT_OPTS"
+          else
+            EXPORT_OPTS="ios/ExportOptions.plist"
+            echo "warning: xcode-project did not generate export options; using the script-generated plist"
+            plutil -p "$EXPORT_OPTS"
+          fi
+
           mkdir -p "$CM_BUILD_DIR/build/ios/xcarchive"
           xcodebuild \
             -workspace ios/Faazio.xcworkspace \
@@ -135,38 +173,16 @@ workflows:
             -quiet \
             -skipPackagePluginValidation \
             -skipMacroValidation \
-            CODE_SIGNING_ALLOWED=NO \
             COMPILER_INDEX_STORE_ENABLE=NO \
             archive
 
-      - name: Restore signing + export signed .ipa
-        # Codemagic runs every script step in a fresh shell/session, so a keychain
-        # created in an earlier step can be locked and invisible to -exportArchive
-        # ("No signing certificate 'iOS Distribution' found"). Restore the
-        # certificate/profile immediately before exporting, in this same step.
-        # The archive itself is unsigned (CODE_SIGNING_ALLOWED=NO above).
-        script: |
-          set -euo pipefail
-          export RUNNER_TEMP="$CM_BUILD_DIR/build/ios/tmp"
-          mkdir -p "$RUNNER_TEMP"
-          export KEYCHAIN_PASSWORD="$(openssl rand -hex 16)"
-          bash scripts/restore-ios-signing.sh customer
-          echo "--- keychains ---"
-          security list-keychains -d user
-          echo "--- signing identities ---"
-          security find-identity -v -p codesigning
-          echo "--- installed profiles ---"
-          ls -l "$HOME/Library/MobileDevice/Provisioning Profiles" || true
-          ls -l "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" || true
-          echo "--- ExportOptions.plist ---"
-          plutil -p ios/ExportOptions.plist
           mkdir -p "$CM_BUILD_DIR/build/ios/ipa"
           OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/ios-signing.keychain-db" \
             xcodebuild \
               -exportArchive \
               -archivePath "$CM_BUILD_DIR/build/ios/xcarchive/Faazio.xcarchive" \
               -exportPath "$CM_BUILD_DIR/build/ios/ipa" \
-              -exportOptionsPlist ios/ExportOptions.plist
+              -exportOptionsPlist "$EXPORT_OPTS"
 
       - name: Verify the .ipa is signed for distribution
         # The .app must verify AND carry an Apple Distribution authority.

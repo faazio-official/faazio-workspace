@@ -129,10 +129,10 @@ pins and Google keys. `REQUIRE_CERT_PINS=1` makes a missing pin set fatal.
 `scripts/restore-ios-signing.sh customer` imports the certificate (leaf + private key) into a
 temporary keychain, ensures the Apple WWDR G3 intermediate is present (a duplicate is tolerated when
 the `.p12` already carries it), verifies a valid `Apple Distribution` identity for `APPSTORE_TEAM_ID`
-(also checked against the profile's team), proves `codesign` can use it, installs the profile
-(Xcode 26 + legacy paths), and writes `ios/ExportOptions.plist` (manual signing,
-`method: app-store-connect`, `signingCertificate` set to the identity's SHA-1 fingerprint). No
-fastlane.
+(also checked against the profile's team), proves `codesign` can use it, and installs the profile
+(Xcode 26 + legacy paths). `xcode-project use-profiles --project ios/Faazio.xcodeproj` then applies
+that profile to the app target (never to `node_modules` projects) and writes the supported
+`~/export_options.plist`; the script's own plist remains a fallback. No fastlane.
 
 ### Env files (mobile)
 
@@ -208,9 +208,9 @@ release (Android/Play only). The GitHub `ios-release.yml` workflow is disabled; 
 Steps in [`codemagic.yaml`](../../codemagic.yaml): `npm ci` → `ts:check` + `check:boundaries` +
 `check:ui` → rewrite `package.json` + Xcode `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` →
 `npm run configure` (release) → `pod install` → `xcodebuild -resolvePackageDependencies` →
-`xcodebuild archive` (unsigned) →
-`restore-ios-signing.sh customer` + `xcodebuild -exportArchive` (same step, so the temporary keychain
-and profile are live for the export) → `codesign` verify (must be an "Apple
+`restore-ios-signing.sh customer` + `xcode-project use-profiles --project ios/Faazio.xcodeproj`
+(writes `~/export_options.plist`) → `xcodebuild archive` → `xcodebuild -exportArchive` with that
+generated plist (pinned to the identity SHA-1) → `codesign` verify (must be an "Apple
 Distribution" authority) → App Store Connect upload. iOS builds do **not** create a GitHub Release.
 
 ### 🍎 iOS Release from Linux (no macOS needed)

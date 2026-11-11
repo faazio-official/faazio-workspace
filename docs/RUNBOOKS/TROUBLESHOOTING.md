@@ -709,6 +709,14 @@ runtime, not build time.
   cache (Codemagic → Caching tab) and re-run — a stale SwiftPM cache can fail the archive midway.
   The workflow resolves packages explicitly before archiving so a bad cache fails with a clear error.
 
+- **`xcode-project use-profiles` fails on `node_modules/...xcodeproj`** ("Failed to set code signing
+  settings for …") → it searches recursively by default. Pass the app project explicitly:
+  `xcode-project use-profiles --project ios/Faazio.xcodeproj` (the workflow does).
+- **`-exportArchive` says no signing certificate / no profiles although `find-identity` is valid** →
+  export must read Codemagic's generated `~/export_options.plist` from `xcode-project use-profiles`
+  (the workflow does). A hand-written plist is easy to drift out of sync; if you override it, keep
+  `method`, `signingStyle: manual`, `teamID`, `provisioningProfiles` and a `signingCertificate`
+  matching the identity.
 - **`restore-ios-signing.sh` fails** → `APPSTORE_CERTIFICATE_BASE64` / `APPSTORE_CERTIFICATE_PASSWORD`
   / `APPSTORE_TEAM_ID` / `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` are missing or wrong in the
   Codemagic group `ios app`. The `.p12` password must match; the profile must be an
@@ -717,17 +725,18 @@ runtime, not build time.
   `.p12` exported without its private key (re-export cert + key from Keychain Access).
 - **`xcodebuild` "No signing certificate" / "provisioning profile doesn't match"** → on Codemagic,
   this usually means the temporary keychain created by `restore-ios-signing.sh` is no longer visible:
-  each script step runs in a fresh shell/session. The workflow therefore runs the restore and
-  `-exportArchive` in the **same step** (right after the unsigned archive). If it still fails, check
+  each script step runs in a fresh shell/session. The workflow therefore runs the restore, archive
+  and `-exportArchive` in the **same step**. If it still fails, check
   the step's `security find-identity -v -p codesigning` output — zero valid identities means the
   keychain is locked/not in the search list or the certificate chain is untrusted; an identity whose
   team/name is unexpected points at the wrong `.p12` in `APPSTORE_CERTIFICATE_BASE64`.
   The profile's bundle id must equal the built configuration's (`com.faazio.customer`), and the
   certificate, profile and `APPSTORE_TEAM_ID` must belong to the same team. The workflow uses
-  `CODE_SIGN_STYLE=Manual` via the generated `ios/ExportOptions.plist`. The plist pins
-  `signingCertificate` to the identity's SHA-1 fingerprint (Xcode 26 asks for "iOS Distribution" even
-  though the certificate is named "Apple Distribution", so name matching can miss it), and the
-  script fails early if `APPSTORE_TEAM_ID` differs from the profile's team.
+  `xcode-project use-profiles` to apply `CODE_SIGN_STYLE=Manual` to the app target and to generate
+  `~/export_options.plist`. That plist pins `signingCertificate` to the identity's SHA-1 fingerprint
+  (Xcode 26 asks for "iOS Distribution" even though the certificate is named "Apple Distribution",
+  so name matching can miss it), and the script fails early if `APPSTORE_TEAM_ID` differs from the
+  profile's team.
 - **Xcode can't find the profile** → profiles must be installed under
   `~/Library/Developer/Xcode/UserData/Provisioning Profiles` (Xcode 26) as well as the legacy
   `~/Library/MobileDevice/Provisioning Profiles`. The script writes both, named by the profile UUID.
