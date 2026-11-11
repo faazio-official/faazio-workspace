@@ -16,9 +16,11 @@ import { Route as DisclaimerRouteImport } from './routes/disclaimer'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as FaqRouteImport } from './routes/faq'
 import { Route as KaraikalRouteImport } from './routes/karaikal'
+import { Route as PartnerTermsRouteImport } from './routes/partner-terms'
 import { Route as PartnersRouteImport } from './routes/partners'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RefundsRouteImport } from './routes/refunds'
+import { Route as SellerTermsRouteImport } from './routes/seller-terms'
 import { Route as TermsRouteImport } from './routes/terms'
 
 const IndexRoute = IndexRouteImport.update({
@@ -56,6 +58,11 @@ const KaraikalRoute = KaraikalRouteImport.update({
   path: '/karaikal',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PartnerTermsRoute = PartnerTermsRouteImport.update({
+  id: '/partner-terms',
+  path: '/partner-terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PartnersRoute = PartnersRouteImport.update({
   id: '/partners',
   path: '/partners',
@@ -69,6 +76,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const RefundsRoute = RefundsRouteImport.update({
   id: '/refunds',
   path: '/refunds',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SellerTermsRoute = SellerTermsRouteImport.update({
+  id: '/seller-terms',
+  path: '/seller-terms',
   getParentRoute: () => rootRouteImport,
 } as any)
 const TermsRoute = TermsRouteImport.update({
@@ -85,9 +97,11 @@ export interface FileRoutesByFullPath {
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
   '/karaikal': typeof KaraikalRoute
+  '/partner-terms': typeof PartnerTermsRoute
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
   '/refunds': typeof RefundsRoute
+  '/seller-terms': typeof SellerTermsRoute
   '/terms': typeof TermsRoute
 }
 export interface FileRoutesByTo {
@@ -98,9 +112,11 @@ export interface FileRoutesByTo {
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
   '/karaikal': typeof KaraikalRoute
+  '/partner-terms': typeof PartnerTermsRoute
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
   '/refunds': typeof RefundsRoute
+  '/seller-terms': typeof SellerTermsRoute
   '/terms': typeof TermsRoute
 }
 export interface FileRoutesById {
@@ -112,9 +128,11 @@ export interface FileRoutesById {
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
   '/karaikal': typeof KaraikalRoute
+  '/partner-terms': typeof PartnerTermsRoute
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
   '/refunds': typeof RefundsRoute
+  '/seller-terms': typeof SellerTermsRoute
   '/terms': typeof TermsRoute
 }
 export interface FileRouteTypes {
@@ -127,9 +145,11 @@ export interface FileRouteTypes {
     | '/download'
     | '/faq'
     | '/karaikal'
+    | '/partner-terms'
     | '/partners'
     | '/privacy'
     | '/refunds'
+    | '/seller-terms'
     | '/terms'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -140,9 +160,11 @@ export interface FileRouteTypes {
     | '/download'
     | '/faq'
     | '/karaikal'
+    | '/partner-terms'
     | '/partners'
     | '/privacy'
     | '/refunds'
+    | '/seller-terms'
     | '/terms'
   id:
     | '__root__'
@@ -153,9 +175,11 @@ export interface FileRouteTypes {
     | '/download'
     | '/faq'
     | '/karaikal'
+    | '/partner-terms'
     | '/partners'
     | '/privacy'
     | '/refunds'
+    | '/seller-terms'
     | '/terms'
   fileRoutesById: FileRoutesById
 }
@@ -167,9 +191,11 @@ export interface RootRouteChildren {
   DownloadRoute: typeof DownloadRoute
   FaqRoute: typeof FaqRoute
   KaraikalRoute: typeof KaraikalRoute
+  PartnerTermsRoute: typeof PartnerTermsRoute
   PartnersRoute: typeof PartnersRoute
   PrivacyRoute: typeof PrivacyRoute
   RefundsRoute: typeof RefundsRoute
+  SellerTermsRoute: typeof SellerTermsRoute
   TermsRoute: typeof TermsRoute
 }
 
@@ -224,6 +250,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof KaraikalRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/partner-terms': {
+      id: '/partner-terms'
+      path: '/partner-terms'
+      fullPath: '/partner-terms'
+      preLoaderRoute: typeof PartnerTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/partners': {
       id: '/partners'
       path: '/partners'
@@ -245,6 +278,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RefundsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/seller-terms': {
+      id: '/seller-terms'
+      path: '/seller-terms'
+      fullPath: '/seller-terms'
+      preLoaderRoute: typeof SellerTermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/terms': {
       id: '/terms'
       path: '/terms'
@@ -263,9 +303,11 @@ const rootRouteChildren: RootRouteChildren = {
   DownloadRoute: DownloadRoute,
   FaqRoute: FaqRoute,
   KaraikalRoute: KaraikalRoute,
+  PartnerTermsRoute: PartnerTermsRoute,
   PartnersRoute: PartnersRoute,
   PrivacyRoute: PrivacyRoute,
   RefundsRoute: RefundsRoute,
+  SellerTermsRoute: SellerTermsRoute,
   TermsRoute: TermsRoute,
 }
 export const routeTree = rootRouteImport

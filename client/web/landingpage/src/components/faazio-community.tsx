@@ -98,7 +98,11 @@ export function FaazioCommunity({ onAction }: Props) {
                 initial={{ opacity: 0, x: 12 }}
                 whileInView={{ opacity: 1, x: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: DURATION.enter, delay: index * STAGGER, ease: EASE.entrance }}
+                transition={{
+                  duration: DURATION.enter,
+                  delay: index * STAGGER,
+                  ease: EASE.entrance,
+                }}
               >
                 <span className="step-number" aria-hidden="true">
                   {step.number}

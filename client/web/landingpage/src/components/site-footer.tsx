@@ -33,6 +33,7 @@ export function SiteFooter() {
             <div>
               <h3>Legal</h3>
               <a href="/terms">Terms &amp; Conditions</a>
+              <a href="/seller-terms">Seller &amp; Partner Terms</a>
               <a href="/privacy">Privacy Policy</a>
               <a href="/refunds">Refund &amp; Cancellation Policy</a>
               <a href="/cookies">Cookie Policy</a>

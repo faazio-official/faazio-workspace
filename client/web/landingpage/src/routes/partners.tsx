@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { HiArrowRight as ArrowRight } from "react-icons/hi2";
 import { PiForkKnifeFill as UtensilsCrossed } from "react-icons/pi";
 import { HiBeaker as Pill, HiBuildingStorefront as Store } from "react-icons/hi2";
+import { legalLinkClass } from "@/components/legal";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { seoHead } from "@/lib/seo";
@@ -85,6 +86,13 @@ function Partners() {
                 <p>
                   We are starting with Karaikal. Partner contact and onboarding details are coming
                   soon.
+                </p>
+                <p>
+                  Read the{" "}
+                  <a href="/seller-terms" className={legalLinkClass}>
+                    Seller &amp; Partner Terms
+                  </a>{" "}
+                  before you apply.
                 </p>
                 <a href="/about" className="btn btn-outline">
                   Learn more about Faazio

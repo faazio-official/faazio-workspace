@@ -16,7 +16,10 @@ acceptance/IP/tier audit is live, but no government GSTIN/PAN/FSSAI/bank provide
 2. Contract tier: the screen reads `GET /sellers/contract-tiers` (server-owned rate card) and shows
    the selected tier's commission and payout terms. No tier is hardcoded on the client.
 3. Clickwrap: the applicant must tick three acceptances — Terms of Service, Seller / Partner
-   Agreement and the content/IP licence. Each opens a short in-app summary sheet.
+   Agreement and the content/IP licence. Each opens a short in-app summary sheet. The full public
+   merchant disclosure is `https://faazio.com/seller-terms` (landing-page route
+   `src/routes/seller-terms.tsx`; `/partner-terms` 301-redirects there); the clickwrap capture and
+   audit remain server-side.
 4. Phone verification with Firebase OTP on mobile (the digital signature).
 5. KYC documents upload (`uploadSellerDocument`).
 6. `gateway.submitSellerApplication(input)` → `POST /sellers` stores `sellers.sellers.user_id` from
@@ -102,5 +105,6 @@ any failure. It writes real rows through the real handler — no fixtures.
 
 - `docs/architecture/mobile-app.md` (seller onboarding)
 - `docs/architecture/web-portal.md`
+- `client/web/landingpage/src/routes/seller-terms.tsx` (public Seller & Partner Terms)
 - `docs/RUNBOOKS/FIREBASE_AUTH.md`
 - `server/gateway/scripts/simulate-seller-registration.sh`
