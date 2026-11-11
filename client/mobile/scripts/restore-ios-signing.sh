@@ -64,10 +64,26 @@ decode_base64 "$TMP/signing-profile.b64" "$PP_PATH"
 #    `-t cert`: for a PKCS#12 it can import only the certificate and drop the
 #    private key, leaving no usable code-signing identity. -A grants codesign
 #    access; the partition list (with -s) is still required on modern macOS.
+#    A .p12 may itself contain the WWDR intermediate; a duplicate item is not
+#    an error (the identity check below is the real gate).
+import_item() {
+  local log="$TMP/keychain-import.log" rc=0
+  security import "$@" >"$log" 2>&1 || rc=$?
+  if (( rc != 0 )); then
+    if grep -q "The specified item already exists" "$log"; then
+      echo "[restore-ios-signing] keychain item already present; continuing"
+    else
+      cat "$log" >&2
+      return "$rc"
+    fi
+  fi
+  return 0
+}
+security delete-keychain "$KEYCHAIN_PATH" 2>/dev/null || true
 security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
 security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-security import "$CERT_PATH" -P "$APPSTORE_CERTIFICATE_PASSWORD" -A -f pkcs12 \
+import_item "$CERT_PATH" -P "$APPSTORE_CERTIFICATE_PASSWORD" -A -f pkcs12 \
   -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productbuild \
   -k "$KEYCHAIN_PATH"
 security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
@@ -77,12 +93,13 @@ security default-keychain -s "$KEYCHAIN_PATH"
 
 # 2b. The leaf "Apple Distribution" certificate is issued by Apple WWDR CA G3.
 #     Import the intermediate so the temporary keychain can build a trusted
-#     chain (copied from Apple's public certificate authority page).
+#     chain (copied from Apple's public certificate authority page). If the
+#     .p12 already carried it, the duplicate is tolerated by import_item.
 WWDR_PATH="$TMP/AppleWWDRCAG3.cer"
 if curl -fsSL --retry 3 -o "$WWDR_PATH" \
   https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer; then
-  security import "$WWDR_PATH" -k "$KEYCHAIN_PATH" \
-    -T /usr/bin/codesign -T /usr/bin/security >/dev/null
+  import_item "$WWDR_PATH" -k "$KEYCHAIN_PATH" \
+    -T /usr/bin/codesign -T /usr/bin/security
 else
   echo "[restore-ios-signing] warning: could not download the Apple WWDR G3 intermediate; relying on the build image keychains" >&2
 fi
