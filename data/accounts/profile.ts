@@ -55,6 +55,7 @@ export interface NavRowGroup extends AccountNavGroup {
   userId: string;
 }
 
+/** Seed-only per-user override sample for `accounts.nav`; runtime defaults live in `accounts.nav_defaults`. */
 export const navTable: NavRowGroup[] = accountNavGroups.map((g) => ({
   userId: 'user-1',
   key: g.key,

@@ -121,7 +121,7 @@ Traceability is 1:1 — each production table documents its `@data/*` source.
 | `directory.vendors` / `reviews.vendor_reviews` | `data/directory/vendors.ts`, `data/reviews/vendorReviews.ts` | PostgreSQL |
 | `inventory.stock` / `carts` / `reservations` / `pickup_points` | `data/inventory/stock.ts`, `data/cart/*` | DynamoDB |
 | `checkout.*` (users/addresses/coupons/orders/order_items/payments/events) | `data/checkout/orders.ts` | CockroachDB |
-| `accounts.*` (profile/membership/order_status/nav/details) | `data/accounts/profile.ts` | CockroachDB (PostgreSQL-shaped) |
+| `accounts.*` (profile/membership/order_status/nav/nav_defaults/details) | `data/accounts/profile.ts` | CockroachDB (PostgreSQL-shaped) |
 | `recommendations.*` (sdui_layouts/user_events/recommendations/product_stats; segments scaling-stage) | `data/home/sdui.ts` | MongoDB |
 
 > **Ownership note:** `catalog.*`, `directory.*`, `reviews.*`, and `accounts.*` physically live in the
@@ -421,6 +421,29 @@ never revived.
 
 **Sample row:** `user-1` · Rohit Sharma · rohit.sharma@gmail.com · +91 98765 43210 · addr_1
 (provenance `data/checkout/orders.ts:20-22`).
+
+### 7.1a `accounts.nav_defaults` / `accounts.nav` — account menu chrome (`0101`)
+
+```sql
+CREATE TABLE accounts.nav_defaults (   -- universal, non-PII menu chrome (one row per group)
+  key        TEXT PRIMARY KEY,         -- 'profile' | 'privacy' | 'earn' | 'legal'
+  title      TEXT NOT NULL,
+  sort_order INTEGER NOT NULL,
+  rows       JSONB NOT NULL DEFAULT '[]'  -- fixed app destinations (key/icon/title/subtitle)
+);
+CREATE TABLE accounts.nav (            -- optional per-user override (user_id, key) -> rows
+  user_id TEXT NOT NULL,
+  key     TEXT NOT NULL,
+  rows    JSONB NOT NULL DEFAULT '[]',
+  PRIMARY KEY (user_id, key)
+);
+```
+
+`GET /account-nav` reads the defaults ordered by `sort_order`, applies a per-user override only when
+at least one row key exists in the default group (unknown/legacy keys such as `payments`/`support`/
+`recently-viewed` are dropped), and omits groups whose effective rows are empty. The app never
+substitutes an `@data` catalog; a fresh user needs no `accounts.nav` write. `accounts.nav` rows for
+`user-1` in the seed are only an override example.
 
 ### 7.2 `checkout.addresses` — source `data/checkout/orders.ts` `addressesTable` + `data/account/addresses.ts`
 

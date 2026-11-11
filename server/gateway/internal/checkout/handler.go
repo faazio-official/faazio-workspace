@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"slices"
@@ -88,23 +89,68 @@ type NavRow struct {
 	Subtitle string `json:"subtitle,omitempty"`
 }
 
-// NavGroup is one titled account section served to the app. Rows are per-user (accounts.nav);
-// the title is universal chrome held server-side so the projection matches the app's
-// `AccountNavGroup` exactly (the app never reads rows as live user data when a group is empty).
+// NavGroup is one titled account section served to the app. Default row membership is universal
+// chrome held in `accounts.nav_defaults`; a per-user `accounts.nav` row may override a group when it
+// carries at least one known destination. Groups whose effective rows are empty are omitted rather
+// than served as placeholder sections.
 type NavGroup struct {
 	Key   string   `json:"key"`
 	Title string   `json:"title,omitempty"`
 	Rows  []NavRow `json:"rows"`
 }
 
-// accountNavCatalog is the universal group chrome (stable order + titles). Row membership lives
-// in accounts.nav; this catalog guarantees a complete, ordered menu. A group with no real row
-// destinations in the app is omitted entirely rather than served as an empty/placeholder section.
-var accountNavCatalog = []NavGroup{
-	{Key: "profile", Title: "Profile settings"},
-	{Key: "privacy", Title: "Privacy and security"},
-	{Key: "earn", Title: "Earn with us"},
-	{Key: "legal", Title: "Terms and policies"},
+// NavDefault is one `accounts.nav_defaults` row: the universal, non-PII menu chrome (group title +
+// fixed app destinations). Kept in Postgres so a fresh user never needs a client fixture or a
+// per-user provisioning write.
+type NavDefault struct {
+	Key       string          `json:"key"`
+	Title     string          `json:"title"`
+	SortOrder int             `json:"sortOrder"`
+	Rows      json.RawMessage `json:"rows"`
+}
+
+// projectAccountNav merges the universal defaults with the caller's overrides. An override only
+// wins when it contains at least one key the default group already exposes, so legacy/unknown rows
+// (`payments`, `support`, `recently-viewed`) can never become dead menu entries. A group with no
+// effective rows is omitted. Malformed default JSON is a server-data fault, not an empty menu.
+func projectAccountNav(defaults []NavDefault, overrides []Nav) ([]NavGroup, error) {
+	overrideByKey := make(map[string]json.RawMessage, len(overrides))
+	for _, o := range overrides {
+		overrideByKey[o.Key] = o.Rows
+	}
+
+	out := make([]NavGroup, 0, len(defaults))
+	for _, d := range defaults {
+		var base []NavRow
+		if err := json.Unmarshal(d.Rows, &base); err != nil {
+			return nil, fmt.Errorf("checkout: account-nav default %q: %w", d.Key, err)
+		}
+		if len(base) == 0 {
+			continue
+		}
+
+		rows := base
+		if raw, ok := overrideByKey[d.Key]; ok && len(raw) > 0 {
+			var ns []NavRow
+			if json.Unmarshal(raw, &ns) == nil && len(ns) > 0 {
+				allowed := make(map[string]struct{}, len(base))
+				for _, r := range base {
+					allowed[r.Key] = struct{}{}
+				}
+				filtered := make([]NavRow, 0, len(ns))
+				for _, r := range ns {
+					if _, known := allowed[r.Key]; known {
+						filtered = append(filtered, r)
+					}
+				}
+				if len(filtered) > 0 {
+					rows = filtered
+				}
+			}
+		}
+		out = append(out, NavGroup{Key: d.Key, Title: d.Title, Rows: rows})
+	}
+	return out, nil
 }
 
 // Register mounts auth-scoped order + account endpoints.
@@ -895,28 +941,20 @@ func (h *Handler) getOrderStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) getAccountNav(w http.ResponseWriter, r *http.Request) {
-	rows, err := h.repo.NavByUser(r.Context(), auth.UserID(r.Context()))
+	defaults, err := h.repo.NavDefaults(r.Context())
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "profile_unavailable", "profile unavailable")
 		return
 	}
-	byKey := make(map[string]json.RawMessage, len(rows))
-	for _, n := range rows {
-		byKey[n.Key] = n.Rows
+	overrides, err := h.repo.NavByUser(r.Context(), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "profile_unavailable", "profile unavailable")
+		return
 	}
-	out := make([]NavGroup, 0, len(accountNavCatalog))
-	for _, cat := range accountNavCatalog {
-		group := cat
-		if raw, ok := byKey[cat.Key]; ok && len(raw) > 0 {
-			var ns []NavRow
-			if json.Unmarshal(raw, &ns) == nil && len(ns) > 0 {
-				group.Rows = ns
-			}
-		}
-		if group.Rows == nil {
-			group.Rows = []NavRow{}
-		}
-		out = append(out, group)
+	out, err := projectAccountNav(defaults, overrides)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "profile_unavailable", "profile unavailable")
+		return
 	}
 	httpx.JSON(w, http.StatusOK, out)
 }

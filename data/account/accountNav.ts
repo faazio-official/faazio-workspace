@@ -1,6 +1,9 @@
 /**
- * @mock Static fixture — seeded sample data for local development until the Go Chi
- * backend (server/) is wired. See data/DATA_CONTROL.md.
+ * Seed-source catalog for `accounts.nav` (per-user menu overrides).
+ *
+ * NOT a runtime fallback: the app reads `GET /account-nav` only, whose universal default rows live
+ * in Postgres (`accounts.nav_defaults`, migration 0101). `server/supabase/seed/generate.mjs` uses
+ * this array to emit the `user-1` override sample; no client code imports it.
  */
 import type { AccountNavGroup } from '../types';
 

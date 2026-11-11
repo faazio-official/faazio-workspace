@@ -10,10 +10,11 @@ interface AccountNavState {
 }
 
 /**
- * Nav source for the "You" page. Server-authoritative (`GET /account-nav`): the gateway returns the
- * full committed group catalog (with empty rows for a fresh user), so no bundled @data group is ever
- * substituted. A failed read surfaces an error so the page can offer retry rather than silently
- * rendering as if the account had no rows.
+ * Nav source for the "You" page. Server-authoritative (`GET /account-nav`): the gateway merges the
+ * DB-backed universal default rows (`accounts.nav_defaults`) with any per-user overrides and omits
+ * groups without real destinations. No bundled @data group is ever substituted. A failed read
+ * surfaces an error so the page can offer retry rather than silently rendering as if the account
+ * had no rows.
  */
 export function useAccountNav(): AccountNavState {
   const [serverGroups, setServerGroups] = useState<AccountNavGroup[] | null>(null);

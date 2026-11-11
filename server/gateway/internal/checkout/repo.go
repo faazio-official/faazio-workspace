@@ -1672,7 +1672,7 @@ func (r *Repo) OrderStatusByUser(ctx context.Context, userID string) ([]OrderSta
 	return out, rows.Err()
 }
 
-// NavByUser returns accounts.nav rows.
+// NavByUser returns accounts.nav rows (per-user menu overrides).
 func (r *Repo) NavByUser(ctx context.Context, userID string) ([]Nav, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("checkout: database not configured")
@@ -1686,6 +1686,28 @@ func (r *Repo) NavByUser(ctx context.Context, userID string) ([]Nav, error) {
 	for rows.Next() {
 		var n Nav
 		if err := rows.Scan(&n.UserID, &n.Key, &n.Rows); err != nil {
+			return nil, err
+		}
+		out = append(out, n)
+	}
+	return out, rows.Err()
+}
+
+// NavDefaults returns the universal account-menu chrome from accounts.nav_defaults.
+func (r *Repo) NavDefaults(ctx context.Context) ([]NavDefault, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx,
+		`select key, title, sort_order, rows from accounts.nav_defaults order by sort_order, key`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []NavDefault{}
+	for rows.Next() {
+		var n NavDefault
+		if err := rows.Scan(&n.Key, &n.Title, &n.SortOrder, &n.Rows); err != nil {
 			return nil, err
 		}
 		out = append(out, n)

@@ -1054,15 +1054,16 @@ external opens to `https://faazio.com` and refuses any other host.
 ## Account navigation groups
 
 The "You" page (`features/profile/AccountView.tsx`) renders its nav list through
-`features/profile/useAccountNav.ts`: server rows from `GET /account-nav`
-(`gateway.getAccountNav`, `accounts.nav`) are authoritative; the committed
-`@data/account/accountNav.ts` catalog (`accountNavGroups`) fills any group whose
-server rows are empty or absent (a fresh user has no `accounts.nav` rows yet). The
-server projection returns titled groups (`{key, title, rows}`) — universal
-chrome is held server-side, per-user row membership lives in `accounts.nav`. Four groups
-render in order: `profile` (Profile settings), `privacy` (Privacy and security),
-`earn` (Earn with us), and `legal` (Terms and policies). Every rendered row has a real
-destination in `AccountView.handleRowPress` — there are no placeholder or dead rows.
+`features/profile/useAccountNav.ts`: the server is the only source (`GET /account-nav`
+→ `gateway.getAccountNav`). Universal default rows live in Postgres
+(`accounts.nav_defaults`, migration `0101`); per-user overrides live in `accounts.nav`.
+The gateway merges them: an override replaces a group only when it contains at least one
+destination the app handles, unknown groups/rows are dropped, and any group whose effective
+rows are empty is omitted. No `@data` catalog is substituted at runtime, and the client
+filters empty groups defensively. Four groups render in order: `profile` (Profile settings),
+`privacy` (Privacy and security), `earn` (Earn with us), and `legal` (Terms and policies).
+Every rendered row has a real destination in `AccountView.handleRowPress` — there are no
+placeholder or dead rows.
 The `privacy` group is active with `Delete account` →
 `DeleteAccount` and `Request data deletion` → `RequestDataDeletion`. The `legal` group is
 active with `terms` / `privacy` / `refunds` / `cookies` / `disclaimer` rows that open the

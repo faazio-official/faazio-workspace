@@ -12,8 +12,9 @@ sub-app wrappers (Pharma / Food) intentionally have no Account/Profile tab.
 - `AccountView.tsx`: Presentational "My Account" page — header,
   FaazioCoins streak card (7-day fire streak + balance), grouped navigation list
   (incl. **My Orders**, **Favourites** and **Sell with us** rows), and logout. Nav rows are
-  server-authoritative (`gateway.getAccountNav` via `useAccountNav`); the universal group catalog
-  fills groups whose server rows are empty, and the FaazioCoins card reads `rewardsStore`.
+  server-only (`gateway.getAccountNav` via `useAccountNav`): the gateway merges the DB-backed
+  universal rows (`accounts.nav_defaults`) with per-user overrides and omits empty groups; no
+  `@data` catalog is substituted at runtime. The FaazioCoins card reads `rewardsStore`.
 - `FavouritesScreen.tsx` / `FavouritesPageView.tsx` (in `features/favourites/`): the
   search-results-style **Favourites** page opened from My Account — a static header pill,
   All/Mart/Food/Pharma segmented toggle, sort-only rail, and a list resolved from

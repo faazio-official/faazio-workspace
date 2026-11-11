@@ -19,7 +19,9 @@
 ## Account surfaces
 
 - `AccountView.tsx` is shared by the tab (`AccountScreen`) and pushed (`YouScreen`).
-- Account nav rows come from `useAccountNav` → `GET /account-nav` → `accounts.nav`.
+- Account nav rows come from `useAccountNav` → `GET /account-nav` → `accounts.nav_defaults`
+  (universal rows) + `accounts.nav` (per-user overrides). Groups whose effective rows are empty are
+  omitted, and the client filters empty groups defensively; there is no `@data` runtime fallback.
 - Profile details: [`UserDetailsScreen` → `getProfile` / `getDetails`](./user-details.md) →
   `accounts.profile` / `accounts.details`.
 - Delete account / partial data deletion: `DeleteAccountScreen` / `RequestDataDeletionScreen` →
@@ -36,15 +38,16 @@
 ## Data path
 
 - `getAccountNav`, `getProfile`, `getDetails` → `GET /account-nav`, `/profile`, `/profile/details` →
-  `accounts.*`.
+  `accounts.*` (nav: `accounts.nav_defaults` + `accounts.nav`).
 - `gateway.getMembership` / `getOrderStatus` exist on the client but no profile screen calls them.
 - No `@data` account rows are substituted on a live read failure.
 
 ## Success / error / empty
 
-- **Success:** server account rows render.
+- **Success:** server account rows render (four titled groups with real destinations).
 - **Error:** honest retry; no fixture profile/order rows.
-- **Empty:** empty notifications/orders show honest empty states.
+- **Empty:** empty notifications/orders show honest empty states; an empty nav projection shows the
+  "No account options available" retry state, never a blank or fabricated menu.
 
 ## Known gaps
 

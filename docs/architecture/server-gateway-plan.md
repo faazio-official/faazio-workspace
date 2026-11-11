@@ -56,8 +56,9 @@ caller) and are event-purged on store live toggle and product edit/status change
   author's `blood.requests` via `created_by` and a `delivery_orders.route_sequence` reset, 0061 —
   keeps financial records; idempotent), `POST /users/me/data-deletion` (partial erasure of addresses/favourites/
   prescriptions), `/membership`, `/order-status`, `/account-nav` (`{key, title, rows}` groups:
-  universal titles server-side, per-user rows from `accounts.nav`; only groups with real
-  destinations are served — no empty/placeholder sections), `/seller/orders`, `/seller/orders/:id`,
+  universal titles **and default rows** server-side from `accounts.nav_defaults` (0101), per-user
+  overrides from `accounts.nav` filtered to known app destinations; only groups with real rows are
+  served — no empty/placeholder sections), `/seller/orders`, `/seller/orders/:id`,
   `/coupons?app=` (anon), `/promo/active-discounts?ids=` (anon), `/ads/live?slot=` (anon),
   `/admin/user-trail?userId=` (admin, ID-only), `/admin/sdui/home` (super-admin, raw ID-only layout);
   writes `POST/PUT/DELETE /cart…`, `POST /orders` (festival-discount + coupon settlement +

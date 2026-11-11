@@ -3796,31 +3796,38 @@ the old `/veg/i` cuisine heuristic). Unclassifiable dishes hide while a filter i
 **Status:** 🟢 Complete — every rendered nav row has a real destination; no placeholder/coming-soon groups.
 
 **Feature:** The "You" page nav list (`features/profile/AccountView.tsx`, driven by
-`@data/account/accountNav.ts` `accountNavGroups`) is grouped and titled: `profile`
+`useAccountNav` → `GET /account-nav`) is grouped and titled: `profile`
 (Profile settings), `privacy` (Privacy and security), `earn` (Earn with us — active with a
 `sell-with-us` row → `SellWithUs`), `legal` (Terms and policies). `privacy` is active with
 `Delete account` → `DeleteAccount` and `Request data deletion` → `RequestDataDeletion`
 (both root-stack routes). `legal` is active with `terms` / `privacy` / `refunds` / `cookies` /
 `disclaimer` rows that open the published landing pages in the system browser.
 
+**✅ Resolved (2026-11-11) — empty menu for non-seed users:** nav rows became server-only, but only
+`user-1` had `accounts.nav` rows, so every other (real) user saw titled groups with **zero rows**.
+Fixed by moving the universal row membership into Postgres (`accounts.nav_defaults`, migration
+`0101`); the gateway merges defaults with per-user `accounts.nav` overrides, drops unknown/
+legacy keys, and omits empty groups. `AccountView` also filters empty groups and shows an honest
+"No account options available" retry state. No `@data` catalog is substituted at runtime, and a
+fresh user needs no per-user provisioning write.
+
 **✅ Resolved (2026-10-31) — App Store completeness (Guideline 2.1):** removed the
 `payments` (Payments) and `support` (Customer Support) groups, the `recently-viewed` row, the
 `comingSoon` group flag (client `AccountNavGroup` + server `NavGroup`), the AccountView
 "Coming soon" render branch/styles, and the `handleRowPress` TODO stub. None had a destination
 screen, so they were unwired placeholders that fail App Review completeness; re-add only
-alongside a real destination screen. Server catalog (`accountNavCatalog`) and the seed
-(`accounts.nav`) were trimmed to match; production users with no `accounts.nav` rows render the
-client catalog directly.
+alongside a real destination screen. The gateway catalog and the seed (`accounts.nav`) were
+trimmed to match; the runtime defaults now live in `accounts.nav_defaults` (migration `0101`).
 
 **Future / honest gaps:**
 - **Destination screens not built** for Payments, Recently Viewed, and Customer Support — the
   rows/groups were removed from the catalog rather than left as dead-end placeholders.
   Favourites opens the search-results-style `Favourites` root route.
-- **Legal is active** — the account-nav `legal` group now has `terms` / `privacy` / `refunds` /
-  `cookies` / `disclaimer` rows (see `@data/account/accountNav.ts`) that open the published
-  landing pages in the system browser via `openTrustedUrl()` (`src/lib/externalLinks.ts`,
-  restricted to `https://faazio.com`). No in-app document screens are needed; the login
-  acceptance row links the same pages.
+- **Legal is active** — the account-nav `legal` group has `terms` / `privacy` / `refunds` /
+  `cookies` / `disclaimer` rows (server default `accounts.nav_defaults`, migration `0101`) that
+  open the published landing pages in the system browser via `openTrustedUrl()`
+  (`src/lib/externalLinks.ts`, restricted to `https://faazio.com`). No in-app document screens
+  are needed; the login acceptance row links the same pages.
 - **Privacy is complete for Play** — `DeleteAccount` calls `DELETE /users/me` (anonymising
   soft delete: PII erased, financial rows retained) and `RequestDataDeletion` calls
   `POST /users/me/data-deletion` (addresses/favourites/prescriptions; recent searches are
@@ -3846,8 +3853,10 @@ client catalog directly.
   with `TEST_DATABASE_URL`.
 
 **Interim contract:** The `AccountNavGroup` shape is `title` + `rows` (the optional
-`comingSoon` flag was removed 2026-10-31) so server wiring via `GatewayClient.getAccountNav`
-(`navTable`) stays a data-layer change.
+`comingSoon` flag was removed 2026-10-31). Runtime reads are server-only via
+`GatewayClient.getAccountNav` (`accounts.nav_defaults` defaults + `accounts.nav` overrides);
+`@data/account/accountNav.ts` is only a seed-source example for `accounts.nav`, never a client
+fallback.
 
 **Date:** 2026-09-10
 

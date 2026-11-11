@@ -108,13 +108,15 @@ export function AccountView({
   const coinBalance = useRewardsStore((s) => s.coinBalance);
   const streakCount = useRewardsStore((s) => s.streakCount);
   const authUser = useAuthStore((s) => s.user);
-  // Nav groups: server rows first, universal catalog chrome fills empty groups (see useAccountNav).
+  // Nav groups: server-authoritative (DB catalog + per-user overrides). Groups with no real rows are
+  // omitted so a stale/empty projection can never render as a blank titled card.
   const {
     groups: accountNavGroups,
     loading: navLoading,
     error: navError,
     retry: retryNav,
   } = useAccountNav();
+  const visibleGroups = accountNavGroups.filter((group) => group.rows.length > 0);
 
   const handleLogout = useCallback(() => {
     Alert.alert('Log out?', 'You will need to sign in again to use Faazio.', [
@@ -261,7 +263,22 @@ export function AccountView({
             </TouchableOpacity>
           </View>
         ) : null}
-        {accountNavGroups.map((group: AccountNavGroup) => (
+        {!navLoading && !navError && visibleGroups.length === 0 ? (
+          <View style={styles.navState}>
+            <AppText style={styles.navStateTitle}>No account options available</AppText>
+            <AppText style={styles.navStateText}>Your account menu could not be loaded.</AppText>
+            <TouchableOpacity
+              style={styles.navRetryBtn}
+              onPress={retryNav}
+              activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Retry loading account settings"
+            >
+              <AppText style={styles.navRetryText}>Try again</AppText>
+            </TouchableOpacity>
+          </View>
+        ) : null}
+        {visibleGroups.map((group: AccountNavGroup) => (
           <View key={group.key} style={styles.navGroup}>
             {group.title ? (
               <AppText style={styles.navGroupTitle}>{group.title}</AppText>
