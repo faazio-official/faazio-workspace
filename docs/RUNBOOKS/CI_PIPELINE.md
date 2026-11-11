@@ -126,9 +126,10 @@ and `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` / `_SELLER_PLIST`, but these are only r
 `GATEWAY_URL`, `WEB_PORTAL_URL`, `USE_GATEWAY`, `STRICT` and `USE_FIREBASE_AUTH` are set in
 `codemagic.yaml`; the group supplies the certificate/profile, App Store Connect key, certificate
 pins and Google keys. `REQUIRE_CERT_PINS=1` makes a missing pin set fatal.
-`scripts/restore-ios-signing.sh customer` imports the certificate into a temporary keychain, installs
-the profile (Xcode 26 + legacy paths), and writes `ios/ExportOptions.plist` (manual signing,
-`method: app-store-connect`). No fastlane.
+`scripts/restore-ios-signing.sh customer` imports the certificate (leaf + private key) into a
+temporary keychain, adds the Apple WWDR G3 intermediate, verifies a valid `Apple Distribution`
+identity, installs the profile (Xcode 26 + legacy paths), and writes `ios/ExportOptions.plist`
+(manual signing, `method: app-store-connect`). No fastlane.
 
 ### Env files (mobile)
 

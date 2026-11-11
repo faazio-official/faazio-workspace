@@ -60,15 +60,41 @@ printf '%s' "${!profile_var}" > "$TMP/signing-profile.b64"
 decode_base64 "$TMP/signing-certificate.b64" "$CERT_PATH"
 decode_base64 "$TMP/signing-profile.b64" "$PP_PATH"
 
-# 2. Import the certificate into a dedicated temporary keychain (GitHub Docs boilerplate).
+# 2. Import the certificate into a dedicated temporary keychain. Do not pass
+#    `-t cert`: for a PKCS#12 it can import only the certificate and drop the
+#    private key, leaving no usable code-signing identity. -A grants codesign
+#    access; the partition list (with -s) is still required on modern macOS.
 security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
 security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
 security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-security import "$CERT_PATH" -P "$APPSTORE_CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
-security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
+security import "$CERT_PATH" -P "$APPSTORE_CERTIFICATE_PASSWORD" -A -f pkcs12 \
+  -T /usr/bin/codesign -T /usr/bin/security -T /usr/bin/productbuild \
+  -k "$KEYCHAIN_PATH"
+security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH" >/dev/null
 # Put the temp keychain first so xcodebuild/codesign find the distribution identity.
 security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
 security default-keychain -s "$KEYCHAIN_PATH"
+
+# 2b. The leaf "Apple Distribution" certificate is issued by Apple WWDR CA G3.
+#     Import the intermediate so the temporary keychain can build a trusted
+#     chain (copied from Apple's public certificate authority page).
+WWDR_PATH="$TMP/AppleWWDRCAG3.cer"
+if curl -fsSL --retry 3 -o "$WWDR_PATH" \
+  https://www.apple.com/certificateauthority/AppleWWDRCAG3.cer; then
+  security import "$WWDR_PATH" -k "$KEYCHAIN_PATH" \
+    -T /usr/bin/codesign -T /usr/bin/security >/dev/null
+else
+  echo "[restore-ios-signing] warning: could not download the Apple WWDR G3 intermediate; relying on the build image keychains" >&2
+fi
+
+# 2c. Fail fast, with a useful message, if that did not yield a usable identity.
+IDENTITIES="$(security find-identity -v -p codesigning "$KEYCHAIN_PATH")"
+echo "$IDENTITIES"
+if ! printf '%s\n' "$IDENTITIES" | grep -q "Apple Distribution"; then
+  echo "[restore-ios-signing] no valid 'Apple Distribution' identity in $KEYCHAIN_PATH." >&2
+  echo "[restore-ios-signing] check APPSTORE_CERTIFICATE_BASE64/APPSTORE_CERTIFICATE_PASSWORD and the WWDR intermediate." >&2
+  exit 1
+fi
 
 # 3. Install the provisioning profile. Xcode 16 reads
 #    ~/Library/Developer/Xcode/UserData/Provisioning Profiles; older Xcode reads

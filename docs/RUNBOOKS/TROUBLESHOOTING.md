@@ -705,7 +705,9 @@ runtime, not build time.
 - **`restore-ios-signing.sh` fails** → `APPSTORE_CERTIFICATE_BASE64` / `APPSTORE_CERTIFICATE_PASSWORD`
   / `APPSTORE_TEAM_ID` / `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` are missing or wrong in the
   Codemagic group `ios app`. The `.p12` password must match; the profile must be an
-  **App Store** profile for `com.faazio.customer`.
+  **App Store** profile for `com.faazio.customer`. The script now fails early when
+  `security find-identity -v -p codesigning` finds no `Apple Distribution` identity — usually a
+  `.p12` exported without its private key (re-export cert + key from Keychain Access).
 - **`xcodebuild` "No signing certificate" / "provisioning profile doesn't match"** → on Codemagic,
   this usually means the temporary keychain created by `restore-ios-signing.sh` is no longer visible:
   each script step runs in a fresh shell/session. The workflow therefore runs the restore and
