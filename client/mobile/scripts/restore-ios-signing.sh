@@ -35,6 +35,8 @@ esac
 : "${APPSTORE_CERTIFICATE_BASE64:?APPSTORE_CERTIFICATE_BASE64 secret is required}"
 : "${APPSTORE_CERTIFICATE_PASSWORD:?APPSTORE_CERTIFICATE_PASSWORD secret is required}"
 : "${APPSTORE_TEAM_ID:?APPSTORE_TEAM_ID is required (Apple Developer Team ID)}"
+# A pasted trailing newline/space would silently make Xcode search the wrong team.
+APPSTORE_TEAM_ID="${APPSTORE_TEAM_ID//[[:space:]]/}"
 profile_var="APPSTORE_PROVISIONING_PROFILE${SUFFIX}"
 : "${!profile_var:?${profile_var} secret is required}"
 
@@ -112,6 +114,17 @@ if ! printf '%s\n' "$IDENTITIES" | grep -q "Apple Distribution"; then
   echo "[restore-ios-signing] check APPSTORE_CERTIFICATE_BASE64/APPSTORE_CERTIFICATE_PASSWORD and the WWDR intermediate." >&2
   exit 1
 fi
+# The SHA-1 identifies the exact identity. Xcode 26 names the requested
+# app-store certificate "iOS Distribution" even though the certificate is
+# "Apple Distribution"; matching by fingerprint avoids that name/type mismatch.
+CERT_SHA1="$(printf '%s\n' "$IDENTITIES" | awk '/Apple Distribution/ {print $2; exit}')"
+CERT_NAME="$(printf '%s\n' "$IDENTITIES" | sed -n 's/.*"\(Apple Distribution[^"]*\)".*/\1/p' | head -1)"
+echo "[restore-ios-signing] identity sha1=$CERT_SHA1 name=\"$CERT_NAME\""
+# Prove the keychain grants codesign access before paying for the whole export.
+# Sign a copy of a Mach-O binary (codesign rejects plain text files).
+cp /bin/echo "$TMP/sign-probe"
+codesign --force --sign "$CERT_SHA1" --keychain "$KEYCHAIN_PATH" "$TMP/sign-probe"
+rm -f "$TMP/sign-probe"
 
 # 3. Install the provisioning profile. Xcode 16 reads
 #    ~/Library/Developer/Xcode/UserData/Provisioning Profiles; older Xcode reads
@@ -121,6 +134,16 @@ PP_PLIST="$TMP/ios_signing_profile.plist"
 security cms -D -i "$PP_PATH" > "$PP_PLIST"
 PP_UUID="$(plutil -extract UUID raw "$PP_PLIST")"
 PP_NAME="$(plutil -extract Name raw "$PP_PLIST")"
+PP_TEAM="$(plutil -extract TeamIdentifier.0 raw "$PP_PLIST")"
+if [[ "$PP_TEAM" != "$APPSTORE_TEAM_ID" ]]; then
+  echo "[restore-ios-signing] APPSTORE_TEAM_ID (${APPSTORE_TEAM_ID}) does not match the profile team (${PP_TEAM})." >&2
+  echo "[restore-ios-signing] export would find no certificate or profile for the requested team." >&2
+  exit 1
+fi
+if ! printf '%s\n' "$IDENTITIES" | grep -q "($APPSTORE_TEAM_ID)"; then
+  echo "[restore-ios-signing] the imported identity is not for team ${APPSTORE_TEAM_ID}." >&2
+  exit 1
+fi
 for DIR in \
   "$HOME/Library/MobileDevice/Provisioning Profiles" \
   "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
@@ -129,6 +152,7 @@ for DIR in \
 done
 
 # 4. Write ExportOptions.plist for the archive export step (manual signing).
+#    signingCertificate is the SHA-1 fingerprint, not the display name.
 cat > "$ROOT/ios/ExportOptions.plist" <<EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -139,7 +163,7 @@ cat > "$ROOT/ios/ExportOptions.plist" <<EOF
   <key>signingStyle</key>
   <string>manual</string>
   <key>signingCertificate</key>
-  <string>Apple Distribution</string>
+  <string>${CERT_SHA1}</string>
   <key>teamID</key>
   <string>${APPSTORE_TEAM_ID}</string>
   <key>uploadSymbols</key>

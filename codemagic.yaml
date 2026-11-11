@@ -158,6 +158,8 @@ workflows:
           echo "--- installed profiles ---"
           ls -l "$HOME/Library/MobileDevice/Provisioning Profiles" || true
           ls -l "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles" || true
+          echo "--- ExportOptions.plist ---"
+          plutil -p ios/ExportOptions.plist
           mkdir -p "$CM_BUILD_DIR/build/ios/ipa"
           OTHER_CODE_SIGN_FLAGS="--keychain $RUNNER_TEMP/ios-signing.keychain-db" \
             xcodebuild \

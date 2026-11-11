@@ -724,7 +724,10 @@ runtime, not build time.
   team/name is unexpected points at the wrong `.p12` in `APPSTORE_CERTIFICATE_BASE64`.
   The profile's bundle id must equal the built configuration's (`com.faazio.customer`), and the
   certificate, profile and `APPSTORE_TEAM_ID` must belong to the same team. The workflow uses
-  `CODE_SIGN_STYLE=Manual` via the generated `ios/ExportOptions.plist`.
+  `CODE_SIGN_STYLE=Manual` via the generated `ios/ExportOptions.plist`. The plist pins
+  `signingCertificate` to the identity's SHA-1 fingerprint (Xcode 26 asks for "iOS Distribution" even
+  though the certificate is named "Apple Distribution", so name matching can miss it), and the
+  script fails early if `APPSTORE_TEAM_ID` differs from the profile's team.
 - **Xcode can't find the profile** → profiles must be installed under
   `~/Library/Developer/Xcode/UserData/Provisioning Profiles` (Xcode 26) as well as the legacy
   `~/Library/MobileDevice/Provisioning Profiles`. The script writes both, named by the profile UUID.
