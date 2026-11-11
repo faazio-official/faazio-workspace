@@ -611,6 +611,18 @@ export interface GeoState {
   kind?: string;
 }
 
+/** One active contract tier / rate card from `GET /sellers/contract-tiers` (server-owned). */
+export interface ContractTier {
+  tierCode: string;
+  name: string;
+  description: string;
+  /** Commission percentage on each delivered order. */
+  commissionPct: number;
+  settlementDays: number;
+  settlementTerms: string;
+  rateCardVersion: string;
+}
+
 export interface SellerApplicationInput {
   businessName: string;
   ownerName: string;
@@ -638,6 +650,12 @@ export interface SellerApplicationInput {
   passbookAssetId?: string;
   /** Digital-signature gate: true only after a successful Firebase OTP round-trip. */
   otpVerified: boolean;
+  /** Server-owned tier selected by the applicant; commission/settlement resolve server-side. */
+  contractTier: string;
+  /** Clickwrap acceptances. The gateway records timestamp, IP hash and account id from the request. */
+  termsAccepted: boolean;
+  partnerAgreementAccepted: boolean;
+  ipLicenseGranted: boolean;
 }
 
 /** A sellers.sellers row (server creates it PENDING_REVIEW; contactPhone is PII). */
@@ -683,6 +701,26 @@ export interface SellerApplication {
   rejectionReason?: string;
   rejectionHistory?: unknown;
   createdAt: string;
+  /** Contract acceptance audit (server-observed timestamp/IP hash/account id). */
+  termsAcceptedAt?: string;
+  termsAcceptedIp?: string;
+  termsAcceptedAccountId?: string;
+  partnerAgreementAcceptedAt?: string;
+  partnerAgreementAcceptedIp?: string;
+  partnerAgreementAcceptedAccountId?: string;
+  ipLicenseGrantedAt?: string;
+  ipLicenseGrantedIp?: string;
+  ipLicenseGrantedAccountId?: string;
+  /** Server-owned rate card resolved at submission. */
+  contractTier?: string;
+  rateCardVersion?: string;
+  commissionPct?: number;
+  settlementTerms?: string;
+  /** PENDING | VALIDATED | FAILED (government/format validation). */
+  complianceStatus?: string;
+  complianceNote?: string;
+  validatedAt?: string;
+  validatedBy?: string;
 }
 
 /** One sellers.seller_fee_change_requests row (seller-initiated, admin-reviewed). */
@@ -1922,6 +1960,15 @@ export class GatewayClient {
   async getMySellerApplication(): Promise<SellerApplication> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     return this.http<SellerApplication>('/sellers/me');
+  }
+
+  /**
+   * Active contract tiers / rate cards. Server-owned: the client never hardcodes commission or
+   * settlement terms, so an admin change reaches the registration screen without a release.
+   */
+  async listContractTiers(): Promise<ContractTier[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<ContractTier[]>('/sellers/contract-tiers');
   }
 
   /** One seller with payout account, KYC documents and manual verification log. */

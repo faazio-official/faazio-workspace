@@ -37,6 +37,10 @@ Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`)
 | Hardcoded tax constants on new-product display | New-product page shows GST/TCS/TDS constants | Display-only; the server remains the money authority |
 | Invite delivery is a manual link | No transactional-email provider exists in the repo; `POST /seller/sub-users` returns a one-time `/accept-invite?token=…` link the owner copies and shares | The lifecycle is complete (credential + accept + login), but delivery is out of band until a mail provider is configured |
 | `lowStock` / `campaigns` toggles have no producer | `notifications.EnqueueSeller` gates on all four preference columns, but only `SELLER_ORDER_NEW` and `SELLER_SLA_BREACH` are emitted today | Those two toggles persist and will take effect as soon as a producer emits `SELLER_LOW_STOCK`/`SELLER_CAMPAIGN` |
+| Government KYC validation is not linked | `internal/sellers/compliance.go` `FormatComplianceValidator` checks shape/checksum only and leaves `compliance_status = PENDING`; `Handler.WithCompliance` is the provider seam | GSTIN/PAN/FSSAI/bank are not verified against government databases; accounts stay PENDING after format checks |
+| Compliance `PENDING` still allows activation | `setStatus` / `verifyKYC` only block `FAILED` | A district admin's manual review remains the verification authority until a provider is wired |
+| Rejected applicant cannot resubmit via the edit endpoint | `POST /sellers/{id}/edit` requires the `SELLER` role + matching `seller_id` (`internal/sellers/handler.go`); a rejected shopper still has no seller role, so the customer app falls back to `POST /sellers` and hits `409 email_taken` | Rejected applicants cannot cleanly resubmit from the customer app |
+| Contract tiers are seed-only | `sellers.contract_tiers` is populated by migration 0100; no portal admin surface edits commission/settlement | A rate-card change needs a migration/DB change until an admin screen exists |
 
 **By design — not gaps:** seller registration is intentionally mobile-only (`POST /sellers` from
 the customer app's `SellWithUs`). On approval (`POST /sellers/{id}/verify-kyc`, or

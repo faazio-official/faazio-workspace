@@ -32,6 +32,7 @@ import type { DistrictInfo } from '@data/districts';
 import {
   GatewayHttpError,
   gateway,
+  type ContractTier,
   type GeoState,
   type SellerApplication,
 } from '@/services/api/GatewayClient';
@@ -44,6 +45,13 @@ import SellerLocationPicker from './SellerLocationPicker';
 import { neutral, parentRamp, semantic, semanticTint } from '@/theme/brandTokens';
 import ShopCard, { newVendorDraft, type VendorDraft } from './components/ShopCard';
 import { DocumentRow, TextInputField } from './components/FormControls';
+import {
+  ContractSummary,
+  ClickwrapRow,
+  TermsViewer,
+  type AgreementKind,
+} from './components/ContractTerms';
+import SelectDropdown from '@/components/shared/SelectDropdown';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SellWithUs'>;
 
@@ -64,6 +72,12 @@ function describeSubmitError(err: unknown): string {
         return 'Phone verification is required. Please verify your number again and resubmit.';
       case 'unknown_district':
         return 'That district isn’t recognised. Re-pin your shop on the map and try again.';
+      case 'agreements_required':
+        return 'Accept all three agreements before submitting.';
+      case 'invalid_contract_tier':
+        return 'Choose a contract tier before submitting.';
+      case 'compliance_failed':
+        return err.message || 'Compliance checks failed. Fix the flagged details and resubmit.';
       case 'sellers_unavailable':
       case 'seller_create_failed':
       case 'seller_update_failed':
@@ -221,8 +235,18 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [submittedApps, setSubmittedApps] = useState<string[]>([]);
 
+  // Contract tier comes from the server catalogue; clickwrap state is local until submit.
+  const [tiers, setTiers] = useState<ContractTier[]>([]);
+  const [tiersError, setTiersError] = useState('');
+  const [tierCode, setTierCode] = useState<string | null>(null);
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [partnerAccepted, setPartnerAccepted] = useState(false);
+  const [ipGranted, setIpGranted] = useState(false);
+  const [viewer, setViewer] = useState<AgreementKind | null>(null);
+
   // Guards a category request per shop so a slower earlier app request cannot overwrite a newer one.
   const categoryReq = useRef<Record<string, number>>({});
+  const tierReq = useRef(0);
   const sendRef = useRef(false);
   const submitRef = useRef(false);
   const autoSubmittedRef = useRef<string | null>(null);
@@ -340,6 +364,27 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     [vendors, states, districts],
   );
 
+  const selectedTier = useMemo(
+    () => tiers.find((t) => t.tierCode === tierCode) ?? null,
+    [tiers, tierCode],
+  );
+
+  const loadTiers = useCallback(() => {
+    const req = ++tierReq.current;
+    setTiersError('');
+    gateway
+      .listContractTiers()
+      .then((rows) => {
+        if (req === tierReq.current) setTiers(rows);
+      })
+      .catch(() => {
+        // Server-only catalogue: never substitute a local rate card.
+        if (req === tierReq.current) {
+          setTiersError('Could not load contract tiers. Reconnect and try again.');
+        }
+      });
+  }, []);
+
   useEffect(() => {
     const nextState = accountGeo?.stateCode ?? '';
     const nextDistrict = accountGeo?.districtCode ?? '';
@@ -383,6 +428,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       .catch(() => {
         // Offline/unauthorized: district remains empty; the server accepts a missing district.
       });
+    loadTiers();
     const first = vendors[0];
     if (first) loadCategoriesFor(first.key, first.app);
     return () => {
@@ -536,6 +582,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     if (form.bankIfsc.trim().length !== 11) return 'IFSC must be 11 characters.';
     if (!passbookUri) return 'Capture your bank passbook photo.';
     if (!otpVerified) return 'Verify the OTP to sign your application.';
+    if (!tierCode || !selectedTier) return 'Select a contract tier.';
+    if (!termsAccepted) return 'Accept the Terms of Service to continue.';
+    if (!partnerAccepted) return 'Accept the Seller / Partner Agreement to continue.';
+    if (!ipGranted) return 'Accept the content and IP licence to continue.';
     if (vendors.length === 0) return 'Add at least one shop.';
     if (!/^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase())) {
       return 'Pin at least one shop on the map in Tamil Nadu / Puducherry so the state and district can be set.';
@@ -664,6 +714,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         passbookFileKey: passbook.key,
         passbookAssetId: passbook.assetId,
         otpVerified: true,
+        contractTier: tierCode!,
+        termsAccepted,
+        partnerAgreementAccepted: partnerAccepted,
+        ipLicenseGranted: ipGranted,
       });
       setResult(res);
       setSubmittedApps(vendorPayload.map((v) => v.app).filter(Boolean));
@@ -678,6 +732,10 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     !submitting &&
     otpVerified &&
     Boolean(passbookUri) &&
+    Boolean(tierCode) &&
+    termsAccepted &&
+    partnerAccepted &&
+    ipGranted &&
     /^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase()) &&
     vendors.length > 0 &&
     vendors.some((v) => v.latitude != null && v.longitude != null) &&
@@ -790,6 +848,24 @@ export function SellerRegistrationScreen({ navigation }: Props) {
               <View style={styles.reviewMetaRow}>
                 <AppText style={styles.reviewMetaKey}>Shops</AppText>
                 <AppText style={styles.reviewMetaValue}>{displayedApps.join(' / ')}</AppText>
+              </View>
+            ) : null}
+            {result?.contractTier ? (
+              <View style={styles.reviewMetaRow}>
+                <AppText style={styles.reviewMetaKey}>Contract</AppText>
+                <AppText style={styles.reviewMetaValue}>{result.contractTier}</AppText>
+              </View>
+            ) : null}
+            {result?.complianceStatus ? (
+              <View style={styles.reviewMetaRow}>
+                <AppText style={styles.reviewMetaKey}>Compliance</AppText>
+                <AppText style={styles.reviewMetaValue}>
+                  {result.complianceStatus === 'VALIDATED'
+                    ? 'Verified'
+                    : result.complianceStatus === 'FAILED'
+                      ? 'Needs attention'
+                      : 'Pending verification'}
+                </AppText>
               </View>
             ) : null}
             <TouchableOpacity
@@ -961,6 +1037,56 @@ export function SellerRegistrationScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.sectionCard}>
+              <AppText style={styles.sectionTitle}>Contract & terms</AppText>
+              <AppText style={styles.sectionNote}>
+                Pick a rate card, then accept the agreements that apply to every shop.
+              </AppText>
+
+              <SelectDropdown<string>
+                label="Contract tier"
+                required
+                placeholder={
+                  tiersError ? 'Tiers unavailable' : tiers.length === 0 ? 'Loading tiers…' : 'Select a tier'
+                }
+                options={tiers.map((t) => ({
+                  value: t.tierCode,
+                  label: `${t.name} · ${t.commissionPct}%`,
+                }))}
+                value={tierCode}
+                onChange={setTierCode}
+                disabled={tiers.length === 0}
+              />
+              {tiersError ? (
+                <View style={styles.tierErrorRow}>
+                  <AppText style={styles.helperError}>{tiersError}</AppText>
+                  <TouchableOpacity onPress={loadTiers} accessibilityRole="button">
+                    <AppText style={styles.tierRetry}>Retry</AppText>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+              <ContractSummary tier={selectedTier} />
+
+              <ClickwrapRow
+                label="I accept the Terms of Service"
+                checked={termsAccepted}
+                onToggle={() => setTermsAccepted((v) => !v)}
+                onRead={() => setViewer('terms')}
+              />
+              <ClickwrapRow
+                label="I accept the Seller / Partner Agreement"
+                checked={partnerAccepted}
+                onToggle={() => setPartnerAccepted((v) => !v)}
+                onRead={() => setViewer('partner')}
+              />
+              <ClickwrapRow
+                label="I grant Faazio the content and IP licence"
+                checked={ipGranted}
+                onToggle={() => setIpGranted((v) => !v)}
+                onRead={() => setViewer('ip')}
+              />
+            </View>
+
+            <View style={styles.sectionCard}>
               <View style={styles.sectionTitleRow}>
                 <AppText style={styles.sectionTitle}>Digital signature</AppText>
                 {otpVerified ? (
@@ -1100,7 +1226,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 <>
                   <Lock size={ms(16)} color={parentRamp.onBase} strokeWidth={2.2} />
                   <AppText style={styles.submitText}>
-                    {canSubmit ? 'Submit for review' : 'Complete OTP and documents'}
+                    {canSubmit ? 'Submit for review' : 'Complete the required steps'}
                   </AppText>
                 </>
               )}
@@ -1153,6 +1279,12 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           setCapture(null);
           setCaptureVendorKey(null);
         }}
+      />
+
+      <TermsViewer
+        kind={viewer}
+        visible={viewer !== null}
+        onClose={() => setViewer(null)}
       />
     </View>
   );
@@ -1257,6 +1389,8 @@ const styles = StyleSheet.create({
     color: neutral.ink,
   },
   helperError: { fontSize: ms(11), color: semantic.danger, fontWeight: '700', marginTop: vs(8) },
+  tierErrorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  tierRetry: { fontSize: ms(11), color: parentRamp.base, fontWeight: '800', marginTop: vs(8) },
   linkText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base, marginTop: vs(8) },
   linkTextMuted: { color: neutral.inkSubtle },
   verifiedPill: {

@@ -2590,3 +2590,37 @@ DRAFT → PENDING_REVIEW → ACTIVE moderation lifecycle as menu products.
 4. RLS (Supabase only): anon/authenticated read `directory.addons` + `directory.menu_addon_links`
    (public catalogue, DRAFT rows are filtered by the gateway); `checkout.order_item_addons` is
    owner-read via the parent order (`checkout.current_app_user_id()`). Writes stay service_role only.
+
+### 12.38 Seller contract, rate card & compliance (migration `0100`)
+
+**Authority:** `monolith-breakdown.md` §1 (`sellers` row),
+`user-interaction-workflow/seller/onboarding/seller-registration.md`. Onboarding captured KYC and a
+phone-OTP signature but had no clickwrap acceptance, IP-licence grant, contract tier or
+government-validation status, so a merchant could be activated without an auditable agreement.
+
+1. `sellers.contract_tiers` — the server-owned rate card: `tier_code` PK (`STARTER`, `STANDARD`,
+   `ENTERPRISE` seeded `v1`), `name`, `description`, `commission_pct` (1–100), `settlement_days`
+   (0–30), `settlement_terms`, `rate_card_version`, `is_active`, timestamps. The client reads
+   `GET /sellers/contract-tiers`; it never hardcodes commission or settlement terms. No portal admin
+   editor yet (see `KNOWN_GAPS.md`).
+2. `sellers.sellers` gains the acceptance audit and resolved contract:
+   `terms_accepted_at/ip/account_id`, `partner_agreement_accepted_at/ip/account_id`,
+   `ip_license_granted_at/ip/account_id`, `contract_tier` (FK → `sellers.contract_tiers`),
+   `rate_card_version`, `commission_pct`, `settlement_terms`, `compliance_status`
+   (`PENDING`/`VALIDATED`/`FAILED`, default `PENDING`), `compliance_note`, `validated_at`,
+   `validated_by`. The `*_ip` values are a short SHA-256 hash of the request IP, never plaintext,
+   matching the portal session/audit posture. Index: `(contract_tier)`.
+3. `sellers.compliance_validations` — append-only attempt log: `log_id` PK, `seller_id` FK
+   (`on delete cascade`), `check_type` (`GSTIN`/`PAN`/`FSSAI`/`BANK`), `subject_masked` (tail only),
+   `status` (`PENDING`/`VALIDATED`/`FAILED`), `source` (`format` today), `reason`, `created_at`.
+   Index: `(seller_id, created_at desc)`.
+4. `POST /sellers` rejects a submission unless all three clickwrap acceptances are present and the
+   tier is active (`400 agreements_required` / `400 invalid_contract_tier`). The server resolves the
+   rate card, records the acceptance audit from server-observed values and runs the compliance
+   adapter. `PATCH /sellers/{id}/status` → `ACTIVE` and `POST /sellers/{id}/verify-kyc` return
+   `409 compliance_failed` when `compliance_status = FAILED`; `PENDING` remains activatable because
+   the current verification authority is the district admin's manual KYC review.
+5. The default `FormatComplianceValidator` checks PAN/GSTIN/FSSAI/IFSC shape and the GSTIN mod-36
+   checksum locally and leaves the account `PENDING`; it never claims a government validation. A
+   provider integrates through `Handler.WithCompliance`. RLS: authenticated users read active tiers;
+   a seller reads only its own compliance rows (admins in district scope); writes stay service_role.

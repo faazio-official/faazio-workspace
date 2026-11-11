@@ -52,9 +52,40 @@ type Seller struct {
 	RejectionReason  string          `json:"rejectionReason,omitempty"`
 	RejectionHistory json.RawMessage `json:"rejectionHistory,omitempty"`
 	CreatedAt        string          `json:"createdAt"`
+	// Contract acceptance audit (migration 0100). IP fields are short SHA-256 hashes, never the
+	// plaintext address. The timestamps prove who accepted which agreement and when.
+	TermsAcceptedAt              string `json:"termsAcceptedAt,omitempty"`
+	TermsAcceptedIP              string `json:"termsAcceptedIp,omitempty"`
+	TermsAcceptedAccountID       string `json:"termsAcceptedAccountId,omitempty"`
+	PartnerAgreementAcceptedAt   string `json:"partnerAgreementAcceptedAt,omitempty"`
+	PartnerAgreementAcceptedIP   string `json:"partnerAgreementAcceptedIp,omitempty"`
+	PartnerAgreementAcceptedAcct string `json:"partnerAgreementAcceptedAccountId,omitempty"`
+	IPLicenseGrantedAt           string `json:"ipLicenseGrantedAt,omitempty"`
+	IPLicenseGrantedIP           string `json:"ipLicenseGrantedIp,omitempty"`
+	IPLicenseGrantedAccountID    string `json:"ipLicenseGrantedAccountId,omitempty"`
+	ContractTier                 string `json:"contractTier,omitempty"`
+	RateCardVersion              string `json:"rateCardVersion,omitempty"`
+	CommissionPct                int    `json:"commissionPct,omitempty"`
+	SettlementTerms              string `json:"settlementTerms,omitempty"`
+	ComplianceStatus             string `json:"complianceStatus,omitempty"`
+	ComplianceNote               string `json:"complianceNote,omitempty"`
+	ValidatedAt                  string `json:"validatedAt,omitempty"`
+	ValidatedBy                  string `json:"validatedBy,omitempty"`
 	// VendorCount/VendorApps are populated by List (one account can own shops in several apps).
 	VendorCount int      `json:"vendorCount,omitempty"`
 	VendorApps  []string `json:"vendorApps,omitempty"`
+}
+
+// ContractTier is one sellers.contract_tiers row: the server-owned commission + settlement terms a
+// seller accepts at registration. The client reads this catalogue; it is never hardcoded.
+type ContractTier struct {
+	TierCode        string `json:"tierCode"`
+	Name            string `json:"name"`
+	Description     string `json:"description"`
+	CommissionPct   int    `json:"commissionPct"`
+	SettlementDays  int    `json:"settlementDays"`
+	SettlementTerms string `json:"settlementTerms"`
+	RateCardVersion string `json:"rateCardVersion"`
 }
 
 // VendorSeed is one VENDOR created alongside an onboarding account. Commercial fields belong to the
@@ -205,10 +236,67 @@ func (r *Repo) ValidStateCode(ctx context.Context, code string) (bool, error) {
 	return exists, err
 }
 
+// ContractTiers returns the active server-owned rate cards, cheapest commitment first.
+func (r *Repo) ContractTiers(ctx context.Context) ([]ContractTier, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("sellers: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select tier_code, name, description, commission_pct, settlement_days,
+		       settlement_terms, rate_card_version
+		  from sellers.contract_tiers
+		 where is_active
+		 order by commission_pct desc, tier_code`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ContractTier{}
+	for rows.Next() {
+		var t ContractTier
+		if err := rows.Scan(&t.TierCode, &t.Name, &t.Description, &t.CommissionPct,
+			&t.SettlementDays, &t.SettlementTerms, &t.RateCardVersion); err != nil {
+			return nil, err
+		}
+		out = append(out, t)
+	}
+	return out, rows.Err()
+}
+
+// ContractTier returns one active tier by code, used to resolve the rate card at submission so the
+// client cannot inject a commission or rate-card version.
+func (r *Repo) ContractTier(ctx context.Context, code string) (ContractTier, bool, error) {
+	if r.pool == nil {
+		return ContractTier{}, false, fmt.Errorf("sellers: database not configured")
+	}
+	var t ContractTier
+	err := r.pool.QueryRow(ctx, `
+		select tier_code, name, description, commission_pct, settlement_days,
+		       settlement_terms, rate_card_version
+		  from sellers.contract_tiers
+		 where tier_code = $1 and is_active`, strings.ToUpper(strings.TrimSpace(code))).
+		Scan(&t.TierCode, &t.Name, &t.Description, &t.CommissionPct,
+			&t.SettlementDays, &t.SettlementTerms, &t.RateCardVersion)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ContractTier{}, false, nil
+	}
+	if err != nil {
+		return ContractTier{}, false, err
+	}
+	return t, true, nil
+}
+
 const sellerColumns = `seller_id, business_name, owner_name, gstin, pan, address,
 	coalesce(phone,''), coalesce(contact_email,''), state_code, coalesce(district_code,''), status::text, rating,
 	otp_verified, otp_verified_at, coalesce(rejection_reason,''), rejection_history, created_at,
-	latitude, longitude`
+	latitude, longitude,
+	terms_accepted_at, coalesce(terms_accepted_ip,''), coalesce(terms_accepted_account_id,''),
+	partner_agreement_accepted_at, coalesce(partner_agreement_accepted_ip,''),
+	coalesce(partner_agreement_accepted_account_id,''),
+	ip_license_granted_at, coalesce(ip_license_granted_ip,''), coalesce(ip_license_granted_account_id,''),
+	coalesce(contract_tier,''), coalesce(rate_card_version,''), coalesce(commission_pct,0),
+	coalesce(settlement_terms,''), coalesce(compliance_status,'PENDING'), coalesce(compliance_note,''),
+	validated_at, coalesce(validated_by,'')`
 
 const sellerSelect = `select ` + sellerColumns + ` from sellers.sellers`
 
@@ -357,13 +445,13 @@ func (r *Repo) Vendors(ctx context.Context, sellerID string) ([]Vendor, error) {
 
 // Create inserts an onboarding seller (status PENDING_REVIEW) and returns the new row.
 func (r *Repo) Create(ctx context.Context, userID string, s Seller) (Seller, error) {
-	return r.CreateExtended(ctx, userID, s, nil, nil, nil)
+	return r.CreateExtended(ctx, userID, s, nil, nil, nil, nil)
 }
 
-// CreateExtended inserts the account, payout account, KYC documents and its vendors in one
-// transaction. The account row carries no brand/fee/FSSAI: those live on each vendor row.
-// userID links the application to the authenticated shopper for GET /sellers/me.
-func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank *BankAccount, docs []KycDocument, vendors []VendorSeed) (Seller, error) {
+// CreateExtended inserts the account, payout account, KYC documents, its vendors and the compliance
+// checks in one transaction. The account row carries no brand/fee/FSSAI: those live on each vendor
+// row. userID links the application to the authenticated shopper for GET /sellers/me.
+func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank *BankAccount, docs []KycDocument, vendors []VendorSeed, checks []ComplianceCheck) (Seller, error) {
 	if r.pool == nil {
 		return Seller{}, fmt.Errorf("sellers: database not configured")
 	}
@@ -376,6 +464,9 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 			otpAt = t
 		}
 	}
+	if s.ComplianceStatus == "" {
+		s.ComplianceStatus = CompliancePending
+	}
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return Seller{}, err
@@ -386,12 +477,26 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 		insert into sellers.sellers
 		  (seller_id, user_id, business_name, owner_name, gstin, pan, address, phone, contact_email,
 		   state_code, district_code,
-		   otp_verified, otp_verified_at, latitude, longitude)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+		   otp_verified, otp_verified_at, latitude, longitude,
+		   terms_accepted_at, terms_accepted_ip, terms_accepted_account_id,
+		   partner_agreement_accepted_at, partner_agreement_accepted_ip,
+		   partner_agreement_accepted_account_id,
+		   ip_license_granted_at, ip_license_granted_ip, ip_license_granted_account_id,
+		   contract_tier, rate_card_version, commission_pct, settlement_terms,
+		   compliance_status, compliance_note, validated_at, validated_by)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+		        $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)
 		returning `+sellerColumns,
 		s.SellerID, nullIfEmpty(userID), s.BusinessName, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
 		nullIfEmpty(s.ContactPhone), s.ContactEmail, s.StateCode, nullIfEmpty(s.DistrictCode),
-		s.OTPVerified, otpAt, s.Latitude, s.Longitude))
+		s.OTPVerified, otpAt, s.Latitude, s.Longitude,
+		timeOrNil(s.TermsAcceptedAt), nullIfEmpty(s.TermsAcceptedIP), nullIfEmpty(s.TermsAcceptedAccountID),
+		timeOrNil(s.PartnerAgreementAcceptedAt), nullIfEmpty(s.PartnerAgreementAcceptedIP),
+		nullIfEmpty(s.PartnerAgreementAcceptedAcct),
+		timeOrNil(s.IPLicenseGrantedAt), nullIfEmpty(s.IPLicenseGrantedIP), nullIfEmpty(s.IPLicenseGrantedAccountID),
+		nullIfEmpty(s.ContractTier), nullIfEmpty(s.RateCardVersion), nullIfZero(s.CommissionPct),
+		nullIfEmpty(s.SettlementTerms), s.ComplianceStatus, nullIfEmpty(s.ComplianceNote),
+		timeOrNil(s.ValidatedAt), nullIfEmpty(s.ValidatedBy)))
 	if err != nil {
 		// The only unique constraint this insert can hit is the contact-email index
 		// (seller_id is a random slug); surface it as a typed error so the handler returns 409.
@@ -399,6 +504,15 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 			return Seller{}, ErrEmailTaken
 		}
 		return Seller{}, err
+	}
+	for _, c := range checks {
+		if _, err := tx.Exec(ctx, `
+			insert into sellers.compliance_validations
+			  (log_id, seller_id, check_type, subject_masked, status, source, reason)
+			values ($1,$2,$3,$4,$5,$6,$7)`,
+			"cvl-"+shortID(), created.SellerID, c.CheckType, c.SubjectMasked, c.Status, c.Source, c.Reason); err != nil {
+			return Seller{}, err
+		}
 	}
 	if bank != nil {
 		bank.SellerID = created.SellerID
@@ -805,62 +919,81 @@ type rowScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanSeller(row rowScanner) (Seller, error) {
-	var (
-		s         Seller
-		otpAt     *time.Time
-		history   []byte
-		createdAt time.Time
-		lat, lng  *float64
-	)
-	if err := row.Scan(&s.SellerID, &s.BusinessName, &s.OwnerName, &s.GSTIN, &s.PAN,
-		&s.BusinessAddress, &s.ContactPhone, &s.ContactEmail, &s.StateCode, &s.DistrictCode, &s.Status, &s.Rating,
-		&s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt,
-		&lat, &lng); err != nil {
-		return Seller{}, err
+type sellerScan struct {
+	s           Seller
+	otpAt       *time.Time
+	termsAt     *time.Time
+	partnerAt   *time.Time
+	ipAt        *time.Time
+	validatedAt *time.Time
+	history     []byte
+	createdAt   time.Time
+	lat, lng    *float64
+}
+
+// dest returns the scan targets in sellerColumns order. Both seller readers share it so a new
+// column only has to be added once.
+func (sc *sellerScan) dest() []any {
+	return []any{
+		&sc.s.SellerID, &sc.s.BusinessName, &sc.s.OwnerName, &sc.s.GSTIN, &sc.s.PAN,
+		&sc.s.BusinessAddress, &sc.s.ContactPhone, &sc.s.ContactEmail, &sc.s.StateCode, &sc.s.DistrictCode, &sc.s.Status, &sc.s.Rating,
+		&sc.s.OTPVerified, &sc.otpAt, &sc.s.RejectionReason, &sc.history, &sc.createdAt,
+		&sc.lat, &sc.lng,
+		&sc.termsAt, &sc.s.TermsAcceptedIP, &sc.s.TermsAcceptedAccountID,
+		&sc.partnerAt, &sc.s.PartnerAgreementAcceptedIP, &sc.s.PartnerAgreementAcceptedAcct,
+		&sc.ipAt, &sc.s.IPLicenseGrantedIP, &sc.s.IPLicenseGrantedAccountID,
+		&sc.s.ContractTier, &sc.s.RateCardVersion, &sc.s.CommissionPct, &sc.s.SettlementTerms,
+		&sc.s.ComplianceStatus, &sc.s.ComplianceNote, &sc.validatedAt, &sc.s.ValidatedBy,
 	}
-	if otpAt != nil {
-		s.OTPVerifiedAt = otpAt.UTC().Format(time.RFC3339)
+}
+
+func (sc *sellerScan) seller() Seller {
+	s := sc.s
+	if sc.otpAt != nil {
+		s.OTPVerifiedAt = sc.otpAt.UTC().Format(time.RFC3339)
 	}
-	if len(history) > 0 {
-		s.RejectionHistory = json.RawMessage(history)
+	if sc.termsAt != nil {
+		s.TermsAcceptedAt = sc.termsAt.UTC().Format(time.RFC3339)
+	}
+	if sc.partnerAt != nil {
+		s.PartnerAgreementAcceptedAt = sc.partnerAt.UTC().Format(time.RFC3339)
+	}
+	if sc.ipAt != nil {
+		s.IPLicenseGrantedAt = sc.ipAt.UTC().Format(time.RFC3339)
+	}
+	if sc.validatedAt != nil {
+		s.ValidatedAt = sc.validatedAt.UTC().Format(time.RFC3339)
+	}
+	if len(sc.history) > 0 {
+		s.RejectionHistory = json.RawMessage(sc.history)
 	} else {
 		s.RejectionHistory = json.RawMessage("[]")
 	}
-	s.CreatedAt = createdAt.UTC().Format(time.RFC3339)
-	s.Latitude = lat
-	s.Longitude = lng
-	return s, nil
+	s.CreatedAt = sc.createdAt.UTC().Format(time.RFC3339)
+	s.Latitude = sc.lat
+	s.Longitude = sc.lng
+	return s
+}
+
+func scanSeller(row rowScanner) (Seller, error) {
+	sc := &sellerScan{}
+	if err := row.Scan(sc.dest()...); err != nil {
+		return Seller{}, err
+	}
+	return sc.seller(), nil
 }
 
 // scanSellerWithVendors decodes the base seller columns plus the aggregated vendor count/apps
 // (the trailing vendorRollupColumns). Used by every rollup read via sellerSelectWithVendors.
 func scanSellerWithVendors(row rowScanner) (Seller, error) {
-	var (
-		s         Seller
-		otpAt     *time.Time
-		history   []byte
-		createdAt time.Time
-		lat, lng  *float64
-		apps      []string
-	)
-	if err := row.Scan(&s.SellerID, &s.BusinessName, &s.OwnerName, &s.GSTIN, &s.PAN,
-		&s.BusinessAddress, &s.ContactPhone, &s.ContactEmail, &s.StateCode, &s.DistrictCode, &s.Status, &s.Rating,
-		&s.OTPVerified, &otpAt, &s.RejectionReason, &history, &createdAt,
-		&lat, &lng, &s.VendorCount, &apps); err != nil {
+	sc := &sellerScan{}
+	dest := append(sc.dest(), &sc.s.VendorCount)
+	var apps []string
+	dest = append(dest, &apps)
+	if err := row.Scan(dest...); err != nil {
 		return Seller{}, err
 	}
-	if otpAt != nil {
-		s.OTPVerifiedAt = otpAt.UTC().Format(time.RFC3339)
-	}
-	if len(history) > 0 {
-		s.RejectionHistory = json.RawMessage(history)
-	} else {
-		s.RejectionHistory = json.RawMessage("[]")
-	}
-	s.CreatedAt = createdAt.UTC().Format(time.RFC3339)
-	s.Latitude = lat
-	s.Longitude = lng
+	s := sc.seller()
 	s.VendorApps = apps
 	return s, nil
 }
@@ -1476,6 +1609,26 @@ func isUniqueViolation(err error) bool {
 
 func nullIfEmpty(v string) any {
 	if strings.TrimSpace(v) == "" {
+		return nil
+	}
+	return v
+}
+
+// timeOrNil parses an RFC3339 timestamp for a nullable timestamptz column.
+func timeOrNil(v string) any {
+	if strings.TrimSpace(v) == "" {
+		return nil
+	}
+	t, err := time.Parse(time.RFC3339, v)
+	if err != nil {
+		return nil
+	}
+	return t
+}
+
+// nullIfZero keeps optional numeric columns NULL rather than storing a misleading 0.
+func nullIfZero(v int) any {
+	if v == 0 {
 		return nil
 	}
 	return v

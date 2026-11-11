@@ -158,6 +158,17 @@ caller) and are event-purged on store live toggle and product edit/status change
   when missing, `400 unknown_district` when not in the master, `400 bad_request` when the district's
   parent state mismatches `stateCode`); `POST /sellers/{id}/edit` keeps validate-when-present so a
   legacy NULL-district row can still resubmit.
+  **Contract + compliance (`0100`):** `GET /sellers/contract-tiers` (mounted under `auth.Require`)
+  returns the active server-owned rate cards. `POST /sellers` now requires `contractTier` and the
+  three clickwrap booleans (`termsAccepted`, `partnerAgreementAccepted`, `ipLicenseGranted`) —
+  `400 agreements_required` / `400 invalid_contract_tier` — resolves commission/settlement from
+  `sellers.contract_tiers` (the client never supplies them), and records the acceptance timestamp,
+  hashed client IP and `auth.UserID()` server-side. A `ComplianceValidator` adapter runs on the same
+  call and writes append-only `sellers.compliance_validations`; the default `FormatComplianceValidator`
+  checks PAN/GSTIN/FSSAI/IFSC shape + the GSTIN checksum and leaves the account `PENDING`
+  (`Handler.WithCompliance` is the government-provider seam). `PATCH /sellers/:id/status` → `ACTIVE`
+  and `POST /sellers/:id/verify-kyc` return `409 compliance_failed` only when the status is `FAILED`
+  (PENDING still allows the district admin's manual review).
   **Shopper self-read (`0084`):** `POST /sellers` stores `auth.UserID()` as `sellers.sellers.user_id`,
   and `GET /sellers/me` (mounted under `auth.Require`, **not** `RequireRole`) returns the caller's
   newest application or `404 not_found`. This lets a still-shopper applicant read their status

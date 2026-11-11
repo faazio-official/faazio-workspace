@@ -3,6 +3,7 @@ package sellers
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -53,7 +54,7 @@ func TestSellerRoleGating(t *testing.T) {
 	create := do(t, h, http.MethodPost, "/sellers",
 		`{"businessName":"Gate Test","ownerName":"O","stateCode":"TN","districtCode":"TTC",`+
 			`"gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","contactPhone":"9876543210",`+
-			`"contactEmail":"o@example.com","otpVerified":true,`+
+			`"contactEmail":"o@example.com","otpVerified":true,"contractTier":"STANDARD","termsAccepted":true,"partnerAgreementAccepted":true,"ipLicenseGranted":true,`+
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
 			`"bankBeneficiary":"Gate Test","passbookFileKey":"kyc/gate/passbook.jpg",`+
 			`"vendors":[{"name":"Gate Store","app":"FOOD","platformFeePct":10,`+
@@ -139,13 +140,72 @@ func TestSellerCreateRejectsInvalidState(t *testing.T) {
 	rec := do(t, h, http.MethodPost, "/sellers",
 		`{"businessName":"Bad State","ownerName":"O","stateCode":"ZZ",`+
 			`"pan":"ABCDE1234F","contactPhone":"9876500001",`+
-			`"contactEmail":"bad-state@example.com","otpVerified":true,`+
+			`"contactEmail":"bad-state@example.com","otpVerified":true,"contractTier":"STANDARD","termsAccepted":true,"partnerAgreementAccepted":true,"ipLicenseGranted":true,`+
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
 			`"bankBeneficiary":"Bad State","passbookFileKey":"kyc/gate/passbook.jpg",`+
 			`"vendors":[{"name":"Bad Store","app":"FOOD","platformFeePct":10}]}`,
 		map[string]string{"X-Dev-Phone": "9876500001"})
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("invalid state status = %d body=%s, want 400", rec.Code, rec.Body.String())
+	}
+}
+
+// TestContractTiersSeeded verifies the server-owned rate card catalogue (0100) is readable by an
+// authenticated applicant and carries the seeded tiers. The client never hardcodes these values.
+func TestContractTiersSeeded(t *testing.T) {
+	pool := testenv.Pool(t)
+	h := handlerRouter(t, pool)
+
+	rec := do(t, h, http.MethodGet, "/sellers/contract-tiers", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("contract tiers status = %d body=%s", rec.Code, rec.Body.String())
+	}
+	var tiers []ContractTier
+	if err := json.Unmarshal(rec.Body.Bytes(), &tiers); err != nil {
+		t.Fatalf("decode tiers: %v body=%s", err, rec.Body.String())
+	}
+	byCode := map[string]ContractTier{}
+	for _, tier := range tiers {
+		byCode[tier.TierCode] = tier
+	}
+	for code, commission := range map[string]int{"STARTER": 12, "STANDARD": 10, "ENTERPRISE": 8} {
+		tier, ok := byCode[code]
+		if !ok {
+			t.Fatalf("seed tier %s missing from %+v", code, tiers)
+		}
+		if tier.CommissionPct != commission || tier.RateCardVersion == "" || tier.SettlementDays < 0 {
+			t.Fatalf("seed tier %s = %+v, want commission %d and a rate-card version", code, tier, commission)
+		}
+	}
+}
+
+// TestSellerCreateRequiresContractAcceptance covers the clickwrap + rate-card gates (0100): a
+// submission without all three acceptances or with an unknown tier never reaches persistence.
+func TestSellerCreateRequiresContractAcceptance(t *testing.T) {
+	pool := testenv.Pool(t)
+	h := handlerRouter(t, pool)
+
+	body := func(tier string, terms, partner, ip bool) string {
+		return fmt.Sprintf(`{"businessName":"Contract Test","ownerName":"O","stateCode":"TN",`+
+			`"districtCode":"TTC","pan":"ABCDE1234F","contactPhone":"9876500002",`+
+			`"contactEmail":"contract-test@example.com","otpVerified":true,`+
+			`"contractTier":"%s","termsAccepted":%t,"partnerAgreementAccepted":%t,`+
+			`"ipLicenseGranted":%t,"bankName":"HDFC Bank",`+
+			`"bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
+			`"bankBeneficiary":"Contract Test","passbookFileKey":"kyc/gate/passbook.jpg",`+
+			`"vendors":[{"name":"Contract Store","app":"FOOD","platformFeePct":10}]}`,
+			tier, terms, partner, ip)
+	}
+	headers := map[string]string{"X-Dev-Phone": "9876500002"}
+
+	rec := do(t, h, http.MethodPost, "/sellers", body("STANDARD", false, true, true), headers)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "agreements_required") {
+		t.Fatalf("missing agreements = %d %s, want 400 agreements_required", rec.Code, rec.Body.String())
+	}
+
+	rec = do(t, h, http.MethodPost, "/sellers", body("NOPE", true, true, true), headers)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_contract_tier") {
+		t.Fatalf("unknown tier = %d %s, want 400 invalid_contract_tier", rec.Code, rec.Body.String())
 	}
 }
 
@@ -168,7 +228,7 @@ func TestSellerCreateDuplicateEmailConflict(t *testing.T) {
 	body := func(phone, name string) string {
 		return `{"businessName":"` + name + `","ownerName":"O","stateCode":"TN",` +
 			`"districtCode":"TTC","pan":"ABCDE1234F","contactPhone":"` + phone + `",` +
-			`"contactEmail":"` + email + `","otpVerified":true,` +
+			`"contactEmail":"` + email + `","otpVerified":true,"contractTier":"STANDARD","termsAccepted":true,"partnerAgreementAccepted":true,"ipLicenseGranted":true,` +
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",` +
 			`"bankBeneficiary":"` + name + `","passbookFileKey":"kyc/gate/passbook.jpg",` +
 			`"vendors":[{"name":"` + name + ` Store","app":"FOOD","platformFeePct":10}]}`
@@ -191,7 +251,7 @@ func createTestSeller(t *testing.T, pool *pgxpool.Pool, h http.Handler, name str
 	create := do(t, h, http.MethodPost, "/sellers",
 		`{"businessName":"`+name+`","ownerName":"O","stateCode":"TN","districtCode":"TTC",`+
 			`"gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","contactPhone":"9876543210",`+
-			`"contactEmail":"o@example.com","otpVerified":true,`+
+			`"contactEmail":"o@example.com","otpVerified":true,"contractTier":"STANDARD","termsAccepted":true,"partnerAgreementAccepted":true,"ipLicenseGranted":true,`+
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
 			`"bankBeneficiary":"`+name+`","passbookFileKey":"kyc/gate/passbook.jpg",`+
 			`"vendors":[{"name":"`+name+` Store","app":"FOOD","platformFeePct":10,`+

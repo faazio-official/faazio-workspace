@@ -45,7 +45,8 @@ src/
 ### Features (`src/features/`)
 
 `auth` · `cart` · `catalog` · `delivery-partner` · `ecommerce` · `favourites` · `food` · `home` ·
-`onboarding` · `pharma` · `product` · `profile` · `rewards` · `search` · `seller-partner` · `sub-app`
+`onboarding` · `pharma` · `product` · `profile` · `rewards` · `search` · `seller-onboarding` ·
+`seller-partner` · `sub-app`
 
 `delivery-partner` is the **standalone Delivery Partner app** (not a customer route): see
 "Delivery Partner app" below.
@@ -1159,6 +1160,14 @@ shop supplies the account coordinates. The derivation is recomputed when shops a
 or removed, so the account can never keep a stale state after its shop is deleted. If no shop is
 pinned, or none is in the server's district master (TN/PY coverage today), submission is blocked with
 a clear message.
+
+Between the payout account and the OTP signature the screen renders **Contract & terms**. It reads
+`GatewayClient.listContractTiers` (`GET /sellers/contract-tiers`, server-owned rate cards, no local
+fallback) into a `SelectDropdown`, shows the selected tier's commission/payout summary, and requires
+three clickwrap acceptances: Terms of Service, Seller / Partner Agreement and the content/IP licence.
+Each opens a concise in-app summary sheet (`components/ContractTerms.tsx`) rather than a wall of
+legal prose. Submission is blocked until a tier and all three acceptances are present; the gateway
+resolves the rate card and records the acceptance timestamp, hashed IP and account id server-side.
 
 **Part 2 — the shops (vendors).** Each `ShopCard` (`features/seller-onboarding/components/`) picks
 its own app (`MART`/`FOOD`/`PHARMA` via the shared `SelectDropdown`), shop name/address, taxonomy

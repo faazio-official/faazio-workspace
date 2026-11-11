@@ -15,6 +15,33 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W91 — Seller contract & compliance layer
+
+**Status:** 🟡 Partial.
+
+**Shipped (2026-11-11):** `SellerRegistrationScreen` now reads the server-owned rate cards
+(`GatewayClient.listContractTiers` → `GET /sellers/contract-tiers`), shows the selected tier's
+commission/payout summary, and gates submission on three clickwrap acceptances (Terms of Service,
+Seller / Partner Agreement, content/IP licence) with concise in-app summary sheets
+(`features/seller-onboarding/components/ContractTerms.tsx`). `POST /sellers` rejects missing
+acceptances (`400 agreements_required`) or an inactive tier (`400 invalid_contract_tier`), records
+the acceptance timestamp/hashed IP/account id and the resolved tier/rate-card version, and runs a
+compliance adapter. Migration `0100` adds `sellers.contract_tiers`, the seller acceptance/compliance
+columns and `sellers.compliance_validations`; activation is blocked when `compliance_status = FAILED`.
+
+**Remaining (do not mark done):**
+- **No government/provider validation is linked.** `FormatComplianceValidator` checks shape + the
+  GSTIN checksum and leaves accounts `PENDING`; wire a real GSTIN/PAN/FSSAI/bank provider through
+  `Handler.WithCompliance`.
+- **`PENDING` does not block activation** — the district admin's manual KYC review remains the
+  verification authority until a provider is linked.
+- **No admin UI for contract tiers**; commission/settlement changes require a migration/DB update.
+- **Rejected resubmission is still broken from the customer app** (the edit endpoint requires the
+  SELLER role the applicant does not yet have; `POST /sellers` collides with the email unique index).
+- No mobile tests for the tier picker/clickwrap gating yet.
+
+---
+
 ## W90 — Workflow test coverage (COD order + delivery fulfilment)
 
 **Status:** 🟡 Partial.

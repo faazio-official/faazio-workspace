@@ -102,7 +102,11 @@ for i in $(seq 1 "$N"); do
   "bankIfsc": "HDFC0001234",
   "bankBeneficiary": "${owner}",
   "passbookFileKey": "kyc/sim/passbook_${RUN_ID}_${i}.jpg",
-  "otpVerified": true
+  "otpVerified": true,
+  "contractTier": "STANDARD",
+  "termsAccepted": true,
+  "partnerAgreementAccepted": true,
+  "ipLicenseGranted": true
 }
 JSON
 )"

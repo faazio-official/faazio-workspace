@@ -8,6 +8,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
@@ -29,11 +30,22 @@ type Handler struct {
 	// subUsers mints/deactivates a staff sub-user credential when an invite is accepted/revoked.
 	// nil leaves invites roster-only (unit/test wiring) and refuses accept with 503.
 	subUsers contracts.SubUserProvisioner
+	// compliance is the government/provider validation adapter. Defaults to format checks; the
+	// router may install a real provider with WithCompliance.
+	compliance ComplianceValidator
 }
 
 // NewHandler builds the sellers handler.
 func NewHandler(repo *Repo, c *cache.Cache, audit contracts.AuditWriter, logins contracts.SellerLoginProvisioner) *Handler {
-	return &Handler{repo: repo, cache: c, audit: audit, logins: logins}
+	return &Handler{repo: repo, cache: c, audit: audit, logins: logins, compliance: FormatComplianceValidator{}}
+}
+
+// WithCompliance swaps the compliance validation adapter (nil keeps the format-only default).
+func (h *Handler) WithCompliance(v ComplianceValidator) *Handler {
+	if v != nil {
+		h.compliance = v
+	}
+	return h
 }
 
 // WithSubUsers wires the portal sub-user credential provisioner (accept/revoke lifecycle).
@@ -49,6 +61,9 @@ func (h *Handler) Register(r chi.Router) {
 	// The applicant's own status. auth.Require (not RequireRole) is intentional: a shopper is
 	// authenticated via Firebase but has no SELLER role until an admin activates the account.
 	r.With(auth.Require).Get("/sellers/me", h.me)
+	// Server-owned contract tiers/rate cards. Read by the applicant before accepting the agreement;
+	// never hardcoded on the client.
+	r.With(auth.Require).Get("/sellers/contract-tiers", h.listContractTiers)
 
 	// Seller-scoped reads/writes + admin moderation. Admin-only actions re-check the role and the
 	// state scope inside the handler so a seller can never moderate their own application.
@@ -140,6 +155,16 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, items)
 }
 
+// listContractTiers returns the active server-owned rate cards.
+func (h *Handler) listContractTiers(w http.ResponseWriter, r *http.Request) {
+	tiers, err := h.repo.ContractTiers(r.Context())
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, tiers)
+}
+
 func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 	d, ok, err := h.repo.DetailByID(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {
@@ -219,6 +244,14 @@ type createSellerRequest struct {
 	// OTPVerified is the digital-signature gate. The mobile client only sets it after a successful
 	// Firebase OTP round-trip on the authenticated phone.
 	OTPVerified bool `json:"otpVerified"`
+	// Contract clickwrap. All three acceptances are mandatory: the server rejects a submission when
+	// any is missing so a merchant can never be activated without an auditable agreement.
+	TermsAccepted            bool `json:"termsAccepted"`
+	PartnerAgreementAccepted bool `json:"partnerAgreementAccepted"`
+	IPLicenseGranted         bool `json:"ipLicenseGranted"`
+	// ContractTier selects a server-owned rate card; the commission/settlement are resolved from
+	// sellers.contract_tiers, never trusted from the client.
+	ContractTier string `json:"contractTier"`
 }
 
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
@@ -355,6 +388,23 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "pan and contact email are required")
 		return
 	}
+	// Clickwrap: every agreement must be explicitly accepted. The timestamp/IP/account audit is
+	// written below from server-observed values, never from the request body.
+	if !req.TermsAccepted || !req.PartnerAgreementAccepted || !req.IPLicenseGranted {
+		httpx.Fail(w, http.StatusBadRequest, "agreements_required",
+			"accept the Terms of Service, Partner Agreement and IP licence before submitting")
+		return
+	}
+	req.ContractTier = strings.ToUpper(strings.TrimSpace(req.ContractTier))
+	tier, tierOK, terr := h.repo.ContractTier(r.Context(), req.ContractTier)
+	if terr != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+		return
+	}
+	if !tierOK {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_contract_tier", "select a valid contract tier")
+		return
+	}
 	masked, ok := maskAccount(req.BankAccountNumber)
 	if !ok || strings.TrimSpace(req.BankName) == "" ||
 		len(strings.TrimSpace(req.BankIFSC)) != 11 || strings.TrimSpace(req.BankBeneficiary) == "" {
@@ -386,13 +436,37 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 			BankBeneficiary: v.BankBeneficiary,
 		})
 	}
-	s, err := h.repo.CreateExtended(r.Context(), auth.UserID(r.Context()), Seller{
+	now := time.Now().UTC().Format(time.RFC3339)
+	ipHash := shortHash(clientIP(r))
+	accountID := auth.UserID(r.Context())
+	seller := Seller{
 		BusinessName: req.BusinessName, OwnerName: req.OwnerName,
 		GSTIN: req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
 		ContactPhone: req.ContactPhone, ContactEmail: req.ContactEmail, StateCode: req.StateCode,
 		DistrictCode: req.DistrictCode,
 		Latitude:     req.Latitude, Longitude: req.Longitude, OTPVerified: true,
-	}, bank, docs, vendors)
+		TermsAcceptedAt:              now,
+		TermsAcceptedIP:              ipHash,
+		TermsAcceptedAccountID:       accountID,
+		PartnerAgreementAcceptedAt:   now,
+		PartnerAgreementAcceptedIP:   ipHash,
+		PartnerAgreementAcceptedAcct: accountID,
+		IPLicenseGrantedAt:           now,
+		IPLicenseGrantedIP:           ipHash,
+		IPLicenseGrantedAccountID:    accountID,
+		ContractTier:                 tier.TierCode,
+		RateCardVersion:              tier.RateCardVersion,
+		CommissionPct:                tier.CommissionPct,
+		SettlementTerms:              tier.SettlementTerms,
+	}
+	validator := h.compliance
+	if validator == nil {
+		validator = FormatComplianceValidator{}
+	}
+	report := validator.Validate(r.Context(), ComplianceInput{Seller: seller, Bank: bank, Vendors: vendors})
+	seller.ComplianceStatus = report.Status
+	seller.ComplianceNote = report.Note
+	s, err := h.repo.CreateExtended(r.Context(), accountID, seller, bank, docs, vendors, report.Checks)
 	if err != nil {
 		if errors.Is(err, ErrEmailTaken) {
 			httpx.Fail(w, http.StatusConflict, "email_taken", "a seller application with this contact email already exists")
@@ -434,6 +508,16 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.Reason) > 500 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "reason is too long")
+		return
+	}
+	// A failed compliance check blocks activation. PENDING is allowed because the district admin's
+	// manual KYC review is the current verification path until a government provider is linked.
+	if req.Status == "ACTIVE" && before.ComplianceStatus == ComplianceFailed {
+		note := before.ComplianceNote
+		if note == "" {
+			note = "compliance checks failed"
+		}
+		httpx.Fail(w, http.StatusConflict, "compliance_failed", "cannot activate: "+note)
 		return
 	}
 	after, ok, err := h.repo.SetStatus(r.Context(), id, req.Status, req.Reason, h.actor(r))
@@ -519,6 +603,14 @@ func (h *Handler) updatePlatformFee(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) verifyKYC(w http.ResponseWriter, r *http.Request) {
 	s, ok := h.adminSeller(w, r)
 	if !ok {
+		return
+	}
+	if s.ComplianceStatus == ComplianceFailed {
+		note := s.ComplianceNote
+		if note == "" {
+			note = "compliance checks failed"
+		}
+		httpx.Fail(w, http.StatusConflict, "compliance_failed", "cannot activate: "+note)
 		return
 	}
 	after, ok, err := h.repo.SetStatus(r.Context(), s.SellerID, "ACTIVE", "", h.actor(r))
