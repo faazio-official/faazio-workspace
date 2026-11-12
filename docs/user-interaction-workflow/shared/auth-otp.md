@@ -52,6 +52,22 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
 - `GatewayClient` sends the Firebase ID token as the bearer. Gateway writes
   `checkout.users` / reads `delivery.delivery_boys`.
 
+### Phone number data use
+
+The phone number is collected solely for **App Functionality** (App Store Connect → App Privacy,
+purpose **App Functionality** only):
+
+- Firebase phone OTP authentication — the sole sign-in method for the customer and delivery apps.
+- Re-authentication before irreversible account deletion (`sendReauthOtp` / `verifyReauthOtp` →
+  `deleteFirebaseIdentity`).
+- Checkout pick-up contact (`authStore.user.phone`).
+- Seller application `contactPhone`.
+
+It is **not** used for third-party advertising, the developer's advertising/marketing, analytics,
+product personalization, or any other purpose, and is never shared with a data broker or third-party
+ad network. First-party ads attribution (`POST /ads/events`) is slot id-based and never uses the
+phone number.
+
 ### Success / error / empty
 
 - **Success:** authenticated session + role/status routing as above.

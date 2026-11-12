@@ -1127,6 +1127,40 @@ Key flows behind the declaration:
 - **Diagnostics** — `services/crashReporting.ts` + `services/errorReport.ts` send message + stack +
   app/OS version to `POST /errors`, with no user or device id.
 
+### App Tracking Transparency (ATT)
+
+The app does **not** track under Apple's definition, so it requires **no ATT prompt and no
+`NSUserTrackingUsageDescription`**:
+
+- No IDFA / `advertisingIdentifier` access, no `ATTrackingManager`, no
+  `requestTrackingAuthorization()` anywhere under `client/mobile/src/` or `ios/`.
+- No `NSUserTrackingUsageDescription` in any of the three Info.plist variants
+  (`ios/Faazio/Info.plist`, `Info-Delivery.plist`, `Info-Seller.plist`).
+- No ad/monetization SDK (AdMob, AppsFlyer, Adjust, Facebook/Google Ads, …) in `package.json`; no
+  `com.google.android.gms.permission.AD_ID` in `android/app/src/main/AndroidManifest.xml`.
+- `NSPrivacyTracking = false` in `ios/Faazio/PrivacyInfo.xcprivacy`.
+
+Do **not** add `NSUserTrackingUsageDescription` preemptively — declaring tracking the app does not do
+invites review questions and contradicts the manifest.
+
+### First-party ads (not tracking)
+
+Closed-loop retail media is served by Faazio's own gateway (`GET /ads/hero`, `GET /ads/live`,
+`POST /ads/events`) and attributed by slot id only — `services/adsAttribution.ts` keeps the last
+clicked slot in module state ("never persisted, never PII, consumed once"). Phone number is never
+used in attribution; there is no third-party ad network, no data broker and no IDFA. This is **not**
+ATT tracking and does **not** require a tracking usage description. The impression/click events are
+declared above as Usage Data → *Advertising Data* (Tracking: No).
+
+### Phone number data use
+
+The phone number is collected solely for **App Functionality**: Firebase phone OTP authentication
+(sole sign-in method for customer + delivery), re-authentication before account deletion
+(`sendReauthOtp`/`verifyReauthOtp` → `deleteFirebaseIdentity`), the checkout pick-up contact
+(`authStore.user.phone`), and the seller application `contactPhone`. It is not used for third-party
+advertising, the developer's advertising/marketing, analytics, product personalization, or any other
+purpose, and is never shared with a data broker or third-party ad network.
+
 ## UI foundations (W83)
 
 Shared, token-based primitives introduced by the UI-craft pass, all under `src/theme/` and

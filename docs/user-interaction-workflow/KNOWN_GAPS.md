@@ -8,6 +8,14 @@ the same change (see [README.md](./README.md) → sync rule). Never hide a parti
 Scope: customer (`index.js`), seller (`index.seller.js` + `client/web/platform`), delivery
 (`index.delivery.js`), and the shared auth surfaces. All paths are relative to the repo root.
 
+## Documented determinations (verified — not gaps)
+
+Recorded here so a future contributor does not "fix" something that is not broken.
+
+| Determination | Evidence | Effect |
+|---|---|---|
+| ATT not required | `ios/Faazio/PrivacyInfo.xcprivacy` `NSPrivacyTracking = false`; no `ATTrackingManager` / `requestTrackingAuthorization` / `NSUserTrackingUsageDescription` anywhere in `client/mobile/src/` or the three `ios/Faazio/Info*.plist`; no ad SDK / IDFA / `AD_ID` in `package.json` or `android/app/src/main/AndroidManifest.xml` | No ATT prompt or tracking usage description is needed for the iOS release. First-party closed-loop ads (`/ads/*`) are slot-based only, not tracking — do **not** add `NSUserTrackingUsageDescription`. See `docs/architecture/mobile-app.md` → "App Tracking Transparency (ATT)". |
+
 ## Customer
 
 | Gap | Evidence | Impact |

@@ -30,6 +30,13 @@
 - `gateway.recordAdEvent(slotId, event)` → `POST /ads/events`.
 - Cache: `faazio:v1:ads:live:{placement}` 600 s,
   `faazio:v1:ads:hero:{placement}:{app}:{category}:{store}` 300 s.
+- **ATT / tracking determination:** the rail and hero campaigns are first-party, closed-loop retail
+  media served by Faazio's own gateway (`GET /ads/hero`, `GET /ads/live`). Impression/click events
+  post to `POST /ads/events` (auth-gated) and last-click attribution credits
+  `ads.sponsored_slots.orders_attributed` by **slot id only** (`services/adsAttribution.ts` — "Module
+  state only — never persisted, never PII, consumed once"). Phone number is not used in attribution;
+  there is no third-party ad network, no data broker and no IDFA/AD_ID — so this is **not** App
+  Tracking Transparency tracking and needs no ATT prompt or `NSUserTrackingUsageDescription`.
 
 ## Success / error / empty
 

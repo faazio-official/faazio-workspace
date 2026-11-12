@@ -92,10 +92,14 @@ Then in the browser:
 1. Open https://appstoreconnect.apple.com/.
 2. **My Apps → your app → TestFlight → Builds** → the Codemagic build appears there.
 3. Complete metadata: description, screenshots, privacy policy URL (`https://faazio.com/privacy`),
-   **English (U.K.)** keywords, and the **App Privacy** questionnaire (exact selections in
-   `client/mobile/docs/APPSTORE_RELEASE.md` §5a — keep it in sync with
-   `ios/Faazio/PrivacyInfo.xcprivacy`).
-4. **App Store → Add Build → select the build → submit for review**.
+   **English (U.K.)** keywords.
+4. Complete the **App Privacy** questionnaire (App Store Connect → your app → **App Privacy**) before
+   submitting — exact selections in `client/mobile/docs/APPSTORE_RELEASE.md` §5a, kept in sync with
+   `ios/Faazio/PrivacyInfo.xcprivacy`. Phone Number is **App Functionality only** (Firebase phone
+   OTP) and all 19 data types are **Tracking: No**. The app does not track (`NSPrivacyTracking =
+   false`, no IDFA, no ad SDK), so no ATT prompt and no `NSUserTrackingUsageDescription` are required
+   — do not add them.
+5. **App Store → Add Build → select the build → submit for review**.
 
 Inviting TestFlight testers is optional — you can submit the build directly to App Store review.
 

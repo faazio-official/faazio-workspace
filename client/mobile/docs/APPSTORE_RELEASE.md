@@ -159,7 +159,9 @@ Xcode Organizer or manually upload a build.
 1. In [App Store Connect](https://appstoreconnect.apple.com/), open the app → **TestFlight → Builds**.
 2. Select the Codemagic build once processing finishes.
 3. Complete store metadata: description, keywords, support URL, screenshots, privacy policy URL.
-4. Answer the **App Privacy** questionnaire (data collected, linked to identity, tracking).
+4. Answer the **App Privacy** questionnaire — the exact selections are the source of truth in §5a.
+   Phone Number is **App Functionality only**; all 19 data types are **Tracking: No**; the app does
+   not track, so select no tracking and do not add an ATT prompt.
 5. Go to **App Store → Add Build → select the build → submit for review**.
 
 Inviting TestFlight testers is optional — you can submit the build directly to App Store review
@@ -250,6 +252,12 @@ data to track" and `NSPrivacyTracking` as `false`.
 ## Guidelines and warnings
 
 - **Privacy (5.1.1):** pharmaceutical/payment flows require a public Privacy Policy URL.
+- **Tracking / ATT:** the app does **not** track — no IDFA, no ad SDK, `NSPrivacyTracking = false`,
+  no `NSUserTrackingUsageDescription` in any `ios/Faazio/Info*.plist`. Do **not** add
+  `NSUserTrackingUsageDescription` or an ATT prompt preemptively; declaring tracking the app does not
+  do invites review questions. First-party `/ads/*` impression/click data is slot-based closed-loop
+  retail media (Usage Data → Advertising Data, Tracking: No), **not** ATT tracking. Phone Number is
+  App Functionality only — never select Advertising/Marketing or Analytics as its purpose.
 - **In-App Purchases (3.1.1):** physical goods and pharmacy items are exempt from IAP; use your
   normal payment gateway.
 - **Completeness (2.1):** no placeholder screens or dead navigation paths in the submitted build.
