@@ -1079,6 +1079,54 @@ destination screen.
 A FaazioCoins streak card (title + balance + a row of 7 flame icons, filled per
 `streakCount`) sits above the nav groups and pushes the `FaazioRewards` screen.
 
+## App Privacy Data Declaration
+
+The customer app declares the data it collects in **two places that must stay in sync**:
+`ios/Faazio/PrivacyInfo.xcprivacy` (`NSPrivacyCollectedDataTypes`, the machine-readable manifest
+Xcode/Apple read at review time) and **App Store Connect → App Privacy** (the human answers; exact
+selections in `client/mobile/docs/APPSTORE_RELEASE.md` §5a). `NSPrivacyTracking` is `false` — no
+ad SDKs, no data brokers, no third-party advertising, so no category is used for tracking.
+
+| Apple category | Data type | Where it lives | Linked |
+|---|---|---|---|
+| Contact Info | Name | profile / saved-address recipient / seller-onboarding owner-business name; reviews | Yes |
+| Contact Info | Email Address | account + seller-onboarding contact email | Yes |
+| Contact Info | Phone Number | Firebase Phone Auth identity (`services/firebaseAuth.ts`) | Yes |
+| Contact Info | Physical Address | `checkout.addresses` (delivery) + seller business address | Yes |
+| Health & Fitness | Health | `pharma.prescriptions` (images + note) | Yes |
+| Financial Info | Payment Info | seller-onboarding bank account/IFSC/beneficiary | Yes |
+| Location | Precise Location | nearby stores, delivery fee, address auto-fill | Yes |
+| User Content | Photos or Videos | prescription + seller KYC captures (private object keys) | Yes |
+| User Content | Other User Content | product reviews, vendor ratings, order feedback | Yes |
+| Search History | Search History | device-local `AsyncStorage` (`faazio:recentSearches`) only | No |
+| Identifiers | User ID | Firebase `sub`/uid binding server writes | Yes |
+| Identifiers | Device ID | FCM token (`notifications.push_tokens`, per `user_id`) | Yes |
+| Purchases | Purchase History | order history | Yes |
+| Usage Data | Product Interaction | `view`/`cart_add`/`order`/`search` events | Yes |
+| Usage Data | Advertising Data | first-party sponsored-slot impression/click (`POST /ads/events`) | Yes |
+| Usage Data | Other Usage Data | behaviour event stream | Yes |
+| Diagnostics | Crash Data | unhandled JS/render errors → `POST /errors` (PII-free) | No |
+| Diagnostics | Other Diagnostic Data | user-flagged load failures + app/OS version | No |
+| Other | Other Data Types | seller-onboarding government/business identifiers (PAN, GSTIN) | Yes |
+
+Key flows behind the declaration:
+
+- **Identity** — Firebase Phone Auth (`services/firebaseAuth.ts`) is the login identifier; the
+  gateway verifies the Firebase ID token and resolves `sub`/uid to an app user id
+  (`server/gateway/internal/platform/auth`).
+- **Behaviour events** — the client sends `view`/`cart_add`/`order`/`search` to `POST /events`;
+  the gateway stores them in MongoDB `user_events` under a SHA-256-hashed user id (`userIdHash`,
+  90-day TTL) and they feed `GET /recommendations` and analytics.
+- **Push** — the FCM token is registered via `POST /notifications/register` and stored in
+  `notifications.push_tokens` keyed by `user_id` (`services/customerPush.ts`).
+- **Health** — prescriptions (`pharma.prescriptions`) hold image object keys in private storage
+  (R2 private bucket `faazio-private`, with a coded Supabase Storage `prescriptions` fallback) and
+  a server-side note; never logged in plain text.
+- **Search History** — device-local only; the `search` analytics event is ID-only and never
+  carries the search term, so recent searches are not linked to identity.
+- **Diagnostics** — `services/crashReporting.ts` + `services/errorReport.ts` send message + stack +
+  app/OS version to `POST /errors`, with no user or device id.
+
 ## UI foundations (W83)
 
 Shared, token-based primitives introduced by the UI-craft pass, all under `src/theme/` and

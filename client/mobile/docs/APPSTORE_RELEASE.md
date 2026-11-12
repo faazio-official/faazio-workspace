@@ -84,7 +84,8 @@ testers.
 - App description and keywords
 - Support URL and privacy policy URL (`https://faazio.com/privacy`)
 - Screenshots for each device size
-- App Privacy questionnaire (data collected, linked to identity, tracking)
+- App Privacy questionnaire (data collected, linked to identity, tracking) — use the exact
+  selections in [§5a](#5a-app-privacy-questionnaire--exact-selections)
 
 > **Note:** `codemagic.yaml` always uploads on a successful build; beta review and App Store
 > submission stay manual. The GitHub `ios-release.yml` `upload` input no longer applies. See
@@ -163,6 +164,83 @@ Xcode Organizer or manually upload a build.
 
 Inviting TestFlight testers is optional — you can submit the build directly to App Store review
 without adding testers.
+
+### 5a. App Privacy Questionnaire — Exact Selections
+
+This table is the **source of truth** for both App Store Connect and
+`ios/Faazio/PrivacyInfo.xcprivacy`. Keep the two in sync — the manifest is what Xcode/Apple read
+at build/review time, and a mismatch against App Store Connect is a rejection risk.
+
+In **App Store Connect → My Apps → Faazio → App Privacy → Get Started**:
+
+| Step | Selection |
+|------|-----------|
+| Do you collect data? | **Yes** |
+| Privacy Policy URL | `https://faazio.com/privacy` (must be live/public) |
+
+For each data type below, click **Add** → choose the category → set Linked / Tracking / Purposes
+exactly as listed, then click **Publish**.
+
+| Apple category | Data type | Linked to identity | Tracking | Purposes |
+|----------------|-----------|--------------------|----------|----------|
+| Contact Info | Name | Yes | No | App Functionality, Product Personalization |
+| Contact Info | Email Address | Yes | No | App Functionality |
+| Contact Info | Phone Number | Yes | No | App Functionality |
+| Contact Info | Physical Address | Yes | No | App Functionality, Product Personalization |
+| Health & Fitness | Health | Yes | No | App Functionality |
+| Financial Info | Payment Info | Yes | No | App Functionality |
+| Location | Precise Location | Yes | No | App Functionality, Product Personalization |
+| User Content | Photos or Videos | Yes | No | App Functionality |
+| User Content | Other User Content | Yes | No | App Functionality, Product Personalization |
+| Search History | Search History | No | No | App Functionality, Product Personalization |
+| Identifiers | User ID | Yes | No | App Functionality |
+| Identifiers | Device ID | Yes | No | App Functionality |
+| Purchases | Purchase History | Yes | No | App Functionality, Product Personalization |
+| Usage Data | Product Interaction | Yes | No | Analytics, Product Personalization |
+| Usage Data | Advertising Data | Yes | No | App Functionality, Analytics |
+| Usage Data | Other Usage Data | Yes | No | Analytics |
+| Diagnostics | Crash Data | No | No | App Functionality |
+| Diagnostics | Other Diagnostic Data | No | No | App Functionality |
+| Other | Other Data Types | Yes | No | App Functionality |
+
+**Tracking: No** overall — no ad SDKs, no data brokers, no third-party advertising. Leave "Uses
+data to track" and `NSPrivacyTracking` as `false`.
+
+> **Keep the manifest in sync.** The same 19 entries live in
+> `ios/Faazio/PrivacyInfo.xcprivacy` (`NSPrivacyCollectedDataTypes`). Before submitting, verify in
+> Xcode with **Product → Archive** then (control-click the archive) **Generate Privacy Report** —
+> all 19 categories should appear and tracking must be off.
+
+> **English (U.K.) keywords:** App Store Connect requires a completed English (U.K.) localisation
+> (keywords, and subtitles/description where prompted) before the **Add for Review** button
+> unlocks. Fill it under the app version's **App Store** tab → **English (U.K.)**.
+
+> **Why these answers:**
+> - **Name / Email Address / Phone Number / Physical Address / Payment Info / Other Data Types** —
+>   the "Sell with us" seller-onboarding flow (reachable from **Account → Sell with us**) collects
+>   business + owner name, contact email, PAN/GSTIN (government/business identifiers → *Other Data
+>   Types*) and bank account number + IFSC + beneficiary (→ *Payment Info*). Phone Number is also
+>   the Firebase Phone Auth login identifier; the delivery address book stores name + physical
+>   address.
+> - **Health** — prescription images and prescription notes (`pharma.prescriptions`).
+> - **Precise Location** — nearby-store discovery, delivery-fee estimate and address auto-fill
+>   (Google Places + the native geocoder).
+> - **Photos or Videos** — prescription camera captures and seller KYC document images (stored as
+>   object keys in private storage, never public URLs).
+> - **Other User Content** — product reviews, vendor ratings and post-order feedback comments.
+> - **Search History** — device-local `AsyncStorage` (`faazio:recentSearches`) **only**; never sent
+>   to the server and not keyed to any account, hence *Not Linked*.
+> - **User ID** — Firebase `sub`/uid that binds server writes to the account.
+> - **Device ID** — FCM push token registered via `POST /notifications/register` and stored in
+>   `notifications.push_tokens` keyed by `user_id`.
+> - **Purchase History** — the account's order history.
+> - **Product Interaction / Other Usage Data** — `view`/`cart_add`/`order`/`search` events stored
+>   in MongoDB `faazio.user_events` with a SHA-256-hashed user id (`userIdHash`, 90-day TTL) and
+>   used to feed `GET /recommendations` and analytics.
+> - **Advertising Data** — first-party sponsored-slot impression/click events (`POST /ads/events`)
+>   for in-app attribution; not used for tracking.
+> - **Crash Data / Other Diagnostic Data** — PII-free crash and error reports to `POST /errors`
+>   (message + stack + app/OS version; no user or device id attached).
 
 > **Note:** `codemagic.yaml` always uploads on a successful build; beta review and App Store
 > submission stay manual.

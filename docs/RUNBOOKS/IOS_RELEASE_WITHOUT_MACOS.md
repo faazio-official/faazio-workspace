@@ -91,7 +91,11 @@ Then in the browser:
 
 1. Open https://appstoreconnect.apple.com/.
 2. **My Apps → your app → TestFlight → Builds** → the Codemagic build appears there.
-3. **App Store → Add Build → select the build → submit for review**.
+3. Complete metadata: description, screenshots, privacy policy URL (`https://faazio.com/privacy`),
+   **English (U.K.)** keywords, and the **App Privacy** questionnaire (exact selections in
+   `client/mobile/docs/APPSTORE_RELEASE.md` §5a — keep it in sync with
+   `ios/Faazio/PrivacyInfo.xcprivacy`).
+4. **App Store → Add Build → select the build → submit for review**.
 
 Inviting TestFlight testers is optional — you can submit the build directly to App Store review.
 

@@ -552,7 +552,9 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 - [ ] Export compliance: `ITSAppUsesNonExemptEncryption=false` is present in all three `ios/Faazio/Info*.plist` (the app uses only exempt HTTPS + OS Keychain encryption), so App Store Connect does not flag the build as "Missing Compliance".
 - [ ] Codemagic workflow **iOS Customer Release** (branch `main`, optional `version`) succeeds.
 - [ ] Build appears in App Store Connect → TestFlight → Builds (the workflow uploads automatically — no Xcode Organizer needed).
-- [ ] Store metadata complete in the browser: description, screenshots, privacy policy URL (`https://faazio.com/privacy`), App Privacy questionnaire.
+- [ ] Store metadata complete in the browser: description, screenshots, privacy policy URL (`https://faazio.com/privacy`), **English (U.K.)** keywords, App Privacy questionnaire.
+- [ ] `ios/Faazio/PrivacyInfo.xcprivacy` `NSPrivacyCollectedDataTypes` matches the App Store Connect answers (19 data types; see `client/mobile/docs/APPSTORE_RELEASE.md` §5a) and `NSPrivacyTracking` is `false`.
+- [ ] App Privacy questionnaire completed and **published** in App Store Connect (all 19 data types with linked/tracking/purposes set — `APPSTORE_RELEASE.md` §5a).
 - [ ] Build selected under **App Store → Add Build** and submitted for review (inviting TestFlight testers is optional).
 
 ### Expected build-time / size impact (CI workflow)
