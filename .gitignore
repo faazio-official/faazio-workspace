@@ -20,3 +20,6 @@ server/gateway/project-*.json
 docs/RUNBOOKS/SIGNING_FINGERPRINTS.md
 # iOS provisioning profiles - local only, never commit
 *.mobileprovision
+# Python bytecode cache (generated)
+__pycache__/
+*.pyc
