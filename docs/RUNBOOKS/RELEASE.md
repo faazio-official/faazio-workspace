@@ -363,11 +363,16 @@ signature, so use `apksigner`.
 ### Codemagic release (preferred)
 
 Build the signed `.ipa` and upload it to App Store Connect (TestFlight) on Codemagic — no local Mac
-needed:
+needed. The pipeline is the committed [`codemagic.yaml`](../../codemagic.yaml) workflow **iOS
+Customer Release**, and it is started **manually** from the Codemagic UI; it builds the pushed
+`main` branch on GitHub, not the local working tree.
 
-1. Codemagic → **Start new build** → branch `main` → workflow **iOS Customer Release**.
-2. Optionally enter `version` (blank uses `package.json`).
-3. Start the build. It signs, exports, verifies, and uploads automatically; the IPA is also kept as
+1. Push the commits you want released to `main` (`git push origin main`) — unpushed local commits
+   are not built.
+2. Codemagic → **Start new build** → branch `main` → workflow **iOS Customer Release**.
+3. Optionally enter `version` (blank uses `package.json`). To re-release the current marketing
+   version, leave it blank; the UTC-timestamp build number still increments.
+4. Start the build. It signs, exports, verifies, and uploads automatically; the IPA is also kept as
    a Codemagic artifact.
 
 > **iOS / App Store is customer-only.** Only the Faazio SuperApp (`com.faazio.customer`) is built and
