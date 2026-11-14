@@ -11,7 +11,8 @@ import {
   DPField,
   DPSectionCard,
   DPStatusPill,
-  DPKeyValueRow,
+  DPKpiStrip,
+  DPKpiCard,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import {
@@ -20,9 +21,12 @@ import {
   type DeliveryStop,
   type DeliveryStopStatus,
 } from '@/services/api/GatewayClient';
+import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { PickupScanModal } from './PickupScanModal';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
+import { resetToTab } from '../navigationRoutes';
+import { activeOrderFrom } from '../activeOrder';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Route'>;
 
@@ -62,6 +66,7 @@ function mergeRoute(orders: DeliveryOrder[]): DeliveryStop[] {
 const acceptedOnly = (orders: DeliveryOrder[]) => orders.filter((o) => o.status === 'ACCEPTED');
 
 export function RouteScreen({ navigation }: Props) {
+  const setActiveOrder = useDeliveryPartnerStore((s) => s.setActiveOrder);
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -76,7 +81,9 @@ export function RouteScreen({ navigation }: Props) {
     setLoading(true);
     setError(null);
     try {
-      setOrders(acceptedOnly(await gateway.getActiveDeliveryOrders()));
+      const accepted = acceptedOnly(await gateway.getActiveDeliveryOrders());
+      setOrders(accepted);
+      setActiveOrder(activeOrderFrom(accepted));
       const qr = await gateway.getDeliveryUpipQr();
       setQrUrl(qr.qrUrl ?? '');
     } catch (err) {
@@ -84,7 +91,7 @@ export function RouteScreen({ navigation }: Props) {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setActiveOrder]);
 
   useFocusEffect(
     useCallback(() => {
@@ -129,8 +136,9 @@ export function RouteScreen({ navigation }: Props) {
   const refresh = useCallback(async () => {
     const fresh = acceptedOnly(await gateway.getActiveDeliveryOrders());
     setOrders(fresh);
+    setActiveOrder(activeOrderFrom(fresh));
     return fresh;
-  }, []);
+  }, [setActiveOrder]);
 
   const finishIfEmpty = useCallback(
     (updated: DeliveryOrder, fresh: DeliveryOrder[]) => {
@@ -139,7 +147,7 @@ export function RouteScreen({ navigation }: Props) {
         Alert.alert(
           'Delivery cancelled',
           'The pickup could not be completed. Your capacity is free again.',
-          [{ text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') }],
+          [{ text: 'Back to dashboard', onPress: () => resetToTab(navigation, 'Dashboard') }],
         );
       } else if (updated.status === 'ROUTE_COMPLETE') {
         const failedDrop = updated.stops.some(
@@ -150,7 +158,7 @@ export function RouteScreen({ navigation }: Props) {
           failedDrop
             ? 'The route finished with a failed drop. Your capacity is free for the next order.'
             : 'All drops are done. Your capacity is free for the next order.',
-          [{ text: 'Back to dashboard', onPress: () => navigation.replace('Dashboard') }],
+          [{ text: 'Back to dashboard', onPress: () => resetToTab(navigation, 'Dashboard') }],
         );
       }
     },
@@ -261,12 +269,16 @@ export function RouteScreen({ navigation }: Props) {
       </TouchableOpacity>
       <DPPageHeader title="Route" kicker="Active deliveries" />
       {stops.length > 0 ? (
-        <DPKpiSummary
-          stops={stops.length}
-          orders={acceptedCount}
-          distanceKm={Math.round(distance / 1000)}
-          payout={rupees(payout)}
-        />
+        <>
+          <DPKpiStrip style={styles.summary}>
+            <DPKpiCard label="Stops" value={String(stops.length)} />
+            <DPKpiCard label="Orders" value={String(acceptedCount)} />
+          </DPKpiStrip>
+          <DPKpiStrip style={styles.summary}>
+            <DPKpiCard label="Distance" value={`${Math.round(distance / 1000)} km`} />
+            <DPKpiCard label="Payout" value={rupees(payout)} />
+          </DPKpiStrip>
+        </>
       ) : null}
 
       {points.length >= 2 ? (
@@ -452,7 +464,7 @@ export function RouteScreen({ navigation }: Props) {
       })}
 
       {stops.length > 0 && stops.every((s) => s.status === 'DELIVERED' || s.status === 'FAILED') ? (
-        <DPButton label="Back to dashboard" onPress={() => navigation.replace('Dashboard')} />
+        <DPButton label="Back to dashboard" onPress={() => resetToTab(navigation, 'Dashboard')} />
       ) : null}
 
       <PickupScanModal
@@ -463,27 +475,6 @@ export function RouteScreen({ navigation }: Props) {
         }}
       />
     </DPPage>
-  );
-}
-
-function DPKpiSummary({
-  stops,
-  orders,
-  distanceKm,
-  payout,
-}: {
-  stops: number;
-  orders: number;
-  distanceKm: number;
-  payout: string;
-}) {
-  return (
-    <DPSectionCard style={styles.summary}>
-      <DPKeyValueRow label="Stops" value={String(stops)} />
-      <DPKeyValueRow label="Orders" value={String(orders)} />
-      <DPKeyValueRow label="Distance" value={`${distanceKm} km`} />
-      <DPKeyValueRow label="Payout" value={payout} valueTone="success" />
-    </DPSectionCard>
   );
 }
 

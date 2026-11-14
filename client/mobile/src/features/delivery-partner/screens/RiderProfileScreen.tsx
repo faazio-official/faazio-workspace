@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshControl, StyleSheet, View } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { CompositeScreenProps } from '@react-navigation/native';
+import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import {
   DPPage,
@@ -19,11 +21,13 @@ import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type DeliveryPartnerRider } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
-import { DeliveryTabBar } from '../components/DeliveryTabBar';
 import { hs, vs } from '@/utils/responsive';
-import type { DeliveryPartnerStackParamList } from '../navigation';
+import { type DeliveryPartnerStackParamList, type DeliveryTabParamList } from '../navigation';
 
-type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'RiderProfile'>;
+type Props = CompositeScreenProps<
+  BottomTabScreenProps<DeliveryTabParamList, 'RiderProfile'>,
+  NativeStackScreenProps<DeliveryPartnerStackParamList>
+>;
 
 /**
  * Rider profile hub built from `GET /delivery/me` only. The full application
@@ -58,13 +62,14 @@ export function RiderProfileScreen({ navigation }: Props) {
   const onLogout = useCallback(async () => {
     await logout();
     reset();
-    navigation.replace('PhoneEntry');
+    navigation
+      .getParent<NativeStackNavigationProp<DeliveryPartnerStackParamList>>()
+      ?.reset({ index: 0, routes: [{ name: 'PhoneEntry' }] });
   }, [logout, navigation, reset]);
 
   return (
     <DPPage
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
-      footer={<DeliveryTabBar active="RiderProfile" navigation={navigation} />}
     >
       <DPPageHeader kicker="More" title="Profile & services" />
 

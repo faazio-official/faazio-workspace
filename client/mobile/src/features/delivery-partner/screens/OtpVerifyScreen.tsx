@@ -17,6 +17,7 @@ import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
+import { resetToTab } from '../navigationRoutes';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'OtpVerify'>;
 
@@ -52,7 +53,8 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
       try {
         const rider = await gateway.getDeliveryPartnerMe();
         setRider(rider);
-        navigation.replace(rider.status === 'ACTIVE' ? 'Dashboard' : 'SubmissionSuccess');
+        if (rider.status === 'ACTIVE') resetToTab(navigation, 'Dashboard');
+        else navigation.replace('SubmissionSuccess');
       } catch (err) {
         if (err instanceof GatewayHttpError && err.status === 404) {
           navigation.replace('Register');

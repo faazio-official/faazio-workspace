@@ -7,9 +7,12 @@
 
 ## Bottom navigation
 
-The main delivery screens render `features/delivery-partner/components/DeliveryTabBar.tsx`, a
-generic `components/shared/dp/DPBottomNav` (five equal tabs, 20 px icon + 10 px label, active tab in
-Faazio Blue). Route names are the tab keys, so switching tabs uses `navigation.navigate(name)`:
+The authenticated rider area is a persistent `@react-navigation/bottom-tabs` navigator
+(`features/delivery-partner/DeliveryTabs.tsx`) hosted by the single `Main` stack screen. Its custom
+`tabBar` (`components/DeliveryTabBar.tsx`) renders the generic
+`components/shared/dp/DPBottomNav` (five equal tabs, 20 px icon + 10 px label, active tab in Faazio
+Blue). Route names are the tab keys, so switching tabs uses `navigation.navigate(name)` without
+pushing onto the stack:
 
 | Tab | Route |
 |---|---|
@@ -19,9 +22,13 @@ Faazio Blue). Route names are the tab keys, so switching tabs uses `navigation.n
 | Inbox | `Notifications` |
 | More | `RiderProfile` |
 
-The stack stays a native stack (no tab navigator). Auth/onboarding screens, the `AcceptReject`
-modal, `Route`, and the detail screens (`EarningsDetail`, `Settings`, `Support`) do not render the
-bar, matching the Vite reference where only tab pages show it.
+Above the bar, `DeliveryTabBar` renders the reference's raised active-order CTA while a job is in
+progress. It reads `useDeliveryPartnerStore.activeOrder` (set by `Dashboard`/`Route`) and navigates
+to `Route`.
+
+Auth/onboarding screens, the `AcceptReject` modal, `Route`, and the detail screens
+(`EarningsDetail`, `Settings`, `Support`) are stack routes above `Main` and do not render the bar,
+matching the Vite reference where only tab pages show it.
 
 ## Flows
 

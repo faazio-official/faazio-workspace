@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import {
@@ -13,11 +15,13 @@ import {
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type RiderPayout } from '@/services/api/GatewayClient';
-import { DeliveryTabBar } from '../components/DeliveryTabBar';
 import { hs, vs } from '@/utils/responsive';
-import type { DeliveryPartnerStackParamList } from '../navigation';
+import type { DeliveryPartnerStackParamList, DeliveryTabParamList } from '../navigation';
 
-type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Payouts'>;
+type Props = CompositeScreenProps<
+  BottomTabScreenProps<DeliveryTabParamList, 'Payouts'>,
+  NativeStackScreenProps<DeliveryPartnerStackParamList>
+>;
 
 const rupees = (paisa: number) =>
   `₹${(paisa / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
@@ -57,7 +61,6 @@ export function PayoutScreen({ navigation }: Props) {
   return (
     <DPPage
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
-      footer={<DeliveryTabBar active="Payouts" navigation={navigation} />}
     >
       <DPPageHeader kicker="Pocket" title="Earnings" description="Per-job payout, distance and settlement status." />
 

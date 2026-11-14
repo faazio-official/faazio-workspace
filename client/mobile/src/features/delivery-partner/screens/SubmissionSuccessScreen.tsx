@@ -18,6 +18,7 @@ import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { hs, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
+import { resetToTab } from '../navigationRoutes';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'SubmissionSuccess'>;
 
@@ -45,7 +46,7 @@ export function SubmissionSuccessScreen({ navigation }: Props) {
     try {
       const next = await gateway.getDeliveryPartnerMe();
       setRider(next);
-      if (next.status === 'ACTIVE') navigation.replace('Dashboard');
+      if (next.status === 'ACTIVE') resetToTab(navigation, 'Dashboard');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not refresh your application.');
     } finally {
@@ -92,7 +93,7 @@ export function SubmissionSuccessScreen({ navigation }: Props) {
       ) : null}
 
       {rider?.status === 'ACTIVE' ? (
-        <DPButton label="Open dashboard" onPress={() => navigation.replace('Dashboard')} />
+        <DPButton label="Open dashboard" onPress={() => resetToTab(navigation, 'Dashboard')} />
       ) : null}
       {rider?.status === 'REJECTED' ? (
         <DPButton label="Correct & re-apply" onPress={() => navigation.replace('Register')} />

@@ -1,13 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import { RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { Bell } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import {
   DPPage,
   DPPageHeader,
   DPSectionCard,
+  DPToneDot,
   DPEmptyState,
   DPErrorState,
   DPSkeleton,
@@ -15,11 +15,7 @@ import {
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type NotificationRecord } from '@/services/api/GatewayClient';
-import { DeliveryTabBar } from '../components/DeliveryTabBar';
 import { hs, ms, vs } from '@/utils/responsive';
-import type { DeliveryPartnerStackParamList } from '../navigation';
-
-type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Notifications'>;
 
 const formatWhen = (iso: string): string => {
   const d = new Date(iso);
@@ -32,7 +28,7 @@ const formatWhen = (iso: string): string => {
  * `getNotifications` seam the customer app uses). Push delivers the alert; this
  * screen is the record that keeps working when FCM is unavailable.
  */
-export function NotificationsScreen({ navigation }: Props) {
+export function NotificationsScreen() {
   const [items, setItems] = useState<NotificationRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -81,7 +77,6 @@ export function NotificationsScreen({ navigation }: Props) {
   return (
     <DPPage
       refreshControl={<RefreshControl refreshing={loading && items.length > 0} onRefresh={() => void load()} />}
-      footer={<DeliveryTabBar active="Notifications" navigation={navigation} />}
     >
       <DPPageHeader
         kicker="Inbox"
@@ -124,7 +119,11 @@ export function NotificationsScreen({ navigation }: Props) {
             >
               <DPSectionCard style={[styles.card, unread && styles.cardUnread]}>
                 <View style={styles.cardHead}>
-                  {unread ? <View style={styles.unreadDot} /> : null}
+                  {unread ? (
+                    <View style={styles.unreadDot}>
+                      <DPToneDot tone="brand" size={8} />
+                    </View>
+                  ) : null}
                   <AppText style={[styles.title, unread && styles.titleUnread]}>{item.title}</AppText>
                 </View>
                 <AppText style={styles.body}>{item.body}</AppText>
@@ -142,7 +141,7 @@ const styles = StyleSheet.create({
   card: { marginBottom: vs(10) },
   cardUnread: { borderColor: DELIVERY.brand, backgroundColor: DELIVERY.brandTint },
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(8) },
-  unreadDot: { width: ms(8), height: ms(8), borderRadius: ms(4), backgroundColor: DELIVERY.brand, marginTop: vs(5) },
+  unreadDot: { marginTop: vs(5) },
   title: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '500', flex: 1 },
   titleUnread: { fontWeight: '700' },
   body: { ...DP_TYPE.body, color: DELIVERY.inkMuted, marginTop: vs(6) },

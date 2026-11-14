@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Camera, useCameraDevice, useCameraPermission, useCodeScanner } from 'react-native-vision-camera';
 import { X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
-import { DELIVERY } from '@/theme/deliveryTokens';
+import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { hs, ms, vs } from '@/utils/responsive';
 
 interface Props {
@@ -53,7 +53,7 @@ export function PickupScanModal({ visible, onClose, onScanned }: Props) {
         <View style={styles.top}>
           <AppText style={styles.title}>Scan seller QR</AppText>
           <Pressable accessibilityRole="button" onPress={onClose} style={styles.close}>
-            <X size={ms(20)} color="#ffffff" />
+            <X size={ms(20)} color={DELIVERY.onBrand} />
           </Pressable>
         </View>
         <View style={styles.bottom}>
@@ -72,7 +72,7 @@ export function PickupScanModal({ visible, onClose, onScanned }: Props) {
 }
 
 const styles = StyleSheet.create({
-  overlay: { flex: 1, backgroundColor: '#000000' },
+  overlay: { flex: 1, backgroundColor: DELIVERY.brandDark },
   top: {
     position: 'absolute',
     top: vs(48),
@@ -82,12 +82,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  title: { color: '#ffffff', fontSize: ms(18), fontWeight: '900' },
+  title: { ...DP_TYPE.title, color: DELIVERY.onBrand, fontWeight: '900' },
   close: {
     width: ms(36),
     height: ms(36),
-    borderRadius: ms(999),
-    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderRadius: DELIVERY.radius.pill,
+    backgroundColor: DELIVERY.brandDeep,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: DELIVERY.onBrand,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -99,16 +101,16 @@ const styles = StyleSheet.create({
     top: '26%',
     borderWidth: 2,
     borderColor: DELIVERY.brand,
-    borderRadius: ms(20),
+    borderRadius: DELIVERY.radius.lg,
   },
   bottom: { position: 'absolute', bottom: vs(48), left: hs(24), right: hs(24) },
-  hint: { color: '#ffffff', fontSize: ms(13), textAlign: 'center', marginBottom: vs(16) },
+  hint: { ...DP_TYPE.body, color: DELIVERY.onBrand, textAlign: 'center', marginBottom: vs(16) },
   cancel: {
     alignSelf: 'center',
     paddingHorizontal: hs(24),
     paddingVertical: vs(12),
-    borderRadius: ms(999),
-    backgroundColor: 'rgba(255,255,255,0.16)',
+    borderRadius: DELIVERY.radius.pill,
+    backgroundColor: DELIVERY.brandDeep,
   },
-  cancelText: { color: '#ffffff', fontSize: ms(13), fontWeight: '800' },
+  cancelText: { ...DP_TYPE.body, color: DELIVERY.onBrand, fontWeight: '800' },
 });

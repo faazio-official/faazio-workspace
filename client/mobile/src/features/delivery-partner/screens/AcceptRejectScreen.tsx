@@ -16,6 +16,7 @@ import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type DeliveryOrder } from '@/services/api/GatewayClient';
 import { hs, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
+import { resetToTab } from '../navigationRoutes';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'AcceptReject'>;
 
@@ -103,7 +104,7 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
         // The offer may already have been expired server-side; leaving is still correct.
       }
       if (expired) setError(null);
-      navigation.replace('Dashboard');
+      resetToTab(navigation, 'Dashboard');
     },
     [navigation, orderId],
   );
@@ -212,7 +213,7 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
             <DPButton
               label="Back to dashboard"
               variant="outline"
-              onPress={() => navigation.replace('Dashboard')}
+              onPress={() => resetToTab(navigation, 'Dashboard')}
               style={styles.rejectWrap}
             />
           )}
@@ -233,7 +234,7 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
         <DPButton
           label="Back to dashboard"
           variant="outline"
-          onPress={() => navigation.replace('Dashboard')}
+          onPress={() => resetToTab(navigation, 'Dashboard')}
           style={styles.rejectWrap}
         />
       ) : null}

@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, AppState, Platform, RefreshControl, StyleSheet, TouchableOpacity, Vibration, View } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { CompositeScreenProps } from '@react-navigation/native';
+import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
 import {
@@ -28,11 +30,13 @@ import {
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { useDeliverySettingsStore } from '@/state/deliverySettingsStore';
-import { DeliveryTabBar } from '../components/DeliveryTabBar';
 import { hs, vs } from '@/utils/responsive';
-import type { DeliveryPartnerStackParamList } from '../navigation';
-
-type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Dashboard'>;
+import { type DeliveryPartnerStackParamList, type DeliveryTabParamList } from '../navigation';
+import { activeOrderFrom } from '../activeOrder';
+type Props = CompositeScreenProps<
+  BottomTabScreenProps<DeliveryTabParamList, 'Dashboard'>,
+  NativeStackScreenProps<DeliveryPartnerStackParamList>
+>;
 
 const HEARTBEAT_MS = 120_000;
 
@@ -50,6 +54,7 @@ const paymentLabel = (order: DeliveryOrder): string => {
 export function DashboardScreen({ navigation }: Props) {
   const rider = useDeliveryPartnerStore((s) => s.rider);
   const setRider = useDeliveryPartnerStore((s) => s.setRider);
+  const setActiveOrder = useDeliveryPartnerStore((s) => s.setActiveOrder);
   const reset = useDeliveryPartnerStore((s) => s.reset);
   const logout = useAuthStore((s) => s.logout);
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
@@ -63,6 +68,11 @@ export function DashboardScreen({ navigation }: Props) {
   const vibrateOnOffer = useDeliverySettingsStore((s) => s.vibrateOnOffer);
   const hydrateSettings = useDeliverySettingsStore((s) => s.hydrate);
   const seenOffers = useRef<Set<string> | null>(null);
+
+  const rootNavigation = useCallback(
+    () => navigation.getParent<NativeStackNavigationProp<DeliveryPartnerStackParamList>>(),
+    [navigation],
+  );
 
   const offers = useMemo(
     () => orders.filter((o) => o.status === 'ASSIGNED'),
@@ -122,16 +132,17 @@ export function DashboardScreen({ navigation }: Props) {
       setRider(me);
       setOnline(me.isAvailable);
       setOrders(nextOrders);
+      setActiveOrder(activeOrderFrom(nextOrders));
       if (me.status !== 'ACTIVE') {
         stopHeartbeat();
-        navigation.replace('SubmissionSuccess');
+        rootNavigation()?.replace('SubmissionSuccess');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load your dashboard.');
     } finally {
       setLoading(false);
     }
-  }, [navigation, setRider, stopHeartbeat]);
+  }, [rootNavigation, setActiveOrder, setRider, stopHeartbeat]);
 
   useEffect(() => {
     void refresh();
@@ -297,13 +308,12 @@ export function DashboardScreen({ navigation }: Props) {
     if (online) await gateway.setDeliveryAvailability(false).catch(() => undefined);
     await logout();
     reset();
-    navigation.replace('PhoneEntry');
-  }, [logout, navigation, online, reset, stopHeartbeat]);
+    rootNavigation()?.reset({ index: 0, routes: [{ name: 'PhoneEntry' }] });
+  }, [logout, online, reset, rootNavigation, stopHeartbeat]);
 
   return (
     <DPPage
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}
-      footer={<DeliveryTabBar active="Dashboard" navigation={navigation} />}
     >
       <DPPageHeader
         leading={<FaazioLogo size={26} />}

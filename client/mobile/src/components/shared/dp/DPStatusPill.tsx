@@ -53,19 +53,6 @@ export function DPStatusPill({ status, label }: DPStatusPillProps) {
   );
 }
 
-/** Bare status text with a dot, matching the reference `StatusText`. */
-export function DPStatusText({ status, label }: DPStatusPillProps) {
-  const tone = toneForStatus(status);
-  return (
-    <View style={styles.statusRow}>
-      <View style={[styles.dot, { backgroundColor: DP_TONE[tone].fg }]} />
-      <AppText style={[styles.statusText, { color: DP_TONE[tone].fg }]}>
-        {label ?? status.replace(/_/g, ' ')}
-      </AppText>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
@@ -78,6 +65,4 @@ const styles = StyleSheet.create({
   },
   dot: { width: ms(6), height: ms(6), borderRadius: ms(3) },
   text: { fontSize: ms(11), fontWeight: '600', letterSpacing: 0.2 },
-  statusRow: { flexDirection: 'row', alignItems: 'center', gap: hs(5) },
-  statusText: { fontSize: ms(11), fontWeight: '600' },
 });

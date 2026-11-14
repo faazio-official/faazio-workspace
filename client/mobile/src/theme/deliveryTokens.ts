@@ -5,7 +5,7 @@ import {
   semantic,
   semanticTint,
 } from '@/theme/brandTokens';
-import { RADIUS, TOUCH, TYPE } from '@/theme/tokens';
+import { RADIUS, TOUCH } from '@/theme/tokens';
 import { SPACE } from '@/theme/spacing';
 
 /**
@@ -89,5 +89,3 @@ export const DP_TONE: Record<DpTone, { fg: string; bg: string }> = {
   danger: { fg: DELIVERY.danger, bg: DELIVERY.dangerTint },
   brand: { fg: DELIVERY.brand, bg: DELIVERY.brandTint },
 };
-
-export { TYPE as DELIVERY_TYPE_BASE };

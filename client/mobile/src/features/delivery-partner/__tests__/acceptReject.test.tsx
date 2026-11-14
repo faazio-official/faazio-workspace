@@ -38,7 +38,7 @@ const assignedOrder = {
   ],
 } as unknown as DeliveryOrder;
 
-const mockNav = () => ({ replace: jest.fn(), navigate: jest.fn(), goBack: jest.fn() });
+const mockNav = () => ({ replace: jest.fn(), navigate: jest.fn(), reset: jest.fn(), goBack: jest.fn() });
 
 describe('AcceptRejectScreen (Workflow 2 — rider offer)', () => {
   beforeEach(() => {
@@ -77,6 +77,12 @@ describe('AcceptRejectScreen (Workflow 2 — rider offer)', () => {
 
     await fireEvent.press(await screen.findByRole('button', { name: 'Reject' }));
     await waitFor(() => expect(gateway.rejectDeliveryOrder).toHaveBeenCalledWith('dlv-1'));
-    await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith('Dashboard'));
+    // Dashboard is now a tab inside `Main`; reject lands on the Feed tab with no back entry.
+    await waitFor(() =>
+      expect(navigation.reset).toHaveBeenCalledWith({
+        index: 0,
+        routes: [{ name: 'Main', params: { screen: 'Dashboard' } }],
+      }),
+    );
   });
 });

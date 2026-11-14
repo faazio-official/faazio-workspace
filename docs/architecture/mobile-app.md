@@ -827,11 +827,19 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── Register     — KYC application: profile, live Aadhaar/selfie/PAN + motor DL/RC/insurance capture,
 │                  vehicle-capped capacity, bank details (private R2 uploads → POST /delivery/register)
 ├── SubmissionSuccess — applied / pending / verified / rejected / suspended state + rejection reason
-├── Dashboard    — Go Online toggle (PUT /delivery/availability), Valkey heartbeat every 120 s
-│                  (foreground + Android foreground service headless task),
-│                  45 s offer cards, active multi-stop jobs, Earnings link
 ├── AcceptReject — deep-link/push offer or a Dashboard offer card: store/customer, payout, route
 │                  context, 45 s countdown, Accept / Reject (expiry = implicit reject) → Route
+├── Main         — persistent bottom-tab shell (`DeliveryTabs`, `@react-navigation/bottom-tabs`)
+│   ├── Dashboard (Feed) — Go Online toggle (PUT /delivery/availability), Valkey heartbeat every 120 s
+│   │                  (foreground + Android foreground service headless task),
+│   │                  45 s offer cards, active multi-stop jobs, Earnings link
+│   ├── Payouts (Pocket) — earnings history from GET /delivery/payouts: pending/paid totals and each job's
+│   │                  distance, base/extra-km, surge reason and settlement status (manual mark-paid
+│   │                  amounts + PARTIAL since `0077`; no Razorpay Route); rows open EarningsDetail
+│   ├── OrderHistory (Orders) — completed-payout ledger re-presented per order (GET /delivery/payouts; no
+│   │                  dedicated rider order-history endpoint exists — no fabricated history)
+│   ├── Notifications (Inbox) — durable in-app inbox (GET /notifications + mark-read/all-read)
+│   └── RiderProfile (More) — profile hub from GET /delivery/me + links to earnings/history/inbox/settings/support
 ├── Route        — one merged route across all ACCEPTED jobs: stops sorted by the server's global
 │                  sequence, one polyline, Arrived/Picked Up/Delivered transitions. **Pickup QR
 │                  gate (`0088`):** at a PICKUP stop the rider taps "Scan seller QR & pick up",
@@ -843,24 +851,21 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 │                  (`POST /delivery/{orderId}/stop/{stopId}/payment-received`) before the stop may
 │                  reach DELIVERED — otherwise `409 payment_not_received`. Customer-OTP
 │                  handover (document re-upload is admin-side; the app has no re-upload screen)
-├── Payouts      — earnings history from GET /delivery/payouts: pending/paid totals and each job's
-│                   distance, base/extra-km, surge reason and settlement status (manual mark-paid
-│                   amounts + PARTIAL since `0077`; no Razorpay Route); rows open EarningsDetail
 ├── EarningsDetail — single-order payout breakdown (GET /delivery/payouts/{orderId})
-├── OrderHistory — completed-payout ledger re-presented per order (GET /delivery/payouts; no
-│                   dedicated rider order-history endpoint exists — no fabricated history)
-├── Notifications — durable in-app inbox (GET /notifications + mark-read/all-read)
-├── RiderProfile — profile hub from GET /delivery/me + links to earnings/history/inbox/settings/support
 ├── Settings     — account summary, local "vibrate on new offer" preference (AsyncStorage), system
-│                   notification settings, sign out
+│                  notification settings, sign out
 └── Support      — mailto support, FAQ, trusted legal links (client-local, no server write)
 ```
 
-**Bottom navigation (Vite reference).** The main screens (`Dashboard`, `Payouts`, `OrderHistory`,
-`Notifications`, `RiderProfile`) render `features/delivery-partner/components/DeliveryTabBar.tsx` →
-`components/shared/dp/DPBottomNav`: five equal tabs Feed · Pocket · Orders · Inbox · More, route
-names as tab keys, active tab in Faazio Blue. The stack remains a native stack (no tab navigator);
-auth, `AcceptReject`, `Route`, `EarningsDetail`, `Settings` and `Support` do not render the bar.
+**Bottom navigation (Vite reference).** The authenticated rider area is a real persistent
+`@react-navigation/bottom-tabs` navigator (`features/delivery-partner/DeliveryTabs.tsx`) hosted by the
+single `Main` stack screen. Its custom `tabBar` (`components/DeliveryTabBar.tsx`) renders
+`components/shared/dp/DPBottomNav`: five equal tabs Feed · Pocket · Orders · Inbox · More, route names
+as tab keys, active tab in Faazio Blue. Because the bar belongs to the navigator it stays mounted
+across switches (no stack growth). Above the bar, `DeliveryTabBar` renders the reference's raised
+active-order CTA from `useDeliveryPartnerStore.activeOrder` (set by `Dashboard`/`Route`) linking to
+`Route`. Auth/onboarding screens, `AcceptReject`, `Route`, `EarningsDetail`, `Settings` and `Support`
+sit above `Main` on the stack and do not render the bar.
 
 **Visual layer.** Rider screens use the Vite-reference design system: tokens in
 `src/theme/deliveryTokens.ts` (anchored on `parentRamp` — brand `#1627E9`, replacing the old

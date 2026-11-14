@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   royalContainer: {
-    backgroundColor: '#1627E9',
+    backgroundColor: parentRamp.base,
   },
   royalLogo: {
     width: 220,

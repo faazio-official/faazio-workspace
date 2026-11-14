@@ -13,17 +13,13 @@ import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { hs, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
+import { resetToTab } from '../navigationRoutes';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'PhoneEntry'>;
 
 function validPhone(raw: string): boolean {
   const digits = raw.replace(/\D/g, '');
   return digits.length === 10 && /^[6-9]/.test(digits);
-}
-
-/** Resolve an existing online session straight to its rider status (cold-start convenience). */
-function routeForStatus(status: string): 'Dashboard' | 'SubmissionSuccess' {
-  return status === 'ACTIVE' ? 'Dashboard' : 'SubmissionSuccess';
 }
 
 export function PhoneEntryScreen({ navigation }: Props) {
@@ -42,7 +38,9 @@ export function PhoneEntryScreen({ navigation }: Props) {
     try {
       const rider = await gateway.getDeliveryPartnerMe();
       setRider(rider);
-      navigation.replace(routeForStatus(rider.status));
+      // Resolve an existing session straight to its rider status (cold-start convenience).
+      if (rider.status === 'ACTIVE') resetToTab(navigation, 'Dashboard');
+      else navigation.replace('SubmissionSuccess');
     } catch (err) {
       if (err instanceof GatewayHttpError && err.status === 404) {
         navigation.replace('Register');

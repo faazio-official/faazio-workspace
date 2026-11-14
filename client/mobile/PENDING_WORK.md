@@ -52,7 +52,10 @@ under `server/gateway/internal/{checkout,delivery,reviews}` run against local Po
 `authtest` seam; repo-root `scripts/e2e-delivery-flow.sh` + `scripts/find-flow-flaws.sh`.
 
 **Client tests landed:** `delivery-partner/__tests__/acceptReject.test.tsx` (Workflow 2),
-`delivery-partner/__tests__/pickupScanModal.test.tsx` (Workflow 3), and
+`delivery-partner/__tests__/pickupScanModal.test.tsx` (Workflow 3),
+`delivery-partner/__tests__/designSystem.test.tsx` (brand anchor, status tone map, bottom tabs),
+`delivery-partner/__tests__/navigationRoutes.test.ts` (tab reset) and
+`delivery-partner/__tests__/activeOrder.test.ts` (raised-CTA model), and
 `profile/__tests__/orderFeedback.test.tsx` (Workflow 7).
 
 **Remaining (not yet covered — do not mark done):**
@@ -972,6 +975,14 @@ default it to `https://app.faazio.com`.
   per-document verification, profile approve/reject, activation, active-rider tabs projected from
   the next open stop (Available / At Pickup / At Delivery / Busy / Offline), load/capacity and a
   one-time location map marker (no polling).
+- **Rider UI (2026-11-14):** restyled to the mobile view of `client/web/Delivery app vite Reference.`
+  — tokens in `src/theme/deliveryTokens.ts` (anchored on `parentRamp` — Faazio Blue `#1627E9`,
+  replacing the orphan `#2c56f6`) and primitives in `src/components/shared/dp/`. The authenticated
+  area is now a **persistent `@react-navigation/bottom-tabs` navigator** (`DeliveryTabs.tsx`, hosted
+  by the `Main` stack screen): Feed · Pocket · Orders · Inbox · More, with the reference's raised
+  active-order CTA (`useDeliveryPartnerStore.activeOrder`) linking to `Route`. Detail routes
+  (`Route`, `EarningsDetail`, `Settings`, `Support`, `AcceptReject`) stay full-screen on the stack
+  without the bar. Routes, stores, `GatewayClient` calls, timers and validation are unchanged.
 
 **Still pending (not built):**
 - **Payout reconciliation** — the order-level tax/rider split now exists (`tax.tax_invoices`,

@@ -3,9 +3,9 @@
 **Status:** Shipped
 **Route:** `Dashboard` (`features/delivery-partner/screens/DashboardScreen.tsx`)
 **Trigger:** Rider opens the dashboard after activation.
-**Visual layer:** restyled to the Vite reference (KPI strip, tone-dot header, `DPSwitch` toggle) and
-now renders the 5-tab `DeliveryTabBar` at the bottom. Logic, timers, gateway calls and routes are
-unchanged.
+**Visual layer:** restyled to the Vite reference (KPI strip, tone-dot header, `DPSwitch` toggle);
+`Dashboard` is the Feed tab of the persistent bottom-tab navigator (`Main`). Logic, timers, gateway
+calls and routes are unchanged.
 
 ## Flows
 

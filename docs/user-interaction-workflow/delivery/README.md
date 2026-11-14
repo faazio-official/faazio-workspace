@@ -3,12 +3,14 @@
 **Product:** Faazio Delivery Partner (separate partner product)
 **Entry:** `client/mobile/index.delivery.js` → `src/DeliveryPartnerApp.tsx` →
 `src/features/delivery-partner/DeliveryPartnerNavigator.tsx`
-**Routes:** `PhoneEntry`, `OtpVerify`, `Register`, `SubmissionSuccess`, `Dashboard`,
-`AcceptReject` (modal, opened by push/deep link or a `Dashboard` offer card), `Route`, `Payouts`,
-plus the additive bottom-nav tabs `OrderHistory` · `Notifications` · `RiderProfile` and the detail
-routes `EarningsDetail` · `Settings` · `Support`.
-**Navigation:** a 5-tab bottom bar (Feed · Pocket · Orders · Inbox · More) is rendered by the tab
-screens via `components/DeliveryTabBar.tsx`; the stack itself is unchanged (no tab navigator).
+**Routes:** `PhoneEntry`, `OtpVerify`, `Register`, `SubmissionSuccess`, `Main` (persistent bottom-tab
+shell), `AcceptReject` (modal, opened by push/deep link or a `Dashboard` offer card), `Route`,
+`EarningsDetail`, `Settings`, `Support`; the five tabs inside `Main` are `Dashboard` · `Payouts` ·
+`OrderHistory` · `Notifications` · `RiderProfile`.
+**Navigation:** the authenticated rider area is a persistent `@react-navigation/bottom-tabs`
+navigator (`DeliveryTabs.tsx`) hosted by the single `Main` stack screen; its custom `tabBar`
+(`components/DeliveryTabBar.tsx`) renders `components/shared/dp/DPBottomNav` (Feed · Pocket · Orders ·
+Inbox · More) plus the reference's raised active-order CTA that links to `Route`.
 **Auth:** Firebase phone OTP (shared with the customer app) + rider application status.
 **Data:** `GatewayClient` delivery methods only; no fixtures as live data.
 
@@ -16,11 +18,11 @@ screens via `components/DeliveryTabBar.tsx`; the stack itself is unchanged (no t
 
 The rider UI was restyled to the mobile view of `client/web/Delivery app vite Reference.`:
 full-bleed cards on `surface`/`card`, hairline `border`, tone-dot headers, KPI strip, status pills,
-filter chips, and a fixed bottom tab bar. Tokens live once in
+filter chips, and a persistent bottom tab bar with a raised active-order CTA. Tokens live once in
 `client/mobile/src/theme/deliveryTokens.ts` (anchored on `parentRamp` — Faazio Blue `#1627E9`,
 replacing the old orphan `#2c56f6`) and primitives in `client/mobile/src/components/shared/dp/`.
-This is a visual-only change: every route, screen signature, store action, `GatewayClient` call,
-timer, modal and validation rule is preserved.
+Routes, screens, store actions, `GatewayClient` calls, timers, modals and validation rules are
+preserved; the bottom nav moved from a per-screen footer to a real tab navigator under `Main`.
 
 ## Flow inventory
 
@@ -36,7 +38,7 @@ timer, modal and validation rule is preserved.
 | Fulfillment | Customer handover / OTP / COD | `Route` | [customer-handover.md](./fulfillment/customer-handover.md) |
 | Earnings | Payout ledger | `Payouts` | [earnings/index.md](./earnings/index.md) · [earnings-ledger.md](./earnings/earnings-ledger.md) |
 | Earnings | Single-order breakdown | `EarningsDetail` | [earnings/earnings-detail.md](./earnings/earnings-detail.md) |
-| More | Bottom nav + profile / settings / support / inbox / history | `OrderHistory`, `Notifications`, `RiderProfile`, `Settings`, `Support` | [more/index.md](./more/index.md) |
+| More | Bottom nav + profile / settings / support / inbox / history | `Main` (`Dashboard`, `Payouts`, `OrderHistory`, `Notifications`, `RiderProfile`), `Settings`, `Support` | [more/index.md](./more/index.md) |
 
 ## Cross-cutting rules
 
