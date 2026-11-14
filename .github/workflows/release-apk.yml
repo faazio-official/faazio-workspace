@@ -263,14 +263,9 @@ jobs:
           # present on a CI checkout. Keep the delivery/seller values in sync with that doc by hand.
           # These are the UPLOAD-key SHA-256s (CI signs with faazio-*-release.keystore). The
           # Play App Signing cert is different — register it in Firebase + Maps, never here.
-          # The customer upload key was purged 2026-11-06; its branch below blocks the build.
+          # The customer upload key was reset 2026-11-14 (new CN=Faazio Customer key).
           case "$APP" in
-            customer)
-              # Purged 2026-11-06. Re-provision via Play Console upload-key reset, then set the
-              # new upload-key SHA-256 here (and the KEYSTORE_*_CUSTOMER secrets).
-              echo "::error::customer upload key was purged on 2026-11-06. Reset the upload key in Play Console, provision the new keystore/secrets, then set EXPECTED_SHA256 for customer."
-              exit 1
-              ;;
+            customer) EXPECTED_SHA256="E3:BC:B0:59:DB:3E:41:72:29:09:BB:B0:8E:EE:D1:59:B5:FB:D8:C5:34:1E:76:21:F3:44:37:19:D1:0D:FB:FB" ;;
             delivery) EXPECTED_SHA256="E1:B6:1B:A9:86:F6:76:C4:A0:C0:D5:EF:26:E9:25:8C:78:95:7C:A9:04:7F:E9:39:96:F3:E5:C5:96:E5:5E:ED" ;;
             seller)   EXPECTED_SHA256="B7:DA:DE:58:08:F8:EB:9D:3D:EB:F8:BC:12:E6:75:5E:46:A2:F4:E5:7A:C2:C9:56:AA:06:45:10:18:1E:B7:A6" ;;
             *)
