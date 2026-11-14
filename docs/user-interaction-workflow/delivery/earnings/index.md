@@ -2,7 +2,9 @@
 
 **Status:** Shipped (server-derived amounts; disbursement is intentionally manual by admin)
 **Route:** `Payouts` (`features/delivery-partner/screens/PayoutScreen.tsx`)
-**Trigger:** Rider taps Earnings on the dashboard.
+**Trigger:** Rider taps the Pocket tab (or Earnings on the dashboard).
+**Visual layer:** `Payouts` is restyled (KPI strip, payout cards) and now renders the bottom tab bar;
+rows open the new `EarningsDetail` route.
 
 ## Flows
 

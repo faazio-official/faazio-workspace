@@ -5,6 +5,8 @@
 (`RouteScreen.tsx`), `Dashboard`
 **Trigger:** Push/deep link for a new offer, the **View full offer →** link on a `Dashboard` offer
 card, or the dashboard's active list.
+**Visual layer:** offer cards, status pills and the offer modal use the DP primitives; the 45 s
+countdown, accept/reject calls and navigation are unchanged.
 
 ## Flows
 

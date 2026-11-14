@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { StyleSheet, TouchableOpacity } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
+import { DPPage, DPPageHeader, DPButton, DPField, DPSectionCard } from '@/components/shared/dp';
+import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import {
   consumeAutoVerifiedOtp,
   sendOtp,
@@ -14,7 +15,7 @@ import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { useSmsUserConsent } from '@/lib/smsUserConsent';
-import { hs, ms, vs } from '@/utils/responsive';
+import { ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'OtpVerify'>;
@@ -130,59 +131,60 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
   }, [phone, restartSmsConsent, resending, stopSmsConsent, verifying]);
 
   return (
-    <Screen>
-      <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          <AppText style={styles.title}>Verify your number</AppText>
-          <AppText style={styles.subtitle}>Enter the 6-digit code sent to +91 {phone}.</AppText>
-          <Card style={styles.card}>
-            <Field
-              label="OTP"
-              value={code}
-              onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
-              keyboardType="number-pad"
-              textContentType="oneTimeCode"
-              autoComplete="sms-otp"
-              placeholder="••••••"
-              maxLength={6}
-              style={styles.otp}
-              editable={!verifying}
-            />
-            <ErrorText>{error}</ErrorText>
-            <PrimaryButton
-              label="Verify & continue"
-              onPress={onVerify}
-              disabled={code.length !== 6 || verifying}
-              loading={verifying}
-            />
-            <TouchableOpacity onPress={onResend} disabled={resending || verifying} style={styles.resend}>
-              <AppText style={styles.resendText}>{resending ? 'Sending…' : 'Resend OTP'}</AppText>
-            </TouchableOpacity>
-          </Card>
-          <TouchableOpacity
-            onPress={() => {
-              if (!verifying) navigation.replace('PhoneEntry');
-            }}
-            disabled={verifying}
-            style={styles.back}
-          >
-            <AppText style={styles.backText}>Change number</AppText>
-          </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Screen>
+    <DPPage contentStyle={styles.body} keyboardAvoiding>
+      <DPPageHeader
+        kicker="Verification"
+        title="Verify your number"
+        description={`Enter the 6-digit code sent to +91 ${phone}.`}
+      />
+      <DPSectionCard>
+        <DPField
+          label="OTP"
+          value={code}
+          onChangeText={(v) => setCode(v.replace(/\D/g, '').slice(0, 6))}
+          keyboardType="number-pad"
+          textContentType="oneTimeCode"
+          autoComplete="sms-otp"
+          placeholder="••••••"
+          maxLength={6}
+          editable={!verifying}
+          error={error}
+          inputStyle={styles.otp}
+        />
+        <DPButton
+          label="Verify & continue"
+          onPress={() => void onVerify()}
+          disabled={code.length !== 6 || verifying}
+          loading={verifying}
+        />
+        <TouchableOpacity
+          onPress={() => void onResend()}
+          disabled={resending || verifying}
+          style={styles.resend}
+          accessibilityRole="button"
+        >
+          <AppText style={styles.resendText}>{resending ? 'Sending...' : 'Resend OTP'}</AppText>
+        </TouchableOpacity>
+      </DPSectionCard>
+      <TouchableOpacity
+        onPress={() => {
+          if (!verifying) navigation.replace('PhoneEntry');
+        }}
+        disabled={verifying}
+        style={styles.back}
+        accessibilityRole="button"
+      >
+        <AppText style={styles.backText}>Change number</AppText>
+      </TouchableOpacity>
+    </DPPage>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  body: { padding: hs(20), paddingTop: vs(40) },
-  title: { fontSize: ms(26), fontWeight: '900', color: DP.ink },
-  subtitle: { fontSize: ms(14), color: DP.muted, marginTop: vs(8), marginBottom: vs(20) },
-  card: { paddingVertical: vs(20) },
-  otp: { fontSize: ms(24), letterSpacing: 10, textAlign: 'center' },
-  resend: { alignItems: 'center', marginTop: vs(16) },
-  resendText: { fontSize: ms(12), fontWeight: '800', color: DP.brand },
-  back: { alignItems: 'center', marginTop: vs(20) },
-  backText: { fontSize: ms(12), fontWeight: '700', color: DP.muted },
+  body: { paddingTop: vs(28) },
+  otp: { fontSize: ms(24), letterSpacing: 10, textAlign: 'center', fontWeight: '600' },
+  resend: { minHeight: DELIVERY.touch.min, alignItems: 'center', justifyContent: 'center', marginTop: vs(8) },
+  resendText: { fontSize: DP_TYPE.label.fontSize, fontWeight: '600', color: DELIVERY.brand },
+  back: { minHeight: DELIVERY.touch.min, alignItems: 'center', justifyContent: 'center', marginTop: vs(12) },
+  backText: { fontSize: DP_TYPE.caption.fontSize, fontWeight: '500', color: DELIVERY.inkMuted },
 });

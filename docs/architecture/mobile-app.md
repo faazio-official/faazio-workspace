@@ -32,12 +32,12 @@ src/
 │   # the canonical wordmark master; assets/brand/logo-welcomepage.svg wraps that PNG.
 │   # This avoids the fragile react-native-svg `<Image>` + base64 data-URI path; size
 │   # is applied to the visible glyph box (814×227) so both variants share one scale.
-│   └── shared/                 # 17 reusable primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, OfflinePage, OfflineToast, …)
+│   └── shared/                 # reusable primitives incl. dp/ (delivery Vite-reference primitives), 17 legacy primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, OfflinePage, OfflineToast, …)
 ├── features/                   # vertical feature modules (16)
 ├── lib/                        # config, externalLinks, site, tokenClaims, smsUserConsent (Android SMS User Consent hook)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, offlineNavigationGuard, types
 ├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed, pricing
-├── state/                      # Zustand stores (17)
+├── state/                      # Zustand stores (incl. deliveryPartner + deliverySettings)
 ├── theme/                      # brandTokens, spacing (SPACE tokens), fonts, sectorVisuals
 └── utils/                      # responsive (hs/vs/ms/wp/hp)
 ```
@@ -578,7 +578,7 @@ Startup
     constraints Auto Layout uses the asset's *intrinsic* size. The iOS splash now mirrors Android:
     the imageset carries the same square 288dp canvas at 1x/2x/3x (288/576/864 px, mapped to
     Android mdpi/xhdpi/xxhdpi), and the storyboard carries an explicit `width = 200` plus a
-    `width:height = 1.0` square constraint. All three iOS apps share the Faazio Blue splash
+    `width:height = 1.0` square constraint. The iOS app shares the Faazio Blue splash
     background (see `docs/UI_DESIGN_SYSTEM.md` §5).
   `src/assets/logo.png` is a flat `#1627E9` field carrying the white wordmark, derived from
   `client/mobile/assets/brand/logo-rectangle.png`. The script keys the field out to transparency
@@ -816,8 +816,8 @@ Entry is `Onboarding` on first launch, `Login` for a returning signed-out user
 The partner experience is a **separate product root and bundle**, not a tab or a deep link in the
 customer SuperApp. `index.js` is the customer entry; `index.delivery.js` mounts
 `src/DeliveryPartnerApp.tsx` (its own `NavigationContainer` + `DeliveryPartnerNavigator`) and
-registers the `FaazioDeliveryHeartbeat` headless task. `MainApplication`/`AppDelegate` select the
-partner root for the delivery flavor/configuration, and the Gradle/Xcode bundle steps use the
+registers the `FaazioDeliveryHeartbeat` headless task. `MainApplication` selects the
+partner root for the delivery flavor, and the Gradle bundle step uses the
 delivery entry, so neither APK ships the other product's screens, stores or customer modules.
 
 ```
@@ -828,7 +828,7 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 │                  vehicle-capped capacity, bank details (private R2 uploads → POST /delivery/register)
 ├── SubmissionSuccess — applied / pending / verified / rejected / suspended state + rejection reason
 ├── Dashboard    — Go Online toggle (PUT /delivery/availability), Valkey heartbeat every 120 s
-│                  (foreground + Android foreground service headless task + iOS background watch),
+│                  (foreground + Android foreground service headless task),
 │                  45 s offer cards, active multi-stop jobs, Earnings link
 ├── AcceptReject — deep-link/push offer or a Dashboard offer card: store/customer, payout, route
 │                  context, 45 s countdown, Accept / Reject (expiry = implicit reject) → Route
@@ -843,10 +843,32 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 │                  (`POST /delivery/{orderId}/stop/{stopId}/payment-received`) before the stop may
 │                  reach DELIVERED — otherwise `409 payment_not_received`. Customer-OTP
 │                  handover (document re-upload is admin-side; the app has no re-upload screen)
-└── Payouts      — earnings history from GET /delivery/payouts: pending/paid totals and each job's
-                   distance, base/extra-km, surge reason and settlement status (manual mark-paid
-                   amounts + PARTIAL since `0077`; no Razorpay Route)
+├── Payouts      — earnings history from GET /delivery/payouts: pending/paid totals and each job's
+│                   distance, base/extra-km, surge reason and settlement status (manual mark-paid
+│                   amounts + PARTIAL since `0077`; no Razorpay Route); rows open EarningsDetail
+├── EarningsDetail — single-order payout breakdown (GET /delivery/payouts/{orderId})
+├── OrderHistory — completed-payout ledger re-presented per order (GET /delivery/payouts; no
+│                   dedicated rider order-history endpoint exists — no fabricated history)
+├── Notifications — durable in-app inbox (GET /notifications + mark-read/all-read)
+├── RiderProfile — profile hub from GET /delivery/me + links to earnings/history/inbox/settings/support
+├── Settings     — account summary, local "vibrate on new offer" preference (AsyncStorage), system
+│                   notification settings, sign out
+└── Support      — mailto support, FAQ, trusted legal links (client-local, no server write)
 ```
+
+**Bottom navigation (Vite reference).** The main screens (`Dashboard`, `Payouts`, `OrderHistory`,
+`Notifications`, `RiderProfile`) render `features/delivery-partner/components/DeliveryTabBar.tsx` →
+`components/shared/dp/DPBottomNav`: five equal tabs Feed · Pocket · Orders · Inbox · More, route
+names as tab keys, active tab in Faazio Blue. The stack remains a native stack (no tab navigator);
+auth, `AcceptReject`, `Route`, `EarningsDetail`, `Settings` and `Support` do not render the bar.
+
+**Visual layer.** Rider screens use the Vite-reference design system: tokens in
+`src/theme/deliveryTokens.ts` (anchored on `parentRamp` — brand `#1627E9`, replacing the old
+`#2c56f6` hardcode) and primitives in `src/components/shared/dp/` (`DPPage`, `DPPageHeader`,
+`DPSectionCard`, `DPKpi*`, `DPStatusPill`, `DPFilterChip`, `DPEmpty/Error/Skeleton`, `DPButton`,
+`DPField`, `DPToggle/Switch`, `DPTimer`, `DPBottomNav`, `DPKeyValueRow`, `DPListRow`, `DPAvatar`).
+The restyle is visual-only: routes, screen signatures, stores, `GatewayClient` calls, timers, modals
+and validation are unchanged.
 
 **Push offer deep link.** `src/services/deliveryPush.ts` registers the FCM token, routes a foreground
 message or notification tap to `AcceptRejectScreen`, and `src/services/deliveryLinks.ts` also accepts
@@ -865,22 +887,19 @@ read (`POST /notifications/{id}/read`), a header action clears the badge
 (`POST /notifications/read-all`), and the My Orders / blood-donor bell badge counts only **unread**
 rows.
 
-**Native identity.** One committed RN shell, three products: the Android `customer`/`delivery`/`seller`
-product flavors (`com.faazio.customer`, launcher label "Faazio" / `com.faazio.deliverypartner`,
-"Faazio Delivery Partner" / `com.faazio.sellerpartner`, "Faazio Seller Partner") and the
-iOS `Debug`/`Release` plus `Delivery-*`/`Seller-*` configurations (same bundle split and display
-names via `FAAZIO_APP_NAME`).
-On **Android** all three ship (Google Play); on **iOS only the customer app** (`com.faazio.customer`,
-`Release` config) is built and released to the App Store — the `Delivery-*`/`Seller-*` iOS
-configurations exist for local/dev completeness only, with no planned iOS release. The partner
-Android builds need their own Firebase app (`APP_VARIANT=delivery` / `=seller` selects that config in
-`configure.js`). CI builds them explicitly
+**Native identity.** One committed RN shell, three Android products: the Android
+`customer`/`delivery`/`seller` product flavors (`com.faazio.customer`, launcher label "Faazio" /
+`com.faazio.deliverypartner`, "Faazio Delivery Partner" / `com.faazio.sellerpartner`, "Faazio Seller
+Partner"). On **Android** all three ship (Google Play); on **iOS only the customer app**
+(`com.faazio.customer`, the single `Faazio` Xcode target, `Release` config) is built and released to
+the App Store. The partner Android builds need their own Firebase app (`APP_VARIANT=delivery` /
+`=seller` selects that config in `configure.js`). CI builds them explicitly
 (`assembleCustomerDebug` / `assembleDeliveryDebug` / `assembleSellerDebug`); see
 `docs/RUNBOOKS/RELEASE.md`.
 
-**iOS push entitlement.** One committed file pair covers all three products: the three `*Release`
-configurations use `ios/Faazio/Faazio.entitlements` (`aps-environment = production`) and the three
-`*Debug` configurations use `ios/Faazio/Faazio-Debug.entitlements` (`aps-environment = development`),
+**iOS push entitlement.** The customer app uses the committed entitlements pair: the `Release`
+configuration uses `ios/Faazio/Faazio.entitlements` (`aps-environment = production`) and the `Debug`
+configuration uses `ios/Faazio/Faazio-Debug.entitlements` (`aps-environment = development`),
 so APNs registration matches the signing profile (App Store distribution vs Apple development).
 Without it `registerForRemoteNotifications()` fails on distribution profiles and iOS push cannot
 work. `AppDelegate.swift` carries no push code — `@react-native-firebase/messaging` registers the
@@ -888,8 +907,8 @@ APNs token through its default app-delegate swizzle. iOS push *delivery* still n
 `.p8` key uploaded to Firebase (`docs/RUNBOOKS/FIREBASE_AUTH.md`).
 
 **One shared native shell, one dependency set.** `android/` and `ios/` are committed source-of-truth
-shells shared by all three products; a flavor/configuration only *adds or overrides* source sets
-(manifest, resources, JS entry). Native dependencies are declared once in `package.json` and
+shells shared across products; an Android flavor (or the iOS customer config) only *adds or overrides*
+source sets (manifest, resources, JS entry). Native dependencies are declared once in `package.json` and
 compiled into every flavor — e.g. `react-native-maps` is present in the seller APK even though the
 seller app never mounts a `MapView`. **Never delete a shared native dependency to slim one product**
 (it would break customer/delivery). Scope a per-product exclusion in that flavor's manifest/resources
@@ -924,19 +943,12 @@ signature.
 `foregroundServiceType="location"` and a persistent low-importance notification, waking
 `DeliveryHeartbeatTaskService` every 120 s. The headless JS task reads the Keychain session, takes
 one coarse fix and posts the same heartbeat as the foreground loop; the service stops when the
-rider goes offline/signs out. On iOS, `DeliveryBackgroundLocation` keeps a background-enabled
-CoreLocation watch (`UIBackgroundModes: location`, declared only by the delivery variant's
-`ios/Faazio/Info-Delivery.plist`, explicit consent) and posts a heartbeat throttled
-to 120 s only while `AppState` is not active; the foreground interval owns heartbeats while the app
-is open. The watch uses coarse continuous updates (no distance filter) so a rider waiting at a store
-keeps refreshing the 300 s Valkey key instead of silently dropping out of dispatch. The in-app
-consent flag is persisted so a cold start while already online resumes the watch without
-re-prompting; sign-out clears it. iOS still ends the watch when the app is force-quit from the app
-switcher. The customer (`Info.plist`) and seller (`Info-Seller.plist`) variants declare only
-`remote-notification` — neither requests background location or `fetch`.
+rider goes offline/signs out. The in-app consent flag is persisted so a cold start while already
+online resumes the watch without re-prompting; sign-out clears it. iOS is customer-only and declares
+only `remote-notification` in `ios/Faazio/Info.plist` — no background location or `fetch`.
 
-**Known production limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit iOS background
-location (plus OEM battery whitelisting) and push delivery is an ops step (fee-free: set the
+**Known production limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit Android
+background location (plus OEM battery whitelisting) and push delivery is an ops step (fee-free: set the
 gateway's `FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID`). Dispatch
 runs a global Held-Karp VRP across all accepted stops (insertion fallback above 15 open stops).
 Reject re-offers the job to the next candidate up to 5 attempts. Payout splits (Phase 5) are
@@ -1015,9 +1027,9 @@ tracked in `client/mobile/PENDING_WORK.md`. `SellerPartnerApp` wraps the navigat
 `ErrorBoundary` (scope `Seller`) so caught render errors are reported alongside the global
 `installGlobalErrorHandlers('seller')` sink.
 
-Native config: the seller build needs its own Android Firebase app + `GoogleService-Info-Seller.plist`
+Native config: the seller build needs its own Android Firebase app
 (CI secret `GOOGLE_SERVICES_SELLER_JSON`; `APP_VARIANT=seller` selects `src/seller/google-services.json`
-and the Seller plist in `configure.js`). FCM is required for push; the seller app itself
+in `configure.js`). FCM is required for push; the seller app itself
 authenticates through the portal, not Firebase. `WEB_PORTAL_URL` is a build-time public config
 (release requires https); a seller build without it **fails at configure time** (dev and release)
 instead of shipping a non-functional shell.
@@ -1134,8 +1146,7 @@ The app does **not** track under Apple's definition, so it requires **no ATT pro
 
 - No IDFA / `advertisingIdentifier` access, no `ATTrackingManager`, no
   `requestTrackingAuthorization()` anywhere under `client/mobile/src/` or `ios/`.
-- No `NSUserTrackingUsageDescription` in any of the three Info.plist variants
-  (`ios/Faazio/Info.plist`, `Info-Delivery.plist`, `Info-Seller.plist`).
+- No `NSUserTrackingUsageDescription` in `ios/Faazio/Info.plist`.
 - No ad/monetization SDK (AdMob, AppsFlyer, Adjust, Facebook/Google Ads, …) in `package.json`; no
   `com.google.android.gms.permission.AD_ID` in `android/app/src/main/AndroidManifest.xml`.
 - `NSPrivacyTracking = false` in `ios/Faazio/PrivacyInfo.xcprivacy`.
@@ -1604,16 +1615,11 @@ meta-data (`tools:node="remove"` in `android/app/src/seller/AndroidManifest.xml`
 `google_maps_api_key` empty in `src/seller/res/values/`. Consequently the Google Maps/Places keys only
 need the **customer + delivery** packages on their allowlist. Do not delete the shared `react-native-maps`
 dependency to achieve this — that would break customer and delivery.
-The customer product itself never requests background location. iOS plists are split per variant:
-only the delivery variant (`ios/Faazio/Info-Delivery.plist`) declares `UIBackgroundModes: location`
-(the partner app is the only caller of the background watch). Both the customer
-`ios/Faazio/Info.plist` and the delivery plist carry `NSLocationAlwaysAndWhenInUseUsageDescription`
-because linked CoreLocation modules (`react-native-maps`, the native geocoder) reference the API and
-App Store validation (ITMS-90683) requires the purpose string; the seller
-`ios/Faazio/Info-Seller.plist` mounts no map and declares no location keys. The customer and seller
-plists declare `remote-notification` only and remain foreground-only — the customer never requests
-"Always" authorization or background location. `INFOPLIST_FILE` selects the plist per Xcode build
-configuration. Android keeps background location scoped to the delivery flavor manifest.
+The customer product never requests background location. The iOS product is customer-only:
+`ios/Faazio/Info.plist` declares only `remote-notification` and remains foreground-only (it never
+requests "Always" authorization or background location), though it carries
+`NSLocationWhenInUseUsageDescription` for checkout live-address auto-fill. Android keeps background
+location scoped to the delivery flavor manifest.
 
 ## Cart checkout — BAG → FULFILLMENT → PAYMENT → (PAYMENT_STATUS → PAYMENT_FAILED) → RECEIPT
 

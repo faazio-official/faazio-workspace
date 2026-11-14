@@ -1,24 +1,21 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import {
-  Alert,
-  AppState,
-  Platform,
-  RefreshControl,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { Alert, AppState, Platform, RefreshControl, StyleSheet, TouchableOpacity, Vibration, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
-import { categorical } from '@/theme/categorical';
 import {
-  gateway,
-  type DeliveryOrder,
-  type DeliveryPartnerRider,
-} from '@/services/api/GatewayClient';
+  DPPage,
+  DPPageHeader,
+  DPButton,
+  DPSectionCard,
+  DPSwitch,
+  DPStatusPill,
+  DPTimer,
+  DPKpiStrip,
+  DPKpiCard,
+} from '@/components/shared/dp';
+import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
+import { gateway, type DeliveryOrder } from '@/services/api/GatewayClient';
 import { getCoarsePosition, requestLocationPermission } from '@/services/location';
 import { startDeliveryPush } from '@/services/deliveryPush';
 import { startDeliveryTracking, stopDeliveryTracking } from '@/services/deliveryTracking';
@@ -30,8 +27,9 @@ import {
 } from '@/services/deliveryBackgroundLocation';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
-import { Card, DP, ErrorText, PrimaryButton, Screen, StatusPill } from '../components';
-import { hs, ms, vs } from '@/utils/responsive';
+import { useDeliverySettingsStore } from '@/state/deliverySettingsStore';
+import { DeliveryTabBar } from '../components/DeliveryTabBar';
+import { hs, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Dashboard'>;
@@ -62,6 +60,9 @@ export function DashboardScreen({ navigation }: Props) {
   const [now, setNow] = useState(Date.now());
   const [iosBackgroundAllowed, setIosBackgroundAllowed] = useState(false);
   const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
+  const vibrateOnOffer = useDeliverySettingsStore((s) => s.vibrateOnOffer);
+  const hydrateSettings = useDeliverySettingsStore((s) => s.hydrate);
+  const seenOffers = useRef<Set<string> | null>(null);
 
   const offers = useMemo(
     () => orders.filter((o) => o.status === 'ASSIGNED'),
@@ -71,6 +72,21 @@ export function DashboardScreen({ navigation }: Props) {
     () => orders.filter((o) => o.status === 'ACCEPTED'),
     [orders],
   );
+
+  useEffect(() => {
+    void hydrateSettings();
+  }, [hydrateSettings]);
+
+  // Haptic alert (a local preference) when a genuinely new offer lands after mount.
+  useEffect(() => {
+    if (seenOffers.current === null) {
+      seenOffers.current = new Set(offers.map((o) => o.orderId));
+      return;
+    }
+    const fresh = offers.filter((o) => !seenOffers.current?.has(o.orderId));
+    offers.forEach((o) => seenOffers.current?.add(o.orderId));
+    if (fresh.length > 0 && vibrateOnOffer) Vibration.vibrate(200);
+  }, [offers, vibrateOnOffer]);
 
   const stopHeartbeat = useCallback(() => {
     if (heartbeat.current) {
@@ -285,146 +301,128 @@ export function DashboardScreen({ navigation }: Props) {
   }, [logout, navigation, online, reset, stopHeartbeat]);
 
   return (
-    <Screen>
-      <ScrollView
-        contentContainerStyle={styles.body}
-        refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}
-      >
-        <View style={styles.header}>
-          <FaazioLogo size={26} />
+    <DPPage
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}
+      footer={<DeliveryTabBar active="Dashboard" navigation={navigation} />}
+    >
+      <DPPageHeader
+        leading={<FaazioLogo size={26} />}
+        kicker="Delivery Partner"
+        title={rider?.fullName ?? 'Rider'}
+        actions={rider ? <DPStatusPill status={rider.status} /> : undefined}
+        tone={online ? 'success' : 'neutral'}
+      />
+
+      <DPSectionCard style={styles.availability}>
+        <View style={styles.rowBetween}>
           <View style={styles.flex}>
-            <AppText style={styles.kicker}>Delivery Partner</AppText>
-            <AppText style={styles.name}>{rider?.fullName ?? 'Rider'}</AppText>
-          </View>
-          {rider ? <StatusPill status={rider.status} /> : null}
-        </View>
-
-        <Card style={[styles.availability, online ? styles.onlineCard : null]}>
-          <View style={styles.rowBetween}>
-            <View style={styles.flex}>
-              <AppText style={styles.availabilityTitle}>{online ? 'You are online' : 'You are offline'}</AppText>
-              <AppText style={styles.availabilityCopy}>
-                {online
-                  ? 'Available — waiting for orders. Location heartbeats keep you in dispatch.'
-                  : 'Go online to receive nearby delivery offers.'}
-              </AppText>
-            </View>
-            <TouchableOpacity
-              accessibilityRole="switch"
-              accessibilityState={{ checked: online }}
-              onPress={() => void toggleOnline()}
-              disabled={busy === 'availability'}
-              style={[styles.switch, online && styles.switchOn]}
-            >
-              <View style={[styles.knob, online && styles.knobOn]} />
-            </TouchableOpacity>
-          </View>
-          <View style={styles.loadRow}>
-            <AppText style={styles.loadText}>
-              Load {rider?.currentLoad ?? 0} / {rider?.maxCapacity ?? 0}
+            <AppText style={styles.availabilityTitle}>{online ? 'You are online' : 'You are offline'}</AppText>
+            <AppText style={styles.availabilityCopy}>
+              {online
+                ? 'Available — waiting for orders. Location heartbeats keep you in dispatch.'
+                : 'Go online to receive nearby delivery offers.'}
             </AppText>
-            <View style={styles.ratingRow}>
-              <AppText style={styles.loadText}>
-                {rider?.completedOrders ?? 0} deliveries · {rider?.rating ? rider.rating.toFixed(1) : '—'}
-              </AppText>
-              <Star size={ms(12)} color={categorical.amber} fill={categorical.amber} />
-            </View>
           </View>
-        </Card>
+          <DPSwitch
+            value={online}
+            onValueChange={() => void toggleOnline()}
+            disabled={busy === 'availability'}
+            accessibilityLabel="Go online"
+          />
+        </View>
+      </DPSectionCard>
 
-        <TouchableOpacity onPress={() => navigation.navigate('Payouts')} activeOpacity={0.85}>
-          <Card style={styles.earningsCard}>
-            <View style={styles.flex}>
-              <AppText style={styles.earningsTitle}>Earnings & payouts</AppText>
-              <AppText style={styles.earningsCopy}>Per-job distance, surge and settlement status.</AppText>
-            </View>
-            <AppText style={styles.earningsArrow}>→</AppText>
-          </Card>
-        </TouchableOpacity>
+      <DPKpiStrip style={styles.kpis}>
+        <DPKpiCard label="Load" value={`${rider?.currentLoad ?? 0}/${rider?.maxCapacity ?? 0}`} />
+        <DPKpiCard label="Deliveries" value={String(rider?.completedOrders ?? 0)} />
+        <DPKpiCard label="Rating" value={rider?.rating ? rider.rating.toFixed(1) : '—'} />
+      </DPKpiStrip>
 
-        <ErrorText>{error}</ErrorText>
+      {error ? <AppText style={styles.error}>{error}</AppText> : null}
 
-        {offers.length > 0 ? (
-          <>
-            <AppText style={styles.sectionTitle}>New offers</AppText>
-            {offers.map((order) => {
-              const seconds = order.expiresAt
-                ? Math.max(0, Math.floor((new Date(order.expiresAt).getTime() - now) / 1000))
-                : 45;
-              const pickup = order.stops.find((s) => s.stopType === 'PICKUP');
-              const drop = order.stops.find((s) => s.stopType === 'DROP');
-              return (
-                <Card key={order.orderId} style={styles.orderCard}>
-                  <View style={styles.rowBetween}>
-                    <AppText style={styles.orderTitle}>
-                      {pickup?.label || 'Store'} → {drop?.label || 'Customer'}
-                    </AppText>
-                    <AppText style={[styles.timer, seconds <= 10 && styles.timerDanger]}>{seconds}s</AppText>
-                  </View>
-                  <AppText style={styles.orderMeta}>
-                    {pickup?.address || 'Pickup address'} · {drop?.address || 'Drop address'}
+      {offers.length > 0 ? (
+        <View style={styles.section}>
+          <AppText style={styles.sectionTitle}>New offers</AppText>
+          {offers.map((order) => {
+            const seconds = order.expiresAt
+              ? Math.max(0, Math.floor((new Date(order.expiresAt).getTime() - now) / 1000))
+              : 45;
+            const pickup = order.stops.find((s) => s.stopType === 'PICKUP');
+            const drop = order.stops.find((s) => s.stopType === 'DROP');
+            return (
+              <DPSectionCard key={order.orderId} style={styles.orderCard}>
+                <View style={styles.rowBetween}>
+                  <AppText style={styles.orderTitle}>
+                    {pickup?.label || 'Store'} → {drop?.label || 'Customer'}
                   </AppText>
-                  <AppText style={styles.orderMeta}>
-                    {order.stops.length} stops · {Math.round(order.totalDistanceMeters / 1000)} km ·{' '}
-                    {Math.round(order.estimatedDurationSeconds / 60)} min · {rupees(order.payoutAmountPaisa)}
-                  </AppText>
-                  {paymentLabel(order) ? (
-                    <AppText style={styles.paymentTag}>{paymentLabel(order)}</AppText>
-                  ) : null}
-                  <View style={styles.actions}>
-                    <View style={styles.flex}>
-                      <PrimaryButton
-                        label="Accept"
-                        onPress={() => void accept(order.orderId)}
-                        loading={busy === order.orderId}
-                        disabled={seconds === 0}
-                      />
-                    </View>
-                    <TouchableOpacity
-                      onPress={() => void reject(order.orderId)}
-                      disabled={busy === order.orderId}
-                      style={styles.reject}
-                    >
-                      <AppText style={styles.rejectText}>Reject</AppText>
-                    </TouchableOpacity>
+                  <DPTimer seconds={seconds} />
+                </View>
+                <AppText style={styles.orderMeta}>
+                  {pickup?.address || 'Pickup address'} · {drop?.address || 'Drop address'}
+                </AppText>
+                <AppText style={styles.orderMeta}>
+                  {order.stops.length} stops · {Math.round(order.totalDistanceMeters / 1000)} km ·{' '}
+                  {Math.round(order.estimatedDurationSeconds / 60)} min · {rupees(order.payoutAmountPaisa)}
+                </AppText>
+                {paymentLabel(order) ? (
+                  <View style={styles.payTag}>
+                    <DPStatusPill status={order.paymentRequired ? (order.paymentReceived ? 'PAID' : 'PENDING') : 'ACCEPTED'} label={paymentLabel(order)} />
                   </View>
-                  <TouchableOpacity
-                    accessibilityRole="button"
-                    accessibilityLabel="View full offer details"
-                    onPress={() =>
-                      navigation.navigate('AcceptReject', {
-                        orderId: order.orderId,
-                        ...(order.expiresAt ? { expiresAt: order.expiresAt } : {}),
-                      })
-                    }
-                    style={styles.offerLink}
-                  >
-                    <AppText style={styles.open}>View full offer →</AppText>
-                  </TouchableOpacity>
-                </Card>
-              );
-            })}
-          </>
-        ) : null}
+                ) : null}
+                <View style={styles.actions}>
+                  <View style={styles.flex}>
+                    <DPButton
+                      label="Accept"
+                      onPress={() => void accept(order.orderId)}
+                      loading={busy === order.orderId}
+                      disabled={seconds === 0}
+                    />
+                  </View>
+                  <DPButton
+                    label="Reject"
+                    variant="danger"
+                    fullWidth={false}
+                    onPress={() => void reject(order.orderId)}
+                    disabled={busy === order.orderId}
+                    style={styles.reject}
+                  />
+                </View>
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel="View full offer details"
+                  onPress={() =>
+                    navigation.navigate('AcceptReject', {
+                      orderId: order.orderId,
+                      ...(order.expiresAt ? { expiresAt: order.expiresAt } : {}),
+                    })
+                  }
+                  style={styles.offerLink}
+                >
+                  <AppText style={styles.open}>View full offer →</AppText>
+                </TouchableOpacity>
+              </DPSectionCard>
+            );
+          })}
+        </View>
+      ) : null}
 
+      <View style={styles.section}>
         <AppText style={styles.sectionTitle}>Active route</AppText>
         {active.length === 0 ? (
-          <Card>
+          <DPSectionCard>
             <AppText style={styles.empty}>
               No active deliveries. {online ? 'Stay online — offers appear here.' : 'Go online to start.'}
             </AppText>
-          </Card>
+          </DPSectionCard>
         ) : (
           active.map((order) => {
             const done = order.stops.filter((s) => s.status === 'DELIVERED' || s.status === 'FAILED').length;
             return (
-              <TouchableOpacity key={order.orderId} onPress={() => navigation.navigate('Route')}>
-                <Card style={styles.orderCard}>
+              <TouchableOpacity key={order.orderId} onPress={() => navigation.navigate('Route')} accessibilityRole="button">
+                <DPSectionCard style={styles.orderCard}>
                   <View style={styles.rowBetween}>
                     <AppText style={styles.orderTitle}>Order {order.orderId.slice(-6)}</AppText>
-                    <AppText style={styles.badge}>
-                      {done}/{order.stops.length} stops
-                    </AppText>
+                    <DPStatusPill status="ACCEPTED" label={`${done}/${order.stops.length} stops`} />
                   </View>
                   <AppText style={styles.orderMeta}>
                     {order.stops.map((s) => s.label || s.stopType.toLowerCase()).join(' → ')}
@@ -433,59 +431,46 @@ export function DashboardScreen({ navigation }: Props) {
                     <AppText style={styles.paymentTag}>{paymentLabel(order)}</AppText>
                   ) : null}
                   <AppText style={styles.open}>Open route →</AppText>
-                </Card>
+                </DPSectionCard>
               </TouchableOpacity>
             );
           })
         )}
+      </View>
 
-        <TouchableOpacity onPress={() => void onLogout()} style={styles.linkWrap}>
-          <AppText style={styles.link}>Go offline & sign out</AppText>
-        </TouchableOpacity>
-      </ScrollView>
-    </Screen>
+      <TouchableOpacity onPress={() => void onLogout()} style={styles.linkWrap} accessibilityRole="button">
+        <AppText style={styles.link}>Go offline & sign out</AppText>
+      </TouchableOpacity>
+    </DPPage>
   );
 }
 
 const styles = StyleSheet.create({
-  body: { padding: hs(16), paddingBottom: vs(40) },
-  header: { flexDirection: 'row', alignItems: 'center', gap: hs(10), marginTop: vs(12), marginBottom: vs(16) },
-  flex: { flex: 1 },
-  kicker: { fontSize: ms(10), fontWeight: '900', color: DP.brand, textTransform: 'uppercase', letterSpacing: 1.2 },
-  name: { fontSize: ms(18), fontWeight: '900', color: DP.ink },
   availability: { marginBottom: vs(12) },
-  onlineCard: { borderColor: DP.success },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
-  availabilityTitle: { fontSize: ms(18), fontWeight: '900', color: DP.ink },
-  availabilityCopy: { fontSize: ms(12), lineHeight: ms(18), color: DP.muted, marginTop: vs(3) },
-  switch: {
-    width: ms(52), height: ms(30), borderRadius: ms(999), backgroundColor: '#cbd5e1',
-    padding: ms(3), justifyContent: 'center',
+  flex: { flex: 1 },
+  availabilityTitle: { ...DP_TYPE.title, color: DELIVERY.ink, fontWeight: '700' },
+  availabilityCopy: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(3) },
+  kpis: { marginBottom: vs(8) },
+  section: { marginTop: vs(12) },
+  sectionTitle: {
+    ...DP_TYPE.kicker,
+    color: DELIVERY.inkMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
+    marginBottom: vs(8),
   },
-  switchOn: { backgroundColor: DP.success },
-  knob: { width: ms(24), height: ms(24), borderRadius: ms(999), backgroundColor: '#ffffff' },
-  knobOn: { alignSelf: 'flex-end' },
-  loadRow: { flexDirection: 'row', justifyContent: 'space-between', marginTop: vs(14), borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: DP.line, paddingTop: vs(10) },
-  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: ms(3) },
-  loadText: { fontSize: ms(11), fontWeight: '600', color: DP.muted },
-  sectionTitle: { fontSize: ms(13), fontWeight: '900', color: DP.ink, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: vs(8), marginBottom: vs(8) },
-  earningsCard: { marginBottom: vs(12), flexDirection: 'row', alignItems: 'center', gap: hs(10) },
-  earningsTitle: { fontSize: ms(14), fontWeight: '900', color: DP.ink },
-  earningsCopy: { fontSize: ms(11), color: DP.muted, marginTop: vs(2) },
-  earningsArrow: { fontSize: ms(18), fontWeight: '900', color: DP.brand },
   orderCard: { marginBottom: vs(10) },
-  orderTitle: { fontSize: ms(14), fontWeight: '900', color: DP.ink, flex: 1 },
-  orderMeta: { fontSize: ms(12), lineHeight: ms(18), color: DP.muted, marginTop: vs(4) },
-  timer: { fontSize: ms(13), fontWeight: '900', color: DP.warning },
-  timerDanger: { color: DP.danger },
+  orderTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600', flex: 1 },
+  orderMeta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(4) },
+  payTag: { marginTop: vs(8), flexDirection: 'row' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: hs(10), marginTop: vs(12) },
-  reject: { paddingHorizontal: hs(16), paddingVertical: vs(12) },
-  rejectText: { fontSize: ms(12), fontWeight: '900', color: DP.danger, textTransform: 'uppercase' },
-  empty: { fontSize: ms(13), color: DP.muted, lineHeight: ms(19) },
-  badge: { fontSize: ms(11), fontWeight: '900', color: DP.brand },
+  reject: { paddingHorizontal: hs(16) },
+  empty: { ...DP_TYPE.body, color: DELIVERY.inkMuted },
+  open: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '600', marginTop: vs(10) },
+  paymentTag: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.warning, marginTop: vs(4) },
   offerLink: { marginTop: vs(2) },
-  open: { fontSize: ms(12), fontWeight: '900', color: DP.brand, marginTop: vs(8) },
-  paymentTag: { fontSize: ms(11), fontWeight: '800', color: DP.warning, marginTop: vs(4) },
-  linkWrap: { alignItems: 'center', marginTop: vs(18) },
-  link: { fontSize: ms(12), fontWeight: '800', color: DP.muted },
+  error: { ...DP_TYPE.caption, color: DELIVERY.danger, marginTop: vs(10) },
+  linkWrap: { minHeight: DELIVERY.touch.min, alignItems: 'center', justifyContent: 'center', marginTop: vs(16) },
+  link: { ...DP_TYPE.label, color: DELIVERY.inkMuted, fontWeight: '500' },
 });

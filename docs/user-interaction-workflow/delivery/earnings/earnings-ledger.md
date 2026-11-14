@@ -3,6 +3,8 @@
 **App / route:** delivery · `Payouts` (`PayoutScreen.tsx`)
 **Status:** Shipped (server-derived amounts; manual admin disbursement by design)
 **Trigger:** Dashboard → Earnings.
+**Visual layer:** restyled payout cards + KPI strip; tapping a row opens `EarningsDetail`
+(`earnings-detail.md`). The pending/paid computation is unchanged.
 
 ## Steps
 

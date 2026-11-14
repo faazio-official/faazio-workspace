@@ -1,23 +1,17 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import {
-  KeyboardAvoidingView,
-  Platform,
-  ScrollView,
-  StyleSheet,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useIsFocused } from '@react-navigation/native';
 import AppText from '@/components/AppText';
 import { FaazioLogo } from '@/components/FaazioLogo';
-import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
+import { DPPage, DPPageHeader, DPButton, DPField, DPSectionCard } from '@/components/shared/dp';
+import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { sendOtp } from '@/services/firebaseAuth';
 import { armSmsUserConsent, disarmSmsUserConsent } from '@/lib/smsUserConsent';
 import { GatewayHttpError, gateway } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
-import { hs, ms, vs } from '@/utils/responsive';
+import { hs, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'PhoneEntry'>;
@@ -87,68 +81,51 @@ export function PhoneEntryScreen({ navigation }: Props) {
   }, [navigation, phone, setStorePhone]);
 
   return (
-    <Screen>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-          <View style={styles.brand}>
-            <View style={styles.logo}>
-              <FaazioLogo size={30} />
-            </View>
-            <AppText style={styles.kicker}>Faazio</AppText>
-            <AppText style={styles.title}>Delivery Partner</AppText>
-            <AppText style={styles.subtitle}>
-              Earn on your schedule. Verify your documents once, then go online and accept orders.
-            </AppText>
-          </View>
+    <DPPage contentStyle={styles.body} keyboardShouldPersistTaps="handled" keyboardAvoiding>
+      <DPPageHeader
+        leading={<FaazioLogo size={30} />}
+        kicker="Faazio"
+        title="Delivery Partner"
+        description="Earn on your schedule. Verify your documents once, then go online and accept orders."
+      />
 
-          <Card>
-            <Field
-              label="Mobile number"
-              value={phone}
-              onChangeText={(v) => setPhone(v.replace(/[^\d]/g, '').slice(0, 10))}
-              keyboardType="phone-pad"
-              textContentType="telephoneNumber"
-              autoComplete="tel"
-              placeholder="10-digit mobile number"
-              maxLength={10}
-            />
-            <ErrorText>{error}</ErrorText>
-            <PrimaryButton
-              label="Get OTP"
-              onPress={onSend}
-              disabled={!validPhone(phone) || checking}
-              loading={sending || checking}
-            />
-          </Card>
+      <DPSectionCard>
+        <DPField
+          label="Mobile number"
+          value={phone}
+          onChangeText={(v) => setPhone(v.replace(/[^\d]/g, '').slice(0, 10))}
+          keyboardType="phone-pad"
+          textContentType="telephoneNumber"
+          autoComplete="tel"
+          placeholder="10-digit mobile number"
+          maxLength={10}
+          error={error}
+        />
+        <DPButton
+          label="Get OTP"
+          onPress={() => void onSend()}
+          disabled={!validPhone(phone) || checking}
+          loading={sending || checking}
+        />
+      </DPSectionCard>
 
-          <AppText style={styles.terms}>
-            By continuing you agree to the Faazio Delivery Partner terms, including independent-contractor
-            status and lawful assistance to police with an official request.
-          </AppText>
+      <AppText style={styles.terms}>
+        By continuing you agree to the Faazio Delivery Partner terms, including independent-contractor
+        status and lawful assistance to police with an official request.
+      </AppText>
 
-          {isAuthenticated ? (
-            <TouchableOpacity onPress={() => void resume()} style={styles.linkWrap}>
-              <AppText style={styles.link}>Continue with the signed-in account</AppText>
-            </TouchableOpacity>
-          ) : null}
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </Screen>
+      {isAuthenticated ? (
+        <TouchableOpacity onPress={() => void resume()} style={styles.linkWrap} accessibilityRole="button">
+          <AppText style={styles.link}>Continue with the signed-in account</AppText>
+        </TouchableOpacity>
+      ) : null}
+    </DPPage>
   );
 }
 
 const styles = StyleSheet.create({
-  flex: { flex: 1 },
-  body: { padding: hs(20), paddingBottom: vs(32) },
-  brand: { marginTop: vs(28), marginBottom: vs(24) },
-  logo: { marginBottom: vs(16) },
-  kicker: { fontSize: ms(12), fontWeight: '900', color: DP.brand, textTransform: 'uppercase', letterSpacing: 1.4 },
-  title: { fontSize: ms(30), fontWeight: '900', color: DP.ink, marginTop: vs(4) },
-  subtitle: { fontSize: ms(14), lineHeight: ms(21), color: DP.muted, marginTop: vs(8) },
-  terms: { fontSize: ms(11), lineHeight: ms(16), color: DP.muted, marginTop: vs(16) },
-  linkWrap: { marginTop: vs(18), alignItems: 'center' },
-  link: { fontSize: ms(12), fontWeight: '800', color: DP.brand },
+  body: { paddingTop: vs(20) },
+  terms: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(16) },
+  linkWrap: { minHeight: DELIVERY.touch.min, justifyContent: 'center', alignItems: 'center', marginTop: vs(12) },
+  link: { fontSize: DP_TYPE.label.fontSize, fontWeight: '600', color: DELIVERY.brand },
 });

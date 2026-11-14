@@ -3,6 +3,8 @@
 **App / route:** delivery · `Route` (`RouteScreen.tsx`)
 **Status:** Shipped (seller-QR verified pickup)
 **Trigger:** Rider arrives at the pickup stop.
+**Visual layer:** `PickupScanModal` is restyled; its `onScanned`/`onClose` contract (and
+`pickupScanModal.test.tsx`) is unchanged.
 
 ## Steps
 

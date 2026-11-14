@@ -58,7 +58,7 @@ This folder documents the rule enforced by `AGENTS.md`:
 |---|---|---|---|
 | Customer | `client/mobile/index.js` | `src/navigation/AppNavigator.tsx` → `MainTabs` / `FoodStack` | Consumer SuperApp |
 | Seller partner | `client/mobile/index.seller.js` | `src/features/seller-partner/SellerPartnerNavigator.tsx` | Single `Portal` WebView over `client/web/platform` (email/password portal JWT) |
-| Delivery partner | `client/mobile/index.delivery.js` | `src/features/delivery-partner/DeliveryPartnerNavigator.tsx` | Separate product, Android flavor + iOS config |
+| Delivery partner | `client/mobile/index.delivery.js` | `src/features/delivery-partner/DeliveryPartnerNavigator.tsx` | Separate product, Android flavor (Play Store only) |
 | Seller web portal | `client/web/platform` | Next.js App Router | `/seller/*`, `/admin/district/*`, `/admin/super/*` |
 
 ## Page template
@@ -119,7 +119,8 @@ This folder documents the rule enforced by `AGENTS.md`:
 - [Availability](./delivery/availability/index.md) · [Go online](./delivery/availability/go-online.md)
 - [Offers](./delivery/offers/index.md) · [Delivery offer](./delivery/offers/delivery-offer.md) · [Route sequencing](./delivery/offers/route-sequencing.md)
 - [Fulfillment](./delivery/fulfillment/index.md) · [Order pickup](./delivery/fulfillment/order-pickup.md) · [Customer handover](./delivery/fulfillment/customer-handover.md)
-- [Earnings](./delivery/earnings/index.md) · [Earnings ledger](./delivery/earnings/earnings-ledger.md)
+- [Earnings](./delivery/earnings/index.md) · [Earnings ledger](./delivery/earnings/earnings-ledger.md) · [Earnings detail](./delivery/earnings/earnings-detail.md)
+- [More (bottom nav · profile · settings · support · inbox · history)](./delivery/more/index.md)
 
 ### Shared
 - [Shared flows](./shared/README.md) · [Auth & OTP](./shared/auth-otp.md)

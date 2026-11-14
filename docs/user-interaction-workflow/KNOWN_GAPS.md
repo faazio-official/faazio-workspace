@@ -14,7 +14,7 @@ Recorded here so a future contributor does not "fix" something that is not broke
 
 | Determination | Evidence | Effect |
 |---|---|---|
-| ATT not required | `ios/Faazio/PrivacyInfo.xcprivacy` `NSPrivacyTracking = false`; no `ATTrackingManager` / `requestTrackingAuthorization` / `NSUserTrackingUsageDescription` anywhere in `client/mobile/src/` or the three `ios/Faazio/Info*.plist`; no ad SDK / IDFA / `AD_ID` in `package.json` or `android/app/src/main/AndroidManifest.xml` | No ATT prompt or tracking usage description is needed for the iOS release. First-party closed-loop ads (`/ads/*`) are slot-based only, not tracking — do **not** add `NSUserTrackingUsageDescription`. See `docs/architecture/mobile-app.md` → "App Tracking Transparency (ATT)". |
+| ATT not required | `ios/Faazio/PrivacyInfo.xcprivacy` `NSPrivacyTracking = false`; no `ATTrackingManager` / `requestTrackingAuthorization` / `NSUserTrackingUsageDescription` anywhere in `client/mobile/src/` or `ios/Faazio/Info.plist`; no ad SDK / IDFA / `AD_ID` in `package.json` or `android/app/src/main/AndroidManifest.xml` | No ATT prompt or tracking usage description is needed for the iOS release. First-party closed-loop ads (`/ads/*`) are slot-based only, not tracking — do **not** add `NSUserTrackingUsageDescription`. See `docs/architecture/mobile-app.md` → "App Tracking Transparency (ATT)". |
 
 ## Customer
 
@@ -66,8 +66,10 @@ while the WebView owns the session.
 
 | Gap | Evidence | Impact |
 |---|---|---|
-| iOS background limits | Documented in `client/mobile/PENDING_WORK.md` | Force-quit/background location is best-effort (see `delivery/availability/index.md`) |
+| Background-location limits | Documented in `client/mobile/PENDING_WORK.md` | Force-quit/background location is best-effort on Android (the app is Android/Play only; see `delivery/availability/index.md`) |
 | Multi-vendor orders are not auto-dispatched | `docs/architecture/server-gateway-plan.md:340-342` | Orders spanning >1 store need manual allocation |
+| No dedicated rider order-history endpoint | `server/gateway/internal/delivery/handler.go` (no history route); see `delivery/more/index.md` | `OrderHistory` is derived from the earnings ledger (`GET /delivery/payouts`), so it shows completed (paid-ledger) orders, not a full failed/ongoing log |
+| Rider cannot read own application detail | `GET /delivery/register/{id}` is admin/superadmin-gated (`handler.go:83`) | `RiderProfile` shows the rider's own `GET /delivery/me` record only; documents are admin-reviewed |
 
 Payout disbursement is **intentionally manual**: the server-derived amounts are accurate, but a
 state/super admin records the transfer via `mark-paid` (no Razorpay Route). See

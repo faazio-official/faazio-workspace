@@ -3,6 +3,8 @@
 **Status:** Shipped (seller-QR pickup + mandatory COD/UPI OTP handover)
 **Route:** `Route` (`features/delivery-partner/screens/RouteScreen.tsx`)
 **Trigger:** Rider has an accepted order and opens the route.
+**Visual layer:** stop cards, status pills and modals are restyled; the stop model and forward-only
+transitions are unchanged.
 
 ## Flows
 

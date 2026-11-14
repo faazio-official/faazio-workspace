@@ -1,10 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ScrollView, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import {
+  DPPage,
+  DPPageHeader,
+  DPButton,
+  DPSectionCard,
+  DPTimer,
+  DPKeyValueRow,
+  DPSeparator,
+  DPStatusPill,
+} from '@/components/shared/dp';
+import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type DeliveryOrder } from '@/services/api/GatewayClient';
-import { Card, DP, ErrorText, PrimaryButton, Screen } from '../components';
-import { hs, ms, vs } from '@/utils/responsive';
+import { hs, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'AcceptReject'>;
@@ -124,156 +134,120 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
   const expired = live && seconds === 0;
 
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.body}>
-        <View style={styles.header}>
-          <AppText style={styles.kicker}>New delivery offer</AppText>
-          <AppText style={[styles.timer, seconds <= 10 && styles.timerDanger]}>{seconds}s</AppText>
-        </View>
-        <AppText style={styles.title}>{expired ? 'Offer expired' : 'Accept before the timer ends'}</AppText>
+    <DPPage>
+      <DPPageHeader
+        kicker="New delivery offer"
+        title={expired ? 'Offer expired' : 'Accept before the timer ends'}
+        tone={expired ? 'danger' : 'brand'}
+        actions={<DPTimer seconds={seconds} />}
+      />
 
-        <ErrorText>{error}</ErrorText>
+      {error ? <AppText style={styles.error}>{error}</AppText> : null}
 
-        {order ? (
-          <>
-            <Card style={styles.card}>
+      {order ? (
+        <>
+          <DPSectionCard style={styles.card}>
+            <View style={styles.stopHead}>
               <AppText style={styles.section}>Pickup</AppText>
-              <AppText style={styles.name}>{pickup?.label || 'Store'}</AppText>
-              <AppText style={styles.meta}>{pickup?.address || 'Store address'}</AppText>
-              <View style={styles.divider} />
+              <DPStatusPill status="ASSIGNED" label="Collect" />
+            </View>
+            <AppText style={styles.name}>{pickup?.label || 'Store'}</AppText>
+            <AppText style={styles.meta}>{pickup?.address || 'Store address'}</AppText>
+            <DPSeparator />
+            <View style={styles.stopHead}>
               <AppText style={styles.section}>Drop</AppText>
-              <AppText style={styles.name}>{drop?.label || drop?.customerName || 'Customer'}</AppText>
-              <AppText style={styles.meta}>{drop?.address || 'Customer address'}</AppText>
-            </Card>
+              <DPStatusPill status="PENDING" label="Deliver" />
+            </View>
+            <AppText style={styles.name}>{drop?.label || drop?.customerName || 'Customer'}</AppText>
+            <AppText style={styles.meta}>{drop?.address || 'Customer address'}</AppText>
+          </DPSectionCard>
 
-            <Card style={styles.card}>
-              <View style={styles.row}>
-                <AppText style={styles.meta}>Payout</AppText>
-                <AppText style={styles.payout}>{rupees(order.payoutAmountPaisa)}</AppText>
-              </View>
-              <View style={styles.row}>
-                <AppText style={styles.meta}>Payment</AppText>
-                <AppText style={styles.value}>
-                  {order.paymentRequired
-                    ? order.paymentReceived
-                      ? 'Payment received'
-                      : 'COD · collect cash or QR at the door'
-                    : `${order.paymentMethod || 'Prepaid'} · prepaid`}
-                </AppText>
-              </View>
-              <View style={styles.row}>
-                <AppText style={styles.meta}>Route</AppText>
-                <AppText style={styles.value}>
-                  {Math.round(order.totalDistanceMeters / 1000)} km ·{' '}
-                  {Math.round(order.estimatedDurationSeconds / 60)} min
-                </AppText>
-              </View>
-              <View style={styles.row}>
-                <AppText style={styles.meta}>Your route</AppText>
-                <AppText style={styles.value}>
-                  {activeCount === 0
-                    ? 'First active order'
-                    : `${activeCount} active order${activeCount === 1 ? '' : 's'}; this makes ${
-                        activeCount + 1
-                      }`}
-                </AppText>
-              </View>
-              {order.requireOtp ? (
-                <AppText style={styles.otpNote}>Customer OTP required at handover.</AppText>
-              ) : null}
-            </Card>
-
-            {live ? (
-              <>
-                <PrimaryButton
-                  label={expired ? 'Offer expired' : 'Accept offer'}
-                  onPress={() => void accept()}
-                  loading={busy === 'accept'}
-                  disabled={expired || busy !== null || loading}
-                />
-                <View style={styles.rejectWrap}>
-                  <PrimaryButton
-                    label="Reject"
-                    variant="danger"
-                    onPress={() => void rejectAndLeave(false)}
-                    loading={busy === 'reject'}
-                    disabled={expired || busy !== null || loading}
-                  />
-                </View>
-              </>
-            ) : (
-              <View style={styles.rejectWrap}>
-                <PrimaryButton
-                  label="Back to dashboard"
-                  variant="ghost"
-                  onPress={() => navigation.replace('Dashboard')}
-                />
-              </View>
-            )}
-          </>
-        ) : loading ? (
-          <Card>
-            <AppText style={styles.meta}>Loading offer…</AppText>
-          </Card>
-        ) : (
-          <Card>
-            <AppText style={styles.meta}>
-              The offer is no longer assigned to you. It may have expired or moved to another rider.
-            </AppText>
-          </Card>
-        )}
-
-        {!loading && !order ? (
-          <View style={styles.rejectWrap}>
-            <PrimaryButton
-              label="Back to dashboard"
-              variant="ghost"
-              onPress={() => navigation.replace('Dashboard')}
+          <DPSectionCard style={styles.card}>
+            <DPKeyValueRow label="Payout" value={rupees(order.payoutAmountPaisa)} valueTone="success" />
+            <DPKeyValueRow
+              label="Payment"
+              value={
+                order.paymentRequired
+                  ? order.paymentReceived
+                    ? 'Payment received'
+                    : 'COD · collect cash or QR at the door'
+                  : `${order.paymentMethod || 'Prepaid'} · prepaid`
+              }
             />
-          </View>
-        ) : null}
-      </ScrollView>
-    </Screen>
+            <DPKeyValueRow
+              label="Route"
+              value={`${Math.round(order.totalDistanceMeters / 1000)} km · ${Math.round(order.estimatedDurationSeconds / 60)} min`}
+            />
+            <DPKeyValueRow
+              label="Your route"
+              value={
+                activeCount === 0
+                  ? 'First active order'
+                  : `${activeCount} active order${activeCount === 1 ? '' : 's'}; this makes ${activeCount + 1}`
+              }
+            />
+            {order.requireOtp ? (
+              <AppText style={styles.otpNote}>Customer OTP required at handover.</AppText>
+            ) : null}
+          </DPSectionCard>
+
+          {live ? (
+            <>
+              <DPButton
+                label={expired ? 'Offer expired' : 'Accept offer'}
+                onPress={() => void accept()}
+                loading={busy === 'accept'}
+                disabled={expired || busy !== null || loading}
+              />
+              <DPButton
+                label="Reject"
+                variant="danger"
+                onPress={() => void rejectAndLeave(false)}
+                loading={busy === 'reject'}
+                disabled={expired || busy !== null || loading}
+                style={styles.rejectWrap}
+              />
+            </>
+          ) : (
+            <DPButton
+              label="Back to dashboard"
+              variant="outline"
+              onPress={() => navigation.replace('Dashboard')}
+              style={styles.rejectWrap}
+            />
+          )}
+        </>
+      ) : loading ? (
+        <DPSectionCard>
+          <AppText style={styles.meta}>Loading offer...</AppText>
+        </DPSectionCard>
+      ) : (
+        <DPSectionCard>
+          <AppText style={styles.meta}>
+            The offer is no longer assigned to you. It may have expired or moved to another rider.
+          </AppText>
+        </DPSectionCard>
+      )}
+
+      {!loading && !order ? (
+        <DPButton
+          label="Back to dashboard"
+          variant="outline"
+          onPress={() => navigation.replace('Dashboard')}
+          style={styles.rejectWrap}
+        />
+      ) : null}
+    </DPPage>
   );
 }
 
 const styles = StyleSheet.create({
-  body: { padding: hs(18), paddingBottom: vs(40) },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: vs(12) },
-  kicker: {
-    fontSize: ms(11),
-    fontWeight: '900',
-    color: DP.brand,
-    textTransform: 'uppercase',
-    letterSpacing: 1.2,
-  },
-  timer: { fontSize: ms(28), fontWeight: '900', color: DP.warning },
-  timerDanger: { color: DP.danger },
-  title: { fontSize: ms(22), fontWeight: '900', color: DP.ink, marginTop: vs(4), marginBottom: vs(14) },
   card: { marginBottom: vs(12) },
-  section: {
-    fontSize: ms(10),
-    fontWeight: '900',
-    color: DP.muted,
-    textTransform: 'uppercase',
-    letterSpacing: 1,
-  },
-  name: { fontSize: ms(16), fontWeight: '900', color: DP.ink, marginTop: vs(3) },
-  meta: { fontSize: ms(12), lineHeight: ms(18), color: DP.muted, marginTop: vs(2) },
-  divider: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: DP.line,
-    marginVertical: vs(10),
-  },
-  row: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: hs(12),
-    paddingVertical: vs(5),
-  },
-  value: { fontSize: ms(12), fontWeight: '800', color: DP.ink, flexShrink: 1, textAlign: 'right' },
-  payout: { fontSize: ms(18), fontWeight: '900', color: DP.success },
-  otpNote: { fontSize: ms(12), fontWeight: '700', color: DP.warning, marginTop: vs(8) },
+  stopHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
+  section: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted, textTransform: 'uppercase', letterSpacing: 1 },
+  name: { ...DP_TYPE.title, color: DELIVERY.ink, fontWeight: '600', marginTop: vs(3) },
+  meta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
+  otpNote: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.warning, marginTop: vs(8) },
   rejectWrap: { marginTop: vs(8) },
+  error: { ...DP_TYPE.caption, color: DELIVERY.danger, marginBottom: vs(10) },
 });

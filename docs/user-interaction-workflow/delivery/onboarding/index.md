@@ -4,6 +4,9 @@
 **Routes:** `PhoneEntry` (`screens/PhoneEntryScreen.tsx`) → `OtpVerify` (`screens/OtpVerifyScreen.tsx`)
 → `Register` (`screens/RegistrationFormScreen.tsx`) → `SubmissionSuccess`
 **Trigger:** First launch of the delivery app, sign-out, or an expired session.
+**Visual layer:** `PhoneEntry`, `OtpVerify`, `Register` and `SubmissionSuccess` are restyled with
+the Vite-reference DP primitives (tokens in `theme/deliveryTokens.ts`, components in
+`components/shared/dp/`). Routes, navigation params, stores, OTP flow and validation are unchanged.
 
 ## Flows
 

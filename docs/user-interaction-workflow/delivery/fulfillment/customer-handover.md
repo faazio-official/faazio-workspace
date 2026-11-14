@@ -3,6 +3,8 @@
 **App / route:** delivery · `Route` (`RouteScreen.tsx`)
 **Status:** Shipped (OTP mandatory for COD/UPI checkout orders; payment-before-OTP ordering)
 **Trigger:** Rider arrives at the DROP stop.
+**Visual layer:** the COD/OTP stop card and failure sheet are restyled; payment-before-OTP ordering
+and verification calls are unchanged.
 
 ## Steps
 

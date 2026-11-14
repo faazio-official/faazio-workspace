@@ -3,6 +3,8 @@
 **App / route:** delivery · `Route` (`features/delivery-partner/screens/RouteScreen.tsx`)
 **Status:** Shipped
 **Trigger:** Accepted offer, or opening the active route.
+**Visual layer:** stop cards, sequence dots, the map card and the pickup modal are restyled; the
+server-owned sequencing and stop transitions are unchanged.
 
 ## Steps
 

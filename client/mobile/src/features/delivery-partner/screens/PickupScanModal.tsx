@@ -3,7 +3,7 @@ import { Modal, Pressable, StyleSheet, View } from 'react-native';
 import { Camera, useCameraDevice, useCameraPermission, useCodeScanner } from 'react-native-vision-camera';
 import { X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
-import { DP } from '../components';
+import { DELIVERY } from '@/theme/deliveryTokens';
 import { hs, ms, vs } from '@/utils/responsive';
 
 interface Props {
@@ -98,7 +98,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     top: '26%',
     borderWidth: 2,
-    borderColor: DP.brand,
+    borderColor: DELIVERY.brand,
     borderRadius: ms(20),
   },
   bottom: { position: 'absolute', bottom: vs(48), left: hs(24), right: hs(24) },

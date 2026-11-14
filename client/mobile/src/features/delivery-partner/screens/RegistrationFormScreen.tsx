@@ -1,8 +1,17 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
+import {
+  DPPage,
+  DPPageHeader,
+  DPButton,
+  DPField,
+  DPSectionCard,
+  DPFilterChip,
+  DPStatusPill,
+} from '@/components/shared/dp';
+import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import DocumentCapture from '@/features/seller-onboarding/DocumentCapture';
 import {
   GatewayHttpError,
@@ -13,7 +22,7 @@ import {
 } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
-import { hs, ms, vs } from '@/utils/responsive';
+import { hs, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Register'>;
@@ -164,150 +173,148 @@ export function RegistrationFormScreen({ navigation }: Props) {
   ]);
 
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.body} keyboardShouldPersistTaps="handled">
-        <AppText style={styles.kicker}>Step 2 of 2</AppText>
-        <AppText style={styles.title}>Your application</AppText>
-        <AppText style={styles.subtitle}>
-          Documents are captured live (gallery uploads are blocked) and stored in a private bucket.
-        </AppText>
+    <DPPage>
+      <DPPageHeader
+        kicker="Step 2 of 2"
+        title="Your application"
+        description="Documents are captured live (gallery uploads are blocked) and stored in a private bucket."
+      />
 
-        <Card style={styles.section}>
-          <AppText style={styles.sectionTitle}>Personal details</AppText>
-          <Field label="Full name" value={fullName} onChangeText={setFullName} placeholder="As on Aadhaar" />
-          <View style={styles.row}>
-            <View style={styles.rowItem}>
-              <Field
-                label="State code"
-                value={stateCode}
-                onChangeText={(v) => setStateCode(v.replace(/[^a-zA-Z]/g, '').slice(0, 2))}
-                autoCapitalize="characters"
-                placeholder="TS"
-              />
-            </View>
-            <View style={styles.rowItem}>
-              <Field label="Hub zone" value={hubZone} onChangeText={setHubZone} placeholder="e.g. Madhapur" />
-            </View>
+      <DPSectionCard title="Personal details" style={styles.section}>
+        <DPField label="Full name" value={fullName} onChangeText={setFullName} placeholder="As on Aadhaar" />
+        <View style={styles.row}>
+          <View style={styles.rowItem}>
+            <DPField
+              label="State code"
+              value={stateCode}
+              onChangeText={(v) => setStateCode(v.replace(/[^a-zA-Z]/g, '').slice(0, 2))}
+              autoCapitalize="characters"
+              placeholder="TS"
+            />
           </View>
-          <Field label="Address" value={address} onChangeText={setAddress} placeholder="House / street / area" />
-          <View style={styles.row}>
-            <View style={styles.rowItem}>
-              <Field label="City" value={city} onChangeText={setCity} placeholder="Hyderabad" />
-            </View>
-            <View style={styles.rowItem}>
-              <Field
-                label="Pincode"
-                value={pincode}
-                onChangeText={(v) => setPincode(v.replace(/\D/g, '').slice(0, 6))}
-                keyboardType="number-pad"
-                placeholder="500081"
-              />
-            </View>
+          <View style={styles.rowItem}>
+            <DPField label="Hub zone" value={hubZone} onChangeText={setHubZone} placeholder="e.g. Madhapur" />
           </View>
-          <Field
-            label="Emergency contact"
-            value={emergencyContact}
-            onChangeText={(v) => setEmergencyContact(v.replace(/[^\d]/g, '').slice(0, 10))}
-            keyboardType="phone-pad"
-            placeholder="10-digit number"
-          />
-        </Card>
-
-        <Card style={styles.section}>
-          <AppText style={styles.sectionTitle}>Vehicle & capacity</AppText>
-          <View style={styles.chips}>
-            {VEHICLES.map((v) => {
-              const active = vehicleType === v.id;
-              return (
-                <TouchableOpacity
-                  key={v.id}
-                  onPress={() => chooseVehicle(v.id, v.cap)}
-                  style={[styles.chip, active && styles.chipActive]}
-                >
-                  <AppText style={[styles.chipText, active && styles.chipTextActive]}>{v.label}</AppText>
-                </TouchableOpacity>
-              );
-            })}
+        </View>
+        <DPField label="Address" value={address} onChangeText={setAddress} placeholder="House / street / area" />
+        <View style={styles.row}>
+          <View style={styles.rowItem}>
+            <DPField label="City" value={city} onChangeText={setCity} placeholder="Hyderabad" />
           </View>
-          <AppText style={styles.capacityLabel}>
-            Max orders at once (capped by vehicle): {capacity} of {capacityCap}
-          </AppText>
-          <View style={styles.stepper}>
-            <TouchableOpacity
-              onPress={() => setCapacity((c) => Math.max(1, c - 1))}
-              style={styles.stepButton}
-            >
-              <AppText style={styles.stepText}>−</AppText>
-            </TouchableOpacity>
-            <AppText style={styles.stepValue}>{capacity}</AppText>
-            <TouchableOpacity
-              onPress={() => setCapacity((c) => Math.min(capacityCap, c + 1))}
-              style={styles.stepButton}
-            >
-              <AppText style={styles.stepText}>+</AppText>
-            </TouchableOpacity>
+          <View style={styles.rowItem}>
+            <DPField
+              label="Pincode"
+              value={pincode}
+              onChangeText={(v) => setPincode(v.replace(/\D/g, '').slice(0, 6))}
+              keyboardType="number-pad"
+              placeholder="500081"
+            />
           </View>
-        </Card>
-
-        <Card style={styles.section}>
-          <AppText style={styles.sectionTitle}>KYC documents</AppText>
-          {requiredDocs.map((d) => {
-            const captured = docs[d.id];
-            const busy = uploading === d.id;
-            return (
-              <View key={d.id} style={styles.docRow}>
-                <View style={styles.flex}>
-                  <AppText style={styles.docLabel}>{d.label}</AppText>
-                  <AppText style={[styles.docStatus, captured && styles.docOk]}>
-                    {busy ? 'Uploading…' : captured ? 'Captured & uploaded' : 'Required'}
-                  </AppText>
-                </View>
-                {busy ? (
-                  <ActivityIndicator color={DP.brand} />
-                ) : (
-                  <TouchableOpacity
-                    style={[styles.docButton, captured && styles.docButtonDone]}
-                    onPress={() => setCaptureFor(d)}
-                  >
-                    <AppText style={[styles.docButtonText, captured && styles.docButtonTextDone]}>
-                      {captured ? 'Retake' : 'Capture'}
-                    </AppText>
-                  </TouchableOpacity>
-                )}
-              </View>
-            );
-          })}
-        </Card>
-
-        <Card style={styles.section}>
-          <AppText style={styles.sectionTitle}>Payout account (pending review)</AppText>
-          <Field label="Account holder name" value={accountName} onChangeText={setAccountName} />
-          <Field
-            label="Account number"
-            value={accountNumber}
-            onChangeText={(v) => setAccountNumber(v.replace(/\D/g, '').slice(0, 18))}
-            keyboardType="number-pad"
-          />
-          <Field
-            label="IFSC"
-            value={ifsc}
-            onChangeText={(v) => setIfsc(v.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 11))}
-            autoCapitalize="characters"
-            placeholder="HDFC0001234"
-          />
-          <AppText style={styles.hint}>
-            Only the last 4 digits are stored. Payouts are not enabled yet (Phase 5).
-          </AppText>
-        </Card>
-
-        <ErrorText>{error}</ErrorText>
-        <PrimaryButton
-          label={missingDocs > 0 ? `Capture ${missingDocs} more document${missingDocs > 1 ? 's' : ''}` : 'Submit for review'}
-          onPress={onSubmit}
-          disabled={missingDocs > 0}
-          loading={submitting}
+        </View>
+        <DPField
+          label="Emergency contact"
+          value={emergencyContact}
+          onChangeText={(v) => setEmergencyContact(v.replace(/[^\d]/g, '').slice(0, 10))}
+          keyboardType="phone-pad"
+          placeholder="10-digit number"
         />
-      </ScrollView>
+      </DPSectionCard>
+
+      <DPSectionCard title="Vehicle & capacity" style={styles.section}>
+        <View style={styles.chips}>
+          {VEHICLES.map((v) => (
+            <DPFilterChip
+              key={v.id}
+              label={v.label}
+              active={vehicleType === v.id}
+              onPress={() => chooseVehicle(v.id, v.cap)}
+            />
+          ))}
+        </View>
+        <AppText style={styles.capacityLabel}>
+          Max orders at once (capped by vehicle): {capacity} of {capacityCap}
+        </AppText>
+        <View style={styles.stepper}>
+          <DPButton
+            label="−"
+            size="sm"
+            variant="outline"
+            fullWidth={false}
+            onPress={() => setCapacity((c) => Math.max(1, c - 1))}
+            accessibilityLabel="Decrease capacity"
+          />
+          <AppText style={styles.stepValue}>{capacity}</AppText>
+          <DPButton
+            label="+"
+            size="sm"
+            variant="outline"
+            fullWidth={false}
+            onPress={() => setCapacity((c) => Math.min(capacityCap, c + 1))}
+            accessibilityLabel="Increase capacity"
+          />
+        </View>
+      </DPSectionCard>
+
+      <DPSectionCard title="KYC documents" style={styles.section}>
+        {requiredDocs.map((d) => {
+          const captured = docs[d.id];
+          const busy = uploading === d.id;
+          return (
+            <View key={d.id} style={styles.docRow}>
+              <View style={styles.flex}>
+                <AppText style={styles.docLabel}>{d.label}</AppText>
+                <View style={styles.docStatus}>
+                  {busy ? (
+                    <DPStatusPill status="PENDING" label="Uploading…" />
+                  ) : captured ? (
+                    <DPStatusPill status="VERIFIED" label="Captured & uploaded" />
+                  ) : (
+                    <DPStatusPill status="PENDING" label="Required" />
+                  )}
+                </View>
+              </View>
+              {busy ? (
+                <ActivityIndicator color={DELIVERY.brand} />
+              ) : (
+                <DPButton
+                  label={captured ? 'Retake' : 'Capture'}
+                  size="sm"
+                  variant="outline"
+                  fullWidth={false}
+                  onPress={() => setCaptureFor(d)}
+                  accessibilityLabel={`${captured ? 'Retake' : 'Capture'} ${d.label}`}
+                />
+              )}
+            </View>
+          );
+        })}
+      </DPSectionCard>
+
+      <DPSectionCard title="Payout account (pending review)" style={styles.section}>
+        <DPField label="Account holder name" value={accountName} onChangeText={setAccountName} />
+        <DPField
+          label="Account number"
+          value={accountNumber}
+          onChangeText={(v) => setAccountNumber(v.replace(/\D/g, '').slice(0, 18))}
+          keyboardType="number-pad"
+        />
+        <DPField
+          label="IFSC"
+          value={ifsc}
+          onChangeText={(v) => setIfsc(v.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 11))}
+          autoCapitalize="characters"
+          placeholder="HDFC0001234"
+          hint="Only the last 4 digits are stored. Payouts are not enabled yet (Phase 5)."
+        />
+      </DPSectionCard>
+
+      {error ? <AppText style={styles.error}>{error}</AppText> : null}
+      <DPButton
+        label={missingDocs > 0 ? `Capture ${missingDocs} more document${missingDocs > 1 ? 's' : ''}` : 'Submit for review'}
+        onPress={() => void onSubmit()}
+        disabled={missingDocs > 0}
+        loading={submitting}
+      />
 
       <DocumentCapture
         visible={captureFor !== null}
@@ -315,49 +322,28 @@ export function RegistrationFormScreen({ navigation }: Props) {
         onClose={() => setCaptureFor(null)}
         onCaptured={onCaptured}
       />
-    </Screen>
+    </DPPage>
   );
 }
 
 const styles = StyleSheet.create({
-  body: { padding: hs(16), paddingBottom: vs(40) },
-  kicker: { fontSize: ms(11), fontWeight: '900', color: DP.brand, textTransform: 'uppercase', letterSpacing: 1.2 },
-  title: { fontSize: ms(26), fontWeight: '900', color: DP.ink, marginTop: vs(4) },
-  subtitle: { fontSize: ms(13), lineHeight: ms(19), color: DP.muted, marginTop: vs(6), marginBottom: vs(16) },
   section: { marginBottom: vs(14) },
-  sectionTitle: { fontSize: ms(15), fontWeight: '900', color: DP.ink, marginBottom: vs(12) },
   row: { flexDirection: 'row', gap: hs(10) },
   rowItem: { flex: 1 },
   flex: { flex: 1 },
   chips: { flexDirection: 'row', gap: hs(8), flexWrap: 'wrap' },
-  chip: {
-    borderWidth: 1, borderColor: DP.line, borderRadius: ms(10), paddingHorizontal: hs(12),
-    paddingVertical: vs(8), backgroundColor: '#ffffff',
-  },
-  chipActive: { borderColor: DP.brand, backgroundColor: '#eef2ff' },
-  chipText: { fontSize: ms(12), fontWeight: '800', color: DP.muted },
-  chipTextActive: { color: DP.brand },
-  capacityLabel: { fontSize: ms(12), color: DP.muted, marginTop: vs(12) },
-  stepper: { flexDirection: 'row', alignItems: 'center', marginTop: vs(8) },
-  stepButton: {
-    width: ms(40), height: ms(40), borderRadius: ms(10), borderWidth: 1, borderColor: DP.line,
-    alignItems: 'center', justifyContent: 'center', backgroundColor: '#ffffff',
-  },
-  stepText: { fontSize: ms(20), fontWeight: '900', color: DP.ink },
-  stepValue: { width: ms(48), textAlign: 'center', fontSize: ms(18), fontWeight: '900', color: DP.ink },
+  capacityLabel: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(12) },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: hs(12), marginTop: vs(8) },
+  stepValue: { ...DP_TYPE.title, color: DELIVERY.ink, fontWeight: '700', minWidth: hs(28), textAlign: 'center' },
   docRow: {
-    flexDirection: 'row', alignItems: 'center', paddingVertical: vs(10),
-    borderBottomWidth: StyleSheet.hairlineWidth, borderBottomColor: DP.line,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(10),
+    paddingVertical: vs(10),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: DELIVERY.border,
   },
-  docLabel: { fontSize: ms(13), fontWeight: '800', color: DP.ink },
-  docStatus: { fontSize: ms(11), color: DP.warning, marginTop: vs(2) },
-  docOk: { color: DP.success },
-  docButton: {
-    borderWidth: 1, borderColor: DP.brand, borderRadius: ms(8), paddingHorizontal: hs(12),
-    paddingVertical: vs(6),
-  },
-  docButtonDone: { borderColor: DP.line },
-  docButtonText: { fontSize: ms(11), fontWeight: '900', color: DP.brand },
-  docButtonTextDone: { color: DP.muted },
-  hint: { fontSize: ms(11), color: DP.muted, lineHeight: ms(16) },
+  docLabel: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600' },
+  docStatus: { marginTop: vs(4) },
+  error: { ...DP_TYPE.caption, color: DELIVERY.danger, marginBottom: vs(10) },
 });

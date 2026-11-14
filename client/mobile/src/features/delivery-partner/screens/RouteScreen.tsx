@@ -1,16 +1,25 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, Image, ScrollView, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import {
+  DPPage,
+  DPPageHeader,
+  DPButton,
+  DPField,
+  DPSectionCard,
+  DPStatusPill,
+  DPKeyValueRow,
+} from '@/components/shared/dp';
+import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import {
   gateway,
   type DeliveryOrder,
   type DeliveryStop,
   type DeliveryStopStatus,
 } from '@/services/api/GatewayClient';
-import { Card, DP, ErrorText, Field, PrimaryButton, Screen } from '../components';
 import { PickupScanModal } from './PickupScanModal';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
@@ -246,197 +255,206 @@ export function RouteScreen({ navigation }: Props) {
   );
 
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={styles.body}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back}>
-          <AppText style={styles.backText}>← Dashboard</AppText>
-        </TouchableOpacity>
-        <AppText style={styles.title}>Route</AppText>
-        {stops.length > 0 ? (
-          <AppText style={styles.subtitle}>
-            {stops.length} stops · {acceptedCount} {acceptedCount === 1 ? 'order' : 'orders'} ·{' '}
-            {Math.round(distance / 1000)} km · {rupees(payout)}
-          </AppText>
-        ) : null}
+    <DPPage>
+      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} accessibilityRole="button">
+        <AppText style={styles.backText}>← Dashboard</AppText>
+      </TouchableOpacity>
+      <DPPageHeader title="Route" kicker="Active deliveries" />
+      {stops.length > 0 ? (
+        <DPKpiSummary
+          stops={stops.length}
+          orders={acceptedCount}
+          distanceKm={Math.round(distance / 1000)}
+          payout={rupees(payout)}
+        />
+      ) : null}
 
-        {points.length >= 2 ? (
-          <View style={styles.mapWrap}>
-            <MapView
-              style={styles.map}
-              initialRegion={{
-                latitude: points[0].latitude,
-                longitude: points[0].longitude,
-                latitudeDelta: 0.06,
-                longitudeDelta: 0.06,
-              }}
-              showsUserLocation
-            >
-              <Polyline coordinates={points} strokeColor={DP.brand} strokeWidth={4} />
-              {stops.map((stop, index) =>
-                typeof stop.latitude === 'number' && typeof stop.longitude === 'number' ? (
-                  <Marker
-                    key={stop.stopId}
-                    coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
-                    title={`${index + 1}. ${stop.label || stop.stopType}`}
-                    description={stop.address}
-                    pinColor={
-                      stop.status === 'DELIVERED'
-                        ? DP.success
-                        : stop.stopType === 'PICKUP'
-                          ? DP.warning
-                          : DP.brand
-                    }
-                  />
-                ) : null,
-              )}
-            </MapView>
-          </View>
-        ) : null}
+      {points.length >= 2 ? (
+        <View style={styles.mapWrap}>
+          <MapView
+            style={styles.map}
+            initialRegion={{
+              latitude: points[0].latitude,
+              longitude: points[0].longitude,
+              latitudeDelta: 0.06,
+              longitudeDelta: 0.06,
+            }}
+            showsUserLocation
+          >
+            <Polyline coordinates={points} strokeColor={DELIVERY.brand} strokeWidth={4} />
+            {stops.map((stop, index) =>
+              typeof stop.latitude === 'number' && typeof stop.longitude === 'number' ? (
+                <Marker
+                  key={stop.stopId}
+                  coordinate={{ latitude: stop.latitude, longitude: stop.longitude }}
+                  title={`${index + 1}. ${stop.label || stop.stopType}`}
+                  description={stop.address}
+                  pinColor={
+                    stop.status === 'DELIVERED'
+                      ? DELIVERY.success
+                      : stop.stopType === 'PICKUP'
+                        ? DELIVERY.warning
+                        : DELIVERY.brand
+                  }
+                />
+              ) : null,
+            )}
+          </MapView>
+        </View>
+      ) : null}
 
-        <ErrorText>{error}</ErrorText>
-        {stops.length === 0 && !loading ? (
-          <Card>
-            <AppText style={styles.empty}>No active deliveries on this route.</AppText>
-          </Card>
-        ) : null}
+      {error ? <AppText style={styles.error}>{error}</AppText> : null}
+      {stops.length === 0 && !loading ? (
+        <DPSectionCard>
+          <AppText style={styles.empty}>No active deliveries on this route.</AppText>
+        </DPSectionCard>
+      ) : null}
 
-        {stops.map((stop, index) => {
-          const action = nextAction(stop);
-          const done = stop.status === 'DELIVERED' || stop.status === 'FAILED';
-          const blockedDrop =
-            stop.stopType === 'DROP' &&
-            stop.status === 'PENDING' &&
-            !pickedUpOrders.has(stop.deliveryOrderId);
-          const otpDrop =
-            stop.stopType === 'DROP' && stop.status === 'AT_CUSTOMER' && stop.requiresOtp;
-          const dropOrder = orderByStopId.get(stop.stopId);
-          const paymentRequired = !!dropOrder?.paymentRequired;
-          const paymentReceived = !!dropOrder?.paymentReceived;
-          // COD must be collected before the OTP can complete the drop, so the payment controls
-          // render first — otherwise the OTP branch would hide the "Payment received" button and
-          // the order could never be completed.
-          const awaitingPayment =
-            stop.stopType === 'DROP' &&
-            stop.status === 'AT_CUSTOMER' &&
-            paymentRequired &&
-            !paymentReceived;
-          return (
-            <Card key={stop.stopId} style={[styles.stop, done && styles.stopDone]}>
-              <View style={styles.stopHead}>
-                <View style={[styles.seq, done && styles.seqDone]}>
-                  <AppText style={styles.seqText}>{index + 1}</AppText>
-                </View>
-                <View style={styles.flex}>
-                  <AppText style={styles.stopType}>
-                    {stop.stopType === 'PICKUP' ? 'Pickup' : 'Drop'} ·{' '}
-                    {stop.status.replace(/_/g, ' ')}
-                  </AppText>
-                  <AppText style={styles.stopLabel}>{stop.label || 'Stop'}</AppText>
-                  <AppText style={styles.stopAddress}>{stop.address}</AppText>
-                  {stop.customerPhone ? (
-                    <AppText style={styles.stopAddress}>Customer: {stop.customerPhone}</AppText>
-                  ) : null}
-                  {stop.failureReason ? (
-                    <AppText style={styles.failText}>{stop.failureReason}</AppText>
-                  ) : null}
-                </View>
+      {stops.map((stop, index) => {
+        const action = nextAction(stop);
+        const done = stop.status === 'DELIVERED' || stop.status === 'FAILED';
+        const blockedDrop =
+          stop.stopType === 'DROP' &&
+          stop.status === 'PENDING' &&
+          !pickedUpOrders.has(stop.deliveryOrderId);
+        const otpDrop =
+          stop.stopType === 'DROP' && stop.status === 'AT_CUSTOMER' && stop.requiresOtp;
+        const dropOrder = orderByStopId.get(stop.stopId);
+        const paymentRequired = !!dropOrder?.paymentRequired;
+        const paymentReceived = !!dropOrder?.paymentReceived;
+        // COD must be collected before the OTP can complete the drop, so the payment controls
+        // render first — otherwise the OTP branch would hide the "Payment received" button and
+        // the order could never be completed.
+        const awaitingPayment =
+          stop.stopType === 'DROP' &&
+          stop.status === 'AT_CUSTOMER' &&
+          paymentRequired &&
+          !paymentReceived;
+        return (
+          <DPSectionCard key={stop.stopId} style={[styles.stop, done && styles.stopDone]}>
+            <View style={styles.stopHead}>
+              <View style={[styles.seq, done && styles.seqDone]}>
+                <AppText style={styles.seqText}>{index + 1}</AppText>
               </View>
-
-              {awaitingPayment ? (
-                <>
-                  {qrUrl ? (
-                    <Image source={{ uri: qrUrl }} style={styles.qr} resizeMode="contain" />
-                  ) : null}
-                  <AppText style={styles.payHint}>
-                    COD · collect cash or ask the customer to scan the QR, then confirm.
+              <View style={styles.flex}>
+                <View style={styles.stopTypeRow}>
+                  <AppText style={styles.stopType}>
+                    {stop.stopType === 'PICKUP' ? 'Pickup' : 'Drop'}
                   </AppText>
-                  <PrimaryButton
-                    label="Payment received"
-                    onPress={() => void confirmPayment(stop)}
-                    loading={busy}
-                  />
-                </>
-              ) : otpDrop ? (
-                <>
-                  <Field
-                    label="Customer OTP"
-                    value={otpByStop[stop.stopId] ?? ''}
-                    onChangeText={(v) =>
-                      setOtpByStop((prev) => ({
-                        ...prev,
-                        [stop.stopId]: v.replace(/\D/g, '').slice(0, 4),
-                      }))
-                    }
-                    keyboardType="number-pad"
-                    placeholder="4-digit code"
-                    maxLength={4}
-                  />
-                  <PrimaryButton
-                    label="Verify & deliver"
-                    onPress={() => void deliverWithOtp(stop)}
-                    loading={busy}
-                  />
-                </>
-              ) : stop.stopType === 'PICKUP' && stop.status === 'AT_PICKUP' ? (
-                <PrimaryButton
-                  label="Scan seller QR & pick up"
-                  onPress={() => {
-                    setError(null);
-                    setScanStop(stop);
-                  }}
-                  loading={busy}
-                />
-              ) : action && !blockedDrop ? (
-                <PrimaryButton
-                  label={action.label}
-                  onPress={() => void advance(stop, action.status)}
-                  loading={busy}
-                />
-              ) : stop.stopType === 'DROP' && stop.status === 'AT_CUSTOMER' ? (
-                <PrimaryButton
-                  label="Mark delivered"
-                  onPress={() => void advance(stop, 'DELIVERED')}
-                  loading={busy}
-                />
-              ) : null}
-
-              {failureFor?.stopId === stop.stopId ? (
-                <View style={styles.failureBox}>
-                  <Field
-                    label="What went wrong?"
-                    value={failureReason}
-                    onChangeText={setFailureReason}
-                    placeholder="e.g. customer unreachable"
-                  />
-                  <PrimaryButton
-                    label="Submit failure"
-                    onPress={() => void advance(stop, 'FAILED', failureReason.trim())}
-                    loading={busy}
-                    disabled={failureReason.trim().length < 3}
-                  />
-                  <TouchableOpacity
-                    onPress={() => {
-                      setFailureFor(null);
-                      setFailureReason('');
-                    }}
-                    style={styles.failButton}
-                  >
-                    <AppText style={styles.cancelText}>Cancel</AppText>
-                  </TouchableOpacity>
+                  <DPStatusPill status={stop.status} />
                 </View>
-              ) : !done && canFail(stop, pickedUpOrders) ? (
-                <TouchableOpacity onPress={() => startFailure(stop)} style={styles.failButton}>
-                  <AppText style={styles.failButtonText}>Report a problem</AppText>
-                </TouchableOpacity>
-              ) : null}
-            </Card>
-          );
-        })}
+                <AppText style={styles.stopLabel}>{stop.label || 'Stop'}</AppText>
+                <AppText style={styles.stopAddress}>{stop.address}</AppText>
+                {stop.customerPhone ? (
+                  <AppText style={styles.stopAddress}>Customer: {stop.customerPhone}</AppText>
+                ) : null}
+                {stop.failureReason ? (
+                  <AppText style={styles.failText}>{stop.failureReason}</AppText>
+                ) : null}
+              </View>
+            </View>
 
-        {stops.length > 0 && stops.every((s) => s.status === 'DELIVERED' || s.status === 'FAILED') ? (
-          <PrimaryButton label="Back to dashboard" onPress={() => navigation.replace('Dashboard')} />
-        ) : null}
-      </ScrollView>
+            {awaitingPayment ? (
+              <>
+                {qrUrl ? (
+                  <Image source={{ uri: qrUrl }} style={styles.qr} resizeMode="contain" />
+                ) : null}
+                <AppText style={styles.payHint}>
+                  COD · collect cash or ask the customer to scan the QR, then confirm.
+                </AppText>
+                <DPButton
+                  label="Payment received"
+                  onPress={() => void confirmPayment(stop)}
+                  loading={busy}
+                />
+              </>
+            ) : otpDrop ? (
+              <>
+                <DPField
+                  label="Customer OTP"
+                  value={otpByStop[stop.stopId] ?? ''}
+                  onChangeText={(v) =>
+                    setOtpByStop((prev) => ({
+                      ...prev,
+                      [stop.stopId]: v.replace(/\D/g, '').slice(0, 4),
+                    }))
+                  }
+                  keyboardType="number-pad"
+                  placeholder="4-digit code"
+                  maxLength={4}
+                  containerStyle={styles.actionGap}
+                />
+                <DPButton
+                  label="Verify & deliver"
+                  onPress={() => void deliverWithOtp(stop)}
+                  loading={busy}
+                />
+              </>
+            ) : stop.stopType === 'PICKUP' && stop.status === 'AT_PICKUP' ? (
+              <DPButton
+                label="Scan seller QR & pick up"
+                onPress={() => {
+                  setError(null);
+                  setScanStop(stop);
+                }}
+                loading={busy}
+                style={styles.actionGap}
+              />
+            ) : action && !blockedDrop ? (
+              <DPButton
+                label={action.label}
+                onPress={() => void advance(stop, action.status)}
+                loading={busy}
+                style={styles.actionGap}
+              />
+            ) : stop.stopType === 'DROP' && stop.status === 'AT_CUSTOMER' ? (
+              <DPButton
+                label="Mark delivered"
+                onPress={() => void advance(stop, 'DELIVERED')}
+                loading={busy}
+                style={styles.actionGap}
+              />
+            ) : null}
+
+            {failureFor?.stopId === stop.stopId ? (
+              <View style={styles.failureBox}>
+                <DPField
+                  label="What went wrong?"
+                  value={failureReason}
+                  onChangeText={setFailureReason}
+                  placeholder="e.g. customer unreachable"
+                />
+                <DPButton
+                  label="Submit failure"
+                  variant="danger"
+                  onPress={() => void advance(stop, 'FAILED', failureReason.trim())}
+                  loading={busy}
+                  disabled={failureReason.trim().length < 3}
+                />
+                <TouchableOpacity
+                  onPress={() => {
+                    setFailureFor(null);
+                    setFailureReason('');
+                  }}
+                  style={styles.failButton}
+                  accessibilityRole="button"
+                >
+                  <AppText style={styles.cancelText}>Cancel</AppText>
+                </TouchableOpacity>
+              </View>
+            ) : !done && canFail(stop, pickedUpOrders) ? (
+              <TouchableOpacity onPress={() => startFailure(stop)} style={styles.failButton} accessibilityRole="button">
+                <AppText style={styles.failButtonText}>Report a problem</AppText>
+              </TouchableOpacity>
+            ) : null}
+          </DPSectionCard>
+        );
+      })}
+
+      {stops.length > 0 && stops.every((s) => s.status === 'DELIVERED' || s.status === 'FAILED') ? (
+        <DPButton label="Back to dashboard" onPress={() => navigation.replace('Dashboard')} />
+      ) : null}
+
       <PickupScanModal
         visible={!!scanStop}
         onClose={() => setScanStop(null)}
@@ -444,41 +462,72 @@ export function RouteScreen({ navigation }: Props) {
           if (scanStop) void verifyPickup(scanStop, token);
         }}
       />
-    </Screen>
+    </DPPage>
+  );
+}
+
+function DPKpiSummary({
+  stops,
+  orders,
+  distanceKm,
+  payout,
+}: {
+  stops: number;
+  orders: number;
+  distanceKm: number;
+  payout: string;
+}) {
+  return (
+    <DPSectionCard style={styles.summary}>
+      <DPKeyValueRow label="Stops" value={String(stops)} />
+      <DPKeyValueRow label="Orders" value={String(orders)} />
+      <DPKeyValueRow label="Distance" value={`${distanceKm} km`} />
+      <DPKeyValueRow label="Payout" value={payout} valueTone="success" />
+    </DPSectionCard>
   );
 }
 
 const styles = StyleSheet.create({
-  body: { padding: hs(16), paddingBottom: vs(40) },
-  back: { marginTop: vs(12), marginBottom: vs(8) },
-  backText: { fontSize: ms(12), fontWeight: '800', color: DP.brand },
-  title: { fontSize: ms(26), fontWeight: '900', color: DP.ink },
-  subtitle: { fontSize: ms(12), color: DP.muted, marginTop: vs(4), marginBottom: vs(12) },
-  mapWrap: { height: vs(220), borderRadius: ms(16), overflow: 'hidden', marginBottom: vs(12) },
+  back: { paddingTop: vs(8), paddingBottom: vs(4) },
+  backText: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '600' },
+  summary: { marginBottom: vs(12) },
+  mapWrap: { height: vs(200), borderRadius: DELIVERY.radius.lg, overflow: 'hidden', marginBottom: vs(12) },
   map: { flex: 1 },
   stop: { marginBottom: vs(10) },
-  stopDone: { opacity: 0.65 },
+  stopDone: { opacity: 0.7 },
   stopHead: { flexDirection: 'row', gap: hs(12) },
   seq: {
-    width: ms(28), height: ms(28), borderRadius: ms(999), backgroundColor: DP.brand,
-    alignItems: 'center', justifyContent: 'center',
+    width: ms(28),
+    height: ms(28),
+    borderRadius: DELIVERY.radius.pill,
+    backgroundColor: DELIVERY.brand,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
-  seqDone: { backgroundColor: DP.success },
-  seqText: { color: '#ffffff', fontSize: ms(12), fontWeight: '900' },
+  seqDone: { backgroundColor: DELIVERY.success },
+  seqText: { color: DELIVERY.onBrand, fontSize: ms(12), fontWeight: '700' },
   flex: { flex: 1 },
-  stopType: { fontSize: ms(10), fontWeight: '900', color: DP.muted, textTransform: 'uppercase', letterSpacing: 0.8 },
-  stopLabel: { fontSize: ms(15), fontWeight: '900', color: DP.ink, marginTop: vs(2) },
-  stopAddress: { fontSize: ms(12), lineHeight: ms(17), color: DP.muted, marginTop: vs(2) },
-  failText: { fontSize: ms(12), color: DP.danger, marginTop: vs(4) },
+  stopTypeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(8) },
+  stopType: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted, textTransform: 'uppercase', letterSpacing: 0.8 },
+  stopLabel: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600', marginTop: vs(4) },
+  stopAddress: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
+  failText: { ...DP_TYPE.caption, color: DELIVERY.danger, marginTop: vs(4) },
   qr: {
-    width: '62%', aspectRatio: 1, alignSelf: 'center', marginTop: vs(10),
-    borderRadius: ms(12), backgroundColor: '#ffffff', borderWidth: 1, borderColor: DP.line,
+    width: '62%',
+    aspectRatio: 1,
+    alignSelf: 'center',
+    marginTop: vs(10),
+    borderRadius: DELIVERY.radius.md,
+    backgroundColor: DELIVERY.card,
+    borderWidth: 1,
+    borderColor: DELIVERY.border,
   },
-  payHint: { fontSize: ms(12), color: DP.muted, marginTop: vs(8), marginBottom: vs(8), textAlign: 'center' },
-  payHintOk: { color: DP.success, fontWeight: '800' },
-  failButton: { alignItems: 'center', marginTop: vs(10) },
-  failButtonText: { fontSize: ms(11), fontWeight: '800', color: DP.danger },
-  failureBox: { marginTop: vs(12), paddingTop: vs(10), borderTopWidth: 1, borderTopColor: DP.line },
-  cancelText: { fontSize: ms(11), fontWeight: '800', color: DP.muted },
-  empty: { fontSize: ms(13), color: DP.muted },
+  payHint: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(8), marginBottom: vs(8), textAlign: 'center' },
+  actionGap: { marginTop: vs(12) },
+  failButton: { alignItems: 'center', minHeight: DELIVERY.touch.min, justifyContent: 'center', marginTop: vs(6) },
+  failButtonText: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.danger },
+  failureBox: { marginTop: vs(12), paddingTop: vs(10), borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: DELIVERY.border },
+  cancelText: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.inkMuted },
+  empty: { ...DP_TYPE.body, color: DELIVERY.inkMuted },
+  error: { ...DP_TYPE.caption, color: DELIVERY.danger, marginBottom: vs(10) },
 });
