@@ -1,0 +1,9 @@
+import { createFileRoute, Link } from '@tanstack/react-router';
+import { useState } from 'react';
+import { ChevronRight } from 'lucide-react';
+import { BackHeader, RequireAuth } from '@/components/partner/Shell';
+import { Button } from '@/components/ui/button';
+import { usePartner, earnings } from '@/lib/partner/store';
+import { partnerHead } from '@/lib/partner/metadata';
+export const Route = createFileRoute('/statements')({ head: () => partnerHead('Statements', 'Partner earnings, deduction and tips statements.'), component: Statements });
+function Statements() { const { orders } = usePartner(); const [tab,setTab] = useState<'Pocket'|'Deductions'|'Tips'>('Pocket'); const delivered = orders.filter(order => order.status === 'delivered'); const sum = delivered.reduce((total,order) => total + (tab === 'Tips' ? order.tip : tab === 'Pocket' ? earnings(order) : 0),0); return <RequireAuth><BackHeader title="Partner statements" /><div className="p-4"><div className="mb-6 flex gap-2">{(['Pocket','Deductions','Tips'] as const).map(value => <Button key={value} size="sm" variant={tab === value ? 'default' : 'outline'} onClick={() => setTab(value)}>{value}</Button>)}</div><p className="text-xs text-muted-foreground">{tab} · All completed deliveries</p><h1 className="my-3 text-3xl font-bold">₹{sum.toFixed(2)}</h1>{tab === 'Deductions' ? <p className="py-6 text-xs text-muted-foreground">No deductions recorded in this demo ledger.</p> : delivered.map(order => <Button asChild variant="ghost" key={order.id} className="h-16 w-full justify-between border-b px-0"><Link to="/orders/$orderId" params={{orderId:order.id}}><span className="truncate text-xs">{order.restaurant.name}</span><b className="ml-auto">₹{tab === 'Tips' ? order.tip : earnings(order)}</b><ChevronRight /></Link></Button>)}<p className="mt-5 text-[10px] text-muted-foreground">Session ledger only. Reference feed snapshot is shown separately.</p></div></RequireAuth>; }

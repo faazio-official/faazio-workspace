@@ -1,0 +1,17 @@
+import { useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { CircleHelp, ShieldAlert, Bell, Power } from 'lucide-react';
+import { usePartner } from '@/lib/partner/store';
+import { partnerDetails, inboxMessages } from '@/mocks';
+import { Button } from '@/components/ui/button';
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+export function UtilityPanel() {
+  const { onDuty, setOnDuty, partner, readMessages } = usePartner();
+  const [panel, setPanel] = useState<'help' | 'sos' | 'tier' | null>(null);
+  return <><div className="flex h-16 items-center justify-between gap-2 border-b bg-card px-4">
+    <Button variant="outline" role="switch" aria-checked={onDuty} onClick={() => setOnDuty(!onDuty)} className={`h-8 rounded-full border-0 px-3 text-xs ${onDuty ? 'bg-success text-success-foreground hover:bg-success/90' : 'bg-muted text-muted-foreground'}`}><Power className="!h-3 !w-3" />{onDuty ? 'Online' : 'Offline'}<span className="h-3 w-3 rounded-full bg-card" /></Button>
+    <div className="flex items-center gap-2"><Button variant="outline" size="icon" title="Emergency assistance" aria-label="SOS" onClick={() => setPanel('sos')} className="h-8 w-8 rounded-full border-warning bg-warning-soft text-warning-foreground"><ShieldAlert className="!h-4 !w-4" /></Button><Button variant="outline" size="icon" asChild className="relative h-8 w-8 rounded-full"><Link to="/inbox" title="Notifications" aria-label="Notifications"><Bell className="!h-4 !w-4" />{inboxMessages.length > readMessages.length && <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[8px] text-primary-foreground">{inboxMessages.length-readMessages.length}</span>}</Link></Button><Button variant="outline" size="icon" aria-label="Help" title="Help" className="h-8 w-8 rounded-full" onClick={() => setPanel('help')}><CircleHelp className="!h-4 !w-4" /></Button><Button variant="outline" size="icon" asChild className="h-8 w-8 rounded-full border-2 border-warning bg-primary-soft text-[10px] text-primary"><Link to="/account" title="Profile and services" aria-label="Profile and services">{partner.initials}</Link></Button></div>
+  </div><Dialog open={panel !== null} onOpenChange={open => { if (!open) setPanel(null); }}><DialogContent className="max-w-[min(390px,calc(100%-32px))] rounded-lg"><DialogTitle>{panel === 'sos' ? 'Emergency assistance' : panel === 'tier' ? 'Your Hero tier' : 'How can we help?'}</DialogTitle><DialogDescription>{panel === 'sos' ? 'Stop somewhere safe. For an immediate emergency, call emergency services.' : panel === 'tier' ? 'Your delivery journey, recognised.' : 'Choose the support you need.'}</DialogDescription>
+    {panel === 'sos' ? <><Button asChild variant="destructive"><a href={`tel:${partnerDetails.emergencyNumber}`}>Call {partnerDetails.emergencyNumber}</a></Button><p className="text-xs text-muted-foreground">This opens your phone dialler. It does not send a location or dispatch assistance.</p></> : panel === 'tier' ? <><p className="text-sm">Hero partner · Priority support · Monthly recognition</p><Button asChild onClick={() => setPanel(null)}><Link to="/club">View Partner Club</Link></Button></> : <><Button asChild onClick={() => setPanel(null)}><Link to="/support">Partner support</Link></Button><Button asChild variant="outline" onClick={() => setPanel(null)}><Link to="/disputes">Report an order issue</Link></Button></>}
+  </DialogContent></Dialog></>;
+}

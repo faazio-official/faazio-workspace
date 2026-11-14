@@ -1,0 +1,23 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { useState } from 'react';
+import { Crown, Sun, Moon, Clock, Check } from 'lucide-react';
+import { toast } from 'sonner';
+import { TabPage } from '@/components/partner/Shell';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import { usePartner } from '@/lib/partner/store';
+import { gigSlots, gigGroups, gigTime } from '@/mocks';
+import { gigSelection } from '@/lib/partner/commerce-rules';
+import { partnerHead } from '@/lib/partner/metadata';
+export const Route = createFileRoute('/shifts')({ head: () => partnerHead('Gigs', 'Choose delivery gigs and review estimated payout.'), component: Gigs });
+function Gigs() {
+  const { bookings, bookGigs, toggleShift } = usePartner();
+  const [day, setDay] = useState(0); const [filter, setFilter] = useState<'All' | 'Open' | 'Booked'>('All'); const [selected, setSelected] = useState<string[]>([]);
+  const days = Array.from({ length: 7 }, (_, offset) => { const date = new Date(); date.setDate(date.getDate()+offset); return date; });
+  const summary = gigSelection(selected);
+  return <TabPage title="Gigs"><div className="px-4 py-4"><div className="grid grid-cols-7 gap-1">{days.map((date, offset) => <Button key={offset} variant={day === offset ? 'default' : 'ghost'} onClick={() => { setDay(offset); setSelected([]); }} aria-label={date.toDateString()} className="h-14 flex-col gap-1 px-0"><span className="text-[9px]">{date.toLocaleDateString('en-IN',{weekday:'short'})}</span><b className="text-sm">{date.getDate()}</b></Button>)}</div><div className="my-4 flex gap-2">{(['All','Open','Booked'] as const).map(value => <Button key={value} variant={filter === value ? 'default' : 'outline'} size="sm" className="h-7 rounded-full text-[10px]" onClick={() => setFilter(value)}>{value}</Button>)}<span className="ml-auto self-center text-[10px] text-muted-foreground">{bookings.filter(id => id.startsWith(`gig-${day}-`)).length} booked</span></div>
+  {gigGroups.map((group, index) => { const slots = gigSlots.filter(slot => slot.dayOffset === day && slot.group === group && (filter === 'All' || (filter === 'Booked' ? bookings.includes(slot.id) : !bookings.includes(slot.id)))); const Icon = index < 2 ? Sun : Moon; return slots.length > 0 && <section key={group} className="mb-5"><div className="flex items-center justify-between rounded-t-lg bg-muted p-3"><div><h2 className="text-xs font-bold">{group}</h2><p className="mt-1 text-[9px] text-muted-foreground">{gigTime(slots[0]?.start ?? 8)} – {gigTime(slots.at(-1)?.end ?? 9)}</p></div><Icon className="h-5 w-5 text-primary" /></div><div className="divide-y rounded-b-lg border bg-card">{slots.map(slot => { const booked = bookings.includes(slot.id); return <div key={slot.id} className="flex items-center gap-3 p-3"><label className="flex min-w-0 flex-1 cursor-pointer items-center justify-between gap-3"><span><span className="flex items-center gap-2 text-xs font-bold">{gigTime(slot.start)} – {gigTime(slot.end)}{slot.popular && <Crown className="h-3 w-3 text-warning" />}</span><span className="mt-1 block text-[10px] text-muted-foreground">₹{slot.payoutMin} – ₹{slot.payoutMax} estimated{booked ? ' · Booked' : ''}</span></span>{!booked && <Checkbox aria-label={`Select ${gigTime(slot.start)} gig`} checked={selected.includes(slot.id)} onCheckedChange={checked => setSelected(current => checked ? [...current,slot.id] : current.filter(id => id !== slot.id))} />}</label>{booked && <Button variant="ghost" size="sm" className="h-7 px-2 text-[9px] text-success-strong" aria-label={`Cancel ${gigTime(slot.start)} gig`} onClick={() => { toggleShift(slot.id); toast.success('Gig cancelled'); }}><Check className="h-3 w-3" />Cancel</Button>}</div>; })}</div></section>; })}
+  {filter === 'Booked' && !bookings.some(id => id.startsWith(`gig-${day}-`)) && <p className="py-10 text-center text-xs text-muted-foreground">No booked gigs for this day.</p>}<p className="text-[9px] leading-4 text-muted-foreground">Estimated payouts depend on eligible deliveries and login time. Mock bookings only.</p></div>
+  <div className="fixed bottom-20 left-1/2 z-20 w-full max-w-[430px] -translate-x-1/2 border-t bg-card p-4"><div className="mb-2 flex justify-between text-[10px]"><span className="flex items-center gap-1"><Clock className="h-3 w-3" />Selected gigs ({summary.count}, {summary.hours} hours)</span><b>₹{summary.min} – ₹{summary.max}</b></div><Button disabled={!summary.count} className="h-11 w-full" onClick={() => { if (bookGigs(selected)) { setSelected([]); setFilter('Booked'); toast.success('Gigs booked'); } }}>Book now</Button></div>
+  </TabPage>;
+}

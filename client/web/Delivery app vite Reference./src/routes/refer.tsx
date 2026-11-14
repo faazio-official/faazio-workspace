@@ -1,0 +1,19 @@
+import { createFileRoute } from '@tanstack/react-router';
+import { useEffect, useState } from 'react';
+import { Gift, Send, Check, Users } from 'lucide-react';
+import { toast } from 'sonner';
+import { TabPage } from '@/components/partner/Shell';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { usePartner } from '@/lib/partner/store';
+import { referralOffer } from '@/mocks';
+import { partnerHead } from '@/lib/partner/metadata';
+export const Route = createFileRoute('/refer')({ head: () => partnerHead('Refer & Earn', 'Invite delivery partners and track demo referral rewards.'), component: Refer });
+function Refer() {
+  const { referrals, invite } = usePartner();
+  const [name, setName] = useState(''); const [phone, setPhone] = useState(''); const [city, setCity] = useState(referralOffer.cities[0] ?? ''); const [error, setError] = useState<string | null>(null); const [winner, setWinner] = useState(0);
+  useEffect(() => { const timer = setInterval(() => setWinner(value => (value + 1) % referralOffer.winners.length), 5000); return () => clearInterval(timer); }, []);
+  return <TabPage title="Refer & Earn"><div className="px-5 py-6"><Gift className="h-9 w-9 text-primary" /><h2 className="mt-4 text-3xl font-extrabold">Good company.<br />Great rewards.</h2><p className="mt-3 text-sm leading-6 text-muted-foreground">Invite a friend. Earn up to <b className="text-foreground">₹{referralOffer.amount.toLocaleString('en-IN')}</b> after their first {referralOffer.requiredTrips} eligible trips.</p><div className="my-5 flex items-center gap-2 border-y py-3 text-xs text-primary"><Check className="h-4 w-4" />{referralOffer.winners[winner]}<span className="ml-auto text-[9px] text-muted-foreground">Demo</span></div>
+  <form className="space-y-4" onSubmit={event => { event.preventDefault(); const result = invite(name, phone, city); setError(result); if (!result) { setName(''); setPhone(''); toast.success('Demo invitation saved'); } }}><h3 className="text-sm font-bold">Invite a delivery partner</h3><label className="block text-xs font-medium">Full name<Input className="mt-2 h-11" value={name} onChange={event => setName(event.target.value)} autoComplete="name" placeholder="Friend’s name" required /></label><label className="block text-xs font-medium">Mobile number<div className="mt-2 flex items-center gap-2"><span className="text-sm text-muted-foreground">+91</span><Input aria-label="Mobile number" className="h-11" inputMode="numeric" type="tel" maxLength={10} value={phone} onChange={event => setPhone(event.target.value.replace(/\D/g, ''))} placeholder="10-digit mobile number" required /></div></label><label className="block text-xs font-medium">City<select className="mt-2 h-11 w-full rounded-md border bg-background px-3 text-sm" value={city} onChange={event => setCity(event.target.value)}>{referralOffer.cities.map(city => <option key={city}>{city}</option>)}</select></label>{error && <p role="alert" className="text-xs text-destructive">{error}</p>}<Button type="submit" className="h-12 w-full"><Send />Send invitation</Button><p className="text-[10px] leading-5 text-muted-foreground">Mock referrals only. No SMS is sent and no real bonus is paid.</p></form>
+  <section className="mt-7 border-t pt-5"><h3 className="mb-4 flex items-center gap-2 text-sm font-bold"><Users className="h-4 w-4 text-primary" />Your referrals <span className="ml-auto text-muted-foreground">{referrals.length}</span></h3>{referrals.map(referral => <div key={referral.id} className="flex items-center justify-between gap-3 border-b py-4"><div className="min-w-0"><p className="break-words text-sm font-semibold">{referral.name}</p><p className="mt-1 text-[10px] text-muted-foreground">{referral.city} · {referral.phone}</p></div><span className="shrink-0 text-[10px] font-semibold text-primary">{referral.status}</span></div>)}</section></div></TabPage>;
+}
