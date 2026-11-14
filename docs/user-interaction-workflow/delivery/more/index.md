@@ -11,9 +11,11 @@ a stack route to a tab (not purely additive); see `../README.md` for the full ro
 The authenticated rider area is a persistent `@react-navigation/bottom-tabs` navigator
 (`features/delivery-partner/DeliveryTabs.tsx`) hosted by the single `Main` stack screen. Its custom
 `tabBar` (`components/DeliveryTabBar.tsx`) renders the generic
-`components/shared/dp/DPBottomNav` (five equal tabs, 20 px icon + 10 px label, active tab in Faazio
-Blue). Route names are the tab keys, so switching tabs uses `navigation.navigate(name)` without
-pushing onto the stack:
+`components/shared/dp/DPBottomNav` — a flat card bar 80 px tall with `paddingHorizontal 12 /`
+`paddingBottom 12`, a hairline top border and five equal tabs (20 px icon above a 10 px label). The
+active tab is bold Faazio Blue, inactive tabs are muted ink, and the icon stroke weight is constant
+across states. Route names are the tab keys, so switching tabs uses `navigation.navigate(name)`
+without pushing onto the stack:
 
 | Tab | Route |
 |---|---|

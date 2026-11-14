@@ -71,13 +71,13 @@ const styles = StyleSheet.create({
   ctaWrap: {
     paddingHorizontal: hs(16),
     paddingTop: vs(8),
-    paddingBottom: vs(2),
+    paddingBottom: vs(8),
   },
   cta: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(8),
-    minHeight: DELIVERY.touch.min,
+    height: vs(48),
     paddingHorizontal: hs(14),
     borderRadius: DELIVERY.radius.md,
     backgroundColor: DELIVERY.success,

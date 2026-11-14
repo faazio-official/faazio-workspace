@@ -860,14 +860,16 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 **Bottom navigation (Vite reference).** The authenticated rider area is a real persistent
 `@react-navigation/bottom-tabs` navigator (`features/delivery-partner/DeliveryTabs.tsx`) hosted by the
 single `Main` stack screen. Its custom `tabBar` (`components/DeliveryTabBar.tsx`) renders
-`components/shared/dp/DPBottomNav`: five equal tabs Feed · Pocket · Orders · Inbox · More, route names
-as tab keys, active tab in Faazio Blue. Because the bar belongs to the navigator it stays mounted
-across switches (no stack growth). Above the bar, `DeliveryTabBar` renders the reference's
-active-order CTA from `useDeliveryPartnerStore.activeOrder` (set by `Dashboard`/`Route`, refreshed by
-the Dashboard poll) linking to `Route`; the CTA is in normal flow so the navigator insets tab content
-above it. The app root reserves the bottom safe-area inset once, so the bar keeps a base height. Auth
-/onboarding screens, `AcceptReject`, `Route`, `EarningsDetail`, `Settings` and `Support` sit above
-`Main` on the stack and do not render the bar.
+`components/shared/dp/DPBottomNav`: a flat card bar 80 px tall with horizontal/bottom padding, a
+hairline top border, five equal tabs Feed · Pocket · Orders · Inbox · More, route names as tab keys,
+and the active tab bold in Faazio Blue (inactive muted ink, constant icon weight). Because the bar
+belongs to the navigator it stays mounted across switches (no stack growth). Above the bar,
+`DeliveryTabBar` renders the reference's active-order CTA from
+`useDeliveryPartnerStore.activeOrder` (set by `Dashboard`/`Route`, refreshed by the Dashboard poll)
+linking to `Route`; the CTA is in normal flow so the navigator insets tab content above it. The app
+root reserves the bottom safe-area inset once, so the bar keeps a base height. Auth /onboarding
+screens, `AcceptReject`, `Route`, `EarningsDetail`, `Settings` and `Support` sit above `Main` on the
+stack and do not render the bar.
 
 **Visual layer.** Rider screens use the Vite-reference design system: tokens in
 `src/theme/deliveryTokens.ts` (anchored on `parentRamp` — brand `#1627E9`, replacing the old
