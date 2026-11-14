@@ -79,17 +79,8 @@ class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
 
   override func bundleURL() -> URL? {
 #if DEBUG
-    // Each product has its own entry; other products' modules are never served/bundled for it.
-    let bundleRoot: String
-    switch Bundle.main.bundleIdentifier {
-    case "com.faazio.deliverypartner":
-      bundleRoot = "index.delivery"
-    case "com.faazio.sellerpartner":
-      bundleRoot = "index.seller"
-    default:
-      bundleRoot = "index"
-    }
-    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: bundleRoot)
+    // iOS is customer-only; the single entry point is served by Metro.
+    return RCTBundleURLProvider.sharedSettings().jsBundleURL(forBundleRoot: "index")
 #else
     return Bundle.main.url(forResource: "main", withExtension: "jsbundle")
 #endif

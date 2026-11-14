@@ -163,7 +163,7 @@ artwork and are recoloured to the same field.
 
 Regenerated: mobile source assets (`icon.png`, `adaptive-icon.png`,
 `faazio-logo.png`, `logo.png`, `logo-welcomepage.png`, `logo.svg`), customer +
-delivery + seller Android mipmaps and iOS app-icon sets, native splash logos,
+delivery + seller Android mipmaps and the customer iOS app-icon set, native splash logos,
 the partner colors, `client/faazio-logo.ico`, and both web favicon/PWA sets.
 Scripts: `client/mobile/scripts/regenerate-icons.py`,
 `client/mobile/scripts/generate-partner-icons.py`,

@@ -7,8 +7,11 @@ files the consoles ask for:
 
   Google Play Console  512x512 32-bit PNG with alpha, <= 1024 KB
   Google Play listing  1024x500 JPEG/24-bit PNG, no alpha (feature graphic)
-  App Store Connect    1024x1024 PNG, opaque, full-bleed (no alpha)
+  App Store Connect    1024x1024 PNG, opaque, full-bleed (no alpha; customer only)
   Web / PWA            favicon.ico, 16/32 PNG, 180 apple-touch, 192/512 PWA
+
+The App Store icon is produced only for the customer app — the delivery/seller
+partner apps are Android/Play only.
 
 Sources (already canonical; never hand-edited):
   src/assets/icon.png            customer  (Fa mark on Faazio Blue)
@@ -45,9 +48,9 @@ WEB_PUBLIC = REPO / "client" / "web" / "platform" / "public"
 OUT = MOBILE / "store-assets"
 
 VARIANTS = {
-    "customer": {"icon": ASSETS / "icon.png", "label": None},
-    "delivery": {"icon": ASSETS / "icon-delivery.png", "label": "Delivery Partner"},
-    "seller": {"icon": ASSETS / "icon-seller.png", "label": "Seller Partner"},
+    "customer": {"icon": ASSETS / "icon.png", "label": None, "app_store": True},
+    "delivery": {"icon": ASSETS / "icon-delivery.png", "label": "Delivery Partner", "app_store": False},
+    "seller": {"icon": ASSETS / "icon-seller.png", "label": "Seller Partner", "app_store": False},
 }
 
 PLAY_ICON = 512
@@ -147,14 +150,17 @@ def main() -> int:
     for variant, meta in VARIANTS.items():
         icon = open_icon(meta["icon"])
         write_play_icon(icon, OUT / "google-play" / variant / "icon-512.png")
-        write_ios_icon(icon, OUT / "app-store" / variant / "AppIcon-1024.png")
+        # Only the customer app ships on the App Store; the partner apps are Android/Play only.
+        if meta["app_store"]:
+            write_ios_icon(icon, OUT / "app-store" / variant / "AppIcon-1024.png")
         graphic = feature_graphic(meta["label"])
         graphic.save(
             OUT / "google-play" / variant / "feature-graphic-1024x500.png",
             "PNG",
             optimize=True,
         )
-        print(f"{variant}: play 512 + iOS 1024 + feature graphic")
+        ios = " + iOS 1024" if meta["app_store"] else ""
+        print(f"{variant}: play 512 + feature graphic{ios}")
 
     copy_web_set()
     print(f"web: {len(WEB_FILES)} files copied from {WEB_PUBLIC.relative_to(REPO)}")

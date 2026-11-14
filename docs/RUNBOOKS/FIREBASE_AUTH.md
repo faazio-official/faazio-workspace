@@ -19,8 +19,6 @@
 | Android | Delivery Partner | `com.faazio.deliverypartner` | `client/mobile/android/app/build.gradle` (`delivery` flavor) |
 | Android | Seller Partner | `com.faazio.sellerpartner` | `client/mobile/android/app/build.gradle` (`seller` flavor) |
 | iOS | Customer SuperApp | `com.faazio.customer` | `ios/Faazio.xcodeproj` (`PRODUCT_BUNDLE_IDENTIFIER`; the only iOS app released to the App Store) |
-| iOS | Delivery Partner | `com.faazio.deliverypartner` | `ios/Faazio.xcodeproj` (`Delivery-*` configurations — Android/Play only, no iOS release) |
-| iOS | Seller Partner | `com.faazio.sellerpartner` | `ios/Faazio.xcodeproj` (`Seller-*` configurations — Android/Play only, no iOS release) |
 | Firebase project | all apps | `project-65696e12-8def-460e-b29` | public client config + `FIREBASE_PROJECT_ID` |
 
 Each native app must be registered against its own ID. One typo makes
@@ -33,18 +31,16 @@ Each native app must be registered against its own ID. One typo makes
 | `client/mobile/android/app/google-services.json` | Customer Android Firebase app registration + public API key |
 | `client/mobile/ios/Faazio/GoogleService-Info.plist` | Customer iOS Firebase app registration (Xcode `Copy Bundle Resources`) |
 | `client/mobile/android/app/src/delivery/google-services.json` | Delivery Android app config — **committed** (public client config); CI overwrites it from `GOOGLE_SERVICES_DELIVERY_JSON` |
-| `client/mobile/ios/Faazio/GoogleService-Info-Delivery.plist` | Delivery iOS app config — **not needed** (Android/Play only; no partner iOS release) |
 | `client/mobile/android/app/src/seller/google-services.json` | Seller Android app config — **committed** (public client config); CI overwrites it from `GOOGLE_SERVICES_SELLER_JSON` |
-| `client/mobile/ios/Faazio/GoogleService-Info-Seller.plist` | Seller iOS app config — **not needed** (Android/Play only; no partner iOS release) |
 | `client/mobile/android/build.gradle` | `com.google.gms:google-services:4.5.0` classpath |
 | `client/mobile/android/app/build.gradle` | applies `com.google.gms.google-services` |
-| `client/mobile/ios/Faazio/Info.plist` (customer) / `Info-Delivery.plist` / `Info-Seller.plist` | Per-variant `UIBackgroundModes → remote-notification`; delivery also declares `location` |
+| `client/mobile/ios/Faazio/Info.plist` | `UIBackgroundModes → remote-notification` (customer; the only iOS product) |
 
 The Firebase files are public by design (the API key is restricted per platform in Google Cloud) and
 committed so CI can build without extra secrets — the customer, delivery and seller Android
-`google-services.json` files are all committed. The iOS partner plists are injected by CI. CI also
-overwrites the committed partner Android JSONs from the delivery/seller secrets so a rotated config
-never needs a git change. No service-account key is used by the mobile app.
+`google-services.json` files are all committed. CI also overwrites the committed partner Android JSONs
+from the delivery/seller secrets so a rotated config never needs a git change. No service-account key
+is used by the mobile app.
 
 ### iOS native init (required)
 
@@ -150,11 +146,11 @@ permission after sign-in and registers the token via `POST /notifications/regist
 calls `DELETE /notifications/register` best-effort. Push delivery comes from the **gateway's embedded
 FCM HTTP v1 sender** when `FCM_PROJECT_ID` + `FCM_SERVICE_ACCOUNT_JSON` are set (see below); without
 them the worker is disabled and the in-app `GET /notifications`
-still works. The iOS client side is now in place — the shared entitlements carry
-`aps-environment` (`production` for the `*Release` configs, `development` for `*Debug`) and every
-variant declares `UIBackgroundModes → remote-notification` — so APNs delivery only needs the Part 6
-`.p8` key uploaded to Firebase plus the delivery/seller iOS apps registered. Android 13+ requires the
-runtime notification permission.
+still works. The iOS client side is now in place — the customer entitlements carry
+`aps-environment` (`production` for the `Release` config, `development` for `Debug`) and
+`ios/Faazio/Info.plist` declares `UIBackgroundModes → remote-notification` — so APNs delivery only
+needs the Part 6 `.p8` key uploaded to Firebase. Android 13+ requires the runtime notification
+permission.
 
 ### Server-side FCM push credentials (Android)
 
@@ -194,9 +190,8 @@ The app registers for remote notifications at launch
 verification push can be used. FirebaseAuth method-swizzling consumes the reCAPTCHA redirect, but
 the callback URL scheme must still be present in the **built** `Info.plist`
 (`app-<GOOGLE_APP_ID with : → ->`). `ios/scripts/firebase-url-scheme.sh` (run by the
-`Delivery Firebase config` build phase) reads `GOOGLE_APP_ID` from whichever
-`GoogleService-Info.plist` the build bundles and injects the matching scheme, so each product gets
-its own scheme automatically — including the CI-supplied delivery/seller plists. No manual plist
+`Firebase URL scheme` build phase) reads `GOOGLE_APP_ID` from the bundled
+`GoogleService-Info.plist` and injects the matching scheme. No manual plist
 edit is needed; the customer scheme is also committed in `Info.plist` as a fallback.
 
 **Browser-free simulator development:** do not disable verification for real numbers.
@@ -225,8 +220,7 @@ edit is needed; the customer scheme is also committed in `Info.plist` as a fallb
 
   Current state (verified via the Firebase Management API):
   - `com.faazio.customer` — Play App Signing `DE:0E:7A:EF:…` (SHA-256 `7B:3C:7B:F0:…`) ✓ and
-    debug `5E:8F:16:06:…` ✓. The upload key was **purged on 2026-11-06**; reset it in Play Console
-    before building customer release APKs.
+    debug `5E:8F:16:06:…` ✓. The upload key was reset on 2026-11-10; its new SHA-1 is pending in Firebase — add it before this sideloaded/CI lane needs phone OTP.
   - `com.faazio.sellerpartner` / `com.faazio.deliverypartner` — release/upload ✓ and debug ✓
     (debug added 2026-11-06). Their Play App Signing certs do not exist yet (no Play listing); add
     them here once each listing exists.
@@ -312,7 +306,7 @@ Device smoke test (CI debug APK):
 |---|---|
 | `auth/invalid-app-credential` | App signature/SHA not registered, or package/bundle ID mismatch. Add debug + release SHA-1/SHA-256. |
 | Send always fails on iOS | Part 6 APNs not configured; reCAPTCHA fallback should still open. Add the `.p8` key. |
-| App crashes (SIGTRAP, `PhoneAuthProvider.swift` `fatalError`) when sending OTP on iOS | FirebaseAuth `verifyPhoneNumber` fatals when its callback URL scheme (`app-<GOOGLE_APP_ID with : → ->`) is missing from the built `Info.plist`; it trips before any network call. `ios/scripts/firebase-url-scheme.sh` (the `Delivery Firebase config` phase) injects it from the bundled `GoogleService-Info.plist`. If it recurs, the build predates that phase or the bundled Firebase plist has no `GOOGLE_APP_ID`: clean build, confirm the phase ran (look for the `note: added Firebase Auth URL scheme …` log line), and check the active `GoogleService-Info*.plist`. If `CLIENT_ID` exists, its reversed value is the equivalent scheme. With swizzling enabled (default) FirebaseAuth consumes the redirect itself; only forward URLs to `Auth.auth().canHandle(url)` in `AppDelegate.application(_:open:options:)` if swizzling is disabled. |
+| App crashes (SIGTRAP, `PhoneAuthProvider.swift` `fatalError`) when sending OTP on iOS | FirebaseAuth `verifyPhoneNumber` fatals when its callback URL scheme (`app-<GOOGLE_APP_ID with : → ->`) is missing from the built `Info.plist`; it trips before any network call. `ios/scripts/firebase-url-scheme.sh` (the `Firebase URL scheme` phase) injects it from the bundled `GoogleService-Info.plist`. If it recurs, the build predates that phase or the bundled Firebase plist has no `GOOGLE_APP_ID`: clean build, confirm the phase ran (look for the `note: added Firebase Auth URL scheme …` log line), and check the active `GoogleService-Info*.plist`. If `CLIENT_ID` exists, its reversed value is the equivalent scheme. With swizzling enabled (default) FirebaseAuth consumes the redirect itself; only forward URLs to `Auth.auth().canHandle(url)` in `AppDelegate.application(_:open:options:)` if swizzling is disabled. |
 | `401` from the gateway after login | The gateway builds the Firebase verifier only when `FIREBASE_PROJECT_ID` is non-empty (`config.Config.FirebaseProjectID`); if empty it verifies only portal/legacy HS256 tokens, so every Firebase ID token (RS256) 401s. Check: a valid token whose `iss` = `https://securetoken.google.com/project-65696e12-8def-460e-b29` and `aud` = `project-65696e12-8def-460e-b29` still gets `{"code":"unauthorized"}` from `https://api.faazio.com/categories/rail`, while a legacy HS256 token works. Fix: set `FIREBASE_PROJECT_ID` (and `FCM_PROJECT_ID`) on the Render service to `project-65696e12-8def-460e-b29` and redeploy; a `render.yaml` Blueprint deploy syncs these, a manually-created service does not. Client symptom: the Home/Mart category rail shows a **Retry** chip and logs `[rail] fetchCategoryRail failed ... GatewayHttpError status: 401` in dev. |
 | `401` from the gateway after login (config present) | `FIREBASE_PROJECT_ID` value mismatch (wrong/rotated project or a stray quote/space), or the container cannot reach `googleapis.com` to fetch the signing certs. Confirm the project id matches the client `google-services.json`. |
 | SMS never arrives | Region policy excludes +91, the number is not a test number, or the free quota is exhausted (Blaze billing required past the quota). |

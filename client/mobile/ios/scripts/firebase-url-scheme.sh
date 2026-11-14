@@ -7,12 +7,10 @@
 # calls fatalError() before any network call (SIGTRAP, "Please register custom URL
 # scheme ... in the app's Info.plist file").
 #
-# Reading the plist Xcode actually bundles keeps the customer, delivery and seller
-# products correct even when the partner plists are supplied by CI from their own
-# Firebase iOS apps (their GOOGLE_APP_ID differs from the customer app).
+# Reading the plist Xcode actually bundles keeps the customer app correct (the
+# only iOS product; the partner apps are Android/Play only).
 #
-# Runs at the end of the "Delivery Firebase config" build phase, after the partner
-# GoogleService plist (if any) has been copied over the bundled customer one.
+# Runs at the end of the "Firebase URL scheme" build phase.
 
 set -eu
 

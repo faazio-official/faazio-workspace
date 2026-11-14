@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# restore-ios-signing.sh <customer|delivery|seller>
+# restore-ios-signing.sh <customer>
 #
 # Reconstructs ONE iOS product's App Store signing material in CI from GitHub
 # secrets, using Apple's own tooling (no fastlane):
@@ -8,8 +8,9 @@
 #   2. installs that product's App Store provisioning profile
 #   3. writes ios/ExportOptions.plist (manual signing, method app-store-connect)
 #
-# One shared distribution certificate signs all three products; each product has
-# its own App Store provisioning profile (distinct bundle id).
+# The customer app (com.faazio.customer) is the only iOS/App Store product. The
+# Apple Distribution certificate signs it; its App Store provisioning profile
+# must belong to that bundle id.
 #
 # Required env vars:
 #   APPSTORE_CERTIFICATE_BASE64          base64 of the shared distribution .p12
@@ -26,10 +27,8 @@ set -euo pipefail
 
 APP="${1:-customer}"
 case "$APP" in
-  customer) SUFFIX="_CUSTOMER"; BUNDLE_ID="com.faazio.customer";        CONFIG="Release" ;;
-  delivery) SUFFIX="_DELIVERY"; BUNDLE_ID="com.faazio.deliverypartner"; CONFIG="Delivery-Release" ;;
-  seller)   SUFFIX="_SELLER";   BUNDLE_ID="com.faazio.sellerpartner";   CONFIG="Seller-Release" ;;
-  *) echo "[restore-ios-signing] unknown app '$APP' (expected customer|delivery|seller)" >&2; exit 1 ;;
+  customer) SUFFIX="_CUSTOMER"; BUNDLE_ID="com.faazio.customer"; CONFIG="Release" ;;
+  *) echo "[restore-ios-signing] unknown app '$APP' (expected customer)" >&2; exit 1 ;;
 esac
 
 : "${APPSTORE_CERTIFICATE_BASE64:?APPSTORE_CERTIFICATE_BASE64 secret is required}"

@@ -12,13 +12,12 @@
   (`.github/workflows/release-apk.yml`) runs `scripts/restore-keystore.sh <app>`, which decodes the
   matching `KEYSTORE_BASE64_<APP>` secret and writes that product's properties file before
   `./gradlew assemble<App>Release`. A release build without that product's file fails fast.
-  - customer → **purged 2026-11-06** — re-provision via Play Console upload-key reset (`keystore/keystore.properties` / `faazio-release.keystore`, alias `faazio`, is the expected path)
+  - customer → `keystore/keystore.properties` / `faazio-release.keystore` (alias `faazio`) — key reset 2026-11-10, Play Console upload-key reset effective 2026-11-12 08:43 UTC
   - delivery → `keystore/keystore-delivery.properties` / `faazio-delivery-release.keystore` (alias `faazio-delivery`)
   - seller → `keystore/keystore-seller.properties` / `faazio-seller-release.keystore` (alias `faazio-seller`)
 - The keystore files live at `client/mobile/keystore/` (gitignored).
-  **Back up the delivery and seller keystores securely — losing one means you can never update that
-  app on the store. The customer key was purged on 2026-11-06 and must be re-provisioned, then
-  backed up.**
+  **Back up the delivery, seller and customer keystores securely — losing one means you can never update that
+  app on the store.** (The customer upload key was purged on 2026-11-06 and re-provisioned on 2026-11-10.)
 - **Release signing must use the release keystore, not the debug keystore.** A debug-signed
   build (`CN=Android Debug`) differs from the release cert (`CN=Faazio…`); a user who installed
   one can no longer update — Android reports a signature conflict as
@@ -43,8 +42,8 @@ signed by **Google's Play App Signing key**, not the upload keystore:
   the cert that must be in Firebase and Maps for
   real users.
 - **Sideloaded / CI release APK** (GitHub Releases, `assemble<App>Release`) → the **upload key**.
-  The customer upload key was **purged on 2026-11-06**; reset it in Play Console before building
-  customer release APKs.
+  The customer upload key was reset on 2026-11-10 (Play effective 2026-11-12); the `_CUSTOMER`
+  secrets are set and customer release APKs/AABs build again.
 
 > **All fingerprints live in one local file:** `docs/RUNBOOKS/SIGNING_FINGERPRINTS.md`.
 > It is the single source of truth for every app's Play App Signing, upload, and debug SHA-1/SHA-256
@@ -52,11 +51,11 @@ signed by **Google's Play App Signing key**, not the upload keystore:
 > exists only on a machine that has it — it is not in a fresh clone. Do not restate a digest in
 > another document; point at that file. The one exception is the CI pin in
 > `.github/workflows/release-apk.yml`, which inlines the delivery/seller upload-key SHA-256s because
-> CI cannot read a gitignored file. The customer pin was removed on 2026-11-06 with the purge.
+> CI cannot read a gitignored file. The customer pin was set on 2026-11-14 with the reset upload key.
 
 - **Firebase** (Project Settings → Your apps): add the **Play App Signing** SHA-1/SHA-256 for each
-  listed app, the **upload-key** SHA-1/SHA-256 for sideloaded/CI release APKs (delivery/seller; the
-  customer upload key was purged and must be re-provisioned first), and each app's own
+  listed app, the **upload-key** SHA-1/SHA-256 for sideloaded/CI release APKs (all three products),
+  and each app's own
   **debug** SHA-1/SHA-256 for debug-APK testing. Without the right cert that build fails phone OTP
   with `auth/missing-client-identifier` / `auth/invalid-app-credential` (`INVALID_CERT_HASH 400` in
   logcat). Current state is tracked in `SIGNING_FINGERPRINTS.md` §5 and
@@ -75,7 +74,7 @@ signed by **Google's Play App Signing key**, not the upload keystore:
   signed with the **upload key**, so the pin stays the upload-key SHA-256 even after Play App
   Signing is enabled. Because that file is gitignored, the delivery/seller SHA-256s are inlined in
   the workflow — update **both** whenever a keystore is rotated (public digests, safe to commit).
-  The customer pin is an explicit "purged" error until a new upload key is created.
+  The customer pin is the reset upload-key SHA-256 (set in the workflow 2026-11-14).
 - **Debug builds use a per-app debug cert, not the release cert.** Debug APKs
   (`android-debug.yml`, or a local `assemble<App>Debug`) are signed with that product's committed
   debug keystore (`android/app/debug.keystore` for customer, `debug-delivery.keystore`,
@@ -304,9 +303,8 @@ cd android && ./gradlew assembleCustomerRelease --no-daemon \
 The Android project has three product flavors: `customer` (`com.faazio.customer`), `delivery`
 (`com.faazio.deliverypartner`, label "Faazio Delivery Partner") and `seller`
 (`com.faazio.sellerpartner`, label "Faazio Seller Partner"). Always name the flavor in the task —
-`assembleDebug` would try all three and each partner flavor needs its own Firebase config. The same
-split exists on iOS as the `Delivery-Debug` / `Delivery-Release` and `Seller-Debug` / `Seller-Release`
-build configurations.
+`assembleDebug` would try all three and each partner flavor needs its own Firebase config. (iOS has
+no such split: iOS ships only the customer app.)
 
 All three flavors share **one committed native shell and one dependency set** (`android/` + `ios/`;
 deps declared once in `package.json`), so a native library such as `react-native-maps` is compiled into
@@ -317,7 +315,7 @@ this way). CI builds each flavor separately; do not build two in one Gradle task
 Prescription **gallery import** uses `react-native-image-picker` (autolinked; system photo picker —
 no Android media permission). It is a native module, so a JS-only update is not enough: a **CI native
 rebuild is required** on both platforms, and iOS carries `NSPhotoLibraryUsageDescription` in
-`ios/Faazio/Info.plist`, `Info-Delivery.plist` and `Info-Seller.plist` (the `pod install` step in
+`ios/Faazio/Info.plist` (the `pod install` step in
 `codemagic.yaml` picks up the autolinked pod).
 
 To verify a **downloaded** APK is signed with the release cert (not the debug cert):
@@ -377,8 +375,7 @@ Customer Release**, and it is started **manually** from the Codemagic UI; it bui
 
 > **iOS / App Store is customer-only.** Only the Faazio SuperApp (`com.faazio.customer`) is built and
 > released to the App Store. The Delivery Partner and Seller Partner apps ship on **Google Play
-> (Android) only** — their iOS configurations exist in the committed `ios/` shell for local/dev
-> completeness, but there is **no planned iOS build or App Store release** for them.
+> (Android) only** — they have no iOS target and **no planned iOS build or App Store release**.
 
 [`codemagic.yaml`](../../codemagic.yaml) runs on a Codemagic macOS M2 machine (Xcode 26.3):
 `npm ci` → `ts:check`/`check:boundaries`/`check:ui` → version rewrite →
@@ -406,10 +403,8 @@ configuration of the shared target:
 | Product | App Store release? | Configuration | Bundle id | Firebase plist |
 |---|---|---|---|---|
 | Faazio (customer) | **Yes** | `Release` | `com.faazio.customer` | `GoogleService-Info.plist` (committed) |
-| Delivery Partner | No (Android/Play only) | `Delivery-Release` | `com.faazio.deliverypartner` | — |
-| Seller Partner | No (Android/Play only) | `Seller-Release` | `com.faazio.sellerpartner` | — |
 
-The customer `Delivery Firebase config` build phase runs `ios/scripts/firebase-url-scheme.sh`, which reads
+The customer `Firebase URL scheme` build phase runs `ios/scripts/firebase-url-scheme.sh`, which reads
 `GOOGLE_APP_ID` from the bundled Firebase plist and injects the matching Firebase Phone Auth callback
 scheme (`app-<GOOGLE_APP_ID with : → ->`) into the built `Info.plist`. This is what keeps
 `verifyPhoneNumber()` from `fatalError`-ing (SIGTRAP) on iOS.
@@ -424,9 +419,7 @@ the profile.
 ### Manual fallback (macOS + Xcode)
 
 Requires macOS + Xcode; run `cd client/mobile && npm install && cd ios && pod install` first. Archive
-the **customer** app (`Release` config, `index.js`) — it is the only App Store release. The
-`Delivery-*` / `Seller-*` configurations (which bundle `index.delivery.js` / `index.seller.js` via
-`ENTRY_FILE`) exist for local/dev completeness only and are not released to the App Store.
+the **customer** app (`Release` config, `index.js`) — it is the only App Store release.
 
 ```bash
 cd client/mobile
@@ -435,11 +428,10 @@ npm run ios                                    # debug build + Metro in simulato
 ```
 
 Upload via Xcode Organizer / Transporter; then fill App Store Connect metadata. For the App Store
-Connect app icon use `client/mobile/store-assets/app-store/<app>/AppIcon-1024.png` (1024×1024,
+Connect app icon use `client/mobile/store-assets/app-store/customer/AppIcon-1024.png` (1024×1024,
 opaque, no alpha). Regenerate with `python3 scripts/generate-store-assets.py`.
-The per-variant plists (`ios/Faazio/Info.plist` customer, `Info-Delivery.plist`, `Info-Seller.plist`)
-declare only the usage strings each app actually triggers — camera, plus foreground location for
-customer and delivery and always-location for delivery only; no unused/generic permission strings.
+The iOS plist (`ios/Faazio/Info.plist`) declares only the usage strings the customer app triggers —
+camera plus foreground location; no unused/generic permission strings.
 
 ## 🌍 Web (Partner Portal) — Vercel
 
@@ -530,7 +522,7 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 - [ ] `versionCode` > the previous release (committed +1 bump, or derived from `-f version` semver — e.g. `1.0.4` → `10004`).
 - [ ] **Play App Signing** SHA-1/SHA-256 registered in Firebase for each Play-listed app (customer production), plus the **upload-key** SHA-1/SHA-256 if sideloaded CI APKs must pass phone OTP; each app's **debug** cert registered for debug testing. Maps/Places keys restricted to the Play App Signing SHA-1 (+ upload-key SHA-1) for **customer + delivery** only (seller mounts no map — see "Register the release cert").
 - [ ] `CERT_PINS` set and Firebase native config committed when `USE_GATEWAY=true` (release configure fails without them).
-- [ ] Per-app GitHub secrets set: `KEYSTORE_BASE64_<APP>`, `KEYSTORE_PASS_<APP>`, `KEY_ALIAS_<APP>`, `ALIAS_PASS_<APP>` for each product being released (delivery/seller keystores backed up; customer upload key purged — reset in Play Console).
+- [ ] Per-app GitHub secrets set: `KEYSTORE_BASE64_<APP>`, `KEYSTORE_PASS_<APP>`, `KEY_ALIAS_<APP>`, `ALIAS_PASS_<APP>` for each product being released (all three keystores backed up; customer key reset 2026-11-10).
 - [ ] Release APK signed with that app's **release cert** (CI pins its SHA-256: delivery `E1:B6…5E:ED`, seller `B7:DA…B7:A6`; customer pin removed pending upload-key reset), not the debug cert.
 - [ ] `gh workflow run release-apk.yml` succeeded and the signed APK is on the GitHub Release.
 - [ ] Portal (if deploying): `0032` + `0033` applied, `PORTAL_JWT_SECRET`/`PORTAL_PEPPER` set, a superadmin hash provisioned (`PORTAL_AUTH.md`).
@@ -545,21 +537,21 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 ## 🍎 iOS Release Checklist (customer only)
 
 - [ ] `APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`, `APPSTORE_TEAM_ID` set in the Codemagic group `ios app`.
-- [ ] `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` set as the base64 App Store `.mobileprovision` (must include the Push Notifications capability). `_DELIVERY` / `_SELLER` profiles are not needed — no partner iOS release.
+- [ ] `APPSTORE_PROVISIONING_PROFILE_CUSTOMER` set as the base64 App Store `.mobileprovision` (must include the Push Notifications capability).
 - [ ] `APPSTORE_API_PRIVATE_KEY` (full `.p8` contents), `APPSTORE_ISSUER_ID`, `APPSTORE_API_KEY_ID` set (App Store Connect API key; needs App Manager role).
 - [ ] `CERT_PINS` set in the Codemagic group `ios app` (derived via `scripts/cert-pins.sh`); `REQUIRE_CERT_PINS=1` fails the build if missing.
 - [ ] `GOOGLE_MAPS_API_KEY_IOS` and `GOOGLE_PLACES_API_KEY` set in the same group.
-- [ ] Export compliance: `ITSAppUsesNonExemptEncryption=false` is present in all three `ios/Faazio/Info*.plist` (the app uses only exempt HTTPS + OS Keychain encryption), so App Store Connect does not flag the build as "Missing Compliance".
+- [ ] Export compliance: `ITSAppUsesNonExemptEncryption=false` is present in `ios/Faazio/Info.plist` (the app uses only exempt HTTPS + OS Keychain encryption), so App Store Connect does not flag the build as "Missing Compliance".
 - [ ] Codemagic workflow **iOS Customer Release** (branch `main`, optional `version`) succeeds.
 - [ ] Build appears in App Store Connect → TestFlight → Builds (the workflow uploads automatically — no Xcode Organizer needed).
 - [ ] Store metadata complete in the browser: description, screenshots, privacy policy URL (`https://faazio.com/privacy`), **English (U.K.)** keywords, App Privacy questionnaire.
 - [ ] `ios/Faazio/PrivacyInfo.xcprivacy` `NSPrivacyCollectedDataTypes` matches the App Store Connect answers (19 data types; see `client/mobile/docs/APPSTORE_RELEASE.md` §5a) and `NSPrivacyTracking` is `false`.
 - [ ] App Privacy questionnaire completed and **published** in App Store Connect (all 19 data types with linked/tracking/purposes set — `APPSTORE_RELEASE.md` §5a).
-- [ ] **ATT determination:** the app does **not** track — no IDFA, no `ATTrackingManager` / `requestTrackingAuthorization`, no ad/monetization SDK, `NSPrivacyTracking = false` in `ios/Faazio/PrivacyInfo.xcprivacy`, and no `NSUserTrackingUsageDescription` in any of the three `ios/Faazio/Info*.plist`. No ATT prompt is required; do **not** add `NSUserTrackingUsageDescription` preemptively.
+- [ ] **ATT determination:** the app does **not** track — no IDFA, no `ATTrackingManager` / `requestTrackingAuthorization`, no ad/monetization SDK, `NSPrivacyTracking = false` in `ios/Faazio/PrivacyInfo.xcprivacy`, and no `NSUserTrackingUsageDescription` in `ios/Faazio/Info.plist`. No ATT prompt is required; do **not** add `NSUserTrackingUsageDescription` preemptively.
 - [ ] **Privacy manifest verified:** `ios/Faazio/PrivacyInfo.xcprivacy` — `NSPrivacyTracking = false`, `NSPrivacyCollectedDataTypes` matches the 19 App Store Connect answers (all Tracking = No), and only Required Reason API declarations are present (file timestamp `C617.1`/`3B52.1`, UserDefaults `CA92.1`, system boot time `35F9.1`).
 - [ ] **App Privacy answer sheet applied** (`APPSTORE_RELEASE.md` §5a): Phone Number → **App Functionality only** (Firebase phone OTP auth, re-auth before deletion, checkout pick-up contact, seller verification). No Third-Party Advertising, no Developer's Advertising/Marketing, no Analytics, no Product Personalization, no Other Purposes. First-party `/ads/*` impression/click data is declared as Usage Data → Advertising Data (Tracking: No).
 - [ ] **First-party ads are not tracking:** closed-loop retail media via the gateway (`GET /ads/hero`, `GET /ads/live`, `POST /ads/events`) uses slot-based attribution only (`services/adsAttribution.ts`); phone number is not used in attribution; no data broker, third-party ad network or IDFA. Do not add an ATT prompt for it.
-- [ ] **Permission strings audit:** every `NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription` and `NSPhotoLibraryUsageDescription` in `ios/Faazio/Info.plist` / `Info-Delivery.plist` / `Info-Seller.plist` is feature-specific — no unused or generic strings (no Face ID, no motion, no unused photo-library access).
+- [ ] **Permission strings audit:** every `NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription` and `NSPhotoLibraryUsageDescription` in `ios/Faazio/Info.plist` is feature-specific — no unused or generic strings (no Face ID, no motion, no unused photo-library access).
 - [ ] Build selected under **App Store → Add Build** and submitted for review (inviting TestFlight testers is optional).
 
 ### Expected build-time / size impact (CI workflow)

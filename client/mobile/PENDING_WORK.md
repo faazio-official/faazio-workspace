@@ -784,9 +784,9 @@ server-side (`internal/payouts`: `POST /admin/seller/payouts/{sellerId}/mark-pai
 **fails `configure.js`** when `WEB_PORTAL_URL` is empty (dev and release), and both CI workflows
 default it to `https://app.faazio.com`.
 
-- Seller native identity: Android `seller` flavor / iOS `Seller-*` configs
-  (`com.faazio.sellerpartner`, launcher label "Faazio Seller Partner") own their Firebase config
-  (`GOOGLE_SERVICES_SELLER_JSON` → `src/seller/google-services.json`, `GoogleService-Info-Seller.plist`).
+- Seller native identity: Android `seller` flavor
+  (`com.faazio.sellerpartner`, launcher label "Faazio Seller Partner") owns its Firebase config
+  (`GOOGLE_SERVICES_SELLER_JSON` → `src/seller/google-services.json`).
 
 - Seller app is now `react-native-webview` (`14.0.1`) loading `${WEB_PORTAL_URL}/login` (the seller
   sign-in; `/login` skips the form when a live cookie session exists); the four
@@ -943,13 +943,14 @@ default it to `https://app.faazio.com`.
 
 **Status:** 🟢 Shipped (mobile + gateway + Supabase + portal). Phase 5 payouts intentionally not built.
 
-- **Separate product, one native shell:** `index.js` (customer) and `index.delivery.js` (partner)
+- **Separate Android product, one native shell:** `index.js` (customer) and `index.delivery.js` (partner)
   are distinct Metro entries; the delivery entry mounts `src/DeliveryPartnerApp.tsx`, so the
   customer navigator is never mounted. Android flavors `customer`/`delivery`/`seller`
   (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.sellerpartner`, launcher labels
-  "Faazio" / "Faazio Delivery Partner" / "Faazio Seller Partner") and iOS `Delivery-*`/`Seller-*`
-  configurations give each product its own listings, labels and Firebase config; Gradle/Xcode bundle
-  only the selected entry, so neither product ships the other's screens/stores.
+  "Faazio" / "Faazio Delivery Partner" / "Faazio Seller Partner") give each product its own Play
+  listing, label and Firebase config; Gradle bundles
+  only the selected entry, so neither product ships the other's screens/stores. iOS ships only the
+  customer app.
 - **Flow:** phone OTP → KYC application (live camera capture for Aadhaar/selfie and motorized
   DL/RC/insurance; private R2 keys only) → admin per-document verify/reject and admin-side
   replacement upload (the rider app has no re-upload screen) → super-admin
@@ -1000,11 +1001,9 @@ default it to `https://app.faazio.com`.
   delivers outbox rows straight to Firebase. The
   app side — token registration, foreground handler, notification tap and
   `faazio-delivery://accept-reject?orderId=…` all open `AcceptRejectScreen` — was already done.
-- **iOS force-quit** — background location (delivery variant only: `UIBackgroundModes: location` in
-  `ios/Faazio/Info-Delivery.plist`; the customer/seller variants are foreground-only) now survives
-  backgrounding via a CoreLocation watch behind persisted explicit consent, resumed without
-  re-prompting when an already-online rider relaunches the app, but iOS stops the watch when the
-  rider swipes the app away. Android OEMs may also kill the foreground service under battery
+- **Background location** — Android runs the foreground `DeliveryTrackingService` behind persisted
+  explicit consent, resumed without re-prompting when an already-online rider relaunches the app.
+  OEMs may kill the foreground service under battery
   optimisation — riders need the battery-whitelisting step.
 - **Customer rating UI** — `POST /delivery/{orderId}/rate` stores a 1–5 rating + comment, but no
   customer screen prompts for it after delivery yet.
@@ -1016,10 +1015,9 @@ default it to `https://app.faazio.com`.
   so they stay on the admin `POST /dispatch/assign` path until the fan-out is designed.
 - **Partner Firebase entries (ops)** — the partner Android registrations are now committed (public
   client config): `android/app/src/delivery/google-services.json` (`com.faazio.deliverypartner`) and
-  `android/app/src/seller/google-services.json` (`com.faazio.sellerpartner`). Remaining: register the
-  iOS bundle ids and add `ios/Faazio/GoogleService-Info-Delivery.plist` +
-  `GoogleService-Info-Seller.plist`; CI still overwrites the committed Android JSONs from the
-  `GOOGLE_SERVICES_DELIVERY_JSON` / `GOOGLE_SERVICES_SELLER_JSON` secrets. Without the secrets a
+  `android/app/src/seller/google-services.json` (`com.faazio.sellerpartner`). CI overwrites the
+  committed Android JSONs from the `GOOGLE_SERVICES_DELIVERY_JSON` / `GOOGLE_SERVICES_SELLER_JSON`
+  secrets. Without the secrets a
   `delivery`/`seller` build fails fast. CI now
   passes `GOOGLE_MAPS_API_KEY_ANDROID`/`GOOGLE_PLACES_API_KEY` to `configure.js` after typecheck so
   debug artifacts keep the live gateway config and the partner map renders.
@@ -1070,13 +1068,12 @@ end to end; the mobile app no longer talks to Supabase Auth.
   the root navigator returns the customer app to Login / the delivery app to Phone entry.
 - **Native config (public, committed):** `android/app/google-services.json` +
   `ios/Faazio/GoogleService-Info.plist`; Android applies the `com.google.gms.google-services`
-  plugin (`4.5.0`). iOS uses per-variant plists (`ios/Faazio/Info.plist` customer,
-  `Info-Delivery.plist`, `Info-Seller.plist`); customer/seller declare `UIBackgroundModes →
-  remote-notification` only while delivery also declares `location`. The iOS APNs entitlement is now
-  committed for all three products (`ios/Faazio/Faazio.entitlements` = `aps-environment production`
-  for `*Release`; `ios/Faazio/Faazio-Debug.entitlements` = `development` for `*Debug`). Play
+  plugin (`4.5.0`). iOS uses `ios/Faazio/Info.plist`, which declares `UIBackgroundModes →
+  remote-notification`. The iOS APNs entitlement is now
+  committed (`ios/Faazio/Faazio.entitlements` = `aps-environment production`
+  for `Release`; `ios/Faazio/Faazio-Debug.entitlements` = `development` for `Debug`). Play
   Integrity is **not** configured yet (Part 6 blocked: Firebase project not linked to GCP), and the
-  APNs `.p8` key upload + delivery/seller iOS app registration remain — see
+  APNs `.p8` key upload remains — see
   `docs/RUNBOOKS/FIREBASE_AUTH.md`.
 - **Gateway:** `platform/auth.FirebaseVerifier` verifies RS256 Firebase ID tokens with Google's
   x509 cert set (no firebase-admin dependency); `iss`/`aud`/`exp`/`sub` checked. `FIREBASE_PROJECT_ID`
@@ -1089,7 +1086,7 @@ end to end; the mobile app no longer talks to Supabase Auth.
   of Render). Release still requires `CERT_PINS` (pins for the Cloudflare edge cert).
 - **Ops remaining (not code):** Part 6 — enable Play Integrity (Android) + upload the APNs `.p8` key
   (iOS; the client entitlement is committed) and App Check enforcement once the Firebase project is
-  linked to Google Cloud; register the delivery/seller iOS apps and the release keystore
+  linked to Google Cloud; register the release keystore
   SHA-1/SHA-256 in Firebase for SMS auto-retrieval.
 
 **Date:** 2026-10-20

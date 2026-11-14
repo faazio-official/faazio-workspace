@@ -18,10 +18,11 @@ The script reads the canonical masters (`src/assets/icon*.png`,
 |---|---|---|
 | Google Play Console → Main store listing → App icon | `google-play/<app>/icon-512.png` | 512×512 px, 32-bit PNG with alpha, ≤ 1024 KB |
 | Google Play Console → Main store listing → Feature graphic | `google-play/<app>/feature-graphic-1024x500.png` | 1024×500 px, JPEG or 24-bit PNG, **no alpha** |
-| App Store Connect → App information → App icon | `app-store/<app>/AppIcon-1024.png` | 1024×1024 px, PNG, **opaque**, full-bleed square; do not bake rounded corners |
+| App Store Connect → App information → App icon | `app-store/customer/AppIcon-1024.png` | 1024×1024 px, PNG, **opaque**, full-bleed square; do not bake rounded corners |
 | Web / PWA | `web/*` | favicon 16/32 + ICO, apple-touch-icon 180, PWA 192/512, maskable |
 
-`<app>` is `customer`, `delivery`, or `seller`.
+`<app>` is `customer`, `delivery`, or `seller` for Google Play. The App Store
+folder is `customer` only — the partner apps are Android/Play only.
 
 ## Platform rules encoded here
 
@@ -35,8 +36,8 @@ The script reads the canonical masters (`src/assets/icon*.png`,
 
 **Apple App Store**
 
-- App Store Connect takes one 1024×1024 PNG. Xcode generates the device slices
-  (20/29/40/60/76/83.5 pt at @1x/@2x/@3x) from the asset catalog.
+- Customer app only. App Store Connect takes one 1024×1024 PNG. Xcode generates
+  the device slices (20/29/40/60/76/83.5 pt at @1x/@2x/@3x) from the asset catalog.
 - The 1024 upload must be **opaque** — iOS masks the squircle itself. The
   generated file is RGB (no alpha channel) and full-bleed.
 

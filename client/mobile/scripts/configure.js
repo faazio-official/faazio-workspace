@@ -168,16 +168,8 @@ const GOOGLE_SERVICES_JSON = path.join(
       ? 'src/seller/google-services.json'
       : 'google-services.json',
 );
-const GOOGLE_SERVICE_INFO_PLIST = path.join(
-  ROOT,
-  'ios',
-  'Faazio',
-  appVariant === 'delivery'
-    ? 'GoogleService-Info-Delivery.plist'
-    : appVariant === 'seller'
-      ? 'GoogleService-Info-Seller.plist'
-      : 'GoogleService-Info.plist',
-);
+// iOS is customer-only, so the bundled Firebase plist is always the customer one.
+const GOOGLE_SERVICE_INFO_PLIST = path.join(ROOT, 'ios', 'Faazio', 'GoogleService-Info.plist');
 
 const pins = String(env('CERT_PINS'))
   .split(',')
@@ -255,8 +247,8 @@ if (needsFirebaseConfig) {
     if (isRelease && useGateway) fail(message);
     warn(message);
   }
-  // The iOS copy build phase hard-fails when the plist is missing, so an Android-only
-  // release job is not blocked by the partner's iOS plist (supplied by a separate CI step).
+  // The iOS Firebase URL-scheme build phase fails when the plist is missing, so an Android
+  // release job still checks the customer plist is present.
   if (!fs.existsSync(GOOGLE_SERVICE_INFO_PLIST)) {
     warn(
       `Missing Firebase native config: ${path.relative(ROOT, GOOGLE_SERVICE_INFO_PLIST)}. ` +

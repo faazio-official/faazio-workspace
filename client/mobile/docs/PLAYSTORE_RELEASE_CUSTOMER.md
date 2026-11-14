@@ -33,9 +33,9 @@ Android metadata lives in the committed native project, not `app.json` (deleted)
 > The partner apps are separate Play listings built from the same shell with their own `applicationId`
 > and launcher label: Delivery Partner `com.faazio.deliverypartner` ("Faazio Delivery Partner"),
 > Seller Partner `com.faazio.sellerpartner` ("Faazio Seller Partner"). Each also ships its own
-> launcher icon from `src/delivery/res/` / `src/seller/res/` (iOS: `Delivery-AppIcon` /
-> `Seller-AppIcon` in `ios/Faazio/Images.xcassets/`). Their Firebase `google-services.json` files
-> are CI-only (`GOOGLE_SERVICES_DELIVERY_JSON` / `GOOGLE_SERVICES_SELLER_JSON`).
+> launcher icon from `src/delivery/res/` / `src/seller/res/`. Their Firebase `google-services.json`
+> files are CI-only (`GOOGLE_SERVICES_DELIVERY_JSON` / `GOOGLE_SERVICES_SELLER_JSON`). The partner
+> apps are Android/Play only — they have no iOS target or App Store release.
 
 ---
 

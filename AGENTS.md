@@ -57,7 +57,7 @@ Anyone doing UI work reads `docs/UI_DESIGN_SYSTEM.md` first.
 4. **State** — shared state ONLY in Zustand stores under `src/state/`. Keep components presentational; read via selectors. No duplicate shared state.
 5. **Modularity** — small components under `src/components/`; screen helpers under their `src/features/<module>/`; shared widgets under `src/components/shared/`. Reuse before duplicating (avoid parallel mock copies).
 6. **Navigation** — all routes typed in `src/navigation/AppNavigator.tsx`; screens use `NativeStackScreenProps`.
-7. **Native permissions** — document in `android/app/src/main/AndroidManifest.xml` + the per-variant iOS plists (`ios/Faazio/Info.plist` customer, `Info-Delivery.plist`, `Info-Seller.plist`; selected by `INFOPLIST_FILE`) and gate with consent dialogs before hardware.
+7. **Native permissions** — document in `android/app/src/main/AndroidManifest.xml` + the iOS plist (`ios/Faazio/Info.plist`; selected by `INFOPLIST_FILE`) and gate with consent dialogs before hardware.
 8. **Brand** — always use the Faazio logo (`<FaazioLogo />`), never raw text placeholders. The brand colour is **Faazio Blue**, defined once in `docs/UI_DESIGN_SYSTEM.md` §5 — reference it by document, never restate the hex in another file.
 9. **Layout** — full-viewport, non-scrollable (`h-[100dvh]`), no faux device borders/notches.
 10. **Boundaries** — cross-sub-app access only via Home. Enforced by `check:boundaries`.
@@ -152,10 +152,11 @@ a native prebuild/generator and never commit generated `src/lib/config.ts`.
 - **Bare RN 0.86.3.** The customer app boots from `index.js`; the delivery partner app from
   `index.delivery.js`; the seller partner app from `index.seller.js`. Metro/config are
   `@react-native/*`.
-- **Three products, one native shell.** Android flavors `customer` / `delivery` / `seller`
+- **Three Android products, one native shell.** Android flavors `customer` / `delivery` / `seller`
   (`com.faazio.customer` / `com.faazio.deliverypartner` / `com.faazio.sellerpartner`, launcher labels
-  "Faazio" / "Faazio Delivery Partner" / "Faazio Seller Partner") and iOS
-  `Delivery-*` / `Seller-*` configurations select the JS entry and native Firebase config. Sellers
+  "Faazio" / "Faazio Delivery Partner" / "Faazio Seller Partner") each select their JS entry and
+  native Firebase config. iOS ships **only the customer app** (`com.faazio.customer`, the single
+  `Faazio` Xcode target); the partner apps are Android/Play only. Sellers
   sign in to the seller app with the same email/password as the web portal (portal HS256 JWT). Never
   build two flavors in one Gradle task.
 - **`scripts/configure.js` is the single JS↔native config owner.** It reads `GATEWAY_URL`,
@@ -168,11 +169,9 @@ a native prebuild/generator and never commit generated `src/lib/config.ts`.
   (`@react-native-firebase/auth`). Public client configs are committed for all three Android apps
   (`android/app/google-services.json` customer, `android/app/src/delivery/google-services.json`
   partner, `android/app/src/seller/google-services.json` seller) plus the customer iOS plist
-  (`ios/Faazio/GoogleService-Info.plist`); the delivery/seller iOS plists
-  (`GoogleService-Info-Delivery.plist` / `GoogleService-Info-Seller.plist`) are supplied by CI, which
-  also overwrites the committed partner Android JSONs from the
-  `GOOGLE_SERVICES_DELIVERY_JSON` / `GOOGLE_SERVICES_SELLER_JSON` secrets. See
-  `docs/RUNBOOKS/FIREBASE_AUTH.md` and `docs/RUNBOOKS/RELEASE.md`.
+  (`ios/Faazio/GoogleService-Info.plist`, the only iOS product). CI also overwrites the committed
+  partner Android JSONs from the `GOOGLE_SERVICES_DELIVERY_JSON` / `GOOGLE_SERVICES_SELLER_JSON`
+  secrets. See `docs/RUNBOOKS/FIREBASE_AUTH.md` and `docs/RUNBOOKS/RELEASE.md`.
 - **Debug vs release:** debug shells load JS from Metro (`adb reverse tcp:8081`) with cleartext
   allowed only to the loopback/emulator host; release shells embed the bundle and deny cleartext.
   JS-only changes need Metro + Fast Refresh; native changes require a CI rebuild.

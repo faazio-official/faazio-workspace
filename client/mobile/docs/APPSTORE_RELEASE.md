@@ -18,11 +18,10 @@ manager, and there is no prebuild/EAS step.
 3. CocoaPods (`gem install cocoapods` or Bundler).
 4. An App Store Connect app record for `com.faazio.customer`.
 
-The **customer app** (`com.faazio.customer`) is the only App Store listing. The partner apps are
-**Google Play (Android) only** — the Delivery Partner (`com.faazio.deliverypartner`, `Delivery-*`)
-and Seller Partner (`com.faazio.sellerpartner`, `Seller-*`) configurations exist in the committed
-iOS shell for local/dev completeness but have **no planned iOS build or App Store release** and need
-no iOS Firebase plist.
+The **customer app** (`com.faazio.customer`) is the only App Store listing. The partner apps
+(Delivery Partner `com.faazio.deliverypartner`, Seller Partner `com.faazio.sellerpartner`) are
+**Google Play (Android) only** — they have **no iOS target, no iOS build and no App Store
+release**, and need no iOS Firebase plist.
 
 ---
 
@@ -99,7 +98,7 @@ iOS metadata lives in the committed Xcode project, not `app.json` (deleted):
 |---|---|
 | Bundle identifier | `ios/Faazio.xcodeproj/project.pbxproj` (`com.faazio.customer`) |
 | Version / build | Xcode target **General** tab (`MARKETING_VERSION` / `CURRENT_PROJECT_VERSION`) |
-| Permission strings | Per-variant plists selected by `INFOPLIST_FILE`: `ios/Faazio/Info.plist` (customer — `NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`), `Info-Delivery.plist` (delivery — camera, `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription`), `Info-Seller.plist` (seller — camera only) |
+| Permission strings | `ios/Faazio/Info.plist` (selected by `INFOPLIST_FILE`): `NSCameraUsageDescription`, `NSLocationWhenInUseUsageDescription`, `NSLocationAlwaysAndWhenInUseUsageDescription` |
 | App display name | `ios/Faazio/Info*.plist` (`CFBundleDisplayName` = `$(FAAZIO_APP_NAME)`) |
 | Native geocoder | local pod `ios/FaazioGeocoder` |
 
@@ -253,7 +252,7 @@ data to track" and `NSPrivacyTracking` as `false`.
 
 - **Privacy (5.1.1):** pharmaceutical/payment flows require a public Privacy Policy URL.
 - **Tracking / ATT:** the app does **not** track — no IDFA, no ad SDK, `NSPrivacyTracking = false`,
-  no `NSUserTrackingUsageDescription` in any `ios/Faazio/Info*.plist`. Do **not** add
+  no `NSUserTrackingUsageDescription` in `ios/Faazio/Info.plist`. Do **not** add
   `NSUserTrackingUsageDescription` or an ATT prompt preemptively; declaring tracking the app does not
   do invites review questions. First-party `/ads/*` impression/click data is slot-based closed-loop
   retail media (Usage Data → Advertising Data, Tracking: No), **not** ATT tracking. Phone Number is

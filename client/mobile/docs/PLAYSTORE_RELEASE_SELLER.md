@@ -112,8 +112,7 @@ providers processing on the developer's behalf, which Play exempts from "sharing
 
 > **Location:** the seller shell never accesses device location. The shared Android manifest declares
 > `ACCESS_COARSE_LOCATION` / `ACCESS_FINE_LOCATION` (`android/app/src/main/AndroidManifest.xml:2-3`)
-> which the seller flavor does not strip, but nothing transmits location, and the iOS seller plist
-> has no location keys. Answer **No**. To avoid a permission/declaration mismatch, add a
+> which the seller flavor does not strip, but nothing transmits location. Answer **No**. To avoid a permission/declaration mismatch, add a
 > `tools:node="remove"` for both permissions in `android/app/src/seller/AndroidManifest.xml`
 > (same pattern used there for the Maps API key).
 >

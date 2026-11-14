@@ -82,24 +82,24 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   `android/app/build.gradle` (+ `package.json` `version`), rebuild, and reinstall.
 - Shipped launcher assets are committed (not generated at build time) and are **per product**:
   - Customer (main): `android/app/src/main/res/` + iOS `AppIcon.appiconset`.
-  - Delivery: `android/app/src/delivery/res/` + iOS `Delivery-AppIcon.appiconset`.
-  - Seller: `android/app/src/seller/res/` + iOS `Seller-AppIcon.appiconset`.
+  - Delivery: `android/app/src/delivery/res/`.
+  - Seller: `android/app/src/seller/res/`.
   - Android legacy (API 24–25): `mipmap-*/ic_launcher.webp` + `ic_launcher_round.webp`.
   - Android adaptive (API 26+): shared `res/mipmap-anydpi-v26/ic_launcher.xml` +
     `ic_launcher_round.xml` (in `src/main`), using the flavor's `@color/iconBackground` and
     `@mipmap/ic_launcher_foreground` directly. The generated foreground already fits the mark
     inside the 66% adaptive safe circle, so no inset drawable is needed.
-  - iOS: full app-icon set per variant (iPhone + iPad legacy sizes plus the 1024×1024
-    App Store icon), flattened from the same per-variant artwork as Android, RGB with no alpha.
+  - iOS: the full customer app-icon set (iPhone + iPad legacy sizes plus the 1024×1024
+    App Store icon), RGB with no alpha.
     iOS does not support adaptive icons, so the variant background colour is baked into each PNG.
 - Each flavor manifest declares its own `android:icon`/`android:roundIcon`; the resources resolve
   from the flavor source set (overriding `src/main`), and the launcher label comes from the
   per-flavor `resValue app_name`. The iOS build setting `ASSETCATALOG_COMPILER_APPICON_NAME` selects
-  `AppIcon` / `Delivery-AppIcon` / `Seller-AppIcon` per configuration.
+  `AppIcon`.
 - Regenerate the delivery/seller icons from the committed artwork
   (`src/assets/icon-delivery.png` / `icon-seller.png`) with
   `python3 scripts/generate-partner-icons.py`; it recolours the old blue field to `#1627E9`
-  and rewrites the Android mipmaps + iOS sets. Regenerate the customer icons, adaptive
+  and rewrites the Android mipmaps. Regenerate the customer icons, adaptive
   foregrounds, iOS `AppIcon` set, ICO and splash with `python3 scripts/regenerate-icons.py`
   and `python3 scripts/generate-splash-logo.py`. All of these read the two masters under
   `client/mobile/assets/brand/` (`logo-square.png`, `logo-rectangle.png`); do not hand-edit
@@ -132,17 +132,10 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 - **No notification on Android 13+** → POST_NOTIFICATIONS was denied. The service can still run, but
   ask the rider to allow notifications; a missed heartbeat removes them from candidates after the
   300 s Valkey TTL.
-- **iOS rider stops receiving offers in the background** → confirm the rider allowed **Always**
-  location from the Go Online consent, the delivery plist (`ios/Faazio/Info-Delivery.plist`) includes
-  `UIBackgroundModes: location`, and the build is the
-  delivery configuration (`index.delivery.js`). The CoreLocation watch posts only when
-  `AppState !== active`; if the rider force-quit the app from the switcher the watch is gone by
-  design (reopen the app or use the foreground heartbeat). If no heartbeat reaches Valkey, check
-  `POST /delivery/heartbeat` in the device logs — a 401 means the Keychain session was cleared.
 - **Push tap opens the dashboard instead of the offer** → the notification data must include
-  `orderId` (the gateway sends it in `notifyRider`). Check `adb logcat`/Xcode for
-  `faazio-delivery://accept-reject?orderId=…`, verify the Android delivery manifest has the
-  scheme/host intent filter and iOS `CFBundleURLSchemes` includes `faazio-delivery`, and confirm the
+  `orderId` (the gateway sends it in `notifyRider`). Check `adb logcat` for
+  `faazio-delivery://accept-reject?orderId=...`, verify the Android delivery manifest has the
+  scheme/host intent filter, and confirm the
   rider is authenticated (an unauthenticated cold start keeps the offer queued until the dashboard
   mounts). When testing without a push bridge use
   `adb shell am start -a android.intent.action.VIEW -d "faazio-delivery://accept-reject?orderId=<id>"`.
@@ -234,8 +227,8 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   gh run download <run-id> -n faazio-customer-debug-apk
   adb install -r app-customer-debug.apk
   ```
-  > Changing a permission string (`AndroidManifest.xml`, or the per-variant iOS plists — e.g.
-  > `ios/Faazio/Info.plist` / `Info-Delivery.plist` `NSLocationWhenInUseUsageDescription` for
+  > Changing a permission string (`AndroidManifest.xml`, or the iOS plist —
+  > `ios/Faazio/Info.plist` `NSLocationWhenInUseUsageDescription` for
   > checkout live-address auto-fill) **also requires a native rebuild** (CI debug build, as above)
   > so the new prompt text is baked into the client.
 - **iOS `registerForRemoteNotifications()` fails / no APNs token in release** → `xcodebuild` signed
@@ -243,8 +236,7 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   `*Release` configs use `Faazio/Faazio.entitlements` (`aps-environment = production`); `*Debug`
   configs use `Faazio/Faazio-Debug.entitlements` (`development`). A profile without the Push
   Notifications capability fails the archive with an entitlements/profile mismatch — regenerate the
-  App Store profiles for all three bundle ids (`com.faazio.customer`,
-  `com.faazio.deliverypartner`, `com.faazio.sellerpartner`) with Push Notifications enabled.
+  App Store profile for `com.faazio.customer` with Push Notifications enabled.
 - **`compileDebugKotlin FAILED` — `Module was compiled with an incompatible version of Kotlin`
   (`firebase-auth-*.jar`, metadata 2.4.0, expected 2.1.0)** → the Android Kotlin version is older
   than the Firebase/Kotlin metadata used by `@react-native-firebase/auth`. Keep
@@ -666,8 +658,8 @@ runtime, not build time.
   ensure the app's `KEYSTORE_BASE64_<APP>` secret is set.
 - **CI build fails on `restore-keystore.sh`** → the `KEYSTORE_BASE64_<APP>`/`KEYSTORE_PASS_<APP>`/
   `KEY_ALIAS_<APP>`/`ALIAS_PASS_<APP>` secrets are missing or wrong; verify with `gh secret list`.
-  For `customer` this is expected after the 2026-11-06 upload-key purge — reset the key in Play
-  Console and re-add the `_CUSTOMER` secrets.
+  For `customer`, re-add the `_CUSTOMER` secrets from `keystore/keystore.properties` after an
+  upload-key reset.
 - **"App not installed as package appears to be invalid" (with a Done button, app name in the
   header)** → the device already has a **different-signature** Faazio installed, almost always a
   **debug-signed** build (from earlier `npm run android` dev testing) that was never uninstalled.
@@ -758,9 +750,6 @@ runtime, not build time.
 - **Archive is slow / build times out** → Codemagic's M2 machines build natively (no Intel
   cross-compile); if it still exceeds 120 minutes, check the CocoaPods/SPM cache and confirm the
   build is not re-resolving packages. Clear the workflow cache in Codemagic and retry.
-- **Partner build fails with "requires GoogleService-Info-Delivery.plist"** → only relevant to a
-  local partner iOS build (the delivery/seller iOS apps are **not released** — customer-only on
-  iOS). `codemagic.yaml` only builds the customer app; the partner plists are not needed.
 - **"no such module 'React'" with `ld: warning: search path '…/Debug-iphonesimulator/<Pod>' not
   found` for every pod** → you opened/built `Faazio.xcodeproj` instead of `Faazio.xcworkspace`.
   Building the `.xcodeproj` skips the `Pods` project, so React and every pod framework are never
@@ -789,9 +778,8 @@ runtime, not build time.
   - `react-native-screens`/native-stack's per-screen `statusBarStyle`/`statusBarHidden`/
     `statusBarAnimation` options only work when it is **`YES`**.
 
-  This app standardises on RN's `StatusBar`, so **all three plists set the key to `NO`**
-  (`ios/Faazio/Info.plist`, `Info-Delivery.plist`, `Info-Seller.plist`; include it in any new
-  variant too) and navigators **must not** set `statusBarStyle`/`statusBarHidden` in
+  This app standardises on RN's `StatusBar`, so `ios/Faazio/Info.plist` sets the key to `NO`, and
+  navigators **must not** set `statusBarStyle`/`statusBarHidden` in
   `screenOptions` — doing so fires the `react-native-screens` assertion under `NO`. Change bar
   style with `StatusBar.setBarStyle(...)` (e.g. `useFocusEffect` for the blue Home header). If you
   ever switch to `YES`, remove **every** RN `StatusBar` usage first.
@@ -817,7 +805,7 @@ runtime, not build time.
 - **The app crashes with `SIGTRAP` / `EXC_BREAKPOINT` the moment OTP is sent, and the device log
   shows `FirebaseAuth/PhoneAuthProvider.swift: … Fatal error: Please register custom URL scheme
   app-<…>`** → the Firebase Phone Auth callback scheme is missing from the **built** `Info.plist`.
-  `ios/scripts/firebase-url-scheme.sh` (the `Delivery Firebase config` build phase) derives it from
+  `ios/scripts/firebase-url-scheme.sh` (the `Firebase URL scheme` build phase) derives it from
   the bundled `GoogleService-Info.plist` and injects it, so this should not happen on a current
   build. If it does: the app is a pre-fix build or the phase did not run — clean build and look for
   `note: added Firebase Auth URL scheme …`; verify the active `GoogleService-Info*.plist` has

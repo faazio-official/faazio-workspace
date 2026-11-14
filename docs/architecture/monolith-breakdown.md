@@ -70,8 +70,8 @@ changes.
 
 
 **Delivery partner (0042/0043, production built).** A separate partner experience ships from the same bare
-RN workspace with its own Metro entry (`index.delivery.js` → `src/DeliveryPartnerApp.tsx`), Android
-flavor and iOS configuration; neither product bundles the other's screens. The gateway owns KYC
+RN workspace with its own Metro entry (`index.delivery.js` → `src/DeliveryPartnerApp.tsx`) and Android
+flavor (delivery ships on Google Play; iOS is customer-only); neither product bundles the other's screens. The gateway owns KYC
 review, vehicle-capped capacity, availability, Valkey live coordinates, detour-aware candidate
 scoring (Google Routes API, `GOOGLE_ROUTES_API_KEY`; fails closed when unset),
 globally optimized multi-stop re-sequencing (`ActiveStopsByRider`/`OptimizeGlobalRoute`/
