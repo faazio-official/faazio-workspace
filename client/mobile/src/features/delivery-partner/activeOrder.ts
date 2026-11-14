@@ -10,9 +10,11 @@ export function activeOrderFrom(orders: DeliveryOrder[]): DeliveryActiveOrder | 
   return order ? { orderId: order.orderId, label: activeOrderLabel(order) } : null;
 }
 
+const isOpenStop = (status: string) => status !== 'DELIVERED' && status !== 'FAILED' && status !== 'PICKED_UP';
+
 function activeOrderLabel(order: DeliveryOrder): string {
-  const pickup = order.stops.find((s) => s.stopType === 'PICKUP' && s.status !== 'PICKED_UP');
-  const drop = order.stops.find((s) => s.stopType === 'DROP');
+  const pickup = order.stops.find((s) => s.stopType === 'PICKUP' && isOpenStop(s.status));
+  const drop = order.stops.find((s) => s.stopType === 'DROP' && isOpenStop(s.status));
   if (pickup) return `Pick up from ${pickup.label || pickup.address}`;
   if (drop) return `Deliver to ${drop.label || drop.address}`;
   return 'Active delivery';

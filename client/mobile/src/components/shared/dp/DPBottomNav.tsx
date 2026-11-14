@@ -2,13 +2,12 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import AppText from '@/components/AppText';
 import { DELIVERY } from '@/theme/deliveryTokens';
-import { hs, ms, vs } from '@/utils/responsive';
+import { ms, vs } from '@/utils/responsive';
 
 export interface DPBottomNavTab {
   key: string;
   label: string;
   icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
-  badge?: number;
 }
 
 interface DPBottomNavProps {
@@ -21,7 +20,9 @@ interface DPBottomNavProps {
  * Fixed bottom tab bar matching the Vite reference delivery app: flat card bar,
  * hairline top border, five equal tabs, 20 px icon + 10 px label, active tab in
  * brand colour. Kept generic (keys + callbacks) so it lives in `components/shared`
- * without depending on any feature module.
+ * without depending on any feature module. The app root (`DeliveryPartnerApp`)
+ * reserves the bottom safe-area inset once, so the bar keeps a base height and
+ * must not add `insets.bottom` again.
  */
 export function DPBottomNav({ tabs, active, onSelect }: DPBottomNavProps) {
   return (
@@ -39,14 +40,7 @@ export function DPBottomNav({ tabs, active, onSelect }: DPBottomNavProps) {
             onPress={() => onSelect(tab.key)}
             style={styles.tab}
           >
-            <View>
-              <Icon size={ms(20)} color={color} strokeWidth={selected ? 2.4 : 2} />
-              {tab.badge && tab.badge > 0 ? (
-                <View style={styles.badge}>
-                  <AppText style={styles.badgeText}>{tab.badge > 9 ? '9+' : tab.badge}</AppText>
-                </View>
-              ) : null}
-            </View>
+            <Icon size={ms(20)} color={color} strokeWidth={selected ? 2.4 : 2} />
             <AppText style={[styles.label, { color }, selected && styles.labelActive]}>{tab.label}</AppText>
           </Pressable>
         );
@@ -58,7 +52,8 @@ export function DPBottomNav({ tabs, active, onSelect }: DPBottomNavProps) {
 const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
-    height: Math.max(DELIVERY.touch.min + vs(20), vs(62)),
+    minHeight: Math.max(DELIVERY.touch.min + vs(16), vs(62)),
+    paddingTop: vs(6),
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: DELIVERY.border,
     backgroundColor: DELIVERY.card,
@@ -66,17 +61,4 @@ const styles = StyleSheet.create({
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: vs(4) },
   label: { fontSize: ms(10), fontWeight: '500' },
   labelActive: { fontWeight: '700' },
-  badge: {
-    position: 'absolute',
-    right: hs(-8),
-    top: ms(-4),
-    minWidth: ms(14),
-    height: ms(14),
-    borderRadius: ms(7),
-    paddingHorizontal: hs(3),
-    backgroundColor: DELIVERY.brand,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  badgeText: { fontSize: ms(8), fontWeight: '700', color: DELIVERY.onBrand },
 });

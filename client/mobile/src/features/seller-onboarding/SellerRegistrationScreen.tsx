@@ -40,7 +40,7 @@ import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/servic
 import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
-import DocumentCapture from './DocumentCapture';
+import DocumentCapture from '@/components/shared/DocumentCapture';
 import SellerLocationPicker from './SellerLocationPicker';
 import { neutral, parentRamp, semantic, semanticTint } from '@/theme/brandTokens';
 import ShopCard, { newVendorDraft, type VendorDraft } from './components/ShopCard';

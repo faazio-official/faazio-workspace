@@ -196,14 +196,21 @@ export function DashboardScreen({ navigation }: Props) {
   }, [offers]);
 
   // Push is best-effort; poll while online so a missed FCM ping cannot hide an offer.
+  // The same tick refreshes the raised active-order CTA so its label cannot go stale.
   useEffect(() => {
     if (!online) return;
     const timer = setInterval(() => {
       if (AppState.currentState !== 'active') return;
-      void gateway.getActiveDeliveryOrders().then(setOrders).catch(() => undefined);
+      void gateway
+        .getActiveDeliveryOrders()
+        .then((next) => {
+          setOrders(next);
+          setActiveOrder(activeOrderFrom(next));
+        })
+        .catch(() => undefined);
     }, 20_000);
     return () => clearInterval(timer);
-  }, [online]);
+  }, [online, setActiveOrder]);
 
   useEffect(() => {
     let stop: (() => void) | undefined;

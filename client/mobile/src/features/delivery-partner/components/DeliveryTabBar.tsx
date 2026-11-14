@@ -10,8 +10,6 @@ import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { hs, ms, vs } from '@/utils/responsive';
 import { type DeliveryPartnerStackParamList } from '../navigation';
 
-export type DeliveryTabKey = 'Dashboard' | 'Payouts' | 'OrderHistory' | 'Notifications' | 'RiderProfile';
-
 /** Five tabs mirroring the Vite reference delivery app (Feed · Pocket · Orders · Inbox · More). */
 export const DELIVERY_TABS: DPBottomNavTab[] = [
   { key: 'Dashboard', label: 'Feed', icon: Radio },
@@ -23,17 +21,19 @@ export const DELIVERY_TABS: DPBottomNavTab[] = [
 
 /**
  * Custom bottom-tab bar. Renders the shared `DPBottomNav` from real tab-navigator state,
- * plus the reference's raised active-order CTA that floats above the bar while a job is
- * in progress. It is the tab navigator's `tabBar`, so it stays mounted across tab switches.
+ * plus the reference's active-order CTA above the bar while a job is in progress. The CTA
+ * is in normal flow, so the navigator measures it as part of the bar height and tab content
+ * is inset above it instead of being covered. It is the tab navigator's `tabBar`, so it
+ * stays mounted across tab switches.
  */
 export function DeliveryTabBar({ state, navigation }: BottomTabBarProps) {
   const activeOrder = useDeliveryPartnerStore((s) => s.activeOrder);
   const active = state.routes[state.index]?.name ?? 'Dashboard';
 
   return (
-    <View>
+    <View style={styles.bar}>
       {activeOrder ? (
-        <View style={styles.ctaWrap} pointerEvents="box-none">
+        <View style={styles.ctaWrap}>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={`Active delivery: ${activeOrder.label}`}
@@ -67,13 +67,11 @@ export function DeliveryTabBar({ state, navigation }: BottomTabBarProps) {
 }
 
 const styles = StyleSheet.create({
+  bar: { backgroundColor: DELIVERY.card },
   ctaWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: '100%',
     paddingHorizontal: hs(16),
-    paddingBottom: vs(8),
+    paddingTop: vs(8),
+    paddingBottom: vs(2),
   },
   cta: {
     flexDirection: 'row',

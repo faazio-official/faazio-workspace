@@ -20,19 +20,16 @@ interface DPPageProps {
   /** Pull-to-refresh; omit when the screen has no reload path. */
   refreshControl?: React.ReactElement<RefreshControlProps>;
   contentStyle?: StyleProp<ViewStyle>;
-  /** Rendered below the scroll area — used for the bottom navigation. */
-  footer?: React.ReactNode;
   keyboardShouldPersistTaps?: 'always' | 'never' | 'handled';
   /** Keep the focused field above the keyboard on the auth/registration forms. */
   keyboardAvoiding?: boolean;
 }
 
-/** Full-bleed page: safe-area top + scroll body on `surface`, optional bottom footer. */
+/** Full-bleed page: safe-area top + scroll body on `surface`. */
 export function DPPage({
   children,
   refreshControl,
   contentStyle,
-  footer,
   keyboardShouldPersistTaps = 'handled',
   keyboardAvoiding = false,
 }: DPPageProps) {
@@ -61,7 +58,6 @@ export function DPPage({
       ) : (
         scroll
       )}
-      {footer}
     </View>
   );
 }

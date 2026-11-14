@@ -1,6 +1,7 @@
 # Delivery "More" surfaces — bottom nav, profile, settings, support, inbox, history
 
-**Status:** Shipped (additive; no existing route, store, endpoint or test changed)
+**Status:** Shipped — persistent bottom-tab shell under `Main`. The tab shell moved `Dashboard` from
+a stack route to a tab (not purely additive); see `../README.md` for the full route map.
 **Routes:** `OrderHistory`, `Notifications`, `RiderProfile`, `Settings`, `Support`
 **Trigger:** The rider taps a bottom-nav tab (Feed · Pocket · Orders · Inbox · More) or a row on the
 `RiderProfile` hub.
@@ -22,9 +23,12 @@ pushing onto the stack:
 | Inbox | `Notifications` |
 | More | `RiderProfile` |
 
-Above the bar, `DeliveryTabBar` renders the reference's raised active-order CTA while a job is in
-progress. It reads `useDeliveryPartnerStore.activeOrder` (set by `Dashboard`/`Route`) and navigates
-to `Route`.
+Above the tab row, `DeliveryTabBar` renders the reference's active-order CTA while a job is in
+progress. It reads `useDeliveryPartnerStore.activeOrder` (set by `Dashboard`/`Route`, and refreshed
+by the Dashboard 20 s poll) and navigates to `Route`. The CTA is **in normal flow**, so the tab
+navigator measures it as part of the bar height and tab content is inset above it instead of being
+covered. The app root (`DeliveryPartnerApp`'s `Layout`) reserves the bottom safe-area inset once, so
+the bar itself must not add `insets.bottom`.
 
 Auth/onboarding screens, the `AcceptReject` modal, `Route`, and the detail screens
 (`EarningsDetail`, `Settings`, `Support`) are stack routes above `Main` and do not render the bar,

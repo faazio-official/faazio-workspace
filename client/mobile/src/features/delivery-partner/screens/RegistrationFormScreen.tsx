@@ -12,7 +12,7 @@ import {
   DPStatusPill,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
-import DocumentCapture from '@/features/seller-onboarding/DocumentCapture';
+import DocumentCapture from '@/components/shared/DocumentCapture';
 import {
   GatewayHttpError,
   gateway,

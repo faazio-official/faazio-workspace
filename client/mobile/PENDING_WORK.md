@@ -982,7 +982,12 @@ default it to `https://app.faazio.com`.
   by the `Main` stack screen): Feed · Pocket · Orders · Inbox · More, with the reference's raised
   active-order CTA (`useDeliveryPartnerStore.activeOrder`) linking to `Route`. Detail routes
   (`Route`, `EarningsDetail`, `Settings`, `Support`, `AcceptReject`) stay full-screen on the stack
-  without the bar. Routes, stores, `GatewayClient` calls, timers and validation are unchanged.
+  without the bar. Routes, stores, `GatewayClient` calls, timers and validation are unchanged. The
+  active-order CTA now sits in **normal flow** (the bar height tracks it, so it no longer covers tab
+  content), the Dashboard poll refreshes it, and its label skips closed stops. Removed the dead
+  `DPPage.footer`, `deliveryPartnerStore.detail`, `DeliveryTabKey` and `DPBottomNav.badge`;
+  `DocumentCapture` moved from `features/seller-onboarding` to `components/shared` so the delivery
+  entry no longer imports another feature.
 
 **Still pending (not built):**
 - **Payout reconciliation** — the order-level tax/rider split now exists (`tax.tax_invoices`,
