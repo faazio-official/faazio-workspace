@@ -45,6 +45,8 @@
 A rider row can exist **before** any registration. The delivery test account is seeded this way so
 Play reviewers and developers sign in straight to the Dashboard:
 
+- One-command setup: `server/gateway/scripts/create-delivery-test-account.sh` applies the seed and
+  exits non-zero unless the rider is `ACTIVE` afterwards.
 - Seed: `server/supabase/seed/test_delivery_rider.sql` (idempotent, applied from a dev terminal via
   `server/supabase/apply-migration.sh server/supabase/seed/test_delivery_rider.sql`).
   **It is not part of `--all --seed`**: that flag applies `seed/0001_seed.sql` only, so a fresh

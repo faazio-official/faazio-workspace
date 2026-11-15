@@ -58,6 +58,13 @@ explicitly by path:
 server/supabase/apply-migration.sh server/supabase/seed/test_delivery_rider.sql
 ```
 
+The delivery test rider has a wrapper that also verifies the row is `ACTIVE` (exits non-zero
+otherwise), so CI and reviewers can use one command:
+
+```bash
+server/gateway/scripts/create-delivery-test-account.sh
+```
+
 List the files (`ls server/supabase/migrations/ | tail`) and apply everything newer than the last one
 that succeeded. Verify a boot: the gateway log on Render should stop emitting
 `portal_tables=... hint=apply migration ...`, and `GET /health` shows `"db":true`.

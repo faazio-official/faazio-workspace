@@ -24,7 +24,9 @@ the Vite-reference DP primitives (tokens in `theme/deliveryTokens.ts`, component
    - none (`404` on resume) → `Register`.
 
    A rider row can be pre-seeded as ACTIVE (the delivery test account is), which skips `Register`
-   entirely and lands on `Dashboard`. See [rider-registration.md](./rider-registration.md).
+   entirely and lands on `Dashboard`; seed it with
+   `server/gateway/scripts/create-delivery-test-account.sh`. See
+   [rider-registration.md](./rider-registration.md).
 2. `OtpVerify` verifies the Firebase code and then calls `getDeliveryPartnerMe()` to route by status.
 3. See the State section for the stores involved.
 
