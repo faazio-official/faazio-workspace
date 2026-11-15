@@ -3406,6 +3406,12 @@ so **no Roboto weight trimming** is possible; `fonts.ts` already loads exactly t
 Fresco GIF/WebP decoders remain enabled because the shared `AppImage` wrapper (RN `Image`) is the
 renderer and the safe-disable audit wasn't completed.
 
+**Bitmap downsampling (Play Console).** `AppImage` now exposes `maxWidth` / `maxHeight` /
+`resizeMethod` (`'auto' | 'resize' | 'scale'`, default `'auto'`; `'resize'` is the downsampling lever
+for oversized network photos). The delivery `RouteScreen` COD QR `Image` passes `resizeMethod="resize"`.
+Call sites already set explicit dimensions (`width` + `aspectRatio`/`height`), which is what actually
+bounds the Fresco decode.
+
 **Future / honest gaps:**
 - **Measure before/after on a real run** (`gh workflow run release-apk.yml`): record step timings,
   APK size, and APK Analyzer dex/native-lib breakdown; paste here. Expected: CI ~43 min → ~18–26 min,

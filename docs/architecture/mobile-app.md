@@ -923,6 +923,16 @@ seller app never mounts a `MapView`. **Never delete a shared native dependency t
 (it would break customer/delivery). Scope a per-product exclusion in that flavor's manifest/resources
 instead, as the seller flavor does for the Maps key (below).
 
+**Screen orientation & large screens.** The manifest sets **no** `android:screenOrientation`
+(declaring it is the large-screen restriction Google Play flags) and declares
+`android:resizeableActivity="true"`. Instead `MainActivity.applyOrientationPolicy()` pins portrait at
+runtime **only below 600dp smallest width**, leaving tablets/foldables free to rotate and resize — the
+same split as iOS, where the customer `Info.plist` locks the iPhone to portrait but lets the iPad
+rotate. Because `configChanges` already includes `orientation|screenSize|screenLayout|smallestScreenSize`,
+fold/unfold re-evaluates the policy in `onConfigurationChanged` without an activity recreation. The
+customer/delivery UI is authored portrait-first with module-scope `Dimensions` reads
+(`src/utils/responsive.ts`), so handset landscape is intentionally not a supported layout.
+
 **Android SMS User Consent.** `android/.../SmsUserConsentModule.kt` (registered by
 `SmsUserConsentPackage` in `MainApplication`) implements the Play Services SMS User Consent API.
 Before the SMS is requested, `src/lib/smsUserConsent.ts` (`useSmsUserConsent`) arms a dynamically

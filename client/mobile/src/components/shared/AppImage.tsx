@@ -18,6 +18,23 @@ export interface AppImageProps extends Omit<ImageProps, 'style' | 'source' | 're
   transition?: number;
   /** Accepted for API compatibility; native Fresco/NSURLCache handles caching. */
   cachePolicy?: 'none' | 'disk' | 'memory' | 'memory-disk';
+  /**
+   * Upper bound for the image's laid-out width in dp. Pair with {@link maxHeight} (or an explicit
+   * `width`/`height`) so Android's Fresco decoder sizes the bitmap to the viewport instead of the
+   * full source resolution — the client lever for Play Console's "bitmap downsampling" finding.
+   * This bounds layout; explicit `width`/`height` is still the strongest decode-size signal.
+   */
+  maxWidth?: number;
+  /** Upper bound for the image's laid-out height in dp. See {@link maxWidth}. */
+  maxHeight?: number;
+  /**
+   * Android bitmap sizing when source dimensions differ from the view (RN `Image.resizeMethod`).
+   * `'resize'` downsamples a large image *before* decode (lower peak memory — use this for
+   * full-resolution network photos); `'scale'` decodes at full size and only makes sense for
+   * images already smaller than the view; `'auto'` (default) picks per image; `'none'` is passed
+   * through unchanged.
+   */
+  resizeMethod?: 'auto' | 'resize' | 'scale' | 'none';
 }
 
 function normalizeSource(source: ImageSourcePropType | string): ImageSourcePropType {
@@ -47,6 +64,9 @@ export function AppImage({
   style,
   contentFit = 'cover',
   transition = 0,
+  maxWidth,
+  maxHeight,
+  resizeMethod = 'auto',
   onLoad,
   ...rest
 }: AppImageProps) {
@@ -71,8 +91,14 @@ export function AppImage({
       {...rest}
       source={normalizeSource(source)}
       resizeMode={toResizeMode(contentFit)}
+      resizeMethod={resizeMethod}
       onLoad={handleLoad}
-      style={[style, { opacity }]}
+      style={[
+        style,
+        maxWidth != null ? { maxWidth } : null,
+        maxHeight != null ? { maxHeight } : null,
+        { opacity },
+      ]}
     />
   );
 }

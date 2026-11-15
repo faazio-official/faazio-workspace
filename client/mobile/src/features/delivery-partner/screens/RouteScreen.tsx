@@ -369,7 +369,12 @@ export function RouteScreen({ navigation }: Props) {
             {awaitingPayment ? (
               <>
                 {qrUrl ? (
-                  <Image source={{ uri: qrUrl }} style={styles.qr} resizeMode="contain" />
+                  <Image
+                    source={{ uri: qrUrl }}
+                    style={styles.qr}
+                    resizeMode="contain"
+                    resizeMethod="resize"
+                  />
                 ) : null}
                 <AppText style={styles.payHint}>
                   COD · collect cash or ask the customer to scan the QR, then confirm.

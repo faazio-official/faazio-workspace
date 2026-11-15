@@ -69,15 +69,18 @@
     android:networkSecurityConfig="@xml/network_security_config"
     android:theme="@style/AppTheme"
     android:supportsRtl="true"
+    android:resizeableActivity="true"
     android:enableOnBackInvokedCallback="false">
+    <!-- No android:screenOrientation here (it is the large-screen restriction Google Play flags).
+         MainActivity pins portrait at runtime only on handsets (<600dp smallest width) and leaves
+         tablets/foldables free — see applyOrientationPolicy(). -->
     <activity
       android:name=".MainActivity"
       android:configChanges="keyboard|keyboardHidden|orientation|screenSize|screenLayout|uiMode|smallestScreenSize|assetsPaths"
       android:launchMode="singleTask"
       android:windowSoftInputMode="adjustPan"
       android:theme="@style/Theme.App.SplashScreen"
-      android:exported="true"
-      android:screenOrientation="portrait">
+      android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>
         <category android:name="android.intent.category.LAUNCHER"/>
