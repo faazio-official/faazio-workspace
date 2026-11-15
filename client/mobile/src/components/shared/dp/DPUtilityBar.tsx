@@ -4,63 +4,45 @@ import { Bell, Power } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { hs, ms, vs } from '@/utils/responsive';
-import { DPAvatar } from './DPData';
 
 interface DPUtilityBarProps {
+  /** Rider name shown at the start of the shift bar. */
+  riderName?: string;
   online: boolean;
   onToggleOnline: () => void;
   onlineBusy?: boolean;
   unreadCount?: number;
-  onOpenInbox?: () => void;
-  /** Full name used to derive the avatar initials. */
-  profileName?: string;
-  onOpenProfile?: () => void;
+  onOpenAlerts?: () => void;
 }
 
 /**
- * Shift bar: the rider's presence switch, inbox and profile in one quiet row
- * (the reference's `UtilityPanel`). Tabs stay for navigation; this is state plus
- * the two things a rider may need mid-shift — the inbox and their profile.
+ * The Home shift bar: one pinned row holding the rider's name, alerts and the
+ * presence switch. It is the single availability signal on Home — status is not
+ * repeated in a header, and profile lives in the bottom nav.
  */
 export function DPUtilityBar({
+  riderName,
   online,
   onToggleOnline,
   onlineBusy,
   unreadCount = 0,
-  onOpenInbox,
-  profileName,
-  onOpenProfile,
+  onOpenAlerts,
 }: DPUtilityBarProps) {
   return (
     <View style={styles.bar}>
-      <Pressable
-        accessibilityRole="switch"
-        accessibilityState={{ checked: online, disabled: Boolean(onlineBusy) }}
-        accessibilityLabel={online ? 'Online. Tap to go offline' : 'Offline. Tap to go online'}
-        onPress={onToggleOnline}
-        disabled={onlineBusy}
-        style={({ pressed }) => [
-          styles.presence,
-          online ? styles.presenceOn : styles.presenceOff,
-          pressed && styles.pressed,
-        ]}
-      >
-        <Power size={ms(14)} color={online ? DELIVERY.onBrand : DELIVERY.inkMuted} strokeWidth={2} />
-        <AppText style={[styles.presenceText, online ? styles.presenceTextOn : styles.presenceTextOff]}>
-          {online ? 'Online' : 'Offline'}
-        </AppText>
-        <View style={[styles.presenceDot, { backgroundColor: online ? DELIVERY.onBrand : DELIVERY.inkSubtle }]} />
-      </Pressable>
+      <AppText numberOfLines={1} style={styles.name}>
+        {riderName ?? 'Rider'}
+      </AppText>
 
       <View style={styles.actions}>
-        {onOpenInbox ? (
+        {onOpenAlerts ? (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={unreadCount > 0 ? `Inbox, ${unreadCount} unread` : 'Inbox'}
-            onPress={onOpenInbox}
+            accessibilityLabel={unreadCount > 0 ? `Alerts, ${unreadCount} unread` : 'Alerts'}
+            onPress={onOpenAlerts}
             style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
           >
-            <Bell size={ms(16)} color={DELIVERY.inkMuted} strokeWidth={2} />
+            <Bell size={ms(18)} color={DELIVERY.inkMuted} strokeWidth={1.5} />
             {unreadCount > 0 ? (
               <View style={styles.badge}>
                 <AppText style={styles.badgeText}>{unreadCount > 9 ? '9+' : String(unreadCount)}</AppText>
@@ -69,16 +51,24 @@ export function DPUtilityBar({
           </Pressable>
         ) : null}
 
-        {onOpenProfile ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Profile and services"
-            onPress={onOpenProfile}
-            style={({ pressed }) => [pressed && styles.pressed]}
-          >
-            <DPAvatar name={profileName ?? 'Faazio'} size={32} />
-          </Pressable>
-        ) : null}
+        <Pressable
+          accessibilityRole="switch"
+          accessibilityState={{ checked: online, disabled: Boolean(onlineBusy) }}
+          accessibilityLabel={online ? 'Online. Tap to go offline' : 'Offline. Tap to go online'}
+          onPress={onToggleOnline}
+          disabled={onlineBusy}
+          style={({ pressed }) => [
+            styles.presence,
+            online ? styles.presenceOn : styles.presenceOff,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Power size={ms(16)} color={online ? DELIVERY.onBrand : DELIVERY.inkMuted} strokeWidth={1.5} />
+          <AppText style={[styles.presenceText, online ? styles.presenceTextOn : styles.presenceTextOff]}>
+            {online ? 'Online' : 'Offline'}
+          </AppText>
+          <View style={[styles.presenceDot, { backgroundColor: online ? DELIVERY.onBrand : DELIVERY.inkSubtle }]} />
+        </Pressable>
       </View>
     </View>
   );
@@ -91,29 +81,30 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     gap: hs(8),
     paddingHorizontal: hs(16),
-    paddingVertical: vs(10),
+    paddingVertical: vs(8),
     backgroundColor: DELIVERY.card,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: DELIVERY.border,
   },
+  name: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '500', flexShrink: 1 },
   presence: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: hs(6),
-    minHeight: vs(34),
+    gap: hs(8),
+    minHeight: vs(36),
     borderRadius: DELIVERY.radius.pill,
     paddingHorizontal: hs(12),
   },
   presenceOn: { backgroundColor: DELIVERY.success },
   presenceOff: { backgroundColor: DELIVERY.surfaceAlt },
-  presenceText: { ...DP_TYPE.caption, fontWeight: '600' },
+  presenceText: { ...DP_TYPE.caption, fontWeight: '500' },
   presenceTextOn: { color: DELIVERY.onBrand },
   presenceTextOff: { color: DELIVERY.inkMuted },
   presenceDot: { width: ms(6), height: ms(6), borderRadius: ms(3), marginLeft: hs(2) },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: hs(6) },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: hs(8) },
   iconButton: {
-    width: ms(34),
-    height: ms(34),
+    width: ms(36),
+    height: ms(36),
     borderRadius: DELIVERY.radius.pill,
     alignItems: 'center',
     justifyContent: 'center',
@@ -125,14 +116,14 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: -ms(2),
     right: -ms(2),
-    minWidth: ms(16),
-    height: ms(16),
-    borderRadius: ms(8),
-    paddingHorizontal: ms(3),
+    minWidth: ms(18),
+    height: ms(18),
+    borderRadius: ms(9),
+    paddingHorizontal: ms(4),
     backgroundColor: DELIVERY.brand,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: { fontSize: ms(9), fontWeight: '600', color: DELIVERY.onBrand },
+  badgeText: { fontSize: ms(11), fontWeight: '500', color: DELIVERY.onBrand },
   pressed: { opacity: 0.85 },
 });

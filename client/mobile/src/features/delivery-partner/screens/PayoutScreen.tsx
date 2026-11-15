@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ChevronRight } from 'lucide-react-native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -17,7 +18,7 @@ import {
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type RiderPayout } from '@/services/api/GatewayClient';
-import { hs, vs } from '@/utils/responsive';
+import { hs, ms, vs } from '@/utils/responsive';
 import { formatRupees, formatNumber } from '../format';
 import type { DeliveryPartnerStackParamList, DeliveryTabParamList } from '../navigation';
 
@@ -66,7 +67,7 @@ export function PayoutScreen({ navigation }: Props) {
     <DPPage
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
     >
-      <DPPageHeader kicker="Pocket" title="Earnings" description="Per-job payout, distance and settlement status." />
+      <DPPageHeader kicker="Earnings" title="Payouts" description="Per-job payout, distance and settlement status." />
 
       {loading && payouts.length === 0 ? (
         <DPSkeleton lines={6} />
@@ -127,7 +128,10 @@ export function PayoutScreen({ navigation }: Props) {
                         {p.paidAt ? ` · ${new Date(p.paidAt).toLocaleDateString('en-IN')}` : ''}
                       </AppText>
                     </View>
-                    <AppText style={styles.open}>View breakdown →</AppText>
+                    <View style={styles.openRow}>
+                      <AppText style={styles.open}>View breakdown</AppText>
+                      <ChevronRight size={ms(14)} color={DELIVERY.brand} strokeWidth={2} />
+                    </View>
                   </DPSectionCard>
                 </TouchableOpacity>
               );
@@ -147,13 +151,14 @@ const styles = StyleSheet.create({
     ...DP_TYPE.label,
     color: DELIVERY.ink,
     fontWeight: '600',
-    marginTop: vs(16),
-    marginBottom: vs(8),
+    marginTop: DELIVERY.space.SECTION,
+    marginBottom: DELIVERY.space.BLOCK,
   },
   row: { marginBottom: vs(10) },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
   rowTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600' },
   rowMeta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(4), flexShrink: 1 },
   rowTotal: { ...DP_TYPE.title, color: DELIVERY.ink, marginTop: vs(8), fontVariant: ['tabular-nums'] },
-  open: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.brand, marginTop: vs(8) },
+  openRow: { flexDirection: 'row', alignItems: 'center', gap: hs(2), marginTop: vs(8) },
+  open: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.brand },
 });

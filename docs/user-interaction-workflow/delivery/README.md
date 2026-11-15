@@ -9,8 +9,8 @@ shell), `AcceptReject` (modal, opened by push/deep link or a `Dashboard` offer c
 `OrderHistory` · `Notifications` · `RiderProfile`.
 **Navigation:** the authenticated rider area is a persistent `@react-navigation/bottom-tabs`
 navigator (`DeliveryTabs.tsx`) hosted by the single `Main` stack screen; its custom `tabBar`
-(`components/DeliveryTabBar.tsx`) renders `components/shared/dp/DPBottomNav` (Feed · Pocket · Orders ·
-Inbox · More) plus the reference's raised active-order CTA that links to `Route`.
+(`components/DeliveryTabBar.tsx`) renders `components/shared/dp/DPBottomNav` (Home · Earnings · Orders ·
+Alerts · Profile) plus the reference's raised active-order CTA that links to `Route`.
 **Auth:** Firebase phone OTP (shared with the customer app) + rider application status.
 **Data:** `GatewayClient` delivery methods only; no fixtures as live data.
 
@@ -26,8 +26,8 @@ with a raised active-order CTA), then upgraded to a rider-first system in W93:
   offer card, active-route card and Route screen.
 - **Home:** a pinned `DPUtilityBar` shift bar, a **This shift** summary, an always-present **Offers**
   section with honest waiting copy, and **Your route** as `DPOrderCard`s.
-- **Reference used as vocabulary, not a blueprint:** no Active/History split on the Feed and no
-  Gigs/Bazaar/Offers-matrix tabs — the Orders/Pocket/Inbox tabs own those and Gigs/Bazaar have no
+- **Reference used as vocabulary, not a blueprint:** no Active/History split on the Home tab and no
+  Gigs/Bazaar/Offers-matrix tabs — the Orders/Earnings/Alerts tabs own those and Gigs/Bazaar have no
   gateway. No invented data.
 - **Tokens/primitives:** `client/mobile/src/theme/deliveryTokens.ts` (anchored on `parentRamp`) and
   `client/mobile/src/components/shared/dp/` (`DPRouteRail`, `DPUtilityBar`, `DPOrderCard`,
@@ -51,7 +51,7 @@ preserved; the bottom nav moved from a per-screen footer to a real tab navigator
 | Fulfillment | Customer handover / OTP / COD | `Route` | [customer-handover.md](./fulfillment/customer-handover.md) |
 | Earnings | Payout ledger | `Payouts` | [earnings/index.md](./earnings/index.md) · [earnings-ledger.md](./earnings/earnings-ledger.md) |
 | Earnings | Single-order breakdown | `EarningsDetail` | [earnings/earnings-detail.md](./earnings/earnings-detail.md) |
-| More | Bottom nav + profile / settings / support / inbox / history | `Main` (`Dashboard`, `Payouts`, `OrderHistory`, `Notifications`, `RiderProfile`), `Settings`, `Support` | [more/index.md](./more/index.md) |
+| Profile | Bottom nav + profile / settings / support / alerts / history | `Main` (`Dashboard`, `Payouts`, `OrderHistory`, `Notifications`, `RiderProfile`), `Settings`, `Support` | [more/index.md](./more/index.md) |
 
 ## Cross-cutting rules
 

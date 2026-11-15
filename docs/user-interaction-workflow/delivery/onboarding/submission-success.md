@@ -17,7 +17,7 @@ link — all from `components/shared/dp/`.
 3. The status copy is chosen from the `COPY` map by status: `APPLIED`, `PENDING_REVIEW`, `VERIFIED`,
    `ACTIVE`, `SUSPENDED`, `BLACKLISTED`, `REJECTED`; `rider.rejectionReason` renders when present.
 4. Primary action by status:
-   - `ACTIVE` → **Open dashboard** (`resetToTab('Dashboard')`).
+   - `ACTIVE` → **Open home** (`resetToTab('Dashboard')`).
    - `REJECTED` → **Correct & re-apply** (`replace('Register')`).
    - any other status → **Refresh status** (re-runs `GET /delivery/me`, `loading` on the button).
    - no rider → **Start application** (`replace('Register')`).

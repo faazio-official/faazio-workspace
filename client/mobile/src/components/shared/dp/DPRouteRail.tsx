@@ -92,6 +92,6 @@ const styles = StyleSheet.create({
   },
   dotCurrent: { borderWidth: ms(3), borderColor: DELIVERY.brandTint },
   hidden: { opacity: 0 },
-  label: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(6), textAlign: 'center' },
+  label: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(8), textAlign: 'center' },
   labelActive: { color: DELIVERY.ink },
 });

@@ -834,19 +834,19 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── AcceptReject — deep-link/push offer or a Dashboard offer card: store/customer, payout, route
 │                  context, 45 s countdown, Accept / Reject (expiry = implicit reject) → Route
 ├── Main         — persistent bottom-tab shell (`DeliveryTabs`, `@react-navigation/bottom-tabs`)
-│   ├── Dashboard (Feed) — rider-first shift home: pinned `DPUtilityBar` (online switch, inbox,
+│   ├── Dashboard (Home) — rider-first shift home: pinned `DPUtilityBar` (online switch, alerts,
 │   │                  profile), This-shift summary (rider record + `GET /delivery/shift-summary`
 │   │                  earnings/online), offers with `DPRouteRail` + 45 s
 │   │                  timer, Your-route rail cards; Go Online (PUT /delivery/availability) + Valkey
 │   │                  heartbeat every 120 s (foreground + Android foreground-service headless task);
 │   │                  first-load skeleton, error+retry, duty-aware empty states
-│   ├── Payouts (Pocket) — earnings history from GET /delivery/payouts: pending/paid totals and each job's
+│   ├── Payouts (Earnings) — earnings history from GET /delivery/payouts: pending/paid totals and each job's
 │   │                  distance, base/extra-km, surge reason and settlement status (manual mark-paid
 │   │                  amounts + PARTIAL since `0077`; no Razorpay Route); rows open EarningsDetail
 │   ├── OrderHistory (Orders) — completed-payout ledger re-presented per order (GET /delivery/payouts; no
 │   │                  dedicated rider order-history endpoint exists — no fabricated history); All/Paid/Pending filter
-│   ├── Notifications (Inbox) — durable in-app inbox (GET /notifications + mark-read/all-read)
-│   └── RiderProfile (More) — profile hub from GET /delivery/me + links to earnings/history/inbox/settings/support
+│   ├── Notifications (Alerts) — durable in-app alerts inbox (GET /notifications + mark-read/all-read)
+│   └── RiderProfile (Profile) — profile hub from GET /delivery/me + links to earnings/history/alerts/settings/support
 ├── Route        — one merged route across all ACCEPTED jobs: stops sorted by the server's global
 │                  sequence, one polyline, Arrived/Picked Up/Delivered transitions. **Pickup QR
 │                  gate (`0088`):** at a PICKUP stop the rider taps "Scan seller QR & pick up",
@@ -868,7 +868,7 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 `@react-navigation/bottom-tabs` navigator (`features/delivery-partner/DeliveryTabs.tsx`) hosted by the
 single `Main` stack screen. Its custom `tabBar` (`components/DeliveryTabBar.tsx`) renders
 `components/shared/dp/DPBottomNav`: a flat card bar 80 px tall with horizontal/bottom padding, a
-hairline top border, five equal tabs Feed · Pocket · Orders · Inbox · More, route names as tab keys,
+hairline top border, five equal tabs Home · Earnings · Orders · Alerts · Profile, route names as tab keys,
 and the active tab bold in Faazio Blue (inactive muted ink, constant icon weight). Because the bar
 belongs to the navigator it stays mounted across switches (no stack growth). Above the bar,
 `DeliveryTabBar` renders the reference's active-order CTA from
@@ -884,8 +884,8 @@ stack and do not render the bar.
 `DPSectionCard`, `DPKpi*` with a `lead` size, `DPStatusPill`, `DPFilterChip`,
 `DPEmpty/Error/Skeleton` — the skeleton settles once instead of looping), `DPButton`, `DPField`,
 `DPToggle/Switch`, `DPTimer`, `DPBottomNav`, `DPKeyValueRow`, `DPListRow`, `DPAvatar`, plus the
-rider-first additions `DPRouteRail` (the signature pickup → drop → …N rail), `DPUtilityBar`,
-`DPOrderCard`, `DPTabStrip`, `DPFadeIn` entrance + `DPFadeOut` exit and `DPSwipeAccept` (all on
+rider-first additions `DPRouteRail` (the signature pickup → drop → …N rail), `DPUtilityBar`
+(the single pinned Home row: rider name, alerts, presence switch; profile lives in the bottom nav), `DPOrderCard`, `DPTabStrip`, `DPFadeIn` entrance + `DPFadeOut` exit (all on
 `theme/motion.ts` tokens; exit = 80% of entrance, disabled under Reduce Motion; timed 120 ms press via
 `usePressScale`). Money and
 number formatting is centralised in `src/features/delivery-partner/format.ts` (`formatRupees` /

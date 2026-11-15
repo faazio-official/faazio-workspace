@@ -83,7 +83,7 @@ the **route rail** (a dotted `pickup → drop → …N stops` line with a live p
 dot) reused on the offer card, the active-route card and the Route screen, paired
 with the presence dot. Neutrals are cool graphite; green is reserved for
 *online / delivered / cash-in-hand*. Tokens live in
-`client/mobile/src/theme/deliveryTokens.ts`; the home is the rider-first Feed,
+`client/mobile/src/theme/deliveryTokens.ts`; the home is the rider-first Home tab,
 not a copy of the reference's Gigs/Bazaar tabs (those have no gateway).
 
 ---

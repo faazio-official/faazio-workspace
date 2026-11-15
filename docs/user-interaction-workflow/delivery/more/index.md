@@ -1,10 +1,10 @@
-# Delivery "More" surfaces — bottom nav, profile, settings, support, inbox, history
+# Delivery secondary surfaces — bottom nav, profile, settings, support, alerts, history
 
 **Status:** Shipped — persistent bottom-tab shell under `Main`. The tab shell moved `Dashboard` from
 a stack route to a tab (not purely additive); see `../README.md` for the full route map.
 **Routes:** `OrderHistory`, `Notifications`, `RiderProfile`, `Settings`, `Support`
-**Trigger:** The rider taps a bottom-nav tab (Feed · Pocket · Orders · Inbox · More) or a row on the
-`RiderProfile` hub.
+**Trigger:** The rider taps a bottom-nav tab (Home · Earnings · Orders · Alerts · Profile) or a row on
+the `RiderProfile` hub.
 
 ## Bottom navigation
 
@@ -19,11 +19,11 @@ without pushing onto the stack:
 
 | Tab | Route |
 |---|---|
-| Feed | `Dashboard` |
-| Pocket | `Payouts` |
+| Home | `Dashboard` |
+| Earnings | `Payouts` |
 | Orders | `OrderHistory` |
-| Inbox | `Notifications` |
-| More | `RiderProfile` |
+| Alerts | `Notifications` |
+| Profile | `RiderProfile` |
 
 Above the tab row, `DeliveryTabBar` renders the reference's active-order CTA while a job is in
 progress. It reads `useDeliveryPartnerStore.activeOrder` (set by `Dashboard`/`Route`, and refreshed

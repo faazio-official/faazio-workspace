@@ -33,6 +33,12 @@ export function toneForStatus(status: string): DpTone {
   return TONE_BY_STATUS[status] ?? 'neutral';
 }
 
+/** `PENDING_REVIEW` → `Pending review` — sentence case, never an uppercase code. */
+const sentenceCase = (value: string): string => {
+  const spaced = value.replace(/_/g, ' ').toLowerCase();
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+};
+
 interface DPStatusPillProps {
   status: string;
   /** Optional override label; defaults to the status with underscores spaced. */
@@ -47,7 +53,7 @@ export function DPStatusPill({ status, label }: DPStatusPillProps) {
     <View style={[styles.pill, { backgroundColor: colors.bg }]}>
       <View style={[styles.dot, { backgroundColor: colors.fg }]} />
       <AppText style={[styles.text, { color: colors.fg }]}>
-        {label ?? status.replace(/_/g, ' ')}
+        {label ?? sentenceCase(status)}
       </AppText>
     </View>
   );
@@ -57,12 +63,12 @@ const styles = StyleSheet.create({
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: hs(5),
+    gap: hs(4),
     alignSelf: 'flex-start',
     borderRadius: DELIVERY.radius.pill,
-    paddingHorizontal: hs(9),
+    paddingHorizontal: hs(8),
     paddingVertical: vs(4),
   },
   dot: { width: ms(6), height: ms(6), borderRadius: ms(3) },
-  text: { fontSize: ms(11), fontWeight: '600' },
+  text: { fontSize: ms(11), fontWeight: '500' },
 });

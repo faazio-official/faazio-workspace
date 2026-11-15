@@ -11,8 +11,8 @@ import { RiderProfileScreen } from './screens/RiderProfileScreen';
 const Tab = createBottomTabNavigator<DeliveryTabParamList>();
 
 /**
- * Persistent bottom-tab navigator for the authenticated rider app (Feed · Pocket · Orders ·
- * Inbox · More). It is hosted by a single `Main` screen in the root stack, so the bar stays
+ * Persistent bottom-tab navigator for the authenticated rider app (Home · Earnings · Orders ·
+ * Alerts · Profile). It is hosted by a single `Main` screen in the root stack, so the bar stays
  * mounted across tab switches; full-screen detail routes (Route, EarningsDetail, Settings,
  * Support, AcceptReject) sit above it on the stack without the bar.
  */

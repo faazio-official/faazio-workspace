@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import {
@@ -14,7 +15,7 @@ import {
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type RiderPayout } from '@/services/api/GatewayClient';
-import { hs, vs } from '@/utils/responsive';
+import { hs, ms, vs } from '@/utils/responsive';
 import { formatRupees, formatNumber } from '../format';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
@@ -52,8 +53,14 @@ export function EarningsDetailScreen({ navigation, route }: Props) {
 
   return (
     <DPPage>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} accessibilityRole="button">
-        <AppText style={styles.backText}>← Back</AppText>
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={styles.back}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+      >
+        <ChevronLeft size={ms(18)} color={DELIVERY.brand} strokeWidth={2} />
+        <AppText style={styles.backText}>Back</AppText>
       </TouchableOpacity>
       <DPPageHeader kicker="Payout breakdown" title={`Order ${orderId.slice(-6)}`} />
 
@@ -97,7 +104,7 @@ export function EarningsDetailScreen({ navigation, route }: Props) {
 }
 
 const styles = StyleSheet.create({
-  back: { paddingTop: vs(8), paddingBottom: vs(4) },
+  back: { flexDirection: 'row', alignItems: 'center', gap: hs(2), alignSelf: 'flex-start', paddingTop: vs(8), paddingBottom: vs(4) },
   backText: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '600' },
   card: { marginBottom: vs(12) },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },

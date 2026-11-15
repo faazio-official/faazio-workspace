@@ -42,8 +42,8 @@ export function DPBottomNav({ tabs, active, onSelect }: DPBottomNavProps) {
             onPress={() => onSelect(tab.key)}
             style={styles.tab}
           >
-            <Icon size={ms(20)} color={color} strokeWidth={2} />
-            <AppText style={[styles.label, { color }, selected && styles.labelActive]}>{tab.label}</AppText>
+            <Icon size={ms(18)} color={color} strokeWidth={1.5} />
+            <AppText style={[styles.label, { color }]}>{tab.label}</AppText>
           </Pressable>
         );
       })}
@@ -55,7 +55,7 @@ const styles = StyleSheet.create({
   bar: {
     flexDirection: 'row',
     height: vs(80),
-    paddingTop: vs(6),
+    paddingTop: vs(8),
     paddingHorizontal: hs(12),
     paddingBottom: vs(12),
     borderTopWidth: StyleSheet.hairlineWidth,
@@ -63,6 +63,5 @@ const styles = StyleSheet.create({
     backgroundColor: DELIVERY.card,
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: vs(4) },
-  label: { fontSize: ms(10), fontWeight: '500' },
-  labelActive: { fontWeight: '600' },
+  label: { fontSize: ms(11), fontWeight: '500' },
 });

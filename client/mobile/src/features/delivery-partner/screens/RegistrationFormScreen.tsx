@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ActivityIndicator, StyleSheet, View } from 'react-native';
+import { Minus, Plus } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import {
@@ -22,7 +23,7 @@ import {
 } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
-import { hs, vs } from '@/utils/responsive';
+import { hs, ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Register'>;
@@ -236,7 +237,9 @@ export function RegistrationFormScreen({ navigation }: Props) {
         </AppText>
         <View style={styles.stepper}>
           <DPButton
-            label="−"
+            label="Decrease capacity"
+            iconOnly
+            icon={<Minus size={ms(16)} color={DELIVERY.brand} strokeWidth={2} />}
             size="sm"
             variant="outline"
             fullWidth={false}
@@ -245,7 +248,9 @@ export function RegistrationFormScreen({ navigation }: Props) {
           />
           <AppText style={styles.stepValue}>{capacity}</AppText>
           <DPButton
-            label="+"
+            label="Increase capacity"
+            iconOnly
+            icon={<Plus size={ms(16)} color={DELIVERY.brand} strokeWidth={2} />}
             size="sm"
             variant="outline"
             fullWidth={false}
@@ -304,7 +309,7 @@ export function RegistrationFormScreen({ navigation }: Props) {
           onChangeText={(v) => setIfsc(v.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().slice(0, 11))}
           autoCapitalize="characters"
           placeholder="HDFC0001234"
-          hint="Only the last 4 digits are stored. Payouts are not enabled yet (Phase 5)."
+          hint="Only the last 4 digits are stored. Payouts start once an admin approves your account."
         />
       </DPSectionCard>
 

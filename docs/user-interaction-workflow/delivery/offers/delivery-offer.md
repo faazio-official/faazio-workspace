@@ -3,12 +3,15 @@
 **App / route:** delivery · `AcceptReject` (`features/delivery-partner/screens/AcceptRejectScreen.tsx`)
 **Status:** Complete
 **Trigger:** Push notification or deep link with `orderId` + optional `expiresAt`
-(`services/deliveryLinks.ts`), or the **View full offer →** link on a `Dashboard` offer card
+(`services/deliveryLinks.ts`), or the **View full offer** link on a `Dashboard` offer card
 (`DashboardScreen.tsx`, `navigate('AcceptReject', { orderId, expiresAt })`).
 **Visual layer:** the modal is restyled (`DPPageHeader` with the `DPTimer`, `DPSectionCard`,
 `DPKeyValueRow`, `DPButton`); a first load shows `DPSkeleton` and a not-assigned offer shows a
-neutral `DPEmptyState`. The accept/reject contract and the existing `acceptReject.test.tsx`
-assertions are unchanged.
+neutral `DPEmptyState`. The Dashboard offer card carries the same `DPTimer` as its headline figure,
+the signature `DPRouteRail`, a payment tag whose label is the truth (`Collect at door` / `Collected
+at door` / `<method> prepaid` — never the order status) and one primary `Accept`, one outline
+`Reject` and a `View full offer` link. The accept/reject contract and the existing
+`acceptReject.test.tsx` assertions are unchanged.
 
 ## Steps
 
@@ -20,9 +23,9 @@ assertions are unchanged.
 5. **Accept:** `acceptDeliveryOrder(orderId)` (`POST /delivery/{orderId}/accept`) → `Route`.
 6. **Reject:** `rejectDeliveryOrder(orderId)` (`POST /delivery/{orderId}/reject`) → Dashboard; the
    server reassigns.
-7. **In-Feed swipe (Dashboard offer card):** a right swipe past ~40% of the card width (`DPSwipeAccept`)
-   fires the same `acceptDeliveryOrder` → `Route`; the card's Accept/Reject buttons stay the primary,
-   accessible path. Under the threshold the card snaps back; a short haptic fires at the arm point.
+7. **In-home (Dashboard offer card):** the same `acceptDeliveryOrder` / `rejectDeliveryOrder` calls
+   are exposed as the card's `Accept` and `Reject` buttons; `View full offer` opens this screen for
+   the full breakdown. The card does not add a second gesture path.
 
 ## State
 

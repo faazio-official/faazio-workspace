@@ -12,11 +12,10 @@ import {
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ChevronRight } from 'lucide-react-native';
 import AppText from '@/components/AppText';
-import { FaazioLogo } from '@/components/FaazioLogo';
 import {
   DPPage,
-  DPPageHeader,
   DPButton,
   DPSectionCard,
   DPStatusPill,
@@ -27,7 +26,6 @@ import {
   DPUtilityBar,
   DPRouteRail,
   DPOrderCard,
-  DPSwipeAccept,
   DPFadeIn,
   DPFadeOut,
 } from '@/components/shared/dp';
@@ -45,7 +43,7 @@ import {
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { useDeliverySettingsStore } from '@/state/deliverySettingsStore';
-import { hs, vs } from '@/utils/responsive';
+import { hs, ms, vs } from '@/utils/responsive';
 import { formatRupees, formatNumber, formatOnlineTime } from '../format';
 import { type DeliveryPartnerStackParamList, type DeliveryTabParamList } from '../navigation';
 import { activeOrderFrom } from '../activeOrder';
@@ -61,9 +59,9 @@ const HEARTBEAT_MS = 120_000;
 const paymentLabel = (order: DeliveryOrder): string => {
   if (!order.paymentMethod) return '';
   if (order.paymentRequired) {
-    return order.paymentReceived ? 'Payment received' : 'COD · collect at door';
+    return order.paymentReceived ? 'Collected at door' : 'Collect at door';
   }
-  return `${order.paymentMethod} · prepaid`;
+  return `${order.paymentMethod} prepaid`;
 };
 
 /** Short "Cash"/"Prepaid" tag for summary meta lines. */
@@ -371,7 +369,6 @@ export function DashboardScreen({ navigation }: Props) {
   if (booting) {
     return (
       <DPPage refreshControl={refreshControl}>
-        <DPPageHeader kicker="Delivery partner" title="Today" />
         <DPSkeleton lines={7} />
       </DPPage>
     );
@@ -384,24 +381,15 @@ export function DashboardScreen({ navigation }: Props) {
       refreshControl={refreshControl}
       header={
         <DPUtilityBar
+          riderName={rider?.fullName}
           online={online}
           onToggleOnline={() => void toggleOnline()}
           onlineBusy={busy === 'availability'}
           unreadCount={unread}
-          onOpenInbox={() => navigation.navigate('Notifications')}
-          profileName={rider?.fullName}
-          onOpenProfile={() => navigation.navigate('RiderProfile')}
+          onOpenAlerts={() => navigation.navigate('Notifications')}
         />
       }
     >
-      <DPPageHeader
-        leading={<FaazioLogo size={26} />}
-        kicker="Delivery partner"
-        title={rider?.fullName ?? 'Rider'}
-        actions={rider ? <DPStatusPill status={rider.status} /> : undefined}
-        tone={online ? 'success' : 'neutral'}
-      />
-
       {fatal ? (
         <DPErrorState
           title="Could not load your shift"
@@ -432,7 +420,10 @@ export function DashboardScreen({ navigation }: Props) {
                 accessibilityLabel="View earnings"
                 onPress={() => navigation.navigate('Payouts')}
               >
-                <AppText style={styles.link}>View earnings →</AppText>
+                <View style={styles.linkRow}>
+                  <AppText style={styles.link}>View earnings</AppText>
+                  <ChevronRight size={ms(16)} color={DELIVERY.brand} strokeWidth={1.5} />
+                </View>
               </TouchableOpacity>
             </View>
             <DPSectionCard>
@@ -495,8 +486,8 @@ export function DashboardScreen({ navigation }: Props) {
                   title={online ? 'Waiting for offers' : 'You are offline'}
                   description={
                     online
-                      ? 'Stay online — dispatch will ping you as soon as a nearby delivery is assigned.'
-                      : 'Go online to receive delivery offers.'
+                      ? 'Dispatch will ping you when a delivery is nearby'
+                      : 'Go online to receive offers'
                   }
                 />
               </DPSectionCard>
@@ -515,10 +506,6 @@ export function DashboardScreen({ navigation }: Props) {
                     onExited={() => finishExit(order.orderId)}
                   >
                   <DPFadeIn index={index}>
-                  <DPSwipeAccept
-                    onAccept={() => void accept(order.orderId)}
-                    disabled={busy === order.orderId || seconds === 0}
-                  >
                   <DPSectionCard style={styles.card}>
                     <View style={styles.rowBetween}>
                       <AppText style={styles.cardKicker}>New delivery</AppText>
@@ -536,21 +523,31 @@ export function DashboardScreen({ navigation }: Props) {
                       {pickup?.address || 'Pickup address'} · {drop?.address || 'Drop address'}
                     </AppText>
                     <View style={styles.payRow}>
-                      <AppText style={styles.payout}>{formatRupees(order.payoutAmountPaisa)}</AppText>
+                      <View style={styles.payPrimary}>
+                        <AppText style={styles.payout}>
+                          {formatRupees(order.payoutAmountPaisa)}
+                        </AppText>
+                        {paymentLabel(order) ? (
+                          <View style={styles.payTag}>
+                            <DPStatusPill
+                              status={
+                                order.paymentRequired
+                                  ? order.paymentReceived
+                                    ? 'PAID'
+                                    : 'PENDING'
+                                  : 'PAID'
+                              }
+                              label={paymentLabel(order)}
+                            />
+                          </View>
+                        ) : null}
+                      </View>
                       <AppText style={styles.payMeta}>
                         {order.stops.length} stops ·{' '}
                         {Math.round(order.totalDistanceMeters / 1000)} km ·{' '}
                         {Math.round(order.estimatedDurationSeconds / 60)} min
                       </AppText>
                     </View>
-                    {paymentLabel(order) ? (
-                      <View style={styles.payTag}>
-                        <DPStatusPill
-                          status={order.paymentRequired ? (order.paymentReceived ? 'PAID' : 'PENDING') : 'ACCEPTED'}
-                          label={paymentLabel(order)}
-                        />
-                      </View>
-                    ) : null}
                     <View style={styles.actions}>
                       <View style={styles.flex}>
                         <DPButton
@@ -569,7 +566,6 @@ export function DashboardScreen({ navigation }: Props) {
                         style={styles.reject}
                       />
                     </View>
-                    <AppText style={styles.swipeHint}>Swipe right to accept</AppText>
                     <TouchableOpacity
                       accessibilityRole="button"
                       accessibilityLabel="View full offer details"
@@ -581,10 +577,12 @@ export function DashboardScreen({ navigation }: Props) {
                       }
                       style={styles.offerLink}
                     >
-                      <AppText style={styles.link}>View full offer →</AppText>
+                      <View style={styles.linkRow}>
+                        <AppText style={styles.link}>View full offer</AppText>
+                        <ChevronRight size={ms(16)} color={DELIVERY.brand} strokeWidth={1.5} />
+                      </View>
                     </TouchableOpacity>
                   </DPSectionCard>
-                  </DPSwipeAccept>
                   </DPFadeIn>
                   </DPFadeOut>
                 );
@@ -600,7 +598,10 @@ export function DashboardScreen({ navigation }: Props) {
                 accessibilityLabel="Past deliveries"
                 onPress={() => navigation.navigate('OrderHistory')}
               >
-                <AppText style={styles.link}>Past deliveries →</AppText>
+                <View style={styles.linkRow}>
+                  <AppText style={styles.link}>Past deliveries</AppText>
+                  <ChevronRight size={ms(16)} color={DELIVERY.brand} strokeWidth={1.5} />
+                </View>
               </TouchableOpacity>
             </View>
             {active.length === 0 ? (
@@ -611,8 +612,8 @@ export function DashboardScreen({ navigation }: Props) {
                   title="No active deliveries"
                   description={
                     online
-                      ? 'Accepted orders appear here as a route to run.'
-                      : 'Go online to start your shift.'
+                      ? 'Accepted orders appear here as a route to run'
+                      : 'Go online to start your shift'
                   }
                 />
               </DPSectionCard>
@@ -668,17 +669,18 @@ export function DashboardScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
-  section: { marginTop: vs(16) },
+  section: { marginTop: DELIVERY.space.SECTION },
   sectionHead: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: hs(10),
-    marginBottom: vs(8),
+    gap: hs(8),
+    marginBottom: DELIVERY.space.BLOCK,
   },
-  sectionTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600' },
+  sectionTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '500' },
   sectionCount: { ...DP_TYPE.caption, color: DELIVERY.inkSubtle },
   link: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '500' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: hs(2) },
   summaryRow: { flexDirection: 'row', alignItems: 'center' },
   summaryPrimary: { flex: 1.4 },
   summaryStat: { flex: 1 },
@@ -696,23 +698,23 @@ const styles = StyleSheet.create({
     backgroundColor: DELIVERY.border,
     marginTop: vs(12),
   },
-  shiftNote: { ...DP_TYPE.caption, color: DELIVERY.inkSubtle, marginTop: vs(10) },
-  card: { marginBottom: vs(10) },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
-  cardKicker: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted },
+  shiftNote: { ...DP_TYPE.caption, color: DELIVERY.inkSubtle, marginTop: vs(8) },
+  card: { marginBottom: DELIVERY.space.ITEM },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(8) },
+  cardKicker: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted, fontWeight: '500' },
   rail: { marginTop: vs(12) },
-  cardMeta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(10) },
-  payRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: hs(10), marginTop: vs(10) },
+  cardMeta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(8) },
+  payRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: hs(8), marginTop: vs(12) },
+  payPrimary: { flexShrink: 1 },
   payout: { ...DP_TYPE.title, color: DELIVERY.ink, fontVariant: ['tabular-nums'] },
   payMeta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, flexShrink: 1, textAlign: 'right' },
   payTag: { marginTop: vs(8), flexDirection: 'row' },
-  actions: { flexDirection: 'row', alignItems: 'center', gap: hs(10), marginTop: vs(12) },
+  actions: { flexDirection: 'row', alignItems: 'center', gap: hs(8), marginTop: vs(12) },
   reject: { paddingHorizontal: hs(16) },
-  swipeHint: { ...DP_TYPE.caption, color: DELIVERY.inkSubtle, marginTop: vs(8) },
-  offerLink: { marginTop: vs(10) },
-  errorCard: { flexDirection: 'row', alignItems: 'center', gap: hs(10), marginBottom: vs(8) },
+  offerLink: { marginTop: vs(8) },
+  errorCard: { flexDirection: 'row', alignItems: 'center', gap: hs(8), marginBottom: vs(8) },
   errorText: { ...DP_TYPE.caption, color: DELIVERY.danger, flex: 1 },
-  errorRetry: { paddingHorizontal: hs(10) },
+  errorRetry: { paddingHorizontal: hs(8) },
   linkWrap: { minHeight: DELIVERY.touch.min, alignItems: 'center', justifyContent: 'center', marginTop: vs(16) },
   signOut: { ...DP_TYPE.label, color: DELIVERY.inkMuted },
 });

@@ -18,7 +18,7 @@ export type DeliveryPartnerStackParamList = {
   Register: undefined;
   SubmissionSuccess: undefined;
   AcceptReject: { orderId: string; expiresAt?: string };
-  /** The persistent tab navigator (Feed · Pocket · Orders · Inbox · More). */
+  /** The persistent tab navigator (Home · Earnings · Orders · Alerts · Profile). */
   Main: NavigatorScreenParams<DeliveryTabParamList> | undefined;
   Route: undefined;
   EarningsDetail: { orderId: string };

@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { Linking, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import {
@@ -13,7 +14,7 @@ import {
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { SUPPORT_EMAIL, TERMS_URL, PRIVACY_URL } from '@/lib/site';
 import { openTrustedUrl } from '@/lib/externalLinks';
-import { vs } from '@/utils/responsive';
+import { hs, ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Support'>;
@@ -32,8 +33,14 @@ export function SupportScreen({ navigation }: Props) {
 
   return (
     <DPPage>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} accessibilityRole="button">
-        <AppText style={styles.backText}>← Back</AppText>
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={styles.back}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+      >
+        <ChevronLeft size={ms(18)} color={DELIVERY.brand} strokeWidth={2} />
+        <AppText style={styles.backText}>Back</AppText>
       </TouchableOpacity>
       <DPPageHeader
         kicker="Help"
@@ -82,7 +89,7 @@ export function SupportScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  back: { paddingTop: vs(8), paddingBottom: vs(4) },
+  back: { flexDirection: 'row', alignItems: 'center', gap: hs(2), alignSelf: 'flex-start', paddingTop: vs(8), paddingBottom: vs(4) },
   backText: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '600' },
   card: { marginBottom: vs(12) },
   lastRow: { borderBottomWidth: 0 },

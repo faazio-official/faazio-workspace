@@ -21,9 +21,9 @@ dependencies exist. Do not build the backend/seller flows until told to.
 in `docs/user-interaction-workflow/KNOWN_GAPS.md` — this is not a claim of full feature parity with
 the reference.
 
-- **Direction:** `docs/UI_DESIGN_SYSTEM.md` §1 (Delivery partner app) — rider-first Feed, cool-graphite
+- **Direction:** `docs/UI_DESIGN_SYSTEM.md` §1 (Delivery partner app) — rider-first Home, cool-graphite
   neutrals, one accent, green only for online/delivered/cash-in-hand.
-- **Primitives (`src/components/shared/dp/`):** `DPRouteRail` (signature, now reused on the Feed
+- **Primitives (`src/components/shared/dp/`):** `DPRouteRail` (signature, now reused on the Home
   offer/active cards and the `Route` summary), `DPUtilityBar`, `DPOrderCard`, `DPTabStrip`,
   `DPFadeIn` entrance + `DPFadeOut` exit (both on `theme/motion.ts` tokens; exit = 80% of entrance);
   `DPKpiCard` gained a `lead` size (numbers only, dead `delta`/`spark` removed),
@@ -35,18 +35,18 @@ the reference.
   are used for every ₹ figure and distance/rating with tabular figures; raw hex literals removed.
 - **Money policy:** headline figures (offer payout, totals, KPI sums) use whole rupees; itemised
   ledger lines use two decimals. Presentation-only — paisa value semantics are unchanged.
-- **Home:** rider-first Feed (shift bar with presence switch + unread badge, This shift summary
+- **Home:** rider-first Home tab (shift bar with presence switch + unread badge, This shift summary
   incl. server-backed shift earnings + online today, Offers with the rail and a server-driven
   countdown — no fabricated 45 s fallback, Your route with the rail); first-load skeleton,
   error+retry and compact duty-aware empty states.
-- **States/motion:** `DPSkeleton` on first load for Dashboard/Orders/Route/Payout/Earnings/Inbox/
+- **States/motion:** `DPSkeleton` on first load for Dashboard/Orders/Route/Payout/Earnings/Alerts/
   Profile; `DPErrorState` + retry for first-load failures; `DPEmptyState` across the screens;
   `DPFadeIn` 30 ms row stagger disabled under Reduce Motion; `PickupScanModal` wraps its own
   `SafeAreaProvider`; customer phone on `Route` is a tappable `tel:` link.
-- **Deliberate deviation from the Vite reference:** no Active/History split on the Feed and no
-  Gigs/Bazaar/Offers-matrix tabs — the separate Orders/Pocket/Inbox tabs already own those, and
-  Gigs/Bazaar have no gateway. No invented data. The Feed offer card now also supports a
-  swipe-right-to-accept shortcut (`DPSwipeAccept`) in addition to the Accept/Reject buttons.
+- **Deliberate deviation from the Vite reference:** no Active/History split on the Home tab and no
+  Gigs/Bazaar/Offers-matrix tabs — the separate Orders/Earnings/Alerts tabs already own those, and
+  Gigs/Bazaar have no gateway. No invented data. The Home offer card carries one path per action —
+  `Accept`, `Reject` and `View full offer` — with the offer countdown as its headline figure.
 - **Deferred / product-gated:**
   - A dedicated rider order-history endpoint is still absent (history reads the payout ledger).
 
@@ -1042,7 +1042,7 @@ default it to `https://app.faazio.com`.
   — tokens in `src/theme/deliveryTokens.ts` (anchored on `parentRamp` — Faazio Blue `#1627E9`,
   replacing the orphan `#2c56f6`) and primitives in `src/components/shared/dp/`. The authenticated
   area is now a **persistent `@react-navigation/bottom-tabs` navigator** (`DeliveryTabs.tsx`, hosted
-  by the `Main` stack screen): Feed · Pocket · Orders · Inbox · More, with the reference's raised
+  by the `Main` stack screen): Home · Earnings · Orders · Alerts · Profile, with the reference's raised
   active-order CTA (`useDeliveryPartnerStore.activeOrder`) linking to `Route`. Detail routes
   (`Route`, `EarningsDetail`, `Settings`, `Support`, `AcceptReject`) stay full-screen on the stack
   without the bar. Routes, stores, `GatewayClient` calls, timers and validation are unchanged. The

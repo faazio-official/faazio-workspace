@@ -2,8 +2,8 @@
 
 **Status:** Shipped (server-derived amounts; disbursement is intentionally manual by admin)
 **Route:** `Payouts` (`features/delivery-partner/screens/PayoutScreen.tsx`)
-**Trigger:** Rider taps the Pocket tab (or Earnings on the dashboard).
-**Visual layer:** `Payouts` is the Pocket tab of the persistent bottom-tab navigator (`Main`); it
+**Trigger:** Rider taps the Earnings tab (or View earnings on Home).
+**Visual layer:** `Payouts` is the Earnings tab of the persistent bottom-tab navigator (`Main`); it
 shows a KPI strip (Pending leads with a larger figure, then Paid out), then the payout rows. First
 load shows `DPSkeleton` (no fake `₹0`), a load failure shows `DPErrorState` + retry, and an empty
 ledger shows a compact `DPEmptyState`. Headline totals use whole rupees; itemised ledger lines use

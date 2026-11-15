@@ -73,7 +73,7 @@ export function RiderProfileScreen({ navigation }: Props) {
     <DPPage
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
     >
-      <DPPageHeader kicker="More" title="Profile & services" />
+      <DPPageHeader kicker="Profile" title="Profile & services" />
 
       {loading && !rider ? (
         <DPSkeleton lines={6} />

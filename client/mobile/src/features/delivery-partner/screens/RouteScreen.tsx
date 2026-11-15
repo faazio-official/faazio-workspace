@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Image, Linking, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -154,7 +155,7 @@ export function RouteScreen({ navigation }: Props) {
         Alert.alert(
           'Delivery cancelled',
           'The pickup could not be completed. Your capacity is free again.',
-          [{ text: 'Back to dashboard', onPress: () => resetToTab(navigation, 'Dashboard') }],
+          [{ text: 'Back to home', onPress: () => resetToTab(navigation, 'Dashboard') }],
         );
       } else if (updated.status === 'ROUTE_COMPLETE') {
         const failedDrop = updated.stops.some(
@@ -165,7 +166,7 @@ export function RouteScreen({ navigation }: Props) {
           failedDrop
             ? 'The route finished with a failed drop. Your capacity is free for the next order.'
             : 'All drops are done. Your capacity is free for the next order.',
-          [{ text: 'Back to dashboard', onPress: () => resetToTab(navigation, 'Dashboard') }],
+          [{ text: 'Back to home', onPress: () => resetToTab(navigation, 'Dashboard') }],
         );
       }
     },
@@ -271,8 +272,14 @@ export function RouteScreen({ navigation }: Props) {
 
   return (
     <DPPage>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} accessibilityRole="button">
-        <AppText style={styles.backText}>← Back</AppText>
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={styles.back}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+      >
+        <ChevronLeft size={ms(18)} color={DELIVERY.brand} strokeWidth={2} />
+        <AppText style={styles.backText}>Back</AppText>
       </TouchableOpacity>
       <DPPageHeader title="Route" kicker="Active deliveries" />
       {stops.length > 0 ? (
@@ -515,7 +522,7 @@ export function RouteScreen({ navigation }: Props) {
       })}
 
       {stops.length > 0 && stops.every((s) => s.status === 'DELIVERED' || s.status === 'FAILED') ? (
-        <DPButton label="Back to dashboard" onPress={() => resetToTab(navigation, 'Dashboard')} />
+        <DPButton label="Back to home" onPress={() => resetToTab(navigation, 'Dashboard')} />
       ) : null}
 
       <PickupScanModal
@@ -530,7 +537,7 @@ export function RouteScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  back: { paddingTop: vs(8), paddingBottom: vs(4) },
+  back: { flexDirection: 'row', alignItems: 'center', gap: hs(2), alignSelf: 'flex-start', paddingTop: vs(8), paddingBottom: vs(4) },
   backText: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '600' },
   summary: { marginBottom: vs(12) },
   summaryRow: { flexDirection: 'row', alignItems: 'center' },

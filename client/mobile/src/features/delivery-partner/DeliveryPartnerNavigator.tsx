@@ -46,7 +46,7 @@ export function DeliveryPartnerNavigator() {
       <Stack.Screen name="Register" component={RegistrationFormScreen} />
       <Stack.Screen name="SubmissionSuccess" component={SubmissionSuccessScreen} />
       <Stack.Screen name="AcceptReject" component={AcceptRejectScreen} options={{ presentation: 'modal' }} />
-      {/* Persistent bottom-tab shell (Feed · Pocket · Orders · Inbox · More) */}
+      {/* Persistent bottom-tab shell (Home · Earnings · Orders · Alerts · Profile) */}
       <Stack.Screen name="Main" component={DeliveryTabs} />
       <Stack.Screen name="Route" component={RouteScreen} options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="EarningsDetail" component={EarningsDetailScreen} options={{ animation: 'slide_from_right' }} />

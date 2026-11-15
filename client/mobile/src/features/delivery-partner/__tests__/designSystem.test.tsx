@@ -17,12 +17,12 @@ describe('delivery design system', () => {
     expect(toneForStatus('UNKNOWN_STATUS')).toBe('neutral');
   });
 
-  it('renders a status pill with a spaced label', async () => {
+  it('renders a status pill with a sentence-case label', async () => {
     await render(<DPStatusPill status="PENDING_REVIEW" />);
-    expect(screen.getByText('PENDING REVIEW')).toBeTruthy();
+    expect(screen.getByText('Pending review')).toBeTruthy();
   });
 
   it('exposes the five reference-style bottom tabs', () => {
-    expect(DELIVERY_TABS.map((t) => t.label)).toEqual(['Feed', 'Pocket', 'Orders', 'Inbox', 'More']);
+    expect(DELIVERY_TABS.map((t) => t.label)).toEqual(['Home', 'Earnings', 'Orders', 'Alerts', 'Profile']);
   });
 });

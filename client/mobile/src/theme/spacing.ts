@@ -12,11 +12,11 @@ import { vs } from '@/utils/responsive';
  */
 export const SPACE = {
   /** Gap between two major sections (the ONE owner of the gap). */
-  SECTION: vs(14),
+  SECTION: vs(16),
   /** Section header → its own content. */
   BLOCK: vs(8),
   /** Rows/cards inside a block. */
-  ITEM: vs(6),
+  ITEM: vs(8),
   /** Scroll tail at the bottom of a list. */
   LIST_BOTTOM: vs(24),
 } as const;

@@ -28,8 +28,8 @@
 - **Success:** breakdown renders from the server-derived payout.
 - **Error:** `DPErrorState` with retry; no fabricated amount.
 - **Empty:** not reachable without an `orderId`.
-- The back affordance is a context-neutral "← Back" because the screen is pushed from both
-  `Payouts` and `OrderHistory`.
+- The back affordance is a context-neutral **Back** (chevron icon + label) because the screen is
+  pushed from both `Payouts` and `OrderHistory`.
 
 ## Known gaps
 

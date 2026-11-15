@@ -214,7 +214,7 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
             </>
           ) : (
             <DPButton
-              label="Back to dashboard"
+              label="Back to home"
               variant="outline"
               onPress={() => resetToTab(navigation, 'Dashboard')}
               style={styles.rejectWrap}
@@ -233,7 +233,7 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
 
       {!loading && !order ? (
         <DPButton
-          label="Back to dashboard"
+          label="Back to home"
           variant="outline"
           onPress={() => resetToTab(navigation, 'Dashboard')}
           style={styles.rejectWrap}

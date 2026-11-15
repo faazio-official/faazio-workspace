@@ -41,7 +41,7 @@ export function DPListRow({ title, subtitle, right, onPress, accessibilityLabel,
         <AppText style={styles.listTitle}>{title}</AppText>
         {subtitle ? <AppText style={styles.listSubtitle}>{subtitle}</AppText> : null}
       </View>
-      {right ?? (onPress ? <ChevronRight size={ms(18)} color={DELIVERY.inkSubtle} strokeWidth={2} /> : null)}
+      {right ?? (onPress ? <ChevronRight size={ms(18)} color={DELIVERY.inkSubtle} strokeWidth={1.5} /> : null)}
     </>
   );
 
@@ -86,7 +86,7 @@ export function DPAvatar({ name, size = 48, tone = 'brand' }: DPAvatarProps) {
         justifyContent: 'center',
       }}
     >
-      <AppText style={{ fontSize: ms(size / 2.6), fontWeight: '600', color: DP_TONE[tone].fg }}>
+      <AppText style={{ fontSize: ms(size / 2.6), fontWeight: '500', color: DP_TONE[tone].fg }}>
         {initials || 'F'}
       </AppText>
     </View>
@@ -99,21 +99,21 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: hs(12),
-    paddingVertical: vs(6),
+    paddingVertical: vs(8),
   },
   kvLabel: { ...DP_TYPE.body, color: DELIVERY.inkMuted, flexShrink: 1 },
-  kvValue: { ...DP_TYPE.body, color: DELIVERY.ink, fontWeight: '600', textAlign: 'right', flexShrink: 1 },
+  kvValue: { ...DP_TYPE.body, color: DELIVERY.ink, fontWeight: '500', textAlign: 'right', flexShrink: 1 },
   listRow: {
     minHeight: Math.max(DELIVERY.touch.min, vs(52)),
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(12),
-    paddingVertical: vs(10),
+    paddingVertical: vs(8),
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: DELIVERY.border,
   },
   pressed: { opacity: 0.7 },
   listText: { flex: 1 },
-  listTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600' },
+  listTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '500' },
   listSubtitle: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
 });

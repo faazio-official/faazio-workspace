@@ -1,6 +1,6 @@
 import React from 'react';
 import { Animated, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
-import { MapPin, Route as RouteIcon } from 'lucide-react-native';
+import { MapPin } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -34,7 +34,7 @@ interface DPOrderCardProps {
 }
 
 /**
- * Summary card for an order on the Feed / Orders lists: title + status, the
+ * Summary card for an order on the Home / Orders lists: title + status, the
  * route rail, the party row, then money and meta with one action. Not a
  * one-size screen — offer-specific actions stay in the screen that owns them.
  */
@@ -71,7 +71,7 @@ export function DPOrderCard({
 
       {party ? (
         <View style={styles.party}>
-          <MapPin size={ms(16)} color={DELIVERY.brand} strokeWidth={2} style={styles.partyIcon} />
+          <MapPin size={ms(16)} color={DELIVERY.inkMuted} strokeWidth={1.5} style={styles.partyIcon} />
           <View style={styles.partyText}>
             <AppText style={styles.partyName} numberOfLines={1}>
               {party.name}
@@ -95,12 +95,9 @@ export function DPOrderCard({
               </AppText>
             ) : null}
             {submeta ? (
-              <View style={styles.submeta}>
-                <RouteIcon size={ms(12)} color={DELIVERY.inkMuted} strokeWidth={2} />
-                <AppText style={styles.submetaText} numberOfLines={1}>
-                  {submeta}
-                </AppText>
-              </View>
+              <AppText style={styles.submetaText} numberOfLines={1}>
+                {submeta}
+              </AppText>
             ) : null}
           </View>
           {actionLabel && onAction ? (
@@ -127,9 +124,9 @@ export function DPOrderCard({
 }
 
 const styles = StyleSheet.create({
-  head: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(10) },
+  head: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(8) },
   headText: { flex: 1 },
-  title: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600' },
+  title: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '500' },
   meta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
   railWrap: { marginTop: vs(12) },
   party: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(8), marginTop: vs(12) },
@@ -141,7 +138,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    gap: hs(10),
+    gap: hs(8),
     borderTopWidth: StyleSheet.hairlineWidth,
     borderTopColor: DELIVERY.border,
     paddingTop: vs(12),
@@ -150,6 +147,5 @@ const styles = StyleSheet.create({
   footText: { flex: 1 },
   amount: { ...DP_TYPE.title, color: DELIVERY.ink },
   amountNote: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, fontWeight: '400' },
-  submeta: { flexDirection: 'row', alignItems: 'center', gap: hs(4), marginTop: vs(2) },
-  submetaText: { ...DP_TYPE.caption, color: DELIVERY.inkMuted },
+  submetaText: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
 });

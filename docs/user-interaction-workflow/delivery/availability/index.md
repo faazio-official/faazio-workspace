@@ -3,14 +3,14 @@
 **Status:** Shipped
 **Route:** `Dashboard` (`features/delivery-partner/screens/DashboardScreen.tsx`)
 **Trigger:** Rider opens the dashboard after activation.
-**Visual layer:** rider-first Feed. A `DPUtilityBar` shift bar (presence switch, inbox with an unread
+**Visual layer:** rider-first Home. A `DPUtilityBar` shift bar (presence switch, alerts with an unread
 badge, profile) is pinned above the scroll; the body is an identity
 header, a **This shift** summary (deliveries completed / load / rating, plus server-backed shift
 earnings and online today), an always-present
 **Offers** section (offer cards with the `DPRouteRail` and a `DPTimer` driven by the server's
 `expiresAt` — no countdown is fabricated when the window is absent), and **Your route**
 (`DPOrderCard` with the rail), with a first-load `DPSkeleton`, `DPErrorState`+retry and duty-aware
-`DPEmptyState` copy. `Dashboard` is the Feed tab
+  `DPEmptyState` copy. `Dashboard` is the Home tab
 of the persistent bottom-tab navigator (`Main`). Logic, timers, gateway calls and routes are
 unchanged. Tokens/type: `docs/UI_DESIGN_SYSTEM.md` §1 (delivery partner direction).
 
@@ -24,7 +24,7 @@ unchanged. Tokens/type: `docs/UI_DESIGN_SYSTEM.md` §1 (delivery partner directi
 
 - Rider identity + status pill (`getDeliveryPartnerMe`).
 - Online/offline presence switch in the shift bar (`setDeliveryAvailability`).
-- Inbox unread badge, best-effort from the shared notifications outbox (a failure never blocks the
+- Alerts unread badge, best-effort from the shared notifications outbox (a failure never blocks the
   shift).
 - This-shift summary: rider-record fields (deliveries completed, load, rating) plus the
   server-backed **Shift earnings** (₹) and **Online today** (worked time) from

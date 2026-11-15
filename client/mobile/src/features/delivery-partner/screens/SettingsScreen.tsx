@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, Platform, RefreshControl, StyleSheet, TouchableOpacity } from 'react-native';
+import { Linking, Platform, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { ChevronLeft } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import {
@@ -17,7 +18,7 @@ import { gateway } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { useDeliverySettingsStore } from '@/state/deliverySettingsStore';
-import { vs } from '@/utils/responsive';
+import { hs, ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Settings'>;
@@ -59,8 +60,14 @@ export function SettingsScreen({ navigation }: Props) {
 
   return (
     <DPPage refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} accessibilityRole="button">
-        <AppText style={styles.backText}>← Back</AppText>
+      <TouchableOpacity
+        onPress={() => navigation.goBack()}
+        style={styles.back}
+        accessibilityRole="button"
+        accessibilityLabel="Back"
+      >
+        <ChevronLeft size={ms(18)} color={DELIVERY.brand} strokeWidth={2} />
+        <AppText style={styles.backText}>Back</AppText>
       </TouchableOpacity>
       <DPPageHeader kicker="Settings" title="Preferences" />
 
@@ -97,7 +104,7 @@ export function SettingsScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  back: { paddingTop: vs(8), paddingBottom: vs(4) },
+  back: { flexDirection: 'row', alignItems: 'center', gap: hs(2), alignSelf: 'flex-start', paddingTop: vs(8), paddingBottom: vs(4) },
   backText: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '600' },
   card: { marginBottom: vs(12) },
   signOut: { marginTop: vs(8) },

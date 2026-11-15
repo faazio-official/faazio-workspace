@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { Bell, Bike, ChevronRight, CircleUser, ClipboardList, Radio, Wallet } from 'lucide-react-native';
+import { Bell, Bike, ChevronRight, CircleUser, ClipboardList, House, Wallet } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { DPBottomNav, type DPBottomNavTab } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
@@ -10,13 +10,13 @@ import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { hs, ms, vs } from '@/utils/responsive';
 import { type DeliveryPartnerStackParamList } from '../navigation';
 
-/** Five tabs mirroring the Vite reference delivery app (Feed · Pocket · Orders · Inbox · More). */
+/** Five tabs for the rider's core surfaces: shift home, earnings, order history, alerts and profile. */
 export const DELIVERY_TABS: DPBottomNavTab[] = [
-  { key: 'Dashboard', label: 'Feed', icon: Radio },
-  { key: 'Payouts', label: 'Pocket', icon: Wallet },
+  { key: 'Dashboard', label: 'Home', icon: House },
+  { key: 'Payouts', label: 'Earnings', icon: Wallet },
   { key: 'OrderHistory', label: 'Orders', icon: ClipboardList },
-  { key: 'Notifications', label: 'Inbox', icon: Bell },
-  { key: 'RiderProfile', label: 'More', icon: CircleUser },
+  { key: 'Notifications', label: 'Alerts', icon: Bell },
+  { key: 'RiderProfile', label: 'Profile', icon: CircleUser },
 ];
 
 /**
@@ -44,11 +44,11 @@ export function DeliveryTabBar({ state, navigation }: BottomTabBarProps) {
             }
             style={({ pressed }) => [styles.cta, pressed && styles.ctaPressed]}
           >
-            <Bike size={ms(18)} color={DELIVERY.onBrand} strokeWidth={2.2} />
+            <Bike size={ms(18)} color={DELIVERY.onBrand} strokeWidth={1.5} />
             <AppText numberOfLines={1} style={styles.ctaText}>
               {activeOrder.label}
             </AppText>
-            <ChevronRight size={ms(16)} color={DELIVERY.onBrand} strokeWidth={2.2} />
+            <ChevronRight size={ms(16)} color={DELIVERY.onBrand} strokeWidth={1.5} />
           </Pressable>
         </View>
       ) : null}
@@ -78,7 +78,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: hs(8),
     height: vs(48),
-    paddingHorizontal: hs(14),
+    paddingHorizontal: hs(16),
     borderRadius: DELIVERY.radius.md,
     backgroundColor: DELIVERY.brand,
     shadowColor: DELIVERY.shadow,

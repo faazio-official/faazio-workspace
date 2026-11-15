@@ -80,7 +80,7 @@ export function NotificationsScreen() {
       refreshControl={<RefreshControl refreshing={loading && items.length > 0} onRefresh={() => void load()} />}
     >
       <DPPageHeader
-        kicker="Inbox"
+        kicker="Alerts"
         title="Notifications"
         description={unreadCount > 0 ? `${unreadCount} unread` : 'You are all caught up.'}
         actions={

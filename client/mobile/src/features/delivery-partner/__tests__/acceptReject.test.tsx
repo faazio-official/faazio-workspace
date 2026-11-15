@@ -63,7 +63,7 @@ describe('AcceptRejectScreen (Workflow 2 — rider offer)', () => {
     await waitFor(() => expect(navigation.replace).toHaveBeenCalledWith('Route'));
   });
 
-  it('rejects an offer and returns to the dashboard', async () => {
+  it('rejects an offer and returns to the home tab', async () => {
     (gateway.getDeliveryRoute as jest.Mock).mockResolvedValue(assignedOrder);
     (gateway.rejectDeliveryOrder as jest.Mock).mockResolvedValue({ reassigned: false });
     const navigation = mockNav();
@@ -77,7 +77,7 @@ describe('AcceptRejectScreen (Workflow 2 — rider offer)', () => {
 
     await fireEvent.press(await screen.findByRole('button', { name: 'Reject' }));
     await waitFor(() => expect(gateway.rejectDeliveryOrder).toHaveBeenCalledWith('dlv-1'));
-    // Dashboard is now a tab inside `Main`; reject lands on the Feed tab with no back entry.
+    // Dashboard is now a tab inside `Main`; reject lands on the Home tab with no back entry.
     await waitFor(() =>
       expect(navigation.reset).toHaveBeenCalledWith({
         index: 0,

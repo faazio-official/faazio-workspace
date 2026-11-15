@@ -26,6 +26,8 @@ interface DPButtonProps {
   loading?: boolean;
   disabled?: boolean;
   icon?: React.ReactNode;
+  /** Icon-only control (e.g. a numeric stepper); supply `accessibilityLabel`. */
+  iconOnly?: boolean;
   fullWidth?: boolean;
   accessibilityLabel?: string;
   style?: StyleProp<ViewStyle>;
@@ -45,6 +47,7 @@ export function DPButton({
   loading = false,
   disabled = false,
   icon,
+  iconOnly = false,
   fullWidth = true,
   accessibilityLabel,
   style,
@@ -81,6 +84,8 @@ export function DPButton({
     >
       {loading ? (
         <ActivityIndicator color={spinnerColor} />
+      ) : iconOnly ? (
+        <View style={styles.icon}>{icon}</View>
       ) : (
         <View style={styles.content}>
           {icon ? <View style={styles.icon}>{icon}</View> : null}
@@ -120,8 +125,8 @@ const styles = StyleSheet.create({
   inert: { opacity: 0.5 },
   content: { flexDirection: 'row', alignItems: 'center', gap: hs(8) },
   icon: { alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: ms(14), fontWeight: '600' },
-  labelSm: { fontSize: ms(13) },
+  label: { fontSize: ms(14), fontWeight: '500' },
+  labelSm: { fontSize: ms(13), fontWeight: '500' },
   labelOnBrand: { color: DELIVERY.onBrand },
   labelBrand: { color: DELIVERY.brand },
 });

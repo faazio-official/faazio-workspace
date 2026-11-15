@@ -98,7 +98,7 @@ export function SubmissionSuccessScreen({ navigation }: Props) {
       ) : null}
 
       {rider?.status === 'ACTIVE' ? (
-        <DPButton label="Open dashboard" onPress={() => resetToTab(navigation, 'Dashboard')} />
+        <DPButton label="Open home" onPress={() => resetToTab(navigation, 'Dashboard')} />
       ) : null}
       {rider?.status === 'REJECTED' ? (
         <DPButton label="Correct & re-apply" onPress={() => navigation.replace('Register')} />
