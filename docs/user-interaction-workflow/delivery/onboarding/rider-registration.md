@@ -58,6 +58,10 @@ Play reviewers and developers sign in straight to the Dashboard:
 - `user_id` / `auth_uid` stay NULL: `checkout.ProvisionUserID` provisions `checkout.users` and
   `accounts.profile` only and does **not** backfill `delivery_boys`. Rider identity resolves by
   phone, so login works; the columns remain unlinked (see `KNOWN_GAPS.md`).
+- The seeded rider has **no** `delivery_documents` and **no** `delivery_bank_accounts` rows. It is
+  already `ACTIVE`, so nothing gates on KYC for it, and `GET /delivery/payouts` reads
+  `delivery_orders` by `rider_id` rather than the bank row. A real rider would still need both
+  before an admin could verify and pay them.
 
 ## Known gaps
 
