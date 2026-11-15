@@ -21,7 +21,10 @@
 -- linkage is built (tracked in docs/user-interaction-workflow/KNOWN_GAPS.md).
 --
 -- Idempotent: re-runnable. ON CONFLICT (phone) targets the unique index
--- delivery_boys_phone_idx (0042:98). Re-running resets the row to the known test state.
+-- delivery_boys_phone_idx (0042:98). Re-running resets the row to the known test state — including
+-- `is_available = false`, so a rider who had gone online is taken offline again. That is deliberate
+-- for a test account (a predictable starting state), but do not re-run this while a manual test
+-- session is in progress.
 -- NOT a runtime origin: this is bootstrap test data, applied from a dev terminal.
 
 insert into delivery.delivery_boys (
