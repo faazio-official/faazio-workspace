@@ -125,18 +125,21 @@ export function DashboardScreen({ navigation }: Props) {
     setLoading(true);
     setError(null);
     try {
-      const [me, nextOrders] = await Promise.all([
-        gateway.getDeliveryPartnerMe(),
-        gateway.getActiveDeliveryOrders(),
-      ]);
+      const me = await gateway.getDeliveryPartnerMe();
       setRider(me);
       setOnline(me.isAvailable);
-      setOrders(nextOrders);
-      setActiveOrder(activeOrderFrom(nextOrders));
+      // Resolve status first: GET /delivery/active rejects a non-ACTIVE rider with 409, so issuing
+      // it concurrently would throw before this redirect and leave the rider on a broken dashboard.
       if (me.status !== 'ACTIVE') {
+        setOrders([]);
+        setActiveOrder(null);
         stopHeartbeat();
         rootNavigation()?.replace('SubmissionSuccess');
+        return;
       }
+      const nextOrders = await gateway.getActiveDeliveryOrders();
+      setOrders(nextOrders);
+      setActiveOrder(activeOrderFrom(nextOrders));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load your dashboard.');
     } finally {

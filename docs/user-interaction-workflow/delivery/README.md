@@ -42,8 +42,8 @@ preserved; the bottom nav moved from a per-screen footer to a real tab navigator
 
 ## Cross-cutting rules
 
-- `Dashboard` refreshes `GET /delivery/me` + `GET /delivery/active`; a non-ACTIVE rider is sent to
-  `SubmissionSuccess`.
+- `Dashboard` resolves `GET /delivery/me` first; a non-ACTIVE rider is sent to `SubmissionSuccess`
+  before `GET /delivery/active` is called (that endpoint rejects a non-ACTIVE rider with `409`).
 - Heartbeats are foreground/background location writes (`POST /delivery/heartbeat`); a missed
   heartbeat is non-fatal (Valkey key expires and dispatch skips the rider).
 - No mock offers or payouts; empty states are honest.
