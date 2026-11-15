@@ -46,7 +46,9 @@ A rider row can exist **before** any registration. The delivery test account is 
 Play reviewers and developers sign in straight to the Dashboard:
 
 - Seed: `server/supabase/seed/test_delivery_rider.sql` (idempotent, applied from a dev terminal via
-  `server/supabase/apply-migration.sh`).
+  `server/supabase/apply-migration.sh server/supabase/seed/test_delivery_rider.sql`).
+  **It is not part of `--all --seed`**: that flag applies `seed/0001_seed.sql` only, so a fresh
+  database needs this file applied explicitly or the test login lands on `Register`.
 - It writes one `delivery.delivery_boys` row with `status='ACTIVE'` for the Firebase test number.
 - The phone is stored in the canonical form `+919876543210` — **no spaces**. `NormalizePhone`
   (`internal/delivery/models.go`) strips non-digits and returns `+91` + the 10-digit national
