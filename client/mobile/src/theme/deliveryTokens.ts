@@ -1,11 +1,10 @@
-import { ms } from '@/utils/responsive';
 import {
   neutral,
   parentRamp,
   semantic,
   semanticTint,
 } from '@/theme/brandTokens';
-import { RADIUS, SHADOW_COLOR, TOUCH } from '@/theme/tokens';
+import { RADIUS, SHADOW_COLOR, TOUCH, TYPE } from '@/theme/tokens';
 import { SPACE } from '@/theme/spacing';
 
 /**
@@ -65,22 +64,23 @@ export const DELIVERY = {
 } as const;
 
 /**
- * Delivery type scale, matching the reference mobile view
- * (caption 11 / body 13 / label 14 / title 18 / display 26).
+ * Delivery type scale — derived from the shared `TYPE` scale (never a parallel
+ * copy), with the delivery-only `kicker` and `timer` roles layered on top.
  *
- * Hierarchy comes from size and colour, not weight: weights stay within
- * 400–600 (`docs/UI_DESIGN_SYSTEM.md` §3 Pass 5 — no 700–900 headings).
+ * Hierarchy comes from size and colour, not weight: the shared weights already
+ * stay within 400–600 (`docs/UI_DESIGN_SYSTEM.md` §3 Pass 5 — no 700–900
+ * headings), so each role only carries the delivery intent it needs.
  */
 export const DP_TYPE = {
-  caption: { fontSize: ms(11), lineHeight: ms(15), fontWeight: '500' },
-  body: { fontSize: ms(13), lineHeight: ms(18), fontWeight: '400' },
-  label: { fontSize: ms(14), lineHeight: ms(20), fontWeight: '500' },
-  title: { fontSize: ms(18), lineHeight: ms(24), fontWeight: '600' },
-  display: { fontSize: ms(26), lineHeight: ms(32), fontWeight: '600' },
+  caption: { ...TYPE.caption, fontWeight: '500' },
+  body: { ...TYPE.body },
+  label: { ...TYPE.label },
+  title: { ...TYPE.title, fontWeight: '600' },
+  display: { ...TYPE.display },
   /** Micro label used for kickers / eyebrow copy. Sentence case, never tracked. */
-  kicker: { fontSize: ms(11), lineHeight: ms(15), fontWeight: '600' },
+  kicker: { ...TYPE.micro, fontWeight: '600' },
   /** Tabular countdown weight for the 45 s offer timer. */
-  timer: { fontSize: ms(28), lineHeight: ms(34), fontWeight: '600' },
+  timer: { ...TYPE.display, fontWeight: '600' },
 } as const;
 
 export type DpTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'brand';

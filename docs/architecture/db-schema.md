@@ -1955,7 +1955,7 @@ CREATE UNIQUE INDEX payouts_transfer_uniq
 - The webhook path keys on `razorpay_transfer_id`, now unique per payout. No payload, bank detail or
   secret is stored or logged.
 
-### 12.23 `delivery.*` — Delivery Partner onboarding, dispatch + multi-stop execution (migrations `0042`, `0043`, `0045`)
+### 12.23 `delivery.*` — Delivery Partner onboarding, dispatch + multi-stop execution (migrations `0042`, `0043`, `0045`, `0102`)
 
 **Authority:** `server-gateway-plan.md` (Delivery partner), `monolith-breakdown.md` §1 (delivery
 row), `caching-cloudflare-valkey.md` (§4–§5 rider keys). Additive only; the customer/marketplace
@@ -1963,12 +1963,13 @@ tables are untouched.
 
 | Table | Purpose |
 |---|---|
-| `delivery.delivery_boys` | Rider profile + KYC review state. `rider_id` PK; `user_id` links the checkout identity that receives the order-ping notification; `phone` is E.164; `state_code` + `hub_zone` scope dispatch; `vehicle_type`; `max_capacity` is hard-capped by vehicle at intake (`BICYCLE=1`, `TWO_WHEELER=2`, `FOUR_WHEELER=5`); `status` (`APPLIED → PENDING_REVIEW → VERIFIED → ACTIVE`, plus `SUSPENDED`/`BLACKLISTED`/`REJECTED`); `is_available`, `current_load`, `rating`, `completed_orders`, `last_heartbeat_at` |
+| `delivery.delivery_boys` | Rider profile + KYC review state. `rider_id` PK; `user_id` links the checkout identity that receives the order-ping notification; `phone` is E.164; `state_code` + `hub_zone` scope dispatch; `vehicle_type`; `max_capacity` is hard-capped by vehicle at intake (`BICYCLE=1`, `TWO_WHEELER=2`, `FOUR_WHEELER=5`); `status` (`APPLIED → PENDING_REVIEW → VERIFIED → ACTIVE`, plus `SUSPENDED`/`BLACKLISTED`/`REJECTED`); `is_available`, `current_load`, `rating`, `completed_orders`, `last_heartbeat_at`. `0102` adds today's shift aggregates: `shift_earnings_paisa` (credited on DROP → DELIVERED) and `shift_reset_at` (last IST day reset) |
 | `delivery.delivery_documents` | One row per captured document (`AADHAAR`, `PAN`, `SELFIE`, `DL_FRONT/BACK`, `RC_FRONT/BACK`, `INSURANCE_FRONT/BACK`). Holds the private R2 `file_key` + optional `media.assets` id only — never a URL or bytes. `status` (`PENDING`/`VERIFIED`/`REJECTED`/`REUPLOAD_REQUESTED`), reviewer + reason |
 | `delivery.delivery_bank_accounts` | Pending-review payout account. Stores the masked tail only (same rule as `sellers.bank_accounts`); the full number is never persisted |
 | `delivery.delivery_orders` | Dispatch job (`ASSIGNED → ACCEPTED → ROUTE_COMPLETE`, or `REJECTED`/`CANCELLED`), store/customer-order ids, `route_sequence` JSONB, distance/ETA, `require_otp`, `expires_at` (45 s accept window). `0043` adds `dispatch_attempts` (max 5 offers) and `excluded_rider_ids` JSONB (riders who declined this job) for the fallback chain. Account deletion resets `route_sequence` to `[]` for a deleted user's rider orders (`0061`) so no retained route points at PII coords |
 | `delivery.delivery_stops` | Ordered `PICKUP`/`DROP` stops with `PENDING/AT_PICKUP/PICKED_UP/AT_CUSTOMER/DELIVERED/FAILED`. `sequence` is unique per order; dispatch globally re-optimizes the rider's open stops across all accepted jobs (full VRP) and renumbers them, so the lowest sequence is the next actionable stop and each order's `route_sequence` lists its stop ids in that global order. The handover OTP is stored **hashed** (`customer_otp_hash`, SHA-256 of code + stop id) with `otp_expires_at`; plaintext never reaches Postgres. `0045` adds `otp_attempts` (locked after 5 guesses; reset when delivered). `0088` adds `pickup_verified_at`, set by the seller-QR scan; the PICKUP stop cannot transition to `PICKED_UP` until it is non-null |
 | `delivery.rider_heartbeats` | Optional low-frequency Postgres mirror. The authoritative live coordinate is Valkey `delivery:rider:{id}:location` (TTL 300 s) |
+| `delivery.rider_shift_days` | `0102`. One completed worked-day roll-up per rider (`rider_id`, `shift_date` PK; `online_seconds`, `earnings_paisa`). Written lazily at the IST day rollover from the Valkey in-progress day (`GET /delivery/shift-summary`); aggregates only, no PII |
 | `delivery.delivery_ratings` | Post-delivery 1–5 rating + comment, unique per order; the rider aggregate is recomputed in the same tx |
 
 **Security / RLS**

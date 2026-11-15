@@ -20,6 +20,9 @@ assertions are unchanged.
 5. **Accept:** `acceptDeliveryOrder(orderId)` (`POST /delivery/{orderId}/accept`) → `Route`.
 6. **Reject:** `rejectDeliveryOrder(orderId)` (`POST /delivery/{orderId}/reject`) → Dashboard; the
    server reassigns.
+7. **In-Feed swipe (Dashboard offer card):** a right swipe past ~40% of the card width (`DPSwipeAccept`)
+   fires the same `acceptDeliveryOrder` → `Route`; the card's Accept/Reject buttons stay the primary,
+   accessible path. Under the threshold the card snaps back; a short haptic fires at the arm point.
 
 ## State
 

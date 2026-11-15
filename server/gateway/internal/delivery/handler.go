@@ -61,6 +61,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.Require)
 		g.Get("/delivery/me", h.me)
+		g.Get("/delivery/shift-summary", h.shiftSummary)
 		g.Get("/delivery/active", h.activeOrders)
 		g.Post("/delivery/heartbeat", h.heartbeat)
 		g.Put("/delivery/availability", h.setAvailability)
@@ -627,8 +628,11 @@ func (h *Handler) setAvailability(w http.ResponseWriter, r *http.Request) {
 		h.writeErr(w, err)
 		return
 	}
-	if !req.Available {
+	if req.Available {
+		h.markShiftOnline(r.Context(), rider.RiderID)
+	} else {
 		h.cache.Del(r.Context(), cache.DeliveryRiderLocation(rider.RiderID))
+		h.markShiftOffline(r.Context(), rider.RiderID)
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"available": req.Available})
 }

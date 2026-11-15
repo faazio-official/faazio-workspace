@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { Animated, Pressable, StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
 import { MapPin, Route as RouteIcon } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
@@ -7,6 +7,9 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { DPButton } from './DPButton';
 import { DPSectionCard } from './DPSectionCard';
 import { DPStatusPill } from './DPStatusPill';
+import { usePressScale } from './DPPress';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 interface DPOrderCardProps {
   /** Store / party name shown top-left. */
@@ -51,6 +54,7 @@ export function DPOrderCard({
   accessibilityLabel,
   style,
 }: DPOrderCardProps) {
+  const { onPressIn, onPressOut, animatedStyle } = usePressScale();
   const card = (
     <DPSectionCard style={style}>
       <View style={styles.head}>
@@ -109,14 +113,16 @@ export function DPOrderCard({
 
   if (!onPress) return card;
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? title}
       onPress={onPress}
-      style={({ pressed }) => (pressed ? styles.pressed : null)}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
+      style={animatedStyle}
     >
       {card}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -146,5 +152,4 @@ const styles = StyleSheet.create({
   amountNote: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, fontWeight: '400' },
   submeta: { flexDirection: 'row', alignItems: 'center', gap: hs(4), marginTop: vs(2) },
   submetaText: { ...DP_TYPE.caption, color: DELIVERY.inkMuted },
-  pressed: { opacity: 0.85 },
 });

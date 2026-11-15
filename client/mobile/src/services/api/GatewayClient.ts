@@ -2391,6 +2391,16 @@ export class GatewayClient {
     return this.http<DeliveryPartnerRider>('/delivery/me');
   }
 
+  /**
+   * Today's server-derived shift totals: credited earnings (paisa) + worked online seconds. Earnings
+   * are durable in Postgres; today's online time is counted in Valkey. Server-only — throws when the
+   * gateway is disabled so the caller can show an honest "—" rather than a fabricated figure.
+   */
+  async getDeliveryShiftSummary(): Promise<DeliveryShiftSummary> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryShiftSummary>('/delivery/shift-summary');
+  }
+
   /** Toggle Available / Offline. The server only lets ACTIVE riders go online. */
   async setDeliveryAvailability(available: boolean): Promise<{ available: boolean }> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
@@ -2636,6 +2646,16 @@ export interface DeliveryPartnerRider {
   lastHeartbeatAt?: string;
   rejectionReason?: string;
   createdAt: string;
+}
+
+/** Today's shift totals from `GET /delivery/shift-summary` (server-derived, never client-computed). */
+export interface DeliveryShiftSummary {
+  /** IST calendar day the totals cover, `YYYY-MM-DD`. */
+  shiftDate: string;
+  /** Credited rider earnings for the current shift day, in paisa. */
+  shiftEarningsPaisa: number;
+  /** Worked seconds online today (Valkey-counted, live-adjusted). */
+  onlineSecondsToday: number;
 }
 
 export interface DeliveryPartnerDocument {

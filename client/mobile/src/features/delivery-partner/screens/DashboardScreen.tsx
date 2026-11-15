@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Alert,
   AppState,
-  Linking,
   Platform,
   RefreshControl,
   StyleSheet,
@@ -28,10 +27,12 @@ import {
   DPUtilityBar,
   DPRouteRail,
   DPOrderCard,
+  DPSwipeAccept,
   DPFadeIn,
+  DPFadeOut,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
-import { gateway, type DeliveryOrder } from '@/services/api/GatewayClient';
+import { gateway, type DeliveryOrder, type DeliveryShiftSummary } from '@/services/api/GatewayClient';
 import { getCoarsePosition, requestLocationPermission } from '@/services/location';
 import { startDeliveryPush } from '@/services/deliveryPush';
 import { startDeliveryTracking, stopDeliveryTracking } from '@/services/deliveryTracking';
@@ -45,7 +46,7 @@ import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { useDeliverySettingsStore } from '@/state/deliverySettingsStore';
 import { hs, vs } from '@/utils/responsive';
-import { formatRupees, formatNumber } from '../format';
+import { formatRupees, formatNumber, formatOnlineTime } from '../format';
 import { type DeliveryPartnerStackParamList, type DeliveryTabParamList } from '../navigation';
 import { activeOrderFrom } from '../activeOrder';
 
@@ -84,6 +85,8 @@ export function DashboardScreen({ navigation }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState(Boolean(rider?.isAvailable));
   const [unread, setUnread] = useState(0);
+  const [shiftSummary, setShiftSummary] = useState<DeliveryShiftSummary | null>(null);
+  const [exiting, setExiting] = useState<Record<string, boolean>>({});
   const [now, setNow] = useState(Date.now());
   const [iosBackgroundAllowed, setIosBackgroundAllowed] = useState(false);
   const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -153,14 +156,17 @@ export function DashboardScreen({ navigation }: Props) {
         rootNavigation()?.replace('SubmissionSuccess');
         return;
       }
-      const [nextOrders, inbox] = await Promise.all([
+      const [nextOrders, inbox, shift] = await Promise.all([
         gateway.getActiveDeliveryOrders(),
         // Best-effort: the inbox badge is a courtesy; a failure must not block the shift.
         gateway.getNotifications().catch(() => []),
+        // Best-effort: a shift-summary failure shows "—", never a fabricated figure.
+        gateway.getDeliveryShiftSummary().catch(() => null),
       ]);
       setOrders(nextOrders);
       setUnread(inbox.filter((item) => !item.readAt).length);
       setActiveOrder(activeOrderFrom(nextOrders));
+      setShiftSummary(shift);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load your dashboard.');
     } finally {
@@ -226,11 +232,15 @@ export function DashboardScreen({ navigation }: Props) {
     if (!online) return;
     const timer = setInterval(() => {
       if (AppState.currentState !== 'active') return;
-      void gateway
-        .getActiveDeliveryOrders()
-        .then((next) => {
+      void Promise.all([
+        gateway.getActiveDeliveryOrders(),
+        gateway.getDeliveryShiftSummary().catch(() => null),
+      ])
+        .then(([next, shift]) => {
           setOrders(next);
           setActiveOrder(activeOrderFrom(next));
+          // Keep the last server value on a transient poll failure rather than flashing "—".
+          if (shift) setShiftSummary(shift);
         })
         .catch(() => undefined);
     }, 20_000);
@@ -323,7 +333,8 @@ export function DashboardScreen({ navigation }: Props) {
       setError(null);
       try {
         await gateway.rejectDeliveryOrder(orderId);
-        setOrders((prev) => prev.filter((o) => o.orderId !== orderId));
+        // Keep the card mounted through its DPFadeOut exit, then drop it from state.
+        setExiting((prev) => ({ ...prev, [orderId]: true }));
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Could not reject this order.');
       } finally {
@@ -333,14 +344,15 @@ export function DashboardScreen({ navigation }: Props) {
     [],
   );
 
-  const callEmergencyContact = useCallback(() => {
-    const number = rider?.emergencyContact;
-    if (!number) return;
-    Alert.alert('Call emergency contact', `Call ${number}?`, [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Call', onPress: () => void Linking.openURL(`tel:${number}`) },
-    ]);
-  }, [rider?.emergencyContact]);
+  const finishExit = useCallback((orderId: string) => {
+    setExiting((prev) => {
+      if (!prev[orderId]) return prev;
+      const next = { ...prev };
+      delete next[orderId];
+      return next;
+    });
+    setOrders((prev) => prev.filter((o) => o.orderId !== orderId));
+  }, []);
 
   const onLogout = useCallback(async () => {
     stopHeartbeat();
@@ -379,7 +391,6 @@ export function DashboardScreen({ navigation }: Props) {
           onOpenInbox={() => navigation.navigate('Notifications')}
           profileName={rider?.fullName}
           onOpenProfile={() => navigation.navigate('RiderProfile')}
-          onSos={rider?.emergencyContact ? callEmergencyContact : undefined}
         />
       }
     >
@@ -445,6 +456,27 @@ export function DashboardScreen({ navigation }: Props) {
                   <AppText style={styles.summaryLabel}>Rating</AppText>
                 </View>
               </View>
+              <View style={styles.summaryHairline} />
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryStat}>
+                  <AppText style={styles.summarySmall}>
+                    {shiftSummary ? formatRupees(shiftSummary.shiftEarningsPaisa) : '—'}
+                  </AppText>
+                  <AppText style={styles.summaryLabel}>Shift earnings</AppText>
+                </View>
+                <View style={styles.summaryDivider} />
+                <View style={styles.summaryStat}>
+                  <AppText style={styles.summarySmall}>
+                    {shiftSummary ? formatOnlineTime(shiftSummary.onlineSecondsToday) : '—'}
+                  </AppText>
+                  <AppText style={styles.summaryLabel}>Online today</AppText>
+                </View>
+              </View>
+              {!shiftSummary ? (
+                <AppText style={styles.shiftNote}>
+                  Shift earnings and online time are unavailable right now — pull to refresh.
+                </AppText>
+              ) : null}
             </DPSectionCard>
           </View>
 
@@ -477,7 +509,16 @@ export function DashboardScreen({ navigation }: Props) {
                 const pickup = order.stops.find((s) => s.stopType === 'PICKUP');
                 const drop = order.stops.find((s) => s.stopType === 'DROP');
                 return (
-                  <DPFadeIn key={order.orderId} index={index}>
+                  <DPFadeOut
+                    key={order.orderId}
+                    visible={!exiting[order.orderId]}
+                    onExited={() => finishExit(order.orderId)}
+                  >
+                  <DPFadeIn index={index}>
+                  <DPSwipeAccept
+                    onAccept={() => void accept(order.orderId)}
+                    disabled={busy === order.orderId || seconds === 0}
+                  >
                   <DPSectionCard style={styles.card}>
                     <View style={styles.rowBetween}>
                       <AppText style={styles.cardKicker}>New delivery</AppText>
@@ -528,6 +569,7 @@ export function DashboardScreen({ navigation }: Props) {
                         style={styles.reject}
                       />
                     </View>
+                    <AppText style={styles.swipeHint}>Swipe right to accept</AppText>
                     <TouchableOpacity
                       accessibilityRole="button"
                       accessibilityLabel="View full offer details"
@@ -542,7 +584,9 @@ export function DashboardScreen({ navigation }: Props) {
                       <AppText style={styles.link}>View full offer →</AppText>
                     </TouchableOpacity>
                   </DPSectionCard>
+                  </DPSwipeAccept>
                   </DPFadeIn>
+                  </DPFadeOut>
                 );
               })
             )}
@@ -647,6 +691,12 @@ const styles = StyleSheet.create({
   summaryValue: { ...DP_TYPE.display, color: DELIVERY.ink, fontVariant: ['tabular-nums'] },
   summarySmall: { ...DP_TYPE.title, color: DELIVERY.ink, fontVariant: ['tabular-nums'] },
   summaryLabel: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
+  summaryHairline: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: DELIVERY.border,
+    marginTop: vs(12),
+  },
+  shiftNote: { ...DP_TYPE.caption, color: DELIVERY.inkSubtle, marginTop: vs(10) },
   card: { marginBottom: vs(10) },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
   cardKicker: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted },
@@ -658,6 +708,7 @@ const styles = StyleSheet.create({
   payTag: { marginTop: vs(8), flexDirection: 'row' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: hs(10), marginTop: vs(12) },
   reject: { paddingHorizontal: hs(16) },
+  swipeHint: { ...DP_TYPE.caption, color: DELIVERY.inkSubtle, marginTop: vs(8) },
   offerLink: { marginTop: vs(10) },
   errorCard: { flexDirection: 'row', alignItems: 'center', gap: hs(10), marginBottom: vs(8) },
   errorText: { ...DP_TYPE.caption, color: DELIVERY.danger, flex: 1 },

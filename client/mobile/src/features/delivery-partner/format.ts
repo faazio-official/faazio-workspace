@@ -25,3 +25,11 @@ export function formatNumber(value: number, decimals = 0): string {
     maximumFractionDigits: decimals,
   });
 }
+
+/** Worked time for the shift grid: `3h 24m`, or `42m` under an hour. Invalid → `0m`. */
+export function formatOnlineTime(seconds: number): string {
+  const safe = Number.isFinite(seconds) && seconds > 0 ? Math.floor(seconds) : 0;
+  const hours = Math.floor(safe / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+  return hours > 0 ? `${hours}h ${minutes}m` : `${minutes}m`;
+}

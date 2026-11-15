@@ -21,9 +21,9 @@ const navigationTheme = {
   fonts: {
     regular: { fontFamily: resolveFontFamily('400'), fontWeight: '400' as const },
     medium: { fontFamily: resolveFontFamily('500'), fontWeight: '500' as const },
-    bold: { fontFamily: resolveFontFamily('700'), fontWeight: '700' as const },
-    heavy: { fontFamily: resolveFontFamily('800'), fontWeight: '800' as const },
-    heading: { fontFamily: resolveFontFamily('900'), fontWeight: '900' as const },
+    bold: { fontFamily: resolveFontFamily('600'), fontWeight: '600' as const },
+    heavy: { fontFamily: resolveFontFamily('600'), fontWeight: '600' as const },
+    heading: { fontFamily: resolveFontFamily('600'), fontWeight: '600' as const },
   },
 };
 

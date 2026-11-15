@@ -1,6 +1,6 @@
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
-import { Bell, Power, ShieldAlert } from 'lucide-react-native';
+import { Bell, Power } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -15,13 +15,12 @@ interface DPUtilityBarProps {
   /** Full name used to derive the avatar initials. */
   profileName?: string;
   onOpenProfile?: () => void;
-  onSos?: () => void;
 }
 
 /**
- * Shift bar: the rider's presence switch, safety, inbox and profile in one quiet
- * row (the reference's `UtilityPanel`). Tabs stay for navigation; this is state
- * and the two things a rider may need mid-shift — SOS and the inbox.
+ * Shift bar: the rider's presence switch, inbox and profile in one quiet row
+ * (the reference's `UtilityPanel`). Tabs stay for navigation; this is state plus
+ * the two things a rider may need mid-shift — the inbox and their profile.
  */
 export function DPUtilityBar({
   online,
@@ -31,7 +30,6 @@ export function DPUtilityBar({
   onOpenInbox,
   profileName,
   onOpenProfile,
-  onSos,
 }: DPUtilityBarProps) {
   return (
     <View style={styles.bar}>
@@ -55,17 +53,6 @@ export function DPUtilityBar({
       </Pressable>
 
       <View style={styles.actions}>
-        {onSos ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Emergency assistance"
-            onPress={onSos}
-            style={({ pressed }) => [styles.iconButton, styles.sos, pressed && styles.pressed]}
-          >
-            <ShieldAlert size={ms(16)} color={DELIVERY.warning} strokeWidth={2} />
-          </Pressable>
-        ) : null}
-
         {onOpenInbox ? (
           <Pressable
             accessibilityRole="button"
@@ -134,7 +121,6 @@ const styles = StyleSheet.create({
     borderColor: DELIVERY.border,
     backgroundColor: DELIVERY.card,
   },
-  sos: { borderColor: DELIVERY.warningTint, backgroundColor: DELIVERY.warningTint },
   badge: {
     position: 'absolute',
     top: -ms(2),

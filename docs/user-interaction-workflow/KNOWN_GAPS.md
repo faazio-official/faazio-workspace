@@ -69,7 +69,6 @@ while the WebView owns the session.
 | Background-location limits | Documented in `client/mobile/PENDING_WORK.md` | Force-quit/background location is best-effort on Android (the app is Android/Play only; see `delivery/availability/index.md`) |
 | Multi-vendor orders are not auto-dispatched | `docs/architecture/server-gateway-plan.md:340-342` | Orders spanning >1 store need manual allocation |
 | No dedicated rider order-history endpoint | `server/gateway/internal/delivery/handler.go` (no history route); see `delivery/more/index.md` | `OrderHistory` is derived from the earnings ledger (`GET /delivery/payouts`), so it shows completed (paid-ledger) orders, not a full failed/ongoing log |
-| No per-shift earnings / online-hours source | `delivery.DeliveryPartnerRider` carries no shift-earnings or online-hours field (`GatewayClient.ts`); see `delivery/availability/index.md` | The Feed **This shift** summary is limited to the rider record (deliveries completed, load, rating); it does not invent a cash figure or hours count |
 | Rider cannot read own application detail | `GET /delivery/register/{id}` is admin/superadmin-gated (`handler.go:83`) | `RiderProfile` shows the rider's own `GET /delivery/me` record only; documents are admin-reviewed |
 | Rider row is never linked to the shared user identity | `checkout.ProvisionUserID` (`server/gateway/internal/checkout/repo.go:227`) writes `checkout.users` + `accounts.profile` only; nothing updates `delivery.delivery_boys.user_id` / `auth_uid` | Login still works (rider identity resolves by phone via `RiderByPhone`), but `notifyRider` (`handler.go:1477`) returns early when `rider.UserID == ""`, so order-ping push notifications never fire for a phone-OTP rider. A seeded test rider is unlinked by design. Second consequence: the account-deletion scrub (`checkout/repo.go:1887`) clears `delivery_orders.route_sequence` only for riders reached through `delivery_boys.user_id`, so an unlinked rider's retained route id lists are not reset (the stop rows themselves are scrubbed separately by the customer-order statement above it, so this is a dangling-id list, not a PII leak) |
 
@@ -123,12 +122,6 @@ here so the folder never claims full coverage it does not have. Add a page befor
 | `MedicalShopDetails` | `features/pharma/MedicalShopDetailsScreen.tsx` | Described only in `customer/pharma/index.md`; needs a page |
 | `SellWithUs` | `features/seller-onboarding/SellerRegistrationScreen.tsx` | Seller application entry; covered by `seller/onboarding/seller-registration.md` |
 | `FoodHome` | `features/food/screens/FoodHomeScreen.tsx` | Covered by `customer/discovery/store-drillin.md` (step 2), no standalone page |
-
-### Delivery
-
-| Route / surface | Screen | Notes |
-|---|---|---|
-| `SubmissionSuccess` | `screens/SubmissionSuccessScreen.tsx` | Pending-application terminal state referenced from onboarding |
 
 ### Seller web portal
 

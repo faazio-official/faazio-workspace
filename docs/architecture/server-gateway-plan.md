@@ -284,15 +284,18 @@ caller) and are event-purged on store live toggle and product edit/status change
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
 
-### Delivery partner (`internal/delivery`, migrations `0042`, `0043`, `0045`, `0052`, `0055`, `0088`)
+### Delivery partner (`internal/delivery`, migrations `0042`, `0043`, `0045`, `0052`, `0055`, `0088`, `0102`)
 
 The partner domain is a first-class context in the same gateway (future service: Go + Postgres).
 Rider endpoints authenticate with the Firebase phone ID token and resolve the rider by E.164 phone:
-`POST /delivery/register` (KYC application), `GET /delivery/me`, `PUT /delivery/availability`,
-`POST /delivery/heartbeat`, `GET /delivery/active`, `GET /delivery/route/{id}`,
-`POST /delivery/{id}/accept|reject`, `PUT /delivery/stop/{id}/status`,
+`POST /delivery/register` (KYC application), `GET /delivery/me`, `GET /delivery/shift-summary`,
+`PUT /delivery/availability`, `POST /delivery/heartbeat`, `GET /delivery/active`,
+`GET /delivery/route/{id}`, `POST /delivery/{id}/accept|reject`, `PUT /delivery/stop/{id}/status`,
 `POST /delivery/pickup/verify` (seller-QR pickup handover), `POST /delivery/otp/verify`
-and `POST /delivery/{orderId}/rate`. The seller console mints the scanned token with
+and `POST /delivery/{orderId}/rate`. `GET /delivery/shift-summary` returns today's IST shift
+totals — `shiftEarningsPaisa` (durable, credited on DROP → DELIVERED) and `onlineSecondsToday`
+(live from Valkey, rolled up into `delivery.rider_shift_days` at the day boundary). The seller
+console mints the scanned token with
 `GET /seller/orders/{orderId}/pickup-qr` (`contracts.PickupHandoverIssuer`; token is a stateless
 HMAC bound to the stop id + expiry, never persisted). Admin endpoints are
 `DISTRICT_ADMIN`/`SUPER_ADMIN` gated and
@@ -342,6 +345,11 @@ The HTTP route is not used service-to-service — the dual mount is intentional.
   `delivery:rider:{id}:location` with a 300 s TTL (the dispatch authority) and stamps the optional
   Postgres mirror. A stopped heartbeat removes the rider from candidates; the explicit availability
   toggle owns `is_available`.
+- Shift worked time is counted in Valkey (`delivery:rider:{id}:shift:since` 26 h;
+  `delivery:rider:{id}:shift:online:{YYYYMMDD}` 48 h), never a Postgres write per heartbeat. A new
+  IST day lazily rolls the previous day into `delivery.rider_shift_days`; earnings are durable on
+  `delivery_boys.shift_earnings_paisa`, credited on DROP → DELIVERED. `GET /delivery/shift-summary`
+  reads both. A disabled Valkey degrades worked time to `0` (honest), never a fabricated value.
 - Dispatch scores `ACTIVE`, available, under-capacity riders by **road duration actually added to
   their route** (Google Routes API `distanceMatrix/v2:computeRouteMatrix`, `TRAFFIC_AWARE`, cached
   per leg for 300 s under `delivery:route:{lat,lng}:{lat,lng}`). For a rider with open accepted

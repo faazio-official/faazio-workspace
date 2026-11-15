@@ -191,6 +191,18 @@ func DeliveryRouteLeg(fromLat, fromLng, toLat, toLng float64) string {
 	return fmt.Sprintf("delivery:route:%.4f,%.4f:%.4f,%.4f", fromLat, fromLng, toLat, toLng)
 }
 
+// DeliveryShiftSince / DeliveryShiftOnline track the rider's in-progress worked day in Valkey so the
+// shift-summary read never writes Postgres per request. `since` is the epoch second the rider went
+// online (TTLDeliveryShiftSince); the per-day counter accumulates the offline segments
+// (TTLDeliveryShiftOnline). A completed day is rolled up into delivery.rider_shift_days at the IST
+// day boundary. PII-free: aggregate seconds only.
+func DeliveryShiftSince(riderID string) string {
+	return fmt.Sprintf("delivery:rider:%s:shift:since", riderID)
+}
+func DeliveryShiftOnline(riderID, day string) string {
+	return fmt.Sprintf("delivery:rider:%s:shift:online:%s", riderID, day)
+}
+
 func AuthUser(authUID string) string {
 	sum := sha256.Sum256([]byte(authUID))
 	return "faazio:v1:auth:uid:" + hex.EncodeToString(sum[:])
@@ -293,6 +305,12 @@ const (
 	// the same window to cap Google API spend.
 	TTLDeliveryRiderLocation = 300 * time.Second
 	TTLDeliveryRoute         = 300 * time.Second
+
+	// Shift worked-time markers. `since` only needs to outlive a long shift (>26 h guards a stale
+	// marker that spans midnight); the per-day counter outlives its own day by ~2 days so the IST
+	// rollover can still read yesterday's total before it expires.
+	TTLDeliveryShiftSince  = 26 * time.Hour
+	TTLDeliveryShiftOnline = 48 * time.Hour
 
 	// Weather: one Weather Union call per zone per 30-minute window; the manual rain override
 	// shares the same window. The annual call counter's TTL is computed to the financial-year end.
@@ -564,6 +582,23 @@ func (c *Cache) Incr(ctx context.Context, key string, ttl time.Duration) (int64,
 		return 0, err
 	}
 	if n == 1 && ttl > 0 {
+		_ = c.rdb.Expire(ctx, key, ttl).Err()
+	}
+	return n, nil
+}
+
+// IncrBy adds delta to a counter key and returns the new value. Like Incr, the TTL is applied only
+// when the counter is first created. A disabled cache returns 0 (the documented single-node
+// degradation).
+func (c *Cache) IncrBy(ctx context.Context, key string, delta int64, ttl time.Duration) (int64, error) {
+	if !c.Enabled() || key == "" {
+		return 0, nil
+	}
+	n, err := c.rdb.IncrBy(ctx, key, delta).Result()
+	if err != nil {
+		return 0, err
+	}
+	if n-delta == 0 && ttl > 0 {
 		_ = c.rdb.Expire(ctx, key, ttl).Err()
 	}
 	return n, nil

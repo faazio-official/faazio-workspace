@@ -19,4 +19,6 @@ export { DPUtilityBar } from './DPUtilityBar';
 export { DPTabStrip } from './DPTabStrip';
 export type { DPTabStripItem } from './DPTabStrip';
 export { DPOrderCard } from './DPOrderCard';
-export { DPFadeIn } from './DPMotion';
+export { DPSwipeAccept } from './DPSwipeAccept';
+export { DPFadeIn, DPFadeOut } from './DPMotion';
+export { usePressScale } from './DPPress';

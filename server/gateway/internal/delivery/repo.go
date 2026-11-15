@@ -151,7 +151,8 @@ func (r *Repo) List(ctx context.Context, f ListFilter) ([]Rider, error) {
 	rows, err := r.pool.Query(ctx, `
 		select rider_id, coalesce(user_id,''), phone, full_name, state_code, hub_zone, address, city,
 		       pincode, emergency_contact, vehicle_type::text, max_capacity, status::text, is_available,
-		       current_load, rating, completed_orders, last_heartbeat_at, rejection_reason, created_at
+		       current_load, rating, completed_orders, last_heartbeat_at, rejection_reason, created_at,
+		       shift_earnings_paisa, shift_reset_at
 		  from delivery.delivery_boys
 		 where `+strings.Join(where, " and ")+`
 		 order by created_at desc
@@ -165,12 +166,14 @@ func (r *Repo) List(ctx context.Context, f ListFilter) ([]Rider, error) {
 		var x Rider
 		var last *time.Time
 		var created time.Time
+		var shiftReset *time.Time
 		if err := rows.Scan(&x.RiderID, &x.UserID, &x.Phone, &x.FullName, &x.StateCode, &x.HubZone,
 			&x.Address, &x.City, &x.Pincode, &x.EmergencyContact, &x.VehicleType, &x.MaxCapacity, &x.Status,
 			&x.IsAvailable, &x.CurrentLoad, &x.Rating, &x.CompletedOrders, &last, &x.RejectionReason,
-			&created); err != nil {
+			&created, &x.ShiftEarningsPaisa, &shiftReset); err != nil {
 			return nil, err
 		}
+		x.ShiftResetAt = shiftReset
 		x.LastHeartbeatAt = iso(last)
 		x.CreatedAt = created.UTC().Format(time.RFC3339)
 		out = append(out, x)
@@ -214,18 +217,21 @@ func (r *Repo) riderByID(ctx context.Context, q interface {
 	var x Rider
 	var last *time.Time
 	var created time.Time
+	var shiftReset *time.Time
 	err := q.QueryRow(ctx, `
 		select rider_id, coalesce(user_id,''), phone, full_name, state_code, hub_zone, address, city,
 		       pincode, emergency_contact, vehicle_type::text, max_capacity, status::text, is_available,
-		       current_load, rating, completed_orders, last_heartbeat_at, rejection_reason, created_at
+		       current_load, rating, completed_orders, last_heartbeat_at, rejection_reason, created_at,
+		       shift_earnings_paisa, shift_reset_at
 		  from delivery.delivery_boys where rider_id = $1`, riderID).
 		Scan(&x.RiderID, &x.UserID, &x.Phone, &x.FullName, &x.StateCode, &x.HubZone, &x.Address, &x.City,
 			&x.Pincode, &x.EmergencyContact, &x.VehicleType, &x.MaxCapacity, &x.Status,
 			&x.IsAvailable, &x.CurrentLoad, &x.Rating, &x.CompletedOrders, &last,
-			&x.RejectionReason, &created)
+			&x.RejectionReason, &created, &x.ShiftEarningsPaisa, &shiftReset)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Rider{}, ErrNotFound
 	}
+	x.ShiftResetAt = shiftReset
 	x.LastHeartbeatAt = iso(last)
 	x.CreatedAt = created.UTC().Format(time.RFC3339)
 	return x, err
@@ -489,6 +495,63 @@ func (r *Repo) SetAvailability(ctx context.Context, riderID string, available bo
 	return nil
 }
 
+// RolloverShift lazily closes a rider's previous IST shift day into delivery.rider_shift_days and
+// resets today's earnings, returning the earnings the row holds afterwards (0 after a reset, or the
+// live value when a concurrent request already rolled today). prev is the day the handler last
+// observed (may be nil); prevOnlineSeconds is that day's worked time read from Valkey. Idempotent and
+// safe under concurrency: it re-reads the row FOR UPDATE.
+func (r *Repo) RolloverShift(ctx context.Context, riderID string, prev *time.Time, today time.Time, prevOnlineSeconds int) (int, error) {
+	if err := r.ready(); err != nil {
+		return 0, err
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var (
+		reset *time.Time
+		earn  int
+	)
+	if err := tx.QueryRow(ctx, `
+		select shift_reset_at, shift_earnings_paisa
+		  from delivery.delivery_boys where rider_id=$1 for update`, riderID).Scan(&reset, &earn); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, ErrNotFound
+		}
+		return 0, err
+	}
+	if reset != nil && sameISTDay(*reset, today) {
+		return earn, nil
+	}
+	if reset != nil {
+		seconds := 0
+		if prev != nil && sameISTDay(*reset, *prev) {
+			seconds = prevOnlineSeconds
+		}
+		if _, err := tx.Exec(ctx, `
+			insert into delivery.rider_shift_days (rider_id, shift_date, online_seconds, earnings_paisa)
+			values ($1, $2::date, $3, $4)
+			on conflict (rider_id, shift_date) do update
+			   set online_seconds = excluded.online_seconds,
+			       earnings_paisa = excluded.earnings_paisa`,
+			riderID, reset.Format("2006-01-02"), seconds, earn); err != nil {
+			return 0, err
+		}
+	}
+	if _, err := tx.Exec(ctx, `
+		update delivery.delivery_boys
+		   set shift_earnings_paisa = 0, shift_reset_at = $2::date, updated_at = now()
+		 where rider_id = $1`, riderID, today.Format("2006-01-02")); err != nil {
+		return 0, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return 0, nil
+}
+
 // Heartbeat stamps the low-frequency Postgres mirror: the rider's last-seen time and (when the
 // live Valkey key has already expired) the last known coordinates for the admin fallback.
 func (r *Repo) Heartbeat(ctx context.Context, riderID string, lat, lng float64) error {
@@ -698,6 +761,9 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 	if stopType == "PICKUP" && status == StopPickedUp && pickupVerified == nil {
 		return Order{}, ErrPickupUnverified
 	}
+	// payoutPaisa is the order's rider payout, read with the COD gate and credited to the shift total
+	// when the drop is delivered (see below). Zero for non-delivery transitions.
+	var payoutPaisa int64
 	if stopType == "DROP" {
 		var pickup string
 		if err := tx.QueryRow(ctx, `
@@ -715,8 +781,9 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 		if status == StopDelivered {
 			var paymentRequired, paymentReceived bool
 			if err := tx.QueryRow(ctx, `
-				select payment_required, payment_received from delivery.delivery_orders
-				 where order_id=$1`, orderID).Scan(&paymentRequired, &paymentReceived); err != nil {
+				select payment_required, payment_received, payout_amount_paisa
+				  from delivery.delivery_orders
+				 where order_id=$1`, orderID).Scan(&paymentRequired, &paymentReceived, &payoutPaisa); err != nil {
 				return Order{}, err
 			}
 			if paymentRequired && !paymentReceived {
@@ -742,6 +809,16 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 		       otp_attempts=case when $2::delivery_stop_status='DELIVERED' then 0 else otp_attempts end
 		 where stop_id=$1`, stopID, status, nullString(failureReason), arrived, completed); err != nil {
 		return Order{}, err
+	}
+	// Credit the shift total exactly once, when the order's drop is delivered. Money is durable in
+	// Postgres; the worked-time counter lives in Valkey (handler.markShiftOnline/Offline).
+	if status == StopDelivered && stopType == "DROP" && payoutPaisa > 0 {
+		if _, err := tx.Exec(ctx, `
+			update delivery.delivery_boys
+			   set shift_earnings_paisa = shift_earnings_paisa + $2, updated_at = now()
+			 where rider_id = $1`, riderID, payoutPaisa); err != nil {
+			return Order{}, err
+		}
 	}
 	if status == StopFailed && stopType == "PICKUP" {
 		// A failed pickup aborts the job: close the remaining stops, cancel the dispatch and free

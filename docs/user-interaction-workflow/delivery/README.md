@@ -43,6 +43,7 @@ preserved; the bottom nav moved from a per-screen footer to a real tab navigator
 | Onboarding | Phone + OTP entry | `PhoneEntry`, `OtpVerify` | [onboarding/index.md](./onboarding/index.md) |
 | Onboarding | Rider registration | `Register` | [rider-registration.md](./onboarding/rider-registration.md) |
 | Onboarding | Vehicle + documents | `Register` | [vehicle-documents.md](./onboarding/vehicle-documents.md) |
+| Onboarding | Application status | `SubmissionSuccess` | [submission-success.md](./onboarding/submission-success.md) |
 | Availability | Online/offline + heartbeat | `Dashboard` | [availability/index.md](./availability/index.md) · [go-online.md](./availability/go-online.md) |
 | Offers | Offer accept/reject | `AcceptReject`, `Dashboard` | [offers/index.md](./offers/index.md) · [delivery-offer.md](./offers/delivery-offer.md) |
 | Offers | Route sequencing | `Route` | [route-sequencing.md](./offers/route-sequencing.md) |

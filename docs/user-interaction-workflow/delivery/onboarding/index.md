@@ -2,7 +2,8 @@
 
 **Status:** Shipped
 **Routes:** `PhoneEntry` (`screens/PhoneEntryScreen.tsx`) → `OtpVerify` (`screens/OtpVerifyScreen.tsx`)
-→ `Register` (`screens/RegistrationFormScreen.tsx`) → `SubmissionSuccess`
+→ `Register` (`screens/RegistrationFormScreen.tsx`) → `SubmissionSuccess` (application status —
+[submission-success.md](./submission-success.md))
 **Trigger:** First launch of the delivery app, sign-out, or an expired session.
 **Visual layer:** `PhoneEntry` and `OtpVerify` open on the shared `DpAuthHero`
 (`features/delivery-partner/components/DpAuthHero.tsx`) — the Faazio welcome wordmark
@@ -23,6 +24,7 @@ current digit) with a 30 s resend cooldown and hardware back that returns to the
 | Phone + OTP entry | This page |
 | Rider registration | [rider-registration.md](./rider-registration.md) |
 | Vehicle + documents | [vehicle-documents.md](./vehicle-documents.md) |
+| Application status (terminal state) | [submission-success.md](./submission-success.md) |
 
 ## Phone + OTP
 

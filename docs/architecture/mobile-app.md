@@ -834,8 +834,9 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── AcceptReject — deep-link/push offer or a Dashboard offer card: store/customer, payout, route
 │                  context, 45 s countdown, Accept / Reject (expiry = implicit reject) → Route
 ├── Main         — persistent bottom-tab shell (`DeliveryTabs`, `@react-navigation/bottom-tabs`)
-│   ├── Dashboard (Feed) — rider-first shift home: pinned `DPUtilityBar` (online switch, emergency
-│   │                  contact, inbox, profile), This-shift summary, offers with `DPRouteRail` + 45 s
+│   ├── Dashboard (Feed) — rider-first shift home: pinned `DPUtilityBar` (online switch, inbox,
+│   │                  profile), This-shift summary (rider record + `GET /delivery/shift-summary`
+│   │                  earnings/online), offers with `DPRouteRail` + 45 s
 │   │                  timer, Your-route rail cards; Go Online (PUT /delivery/availability) + Valkey
 │   │                  heartbeat every 120 s (foreground + Android foreground-service headless task);
 │   │                  first-load skeleton, error+retry, duty-aware empty states
@@ -884,7 +885,9 @@ stack and do not render the bar.
 `DPEmpty/Error/Skeleton` — the skeleton settles once instead of looping), `DPButton`, `DPField`,
 `DPToggle/Switch`, `DPTimer`, `DPBottomNav`, `DPKeyValueRow`, `DPListRow`, `DPAvatar`, plus the
 rider-first additions `DPRouteRail` (the signature pickup → drop → …N rail), `DPUtilityBar`,
-`DPOrderCard`, `DPTabStrip` and `DPFadeIn` (30 ms stagger, disabled under Reduce Motion). Money and
+`DPOrderCard`, `DPTabStrip`, `DPFadeIn` entrance + `DPFadeOut` exit and `DPSwipeAccept` (all on
+`theme/motion.ts` tokens; exit = 80% of entrance, disabled under Reduce Motion; timed 120 ms press via
+`usePressScale`). Money and
 number formatting is centralised in `src/features/delivery-partner/format.ts` (`formatRupees` /
 `formatNumber`, tabular figures). The restyle is visual-only: routes, screen signatures, stores,
 `GatewayClient` calls, timers, modals and validation are unchanged.

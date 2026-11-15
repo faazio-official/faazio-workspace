@@ -10,15 +10,19 @@ unchanged.
 ## Steps
 
 1. Toggle calls `gateway.setDeliveryAvailability(next)` (`PUT /delivery/availability`).
-2. Going online starts the heartbeat interval; going offline stops it.
-3. `sendHeartbeat` reads a coarse position and calls
+2. The server runs the worked-time clock alongside availability: going online stamps
+   `delivery:rider:{id}:shift:since` (idempotent in Valkey); going offline folds the segment into
+   `delivery:rider:{id}:shift:online:{YYYYMMDD}`, clipped to the IST day. These feed the dashboard's
+   **Online today** card via `GET /delivery/shift-summary`.
+3. Going online starts the heartbeat interval; going offline stops it.
+4. `sendHeartbeat` reads a coarse position and calls
    `gateway.sendDeliveryHeartbeat(lat, lng)` (`POST /delivery/heartbeat`).
-4. Going online starts the Android ongoing-location foreground service + headless heartbeat task.
-5. The **JavaScript foreground** interval skips heartbeats when `AppState` is not `active`. On
+5. Going online starts the Android ongoing-location foreground service + headless heartbeat task.
+6. The **JavaScript foreground** interval skips heartbeats when `AppState` is not `active`. On
    Android the headless foreground-service task (`services/deliveryHeartbeatTask.ts`) keeps posting
    to the same `POST /delivery/heartbeat` endpoint while the rider is online and the UI is paused. A
    missed heartbeat is non-fatal (the Valkey key expires and dispatch skips the rider).
-6. Logout forces availability off before clearing the session.
+7. Logout forces availability off before clearing the session.
 
 ## State
 
@@ -32,6 +36,8 @@ unchanged.
   `delivery.delivery_boys.is_available`.
 - `gateway.sendDeliveryHeartbeat` → `POST /delivery/heartbeat` → `delivery.rider_heartbeats` +
   Valkey `delivery:rider:{riderId}:location` 300 s.
+- Shift clock (Valkey): `delivery:rider:{riderId}:shift:since` 26 h and
+  `delivery:rider:{riderId}:shift:online:{YYYYMMDD}` 48 h; read by `GET /delivery/shift-summary`.
 - No synthetic location.
 
 ## Success / error / empty

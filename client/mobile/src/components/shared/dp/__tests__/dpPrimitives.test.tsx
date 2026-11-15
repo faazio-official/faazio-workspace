@@ -1,7 +1,9 @@
 import React from 'react';
+import { Text } from 'react-native';
 import { render, screen, fireEvent } from '@testing-library/react-native';
 import { DPEmptyState } from '../DPStates';
 import { DPKpiCard } from '../DPKpi';
+import { DPFadeOut } from '../DPMotion';
 import { DPRouteRail } from '../DPRouteRail';
 import { DPTabStrip } from '../DPTabStrip';
 
@@ -42,5 +44,14 @@ describe('dp primitives', () => {
     await render(<DPEmptyState compact title="No active deliveries" description="Nothing here yet." />);
     expect(screen.getByText('No active deliveries')).toBeTruthy();
     expect(screen.getByText('Nothing here yet.')).toBeTruthy();
+  });
+
+  it('DPFadeOut renders its children while visible', async () => {
+    await render(
+      <DPFadeOut visible onExited={jest.fn()}>
+        <Text>Leaving card</Text>
+      </DPFadeOut>,
+    );
+    expect(screen.getByText('Leaving card')).toBeTruthy();
   });
 });

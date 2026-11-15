@@ -1,4 +1,4 @@
-import { formatRupees, formatNumber } from '../format';
+import { formatRupees, formatNumber, formatOnlineTime } from '../format';
 
 describe('delivery money/number formatting', () => {
   it('renders whole rupees for headline figures (paisa → ₹, Indian grouping)', () => {
@@ -22,5 +22,14 @@ describe('delivery money/number formatting', () => {
     expect(formatNumber(4.8, 1)).toBe('4.8');
     expect(formatNumber(3.25, 1)).toBe('3.3');
     expect(formatNumber(Number.NaN)).toBe('0');
+  });
+
+  it('formats worked time as h/m and floors bad input to 0m', () => {
+    expect(formatOnlineTime(0)).toBe('0m');
+    expect(formatOnlineTime(1800)).toBe('30m');
+    expect(formatOnlineTime(3600)).toBe('1h 0m');
+    expect(formatOnlineTime(12240)).toBe('3h 24m');
+    expect(formatOnlineTime(Number.NaN)).toBe('0m');
+    expect(formatOnlineTime(-60)).toBe('0m');
   });
 });

@@ -153,7 +153,11 @@ type Rider struct {
 	CurrentLoad      int     `json:"currentLoad"`
 	Rating           float64 `json:"rating"`
 	CompletedOrders  int     `json:"completedOrders"`
-	LastHeartbeatAt  string  `json:"lastHeartbeatAt,omitempty"`
+	// Today's shift aggregates. Not projected through GET /delivery/me (json:"-"); the dedicated
+	// shift-summary endpoint owns their shape.
+	ShiftEarningsPaisa int        `json:"-"`
+	ShiftResetAt       *time.Time `json:"-"`
+	LastHeartbeatAt    string     `json:"lastHeartbeatAt,omitempty"`
 	// CurrentCategory is an admin projection derived from the rider's open stop state. It is never
 	// persisted; empty means no category was computed (rider endpoints).
 	CurrentCategory string `json:"currentCategory,omitempty"`

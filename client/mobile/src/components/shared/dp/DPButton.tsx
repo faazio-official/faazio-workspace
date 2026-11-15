@@ -1,6 +1,7 @@
 import React from 'react';
 import {
   ActivityIndicator,
+  Animated,
   Pressable,
   StyleSheet,
   View,
@@ -10,6 +11,9 @@ import {
 import AppText from '@/components/AppText';
 import { DELIVERY } from '@/theme/deliveryTokens';
 import { hs, ms, vs } from '@/utils/responsive';
+import { usePressScale } from './DPPress';
+
+const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
 
 export type DPButtonVariant = 'solid' | 'ghost' | 'outline' | 'danger';
 export type DPButtonSize = 'sm' | 'default';
@@ -51,15 +55,18 @@ export function DPButton({
   const isGhost = variant === 'ghost';
 
   const spinnerColor = isSolid || isDanger ? DELIVERY.onBrand : DELIVERY.brand;
+  const { onPressIn, onPressOut, animatedStyle } = usePressScale();
 
   return (
-    <Pressable
+    <AnimatedPressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel ?? label}
       accessibilityState={{ disabled: inert, busy: loading }}
       onPress={onPress}
+      onPressIn={onPressIn}
+      onPressOut={onPressOut}
       disabled={inert}
-      style={({ pressed }) => [
+      style={[
         styles.base,
         size === 'sm' ? styles.sm : styles.default,
         fullWidth && styles.fullWidth,
@@ -68,8 +75,8 @@ export function DPButton({
         isGhost && styles.ghost,
         variant === 'outline' && styles.outline,
         inert && styles.inert,
-        pressed && !inert ? styles.pressed : null,
         style,
+        animatedStyle,
       ]}
     >
       {loading ? (
@@ -88,7 +95,7 @@ export function DPButton({
           </AppText>
         </View>
       )}
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -110,7 +117,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: DELIVERY.border,
   },
-  pressed: { opacity: 0.94, transform: [{ scale: 0.97 }] },
   inert: { opacity: 0.5 },
   content: { flexDirection: 'row', alignItems: 'center', gap: hs(8) },
   icon: { alignItems: 'center', justifyContent: 'center' },
