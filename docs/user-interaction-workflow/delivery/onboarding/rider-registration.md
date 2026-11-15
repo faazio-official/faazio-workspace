@@ -3,6 +3,8 @@
 **App / route:** delivery · `Register` (`features/delivery-partner/screens/RegistrationFormScreen.tsx`)
 **Status:** Shipped
 **Trigger:** Verified phone with no active application.
+**Test account:** A live, ACTIVE rider test account is used for Play Store review — see
+`client/mobile/docs/TEST_ACCOUNTS.md` (do not duplicate the credentials here).
 
 ## Steps
 
@@ -38,9 +40,30 @@
 - **Error:** inline validation/API message; 409 explains the existing application.
 - **Empty:** no application → this form.
 
+## Pre-seeded ACTIVE rider (test account)
+
+A rider row can exist **before** any registration. The delivery test account is seeded this way so
+Play reviewers and developers sign in straight to the Dashboard:
+
+- Seed: `server/supabase/seed/test_delivery_rider.sql` (idempotent, applied from a dev terminal via
+  `server/supabase/apply-migration.sh`).
+- It writes one `delivery.delivery_boys` row with `status='ACTIVE'` for the Firebase test number.
+- The phone is stored in the canonical form `+919876543210` — **no spaces**. `NormalizePhone`
+  (`internal/delivery/models.go`) strips non-digits and returns `+91` + the 10-digit national
+  number, so a spaced value would never match and every rider call would 404.
+- Because `GET /delivery/me` resolves by phone, the seeded row makes the existing login flow land
+  on `Dashboard` with no client change and no fixture.
+- `user_id` / `auth_uid` stay NULL: `checkout.ProvisionUserID` provisions `checkout.users` and
+  `accounts.profile` only and does **not** backfill `delivery_boys`. Rider identity resolves by
+  phone, so login works; the columns remain unlinked (see `KNOWN_GAPS.md`).
+
 ## Known gaps
 
-- None specific.
+- `delivery.delivery_boys.user_id` / `auth_uid` are never backfilled for a phone-OTP rider.
+  `ProvisionUserID` writes `checkout.users` + `accounts.profile` only, so the rider row stays
+  unlinked to the shared identity. Nothing rider-facing depends on it today (identity resolves by
+  phone), but `notifyRider` skips any rider with an empty `user_id`, so push pings do not fire for
+  an unlinked rider.
 
 ## Linked docs
 

@@ -70,6 +70,7 @@ while the WebView owns the session.
 | Multi-vendor orders are not auto-dispatched | `docs/architecture/server-gateway-plan.md:340-342` | Orders spanning >1 store need manual allocation |
 | No dedicated rider order-history endpoint | `server/gateway/internal/delivery/handler.go` (no history route); see `delivery/more/index.md` | `OrderHistory` is derived from the earnings ledger (`GET /delivery/payouts`), so it shows completed (paid-ledger) orders, not a full failed/ongoing log |
 | Rider cannot read own application detail | `GET /delivery/register/{id}` is admin/superadmin-gated (`handler.go:83`) | `RiderProfile` shows the rider's own `GET /delivery/me` record only; documents are admin-reviewed |
+| Rider row is never linked to the shared user identity | `checkout.ProvisionUserID` (`server/gateway/internal/checkout/repo.go:227`) writes `checkout.users` + `accounts.profile` only; nothing updates `delivery.delivery_boys.user_id` / `auth_uid` | Login still works (rider identity resolves by phone via `RiderByPhone`), but `notifyRider` (`handler.go:1477`) returns early when `rider.UserID == ""`, so order-ping push notifications never fire for a phone-OTP rider. A seeded test rider is unlinked by design |
 
 Payout disbursement is **intentionally manual**: the server-derived amounts are accurate, but a
 state/super admin records the transfer via `mark-paid` (no Razorpay Route). See
