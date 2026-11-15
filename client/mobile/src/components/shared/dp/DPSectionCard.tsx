@@ -11,6 +11,8 @@ interface DPSectionCardProps {
   kicker?: string;
   tone?: DpTone;
   action?: React.ReactNode;
+  /** `flat` drops the surface, border, shadow and padding for a bare grouping block. */
+  variant?: 'card' | 'flat';
   style?: StyleProp<ViewStyle>;
 }
 
@@ -24,11 +26,12 @@ export function DPSectionCard({
   kicker,
   tone = 'brand',
   action,
+  variant = 'card',
   style,
 }: DPSectionCardProps) {
   const hasHeader = Boolean(title || kicker || action);
   return (
-    <View style={[styles.card, style]}>
+    <View style={[variant === 'flat' ? styles.flat : styles.card, style]}>
       {hasHeader ? (
         <View style={styles.header}>
           <View style={styles.headerText}>
@@ -85,6 +88,7 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     elevation: 2,
   },
+  flat: { backgroundColor: 'transparent' },
   header: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -95,7 +99,7 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   kickerRow: { flexDirection: 'row', alignItems: 'center', gap: hs(6) },
   dot: { width: ms(8), height: ms(8), borderRadius: ms(4) },
-  kicker: { ...DP_TYPE.kicker, textTransform: 'uppercase', letterSpacing: 1 },
+  kicker: { ...DP_TYPE.kicker },
   title: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600', marginTop: vs(2) },
   action: { alignItems: 'flex-end' },
   separator: {

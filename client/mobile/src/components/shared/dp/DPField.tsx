@@ -65,7 +65,7 @@ export function DPField({
 
 const styles = StyleSheet.create({
   field: { marginBottom: vs(12) },
-  label: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: vs(6) },
+  label: { ...DP_TYPE.label, color: DELIVERY.inkMuted, marginBottom: vs(6) },
   inputBox: {
     flexDirection: 'row',
     alignItems: 'center',

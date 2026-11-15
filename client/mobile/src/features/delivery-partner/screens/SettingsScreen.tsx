@@ -24,6 +24,7 @@ type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Settings'>;
 
 export function SettingsScreen({ navigation }: Props) {
   const rider = useDeliveryPartnerStore((s) => s.rider);
+  const setRider = useDeliveryPartnerStore((s) => s.setRider);
   const reset = useDeliveryPartnerStore((s) => s.reset);
   const logout = useAuthStore((s) => s.logout);
   const vibrateOnOffer = useDeliverySettingsStore((s) => s.vibrateOnOffer);
@@ -38,13 +39,13 @@ export function SettingsScreen({ navigation }: Props) {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      await gateway.getDeliveryPartnerMe();
+      setRider(await gateway.getDeliveryPartnerMe());
     } catch {
-      // Non-fatal; the displayed profile comes from the store.
+      // Non-fatal; the previously loaded profile stays on screen.
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setRider]);
 
   const openSystemSettings = useCallback(() => {
     void Linking.openSettings().catch(() => undefined);

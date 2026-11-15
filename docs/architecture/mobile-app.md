@@ -834,14 +834,16 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── AcceptReject — deep-link/push offer or a Dashboard offer card: store/customer, payout, route
 │                  context, 45 s countdown, Accept / Reject (expiry = implicit reject) → Route
 ├── Main         — persistent bottom-tab shell (`DeliveryTabs`, `@react-navigation/bottom-tabs`)
-│   ├── Dashboard (Feed) — Go Online toggle (PUT /delivery/availability), Valkey heartbeat every 120 s
-│   │                  (foreground + Android foreground service headless task),
-│   │                  45 s offer cards, active multi-stop jobs, Earnings link
+│   ├── Dashboard (Feed) — rider-first shift home: pinned `DPUtilityBar` (online switch, emergency
+│   │                  contact, inbox, profile), This-shift summary, offers with `DPRouteRail` + 45 s
+│   │                  timer, Your-route rail cards; Go Online (PUT /delivery/availability) + Valkey
+│   │                  heartbeat every 120 s (foreground + Android foreground-service headless task);
+│   │                  first-load skeleton, error+retry, duty-aware empty states
 │   ├── Payouts (Pocket) — earnings history from GET /delivery/payouts: pending/paid totals and each job's
 │   │                  distance, base/extra-km, surge reason and settlement status (manual mark-paid
 │   │                  amounts + PARTIAL since `0077`; no Razorpay Route); rows open EarningsDetail
 │   ├── OrderHistory (Orders) — completed-payout ledger re-presented per order (GET /delivery/payouts; no
-│   │                  dedicated rider order-history endpoint exists — no fabricated history)
+│   │                  dedicated rider order-history endpoint exists — no fabricated history); All/Paid/Pending filter
 │   ├── Notifications (Inbox) — durable in-app inbox (GET /notifications + mark-read/all-read)
 │   └── RiderProfile (More) — profile hub from GET /delivery/me + links to earnings/history/inbox/settings/support
 ├── Route        — one merged route across all ACCEPTED jobs: stops sorted by the server's global
@@ -878,10 +880,14 @@ stack and do not render the bar.
 **Visual layer.** Rider screens use the Vite-reference design system: tokens in
 `src/theme/deliveryTokens.ts` (anchored on `parentRamp` — brand `#1627E9`, replacing the old
 `#2c56f6` hardcode) and primitives in `src/components/shared/dp/` (`DPPage`, `DPPageHeader`,
-`DPSectionCard`, `DPKpi*`, `DPStatusPill`, `DPFilterChip`, `DPEmpty/Error/Skeleton`, `DPButton`,
-`DPField`, `DPToggle/Switch`, `DPTimer`, `DPBottomNav`, `DPKeyValueRow`, `DPListRow`, `DPAvatar`).
-The restyle is visual-only: routes, screen signatures, stores, `GatewayClient` calls, timers, modals
-and validation are unchanged.
+`DPSectionCard`, `DPKpi*` with a `lead` size, `DPStatusPill`, `DPFilterChip`,
+`DPEmpty/Error/Skeleton` — the skeleton settles once instead of looping), `DPButton`, `DPField`,
+`DPToggle/Switch`, `DPTimer`, `DPBottomNav`, `DPKeyValueRow`, `DPListRow`, `DPAvatar`, plus the
+rider-first additions `DPRouteRail` (the signature pickup → drop → …N rail), `DPUtilityBar`,
+`DPOrderCard`, `DPTabStrip` and `DPFadeIn` (30 ms stagger, disabled under Reduce Motion). Money and
+number formatting is centralised in `src/features/delivery-partner/format.ts` (`formatRupees` /
+`formatNumber`, tabular figures). The restyle is visual-only: routes, screen signatures, stores,
+`GatewayClient` calls, timers, modals and validation are unchanged.
 
 **Push offer deep link.** `src/services/deliveryPush.ts` registers the FCM token, routes a foreground
 message or notification tap to `AcceptRejectScreen`, and `src/services/deliveryLinks.ts` also accepts

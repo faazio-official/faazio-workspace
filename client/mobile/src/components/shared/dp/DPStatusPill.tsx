@@ -64,5 +64,5 @@ const styles = StyleSheet.create({
     paddingVertical: vs(4),
   },
   dot: { width: ms(6), height: ms(6), borderRadius: ms(3) },
-  text: { fontSize: ms(11), fontWeight: '600', letterSpacing: 0.2 },
+  text: { fontSize: ms(11), fontWeight: '600' },
 });

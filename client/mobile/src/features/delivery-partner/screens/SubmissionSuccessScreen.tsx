@@ -11,12 +11,14 @@ import {
   DPStatusPill,
   DPKpiStrip,
   DPKpiCard,
+  DPEmptyState,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type DeliveryPartnerRider } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { hs, vs } from '@/utils/responsive';
+import { formatNumber } from '../format';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 import { resetToTab } from '../navigationRoutes';
 
@@ -87,9 +89,12 @@ export function SubmissionSuccessScreen({ navigation }: Props) {
           ) : null}
         </DPSectionCard>
       ) : !loading ? (
-        <DPSectionCard>
-          <AppText style={styles.copy}>No application found for this account yet.</AppText>
-        </DPSectionCard>
+        <DPEmptyState
+          compact
+          tone="neutral"
+          title="No application yet"
+          description="Start an application to join the Faazio rider network."
+        />
       ) : null}
 
       {rider?.status === 'ACTIVE' ? (
@@ -124,7 +129,7 @@ function RiderSummary({ rider }: { rider: DeliveryPartnerRider }) {
       <DPKpiStrip style={styles.stats}>
         <DPKpiCard label="Capacity" value={String(rider.maxCapacity)} />
         <DPKpiCard label="Load" value={`${rider.currentLoad}/${rider.maxCapacity}`} />
-        <DPKpiCard label="Rating" value={rider.rating ? rider.rating.toFixed(1) : '—'} />
+        <DPKpiCard label="Rating" value={rider.rating ? formatNumber(rider.rating, 1) : '—'} />
         <DPKpiCard label="Deliveries" value={String(rider.completedOrders)} />
       </DPKpiStrip>
     </DPSectionCard>
@@ -136,7 +141,7 @@ const styles = StyleSheet.create({
   summary: { marginBottom: vs(12) },
   summaryHead: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(10) },
   flex: { flex: 1 },
-  name: { ...DP_TYPE.title, color: DELIVERY.ink, fontWeight: '700' },
+  name: { ...DP_TYPE.title, color: DELIVERY.ink },
   meta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(3), textTransform: 'capitalize' },
   stats: { marginTop: vs(14) },
   copyCard: { marginBottom: vs(14) },

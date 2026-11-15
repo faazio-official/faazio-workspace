@@ -41,12 +41,15 @@ matching the Vite reference where only tab pages show it.
 ### Order history (`OrderHistory`)
 
 1. `OrderHistoryScreen` loads `gateway.getDeliveryPayouts(100)`.
-2. Rows are the real completed-payout ledger rows, newest-first by `paidAt`; each row links to
-   `EarningsDetail`.
-3. **Data path:** `GET /delivery/payouts?limit=` → `delivery.delivery_payouts`. There is **no**
+2. Rows are the real completed-payout ledger rows, newest-first by `paidAt`, rendered with
+   `DPOrderCard` (title, settlement status, distance/surge, `formatRupees` amount, "Details"); each
+   row links to `EarningsDetail`.
+3. Rows enter with the shared `DPFadeIn` stagger (30 ms, disabled under Reduce Motion).
+4. An `DPTabStrip` filters the ledger **All · Paid · Pending** (counts from the loaded rows).
+5. **Data path:** `GET /delivery/payouts?limit=` → `delivery.delivery_payouts`. There is **no**
    separate rider order-history endpoint; completed orders are read from the earnings ledger (no
    fabricated history).
-4. **Empty:** honest "No completed orders yet" state.
+6. **Empty:** honest "No completed orders yet" state; a filter with no rows shows "No {filter} orders".
 
 ### Notifications (`Notifications`)
 

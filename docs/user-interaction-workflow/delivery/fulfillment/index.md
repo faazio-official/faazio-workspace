@@ -3,8 +3,9 @@
 **Status:** Shipped (seller-QR pickup + mandatory COD/UPI OTP handover)
 **Route:** `Route` (`features/delivery-partner/screens/RouteScreen.tsx`)
 **Trigger:** Rider has an accepted order and opens the route.
-**Visual layer:** stop cards, status pills and modals are restyled; the stop model and forward-only
-transitions are unchanged.
+**Visual layer:** stop cards and status pills are restyled; the pickup scanner renders inside its own
+`SafeAreaProvider` so the modal's window insets (not the app root's) keep the title and close button
+clear of the notch. The stop model and forward-only transitions are unchanged.
 
 ## Flows
 

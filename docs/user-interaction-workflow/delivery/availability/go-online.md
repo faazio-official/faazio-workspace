@@ -3,8 +3,9 @@
 **App / route:** delivery · `Dashboard` (`DashboardScreen.tsx`)
 **Status:** Shipped
 **Trigger:** Rider toggles availability.
-**Visual layer:** the toggle is the shared `DPSwitch`; behaviour (permission gate, heartbeat,
-availability write) is unchanged.
+**Visual layer:** the toggle is the `DPUtilityBar` presence pill (an `accessibilityRole="switch"`
+control showing **Online/Offline**); behaviour (permission gate, heartbeat, availability write) is
+unchanged.
 
 ## Steps
 

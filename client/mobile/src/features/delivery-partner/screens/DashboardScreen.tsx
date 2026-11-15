@@ -1,5 +1,15 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, AppState, Platform, RefreshControl, StyleSheet, TouchableOpacity, Vibration, View } from 'react-native';
+import {
+  Alert,
+  AppState,
+  Linking,
+  Platform,
+  RefreshControl,
+  StyleSheet,
+  TouchableOpacity,
+  Vibration,
+  View,
+} from 'react-native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -10,11 +20,15 @@ import {
   DPPageHeader,
   DPButton,
   DPSectionCard,
-  DPSwitch,
   DPStatusPill,
   DPTimer,
-  DPKpiStrip,
-  DPKpiCard,
+  DPSkeleton,
+  DPErrorState,
+  DPEmptyState,
+  DPUtilityBar,
+  DPRouteRail,
+  DPOrderCard,
+  DPFadeIn,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type DeliveryOrder } from '@/services/api/GatewayClient';
@@ -31,16 +45,16 @@ import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { useDeliverySettingsStore } from '@/state/deliverySettingsStore';
 import { hs, vs } from '@/utils/responsive';
+import { formatRupees, formatNumber } from '../format';
 import { type DeliveryPartnerStackParamList, type DeliveryTabParamList } from '../navigation';
 import { activeOrderFrom } from '../activeOrder';
+
 type Props = CompositeScreenProps<
   BottomTabScreenProps<DeliveryTabParamList, 'Dashboard'>,
   NativeStackScreenProps<DeliveryPartnerStackParamList>
 >;
 
 const HEARTBEAT_MS = 120_000;
-
-const rupees = (paisa: number) => `₹${(paisa / 100).toFixed(0)}`;
 
 /** Payment tag for an offer/active order: prepaid (UPI) vs collect-at-door (COD) state. */
 const paymentLabel = (order: DeliveryOrder): string => {
@@ -51,6 +65,12 @@ const paymentLabel = (order: DeliveryOrder): string => {
   return `${order.paymentMethod} · prepaid`;
 };
 
+/** Short "Cash"/"Prepaid" tag for summary meta lines. */
+const paymentMeta = (order: DeliveryOrder): string =>
+  order.paymentRequired ? 'Cash' : 'Prepaid';
+
+const isStopDone = (status: string) => status === 'DELIVERED' || status === 'FAILED';
+
 export function DashboardScreen({ navigation }: Props) {
   const rider = useDeliveryPartnerStore((s) => s.rider);
   const setRider = useDeliveryPartnerStore((s) => s.setRider);
@@ -59,9 +79,11 @@ export function DashboardScreen({ navigation }: Props) {
   const logout = useAuthStore((s) => s.logout);
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [loading, setLoading] = useState(false);
+  const [booting, setBooting] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [online, setOnline] = useState(Boolean(rider?.isAvailable));
+  const [unread, setUnread] = useState(0);
   const [now, setNow] = useState(Date.now());
   const [iosBackgroundAllowed, setIosBackgroundAllowed] = useState(false);
   const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -74,14 +96,8 @@ export function DashboardScreen({ navigation }: Props) {
     [navigation],
   );
 
-  const offers = useMemo(
-    () => orders.filter((o) => o.status === 'ASSIGNED'),
-    [orders],
-  );
-  const active = useMemo(
-    () => orders.filter((o) => o.status === 'ACCEPTED'),
-    [orders],
-  );
+  const offers = useMemo(() => orders.filter((o) => o.status === 'ASSIGNED'), [orders]);
+  const active = useMemo(() => orders.filter((o) => o.status === 'ACCEPTED'), [orders]);
 
   useEffect(() => {
     void hydrateSettings();
@@ -137,13 +153,19 @@ export function DashboardScreen({ navigation }: Props) {
         rootNavigation()?.replace('SubmissionSuccess');
         return;
       }
-      const nextOrders = await gateway.getActiveDeliveryOrders();
+      const [nextOrders, inbox] = await Promise.all([
+        gateway.getActiveDeliveryOrders(),
+        // Best-effort: the inbox badge is a courtesy; a failure must not block the shift.
+        gateway.getNotifications().catch(() => []),
+      ]);
       setOrders(nextOrders);
+      setUnread(inbox.filter((item) => !item.readAt).length);
       setActiveOrder(activeOrderFrom(nextOrders));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load your dashboard.');
     } finally {
       setLoading(false);
+      setBooting(false);
     }
   }, [rootNavigation, setActiveOrder, setRider, stopHeartbeat]);
 
@@ -311,6 +333,15 @@ export function DashboardScreen({ navigation }: Props) {
     [],
   );
 
+  const callEmergencyContact = useCallback(() => {
+    const number = rider?.emergencyContact;
+    if (!number) return;
+    Alert.alert('Call emergency contact', `Call ${number}?`, [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Call', onPress: () => void Linking.openURL(`tel:${number}`) },
+    ]);
+  }, [rider?.emergencyContact]);
+
   const onLogout = useCallback(async () => {
     stopHeartbeat();
     stopIOSBackgroundLocation();
@@ -321,176 +352,316 @@ export function DashboardScreen({ navigation }: Props) {
     rootNavigation()?.reset({ index: 0, routes: [{ name: 'PhoneEntry' }] });
   }, [logout, online, reset, rootNavigation, stopHeartbeat]);
 
+  const refreshControl = (
+    <RefreshControl refreshing={loading} onRefresh={() => void refresh()} />
+  );
+
+  if (booting) {
+    return (
+      <DPPage refreshControl={refreshControl}>
+        <DPPageHeader kicker="Delivery partner" title="Today" />
+        <DPSkeleton lines={7} />
+      </DPPage>
+    );
+  }
+
+  const fatal = Boolean(error) && !rider;
+
   return (
     <DPPage
-      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}
+      refreshControl={refreshControl}
+      header={
+        <DPUtilityBar
+          online={online}
+          onToggleOnline={() => void toggleOnline()}
+          onlineBusy={busy === 'availability'}
+          unreadCount={unread}
+          onOpenInbox={() => navigation.navigate('Notifications')}
+          profileName={rider?.fullName}
+          onOpenProfile={() => navigation.navigate('RiderProfile')}
+          onSos={rider?.emergencyContact ? callEmergencyContact : undefined}
+        />
+      }
     >
       <DPPageHeader
         leading={<FaazioLogo size={26} />}
-        kicker="Delivery Partner"
+        kicker="Delivery partner"
         title={rider?.fullName ?? 'Rider'}
         actions={rider ? <DPStatusPill status={rider.status} /> : undefined}
         tone={online ? 'success' : 'neutral'}
       />
 
-      <DPSectionCard style={styles.availability}>
-        <View style={styles.rowBetween}>
-          <View style={styles.flex}>
-            <AppText style={styles.availabilityTitle}>{online ? 'You are online' : 'You are offline'}</AppText>
-            <AppText style={styles.availabilityCopy}>
-              {online
-                ? 'Available — waiting for orders. Location heartbeats keep you in dispatch.'
-                : 'Go online to receive nearby delivery offers.'}
-            </AppText>
-          </View>
-          <DPSwitch
-            value={online}
-            onValueChange={() => void toggleOnline()}
-            disabled={busy === 'availability'}
-            accessibilityLabel="Go online"
-          />
-        </View>
-      </DPSectionCard>
+      {fatal ? (
+        <DPErrorState
+          title="Could not load your shift"
+          description={error ?? undefined}
+          onRetry={() => void refresh()}
+        />
+      ) : (
+        <>
+          {error ? (
+            <DPSectionCard style={styles.errorCard}>
+              <AppText style={styles.errorText}>{error}</AppText>
+              <DPButton
+                label="Retry"
+                variant="ghost"
+                size="sm"
+                fullWidth={false}
+                onPress={() => void refresh()}
+                style={styles.errorRetry}
+              />
+            </DPSectionCard>
+          ) : null}
 
-      <DPKpiStrip style={styles.kpis}>
-        <DPKpiCard label="Load" value={`${rider?.currentLoad ?? 0}/${rider?.maxCapacity ?? 0}`} />
-        <DPKpiCard label="Deliveries" value={String(rider?.completedOrders ?? 0)} />
-        <DPKpiCard label="Rating" value={rider?.rating ? rider.rating.toFixed(1) : '—'} />
-      </DPKpiStrip>
-
-      {error ? <AppText style={styles.error}>{error}</AppText> : null}
-
-      {offers.length > 0 ? (
-        <View style={styles.section}>
-          <AppText style={styles.sectionTitle}>New offers</AppText>
-          {offers.map((order) => {
-            const seconds = order.expiresAt
-              ? Math.max(0, Math.floor((new Date(order.expiresAt).getTime() - now) / 1000))
-              : 45;
-            const pickup = order.stops.find((s) => s.stopType === 'PICKUP');
-            const drop = order.stops.find((s) => s.stopType === 'DROP');
-            return (
-              <DPSectionCard key={order.orderId} style={styles.orderCard}>
-                <View style={styles.rowBetween}>
-                  <AppText style={styles.orderTitle}>
-                    {pickup?.label || 'Store'} → {drop?.label || 'Customer'}
-                  </AppText>
-                  <DPTimer seconds={seconds} />
-                </View>
-                <AppText style={styles.orderMeta}>
-                  {pickup?.address || 'Pickup address'} · {drop?.address || 'Drop address'}
-                </AppText>
-                <AppText style={styles.orderMeta}>
-                  {order.stops.length} stops · {Math.round(order.totalDistanceMeters / 1000)} km ·{' '}
-                  {Math.round(order.estimatedDurationSeconds / 60)} min · {rupees(order.payoutAmountPaisa)}
-                </AppText>
-                {paymentLabel(order) ? (
-                  <View style={styles.payTag}>
-                    <DPStatusPill status={order.paymentRequired ? (order.paymentReceived ? 'PAID' : 'PENDING') : 'ACCEPTED'} label={paymentLabel(order)} />
-                  </View>
-                ) : null}
-                <View style={styles.actions}>
-                  <View style={styles.flex}>
-                    <DPButton
-                      label="Accept"
-                      onPress={() => void accept(order.orderId)}
-                      loading={busy === order.orderId}
-                      disabled={seconds === 0}
-                    />
-                  </View>
-                  <DPButton
-                    label="Reject"
-                    variant="danger"
-                    fullWidth={false}
-                    onPress={() => void reject(order.orderId)}
-                    disabled={busy === order.orderId}
-                    style={styles.reject}
-                  />
-                </View>
-                <TouchableOpacity
-                  accessibilityRole="button"
-                  accessibilityLabel="View full offer details"
-                  onPress={() =>
-                    navigation.navigate('AcceptReject', {
-                      orderId: order.orderId,
-                      ...(order.expiresAt ? { expiresAt: order.expiresAt } : {}),
-                    })
-                  }
-                  style={styles.offerLink}
-                >
-                  <AppText style={styles.open}>View full offer →</AppText>
-                </TouchableOpacity>
-              </DPSectionCard>
-            );
-          })}
-        </View>
-      ) : null}
-
-      <View style={styles.section}>
-        <AppText style={styles.sectionTitle}>Active route</AppText>
-        {active.length === 0 ? (
-          <DPSectionCard>
-            <AppText style={styles.empty}>
-              No active deliveries. {online ? 'Stay online — offers appear here.' : 'Go online to start.'}
-            </AppText>
-          </DPSectionCard>
-        ) : (
-          active.map((order) => {
-            const done = order.stops.filter((s) => s.status === 'DELIVERED' || s.status === 'FAILED').length;
-            return (
-              <TouchableOpacity key={order.orderId} onPress={() => navigation.navigate('Route')} accessibilityRole="button">
-                <DPSectionCard style={styles.orderCard}>
-                  <View style={styles.rowBetween}>
-                    <AppText style={styles.orderTitle}>Order {order.orderId.slice(-6)}</AppText>
-                    <DPStatusPill status="ACCEPTED" label={`${done}/${order.stops.length} stops`} />
-                  </View>
-                  <AppText style={styles.orderMeta}>
-                    {order.stops.map((s) => s.label || s.stopType.toLowerCase()).join(' → ')}
-                  </AppText>
-                  {paymentLabel(order) ? (
-                    <AppText style={styles.paymentTag}>{paymentLabel(order)}</AppText>
-                  ) : null}
-                  <AppText style={styles.open}>Open route →</AppText>
-                </DPSectionCard>
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <AppText style={styles.sectionTitle}>This shift</AppText>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="View earnings"
+                onPress={() => navigation.navigate('Payouts')}
+              >
+                <AppText style={styles.link}>View earnings →</AppText>
               </TouchableOpacity>
-            );
-          })
-        )}
-      </View>
+            </View>
+            <DPSectionCard>
+              <View style={styles.summaryRow}>
+                <View style={styles.summaryPrimary}>
+                  <AppText style={styles.summaryValue}>{rider?.completedOrders ?? 0}</AppText>
+                  <AppText style={styles.summaryLabel}>Deliveries completed</AppText>
+                </View>
+                <View style={styles.summaryDivider} />
+                <View style={styles.summaryStat}>
+                  <AppText style={styles.summarySmall}>
+                    {rider?.currentLoad ?? 0}/{rider?.maxCapacity ?? 0}
+                  </AppText>
+                  <AppText style={styles.summaryLabel}>Load</AppText>
+                </View>
+                <View style={styles.summaryDivider} />
+                <View style={styles.summaryStat}>
+                  <AppText style={styles.summarySmall}>
+                    {rider?.rating ? formatNumber(rider.rating, 1) : '—'}
+                  </AppText>
+                  <AppText style={styles.summaryLabel}>Rating</AppText>
+                </View>
+              </View>
+            </DPSectionCard>
+          </View>
 
-      <TouchableOpacity onPress={() => void onLogout()} style={styles.linkWrap} accessibilityRole="button">
-        <AppText style={styles.link}>Go offline & sign out</AppText>
-      </TouchableOpacity>
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <AppText style={styles.sectionTitle}>Offers</AppText>
+              {offers.length > 0 ? (
+                <AppText style={styles.sectionCount}>{offers.length}</AppText>
+              ) : null}
+            </View>
+            {offers.length === 0 ? (
+              <DPSectionCard>
+                <DPEmptyState
+                  compact
+                  tone={online ? 'brand' : 'neutral'}
+                  title={online ? 'Waiting for offers' : 'You are offline'}
+                  description={
+                    online
+                      ? 'Stay online — dispatch will ping you as soon as a nearby delivery is assigned.'
+                      : 'Go online to receive delivery offers.'
+                  }
+                />
+              </DPSectionCard>
+            ) : (
+              offers.map((order, index) => {
+                // Only the server's window drives the countdown; never fabricate one.
+                const seconds = order.expiresAt
+                  ? Math.max(0, Math.floor((new Date(order.expiresAt).getTime() - now) / 1000))
+                  : null;
+                const pickup = order.stops.find((s) => s.stopType === 'PICKUP');
+                const drop = order.stops.find((s) => s.stopType === 'DROP');
+                return (
+                  <DPFadeIn key={order.orderId} index={index}>
+                  <DPSectionCard style={styles.card}>
+                    <View style={styles.rowBetween}>
+                      <AppText style={styles.cardKicker}>New delivery</AppText>
+                      {seconds !== null ? <DPTimer seconds={seconds} /> : null}
+                    </View>
+                    <DPRouteRail
+                      style={styles.rail}
+                      activeIndex={0}
+                      stops={[
+                        { label: pickup?.label || 'Store' },
+                        { label: drop?.label || 'Customer' },
+                      ]}
+                    />
+                    <AppText style={styles.cardMeta}>
+                      {pickup?.address || 'Pickup address'} · {drop?.address || 'Drop address'}
+                    </AppText>
+                    <View style={styles.payRow}>
+                      <AppText style={styles.payout}>{formatRupees(order.payoutAmountPaisa)}</AppText>
+                      <AppText style={styles.payMeta}>
+                        {order.stops.length} stops ·{' '}
+                        {Math.round(order.totalDistanceMeters / 1000)} km ·{' '}
+                        {Math.round(order.estimatedDurationSeconds / 60)} min
+                      </AppText>
+                    </View>
+                    {paymentLabel(order) ? (
+                      <View style={styles.payTag}>
+                        <DPStatusPill
+                          status={order.paymentRequired ? (order.paymentReceived ? 'PAID' : 'PENDING') : 'ACCEPTED'}
+                          label={paymentLabel(order)}
+                        />
+                      </View>
+                    ) : null}
+                    <View style={styles.actions}>
+                      <View style={styles.flex}>
+                        <DPButton
+                          label="Accept"
+                          onPress={() => void accept(order.orderId)}
+                          loading={busy === order.orderId}
+                          disabled={seconds === 0}
+                        />
+                      </View>
+                      <DPButton
+                        label="Reject"
+                        variant="outline"
+                        fullWidth={false}
+                        onPress={() => void reject(order.orderId)}
+                        disabled={busy === order.orderId}
+                        style={styles.reject}
+                      />
+                    </View>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel="View full offer details"
+                      onPress={() =>
+                        navigation.navigate('AcceptReject', {
+                          orderId: order.orderId,
+                          ...(order.expiresAt ? { expiresAt: order.expiresAt } : {}),
+                        })
+                      }
+                      style={styles.offerLink}
+                    >
+                      <AppText style={styles.link}>View full offer →</AppText>
+                    </TouchableOpacity>
+                  </DPSectionCard>
+                  </DPFadeIn>
+                );
+              })
+            )}
+          </View>
+
+          <View style={styles.section}>
+            <View style={styles.sectionHead}>
+              <AppText style={styles.sectionTitle}>Your route</AppText>
+              <TouchableOpacity
+                accessibilityRole="button"
+                accessibilityLabel="Past deliveries"
+                onPress={() => navigation.navigate('OrderHistory')}
+              >
+                <AppText style={styles.link}>Past deliveries →</AppText>
+              </TouchableOpacity>
+            </View>
+            {active.length === 0 ? (
+              <DPSectionCard>
+                <DPEmptyState
+                  compact
+                  tone={online ? 'brand' : 'neutral'}
+                  title="No active deliveries"
+                  description={
+                    online
+                      ? 'Accepted orders appear here as a route to run.'
+                      : 'Go online to start your shift.'
+                  }
+                />
+              </DPSectionCard>
+            ) : (
+              active.map((order, index) => {
+                const done = order.stops.filter((s) => isStopDone(s.status)).length;
+                const nextIdx = order.stops.findIndex((s) => !isStopDone(s.status));
+                const activeIndex = nextIdx === -1 ? order.stops.length : nextIdx;
+                return (
+                  <DPFadeIn key={order.orderId} index={index}>
+                  <DPOrderCard
+                    style={styles.card}
+                    title={`Order ${order.orderId.slice(-6)}`}
+                    status="ACCEPTED"
+                    statusLabel={`${done}/${order.stops.length} stops`}
+                    rail={
+                      <DPRouteRail
+                        activeIndex={activeIndex}
+                        stops={order.stops.map((s) => ({
+                          label: s.label || s.stopType,
+                          done: isStopDone(s.status),
+                        }))}
+                      />
+                    }
+                    amount={formatRupees(order.payoutAmountPaisa)}
+                    amountNote="on completion"
+                    submeta={`${order.stops.length} stops · ${Math.round(
+                      order.totalDistanceMeters / 1000,
+                    )} km · ${paymentMeta(order)}`}
+                    actionLabel="Open route"
+                    onAction={() => navigation.navigate('Route')}
+                    onPress={() => navigation.navigate('Route')}
+                    accessibilityLabel={`Order ${order.orderId.slice(-6)}, ${done} of ${order.stops.length} stops done`}
+                  />
+                  </DPFadeIn>
+                );
+              })
+            )}
+          </View>
+
+          <TouchableOpacity
+            onPress={() => void onLogout()}
+            style={styles.linkWrap}
+            accessibilityRole="button"
+          >
+            <AppText style={styles.signOut}>Go offline and sign out</AppText>
+          </TouchableOpacity>
+        </>
+      )}
     </DPPage>
   );
 }
 
 const styles = StyleSheet.create({
-  availability: { marginBottom: vs(12) },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
   flex: { flex: 1 },
-  availabilityTitle: { ...DP_TYPE.title, color: DELIVERY.ink, fontWeight: '700' },
-  availabilityCopy: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(3) },
-  kpis: { marginBottom: vs(8) },
-  section: { marginTop: vs(12) },
-  sectionTitle: {
-    ...DP_TYPE.kicker,
-    color: DELIVERY.inkMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
+  section: { marginTop: vs(16) },
+  sectionHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: hs(10),
     marginBottom: vs(8),
   },
-  orderCard: { marginBottom: vs(10) },
-  orderTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600', flex: 1 },
-  orderMeta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(4) },
+  sectionTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600' },
+  sectionCount: { ...DP_TYPE.caption, color: DELIVERY.inkSubtle },
+  link: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '500' },
+  summaryRow: { flexDirection: 'row', alignItems: 'center' },
+  summaryPrimary: { flex: 1.4 },
+  summaryStat: { flex: 1 },
+  summaryDivider: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
+    backgroundColor: DELIVERY.border,
+    marginHorizontal: hs(12),
+  },
+  summaryValue: { ...DP_TYPE.display, color: DELIVERY.ink, fontVariant: ['tabular-nums'] },
+  summarySmall: { ...DP_TYPE.title, color: DELIVERY.ink, fontVariant: ['tabular-nums'] },
+  summaryLabel: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
+  card: { marginBottom: vs(10) },
+  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
+  cardKicker: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted },
+  rail: { marginTop: vs(12) },
+  cardMeta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(10) },
+  payRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: hs(10), marginTop: vs(10) },
+  payout: { ...DP_TYPE.title, color: DELIVERY.ink, fontVariant: ['tabular-nums'] },
+  payMeta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, flexShrink: 1, textAlign: 'right' },
   payTag: { marginTop: vs(8), flexDirection: 'row' },
   actions: { flexDirection: 'row', alignItems: 'center', gap: hs(10), marginTop: vs(12) },
   reject: { paddingHorizontal: hs(16) },
-  empty: { ...DP_TYPE.body, color: DELIVERY.inkMuted },
-  open: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '600', marginTop: vs(10) },
-  paymentTag: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.warning, marginTop: vs(4) },
-  offerLink: { marginTop: vs(2) },
-  error: { ...DP_TYPE.caption, color: DELIVERY.danger, marginTop: vs(10) },
+  offerLink: { marginTop: vs(10) },
+  errorCard: { flexDirection: 'row', alignItems: 'center', gap: hs(10), marginBottom: vs(8) },
+  errorText: { ...DP_TYPE.caption, color: DELIVERY.danger, flex: 1 },
+  errorRetry: { paddingHorizontal: hs(10) },
   linkWrap: { minHeight: DELIVERY.touch.min, alignItems: 'center', justifyContent: 'center', marginTop: vs(16) },
-  link: { ...DP_TYPE.label, color: DELIVERY.inkMuted, fontWeight: '500' },
+  signOut: { ...DP_TYPE.label, color: DELIVERY.inkMuted },
 });

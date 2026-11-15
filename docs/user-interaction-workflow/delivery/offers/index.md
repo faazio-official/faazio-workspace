@@ -5,8 +5,9 @@
 (`RouteScreen.tsx`), `Dashboard`
 **Trigger:** Push/deep link for a new offer, the **View full offer →** link on a `Dashboard` offer
 card, or the dashboard's active list.
-**Visual layer:** offer cards, status pills and the offer modal use the DP primitives; the 45 s
-countdown, accept/reject calls and navigation are unchanged.
+**Visual layer:** offer cards use the `DPRouteRail` (dotted pickup → drop line) and the 45 s
+`DPTimer`; the active-route card is a `DPOrderCard` with the rail; the `AcceptReject` modal keeps the
+same primitives. The 45 s countdown, accept/reject calls and navigation are unchanged.
 
 ## Flows
 
@@ -31,7 +32,9 @@ countdown, accept/reject calls and navigation are unchanged.
 
 - **Success:** accepted offer enters the route; rejected offer is reassigned.
 - **Error/expired:** offer unavailable message; returns to dashboard.
-- **Empty:** no offers → dashboard empty state.
+- **Empty:** no offers → the Offers section stays visible with an honest duty-aware waiting message
+  (online) or a "go online" message (offline); `AcceptReject` shows a neutral
+  "Offer no longer available" state and a way back to the dashboard.
 
 ## Known gaps
 

@@ -15,6 +15,41 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W93 — Delivery Partner UI system upgrade (rider-first)
+
+**Status:** 🟢 Shipped (JS-only; CI builds the APK). Remaining product/data gaps are listed below and
+in `docs/user-interaction-workflow/KNOWN_GAPS.md` — this is not a claim of full feature parity with
+the reference.
+
+- **Direction:** `docs/UI_DESIGN_SYSTEM.md` §1 (Delivery partner app) — rider-first Feed, cool-graphite
+  neutrals, one accent, green only for online/delivered/cash-in-hand.
+- **Primitives (`src/components/shared/dp/`):** `DPRouteRail` (signature, now reused on the Feed
+  offer/active cards and the `Route` summary), `DPUtilityBar`, `DPOrderCard`, `DPTabStrip`,
+  `DPFadeIn`; `DPKpiCard` gained a `lead` size (numbers only, dead `delta`/`spark` removed),
+  `DPEmptyState` gained `compact`, `DPSkeleton` settles once instead of looping, `DPButton`
+  press-scale 0.97, `DPSectionCard` `variant="flat"`, `DPPage` `header` slot.
+- **Type/colour:** `DP_TYPE` capped at 600 weight; uppercase/tracked kickers removed (button/pill
+  tracking removed too); `formatRupees`/`formatNumber` in `src/features/delivery-partner/format.ts`
+  are used for every ₹ figure and distance/rating with tabular figures; raw hex literals removed.
+- **Money policy:** headline figures (offer payout, totals, KPI sums) use whole rupees; itemised
+  ledger lines use two decimals. Presentation-only — paisa value semantics are unchanged.
+- **Home:** rider-first Feed (shift bar with presence switch + unread badge, This shift summary,
+  Offers with the rail and a server-driven countdown — no fabricated 45 s fallback, Your route with
+  the rail); first-load skeleton, error+retry and compact duty-aware empty states.
+- **States/motion:** `DPSkeleton` on first load for Dashboard/Orders/Route/Payout/Earnings/Inbox/
+  Profile; `DPErrorState` + retry for first-load failures; `DPEmptyState` across the screens;
+  `DPFadeIn` 30 ms row stagger disabled under Reduce Motion; `PickupScanModal` wraps its own
+  `SafeAreaProvider`; customer phone on `Route` is a tappable `tel:` link.
+- **Deliberate deviation from the Vite reference:** no Active/History split on the Feed and no
+  Gigs/Bazaar/Offers-matrix tabs — the separate Orders/Pocket/Inbox tabs already own those, and
+  Gigs/Bazaar have no gateway. No invented data.
+- **Deferred / product-gated:**
+  - The shift bar's emergency call uses the rider's real `emergencyContact` (`tel:` after a
+    confirm); a dispatch SOS endpoint does not exist. It only appears when a contact is on file.
+  - No per-shift earnings or online-hours source, so **This shift** shows only rider-record fields.
+  - A dedicated rider order-history endpoint is still absent (history reads the payout ledger).
+  - `SubmissionSuccess` still has no dedicated workflow page (tracked in `KNOWN_GAPS.md`).
+
 ## W92 — Delivery login/OTP parity + "save & suggest" recent numbers
 
 **Status:** 🟢 Shipped (JS-only; CI builds the APK).

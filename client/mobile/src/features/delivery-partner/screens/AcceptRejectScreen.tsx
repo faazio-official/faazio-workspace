@@ -11,16 +11,19 @@ import {
   DPKeyValueRow,
   DPSeparator,
   DPStatusPill,
+  DPSkeleton,
+  DPEmptyState,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type DeliveryOrder } from '@/services/api/GatewayClient';
 import { hs, vs } from '@/utils/responsive';
+import { formatRupees } from '../format';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 import { resetToTab } from '../navigationRoutes';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'AcceptReject'>;
 
-const rupees = (paisa: number) => `₹${(paisa / 100).toFixed(0)}`;
+const rupees = (paisa: number) => formatRupees(paisa);
 const DEFAULT_WINDOW_SECONDS = 45;
 
 /**
@@ -219,15 +222,13 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
           )}
         </>
       ) : loading ? (
-        <DPSectionCard>
-          <AppText style={styles.meta}>Loading offer...</AppText>
-        </DPSectionCard>
+        <DPSkeleton lines={5} />
       ) : (
-        <DPSectionCard>
-          <AppText style={styles.meta}>
-            The offer is no longer assigned to you. It may have expired or moved to another rider.
-          </AppText>
-        </DPSectionCard>
+        <DPEmptyState
+          tone="neutral"
+          title="Offer no longer available"
+          description="It may have expired or moved to another rider."
+        />
       )}
 
       {!loading && !order ? (
@@ -245,7 +246,7 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   card: { marginBottom: vs(12) },
   stopHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
-  section: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted, textTransform: 'uppercase', letterSpacing: 1 },
+  section: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted },
   name: { ...DP_TYPE.title, color: DELIVERY.ink, fontWeight: '600', marginTop: vs(3) },
   meta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
   otpNote: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.warning, marginTop: vs(8) },

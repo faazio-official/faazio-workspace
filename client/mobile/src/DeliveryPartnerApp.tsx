@@ -10,13 +10,14 @@ import { useAuthStore } from './state/authStore';
 import { useAppFonts, resolveFontFamily } from './theme/fonts';
 import { useBottomInset } from './utils/responsive';
 import { installGlobalErrorHandlers } from './services/crashReporting';
+import { DELIVERY } from './theme/deliveryTokens';
 
 // Release crash observability for the delivery partner app (see services/crashReporting.ts).
 installGlobalErrorHandlers('delivery');
 
 const navigationTheme = {
   ...DefaultTheme,
-  colors: { ...DefaultTheme.colors, background: '#f8fafc' },
+  colors: { ...DefaultTheme.colors, background: DELIVERY.surface },
   fonts: {
     regular: { fontFamily: resolveFontFamily('400'), fontWeight: '400' as const },
     medium: { fontFamily: resolveFontFamily('500'), fontWeight: '500' as const },
@@ -71,5 +72,5 @@ export default function DeliveryPartnerApp() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f8fafc' },
+  container: { flex: 1, backgroundColor: DELIVERY.surface },
 });

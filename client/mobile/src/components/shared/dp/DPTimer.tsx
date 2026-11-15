@@ -1,8 +1,8 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import AppText from '@/components/AppText';
-import { DELIVERY, DP_TONE, DP_TYPE, type DpTone } from '@/theme/deliveryTokens';
-import { hs, ms, vs } from '@/utils/responsive';
+import { DP_TONE, DP_TYPE, type DpTone } from '@/theme/deliveryTokens';
+import { ms, vs } from '@/utils/responsive';
 
 interface DPTimerProps {
   seconds: number;
@@ -30,6 +30,6 @@ export function DPTimer({ seconds, dangerAt = 10, label }: DPTimerProps) {
 
 const styles = StyleSheet.create({
   wrap: { alignItems: 'flex-end' },
-  value: { ...DP_TYPE.timer, letterSpacing: 0.5 },
-  label: { fontSize: ms(10), fontWeight: '700', textTransform: 'uppercase', letterSpacing: 1, marginTop: vs(2) },
+  value: { ...DP_TYPE.timer },
+  label: { fontSize: ms(11), fontWeight: '500', marginTop: vs(2) },
 });

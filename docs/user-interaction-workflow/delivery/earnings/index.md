@@ -3,8 +3,11 @@
 **Status:** Shipped (server-derived amounts; disbursement is intentionally manual by admin)
 **Route:** `Payouts` (`features/delivery-partner/screens/PayoutScreen.tsx`)
 **Trigger:** Rider taps the Pocket tab (or Earnings on the dashboard).
-**Visual layer:** `Payouts` is restyled (KPI strip, payout cards) and is the Pocket tab of the
-persistent bottom-tab navigator (`Main`); rows open the `EarningsDetail` route.
+**Visual layer:** `Payouts` is the Pocket tab of the persistent bottom-tab navigator (`Main`); it
+shows a KPI strip (Pending leads with a larger figure, then Paid out), then the payout rows. First
+load shows `DPSkeleton` (no fake `₹0`), a load failure shows `DPErrorState` + retry, and an empty
+ledger shows a compact `DPEmptyState`. Headline totals use whole rupees; itemised ledger lines use
+two decimals with tabular figures. Rows open the `EarningsDetail` route.
 
 ## Flows
 
@@ -26,8 +29,9 @@ persistent bottom-tab navigator (`Main`); rows open the `EarningsDetail` route.
 ## Success / error / empty
 
 - **Success:** pending/paid totals + payout rows.
-- **Error:** inline error; no fabricated earnings.
-- **Empty:** zero pending/paid honest state.
+- **Error:** first-load failure → `DPErrorState` + retry; a refresh failure → inline error; no
+  fabricated earnings and no `₹0` before the first load resolves.
+- **Empty:** explicit "No payouts yet" state.
 
 ## Known gaps
 

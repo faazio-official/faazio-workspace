@@ -86,7 +86,7 @@ export function DPAvatar({ name, size = 48, tone = 'brand' }: DPAvatarProps) {
         justifyContent: 'center',
       }}
     >
-      <AppText style={{ fontSize: ms(size / 2.6), fontWeight: '700', color: DP_TONE[tone].fg }}>
+      <AppText style={{ fontSize: ms(size / 2.6), fontWeight: '600', color: DP_TONE[tone].fg }}>
         {initials || 'F'}
       </AppText>
     </View>

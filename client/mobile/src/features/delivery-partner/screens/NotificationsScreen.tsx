@@ -12,6 +12,7 @@ import {
   DPErrorState,
   DPSkeleton,
   DPButton,
+  DPFadeIn,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type NotificationRecord } from '@/services/api/GatewayClient';
@@ -107,11 +108,11 @@ export function NotificationsScreen() {
           description="Order and payout updates will appear here."
         />
       ) : (
-        items.map((item) => {
+        items.map((item, index) => {
           const unread = !item.readAt;
           return (
+            <DPFadeIn key={item.id} index={index}>
             <TouchableOpacity
-              key={item.id}
               onPress={() => markRead(item.id)}
               activeOpacity={0.9}
               accessibilityRole="button"
@@ -130,6 +131,7 @@ export function NotificationsScreen() {
                 <AppText style={styles.when}>{formatWhen(item.createdAt)}</AppText>
               </DPSectionCard>
             </TouchableOpacity>
+            </DPFadeIn>
           );
         })
       )}
@@ -143,7 +145,7 @@ const styles = StyleSheet.create({
   cardHead: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(8) },
   unreadDot: { marginTop: vs(5) },
   title: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '500', flex: 1 },
-  titleUnread: { fontWeight: '700' },
+  titleUnread: { fontWeight: '600' },
   body: { ...DP_TYPE.body, color: DELIVERY.inkMuted, marginTop: vs(6) },
   when: { ...DP_TYPE.caption, color: DELIVERY.inkSubtle, marginTop: vs(10) },
 });

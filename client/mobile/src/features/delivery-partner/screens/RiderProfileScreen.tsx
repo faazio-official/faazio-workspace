@@ -15,6 +15,7 @@ import {
   DPErrorState,
   DPSkeleton,
   DPSeparator,
+  DPEmptyState,
   DPButton,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
@@ -22,6 +23,7 @@ import { gateway, type DeliveryPartnerRider } from '@/services/api/GatewayClient
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { hs, vs } from '@/utils/responsive';
+import { formatNumber } from '../format';
 import { type DeliveryPartnerStackParamList, type DeliveryTabParamList } from '../navigation';
 
 type Props = CompositeScreenProps<
@@ -79,7 +81,14 @@ export function RiderProfileScreen({ navigation }: Props) {
         <DPErrorState description={error} onRetry={() => void load()} />
       ) : rider ? (
         <ProfileBody rider={rider} />
-      ) : null}
+      ) : (
+        <DPEmptyState
+          compact
+          tone="neutral"
+          title="No profile loaded"
+          description="Pull down to reload your rider profile."
+        />
+      )}
 
       <DPSectionCard style={styles.menu} title="Services">
         <DPListRow title="Earnings & payouts" subtitle="Per-job payout and settlement" onPress={() => navigation.navigate('Payouts')} />
@@ -126,7 +135,7 @@ function ProfileBody({ rider }: { rider: DeliveryPartnerRider }) {
         <DPKeyValueRow label="Vehicle" value={rider.vehicleType.replace(/_/g, ' ').toLowerCase()} />
         <DPKeyValueRow label="Capacity" value={String(rider.maxCapacity)} />
         <DPKeyValueRow label="Hub zone" value={rider.hubZone || '—'} />
-        <DPKeyValueRow label="Rating" value={rider.rating ? `${rider.rating.toFixed(1)} / 5` : '—'} />
+        <DPKeyValueRow label="Rating" value={rider.rating ? `${formatNumber(rider.rating, 1)} / 5` : '—'} />
         <DPKeyValueRow label="Completed deliveries" value={String(rider.completedOrders)} />
       </DPSectionCard>
 
@@ -144,11 +153,10 @@ const styles = StyleSheet.create({
   card: { marginBottom: vs(12) },
   identity: { flexDirection: 'row', alignItems: 'center', gap: hs(12) },
   flex: { flex: 1 },
-  name: { ...DP_TYPE.title, color: DELIVERY.ink, fontWeight: '700' },
+  name: { ...DP_TYPE.title, color: DELIVERY.ink },
   meta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(3) },
   menu: { marginTop: vs(12) },
   lastRow: { borderBottomWidth: 0 },
   note: { ...DP_TYPE.body, color: DELIVERY.inkMuted },
   signOut: { marginTop: vs(16) },
-  error: { ...DP_TYPE.caption, color: DELIVERY.danger },
 });

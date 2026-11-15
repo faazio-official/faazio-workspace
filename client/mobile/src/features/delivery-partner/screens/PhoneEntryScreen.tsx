@@ -236,8 +236,6 @@ const styles = StyleSheet.create({
   recentLabel: {
     ...DP_TYPE.kicker,
     color: DELIVERY.inkMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
     marginBottom: vs(8),
   },
   recentRow: { flexDirection: 'row', flexWrap: 'wrap', gap: hs(8) },

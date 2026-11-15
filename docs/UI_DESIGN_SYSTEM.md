@@ -73,6 +73,19 @@ fast, friendly, thumb-first. World: a shopfront and a delivery bag. Moments: the
 sector cards and real product photography. Signature: the sector dot + tint from
 `SECTOR_VISUALS`. Per-brand colour comes from `brandTokens.ts`.
 
+**Delivery partner app** — a rider's shift tool, not a dashboard demo.
+Product: go online in Karaikal, catch nearby offers before the timer dies, run
+pickup → drop → …stops on a scooter, collect cash at the door, and see what the
+day paid. Character: alert, plain, thumb-fast. World: a scooter on a street in
+daylight — distance, minutes, a door, cash in hand, a phone in a handlebar mount.
+Moments: the live offer countdown set large, and the shift figures. Signature:
+the **route rail** (a dotted `pickup → drop → …N stops` line with a live position
+dot) reused on the offer card, the active-route card and the Route screen, paired
+with the presence dot. Neutrals are cool graphite; green is reserved for
+*online / delivered / cash-in-hand*. Tokens live in
+`client/mobile/src/theme/deliveryTokens.ts`; the home is the rider-first Feed,
+not a copy of the reference's Gigs/Bazaar tabs (those have no gateway).
+
 ---
 
 ## 2. Decide how much to change

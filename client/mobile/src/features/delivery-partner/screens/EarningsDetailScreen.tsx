@@ -15,12 +15,14 @@ import {
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type RiderPayout } from '@/services/api/GatewayClient';
 import { hs, vs } from '@/utils/responsive';
+import { formatRupees, formatNumber } from '../format';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'EarningsDetail'>;
 
-const rupees = (paisa: number) =>
-  `₹${(paisa / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+/** Headline total is whole rupees; itemised ledger lines carry paise. */
+const headline = (paisa: number) => formatRupees(paisa);
+const line = (paisa: number) => formatRupees(paisa, 2);
 
 /** Single-order payout breakdown from `GET /delivery/payouts/{orderId}`. */
 export function EarningsDetailScreen({ navigation, route }: Props) {
@@ -51,7 +53,7 @@ export function EarningsDetailScreen({ navigation, route }: Props) {
   return (
     <DPPage>
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} accessibilityRole="button">
-        <AppText style={styles.backText}>← Earnings</AppText>
+        <AppText style={styles.backText}>← Back</AppText>
       </TouchableOpacity>
       <DPPageHeader kicker="Payout breakdown" title={`Order ${orderId.slice(-6)}`} />
 
@@ -67,19 +69,19 @@ export function EarningsDetailScreen({ navigation, route }: Props) {
               <AppText style={styles.totalLabel}>Total payout</AppText>
               <DPStatusPill status={payout.status} />
             </View>
-            <AppText style={styles.total}>{rupees(payout.totalPaisa)}</AppText>
+            <AppText style={styles.total}>{headline(payout.totalPaisa)}</AppText>
             <DPSeparator />
-            <DPKeyValueRow label="Distance" value={`${payout.distanceKm.toFixed(1)} km`} />
-            <DPKeyValueRow label="Base (first 3 km)" value={rupees(payout.baseRatePaisa)} />
-            <DPKeyValueRow label="Extra km" value={rupees(payout.extraKmChargePaisa)} />
+            <DPKeyValueRow label="Distance" value={`${formatNumber(payout.distanceKm, 1)} km`} />
+            <DPKeyValueRow label="Base (first 3 km)" value={line(payout.baseRatePaisa)} />
+            <DPKeyValueRow label="Extra km" value={line(payout.extraKmChargePaisa)} />
             <DPKeyValueRow
               label={payout.surgeReason ? `Surge · ${payout.surgeReason}` : 'Surge'}
-              value={rupees(payout.surgePaisa)}
+              value={line(payout.surgePaisa)}
               valueTone={payout.surgePaisa > 0 ? 'warning' : undefined}
             />
             <DPSeparator />
-            <DPKeyValueRow label="Paid so far" value={rupees(paidNow)} valueTone="success" />
-            <DPKeyValueRow label="Balance" value={rupees(balance)} valueTone={balance > 0 ? 'warning' : 'success'} />
+            <DPKeyValueRow label="Paid so far" value={line(paidNow)} valueTone="success" />
+            <DPKeyValueRow label="Balance" value={line(balance)} valueTone={balance > 0 ? 'warning' : 'success'} />
             {payout.paidAt ? (
               <DPKeyValueRow label="Paid on" value={new Date(payout.paidAt).toLocaleDateString('en-IN')} />
             ) : null}
@@ -99,8 +101,8 @@ const styles = StyleSheet.create({
   backText: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '600' },
   card: { marginBottom: vs(12) },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
-  totalLabel: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted, textTransform: 'uppercase', letterSpacing: 0.8 },
-  total: { ...DP_TYPE.display, color: DELIVERY.ink, fontWeight: '700', marginTop: vs(4) },
+  totalLabel: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted },
+  total: { ...DP_TYPE.display, color: DELIVERY.ink, marginTop: vs(4), fontVariant: ['tabular-nums'] },
   note: { ...DP_TYPE.caption, color: DELIVERY.inkMuted },
   error: { ...DP_TYPE.caption, color: DELIVERY.danger, marginBottom: vs(10) },
 });

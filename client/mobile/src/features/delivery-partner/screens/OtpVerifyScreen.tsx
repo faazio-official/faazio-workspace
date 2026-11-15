@@ -380,8 +380,6 @@ const styles = StyleSheet.create({
   label: {
     ...DP_TYPE.kicker,
     color: DELIVERY.inkMuted,
-    textTransform: 'uppercase',
-    letterSpacing: 0.8,
     marginBottom: vs(6),
   },
   otpField: {

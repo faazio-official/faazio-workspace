@@ -3,8 +3,12 @@
 **App / route:** delivery · `Route` (`features/delivery-partner/screens/RouteScreen.tsx`)
 **Status:** Shipped
 **Trigger:** Accepted offer, or opening the active route.
-**Visual layer:** stop cards, sequence dots, the map card and the pickup modal are restyled; the
-server-owned sequencing and stop transitions are unchanged.
+**Visual layer:** the route summary carries the signature `DPRouteRail` (the pickup → drop → …N line
+with the current-stop dot, with per-stop `done` from the server status), above the map card and the
+per-stop `DPSectionCard`s. First load shows a `DPSkeleton`; a load failure shows `DPErrorState` with
+retry, and no active stops shows `DPEmptyState`. A drop stop's `customerPhone` is a tappable
+`tel:` link. The pickup modal renders in its own `SafeAreaProvider` so its insets are not the app
+root's. The server-owned sequencing and stop transitions are unchanged.
 
 ## Steps
 
@@ -35,8 +39,9 @@ server-owned sequencing and stop transitions are unchanged.
 ## Success / error / empty
 
 - **Success:** ordered stops, forward-only transitions, route completion.
-- **Error:** inline error; no reordered local fiction.
-- **Empty:** no active stops → dashboard/empty route.
+- **Error:** first-load failure → `DPErrorState` + retry; an action failure → inline error; no
+  reordered local fiction.
+- **Empty:** no active stops → `DPEmptyState`.
 
 ## Known gaps
 

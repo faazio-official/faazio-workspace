@@ -64,5 +64,5 @@ const styles = StyleSheet.create({
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: vs(4) },
   label: { fontSize: ms(10), fontWeight: '500' },
-  labelActive: { fontWeight: '700' },
+  labelActive: { fontWeight: '600' },
 });

@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, Linking, StyleSheet, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -11,8 +11,10 @@ import {
   DPField,
   DPSectionCard,
   DPStatusPill,
-  DPKpiStrip,
-  DPKpiCard,
+  DPEmptyState,
+  DPErrorState,
+  DPSkeleton,
+  DPRouteRail,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import {
@@ -24,13 +26,14 @@ import {
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { PickupScanModal } from './PickupScanModal';
 import { hs, ms, vs } from '@/utils/responsive';
+import { formatRupees, formatNumber } from '../format';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 import { resetToTab } from '../navigationRoutes';
 import { activeOrderFrom } from '../activeOrder';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Route'>;
 
-const rupees = (paisa: number) => `₹${(paisa / 100).toFixed(0)}`;
+const rupees = (paisa: number) => formatRupees(paisa);
 
 function nextAction(stop: DeliveryStop): { label: string; status: DeliveryStopStatus } | null {
   if (stop.status === 'DELIVERED' || stop.status === 'FAILED') return null;
@@ -132,6 +135,10 @@ export function RouteScreen({ navigation }: Props) {
     [orders],
   );
   const acceptedCount = useMemo(() => acceptedOnly(orders).length, [orders]);
+  const railActiveIndex = useMemo(() => {
+    const idx = stops.findIndex((s) => s.status !== 'DELIVERED' && s.status !== 'FAILED');
+    return idx === -1 ? stops.length : idx;
+  }, [stops]);
 
   const refresh = useCallback(async () => {
     const fresh = acceptedOnly(await gateway.getActiveDeliveryOrders());
@@ -265,20 +272,41 @@ export function RouteScreen({ navigation }: Props) {
   return (
     <DPPage>
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.back} accessibilityRole="button">
-        <AppText style={styles.backText}>← Dashboard</AppText>
+        <AppText style={styles.backText}>← Back</AppText>
       </TouchableOpacity>
       <DPPageHeader title="Route" kicker="Active deliveries" />
       {stops.length > 0 ? (
-        <>
-          <DPKpiStrip style={styles.summary}>
-            <DPKpiCard label="Stops" value={String(stops.length)} />
-            <DPKpiCard label="Orders" value={String(acceptedCount)} />
-          </DPKpiStrip>
-          <DPKpiStrip style={styles.summary}>
-            <DPKpiCard label="Distance" value={`${Math.round(distance / 1000)} km`} />
-            <DPKpiCard label="Payout" value={rupees(payout)} />
-          </DPKpiStrip>
-        </>
+        <DPSectionCard style={styles.summary}>
+          <View style={styles.summaryRow}>
+            <View style={styles.summaryPrimary}>
+              <AppText style={styles.summaryValue}>{rupees(payout)}</AppText>
+              <AppText style={styles.summaryLabel}>Payout on completion</AppText>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryStat}>
+              <AppText style={styles.summarySmall}>{stops.length}</AppText>
+              <AppText style={styles.summaryLabel}>Stops</AppText>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryStat}>
+              <AppText style={styles.summarySmall}>{acceptedCount}</AppText>
+              <AppText style={styles.summaryLabel}>Orders</AppText>
+            </View>
+            <View style={styles.summaryDivider} />
+            <View style={styles.summaryStat}>
+              <AppText style={styles.summarySmall}>{formatNumber(Math.round(distance / 1000))} km</AppText>
+              <AppText style={styles.summaryLabel}>Distance</AppText>
+            </View>
+          </View>
+          <DPRouteRail
+            style={styles.rail}
+            activeIndex={railActiveIndex}
+            stops={stops.map((s) => ({
+              label: s.label || s.stopType,
+              done: s.status === 'DELIVERED' || s.status === 'FAILED',
+            }))}
+          />
+        </DPSectionCard>
       ) : null}
 
       {points.length >= 2 ? (
@@ -315,12 +343,21 @@ export function RouteScreen({ navigation }: Props) {
         </View>
       ) : null}
 
-      {error ? <AppText style={styles.error}>{error}</AppText> : null}
-      {stops.length === 0 && !loading ? (
-        <DPSectionCard>
-          <AppText style={styles.empty}>No active deliveries on this route.</AppText>
-        </DPSectionCard>
-      ) : null}
+      {loading && stops.length === 0 ? (
+        <DPSkeleton lines={6} />
+      ) : error && stops.length === 0 ? (
+        <DPErrorState description={error} onRetry={() => void load()} />
+      ) : (
+        <>
+          {error ? <AppText style={styles.error}>{error}</AppText> : null}
+          {stops.length === 0 ? (
+            <DPEmptyState
+              title="No active deliveries"
+              description="Accepted orders appear here as a route to run."
+            />
+          ) : null}
+        </>
+      )}
 
       {stops.map((stop, index) => {
         const action = nextAction(stop);
@@ -358,7 +395,16 @@ export function RouteScreen({ navigation }: Props) {
                 <AppText style={styles.stopLabel}>{stop.label || 'Stop'}</AppText>
                 <AppText style={styles.stopAddress}>{stop.address}</AppText>
                 {stop.customerPhone ? (
-                  <AppText style={styles.stopAddress}>Customer: {stop.customerPhone}</AppText>
+                  <TouchableOpacity
+                    onPress={() => void Linking.openURL(`tel:${stop.customerPhone}`)}
+                    accessibilityRole="link"
+                    accessibilityLabel={`Call ${stop.customerName || 'customer'} at ${stop.customerPhone}`}
+                    style={styles.callRow}
+                  >
+                    <AppText style={styles.callText}>
+                      Call {stop.customerName || 'customer'} · {stop.customerPhone}
+                    </AppText>
+                  </TouchableOpacity>
                 ) : null}
                 {stop.failureReason ? (
                   <AppText style={styles.failText}>{stop.failureReason}</AppText>
@@ -487,6 +533,19 @@ const styles = StyleSheet.create({
   back: { paddingTop: vs(8), paddingBottom: vs(4) },
   backText: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '600' },
   summary: { marginBottom: vs(12) },
+  summaryRow: { flexDirection: 'row', alignItems: 'center' },
+  summaryPrimary: { flex: 1.6 },
+  summaryStat: { flex: 1 },
+  summaryDivider: {
+    width: StyleSheet.hairlineWidth,
+    alignSelf: 'stretch',
+    backgroundColor: DELIVERY.border,
+    marginHorizontal: hs(10),
+  },
+  summaryValue: { ...DP_TYPE.title, color: DELIVERY.ink, fontVariant: ['tabular-nums'] },
+  summarySmall: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  summaryLabel: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
+  rail: { marginTop: vs(14) },
   mapWrap: { height: vs(200), borderRadius: DELIVERY.radius.lg, overflow: 'hidden', marginBottom: vs(12) },
   map: { flex: 1 },
   stop: { marginBottom: vs(10) },
@@ -501,12 +560,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   seqDone: { backgroundColor: DELIVERY.success },
-  seqText: { color: DELIVERY.onBrand, fontSize: ms(12), fontWeight: '700' },
+  seqText: { color: DELIVERY.onBrand, fontSize: ms(12), fontWeight: '600' },
   flex: { flex: 1 },
   stopTypeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(8) },
-  stopType: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted, textTransform: 'uppercase', letterSpacing: 0.8 },
+  stopType: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted },
   stopLabel: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600', marginTop: vs(4) },
   stopAddress: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
+  callRow: { marginTop: vs(4), minHeight: vs(24), justifyContent: 'center' },
+  callText: { ...DP_TYPE.caption, color: DELIVERY.brand, fontWeight: '600' },
   failText: { ...DP_TYPE.caption, color: DELIVERY.danger, marginTop: vs(4) },
   qr: {
     width: '62%',
@@ -524,6 +585,5 @@ const styles = StyleSheet.create({
   failButtonText: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.danger },
   failureBox: { marginTop: vs(12), paddingTop: vs(10), borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: DELIVERY.border },
   cancelText: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.inkMuted },
-  empty: { ...DP_TYPE.body, color: DELIVERY.inkMuted },
   error: { ...DP_TYPE.caption, color: DELIVERY.danger, marginBottom: vs(10) },
 });

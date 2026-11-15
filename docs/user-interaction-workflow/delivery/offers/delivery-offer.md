@@ -5,8 +5,10 @@
 **Trigger:** Push notification or deep link with `orderId` + optional `expiresAt`
 (`services/deliveryLinks.ts`), or the **View full offer →** link on a `Dashboard` offer card
 (`DashboardScreen.tsx`, `navigate('AcceptReject', { orderId, expiresAt })`).
-**Visual layer:** the modal is restyled (`DPPageHeader`, `DPTimer`, `DPSectionCard`, `DPButton`);
-the accept/reject contract and the existing `acceptReject.test.tsx` assertions are unchanged.
+**Visual layer:** the modal is restyled (`DPPageHeader` with the `DPTimer`, `DPSectionCard`,
+`DPKeyValueRow`, `DPButton`); a first load shows `DPSkeleton` and a not-assigned offer shows a
+neutral `DPEmptyState`. The accept/reject contract and the existing `acceptReject.test.tsx`
+assertions are unchanged.
 
 ## Steps
 

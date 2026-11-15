@@ -23,6 +23,8 @@ interface DPPageProps {
   keyboardShouldPersistTaps?: 'always' | 'never' | 'handled';
   /** Keep the focused field above the keyboard on the auth/registration forms. */
   keyboardAvoiding?: boolean;
+  /** Non-scrolling content pinned above the scroll body (e.g. a utility bar). */
+  header?: React.ReactNode;
 }
 
 /** Full-bleed page: safe-area top + scroll body on `surface`. */
@@ -32,6 +34,7 @@ export function DPPage({
   contentStyle,
   keyboardShouldPersistTaps = 'handled',
   keyboardAvoiding = false,
+  header,
 }: DPPageProps) {
   const insets = useSafeAreaInsets();
   const scroll = (
@@ -48,6 +51,7 @@ export function DPPage({
 
   return (
     <View style={[styles.page, { paddingTop: insets.top }]}>
+      {header}
       {keyboardAvoiding ? (
         <KeyboardAvoidingView
           style={styles.scroll}
@@ -109,8 +113,8 @@ const styles = StyleSheet.create({
   headerText: { flex: 1 },
   kickerRow: { flexDirection: 'row', alignItems: 'center', gap: hs(6) },
   dot: { width: ms(8), height: ms(8), borderRadius: ms(4) },
-  kicker: { ...DP_TYPE.kicker, textTransform: 'uppercase', letterSpacing: 1.1 },
-  title: { ...DP_TYPE.title, color: DELIVERY.ink, fontWeight: '700', marginTop: vs(4) },
+  kicker: { ...DP_TYPE.kicker },
+  title: { ...DP_TYPE.title, color: DELIVERY.ink, marginTop: vs(4) },
   description: { ...DP_TYPE.body, color: DELIVERY.inkMuted, marginTop: vs(6) },
   actions: { flexDirection: 'row', alignItems: 'center', gap: hs(8) },
 });

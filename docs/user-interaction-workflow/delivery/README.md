@@ -14,13 +14,25 @@ Inbox · More) plus the reference's raised active-order CTA that links to `Route
 **Auth:** Firebase phone OTP (shared with the customer app) + rider application status.
 **Data:** `GatewayClient` delivery methods only; no fixtures as live data.
 
-## Visual layer (Vite reference)
+## Visual layer (Vite reference + rider-first upgrade)
 
-The rider UI was restyled to the mobile view of `client/web/Delivery app vite Reference.`:
-full-bleed cards on `surface`/`card`, hairline `border`, tone-dot headers, KPI strip, status pills,
-filter chips, and a persistent bottom tab bar with a raised active-order CTA. Tokens live once in
-`client/mobile/src/theme/deliveryTokens.ts` (anchored on `parentRamp` — Faazio Blue `#1627E9`,
-replacing the old orphan `#2c56f6`) and primitives in `client/mobile/src/components/shared/dp/`.
+The rider UI was first restyled to the mobile view of `client/web/Delivery app vite Reference.`
+(full-bleed cards on `surface`/`card`, hairline `border`, status pills, a persistent bottom tab bar
+with a raised active-order CTA), then upgraded to a rider-first system in W93:
+
+- **Direction:** `docs/UI_DESIGN_SYSTEM.md` §1 (Delivery partner app) — cool-graphite neutrals, one
+  accent (Faazio Blue `#1627E9`), green only for online/delivered/cash-in-hand.
+- **Signature:** the `DPRouteRail` (dotted pickup → drop → …N line with a live position dot) on the
+  offer card, active-route card and Route screen.
+- **Home:** a pinned `DPUtilityBar` shift bar, a **This shift** summary, an always-present **Offers**
+  section with honest waiting copy, and **Your route** as `DPOrderCard`s.
+- **Reference used as vocabulary, not a blueprint:** no Active/History split on the Feed and no
+  Gigs/Bazaar/Offers-matrix tabs — the Orders/Pocket/Inbox tabs own those and Gigs/Bazaar have no
+  gateway. No invented data.
+- **Tokens/primitives:** `client/mobile/src/theme/deliveryTokens.ts` (anchored on `parentRamp`) and
+  `client/mobile/src/components/shared/dp/` (`DPRouteRail`, `DPUtilityBar`, `DPOrderCard`,
+  `DPTabStrip`, `DPFadeIn`, `DPKpiCard`, `DPButton`, …).
+
 Routes, screens, store actions, `GatewayClient` calls, timers, modals and validation rules are
 preserved; the bottom nav moved from a per-screen footer to a real tab navigator under `Main`.
 

@@ -5,7 +5,7 @@ import {
   semantic,
   semanticTint,
 } from '@/theme/brandTokens';
-import { RADIUS, TOUCH } from '@/theme/tokens';
+import { RADIUS, SHADOW_COLOR, TOUCH } from '@/theme/tokens';
 import { SPACE } from '@/theme/spacing';
 
 /**
@@ -60,22 +60,27 @@ export const DELIVERY = {
   radius: RADIUS,
   touch: TOUCH,
   space: SPACE,
+  /** Shadow ink. The one correct place for literal black; screens must not repeat it. */
+  shadow: SHADOW_COLOR,
 } as const;
 
 /**
  * Delivery type scale, matching the reference mobile view
  * (caption 11 / body 13 / label 14 / title 18 / display 26).
+ *
+ * Hierarchy comes from size and colour, not weight: weights stay within
+ * 400–600 (`docs/UI_DESIGN_SYSTEM.md` §3 Pass 5 — no 700–900 headings).
  */
 export const DP_TYPE = {
   caption: { fontSize: ms(11), lineHeight: ms(15), fontWeight: '500' },
   body: { fontSize: ms(13), lineHeight: ms(18), fontWeight: '400' },
   label: { fontSize: ms(14), lineHeight: ms(20), fontWeight: '500' },
   title: { fontSize: ms(18), lineHeight: ms(24), fontWeight: '600' },
-  display: { fontSize: ms(26), lineHeight: ms(32), fontWeight: '700' },
-  /** Micro label used for kickers / eyebrow copy. */
-  kicker: { fontSize: ms(11), lineHeight: ms(15), fontWeight: '700' },
-  /** Monospace-ish countdown weight for the 45 s offer timer. */
-  timer: { fontSize: ms(28), lineHeight: ms(34), fontWeight: '700' },
+  display: { fontSize: ms(26), lineHeight: ms(32), fontWeight: '600' },
+  /** Micro label used for kickers / eyebrow copy. Sentence case, never tracked. */
+  kicker: { fontSize: ms(11), lineHeight: ms(15), fontWeight: '600' },
+  /** Tabular countdown weight for the 45 s offer timer. */
+  timer: { fontSize: ms(28), lineHeight: ms(34), fontWeight: '600' },
 } as const;
 
 export type DpTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'brand';

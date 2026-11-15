@@ -334,7 +334,7 @@ const styles = StyleSheet.create({
   chips: { flexDirection: 'row', gap: hs(8), flexWrap: 'wrap' },
   capacityLabel: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(12) },
   stepper: { flexDirection: 'row', alignItems: 'center', gap: hs(12), marginTop: vs(8) },
-  stepValue: { ...DP_TYPE.title, color: DELIVERY.ink, fontWeight: '700', minWidth: hs(28), textAlign: 'center' },
+  stepValue: { ...DP_TYPE.title, color: DELIVERY.ink, minWidth: hs(28), textAlign: 'center' },
   docRow: {
     flexDirection: 'row',
     alignItems: 'center',

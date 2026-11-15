@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Modal, Pressable, StyleSheet, View } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Camera, useCameraDevice, useCameraPermission, useCodeScanner } from 'react-native-vision-camera';
 import { X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
@@ -17,9 +18,22 @@ interface Props {
  * for this stop; the gateway verifies it before the PICKUP stop can complete.
  */
 export function PickupScanModal({ visible, onClose, onScanned }: Props) {
+  // Modals render in their own native window; a nested provider reports that window's
+  // real insets instead of the app root's.
+  return (
+    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
+      <SafeAreaProvider>
+        <ScannerBody visible={visible} onClose={onClose} onScanned={onScanned} />
+      </SafeAreaProvider>
+    </Modal>
+  );
+}
+
+function ScannerBody({ visible, onClose, onScanned }: Props) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
   const handled = useRef(false);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!visible) return;
@@ -39,35 +53,33 @@ export function PickupScanModal({ visible, onClose, onScanned }: Props) {
   });
 
   return (
-    <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        {device && hasPermission ? (
-          <Camera
-            style={StyleSheet.absoluteFill}
-            device={device}
-            isActive={visible}
-            codeScanner={codeScanner}
-          />
-        ) : null}
-        <View style={styles.frame} pointerEvents="none" />
-        <View style={styles.top}>
-          <AppText style={styles.title}>Scan seller QR</AppText>
-          <Pressable accessibilityRole="button" onPress={onClose} style={styles.close}>
-            <X size={ms(20)} color={DELIVERY.onBrand} />
-          </Pressable>
-        </View>
-        <View style={styles.bottom}>
-          <AppText style={styles.hint}>
-            {!hasPermission
-              ? 'Allow camera access to scan the pickup QR.'
-              : 'Point the camera at the QR shown by the seller.'}
-          </AppText>
-          <Pressable accessibilityRole="button" onPress={onClose} style={styles.cancel}>
-            <AppText style={styles.cancelText}>Cancel</AppText>
-          </Pressable>
-        </View>
+    <View style={styles.overlay}>
+      {device && hasPermission ? (
+        <Camera
+          style={StyleSheet.absoluteFill}
+          device={device}
+          isActive={visible}
+          codeScanner={codeScanner}
+        />
+      ) : null}
+      <View style={styles.frame} pointerEvents="none" />
+      <View style={[styles.top, { top: insets.top + vs(16) }]}>
+        <AppText style={styles.title}>Scan seller QR</AppText>
+        <Pressable accessibilityRole="button" accessibilityLabel="Close scanner" onPress={onClose} style={styles.close}>
+          <X size={ms(20)} color={DELIVERY.onBrand} />
+        </Pressable>
       </View>
-    </Modal>
+      <View style={[styles.bottom, { bottom: insets.bottom + vs(24) }]}>
+        <AppText style={styles.hint}>
+          {!hasPermission
+            ? 'Allow camera access to scan the pickup QR.'
+            : 'Point the camera at the QR shown by the seller.'}
+        </AppText>
+        <Pressable accessibilityRole="button" onPress={onClose} style={styles.cancel}>
+          <AppText style={styles.cancelText}>Cancel</AppText>
+        </Pressable>
+      </View>
+    </View>
   );
 }
 
@@ -75,14 +87,13 @@ const styles = StyleSheet.create({
   overlay: { flex: 1, backgroundColor: DELIVERY.brandDark },
   top: {
     position: 'absolute',
-    top: vs(48),
     left: hs(20),
     right: hs(20),
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
-  title: { ...DP_TYPE.title, color: DELIVERY.onBrand, fontWeight: '900' },
+  title: { ...DP_TYPE.title, color: DELIVERY.onBrand },
   close: {
     width: ms(36),
     height: ms(36),
@@ -103,7 +114,7 @@ const styles = StyleSheet.create({
     borderColor: DELIVERY.brand,
     borderRadius: DELIVERY.radius.lg,
   },
-  bottom: { position: 'absolute', bottom: vs(48), left: hs(24), right: hs(24) },
+  bottom: { position: 'absolute', left: hs(24), right: hs(24) },
   hint: { ...DP_TYPE.body, color: DELIVERY.onBrand, textAlign: 'center', marginBottom: vs(16) },
   cancel: {
     alignSelf: 'center',
@@ -112,5 +123,5 @@ const styles = StyleSheet.create({
     borderRadius: DELIVERY.radius.pill,
     backgroundColor: DELIVERY.brandDeep,
   },
-  cancelText: { ...DP_TYPE.body, color: DELIVERY.onBrand, fontWeight: '800' },
+  cancelText: { ...DP_TYPE.label, color: DELIVERY.onBrand },
 });

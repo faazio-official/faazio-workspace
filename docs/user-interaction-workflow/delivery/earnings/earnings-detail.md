@@ -9,7 +9,8 @@
 1. The route receives `{ orderId }` (`navigate('EarningsDetail', { orderId })`).
 2. It calls `gateway.getDeliveryPayout(orderId)` (`GET /delivery/payouts/{orderId}`).
 3. It shows the payout breakdown: distance, base (first 3 km), extra km, surge (with reason), total,
-   paid-so-far, balance and paid date.
+   paid-so-far, balance and paid date. The headline total is whole rupees; itemised lines carry
+   paise, all with tabular figures.
 
 ## State
 
@@ -27,6 +28,8 @@
 - **Success:** breakdown renders from the server-derived payout.
 - **Error:** `DPErrorState` with retry; no fabricated amount.
 - **Empty:** not reachable without an `orderId`.
+- The back affordance is a context-neutral "← Back" because the screen is pushed from both
+  `Payouts` and `OrderHistory`.
 
 ## Known gaps
 

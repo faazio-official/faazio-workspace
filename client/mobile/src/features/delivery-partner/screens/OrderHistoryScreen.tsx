@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, StyleSheet } from 'react-native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -7,15 +7,17 @@ import AppText from '@/components/AppText';
 import {
   DPPage,
   DPPageHeader,
-  DPSectionCard,
-  DPStatusPill,
   DPEmptyState,
   DPErrorState,
   DPSkeleton,
+  DPOrderCard,
+  DPFadeIn,
+  DPTabStrip,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type RiderPayout } from '@/services/api/GatewayClient';
-import { hs, vs } from '@/utils/responsive';
+import { vs } from '@/utils/responsive';
+import { formatRupees, formatNumber } from '../format';
 import type { DeliveryPartnerStackParamList, DeliveryTabParamList } from '../navigation';
 
 type Props = CompositeScreenProps<
@@ -23,8 +25,7 @@ type Props = CompositeScreenProps<
   NativeStackScreenProps<DeliveryPartnerStackParamList>
 >;
 
-const rupees = (paisa: number) =>
-  `₹${(paisa / 100).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+type HistoryFilter = 'all' | 'paid' | 'pending';
 
 /**
  * Past-order history derived from the server-side earnings ledger — the same
@@ -35,6 +36,7 @@ export function OrderHistoryScreen({ navigation }: Props) {
   const [payouts, setPayouts] = useState<RiderPayout[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<HistoryFilter>('all');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -62,6 +64,15 @@ export function OrderHistoryScreen({ navigation }: Props) {
     [payouts],
   );
 
+  const paidCount = useMemo(() => sorted.filter((p) => p.status === 'PAID').length, [sorted]);
+  const filtered = useMemo(
+    () =>
+      filter === 'all'
+        ? sorted
+        : sorted.filter((p) => (filter === 'paid' ? p.status === 'PAID' : p.status !== 'PAID')),
+    [filter, sorted],
+  );
+
   return (
     <DPPage
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
@@ -84,32 +95,48 @@ export function OrderHistoryScreen({ navigation }: Props) {
       ) : (
         <>
           {error ? <AppText style={styles.error}>{error}</AppText> : null}
-          {sorted.map((p) => (
-            <TouchableOpacity
-              key={p.payoutId ?? p.orderId}
-              onPress={() => navigation.navigate('EarningsDetail', { orderId: p.orderId })}
-              activeOpacity={0.85}
-              accessibilityRole="button"
-              accessibilityLabel={`Order ${p.orderId.slice(-6)} details`}
-            >
-              <DPSectionCard style={styles.row}>
-                <View style={styles.rowBetween}>
-                  <AppText style={styles.rowTitle}>Order {p.orderId.slice(-6)}</AppText>
-                  <DPStatusPill status={p.status} />
-                </View>
-                <AppText style={styles.rowMeta}>
-                  {p.distanceKm.toFixed(1)} km · {rupees(p.totalPaisa)} earned
-                  {p.surgePaisa > 0 ? ` · surge ${rupees(p.surgePaisa)}` : ''}
-                </AppText>
-                <View style={styles.rowBetween}>
-                  <AppText style={styles.rowMeta}>
-                    {p.paidAt ? `Paid ${new Date(p.paidAt).toLocaleDateString('en-IN')}` : 'Awaiting settlement'}
-                  </AppText>
-                  <AppText style={styles.open}>Details →</AppText>
-                </View>
-              </DPSectionCard>
-            </TouchableOpacity>
-          ))}
+          <DPTabStrip
+            style={styles.strip}
+            active={filter}
+            onChange={(key) => setFilter(key as HistoryFilter)}
+            tabs={[
+              { key: 'all', label: 'All', count: sorted.length },
+              { key: 'paid', label: 'Paid', count: paidCount },
+              { key: 'pending', label: 'Pending', count: sorted.length - paidCount },
+            ]}
+          />
+          {filtered.length === 0 ? (
+            <DPEmptyState
+              compact
+              tone="neutral"
+              title={`No ${filter} orders`}
+              description="Try another filter to see the rest of your history."
+            />
+          ) : (
+            filtered.map((p, index) => (
+              <DPFadeIn key={`${p.payoutId ?? p.orderId}-${index}`} index={index}>
+                <DPOrderCard
+                  style={styles.row}
+                  title={`Order ${p.orderId.slice(-6)}`}
+                  status={p.status}
+                  meta={
+                    p.paidAt
+                      ? `Paid ${new Date(p.paidAt).toLocaleDateString('en-IN')}`
+                      : 'Awaiting settlement'
+                  }
+                  amount={formatRupees(p.totalPaisa)}
+                  amountNote="earned"
+                  submeta={`${formatNumber(p.distanceKm, 1)} km${
+                    p.surgePaisa > 0 ? ` · surge ${formatRupees(p.surgePaisa, 2)}` : ''
+                  }`}
+                  actionLabel="Details"
+                  onAction={() => navigation.navigate('EarningsDetail', { orderId: p.orderId })}
+                  onPress={() => navigation.navigate('EarningsDetail', { orderId: p.orderId })}
+                  accessibilityLabel={`Order ${p.orderId.slice(-6)} details`}
+                />
+              </DPFadeIn>
+            ))
+          )}
         </>
       )}
     </DPPage>
@@ -117,10 +144,7 @@ export function OrderHistoryScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
+  strip: { marginBottom: vs(12) },
   row: { marginBottom: vs(10) },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
-  rowTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600' },
-  rowMeta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(4), flexShrink: 1 },
-  open: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.brand, marginTop: vs(4) },
   error: { ...DP_TYPE.caption, color: DELIVERY.danger, marginBottom: vs(10) },
 });
