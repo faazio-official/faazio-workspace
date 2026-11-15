@@ -197,7 +197,8 @@ edit is needed; the customer scheme is also committed in `Info.plist` as a fallb
 **Browser-free simulator development:** do not disable verification for real numbers.
 
 1. Firebase console → Authentication → Sign-in method → Phone → **Phone numbers for testing**, add
-   e.g. `+91 90000 00001` with code `123456`.
+   the registered test number (customer `+91 9000000001`, delivery `+91 9876543210`) with code
+   `123456` — see "Test phone numbers (Play Store review)" above.
 2. Set `FIREBASE_APP_VERIFICATION_DISABLED=true` in `.env.ios` (or the process env) and restart
    Metro. `scripts/configure.js` only honours it for **non-release** builds, and `sendOtp` sets
    `auth.settings.appVerificationDisabledForTesting = true`.
@@ -246,7 +247,9 @@ edit is needed; the customer scheme is also committed in `Info.plist` as a fallb
 - [x] ~~Seller iOS app~~ — not required (Android/Play only; no partner iOS release).
 - [x] Authentication → Sign-in method → **Phone** enabled.
 - [x] SMS region policy allow-list includes **+91 (India)**.
-- [x] Test numbers added (use them for Metro + CI); real SMS for device tests.
+- [x] Test numbers added — customer `+91 9000000001` / `123456`, delivery `+91 9876543210` /
+      `123456` (see "Test phone numbers (Play Store review)" above; the seller app uses email/password).
+      Use them for Metro + CI; real SMS for device tests.
 - [x] API keys restricted to the Android/iOS apps + Identity Toolkit API.
 - [x] Server FCM service-account key generated (`firebase-adminsdk-fbsvc@project-65696e12-8def-460e-b29`).
 - [ ] **Part 6 — anti-abuse (blocked): Firebase project is not linked to Google Cloud.**
@@ -265,6 +268,32 @@ edit is needed; the customer scheme is also committed in `Info.plist` as a fallb
 Until Part 6 is done, native SMS auto-retrieval and silent iOS verification may not work. Android
 SMS User Consent still autofills (it is independent of Play Integrity), and manual code
 entry/reCAPTCHA remains the fallback everywhere.
+
+### Test phone numbers (Play Store review)
+
+All three apps share the Firebase project `project-65696e12-8def-460e-b29`. Play reviewers cannot
+receive a real SMS, so the review accounts must be **Firebase test phone numbers**.
+
+**Add a test number:** Firebase Console → project `project-65696e12-8def-460e-b29` → **Authentication**
+→ **Sign-in method** → **Phone** → **Phone numbers for testing** → enter the E.164 number and a fixed
+6-digit code → **Save**. Test numbers bypass SMS entirely and accept only the registered code.
+
+| App | Phone number | Fixed OTP | Notes |
+|---|---|---|---|
+| Customer | `+91 9000000001` | `123456` | Customer app (`com.faazio.customer`, Android + iOS) |
+| Delivery partner | `+91 9876543210` | `123456` | `com.faazio.deliverypartner` (Android) |
+| Seller partner | — (email + password) | — | Portal auth only; no Firebase phone OTP |
+
+> **Never reuse one phone number across two apps.** Firebase treats a phone number as a unique user
+> identity, so a shared number logs both products into the same user and their roles collide. The
+> customer and delivery numbers above are deliberately different.
+>
+> The canonical account table, Play Console field values, and review instructions live in
+> `client/mobile/docs/TEST_ACCOUNTS.md` — reference that file rather than duplicating credentials.
+> Do not delete or change a test number while an app is under review.
+
+Test numbers also enable browser-free simulator development when
+`FIREBASE_APP_VERIFICATION_DISABLED=true` is set (see §3.1).
 
 ## 5. Server configuration
 
@@ -295,7 +324,8 @@ cd client/mobile && npm run ts:check && npm run check:boundaries
 
 Device smoke test (CI debug APK):
 
-1. Add a Firebase test number in the console (e.g. `+91 90000 00001`, code `123456`).
+1. Confirm the Firebase test number is registered (customer `+91 9000000001` or delivery
+   `+91 9876543210`, code `123456`; see "Test phone numbers (Play Store review)").
 2. Enter the number in `LoginScreen`; the code screen must open.
 3. Enter the test code; `LoginScreen` → `LanguageSelection` and the Keychain session exists.
 4. Confirm an auth-gated write works (cart/favourite/rating) against Render.

@@ -48,7 +48,7 @@ docs/
 Reading order for a new contributor: `AGENTS.md` → `ARCHITECTURE.md` →
 `docs/DEVELOPER_ONBOARDING.md` → `data/DATA_CONTROL.md` → `docs/README.md`.
 Anyone doing UI work reads `docs/UI_DESIGN_SYSTEM.md` first.
-`client/mobile/` also has `docs/` (appstore/playstore/release) and `PENDING_WORK.md` (backlog).
+`client/mobile/` also has `docs/` (appstore/playstore/release/test accounts) and `PENDING_WORK.md` (backlog).
 
 ## Hard rules
 1. **Wait for user intent.** Do NOT build screens/pages until explicitly requested. The gateway (`server/gateway`) + Supabase migrations (`docs/architecture/mvp-backend.md`) are the sanctioned, already-live server scope — extend them only when explicitly requested.

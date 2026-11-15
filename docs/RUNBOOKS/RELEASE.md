@@ -354,7 +354,9 @@ signature, so use `apksigner`.
 5. **Rollout** to begin review.
 
 > See `client/mobile/docs/PLAYSTORE_RELEASE_CUSTOMER.md` for store-console specifics (customer
-> listing). Seller listing: `client/mobile/docs/PLAYSTORE_RELEASE_SELLER.md`.
+> listing). Delivery listing: `client/mobile/docs/PLAYSTORE_RELEASE_DELIVERY.md`. Seller listing:
+> `client/mobile/docs/PLAYSTORE_RELEASE_SELLER.md`. Test accounts / review sign-in:
+> `client/mobile/docs/TEST_ACCOUNTS.md`.
 
 ## 🍎 App Store (iOS)
 
@@ -533,6 +535,7 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 - [ ] Customer payments: `0066` applied. **Pending today** (Razorpay merchant keys not set): the rail stays `503 payments_disabled`, which is the intended state for now — when the keys are ready, set `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`/`RAZORPAY_WEBHOOK_SECRET`, register `/webhooks/razorpay/payments` (`payment.captured/authorized/failed`) and roll the gateway.
 - [ ] Release signed and smoke-tested on a device (R8 gate: Home → Cart → Checkout → Pharma).
 - [ ] Store metadata / data-safety updated (see Google Play §4 answer sheet; delete-account URL + in-app flow verified).
+- [ ] **Test accounts active and documented:** every listing's Play Console sign-in test account is live and matches `client/mobile/docs/TEST_ACCOUNTS.md` (customer `+91 9000000001` / `123456`; delivery `+91 9876543210` / `123456` — never the same number; seller email/password). Firebase test numbers are registered and the delivery test rider is **ACTIVE** (lands on the Dashboard), before submitting any build for review.
 
 ## 🍎 iOS Release Checklist (customer only)
 

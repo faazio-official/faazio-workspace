@@ -14,6 +14,25 @@ prebuild/EAS step.
 
 ---
 
+## Step 0: App access (sign-in details for the review team)
+
+The customer app uses **Firebase phone OTP**. Play Console → **App content** → **Sign in details**
+→ "All or some functionality is restricted". The test number and its fixed code are registered in
+Firebase Console → Authentication → Phone → **Phone numbers for testing**.
+
+| Field | Value |
+|---|---|
+| Name | `Customer test account` |
+| Username / email or phone | `+91 9000000001` |
+| Password | `123456` (fixed Firebase test OTP) |
+| Any other information required for access | 1. Install and open the "Faazio" app. 2. Enter the phone number `9000000001` (10 digits, no country code) and tap **Send OTP**. 3. Enter `123456` on the OTP screen. 4. The app opens the customer Home / language screen. No password, 2FA, or biometric is required. |
+
+> These credentials are defined once in **`TEST_ACCOUNTS.md`** — reference that file instead of
+> copying them elsewhere. Do **not** use the delivery test number (`+91 9876543210`) here; Firebase
+> phone numbers are unique identities and must differ per app.
+
+---
+
 ## Step 1: Android configuration
 
 Android metadata lives in the committed native project, not `app.json` (deleted):
@@ -144,8 +163,8 @@ Each product is a **separate Play listing**; run this for `com.faazio.customer` 
 ## Step 3c: Data Safety / App Content answer sheet (customer listing)
 
 Record the answers here so the **customer** listing is submitted consistently. The app has no
-advertising SDK and no `AD_ID` permission. The **seller** listing uses a different set of answers —
-see `PLAYSTORE_RELEASE_SELLER.md`.
+advertising SDK and no `AD_ID` permission. The **delivery** and **seller** listings use different
+sets of answers — see `PLAYSTORE_RELEASE_DELIVERY.md` and `PLAYSTORE_RELEASE_SELLER.md`.
 
 | Section | Selection | Why |
 |---|---|---|
@@ -201,6 +220,9 @@ legal retention. Never ship a build with the row hidden or the route removed.
 
 ## See also
 
+- `TEST_ACCOUNTS.md` — single source of truth for all test accounts and Firebase test numbers.
+- `PLAYSTORE_RELEASE_DELIVERY.md` — Play Console answer sheet for the delivery listing
+  (`com.faazio.deliverypartner`).
 - `PLAYSTORE_RELEASE_SELLER.md` — Play Console answer sheet for the seller listing
   (`com.faazio.sellerpartner`).
 - `docs/RUNBOOKS/RELEASE.md` — signing, CI release flow, R8, smoke tests.

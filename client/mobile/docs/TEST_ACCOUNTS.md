@@ -29,14 +29,15 @@ under this project. See `docs/RUNBOOKS/FIREBASE_AUTH.md` §1.
 |---|---|---|---|---|---|
 | Customer | Firebase phone OTP | `+91 9000000001` | `123456` | `Customer test account` | `+91 9000000001` |
 | Delivery partner | Firebase phone OTP | `+91 9876543210` | `123456` | `Delivery Partner test account` | `+91 9876543210` |
+| Seller partner | Email + password (`admins.portal_users`) | `faisalbashafaisalbasha@gmail.com` | `seller#123` | `Faazio Mart Tiruchirappalli` | `faisalbashafaisalbasha@gmail.com` |
 
 > **The delivery account needs a server row, not just a Firebase number.** The delivery app routes
 > on `GET /delivery/me`: `ACTIVE` → Dashboard, any other status → "under review", `404` → Register.
-> The ACTIVE rider is seeded by `server/supabase/seed/test_delivery_rider.sql` (idempotent). If the
-> app lands on Register instead of the Dashboard, that seed has not been applied to the target
-> database. The row stores the phone as `+919876543210` (no spaces) because `NormalizePhone`
-> returns that canonical form.
-| Seller partner | Email + password (`admins.portal_users`) | `faisalbashafaisalbasha@gmail.com` | `seller#123` | `Faazio Mart Tiruchirappalli` | `faisalbashafaisalbasha@gmail.com` |
+> The ACTIVE rider is seeded idempotently by `server/supabase/seed/test_delivery_rider.sql`; apply it
+> (and verify the result) with `server/gateway/scripts/create-delivery-test-account.sh`. If the app
+> lands on Register instead of the Dashboard, that seed has not been applied to the target database.
+> The row stores the phone as `+919876543210` (no spaces) because `NormalizePhone` returns that
+> canonical form.
 
 - Both Firebase numbers and their fixed codes are **already registered** in Firebase Console →
   Authentication → Sign-in method → Phone → **Phone numbers for testing**.

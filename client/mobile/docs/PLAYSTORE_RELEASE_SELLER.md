@@ -13,7 +13,9 @@ seller console code (`client/web/platform/app/seller/*`, `SellerWebViewScreen.ts
 
 ## 1. App access (sign-in details for the review team)
 
-Seller logins are **provisioned by a Faazio superadmin** — there is no self sign-up.
+Seller logins are **provisioned by a Faazio superadmin** — there is no self sign-up. This listing
+uses **email + password** (portal `admins.portal_users`), **not** Firebase phone OTP; the credentials
+are defined once in `TEST_ACCOUNTS.md`.
 
 | Field | Value |
 |---|---|
@@ -207,6 +209,9 @@ These Play Console screens were not answered here; keep them consistent with the
 
 ## See also
 
+- `TEST_ACCOUNTS.md` — single source of truth for all test accounts (seller uses email/password,
+  not Firebase phone).
 - `PLAYSTORE_RELEASE_CUSTOMER.md` — shared build/signing/upload manual (Step 3b/3c, checklist).
+- `PLAYSTORE_RELEASE_DELIVERY.md` — Play Console answer sheet for the delivery listing.
 - `docs/RUNBOOKS/PORTAL_AUTH.md` — seller login provisioning and lockout rules.
 - `docs/RUNBOOKS/RELEASE.md` — signing and CI release flow.
