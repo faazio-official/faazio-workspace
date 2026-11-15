@@ -50,7 +50,13 @@ server/supabase/apply-migration.sh --all --seed
 ```
 
 `--from NNNN` compares the zero-padded numeric prefix, so `--from 0061` applies `0061…` onward.
-`--seed` appends `server/supabase/seed/0001_seed.sql`.
+`--seed` appends `server/supabase/seed/0001_seed.sql` — **only** that file. Other seeds in
+`server/supabase/seed/` (e.g. `test_delivery_rider.sql`, `demo_sellers_ttc_karaikal.sql`) are applied
+explicitly by path:
+
+```bash
+server/supabase/apply-migration.sh server/supabase/seed/test_delivery_rider.sql
+```
 
 List the files (`ls server/supabase/migrations/ | tail`) and apply everything newer than the last one
 that succeeded. Verify a boot: the gateway log on Render should stop emitting
