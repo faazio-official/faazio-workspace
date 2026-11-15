@@ -199,11 +199,24 @@ edit is needed; the customer scheme is also committed in `Info.plist` as a fallb
 1. Firebase console → Authentication → Sign-in method → Phone → **Phone numbers for testing**, add
    the registered test number (customer `+91 9000000001`, delivery `+91 9876543210`) with code
    `123456` — see "Test phone numbers (Play Store review)" above.
-2. Set `FIREBASE_APP_VERIFICATION_DISABLED=true` in `.env.ios` (or the process env) and restart
-   Metro. `scripts/configure.js` only honours it for **non-release** builds, and `sendOtp` sets
-   `auth.settings.appVerificationDisabledForTesting = true`.
+2. Set `FIREBASE_APP_VERIFICATION_DISABLED=true` (process env, or the gitignored `.env.local`) and
+   restart Metro. `scripts/configure.js` only honours it for **non-release** builds, `sendOtp` sets
+   `auth.settings.appVerificationDisabledForTesting = true`, and — since 2026-11-15 — **only on
+   iOS** (`Platform.OS === 'ios'`). Android ignores the flag entirely so a debug APK always
+   behaves like production.
 3. Only the registered test numbers will work while the flag is on; set it back to `false` for
    normal device testing.
+
+> **Android is never verification-disabled.** `appVerificationDisabledForTesting` is an iOS
+> simulator affordance only (`src/services/firebaseAuth.ts`). `configure.js` loads `.env.ios` for a
+> platform-agnostic Metro run too, so a `FIREBASE_APP_VERIFICATION_DISABLED=true` there once leaked
+> into the Android debug build; with verification skipped the Firebase backend accepts **only**
+> console test numbers, and every real number is rejected with `auth/missing-client-identifier`
+> (native status `17093`) — e.g. delivery `+91 9876543210` succeeded while the rider's real number
+> did not. Android debug must instead keep verification **on**: a sideloaded debug APK fails Play
+> Integrity (`18002 Invalid PlayIntegrity token; app not Recognized by Play Store`, expected until
+> Part 6 / Play install) and Firebase automatically re-triggers the **reCAPTCHA** flow, which sends
+> the SMS. The platform guard now makes this the only possible Android behaviour.
 
 ## 4. Console setup (already done, except Part 6)
 
@@ -335,6 +348,8 @@ Device smoke test (CI debug APK):
 | Symptom | Cause / fix |
 |---|---|
 | `auth/invalid-app-credential` | App signature/SHA not registered, or package/bundle ID mismatch. Add debug + release SHA-1/SHA-256. |
+| OTP screen shows `[auth/session-expired] The sms code has expired…` | The verification session died before `confirm()` (code too old, or the Play-Integrity→reCAPTCHA retry superseded the verification id — common on a sideloaded debug APK). The client maps Firebase codes through `src/lib/otpError.ts` and now shows "That code has expired. Tap Resend OTP to get a new one." while clearing the dead pending request; tap **Resend OTP** to get a fresh one. Confirm the APK is a current build (`gh run download`), and complete Part 6 / install from Play to remove the retry entirely. |
+| `auth/missing-client-identifier` (`missing-client-identifier`, native `17093`) on Android | App verification was **disabled for testing** (`FIREBASE_APP_VERIFICATION_DISABLED=true`, usually leaked from `.env.ios` into a platform-agnostic Metro run), so Firebase accepted only console **test numbers** — real numbers were rejected. This is not a fingerprint problem (a real SHA mismatch surfaces as `invalid-app-credential`, `18002`, or `INVALID_CERT_HASH 400`). Fixed by defaulting the flag to `false` and gating it to iOS in `src/services/firebaseAuth.ts`; Android now always runs verification and falls back to reCAPTCHA. See §3.1. |
 | Send always fails on iOS | Part 6 APNs not configured; reCAPTCHA fallback should still open. Add the `.p8` key. |
 | App crashes (SIGTRAP, `PhoneAuthProvider.swift` `fatalError`) when sending OTP on iOS | FirebaseAuth `verifyPhoneNumber` fatals when its callback URL scheme (`app-<GOOGLE_APP_ID with : → ->`) is missing from the built `Info.plist`; it trips before any network call. `ios/scripts/firebase-url-scheme.sh` (the `Firebase URL scheme` phase) injects it from the bundled `GoogleService-Info.plist`. If it recurs, the build predates that phase or the bundled Firebase plist has no `GOOGLE_APP_ID`: clean build, confirm the phase ran (look for the `note: added Firebase Auth URL scheme …` log line), and check the active `GoogleService-Info*.plist`. If `CLIENT_ID` exists, its reversed value is the equivalent scheme. With swizzling enabled (default) FirebaseAuth consumes the redirect itself; only forward URLs to `Auth.auth().canHandle(url)` in `AppDelegate.application(_:open:options:)` if swizzling is disabled. |
 | `401` from the gateway after login | The gateway builds the Firebase verifier only when `FIREBASE_PROJECT_ID` is non-empty (`config.Config.FirebaseProjectID`); if empty it verifies only portal/legacy HS256 tokens, so every Firebase ID token (RS256) 401s. Check: a valid token whose `iss` = `https://securetoken.google.com/project-65696e12-8def-460e-b29` and `aud` = `project-65696e12-8def-460e-b29` still gets `{"code":"unauthorized"}` from `https://api.faazio.com/categories/rail`, while a legacy HS256 token works. Fix: set `FIREBASE_PROJECT_ID` (and `FCM_PROJECT_ID`) on the Render service to `project-65696e12-8def-460e-b29` and redeploy; a `render.yaml` Blueprint deploy syncs these, a manually-created service does not. Client symptom: the Home/Mart category rail shows a **Retry** chip and logs `[rail] fetchCategoryRail failed ... GatewayHttpError status: 401` in dev. |

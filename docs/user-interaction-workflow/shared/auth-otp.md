@@ -24,11 +24,14 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
 
 1. The app shows the phone entry screen (`LoginScreen.tsx` for customer, `PhoneEntryScreen.tsx` for
    delivery). Customer validates with `toE164` / `isValidPhone`; delivery uses its local
-   `validPhone` check.
-2. `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode. The customer `LoginScreen`
-   enforces a 30 s resend cooldown; the delivery `OtpVerifyScreen` only disables the button while a
-   resend is in flight (no timer).
-3. The user enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval).
+   `validPhone` check. Both auto-focus the field, surface device-local **recent numbers** as
+   suggestions, and auto-send 150 ms after the 10th digit (the explicit send button remains).
+2. `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode and starts a **30 s resend
+   cooldown** (customer `LoginScreen` and delivery `OtpVerify` both). A successful send records the
+   number in the recent-numbers suggestion list.
+3. The user enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval). Both apps
+   render an animated 6-segment field driven by a hidden `textContentType="oneTimeCode"` /
+   `autoComplete="sms-otp"` input and auto-submit at 6 digits.
 4. `verifyOtp` returns a Firebase session. Customer `completeLogin` decodes claims (`role`,
    `stateCode`, `districtCode`, `sellerId`) into `useAuthStore.login`.
 5. The session is persisted in `react-native-keychain` (`services/secureSession.ts`).
@@ -44,6 +47,8 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
   expiry field; expiry is event-driven via `expireSession()`.
 - `useOnboardingStore` — first-run gate (customer).
 - `useDeliveryPartnerStore` — rider projection (delivery).
+- `src/lib/recentPhones.ts` — device-local sign-in suggestions (AsyncStorage `faazio:recentPhones`,
+  max 5, E.164), shared by both apps; cleared on sign-out via `useAuthStore.logout`.
 
 ### Data path
 
@@ -62,6 +67,9 @@ purpose **App Functionality** only):
   `deleteFirebaseIdentity`).
 - Checkout pick-up contact (`authStore.user.phone`).
 - Seller application `contactPhone`.
+- Device-local sign-in suggestions (`src/lib/recentPhones.ts`): previously used numbers are kept
+  **on-device only** to pre-fill the next sign-in. They are never logged, never sent to the gateway,
+  and cleared on sign-out.
 
 It is **not** used for third-party advertising, the developer's advertising/marketing, analytics,
 product personalization, or any other purpose, and is never shared with a data broker or third-party

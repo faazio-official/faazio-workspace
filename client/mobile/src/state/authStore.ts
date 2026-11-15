@@ -13,6 +13,7 @@ import {
   toE164,
   verifyOtp,
 } from '@/services/firebaseAuth';
+import { clearRecentPhones } from '@/lib/recentPhones';
 
 export interface AuthUser {
   id: string;
@@ -108,6 +109,8 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
     // Best-effort native Firebase sign-out before dropping the local session (never blocks).
     await signOutRemote();
     await clearSession();
+    // A signed-out device must not suggest the previous user's number to the next one.
+    await clearRecentPhones().catch(() => {});
     set({
       isAuthenticated: false,
       user: null,

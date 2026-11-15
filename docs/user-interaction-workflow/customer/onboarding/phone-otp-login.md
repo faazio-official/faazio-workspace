@@ -7,10 +7,13 @@
 ## Steps
 
 1. `LoginScreen` renders a fixed `+91` (India) dial code + phone field — the country is not
-   user-selectable. `toE164`/`isValidPhone` validate locally.
-2. User requests an OTP. Firebase `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode
-   and starts the 30 s resend cooldown (`RESEND_COOLDOWN_S`).
-3. User enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval).
+   user-selectable. `toE164`/`isValidPhone` validate locally. The field auto-focuses and shows
+   device-local **recent numbers** (tappable suggestions) when empty.
+2. An OTP is requested from the "Send code" button or automatically 150 ms after the 10th digit.
+   Firebase `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode and starts the 30 s
+   resend cooldown (`RESEND_COOLDOWN_S`). A successful send records the number in the suggestion list.
+3. The user enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval) in an
+   animated 6-segment field driven by a hidden `oneTimeCode`/`sms-otp` input.
 4. `verifyOtp(phoneE164, code)` returns a Firebase session. `completeLogin` decodes the ID-token
    claims (`role`, `stateCode`, `districtCode`, `sellerId`) and calls `useAuthStore.login`.
 5. The session is persisted via `react-native-keychain` (`services/secureSession.ts`).
@@ -22,6 +25,7 @@
   re-auth helpers.
 - `useOnboardingStore` — first-run gate.
 - `useLanguageStore` / `useLocationStore` — subsequent onboarding steps.
+- `src/lib/recentPhones.ts` — device-local sign-in suggestions (AsyncStorage, cleared on sign-out).
 
 ## Data path
 
@@ -35,7 +39,10 @@
 
 - **Success:** `LanguageSelection`, then `Location`, then `MainTabs`.
 - **Invalid/expired code:** inline error, shake animation; the entered code remains so the user can
-  correct it, and resend is available.
+  correct it, and resend is available. Firebase auth codes are mapped to user copy via
+  `src/lib/otpError.ts` — the raw `[auth/<code>] …` SDK text is never shown. An expired session
+  (`auth/session-expired`) renders "That code has expired. Tap Resend OTP to get a new one." and
+  clears the dead pending request so only a fresh send can succeed.
 - **Unconfigured Firebase:** release build refuses to embed the mock-login config; the screen
   reports that OTP is unavailable rather than fabricating a session.
 - **Empty:** not applicable (auth requires input).

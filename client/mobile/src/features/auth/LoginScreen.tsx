@@ -36,7 +36,8 @@ import { useOnboardingStore } from '@/state/onboardingStore';
 import { openTrustedUrl } from '@/lib/externalLinks';
 import { PRIVACY_URL, TERMS_URL } from '@/lib/site';
 import { decodeIdToken } from '@/lib/tokenClaims';
-import { isValidPhone, toE164 } from '@/lib/phone';
+import { formatAsYouType, isValidPhone, nationalDigits, toE164 } from '@/lib/phone';
+import { getRecentPhones, saveRecentPhone } from '@/lib/recentPhones';
 import {
   consumeAutoVerifiedOtp,
   displayName,
@@ -47,6 +48,7 @@ import {
   type FirebaseSession,
 } from '@/services/firebaseAuth';
 import { useSmsUserConsent } from '@/lib/smsUserConsent';
+import { otpErrorMessage } from '@/lib/otpError';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
@@ -149,6 +151,7 @@ export function LoginScreen({ navigation }: Props) {
   const [isSending, setIsSending] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [recentPhones, setRecentPhones] = useState<string[]>([]);
 
   const phoneInputRef = useRef<TextInput>(null);
   const otpInputRef = useRef<TextInput>(null);
@@ -195,6 +198,18 @@ export function LoginScreen({ navigation }: Props) {
   useEffect(() => () => {
     if (phoneAdvanceRef.current) clearTimeout(phoneAdvanceRef.current);
   }, []);
+
+  useEffect(() => {
+    // Suggest previously used numbers whenever the phone step is showing.
+    if (otpState) return;
+    let active = true;
+    void getRecentPhones().then((list) => {
+      if (active) setRecentPhones(list);
+    });
+    return () => {
+      active = false;
+    };
+  }, [otpState]);
 
   useEffect(() => {
     fadeAnim.setValue(0);
@@ -326,10 +341,10 @@ export function LoginScreen({ navigation }: Props) {
       }
       submitRef.current = false;
       setIsVerifying(false);
-    } catch {
+    } catch (err) {
       submitRef.current = false;
       setIsVerifying(false);
-      setOtpError('That code was not valid. Please try again.');
+      setOtpError(otpErrorMessage(err, 'That code was not valid. Please try again.'));
     }
   }, [completeLogin, login, navigation, otpCode, phoneE164, phoneValid]);
 
@@ -400,6 +415,8 @@ export function LoginScreen({ navigation }: Props) {
         restartSmsConsent();
         try {
           await sendOtp(toE164(digits));
+          // Remember the number so it can be suggested on the next signed-out visit.
+          void saveRecentPhone(toE164(digits));
         } catch (err) {
           stopSmsConsent();
           setIsSending(false);
@@ -408,7 +425,7 @@ export function LoginScreen({ navigation }: Props) {
             const code = (err as { code?: string })?.code ?? 'unknown';
             console.warn('[phone-auth] sendOtp failed:', code, (err as Error)?.message);
           }
-          setPhoneError('Could not send the code. Check your number and try again.');
+          setPhoneError(otpErrorMessage(err, 'Could not send the code. Check your number and try again.'));
           return;
         }
         setIsSending(false);
@@ -494,7 +511,7 @@ export function LoginScreen({ navigation }: Props) {
             const code = (err as { code?: string })?.code ?? 'unknown';
             console.warn('[phone-auth] resend failed:', code, (err as Error)?.message);
           }
-          setOtpError('Could not resend the code. Try again in a moment.');
+          setOtpError(otpErrorMessage(err, 'Could not resend the code. Try again in a moment.'));
         })
         .finally(() => {
           resendRef.current = false;
@@ -575,6 +592,28 @@ export function LoginScreen({ navigation }: Props) {
                     accessibilityLabel="Mobile number"
                   />
                 </View>
+
+                {recentPhones.length > 0 && phone.length === 0 ? (
+                  <View style={styles.recentRow}>
+                    {recentPhones.map((e164) => {
+                      const national = nationalDigits(e164);
+                      return (
+                        <TouchableOpacity
+                          key={e164}
+                          style={styles.recentChip}
+                          onPress={() => handlePhoneChange(national)}
+                          activeOpacity={0.85}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Use number ${COUNTRY_DIAL} ${formatAsYouType(national)}`}
+                        >
+                          <AppText style={styles.recentChipText}>
+                            {COUNTRY_DIAL} {formatAsYouType(national)}
+                          </AppText>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ) : null}
 
                 <AppText style={styles.termsText}>
                   By clicking, I accept the{' '}
@@ -928,6 +967,24 @@ const styles = StyleSheet.create({
   countryCode: { fontSize: ms(14), fontWeight: '600', color: neutral.ink },
   separator: { width: 1, height: vs(16), backgroundColor: neutral.border, marginHorizontal: hs(10) },
   textInput: { flex: 1, fontSize: ms(14), fontWeight: '600', color: neutral.ink },
+  recentRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: hs(8),
+    marginTop: SPACE.BLOCK,
+    paddingHorizontal: hs(4),
+  },
+  recentChip: {
+    minHeight: 36,
+    justifyContent: 'center',
+    paddingHorizontal: hs(14),
+    borderRadius: ms(18),
+    backgroundColor: neutral.card,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.4)',
+  },
+  recentChipText: { fontSize: ms(12), fontWeight: '600', color: parentRamp.base },
   termsText: {
     fontSize: ms(10),
     color: 'rgba(255, 255, 255, 0.9)',

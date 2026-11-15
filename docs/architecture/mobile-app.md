@@ -34,7 +34,7 @@ src/
 │   # is applied to the visible glyph box (814×227) so both variants share one scale.
 │   └── shared/                 # reusable primitives incl. dp/ (delivery Vite-reference primitives), 17 legacy primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, OfflinePage, OfflineToast, …)
 ├── features/                   # vertical feature modules (16)
-├── lib/                        # config, externalLinks, site, tokenClaims, smsUserConsent (Android SMS User Consent hook)
+├── lib/                        # config, externalLinks, site, tokenClaims, smsUserConsent (Android SMS User Consent hook), recentPhones (device-local sign-in suggestions)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, offlineNavigationGuard, types
 ├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed, pricing
 ├── state/                      # Zustand stores (incl. deliveryPartner + deliverySettings)
@@ -822,8 +822,12 @@ delivery entry, so neither APK ships the other product's screens, stores or cust
 
 ```
 DeliveryPartnerNavigator (native stack, no customer screens)
-├── PhoneEntry   — 10-digit entry → Firebase phone OTP; resumes an existing session via GET /delivery/me
-├── OtpVerify    — 6-digit code (manual or SMS User Consent autofill → auto-submit) → authStore Keychain session
+├── PhoneEntry   — auto-focused 10-digit entry (+ device-local recent-number suggestions) →
+│                  Firebase phone OTP, auto-sent 150 ms after the 10th digit; resumes an existing
+│                  session via GET /delivery/me
+├── OtpVerify    — animated 6-segment field (hidden oneTimeCode/sms-otp input; manual, SMS User
+│                  Consent autofill or Firebase auto-retrieval → auto-submit), 30 s resend cooldown,
+│                  hardware back to the preserved number → authStore Keychain session
 ├── Register     — KYC application: profile, live Aadhaar/selfie/PAN + motor DL/RC/insurance capture,
 │                  vehicle-capped capacity, bank details (private R2 uploads → POST /delivery/register)
 ├── SubmissionSuccess — applied / pending / verified / rejected / suspended state + rejection reason
@@ -1058,7 +1062,9 @@ instead of shipping a non-functional shell.
 `LoginScreen` is a two-phase screen (phone → OTP). Phone entry auto-advances 150 ms after the
 10th digit, arming **SMS User Consent** (`src/lib/smsUserConsent.ts` + native
 `SmsUserConsentModule`) *before* calling `firebaseAuth.sendOtp()` (native Firebase); a failed send
-disarms it and shows an alert. The User Consent API only sees SMS received after it starts, so the
+disarms it and shows an alert. When the phone field is empty it offers device-local recently used
+numbers as tappable chips (`src/lib/recentPhones.ts`); a successful send records the number and
+sign-out clears the list. The User Consent API only sees SMS received after it starts, so the
 ordering matters. Play Services then shows the consent sheet, fills the 6 digits and auto-submits.
 Independently, Android's Firebase SDK may auto-retrieve when Play Integrity succeeds; that session
 is surfaced through `onAuthStateChanged` and consumed without typing. iOS falls back to reCAPTCHA

@@ -15,6 +15,33 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W92 — Delivery login/OTP parity + "save & suggest" recent numbers
+
+**Status:** 🟢 Shipped (JS-only; CI builds the APK).
+
+- **New shared `src/lib/recentPhones.ts`** — AsyncStorage MRU list (`faazio:recentPhones`, max 5,
+  E.164, deduped, serialized writes) with `getRecentPhones` / `saveRecentPhone` /
+  `removeRecentPhone` / `clearRecentPhones`. Device-local, App-Functionality only; never logged,
+  never sent to the gateway.
+- **Suggestion chips.** Both `PhoneEntryScreen` (delivery) and `LoginScreen` (customer) show
+  remembered numbers as tappable chips when the field is empty; tapping fills the 10-digit field and
+  runs the normal send path. A successful send records the number; `useAuthStore.logout` clears the
+  list so a signed-out device never leaks the previous user's number.
+- **Delivery parity with the customer login.** `PhoneEntryScreen` now auto-focuses, auto-advances to
+  the OTP screen 150 ms after the 10th digit (manual "Get OTP" still works; the pending advance is
+  cancelled on a manual tap so it cannot double-send), and accepts suggestions. `OtpVerifyScreen` now
+  renders an animated 6-segment field driven by a hidden `oneTimeCode`/`sms-otp` input, auto-focuses,
+  enforces a 30 s resend cooldown, and returns to the preserved number on hardware back / "Change
+  number". `DPField` gained an optional `inputRef` for the delayed-focus pattern.
+- **Trade-off (intentional):** clearing suggestions on sign-out means they help on a session-expiry
+  return, not after an explicit logout — chosen so a shared device never suggests the prior rider.
+- Docs: `docs/user-interaction-workflow/delivery/onboarding/index.md`,
+  `docs/user-interaction-workflow/customer/onboarding/phone-otp-login.md`,
+  `docs/user-interaction-workflow/shared/auth-otp.md`,
+  `docs/architecture/mobile-app.md`.
+
+---
+
 ## W91 — Seller contract & compliance layer
 
 **Status:** 🟡 Partial.

@@ -9,6 +9,7 @@
  * The Firebase refresh token never leaves the native SDK, and nothing here logs tokens,
  * phone numbers or OTP codes.
  */
+import { Platform } from 'react-native';
 import { deleteApp, getApp, getApps, initializeApp } from '@react-native-firebase/app';
 import {
   getAuth,
@@ -23,6 +24,7 @@ import {
   FIREBASE_AUTH_ENABLED,
 } from '../lib/config';
 import { DEFAULT_COUNTRY, toE164 as normalizePhone } from '@/lib/phone';
+import { isOtpSessionExpired } from '@/lib/otpError';
 
 export interface FirebaseUser {
   uid: string;
@@ -234,7 +236,9 @@ async function sendOtpForScope(phoneDigits: string, scope: OtpScope): Promise<vo
   const auth = await otpAuth(scope);
   // Dev/simulator only: the iOS simulator always uses Firebase's reCAPTCHA web sheet. With app
   // verification disabled, a console registered test number signs in without leaving the app.
-  if (FIREBASE_APP_VERIFICATION_DISABLED) {
+  // iOS-only on purpose: Android debug must behave like production, so verification is never
+  // skipped there — a sideloaded debug APK falls back to reCAPTCHA (Play Integrity needs Play).
+  if (FIREBASE_APP_VERIFICATION_DISABLED && Platform.OS === 'ios') {
     auth.settings.appVerificationDisabledForTesting = true;
   }
   const current: PendingOtp = {
@@ -317,6 +321,12 @@ async function verifyOtpForScope(
       }
       if (scope === 'seller' && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
       return recovered;
+    }
+    // The verification session is dead (expired code / superseded verification id). Drop it so a
+    // stale confirmation can never be reused; only a fresh send (resend) can now succeed.
+    if (isOtpSessionExpired(err) && pending === current) {
+      pending = null;
+      clearAutoWatch();
     }
     throw err;
   }
