@@ -1,8 +1,8 @@
 import React from 'react';
 import { Pressable, StyleSheet } from 'react-native';
 import AppText from '@/components/AppText';
-import { DELIVERY } from '@/theme/deliveryTokens';
-import { hs, ms, vs } from '@/utils/responsive';
+import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
+import { hs, vs } from '@/utils/responsive';
 
 interface DPFilterChipProps {
   label: string;
@@ -57,7 +57,7 @@ const styles = StyleSheet.create({
   },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.85 },
-  text: { fontSize: ms(12), fontWeight: '600' },
+  text: { ...DP_TYPE.caption, fontWeight: '600' },
   textActive: { color: DELIVERY.onBrand },
   textInactive: { color: DELIVERY.inkMuted },
 });

@@ -17,13 +17,13 @@ import {
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type DeliveryOrder } from '@/services/api/GatewayClient';
 import { hs, vs } from '@/utils/responsive';
-import { formatRupees } from '../format';
+import { headlineRupees } from '../format';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 import { resetToTab } from '../navigationRoutes';
+import { DeliveryHeader } from '../components/DeliveryHeader';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'AcceptReject'>;
 
-const rupees = (paisa: number) => formatRupees(paisa);
 const DEFAULT_WINDOW_SECONDS = 45;
 
 /**
@@ -138,11 +138,9 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
   const expired = live && seconds === 0;
 
   return (
-    <DPPage>
+    <DPPage header={<DeliveryHeader />}>
       <DPPageHeader
-        kicker="New delivery offer"
         title={expired ? 'Offer expired' : 'Accept before the timer ends'}
-        tone={expired ? 'danger' : 'brand'}
         actions={<DPTimer seconds={seconds} />}
       />
 
@@ -167,7 +165,7 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
           </DPSectionCard>
 
           <DPSectionCard style={styles.card}>
-            <DPKeyValueRow label="Payout" value={rupees(order.payoutAmountPaisa)} valueTone="success" />
+            <DPKeyValueRow label="Payout" value={headlineRupees(order.payoutAmountPaisa)} valueTone="success" />
             <DPKeyValueRow
               label="Payment"
               value={
@@ -246,7 +244,7 @@ export function AcceptRejectScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   card: { marginBottom: vs(12) },
   stopHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
-  section: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted },
+  section: { ...DP_TYPE.micro, color: DELIVERY.inkMuted },
   name: { ...DP_TYPE.title, color: DELIVERY.ink, fontWeight: '600', marginTop: vs(3) },
   meta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
   otpNote: { ...DP_TYPE.caption, fontWeight: '600', color: DELIVERY.warning, marginTop: vs(8) },

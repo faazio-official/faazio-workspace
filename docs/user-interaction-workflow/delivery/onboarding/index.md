@@ -6,11 +6,14 @@
 [submission-success.md](./submission-success.md))
 **Trigger:** First launch of the delivery app, sign-out, or an expired session.
 **Visual layer:** `PhoneEntry` and `OtpVerify` open on the shared `DpAuthHero`
-(`features/delivery-partner/components/DpAuthHero.tsx`) — the Faazio welcome wordmark
-(`FaazioLogo` `variant="welcome"`, as on the customer welcome screen), a sentence-case headline and,
-on the entry step, the Pickup → Drop route signature. The field, button and cards come from the DP
-primitives (tokens in `theme/deliveryTokens.ts`, components in `components/shared/dp/`); `Register`
-and `SubmissionSuccess` use the same primitives.
+(`features/delivery-partner/components/DpAuthHero.tsx`) — the blue Faazio welcome wordmark
+(`FaazioLogo` `variant="welcome"`, as on the customer welcome screen, the website and the pinned
+`DPUtilityBar`), a sentence-case headline and, on the OTP step, a supporting description. The entry
+step is intentionally minimal: no legal/independent-contractor paragraph and no "continue with the
+signed-in account" link (an existing session is resumed automatically). The field, button and cards
+come from the DP primitives (tokens in `theme/deliveryTokens.ts`, components in
+`components/shared/dp/`); `Register` and `SubmissionSuccess` use the same primitives. Registration
+collects the rider's contact email alongside the existing personal details.
 
 `PhoneEntry` and `OtpVerify` mirror the customer login polish: the phone step auto-focuses, remembers
 previously used numbers as tappable suggestions, and auto-advances to `OtpVerify` 150 ms after the
@@ -66,9 +69,13 @@ current digit) with a 30 s resend cooldown and hardware back that returns to the
 ## Success / error / empty
 
 - **Success:** routes to Dashboard / SubmissionSuccess / Register by server status.
-- **Error:** inline error; no fake session. Firebase failures are mapped to user copy through
-  `src/lib/otpError.ts` (never the raw `[auth/<code>] ...` SDK text). An expired code renders
-  "That code has expired. Tap Resend OTP to get a new one." and drops the dead pending request.
+- **Error:** inline error; no fake session. The two phases are reported separately so a broken
+  `GET /delivery/me` is never mislabelled as a bad code. A rejected/expired code is mapped to user
+  copy through `src/lib/otpError.ts` (never the raw `[auth/<code>] ...` SDK text); an expired code
+  renders "That code has expired. Tap Resend OTP to get a new one." and drops the dead pending
+  request. Once the code is accepted, a rider-profile load failure (`GET /delivery/me` non-404, e.g.
+  a `delivery_unavailable` 500) surfaces its own message ("Could not load your rider profile") — the
+  session is already live, so the field keeps the entered code and the copy is not "Incorrect OTP".
 - **Empty:** no application → registration; no remembered numbers → the suggestion row is omitted.
 
 ## Known gaps

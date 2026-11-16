@@ -4,7 +4,7 @@ import type { TextInput, TextInputProps } from 'react-native';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
-import { hs, ms, vs } from '@/utils/responsive';
+import { hs, vs } from '@/utils/responsive';
 
 interface DPFieldProps extends TextInputProps {
   label: string;
@@ -79,7 +79,7 @@ const styles = StyleSheet.create({
   inputBoxFocused: { borderColor: DELIVERY.brand },
   inputBoxError: { borderColor: DELIVERY.danger },
   prefix: { ...DP_TYPE.label, color: DELIVERY.inkMuted, marginRight: hs(8) },
-  input: { flex: 1, alignSelf: 'stretch', fontSize: ms(14), color: DELIVERY.ink },
+  input: { flex: 1, alignSelf: 'stretch', fontSize: DP_TYPE.label.fontSize, color: DELIVERY.ink },
   hint: { ...DP_TYPE.caption, color: DELIVERY.inkSubtle, marginTop: vs(4) },
   error: { ...DP_TYPE.caption, color: DELIVERY.danger, marginTop: vs(4) },
 });

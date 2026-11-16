@@ -20,11 +20,13 @@ import {
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type DeliveryPartnerRider } from '@/services/api/GatewayClient';
+import { saveIOSBackgroundConsent, stopIOSBackgroundLocation } from '@/services/deliveryBackgroundLocation';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { hs, vs } from '@/utils/responsive';
 import { formatNumber } from '../format';
 import { type DeliveryPartnerStackParamList, type DeliveryTabParamList } from '../navigation';
+import { DeliveryHeader } from '../components/DeliveryHeader';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<DeliveryTabParamList, 'RiderProfile'>,
@@ -32,15 +34,16 @@ type Props = CompositeScreenProps<
 >;
 
 /**
- * Rider profile hub built from `GET /delivery/me` only. The full application
- * detail endpoint (`GET /delivery/register/{id}`) is admin/superadmin-gated, so a
- * rider cannot read their documents here — the profile reflects the rider's own
- * record and links to Settings / Support.
+ * Rider profile hub built from `GET /delivery/me` only. The full application detail endpoint
+ * (`GET /delivery/register/{id}`) is admin/superadmin-gated, so a rider cannot read their documents
+ * here — the profile reflects the rider's own record and links to the separate My profile editor,
+ * the other tabs, Settings and Support.
  */
 export function RiderProfileScreen({ navigation }: Props) {
   const rider = useDeliveryPartnerStore((s) => s.rider);
   const setRider = useDeliveryPartnerStore((s) => s.setRider);
   const reset = useDeliveryPartnerStore((s) => s.reset);
+  const online = useDeliveryPartnerStore((s) => s.online);
   const logout = useAuthStore((s) => s.logout);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -62,18 +65,22 @@ export function RiderProfileScreen({ navigation }: Props) {
   }, [load]);
 
   const onLogout = useCallback(async () => {
+    stopIOSBackgroundLocation();
+    await saveIOSBackgroundConsent(false);
+    if (online) await gateway.setDeliveryAvailability(false).catch(() => undefined);
     await logout();
     reset();
     navigation
       .getParent<NativeStackNavigationProp<DeliveryPartnerStackParamList>>()
       ?.reset({ index: 0, routes: [{ name: 'PhoneEntry' }] });
-  }, [logout, navigation, reset]);
+  }, [logout, navigation, online, reset]);
 
   return (
     <DPPage
+      header={<DeliveryHeader />}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
     >
-      <DPPageHeader kicker="Profile" title="Profile & services" />
+      <DPPageHeader title="Profile & services" />
 
       {loading && !rider ? (
         <DPSkeleton lines={6} />
@@ -91,9 +98,26 @@ export function RiderProfileScreen({ navigation }: Props) {
       )}
 
       <DPSectionCard style={styles.menu} title="Services">
-        <DPListRow title="Earnings & payouts" subtitle="Per-job payout and settlement" onPress={() => navigation.navigate('Payouts')} />
-        <DPListRow title="Order history" subtitle="Completed deliveries" onPress={() => navigation.navigate('OrderHistory')} />
-        <DPListRow title="Notifications" subtitle="Order and payout updates" onPress={() => navigation.navigate('Notifications')} />
+        <DPListRow
+          title="My profile"
+          subtitle="Edit your email, vehicle, capacity and hub zone"
+          onPress={() => navigation.navigate('EditProfile')}
+        />
+        <DPListRow
+          title="Earnings & payouts"
+          subtitle="Per-job payout and settlement"
+          onPress={() => navigation.navigate('Payouts')}
+        />
+        <DPListRow
+          title="Order history"
+          subtitle="Completed deliveries"
+          onPress={() => navigation.navigate('OrderHistory')}
+        />
+        <DPListRow
+          title="Notifications"
+          subtitle="Order and payout updates"
+          onPress={() => navigation.navigate('Notifications')}
+        />
         <DPListRow
           title="Settings"
           subtitle="Preferences and app version"
@@ -132,6 +156,7 @@ function ProfileBody({ rider }: { rider: DeliveryPartnerRider }) {
         </View>
         <DPSeparator />
         <DPKeyValueRow label="Phone" value={rider.phone || '—'} />
+        <DPKeyValueRow label="Email" value={rider.email || '—'} />
         <DPKeyValueRow label="Vehicle" value={rider.vehicleType.replace(/_/g, ' ').toLowerCase()} />
         <DPKeyValueRow label="Capacity" value={String(rider.maxCapacity)} />
         <DPKeyValueRow label="Hub zone" value={rider.hubZone || '—'} />
@@ -139,7 +164,7 @@ function ProfileBody({ rider }: { rider: DeliveryPartnerRider }) {
         <DPKeyValueRow label="Completed deliveries" value={String(rider.completedOrders)} />
       </DPSectionCard>
 
-      <DPSectionCard style={styles.card} title="Documents" kicker="Review">
+      <DPSectionCard style={styles.card} title="Documents">
         <AppText style={styles.note}>
           KYC documents are collected at registration and reviewed by the Faazio admin team. Contact
           support if any document needs a replacement.

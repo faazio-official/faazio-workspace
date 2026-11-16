@@ -1,6 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Image, Linking, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ChevronLeft } from 'lucide-react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -8,9 +7,12 @@ import AppText from '@/components/AppText';
 import {
   DPPage,
   DPPageHeader,
+  DPBackLink,
   DPButton,
   DPField,
   DPSectionCard,
+  DPStat,
+  DPStatStrip,
   DPStatusPill,
   DPEmptyState,
   DPErrorState,
@@ -27,14 +29,14 @@ import {
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { PickupScanModal } from './PickupScanModal';
 import { hs, ms, vs } from '@/utils/responsive';
-import { formatRupees, formatNumber } from '../format';
+import { headlineRupees, formatNumber } from '../format';
+import { isStopDone } from '../order';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 import { resetToTab } from '../navigationRoutes';
 import { activeOrderFrom } from '../activeOrder';
+import { DeliveryHeader } from '../components/DeliveryHeader';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Route'>;
-
-const rupees = (paisa: number) => formatRupees(paisa);
 
 function nextAction(stop: DeliveryStop): { label: string; status: DeliveryStopStatus } | null {
   if (stop.status === 'DELIVERED' || stop.status === 'FAILED') return null;
@@ -271,46 +273,29 @@ export function RouteScreen({ navigation }: Props) {
   );
 
   return (
-    <DPPage>
-      <TouchableOpacity
-        onPress={() => navigation.goBack()}
-        style={styles.back}
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-      >
-        <ChevronLeft size={ms(18)} color={DELIVERY.brand} strokeWidth={2} />
-        <AppText style={styles.backText}>Back</AppText>
-      </TouchableOpacity>
-      <DPPageHeader title="Route" kicker="Active deliveries" />
+    <DPPage header={<DeliveryHeader />}>
+      <DPBackLink onPress={() => navigation.goBack()} />
+      <DPPageHeader title="Route" />
       {stops.length > 0 ? (
         <DPSectionCard style={styles.summary}>
-          <View style={styles.summaryRow}>
-            <View style={styles.summaryPrimary}>
-              <AppText style={styles.summaryValue}>{rupees(payout)}</AppText>
-              <AppText style={styles.summaryLabel}>Payout on completion</AppText>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryStat}>
-              <AppText style={styles.summarySmall}>{stops.length}</AppText>
-              <AppText style={styles.summaryLabel}>Stops</AppText>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryStat}>
-              <AppText style={styles.summarySmall}>{acceptedCount}</AppText>
-              <AppText style={styles.summaryLabel}>Orders</AppText>
-            </View>
-            <View style={styles.summaryDivider} />
-            <View style={styles.summaryStat}>
-              <AppText style={styles.summarySmall}>{formatNumber(Math.round(distance / 1000))} km</AppText>
-              <AppText style={styles.summaryLabel}>Distance</AppText>
-            </View>
-          </View>
+          <DPStatStrip>
+            <DPStat style={styles.summaryPrimary} label="Payout on completion" value={headlineRupees(payout)} />
+            <DPStat size="label" style={styles.summaryStat} label="Stops" value={String(stops.length)} />
+            <DPStat size="label" style={styles.summaryStat} label="Orders" value={String(acceptedCount)} />
+            <DPStat
+              size="label"
+              style={styles.summaryStat}
+              label="Distance"
+              value={`${formatNumber(Math.round(distance / 1000))} km`}
+            />
+          </DPStatStrip>
           <DPRouteRail
             style={styles.rail}
             activeIndex={railActiveIndex}
             stops={stops.map((s) => ({
               label: s.label || s.stopType,
-              done: s.status === 'DELIVERED' || s.status === 'FAILED',
+              done: isStopDone(s.status),
+              kind: s.stopType === 'PICKUP' ? 'pickup' : s.stopType === 'DROP' ? 'drop' : 'stop',
             }))}
           />
         </DPSectionCard>
@@ -368,7 +353,7 @@ export function RouteScreen({ navigation }: Props) {
 
       {stops.map((stop, index) => {
         const action = nextAction(stop);
-        const done = stop.status === 'DELIVERED' || stop.status === 'FAILED';
+        const done = isStopDone(stop.status);
         const blockedDrop =
           stop.stopType === 'DROP' &&
           stop.status === 'PENDING' &&
@@ -537,21 +522,9 @@ export function RouteScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  back: { flexDirection: 'row', alignItems: 'center', gap: hs(2), alignSelf: 'flex-start', paddingTop: vs(8), paddingBottom: vs(4) },
-  backText: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '600' },
   summary: { marginBottom: vs(12) },
-  summaryRow: { flexDirection: 'row', alignItems: 'center' },
   summaryPrimary: { flex: 1.6 },
   summaryStat: { flex: 1 },
-  summaryDivider: {
-    width: StyleSheet.hairlineWidth,
-    alignSelf: 'stretch',
-    backgroundColor: DELIVERY.border,
-    marginHorizontal: hs(10),
-  },
-  summaryValue: { ...DP_TYPE.title, color: DELIVERY.ink, fontVariant: ['tabular-nums'] },
-  summarySmall: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600', fontVariant: ['tabular-nums'] },
-  summaryLabel: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
   rail: { marginTop: vs(14) },
   mapWrap: { height: vs(200), borderRadius: DELIVERY.radius.lg, overflow: 'hidden', marginBottom: vs(12) },
   map: { flex: 1 },
@@ -567,10 +540,10 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   seqDone: { backgroundColor: DELIVERY.success },
-  seqText: { color: DELIVERY.onBrand, fontSize: ms(12), fontWeight: '600' },
+  seqText: { ...DP_TYPE.micro, color: DELIVERY.onBrand, fontWeight: '600' },
   flex: { flex: 1 },
   stopTypeRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(8) },
-  stopType: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted },
+  stopType: { ...DP_TYPE.micro, color: DELIVERY.inkMuted },
   stopLabel: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600', marginTop: vs(4) },
   stopAddress: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
   callRow: { marginTop: vs(4), minHeight: vs(24), justifyContent: 'center' },

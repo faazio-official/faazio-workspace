@@ -17,8 +17,9 @@ import {
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type RiderPayout } from '@/services/api/GatewayClient';
 import { vs } from '@/utils/responsive';
-import { formatRupees, formatNumber } from '../format';
+import { headlineRupees, lineRupees, formatNumber } from '../format';
 import type { DeliveryPartnerStackParamList, DeliveryTabParamList } from '../navigation';
+import { DeliveryHeader } from '../components/DeliveryHeader';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<DeliveryTabParamList, 'OrderHistory'>,
@@ -75,10 +76,10 @@ export function OrderHistoryScreen({ navigation }: Props) {
 
   return (
     <DPPage
+      header={<DeliveryHeader />}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
     >
       <DPPageHeader
-        kicker="Orders"
         title="Order history"
         description="Completed deliveries with their distance, surge and settlement status."
       />
@@ -124,10 +125,10 @@ export function OrderHistoryScreen({ navigation }: Props) {
                       ? `Paid ${new Date(p.paidAt).toLocaleDateString('en-IN')}`
                       : 'Awaiting settlement'
                   }
-                  amount={formatRupees(p.totalPaisa)}
+                  amount={headlineRupees(p.totalPaisa)}
                   amountNote="earned"
                   submeta={`${formatNumber(p.distanceKm, 1)} km${
-                    p.surgePaisa > 0 ? ` · surge ${formatRupees(p.surgePaisa, 2)}` : ''
+                    p.surgePaisa > 0 ? ` · surge ${lineRupees(p.surgePaisa)}` : ''
                   }`}
                   actionLabel="Details"
                   onAction={() => navigation.navigate('EarningsDetail', { orderId: p.orderId })}

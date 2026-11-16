@@ -164,11 +164,7 @@ export function PhoneEntryScreen({ navigation }: Props) {
 
   return (
     <DPPage contentStyle={styles.body} keyboardShouldPersistTaps="handled" keyboardAvoiding>
-      <DpAuthHero
-        headline="Delivery Partner"
-        description="Earn on your schedule, verify once, then go online and accept orders near you"
-        showRoute
-      />
+      <DpAuthHero headline="Delivery Partner" />
 
       <DPSectionCard>
         <DPField
@@ -212,29 +208,15 @@ export function PhoneEntryScreen({ navigation }: Props) {
           loading={sending || checking}
         />
       </DPSectionCard>
-
-      <AppText style={styles.terms}>
-        By continuing you agree to the Faazio Delivery Partner terms, including independent-contractor
-        status and lawful assistance to police with an official request.
-      </AppText>
-
-      {isAuthenticated ? (
-        <TouchableOpacity onPress={() => void resume()} style={styles.linkWrap} accessibilityRole="button">
-          <AppText style={styles.link}>Continue with the signed-in account</AppText>
-        </TouchableOpacity>
-      ) : null}
     </DPPage>
   );
 }
 
 const styles = StyleSheet.create({
   body: { paddingTop: vs(16) },
-  terms: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(16) },
-  linkWrap: { minHeight: DELIVERY.touch.min, justifyContent: 'center', alignItems: 'center', marginTop: vs(12) },
-  link: { fontSize: DP_TYPE.label.fontSize, fontWeight: '600', color: DELIVERY.brand },
   recentWrap: { marginBottom: vs(12) },
   recentLabel: {
-    ...DP_TYPE.kicker,
+    ...DP_TYPE.micro,
     color: DELIVERY.inkMuted,
     marginBottom: vs(8),
   },

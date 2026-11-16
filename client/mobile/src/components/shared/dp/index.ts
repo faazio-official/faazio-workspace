@@ -1,7 +1,11 @@
 export { DPButton } from './DPButton';
 export type { DPButtonVariant, DPButtonSize } from './DPButton';
 export { DPPage, DPPageHeader } from './DPPage';
+export { DPBackLink } from './DPBackLink';
 export { DPSectionCard, DPToneDot, DPSeparator } from './DPSectionCard';
+export { DPSectionHeader } from './DPSectionHeader';
+export { DPStat, DPStatStrip } from './DPStat';
+export type { DPStatSize } from './DPStat';
 export { DPStatusPill, toneForStatus } from './DPStatusPill';
 export { DPFilterChip } from './DPFilterChip';
 export { DPEmptyState, DPErrorState, DPSkeleton } from './DPStates';

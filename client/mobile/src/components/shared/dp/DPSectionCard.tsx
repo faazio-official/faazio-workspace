@@ -8,8 +8,6 @@ import { hs, ms, vs } from '@/utils/responsive';
 interface DPSectionCardProps {
   children: React.ReactNode;
   title?: string;
-  kicker?: string;
-  tone?: DpTone;
   action?: React.ReactNode;
   /** `flat` drops the surface, border, shadow and padding for a bare grouping block. */
   variant?: 'card' | 'flat';
@@ -17,30 +15,23 @@ interface DPSectionCardProps {
 }
 
 /**
- * Surface card: white, hairline border, radius 16, soft shadow, optional tone-dot
- * header. The reference mobile view stacks these full-width down a single column.
+ * Surface card: white, hairline border, radius 16, soft shadow, optional
+ * title/action header. The reference mobile view stacks these full-width down a
+ * single column.
  */
 export function DPSectionCard({
   children,
   title,
-  kicker,
-  tone = 'brand',
   action,
   variant = 'card',
   style,
 }: DPSectionCardProps) {
-  const hasHeader = Boolean(title || kicker || action);
+  const hasHeader = Boolean(title || action);
   return (
     <View style={[variant === 'flat' ? styles.flat : styles.card, style]}>
       {hasHeader ? (
         <View style={styles.header}>
           <View style={styles.headerText}>
-            {kicker ? (
-              <View style={styles.kickerRow}>
-                <View style={[styles.dot, { backgroundColor: DP_TONE[tone].fg }]} />
-                <AppText style={[styles.kicker, { color: DP_TONE[tone].fg }]}>{kicker}</AppText>
-              </View>
-            ) : null}
             {title ? <AppText style={styles.title}>{title}</AppText> : null}
           </View>
           {action ? <View style={styles.action}>{action}</View> : null}
@@ -97,10 +88,7 @@ const styles = StyleSheet.create({
     marginBottom: vs(12),
   },
   headerText: { flex: 1 },
-  kickerRow: { flexDirection: 'row', alignItems: 'center', gap: hs(8) },
-  dot: { width: ms(8), height: ms(8), borderRadius: ms(4) },
-  kicker: { ...DP_TYPE.kicker },
-  title: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '500', marginTop: vs(2) },
+  title: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '500' },
   action: { alignItems: 'flex-end' },
   separator: {
     height: StyleSheet.hairlineWidth,

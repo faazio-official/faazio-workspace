@@ -2,6 +2,8 @@ import React from 'react';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react-native';
 import type { DeliveryOrder } from '@/services/api/GatewayClient';
 
+jest.mock('../components/DeliveryHeader', () => ({ DeliveryHeader: () => null }));
+
 jest.mock('@/services/api/GatewayClient', () => ({
   gateway: {
     getDeliveryRoute: jest.fn(),

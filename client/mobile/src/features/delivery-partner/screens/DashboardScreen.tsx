@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  Alert,
   AppState,
-  Platform,
   RefreshControl,
   StyleSheet,
   TouchableOpacity,
@@ -12,18 +10,21 @@ import {
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { CompositeScreenProps } from '@react-navigation/native';
 import type { NativeStackNavigationProp, NativeStackScreenProps } from '@react-navigation/native-stack';
-import { ChevronRight } from 'lucide-react-native';
+import { BellRing, ChevronRight, PowerOff, Route as RouteIcon } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import {
   DPPage,
   DPButton,
   DPSectionCard,
+  DPSectionHeader,
+  DPStat,
+  DPStatStrip,
+  DPSeparator,
   DPStatusPill,
   DPTimer,
   DPSkeleton,
   DPErrorState,
   DPEmptyState,
-  DPUtilityBar,
   DPRouteRail,
   DPOrderCard,
   DPFadeIn,
@@ -31,29 +32,20 @@ import {
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type DeliveryOrder, type DeliveryShiftSummary } from '@/services/api/GatewayClient';
-import { getCoarsePosition, requestLocationPermission } from '@/services/location';
 import { startDeliveryPush } from '@/services/deliveryPush';
-import { startDeliveryTracking, stopDeliveryTracking } from '@/services/deliveryTracking';
-import {
-  loadIOSBackgroundConsent,
-  saveIOSBackgroundConsent,
-  startIOSBackgroundLocation,
-  stopIOSBackgroundLocation,
-} from '@/services/deliveryBackgroundLocation';
-import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { useDeliverySettingsStore } from '@/state/deliverySettingsStore';
 import { hs, ms, vs } from '@/utils/responsive';
-import { formatRupees, formatNumber, formatOnlineTime } from '../format';
+import { headlineRupees, formatNumber, formatOnlineTime } from '../format';
+import { isStopDone } from '../order';
 import { type DeliveryPartnerStackParamList, type DeliveryTabParamList } from '../navigation';
 import { activeOrderFrom } from '../activeOrder';
+import { DeliveryHeader } from '../components/DeliveryHeader';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<DeliveryTabParamList, 'Dashboard'>,
   NativeStackScreenProps<DeliveryPartnerStackParamList>
 >;
-
-const HEARTBEAT_MS = 120_000;
 
 /** Payment tag for an offer/active order: prepaid (UPI) vs collect-at-door (COD) state. */
 const paymentLabel = (order: DeliveryOrder): string => {
@@ -68,26 +60,21 @@ const paymentLabel = (order: DeliveryOrder): string => {
 const paymentMeta = (order: DeliveryOrder): string =>
   order.paymentRequired ? 'Cash' : 'Prepaid';
 
-const isStopDone = (status: string) => status === 'DELIVERED' || status === 'FAILED';
-
 export function DashboardScreen({ navigation }: Props) {
   const rider = useDeliveryPartnerStore((s) => s.rider);
   const setRider = useDeliveryPartnerStore((s) => s.setRider);
   const setActiveOrder = useDeliveryPartnerStore((s) => s.setActiveOrder);
-  const reset = useDeliveryPartnerStore((s) => s.reset);
-  const logout = useAuthStore((s) => s.logout);
+  const online = useDeliveryPartnerStore((s) => s.online);
+  const setOnline = useDeliveryPartnerStore((s) => s.setOnline);
+  const setUnread = useDeliveryPartnerStore((s) => s.setUnread);
   const [orders, setOrders] = useState<DeliveryOrder[]>([]);
   const [loading, setLoading] = useState(false);
   const [booting, setBooting] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [online, setOnline] = useState(Boolean(rider?.isAvailable));
-  const [unread, setUnread] = useState(0);
   const [shiftSummary, setShiftSummary] = useState<DeliveryShiftSummary | null>(null);
   const [exiting, setExiting] = useState<Record<string, boolean>>({});
   const [now, setNow] = useState(Date.now());
-  const [iosBackgroundAllowed, setIosBackgroundAllowed] = useState(false);
-  const heartbeat = useRef<ReturnType<typeof setInterval> | null>(null);
   const vibrateOnOffer = useDeliverySettingsStore((s) => s.vibrateOnOffer);
   const hydrateSettings = useDeliverySettingsStore((s) => s.hydrate);
   const seenOffers = useRef<Set<string> | null>(null);
@@ -115,29 +102,6 @@ export function DashboardScreen({ navigation }: Props) {
     if (fresh.length > 0 && vibrateOnOffer) Vibration.vibrate(200);
   }, [offers, vibrateOnOffer]);
 
-  const stopHeartbeat = useCallback(() => {
-    if (heartbeat.current) {
-      clearInterval(heartbeat.current);
-      heartbeat.current = null;
-    }
-  }, []);
-
-  const sendHeartbeat = useCallback(async () => {
-    if (AppState.currentState !== 'active') return;
-    try {
-      const fix = await getCoarsePosition();
-      await gateway.sendDeliveryHeartbeat(fix.latitude, fix.longitude);
-    } catch {
-      // A missed heartbeat is non-fatal: the Valkey key expires and dispatch skips this rider.
-    }
-  }, []);
-
-  const startHeartbeat = useCallback(() => {
-    stopHeartbeat();
-    void sendHeartbeat();
-    heartbeat.current = setInterval(() => void sendHeartbeat(), HEARTBEAT_MS);
-  }, [sendHeartbeat, stopHeartbeat]);
-
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -150,7 +114,6 @@ export function DashboardScreen({ navigation }: Props) {
       if (me.status !== 'ACTIVE') {
         setOrders([]);
         setActiveOrder(null);
-        stopHeartbeat();
         rootNavigation()?.replace('SubmissionSuccess');
         return;
       }
@@ -171,51 +134,11 @@ export function DashboardScreen({ navigation }: Props) {
       setLoading(false);
       setBooting(false);
     }
-  }, [rootNavigation, setActiveOrder, setRider, stopHeartbeat]);
+  }, [rootNavigation, setActiveOrder, setOnline, setRider, setUnread]);
 
   useEffect(() => {
     void refresh();
-    return stopHeartbeat;
-  }, [refresh, stopHeartbeat]);
-
-  // Resume iOS background tracking for a rider who was already online when the app relaunched.
-  useEffect(() => {
-    if (Platform.OS !== 'ios') return;
-    let active = true;
-    void loadIOSBackgroundConsent().then((allowed) => {
-      if (active && allowed) setIosBackgroundAllowed(true);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!online) {
-      stopHeartbeat();
-      stopIOSBackgroundLocation();
-      void stopDeliveryTracking();
-      return;
-    }
-    startHeartbeat();
-    // Android owns background wakes natively; iOS uses the CoreLocation watch below.
-    // The JS interval intentionally bails when the app is not active so the two never duplicate.
-    void startDeliveryTracking();
-    // Resume without prompting: the OS dialog is only raised by the explicit online toggle.
-    if (iosBackgroundAllowed) startIOSBackgroundLocation({ prompt: false });
-    return () => {
-      stopHeartbeat();
-      stopIOSBackgroundLocation();
-      void stopDeliveryTracking();
-    };
-  }, [iosBackgroundAllowed, online, startHeartbeat, stopHeartbeat]);
-
-  useEffect(() => {
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active' && online) void sendHeartbeat();
-    });
-    return () => sub.remove();
-  }, [online, sendHeartbeat]);
+  }, [refresh]);
 
   useEffect(() => {
     setNow(Date.now());
@@ -262,52 +185,6 @@ export function DashboardScreen({ navigation }: Props) {
     };
   }, [refresh]);
 
-  const confirmIOSBackground = useCallback((): Promise<boolean> => {
-    if (Platform.OS !== 'ios') return Promise.resolve(false);
-    return new Promise((resolve) => {
-      Alert.alert(
-        'Keep offers coming',
-        'Faazio needs background location while you are online so dispatch can still find you when the app is not open. You can choose “Allow While Using” to stay foreground-only.',
-        [
-          { text: 'Not now', style: 'cancel', onPress: () => resolve(false) },
-          { text: 'Continue', onPress: () => resolve(true) },
-        ],
-        { cancelable: true, onDismiss: () => resolve(false) },
-      );
-    });
-  }, []);
-
-  const toggleOnline = useCallback(async () => {
-    setBusy('availability');
-    setError(null);
-    const next = !online;
-    try {
-      if (next) {
-        const granted = await requestLocationPermission();
-        if (!granted) {
-          throw new Error('Location permission is required to go online.');
-        }
-        if (Platform.OS === 'ios') {
-          const allowBackground = await confirmIOSBackground();
-          setIosBackgroundAllowed(allowBackground);
-          await saveIOSBackgroundConsent(allowBackground);
-          if (allowBackground) startIOSBackgroundLocation({ prompt: true });
-        }
-      } else {
-        setIosBackgroundAllowed(false);
-        stopIOSBackgroundLocation();
-      }
-      await gateway.setDeliveryAvailability(next);
-      setOnline(next);
-      if (next) startHeartbeat();
-      else stopHeartbeat();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not change availability.');
-    } finally {
-      setBusy(null);
-    }
-  }, [confirmIOSBackground, online, startHeartbeat, stopHeartbeat]);
-
   const accept = useCallback(
     async (orderId: string) => {
       setBusy(orderId);
@@ -352,23 +229,13 @@ export function DashboardScreen({ navigation }: Props) {
     setOrders((prev) => prev.filter((o) => o.orderId !== orderId));
   }, []);
 
-  const onLogout = useCallback(async () => {
-    stopHeartbeat();
-    stopIOSBackgroundLocation();
-    await saveIOSBackgroundConsent(false);
-    if (online) await gateway.setDeliveryAvailability(false).catch(() => undefined);
-    await logout();
-    reset();
-    rootNavigation()?.reset({ index: 0, routes: [{ name: 'PhoneEntry' }] });
-  }, [logout, online, reset, rootNavigation, stopHeartbeat]);
-
   const refreshControl = (
     <RefreshControl refreshing={loading} onRefresh={() => void refresh()} />
   );
 
   if (booting) {
     return (
-      <DPPage refreshControl={refreshControl}>
+      <DPPage refreshControl={refreshControl} header={<DeliveryHeader />}>
         <DPSkeleton lines={7} />
       </DPPage>
     );
@@ -377,19 +244,7 @@ export function DashboardScreen({ navigation }: Props) {
   const fatal = Boolean(error) && !rider;
 
   return (
-    <DPPage
-      refreshControl={refreshControl}
-      header={
-        <DPUtilityBar
-          riderName={rider?.fullName}
-          online={online}
-          onToggleOnline={() => void toggleOnline()}
-          onlineBusy={busy === 'availability'}
-          unreadCount={unread}
-          onOpenAlerts={() => navigation.navigate('Notifications')}
-        />
-      }
-    >
+    <DPPage refreshControl={refreshControl} header={<DeliveryHeader />}>
       {fatal ? (
         <DPErrorState
           title="Could not load your shift"
@@ -413,56 +268,43 @@ export function DashboardScreen({ navigation }: Props) {
           ) : null}
 
           <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <AppText style={styles.sectionTitle}>This shift</AppText>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel="View earnings"
-                onPress={() => navigation.navigate('Payouts')}
-              >
-                <View style={styles.linkRow}>
-                  <AppText style={styles.link}>View earnings</AppText>
-                  <ChevronRight size={ms(16)} color={DELIVERY.brand} strokeWidth={1.5} />
-                </View>
-              </TouchableOpacity>
-            </View>
+            <DPSectionHeader
+              title="This shift"
+              actionLabel="View earnings"
+              onAction={() => navigation.navigate('Payouts')}
+            />
             <DPSectionCard>
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryPrimary}>
-                  <AppText style={styles.summaryValue}>{rider?.completedOrders ?? 0}</AppText>
-                  <AppText style={styles.summaryLabel}>Deliveries completed</AppText>
-                </View>
-                <View style={styles.summaryDivider} />
-                <View style={styles.summaryStat}>
-                  <AppText style={styles.summarySmall}>
-                    {rider?.currentLoad ?? 0}/{rider?.maxCapacity ?? 0}
-                  </AppText>
-                  <AppText style={styles.summaryLabel}>Load</AppText>
-                </View>
-                <View style={styles.summaryDivider} />
-                <View style={styles.summaryStat}>
-                  <AppText style={styles.summarySmall}>
-                    {rider?.rating ? formatNumber(rider.rating, 1) : '—'}
-                  </AppText>
-                  <AppText style={styles.summaryLabel}>Rating</AppText>
-                </View>
-              </View>
-              <View style={styles.summaryHairline} />
-              <View style={styles.summaryRow}>
-                <View style={styles.summaryStat}>
-                  <AppText style={styles.summarySmall}>
-                    {shiftSummary ? formatRupees(shiftSummary.shiftEarningsPaisa) : '—'}
-                  </AppText>
-                  <AppText style={styles.summaryLabel}>Shift earnings</AppText>
-                </View>
-                <View style={styles.summaryDivider} />
-                <View style={styles.summaryStat}>
-                  <AppText style={styles.summarySmall}>
-                    {shiftSummary ? formatOnlineTime(shiftSummary.onlineSecondsToday) : '—'}
-                  </AppText>
-                  <AppText style={styles.summaryLabel}>Online today</AppText>
-                </View>
-              </View>
+              <DPStatStrip>
+                <DPStat
+                  size="display"
+                  style={styles.summaryPrimary}
+                  label="Deliveries completed"
+                  value={String(rider?.completedOrders ?? 0)}
+                />
+                <DPStat
+                  style={styles.summaryStat}
+                  label="Load"
+                  value={`${rider?.currentLoad ?? 0}/${rider?.maxCapacity ?? 0}`}
+                />
+                <DPStat
+                  style={styles.summaryStat}
+                  label="Rating"
+                  value={rider?.rating ? formatNumber(rider.rating, 1) : '—'}
+                />
+              </DPStatStrip>
+              <DPSeparator />
+              <DPStatStrip>
+                <DPStat
+                  style={styles.summaryStat}
+                  label="Shift earnings"
+                  value={shiftSummary ? headlineRupees(shiftSummary.shiftEarningsPaisa) : '—'}
+                />
+                <DPStat
+                  style={styles.summaryStat}
+                  label="Online today"
+                  value={shiftSummary ? formatOnlineTime(shiftSummary.onlineSecondsToday) : '—'}
+                />
+              </DPStatStrip>
               {!shiftSummary ? (
                 <AppText style={styles.shiftNote}>
                   Shift earnings and online time are unavailable right now — pull to refresh.
@@ -472,17 +314,19 @@ export function DashboardScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <AppText style={styles.sectionTitle}>Offers</AppText>
-              {offers.length > 0 ? (
-                <AppText style={styles.sectionCount}>{offers.length}</AppText>
-              ) : null}
-            </View>
+            <DPSectionHeader title="Offers" count={offers.length > 0 ? offers.length : undefined} />
             {offers.length === 0 ? (
               <DPSectionCard>
                 <DPEmptyState
                   compact
                   tone={online ? 'brand' : 'neutral'}
+                  icon={
+                    online ? (
+                      <BellRing size={ms(20)} color={DELIVERY.brand} strokeWidth={1.8} />
+                    ) : (
+                      <PowerOff size={ms(20)} color={DELIVERY.inkMuted} strokeWidth={1.8} />
+                    )
+                  }
                   title={online ? 'Waiting for offers' : 'You are offline'}
                   description={
                     online
@@ -507,16 +351,17 @@ export function DashboardScreen({ navigation }: Props) {
                   >
                   <DPFadeIn index={index}>
                   <DPSectionCard style={styles.card}>
-                    <View style={styles.rowBetween}>
-                      <AppText style={styles.cardKicker}>New delivery</AppText>
-                      {seconds !== null ? <DPTimer seconds={seconds} /> : null}
-                    </View>
+                    {seconds !== null ? (
+                      <View style={styles.offerTop}>
+                        <DPTimer seconds={seconds} />
+                      </View>
+                    ) : null}
                     <DPRouteRail
                       style={styles.rail}
                       activeIndex={0}
                       stops={[
-                        { label: pickup?.label || 'Store' },
-                        { label: drop?.label || 'Customer' },
+                        { label: pickup?.label || 'Store', kind: 'pickup' },
+                        { label: drop?.label || 'Customer', kind: 'drop' },
                       ]}
                     />
                     <AppText style={styles.cardMeta}>
@@ -525,7 +370,7 @@ export function DashboardScreen({ navigation }: Props) {
                     <View style={styles.payRow}>
                       <View style={styles.payPrimary}>
                         <AppText style={styles.payout}>
-                          {formatRupees(order.payoutAmountPaisa)}
+                          {headlineRupees(order.payoutAmountPaisa)}
                         </AppText>
                         {paymentLabel(order) ? (
                           <View style={styles.payTag}>
@@ -591,24 +436,23 @@ export function DashboardScreen({ navigation }: Props) {
           </View>
 
           <View style={styles.section}>
-            <View style={styles.sectionHead}>
-              <AppText style={styles.sectionTitle}>Your route</AppText>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel="Past deliveries"
-                onPress={() => navigation.navigate('OrderHistory')}
-              >
-                <View style={styles.linkRow}>
-                  <AppText style={styles.link}>Past deliveries</AppText>
-                  <ChevronRight size={ms(16)} color={DELIVERY.brand} strokeWidth={1.5} />
-                </View>
-              </TouchableOpacity>
-            </View>
+            <DPSectionHeader
+              title="Your route"
+              actionLabel="Past deliveries"
+              onAction={() => navigation.navigate('OrderHistory')}
+            />
             {active.length === 0 ? (
               <DPSectionCard>
                 <DPEmptyState
                   compact
                   tone={online ? 'brand' : 'neutral'}
+                  icon={
+                    online ? (
+                      <RouteIcon size={ms(20)} color={DELIVERY.brand} strokeWidth={1.8} />
+                    ) : (
+                      <PowerOff size={ms(20)} color={DELIVERY.inkMuted} strokeWidth={1.8} />
+                    )
+                  }
                   title="No active deliveries"
                   description={
                     online
@@ -635,10 +479,11 @@ export function DashboardScreen({ navigation }: Props) {
                         stops={order.stops.map((s) => ({
                           label: s.label || s.stopType,
                           done: isStopDone(s.status),
+                          kind: s.stopType === 'PICKUP' ? 'pickup' : s.stopType === 'DROP' ? 'drop' : 'stop',
                         }))}
                       />
                     }
-                    amount={formatRupees(order.payoutAmountPaisa)}
+                    amount={headlineRupees(order.payoutAmountPaisa)}
                     amountNote="on completion"
                     submeta={`${order.stops.length} stops · ${Math.round(
                       order.totalDistanceMeters / 1000,
@@ -653,14 +498,6 @@ export function DashboardScreen({ navigation }: Props) {
               })
             )}
           </View>
-
-          <TouchableOpacity
-            onPress={() => void onLogout()}
-            style={styles.linkWrap}
-            accessibilityRole="button"
-          >
-            <AppText style={styles.signOut}>Go offline and sign out</AppText>
-          </TouchableOpacity>
         </>
       )}
     </DPPage>
@@ -670,38 +507,13 @@ export function DashboardScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   section: { marginTop: DELIVERY.space.SECTION },
-  sectionHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: hs(8),
-    marginBottom: DELIVERY.space.BLOCK,
-  },
-  sectionTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '500' },
-  sectionCount: { ...DP_TYPE.caption, color: DELIVERY.inkSubtle },
-  link: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '500' },
-  linkRow: { flexDirection: 'row', alignItems: 'center', gap: hs(2) },
-  summaryRow: { flexDirection: 'row', alignItems: 'center' },
   summaryPrimary: { flex: 1.4 },
   summaryStat: { flex: 1 },
-  summaryDivider: {
-    width: StyleSheet.hairlineWidth,
-    alignSelf: 'stretch',
-    backgroundColor: DELIVERY.border,
-    marginHorizontal: hs(12),
-  },
-  summaryValue: { ...DP_TYPE.display, color: DELIVERY.ink, fontVariant: ['tabular-nums'] },
-  summarySmall: { ...DP_TYPE.title, color: DELIVERY.ink, fontVariant: ['tabular-nums'] },
-  summaryLabel: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
-  summaryHairline: {
-    height: StyleSheet.hairlineWidth,
-    backgroundColor: DELIVERY.border,
-    marginTop: vs(12),
-  },
+  link: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '500' },
+  linkRow: { flexDirection: 'row', alignItems: 'center', gap: hs(2) },
   shiftNote: { ...DP_TYPE.caption, color: DELIVERY.inkSubtle, marginTop: vs(8) },
   card: { marginBottom: DELIVERY.space.ITEM },
-  rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(8) },
-  cardKicker: { ...DP_TYPE.kicker, color: DELIVERY.inkMuted, fontWeight: '500' },
+  offerTop: { alignItems: 'flex-end' },
   rail: { marginTop: vs(12) },
   cardMeta: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(8) },
   payRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: hs(8), marginTop: vs(12) },
@@ -715,6 +527,4 @@ const styles = StyleSheet.create({
   errorCard: { flexDirection: 'row', alignItems: 'center', gap: hs(8), marginBottom: vs(8) },
   errorText: { ...DP_TYPE.caption, color: DELIVERY.danger, flex: 1 },
   errorRetry: { paddingHorizontal: hs(8) },
-  linkWrap: { minHeight: DELIVERY.touch.min, alignItems: 'center', justifyContent: 'center', marginTop: vs(16) },
-  signOut: { ...DP_TYPE.label, color: DELIVERY.inkMuted },
 });

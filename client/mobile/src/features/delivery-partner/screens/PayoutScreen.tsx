@@ -9,6 +9,7 @@ import {
   DPPage,
   DPPageHeader,
   DPSectionCard,
+  DPSectionHeader,
   DPKpiStrip,
   DPKpiCard,
   DPStatusPill,
@@ -19,17 +20,14 @@ import {
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type RiderPayout } from '@/services/api/GatewayClient';
 import { hs, ms, vs } from '@/utils/responsive';
-import { formatRupees, formatNumber } from '../format';
+import { headlineRupees, lineRupees, formatNumber } from '../format';
 import type { DeliveryPartnerStackParamList, DeliveryTabParamList } from '../navigation';
+import { DeliveryHeader } from '../components/DeliveryHeader';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<DeliveryTabParamList, 'Payouts'>,
   NativeStackScreenProps<DeliveryPartnerStackParamList>
 >;
-
-/** Headline sums (KPI figures) render whole rupees; itemised lines carry paise. */
-const headline = (paisa: number) => formatRupees(paisa);
-const line = (paisa: number) => formatRupees(paisa, 2);
 
 export function PayoutScreen({ navigation }: Props) {
   const [payouts, setPayouts] = useState<RiderPayout[]>([]);
@@ -65,9 +63,10 @@ export function PayoutScreen({ navigation }: Props) {
 
   return (
     <DPPage
+      header={<DeliveryHeader />}
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void load()} />}
     >
-      <DPPageHeader kicker="Earnings" title="Payouts" description="Per-job payout, distance and settlement status." />
+      <DPPageHeader title="Payouts" description="Per-job payout, distance and settlement status." />
 
       {loading && payouts.length === 0 ? (
         <DPSkeleton lines={6} />
@@ -75,9 +74,9 @@ export function PayoutScreen({ navigation }: Props) {
         <DPErrorState description={error} onRetry={() => void load()} />
       ) : (
         <>
-          <DPKpiStrip style={styles.summaryRow}>
-            <DPKpiCard label="Pending" value={headline(pending)} size="lead" />
-            <DPKpiCard label="Paid out" value={headline(paid)} />
+<DPKpiStrip style={styles.summaryRow}>
+            <DPKpiCard label="Pending" value={headlineRupees(pending)} size="lead" />
+            <DPKpiCard label="Paid out" value={headlineRupees(paid)} />
           </DPKpiStrip>
 
           <AppText style={styles.note}>
@@ -87,7 +86,7 @@ export function PayoutScreen({ navigation }: Props) {
 
           {error ? <AppText style={styles.error}>{error}</AppText> : null}
 
-          <AppText style={styles.sectionTitle}>Recent jobs</AppText>
+          <DPSectionHeader title="Recent jobs" style={styles.section} />
           {payouts.length === 0 ? (
             <DPSectionCard>
               <DPEmptyState
@@ -115,16 +114,16 @@ export function PayoutScreen({ navigation }: Props) {
                       <DPStatusPill status={p.status} />
                     </View>
                     <AppText style={styles.rowMeta}>
-                      {formatNumber(p.distanceKm, 1)} km · base {line(p.baseRatePaisa)} · extra km{' '}
-                      {line(p.extraKmChargePaisa)}
-                      {p.surgePaisa > 0 ? ` · surge ${line(p.surgePaisa)}` : ''}
+                      {formatNumber(p.distanceKm, 1)} km · base {lineRupees(p.baseRatePaisa)} · extra km{' '}
+                      {lineRupees(p.extraKmChargePaisa)}
+                      {p.surgePaisa > 0 ? ` · surge ${lineRupees(p.surgePaisa)}` : ''}
                     </AppText>
                     {p.surgeReason ? <AppText style={styles.rowMeta}>Surge: {p.surgeReason}</AppText> : null}
                     <View style={styles.rowBetween}>
-                      <AppText style={styles.rowTotal}>{headline(p.totalPaisa)}</AppText>
+                      <AppText style={styles.rowTotal}>{headlineRupees(p.totalPaisa)}</AppText>
                       <AppText style={styles.rowMeta}>
-                        {paidNow > 0 ? `Paid ${line(paidNow)}` : ''}
-                        {balance > 0 ? ` · Balance ${line(balance)}` : ''}
+                        {paidNow > 0 ? `Paid ${lineRupees(paidNow)}` : ''}
+                        {balance > 0 ? ` · Balance ${lineRupees(balance)}` : ''}
                         {p.paidAt ? ` · ${new Date(p.paidAt).toLocaleDateString('en-IN')}` : ''}
                       </AppText>
                     </View>
@@ -147,13 +146,7 @@ const styles = StyleSheet.create({
   summaryRow: { marginBottom: vs(10) },
   note: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(10) },
   error: { ...DP_TYPE.caption, color: DELIVERY.danger, marginTop: vs(10) },
-  sectionTitle: {
-    ...DP_TYPE.label,
-    color: DELIVERY.ink,
-    fontWeight: '600',
-    marginTop: DELIVERY.space.SECTION,
-    marginBottom: DELIVERY.space.BLOCK,
-  },
+  section: { marginTop: DELIVERY.space.SECTION },
   row: { marginBottom: vs(10) },
   rowBetween: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: hs(10) },
   rowTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600' },

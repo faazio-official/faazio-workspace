@@ -1,14 +1,31 @@
 import React from 'react';
 import { StyleSheet, View, type StyleProp, type ViewStyle } from 'react-native';
+import { MapPin, Package, Store } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { hs, ms, vs } from '@/utils/responsive';
+
+export type DPRouteStopKind = 'pickup' | 'drop' | 'stop';
 
 export interface DPRouteRailStop {
   /** Short place label shown under the node, e.g. "Store" or "Customer". */
   label: string;
   /** Force-complete a node regardless of `activeIndex`. */
   done?: boolean;
+  /** What the stop is, so the node carries a meaningful icon. */
+  kind?: DPRouteStopKind;
+}
+
+function iconForStop(stop: DPRouteRailStop, index: number, total: number): typeof Store {
+  if (stop.kind === 'pickup') return Store;
+  if (stop.kind === 'drop') return MapPin;
+  if (stop.kind === 'stop') return Package;
+  const label = stop.label.toLowerCase();
+  if (/store|pickup|shop|mart|restaurant|pharma|pick/.test(label)) return Store;
+  if (/customer|drop|home|door|deliver/.test(label)) return MapPin;
+  if (index === 0) return Store;
+  if (index === total - 1) return MapPin;
+  return Package;
 }
 
 interface DPRouteRailProps {
@@ -19,9 +36,9 @@ interface DPRouteRailProps {
 }
 
 /**
- * The delivery app's signature: one dotted pickup → drop → …N route line with a
- * live position dot, reused on the offer card, the active-route card and the
- * Route screen. Brand fills completed legs; a tinted ring marks the current stop.
+ * The delivery app's signature: one pickup → drop → …N route line with an icon
+ * per stop, reused on the offer card, the active-route card and the Route
+ * screen. Brand fills completed legs; a tinted ring marks the current stop.
  */
 export function DPRouteRail({ stops, activeIndex = 0, style }: DPRouteRailProps) {
   if (stops.length === 0) return null;
@@ -37,6 +54,7 @@ export function DPRouteRail({ stops, activeIndex = 0, style }: DPRouteRailProps)
         const reached = isDone || isCurrent;
         const leftDone = isDone || index <= activeIndex;
         const rightDone = isDone || index < activeIndex;
+        const StopIcon = iconForStop(stop, index, stops.length);
         return (
           <View key={`${stop.label}-${index}`} style={styles.cell}>
             <View style={styles.dotRow}>
@@ -49,13 +67,19 @@ export function DPRouteRail({ stops, activeIndex = 0, style }: DPRouteRailProps)
               />
               <View
                 style={[
-                  styles.dot,
+                  styles.node,
                   reached
                     ? { backgroundColor: DELIVERY.brand, borderColor: DELIVERY.brand }
                     : { backgroundColor: DELIVERY.surfaceAlt, borderColor: DELIVERY.border },
-                  isCurrent && styles.dotCurrent,
+                  isCurrent && styles.nodeCurrent,
                 ]}
-              />
+              >
+                <StopIcon
+                  size={ms(13)}
+                  color={reached ? DELIVERY.onBrand : DELIVERY.inkMuted}
+                  strokeWidth={1.8}
+                />
+              </View>
               <View
                 style={[
                   styles.halfLine,
@@ -74,7 +98,7 @@ export function DPRouteRail({ stops, activeIndex = 0, style }: DPRouteRailProps)
   );
 }
 
-const DOT = ms(12);
+const NODE = ms(24);
 const LINE = Math.max(2, vs(2));
 
 const styles = StyleSheet.create({
@@ -82,16 +106,17 @@ const styles = StyleSheet.create({
   cell: { flex: 1 },
   dotRow: { flexDirection: 'row', alignItems: 'center' },
   halfLine: { flex: 1, height: LINE, borderRadius: LINE / 2, marginHorizontal: hs(2) },
-  dot: {
-    width: DOT,
-    height: DOT,
-    borderRadius: DOT / 2,
+  node: {
+    width: NODE,
+    height: NODE,
+    borderRadius: NODE / 2,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  dotCurrent: { borderWidth: ms(3), borderColor: DELIVERY.brandTint },
+  nodeCurrent: { borderWidth: ms(2), borderColor: DELIVERY.brandTint },
   hidden: { opacity: 0 },
   label: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(8), textAlign: 'center' },
   labelActive: { color: DELIVERY.ink },
 });
+

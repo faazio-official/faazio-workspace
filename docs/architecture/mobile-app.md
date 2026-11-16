@@ -834,8 +834,9 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── AcceptReject — deep-link/push offer or a Dashboard offer card: store/customer, payout, route
 │                  context, 45 s countdown, Accept / Reject (expiry = implicit reject) → Route
 ├── Main         — persistent bottom-tab shell (`DeliveryTabs`, `@react-navigation/bottom-tabs`)
-│   ├── Dashboard (Home) — rider-first shift home: pinned `DPUtilityBar` (online switch, alerts,
-│   │                  profile), This-shift summary (rider record + `GET /delivery/shift-summary`
+│   ├── Dashboard (Home) — rider-first shift home: pinned `DeliveryHeader` (`DPUtilityBar`:
+│   │                  Faazio logo, alerts, online switch) — pinned on every authenticated page too —
+│   │                  This-shift summary (rider record + `GET /delivery/shift-summary`
 │   │                  earnings/online), offers with `DPRouteRail` + 45 s
 │   │                  timer, Your-route rail cards; Go Online (PUT /delivery/availability) + Valkey
 │   │                  heartbeat every 120 s (foreground + Android foreground-service headless task);
@@ -846,7 +847,8 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 │   ├── OrderHistory (Orders) — completed-payout ledger re-presented per order (GET /delivery/payouts; no
 │   │                  dedicated rider order-history endpoint exists — no fabricated history); All/Paid/Pending filter
 │   ├── Notifications (Alerts) — durable in-app alerts inbox (GET /notifications + mark-read/all-read)
-│   └── RiderProfile (Profile) — profile hub from GET /delivery/me + links to earnings/history/alerts/settings/support
+│   └── RiderProfile (Profile) — hub from GET /delivery/me (identity incl. email, vehicle,
+│                  capacity, hub zone) + Services/Help links and sign out; My profile opens the editor
 ├── Route        — one merged route across all ACCEPTED jobs: stops sorted by the server's global
 │                  sequence, one polyline, Arrived/Picked Up/Delivered transitions. **Pickup QR
 │                  gate (`0088`):** at a PICKUP stop the rider taps "Scan seller QR & pick up",
@@ -858,6 +860,7 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 │                  (`POST /delivery/{orderId}/stop/{stopId}/payment-received`) before the stop may
 │                  reach DELIVERED — otherwise `409 payment_not_received`. Customer-OTP
 │                  handover (document re-upload is admin-side; the app has no re-upload screen)
+├── EditProfile  — rider-editable contact email + vehicle/capacity/hub zone (PUT /delivery/me)
 ├── EarningsDetail — single-order payout breakdown (GET /delivery/payouts/{orderId})
 ├── Settings     — account summary, local "vibrate on new offer" preference (AsyncStorage), system
 │                  notification settings, sign out
@@ -869,27 +872,36 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 single `Main` stack screen. Its custom `tabBar` (`components/DeliveryTabBar.tsx`) renders
 `components/shared/dp/DPBottomNav`: a flat card bar 80 px tall with horizontal/bottom padding, a
 hairline top border, five equal tabs Home · Earnings · Orders · Alerts · Profile, route names as tab keys,
-and the active tab bold in Faazio Blue (inactive muted ink, constant icon weight). Because the bar
+and the active tab bold in Faazio Blue with a filled icon (matching the customer tab bar; inactive
+muted ink, transparent icon fill). Because the bar
 belongs to the navigator it stays mounted across switches (no stack growth). Above the bar,
 `DeliveryTabBar` renders the reference's active-order CTA from
 `useDeliveryPartnerStore.activeOrder` (set by `Dashboard`/`Route`, refreshed by the Dashboard poll)
 linking to `Route`; the CTA is in normal flow so the navigator insets tab content above it. The app
 root reserves the bottom safe-area inset once, so the bar keeps a base height. Auth /onboarding
-screens, `AcceptReject`, `Route`, `EarningsDetail`, `Settings` and `Support` sit above `Main` on the
-stack and do not render the bar.
+screens, `AcceptReject`, `Route`, `EditProfile`, `EarningsDetail`, `Settings` and `Support` sit above
+`Main` on the stack and do not render the bar.
 
 **Visual layer.** Rider screens use the Vite-reference design system: tokens in
 `src/theme/deliveryTokens.ts` (anchored on `parentRamp` — brand `#1627E9`, replacing the old
-`#2c56f6` hardcode) and primitives in `src/components/shared/dp/` (`DPPage`, `DPPageHeader`,
-`DPSectionCard`, `DPKpi*` with a `lead` size, `DPStatusPill`, `DPFilterChip`,
+`#2c56f6` hardcode; text roles via `DP_TYPE`, including `micro` and the OTP `code` role — **no
+`kicker`/eyebrow role**) and
+primitives in `src/components/shared/dp/` (`DPPage`, `DPPageHeader`, `DPBackLink`, `DPSectionCard`,
+`DPSectionHeader`, `DPStat`/`DPStatStrip`, `DPKpi*` with a `lead` size, `DPStatusPill`, `DPFilterChip`,
 `DPEmpty/Error/Skeleton` — the skeleton settles once instead of looping), `DPButton`, `DPField`,
 `DPToggle/Switch`, `DPTimer`, `DPBottomNav`, `DPKeyValueRow`, `DPListRow`, `DPAvatar`, plus the
-rider-first additions `DPRouteRail` (the signature pickup → drop → …N rail), `DPUtilityBar`
-(the single pinned Home row: rider name, alerts, presence switch; profile lives in the bottom nav), `DPOrderCard`, `DPTabStrip`, `DPFadeIn` entrance + `DPFadeOut` exit (all on
+rider-first additions `DPRouteRail` (the signature pickup → drop → ...N rail with a stop icon per
+node), `DPUtilityBar`
+(the pinned shift row: Faazio logo, alerts, presence switch — rendered by `DeliveryHeader` on every
+authenticated page; profile lives in the bottom nav), `DPOrderCard`, `DPTabStrip`, `DPFadeIn` entrance + `DPFadeOut` exit (all on
 `theme/motion.ts` tokens; exit = 80% of entrance, disabled under Reduce Motion; timed 120 ms press via
-`usePressScale`). Money and
-number formatting is centralised in `src/features/delivery-partner/format.ts` (`formatRupees` /
-`formatNumber`, tabular figures). The restyle is visual-only: routes, screen signatures, stores,
+`usePressScale`). `DPPageHeader` and `DPSectionCard` are title-only — no kicker/eyebrow label above
+a title. Delivery screens carry no raw hex or local font sizes — colours resolve through
+`DELIVERY`/`DP_TONE` and text through `DP_TYPE`. Money and
+number formatting is centralised in `src/features/delivery-partner/format.ts` (`headlineRupees` for
+whole-rupee headline figures, `lineRupees` for two-decimal ledger lines, `formatNumber`, tabular
+figures); shared order helpers (e.g. `isStopDone`) live in `src/features/delivery-partner/order.ts`.
+The restyle is visual-only: routes, screen signatures, stores,
 `GatewayClient` calls, timers, modals and validation are unchanged.
 
 **Push offer deep link.** `src/services/deliveryPush.ts` registers the FCM token, routes a foreground

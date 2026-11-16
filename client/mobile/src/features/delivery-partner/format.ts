@@ -17,6 +17,16 @@ export function formatRupees(paisa: number, decimals: 0 | 2 = 0): string {
   })}`;
 }
 
+/** Headline figure (offer payout, totals, KPI sums): whole rupees. */
+export function headlineRupees(paisa: number): string {
+  return formatRupees(paisa, 0);
+}
+
+/** Itemised ledger line (fee / extra-km / surge split): two decimals. */
+export function lineRupees(paisa: number): string {
+  return formatRupees(paisa, 2);
+}
+
 /** Counts, hours, distances — grouped Indian-style with a controlled precision. */
 export function formatNumber(value: number, decimals = 0): string {
   if (!Number.isFinite(value)) return '0';

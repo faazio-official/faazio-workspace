@@ -79,9 +79,10 @@ pickup → drop → …stops on a scooter, collect cash at the door, and see wha
 day paid. Character: alert, plain, thumb-fast. World: a scooter on a street in
 daylight — distance, minutes, a door, cash in hand, a phone in a handlebar mount.
 Moments: the live offer countdown set large, and the shift figures. Signature:
-the **route rail** (a dotted `pickup → drop → …N stops` line with a live position
-dot) reused on the offer card, the active-route card and the Route screen, paired
-with the presence dot. Neutrals are cool graphite; green is reserved for
+the **route rail** (a `pickup → drop → …N stops` line with an icon per stop) reused on the offer card, the active-route card and the Route screen, paired
+with the presence dot. Titles stand alone — the rider app carries **no kicker /
+eyebrow label above a title** (the header renders a title only). Neutrals are
+cool graphite; green is reserved for
 *online / delivered / cash-in-hand*. Tokens live in
 `client/mobile/src/theme/deliveryTokens.ts`; the home is the rider-first Home tab,
 not a copy of the reference's Gigs/Bazaar tabs (those have no gateway).
@@ -198,6 +199,9 @@ and motion last (they should fit a screen that already works without them).
 - **A few sizes from a scale, two weights (400 and 500), 600 at most for rare
   emphasis.** No 700–900 headings. No gradient text.
 - Hierarchy comes from **size and colour**, not weight.
+- **No kicker or eyebrow label above a heading.** A title is its own heading —
+  do not stack a small label (a "kicker") above it. Fold the context into the
+  title or a short description, or delete it.
 - **Sentence case everywhere.** `NAVIGATION` and `PAID THIS MONTH` become
   `Navigation` and `Paid this month`.
 - Small text never gets negative letter spacing. Tight tracking is for large
@@ -356,9 +360,9 @@ gradient text; coloured glows and `drop-shadow`; radial washes and blurred
 blobs; neon borders; five near-identical tints of one hue; every element
 highlighted so nothing stands out; glass cards with a white inner highlight.
 
-**Type** — headings at 800/900; uppercase tracked labels; too many sizes and
-weights; mixed number formats; negative tracking on small text; italic for
-emphasis.
+**Type** — headings at 800/900; uppercase tracked labels; a kicker/eyebrow
+label above a heading; too many sizes and weights; mixed number formats;
+negative tracking on small text; italic for emphasis.
 
 **Icons** — emoji as nav icons, label decoration or status; emoji inside pills
 and counts; many sizes and colours; icons nudged off the column; a sparkle for
@@ -714,7 +718,8 @@ colour pair rather than eyeballing it.
 - [ ] No emoji left in the interface
 - [ ] One icon set at one size and stroke
 - [ ] Type chosen for the character; weights 400–600; no uppercase tracked
-      labels; no italic; no negative tracking on small text
+      labels; no kicker/eyebrow label above a title; no italic; no negative
+      tracking on small text
 - [ ] No exclamation marks, no trailing periods on short strings, no greeting
       headline, no unverified claims
 - [ ] Numbers in one format with tabular figures

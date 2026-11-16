@@ -10,6 +10,7 @@ import { SubmissionSuccessScreen } from './screens/SubmissionSuccessScreen';
 import { AcceptRejectScreen } from './screens/AcceptRejectScreen';
 import { RouteScreen } from './screens/RouteScreen';
 import { EarningsDetailScreen } from './screens/EarningsDetailScreen';
+import { EditProfileScreen } from './screens/EditProfileScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { SupportScreen } from './screens/SupportScreen';
 import { type DeliveryPartnerStackParamList } from './navigation';
@@ -50,6 +51,7 @@ export function DeliveryPartnerNavigator() {
       <Stack.Screen name="Main" component={DeliveryTabs} />
       <Stack.Screen name="Route" component={RouteScreen} options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="EarningsDetail" component={EarningsDetailScreen} options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="Support" component={SupportScreen} options={{ animation: 'slide_from_right' }} />
     </Stack.Navigator>

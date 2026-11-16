@@ -168,12 +168,22 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     submitRef.current = true;
     setError(null);
     setVerifying(true);
+    let session: FirebaseSession;
     try {
-      const session = await verifyOtp(phone, code);
+      session = await verifyOtp(phone, code);
+    } catch (err) {
+      // A rejected code is the only failure that is actually an OTP problem.
+      submitRef.current = false;
+      setVerifying(false);
+      setError(otpErrorMessage(err, 'Incorrect OTP. Try again.'));
+      return;
+    }
+    // The code is accepted and the session is live; only the rider-profile load can now fail.
+    try {
       await completeSignIn(session);
     } catch (err) {
       submitRef.current = false;
-      setError(otpErrorMessage(err, 'Incorrect OTP. Try again.'));
+      setError(err instanceof Error ? err.message : 'Could not load your rider profile. Try again.');
     } finally {
       setVerifying(false);
     }
@@ -378,7 +388,7 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
 const styles = StyleSheet.create({
   body: { paddingTop: vs(16) },
   label: {
-    ...DP_TYPE.kicker,
+    ...DP_TYPE.micro,
     color: DELIVERY.inkMuted,
     marginBottom: vs(6),
   },
@@ -412,8 +422,8 @@ const styles = StyleSheet.create({
   },
   segmentColumn: { alignItems: 'center', width: Math.max(36, ms(38)) },
   segmentDigitContainer: { height: vs(40), justifyContent: 'center', alignItems: 'center' },
-  segmentDigit: { fontSize: ms(26), fontWeight: '600', color: DELIVERY.ink },
-  segmentDot: { fontSize: ms(12), fontWeight: '600', color: DELIVERY.border },
+  segmentDigit: { ...DP_TYPE.code, color: DELIVERY.ink },
+  segmentDot: { ...DP_TYPE.micro, fontWeight: '600', color: DELIVERY.border },
   segmentTrack: { height: vs(5), borderRadius: ms(3), width: '100%', marginTop: vs(2) },
   segmentTrackDefault: { backgroundColor: DELIVERY.border, opacity: 0.7 },
   segmentTrackCurrent: { backgroundColor: DELIVERY.brand },
@@ -421,7 +431,7 @@ const styles = StyleSheet.create({
   segmentTrackError: { backgroundColor: DELIVERY.danger },
   error: { ...DP_TYPE.caption, color: DELIVERY.danger, marginBottom: vs(12) },
   resend: { minHeight: DELIVERY.touch.min, alignItems: 'center', justifyContent: 'center', marginTop: vs(8) },
-  resendText: { fontSize: DP_TYPE.label.fontSize, fontWeight: '600', color: DELIVERY.brand },
+  resendText: { ...DP_TYPE.label, fontWeight: '600', color: DELIVERY.brand },
   back: { minHeight: DELIVERY.touch.min, alignItems: 'center', justifyContent: 'center', marginTop: vs(12) },
-  backText: { fontSize: DP_TYPE.caption.fontSize, fontWeight: '500', color: DELIVERY.inkMuted },
+  backText: { ...DP_TYPE.caption, fontWeight: '500', color: DELIVERY.inkMuted },
 });

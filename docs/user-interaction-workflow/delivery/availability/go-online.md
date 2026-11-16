@@ -4,9 +4,10 @@
 **Status:** Shipped
 **Trigger:** Rider toggles availability.
 **Visual layer:** the toggle is the `DPUtilityBar` presence pill (an `accessibilityRole="switch"`
-control showing **Online/Offline**) at the end of the single pinned shift bar — rider name, alerts,
-presence. It is the only availability signal on Home: no second status chip and no separate page
-header. Behaviour (permission gate, heartbeat, availability write) is unchanged.
+control showing **Online/Offline**) at the end of the pinned shift bar (`DeliveryHeader`, rendered on
+every authenticated page) — Faazio logo, alerts, presence. It is the only availability signal: no
+second status chip and no separate page header. Behaviour (permission gate, heartbeat, availability
+write) is unchanged.
 
 ## Steps
 

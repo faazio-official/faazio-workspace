@@ -15,6 +15,72 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W96 — Delivery Partner: minimal login, editable work details, blue wordmark
+
+**Status:** 🟢 Shipped (JS + gateway `PUT /delivery/me`; CI builds the APK).
+
+- **Minimal login.** `PhoneEntry` drops the legal/independent-contractor paragraph and the
+  "Continue with the signed-in account" link (session resume is automatic). `DpAuthHero` loses the
+  route motif and sizes the blue `FaazioLogo variant="welcome"` wordmark to 32–40 dp.
+- **Blue wordmark everywhere.** `DPUtilityBar` and `SubmissionSuccess` use the same blue transparent
+  wordmark as the customer welcome screen and the website. Native launcher/splash assets unchanged.
+- **Home.** The "Go offline and sign out" block is removed from `DashboardScreen`; the pinned utility
+  bar keeps the presence switch.
+- **Profile.** `RiderProfileScreen` stays the read-only hub (identity incl. email, Services/Help
+  links, sign out) and gains a **My profile** row that opens the separate `EditProfileScreen` editor:
+  contact email + vehicle chips + capacity stepper + hub zone, Save on dirty. Writes
+  `gateway.updateDeliveryPartnerProfile()` → `PUT /delivery/me` (server validates/normalises the
+  email, caps capacity by vehicle, rejects below `current_load`, trims the hub zone).
+  `features/delivery-partner/vehicles.ts` is the shared option/cap list (also used by `Register`).
+- **Email.** Registration collects a required contact email; migration `0103` adds
+  `delivery.delivery_boys.email`, and the rider can change it from `EditProfile`.
+- **Bottom nav.** `DPBottomNav` fills the active icon and thickens its stroke, matching the customer
+  tab bar.
+- Docs: `docs/architecture/mobile-app.md`, `docs/architecture/server-gateway-plan.md`,
+  `docs/architecture/monolith-breakdown.md`, `docs/user-interaction-workflow/delivery/onboarding/index.md`,
+  `docs/user-interaction-workflow/delivery/more/index.md`.
+- Verify: `npm run ts:check`, `npm run check:boundaries`, `go test ./internal/delivery/...`.
+
+## W95 — Delivery Partner UI: remove every kicker
+
+**Status:** 🟢 Shipped (JS-only; CI builds the APK). Presentation-only — no route, store, gateway
+call, timer or validation changed.
+
+- **No kickers anywhere.** `DPPageHeader` and `DPSectionCard` are title-only: the `kicker` prop,
+  the tone-dot + kicker row and the now-unused `tone` prop are removed. A title is the heading; no
+  small label sits above it.
+- **Token removed.** `DP_TYPE.kicker` is deleted. The small labels that used it (Pickup/Drop,
+  "Total payout", the OTP field label, the recent-numbers label, Route stop type) now use
+  `DP_TYPE.micro`.
+- **Home offer card.** The "New delivery" kicker is gone; the server-driven `DPTimer` stays
+  right-aligned as the card's headline.
+- **Context preserved, not stacked.** Registration keeps the step in its description ("Step 2 of
+  2. …"); Earnings detail keeps "Payout breakdown" as the header description.
+- Docs: `docs/UI_DESIGN_SYSTEM.md` (§1 delivery direction, Pass 5 type, audit + done checklist now
+  ban kicker/eyebrow labels), `docs/architecture/mobile-app.md`,
+  `docs/user-interaction-workflow/delivery/README.md`.
+- Verify: `npm run ts:check`, `npm run check:boundaries`, `npm test` (delivery suites).
+
+## W94 — Delivery Partner UI: shared primitives + token SSOT
+
+**Status:** 🟢 Shipped (JS-only; CI builds the APK). Presentation-only — no route, store, gateway
+call, timer or validation changed.
+
+- **Design pass — reuse before duplicating.** Repeated delivery markup moved into
+  `src/components/shared/dp/`: `DPBackLink` (the `ChevronLeft` + "Back" row was duplicated on Route,
+  Earnings detail, Settings and Support), `DPSectionHeader` (Home "This shift" / "Offers" / "Your
+  route" plus Payout "Recent jobs"), and `DPStat`/`DPStatStrip` (the value-over-label summary rows on
+  Home "This shift" and the Route summary). Screen helpers are now single-sourced:
+  `headlineRupees` / `lineRupees` in `features/delivery-partner/format.ts` (previously redefined in
+  Payout + Earnings detail) and `isStopDone` in `features/delivery-partner/order.ts` (previously
+  inline in Dashboard + Route).
+- **Foundation pass — token SSOT.** `theme/deliveryTokens.ts` gains `DP_TYPE.micro` (11 dp pills /
+  badges / tab labels / timers) and `DP_TYPE.code` (the oversized OTP digit). Every local `fontSize`
+  literal in delivery screens was removed (OtpVerify segments/dots/resend/back, Route sequence badge,
+  PhoneEntry link) and the `dp` primitives' font sizes now resolve through `DP_TYPE` roles. Delivery
+  screens carry **no raw hex and no local font sizes**.
+- Docs: `docs/architecture/mobile-app.md`, `docs/user-interaction-workflow/delivery/README.md`.
+
 ## W93 — Delivery Partner UI system upgrade (rider-first)
 
 **Status:** 🟢 Shipped (JS-only; CI builds the APK). Remaining product/data gaps are listed below and
@@ -31,7 +97,8 @@ the reference.
   press-scale 0.97 as a timed 120 ms curve (`usePressScale`), `DPSectionCard` `variant="flat"`,
   `DPPage` `header` slot.
 - **Type/colour:** `DP_TYPE` capped at 600 weight; uppercase/tracked kickers removed (button/pill
-  tracking removed too); `formatRupees`/`formatNumber` in `src/features/delivery-partner/format.ts`
+  tracking removed too) — the remaining sentence-case kicker role was later removed outright in W95,
+  so the rider app carries no kickers; `formatRupees`/`formatNumber` in `src/features/delivery-partner/format.ts`
   are used for every ₹ figure and distance/rating with tabular figures; raw hex literals removed.
 - **Money policy:** headline figures (offer payout, totals, KPI sums) use whole rupees; itemised
   ledger lines use two decimals. Presentation-only — paisa value semantics are unchanged.

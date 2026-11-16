@@ -2,7 +2,7 @@
 
 **Status:** Shipped — persistent bottom-tab shell under `Main`. The tab shell moved `Dashboard` from
 a stack route to a tab (not purely additive); see `../README.md` for the full route map.
-**Routes:** `OrderHistory`, `Notifications`, `RiderProfile`, `Settings`, `Support`
+**Routes:** `OrderHistory`, `Notifications`, `RiderProfile`, `EditProfile`, `Settings`, `Support`
 **Trigger:** The rider taps a bottom-nav tab (Home · Earnings · Orders · Alerts · Profile) or a row on
 the `RiderProfile` hub.
 
@@ -13,9 +13,9 @@ The authenticated rider area is a persistent `@react-navigation/bottom-tabs` nav
 `tabBar` (`components/DeliveryTabBar.tsx`) renders the generic
 `components/shared/dp/DPBottomNav` — a flat card bar 80 px tall with `paddingHorizontal 12 /`
 `paddingBottom 12`, a hairline top border and five equal tabs (20 px icon above a 10 px label). The
-active tab is bold Faazio Blue, inactive tabs are muted ink, and the icon stroke weight is constant
-across states. Route names are the tab keys, so switching tabs uses `navigation.navigate(name)`
-without pushing onto the stack:
+active tab is bold Faazio Blue with a filled icon (the customer tab-bar pattern), inactive tabs are
+muted ink with a transparent icon fill. Route names are the tab keys, so switching tabs uses
+`navigation.navigate(name)` without pushing onto the stack:
 
 | Tab | Route |
 |---|---|
@@ -63,12 +63,30 @@ matching the Vite reference where only tab pages show it.
 ### Profile hub (`RiderProfile`)
 
 1. Loads `gateway.getDeliveryPartnerMe()` (`GET /delivery/me`).
-2. Shows identity, phone, vehicle, capacity, hub zone, rating and completed-delivery count; links to
-   Earnings, Order history, Notifications, Settings and Support; sign out.
-3. **Data path:** `GET /delivery/me` → `delivery.delivery_boys`.
-4. **Note:** the full application detail endpoint (`GET /delivery/register/{id}`) is
+2. Read-only hub: identity card (name, city/state, status pill, phone, **email**, vehicle, capacity,
+   hub zone, rating, completed deliveries) plus the KYC review note.
+3. **Services** links: **My profile** (opens `EditProfile`), Earnings & payouts, Order history,
+   Notifications, Settings. **Help** links to Support. Sign out lives here (the Dashboard no longer
+   carries a "Go offline and sign out" block) and clears the session, availability and background
+   location before returning to `PhoneEntry`.
+4. **Data path:** `GET /delivery/me` → `delivery.delivery_boys`.
+5. **Note:** the full application detail endpoint (`GET /delivery/register/{id}`) is
    admin/superadmin-gated, so the rider profile intentionally shows the rider's own record only —
    documents are reviewed by the admin team.
+
+### My profile editor (`EditProfile`)
+
+1. Opened from the profile hub. Shows name and phone read-only, and lets the rider edit **email**,
+   **vehicle**, **capacity** and **hub zone** at any time.
+2. Save is enabled only while the form is dirty and valid (email format, non-empty hub zone). It
+   calls `gateway.updateDeliveryPartnerProfile()` (`PUT /delivery/me`), which lowercases/validates the
+   email, normalises the vehicle, caps capacity by vehicle (`BICYCLE` 1, `TWO_WHEELER` 2,
+   `FOUR_WHEELER` 5), rejects a capacity below `current_load`, and trims the hub zone; the response
+   replaces the rider projection so the hub reflects the change immediately.
+3. The capacity stepper clamps to `[max(1, current_load), vehicle cap]`; vehicles whose cap is below
+   the rider's current load are disabled.
+4. **Data path:** `PUT /delivery/me` → `delivery.delivery_boys` (`email`, `vehicle_type`,
+   `max_capacity`, `hub_zone`).
 
 ### Settings (`Settings`)
 

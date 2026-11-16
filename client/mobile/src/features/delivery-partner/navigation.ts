@@ -22,6 +22,7 @@ export type DeliveryPartnerStackParamList = {
   Main: NavigatorScreenParams<DeliveryTabParamList> | undefined;
   Route: undefined;
   EarningsDetail: { orderId: string };
+  EditProfile: undefined;
   Settings: undefined;
   Support: undefined;
 };

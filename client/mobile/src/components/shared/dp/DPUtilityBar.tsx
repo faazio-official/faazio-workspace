@@ -2,12 +2,11 @@ import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Bell, Power } from 'lucide-react-native';
 import AppText from '@/components/AppText';
+import { FaazioLogo } from '@/components/FaazioLogo';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { hs, ms, vs } from '@/utils/responsive';
 
 interface DPUtilityBarProps {
-  /** Rider name shown at the start of the shift bar. */
-  riderName?: string;
   online: boolean;
   onToggleOnline: () => void;
   onlineBusy?: boolean;
@@ -16,12 +15,11 @@ interface DPUtilityBarProps {
 }
 
 /**
- * The Home shift bar: one pinned row holding the rider's name, alerts and the
+ * The Home shift bar: one pinned row holding the Faazio mark, alerts and the
  * presence switch. It is the single availability signal on Home — status is not
  * repeated in a header, and profile lives in the bottom nav.
  */
 export function DPUtilityBar({
-  riderName,
   online,
   onToggleOnline,
   onlineBusy,
@@ -30,9 +28,9 @@ export function DPUtilityBar({
 }: DPUtilityBarProps) {
   return (
     <View style={styles.bar}>
-      <AppText numberOfLines={1} style={styles.name}>
-        {riderName ?? 'Rider'}
-      </AppText>
+      <View style={styles.brand}>
+        <FaazioLogo size={ms(24)} variant="welcome" />
+      </View>
 
       <View style={styles.actions}>
         {onOpenAlerts ? (
@@ -86,7 +84,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: DELIVERY.border,
   },
-  name: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '500', flexShrink: 1 },
+  brand: { flexShrink: 0, alignItems: 'flex-start' },
   presence: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -124,6 +122,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: { fontSize: ms(11), fontWeight: '500', color: DELIVERY.onBrand },
+  badgeText: { ...DP_TYPE.micro, color: DELIVERY.onBrand },
   pressed: { opacity: 0.85 },
 });

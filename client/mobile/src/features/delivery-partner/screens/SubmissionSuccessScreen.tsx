@@ -72,10 +72,8 @@ export function SubmissionSuccessScreen({ navigation }: Props) {
       refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}
     >
       <DPPageHeader
-        leading={<FaazioLogo size={26} />}
-        kicker="Delivery Partner"
+        leading={<FaazioLogo size={24} variant="welcome" />}
         title="Application status"
-        tone={rider ? undefined : 'neutral'}
       />
 
       {rider ? <RiderSummary rider={rider} /> : null}

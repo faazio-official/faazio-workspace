@@ -8,14 +8,14 @@
 
 ## Steps
 
-1. The rider enters personal details (name, state code, hub zone, address, city, pincode, emergency
-   contact).
+1. The rider enters personal details (name, email, state code, hub zone, address, city, pincode,
+   emergency contact).
 2. Vehicle type + capacity are chosen; capacity is capped by the vehicle
    (`VEHICLES[].cap`).
 3. Required documents are captured (see [vehicle-documents.md](./vehicle-documents.md)).
 4. Bank account details are entered (account name, number, IFSC).
-5. `validate()` enforces name, 2-letter state, 6-digit pincode, 10-digit emergency contact, all
-   required docs, and IFSC format.
+5. `validate()` enforces name, a valid email, 2-letter state, 6-digit pincode, 10-digit emergency
+   contact, all required docs, and IFSC format.
 6. Submit calls `gateway.registerDeliveryPartner(payload)` → `POST /delivery/register`.
 7. Success stores the rider projection and replaces to `SubmissionSuccess`.
 8. `409` means the phone already has a rider record in `ACTIVE`, `VERIFIED`, `SUSPENDED`, or

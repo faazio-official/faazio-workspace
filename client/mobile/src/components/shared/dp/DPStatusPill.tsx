@@ -1,7 +1,8 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
+import { AlertCircle, CheckCircle2, CircleDashed, Clock3, Info } from 'lucide-react-native';
 import AppText from '@/components/AppText';
-import { DELIVERY, DP_TONE, type DpTone } from '@/theme/deliveryTokens';
+import { DELIVERY, DP_TONE, DP_TYPE, type DpTone } from '@/theme/deliveryTokens';
 import { hs, ms, vs } from '@/utils/responsive';
 
 const TONE_BY_STATUS: Record<string, DpTone> = {
@@ -33,6 +34,15 @@ export function toneForStatus(status: string): DpTone {
   return TONE_BY_STATUS[status] ?? 'neutral';
 }
 
+const TONE_ICON: Record<DpTone, typeof CheckCircle2> = {
+  success: CheckCircle2,
+  warning: Clock3,
+  danger: AlertCircle,
+  info: Info,
+  neutral: CircleDashed,
+  brand: Info,
+};
+
 /** `PENDING_REVIEW` → `Pending review` — sentence case, never an uppercase code. */
 const sentenceCase = (value: string): string => {
   const spaced = value.replace(/_/g, ' ').toLowerCase();
@@ -45,13 +55,14 @@ interface DPStatusPillProps {
   label?: string;
 }
 
-/** Capsule with a semantic tone dot + label (reference `OrderChips` / status text). */
+/** Capsule with a semantic tone icon + label (reference `OrderChips` / status text). */
 export function DPStatusPill({ status, label }: DPStatusPillProps) {
   const tone = toneForStatus(status);
   const colors = DP_TONE[tone];
+  const StatusIcon = TONE_ICON[tone];
   return (
     <View style={[styles.pill, { backgroundColor: colors.bg }]}>
-      <View style={[styles.dot, { backgroundColor: colors.fg }]} />
+      <StatusIcon size={ms(12)} color={colors.fg} strokeWidth={2} />
       <AppText style={[styles.text, { color: colors.fg }]}>
         {label ?? sentenceCase(status)}
       </AppText>
@@ -69,6 +80,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(8),
     paddingVertical: vs(4),
   },
-  dot: { width: ms(6), height: ms(6), borderRadius: ms(3) },
-  text: { fontSize: ms(11), fontWeight: '500' },
+  text: { ...DP_TYPE.micro },
 });

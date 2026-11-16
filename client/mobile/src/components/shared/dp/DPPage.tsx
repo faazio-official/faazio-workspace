@@ -12,8 +12,8 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
-import { DELIVERY, DP_TONE, DP_TYPE, type DpTone } from '@/theme/deliveryTokens';
-import { hs, ms, vs } from '@/utils/responsive';
+import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
+import { hs, vs } from '@/utils/responsive';
 
 interface DPPageProps {
   children: React.ReactNode;
@@ -67,33 +67,24 @@ export function DPPage({
 }
 
 interface DPPageHeaderProps {
-  kicker?: string;
   title: string;
   description?: string;
-  tone?: DpTone;
   leading?: React.ReactNode;
   actions?: React.ReactNode;
 }
 
-/** Tone-dot header: colored rail dot + kicker + title + description + actions row. */
+/** Page header: title + optional description + actions row. No kicker/eyebrow label. */
 export function DPPageHeader({
-  kicker,
   title,
   description,
-  tone = 'brand',
   leading,
   actions,
 }: DPPageHeaderProps) {
-  const toneColors = DP_TONE[tone];
   return (
     <View style={styles.header}>
       <View style={styles.headerTop}>
         {leading ? <View style={styles.leading}>{leading}</View> : null}
         <View style={styles.headerText}>
-          <View style={styles.kickerRow}>
-            <View style={[styles.dot, { backgroundColor: toneColors.fg }]} />
-            {kicker ? <AppText style={[styles.kicker, { color: toneColors.fg }]}>{kicker}</AppText> : null}
-          </View>
           <AppText style={styles.title}>{title}</AppText>
         </View>
         {actions ? <View style={styles.actions}>{actions}</View> : null}
@@ -111,9 +102,6 @@ const styles = StyleSheet.create({
   headerTop: { flexDirection: 'row', alignItems: 'flex-start', gap: hs(8) },
   leading: { paddingTop: vs(2) },
   headerText: { flex: 1 },
-  kickerRow: { flexDirection: 'row', alignItems: 'center', gap: hs(8) },
-  dot: { width: ms(8), height: ms(8), borderRadius: ms(4) },
-  kicker: { ...DP_TYPE.kicker },
   title: { ...DP_TYPE.title, color: DELIVERY.ink, fontWeight: '500', marginTop: vs(4) },
   description: { ...DP_TYPE.body, color: DELIVERY.inkMuted, marginTop: vs(8) },
   actions: { flexDirection: 'row', alignItems: 'center', gap: hs(8) },

@@ -6,6 +6,7 @@ import {
 } from '@/theme/brandTokens';
 import { RADIUS, SHADOW_COLOR, TOUCH, TYPE } from '@/theme/tokens';
 import { SPACE } from '@/theme/spacing';
+import { ms } from '@/utils/responsive';
 
 /**
  * Delivery-partner visual tokens.
@@ -65,7 +66,9 @@ export const DELIVERY = {
 
 /**
  * Delivery type scale — derived from the shared `TYPE` scale (never a parallel
- * copy), with the delivery-only `kicker` and `timer` roles layered on top.
+ * copy), with the delivery-specific `micro`, `timer` and `code` roles layered on
+ * top. There is deliberately no `kicker`/eyebrow role: titles carry their own
+ * hierarchy and no small label sits above a title.
  *
  * Hierarchy comes from size and colour, not weight: the shared weights already
  * stay within 400–600 (`docs/UI_DESIGN_SYSTEM.md` §3 Pass 5 — no 700–900
@@ -77,10 +80,12 @@ export const DP_TYPE = {
   label: { ...TYPE.label },
   title: { ...TYPE.title, fontWeight: '600' },
   display: { ...TYPE.display },
-  /** Micro label used for kickers / eyebrow copy. Sentence case, never tracked. */
-  kicker: { ...TYPE.micro, fontWeight: '600' },
+  /** Micro label for pills, badges, tab labels, field labels and timers (11 dp floor). */
+  micro: { ...TYPE.micro },
   /** Tabular countdown weight for the 45 s offer timer. */
   timer: { ...TYPE.display, fontWeight: '600' },
+  /** Oversized numeric glyph for the OTP entry segments. */
+  code: { fontSize: ms(26), lineHeight: ms(32), fontWeight: '600' },
 } as const;
 
 export type DpTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger' | 'brand';

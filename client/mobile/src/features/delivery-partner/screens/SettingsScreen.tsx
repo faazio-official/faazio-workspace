@@ -1,25 +1,24 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { Linking, Platform, RefreshControl, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { ChevronLeft } from 'lucide-react-native';
+import { Linking, Platform, RefreshControl, StyleSheet } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import AppText from '@/components/AppText';
 import {
   DPPage,
   DPPageHeader,
+  DPBackLink,
   DPSectionCard,
   DPToggle,
   DPListRow,
   DPKeyValueRow,
   DPButton,
 } from '@/components/shared/dp';
-import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { APP_VERSION } from '@/lib/config';
 import { gateway } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { useDeliverySettingsStore } from '@/state/deliverySettingsStore';
-import { hs, ms, vs } from '@/utils/responsive';
+import { vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
+import { DeliveryHeader } from '../components/DeliveryHeader';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Settings'>;
 
@@ -59,17 +58,12 @@ export function SettingsScreen({ navigation }: Props) {
   }, [logout, navigation, reset]);
 
   return (
-    <DPPage refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}>
-      <TouchableOpacity
-        onPress={() => navigation.goBack()}
-        style={styles.back}
-        accessibilityRole="button"
-        accessibilityLabel="Back"
-      >
-        <ChevronLeft size={ms(18)} color={DELIVERY.brand} strokeWidth={2} />
-        <AppText style={styles.backText}>Back</AppText>
-      </TouchableOpacity>
-      <DPPageHeader kicker="Settings" title="Preferences" />
+    <DPPage
+      header={<DeliveryHeader />}
+      refreshControl={<RefreshControl refreshing={loading} onRefresh={() => void refresh()} />}
+    >
+      <DPBackLink onPress={() => navigation.goBack()} />
+      <DPPageHeader title="Preferences" />
 
       <DPSectionCard style={styles.card} title="Account">
         <DPKeyValueRow label="Name" value={rider?.fullName || '—'} />
@@ -104,8 +98,6 @@ export function SettingsScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  back: { flexDirection: 'row', alignItems: 'center', gap: hs(2), alignSelf: 'flex-start', paddingTop: vs(8), paddingBottom: vs(4) },
-  backText: { ...DP_TYPE.label, color: DELIVERY.brand, fontWeight: '600' },
   card: { marginBottom: vs(12) },
   signOut: { marginTop: vs(8) },
 });

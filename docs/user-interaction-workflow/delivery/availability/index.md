@@ -3,8 +3,10 @@
 **Status:** Shipped
 **Route:** `Dashboard` (`features/delivery-partner/screens/DashboardScreen.tsx`)
 **Trigger:** Rider opens the dashboard after activation.
-**Visual layer:** rider-first Home. A `DPUtilityBar` shift bar (presence switch, alerts with an unread
-badge, profile) is pinned above the scroll; the body is an identity
+**Visual layer:** rider-first Home. A `DPUtilityBar` shift bar (`DeliveryHeader`) is pinned above the
+scroll on every authenticated page (Dashboard, Payouts, OrderHistory, Notifications, RiderProfile,
+AcceptReject, Route, EarningsDetail, Settings, Support); onboarding/auth pages have none. It holds
+the presence switch, alerts with an unread badge, and the Faazio logo. The Home body is an identity
 header, a **This shift** summary (deliveries completed / load / rating, plus server-backed shift
 earnings and online today), an always-present
 **Offers** section (offer cards with the `DPRouteRail` and a `DPTimer` driven by the server's

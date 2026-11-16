@@ -1,13 +1,18 @@
 import React from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import AppText from '@/components/AppText';
-import { DELIVERY } from '@/theme/deliveryTokens';
+import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { hs, ms, vs } from '@/utils/responsive';
 
 export interface DPBottomNavTab {
   key: string;
   label: string;
-  icon: React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+  icon: React.ComponentType<{
+    size?: number;
+    color?: string;
+    strokeWidth?: number;
+    fill?: string;
+  }>;
 }
 
 interface DPBottomNavProps {
@@ -20,7 +25,8 @@ interface DPBottomNavProps {
  * Fixed bottom tab bar matching the Vite reference delivery app
  * (`Shell.tsx` → `BottomNav`): a flat card bar 80 px tall with `px-3 pb-3`,
  * a hairline top border, five equal tabs, a 20 px icon above a 10 px label,
- * and the active tab in brand colour at bold weight (inactive is muted ink).
+ * and the active tab in brand colour at bold weight with a filled icon (matching
+ * the customer app's active tab), inactive in muted ink.
  * Kept generic (keys + callbacks) so it lives in `components/shared` without
  * depending on any feature module. The app root (`DeliveryPartnerApp`) reserves
  * the bottom safe-area inset once, so the bar keeps a base height and must not
@@ -42,7 +48,12 @@ export function DPBottomNav({ tabs, active, onSelect }: DPBottomNavProps) {
             onPress={() => onSelect(tab.key)}
             style={styles.tab}
           >
-            <Icon size={ms(18)} color={color} strokeWidth={1.5} />
+            <Icon
+              size={ms(18)}
+              color={color}
+              strokeWidth={selected ? 2 : 1.5}
+              fill={selected ? color : 'transparent'}
+            />
             <AppText style={[styles.label, { color }]}>{tab.label}</AppText>
           </Pressable>
         );
@@ -63,5 +74,5 @@ const styles = StyleSheet.create({
     backgroundColor: DELIVERY.card,
   },
   tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: vs(4) },
-  label: { fontSize: ms(11), fontWeight: '500' },
+  label: { ...DP_TYPE.micro },
 });

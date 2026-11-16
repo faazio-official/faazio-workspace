@@ -9,8 +9,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 import AppText from '@/components/AppText';
-import { DELIVERY } from '@/theme/deliveryTokens';
-import { hs, ms, vs } from '@/utils/responsive';
+import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
+import { hs, vs } from '@/utils/responsive';
 import { usePressScale } from './DPPress';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -125,8 +125,8 @@ const styles = StyleSheet.create({
   inert: { opacity: 0.5 },
   content: { flexDirection: 'row', alignItems: 'center', gap: hs(8) },
   icon: { alignItems: 'center', justifyContent: 'center' },
-  label: { fontSize: ms(14), fontWeight: '500' },
-  labelSm: { fontSize: ms(13), fontWeight: '500' },
+  label: { ...DP_TYPE.label },
+  labelSm: { ...DP_TYPE.caption, fontWeight: '500' },
   labelOnBrand: { color: DELIVERY.onBrand },
   labelBrand: { color: DELIVERY.brand },
 });

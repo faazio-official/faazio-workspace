@@ -2392,6 +2392,20 @@ export class GatewayClient {
   }
 
   /**
+   * Update the rider's own profile: contact email and work preferences (vehicle, capacity, hub
+   * zone). Capacity is validated server-side against the vehicle cap and the rider's current load.
+   */
+  async updateDeliveryPartnerProfile(
+    input: DeliveryProfileInput,
+  ): Promise<DeliveryPartnerRider> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryPartnerRider>('/delivery/me', {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    });
+  }
+
+  /**
    * Today's server-derived shift totals: credited earnings (paisa) + worked online seconds. Earnings
    * are durable in Postgres; today's online time is counted in Valkey. Server-only — throws when the
    * gateway is disabled so the caller can show an honest "—" rather than a fabricated figure.
@@ -2629,6 +2643,7 @@ export type DeliveryStopStatus =
 export interface DeliveryPartnerRider {
   riderId: string;
   phone?: string;
+  email?: string;
   fullName: string;
   stateCode: string;
   hubZone: string;
@@ -2734,8 +2749,17 @@ export interface DeliveryOrder {
   polyline?: string;
 }
 
+/** Rider-editable profile fields (`PUT /delivery/me`). */
+export interface DeliveryProfileInput {
+  email: string;
+  vehicleType: DeliveryVehicleType;
+  maxCapacity: number;
+  hubZone: string;
+}
+
 export interface DeliveryApplicationInput {
   fullName: string;
+  email: string;
   stateCode: string;
   hubZone: string;
   address: string;

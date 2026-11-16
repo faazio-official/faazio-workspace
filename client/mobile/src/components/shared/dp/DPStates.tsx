@@ -7,6 +7,7 @@ import {
   type StyleProp,
   type ViewStyle,
 } from 'react-native';
+import { Inbox } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { DELIVERY, DP_TONE, DP_TYPE, type DpTone } from '@/theme/deliveryTokens';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -42,7 +43,13 @@ export function DPEmptyState({
           { backgroundColor: DP_TONE[tone].bg },
         ]}
       >
-        {icon ?? <View style={[styles.stateDot, { backgroundColor: DP_TONE[tone].fg }]} />}
+        {icon ?? (
+          <Inbox
+            size={compact ? ms(20) : ms(26)}
+            color={DP_TONE[tone].fg}
+            strokeWidth={1.8}
+          />
+        )}
       </View>
       <AppText style={styles.stateTitle}>{title}</AppText>
       {description ? <AppText style={styles.stateDescription}>{description}</AppText> : null}
@@ -138,7 +145,6 @@ const styles = StyleSheet.create({
     marginBottom: vs(16),
   },
   stateIconCompact: { width: ms(44), height: ms(44), borderRadius: ms(22), marginBottom: vs(8) },
-  stateDot: { width: ms(20), height: ms(20), borderRadius: ms(10) },
   stateTitle: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '500', textAlign: 'center' },
   stateDescription: {
     ...DP_TYPE.body,

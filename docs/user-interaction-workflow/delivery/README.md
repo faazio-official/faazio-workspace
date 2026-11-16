@@ -5,7 +5,7 @@
 `src/features/delivery-partner/DeliveryPartnerNavigator.tsx`
 **Routes:** `PhoneEntry`, `OtpVerify`, `Register`, `SubmissionSuccess`, `Main` (persistent bottom-tab
 shell), `AcceptReject` (modal, opened by push/deep link or a `Dashboard` offer card), `Route`,
-`EarningsDetail`, `Settings`, `Support`; the five tabs inside `Main` are `Dashboard` · `Payouts` ·
+`EarningsDetail`, `EditProfile`, `Settings`, `Support`; the five tabs inside `Main` are `Dashboard` · `Payouts` ·
 `OrderHistory` · `Notifications` · `RiderProfile`.
 **Navigation:** the authenticated rider area is a persistent `@react-navigation/bottom-tabs`
 navigator (`DeliveryTabs.tsx`) hosted by the single `Main` stack screen; its custom `tabBar`
@@ -22,16 +22,24 @@ with a raised active-order CTA), then upgraded to a rider-first system in W93:
 
 - **Direction:** `docs/UI_DESIGN_SYSTEM.md` §1 (Delivery partner app) — cool-graphite neutrals, one
   accent (Faazio Blue `#1627E9`), green only for online/delivered/cash-in-hand.
-- **Signature:** the `DPRouteRail` (dotted pickup → drop → …N line with a live position dot) on the
+- **Signature:** the `DPRouteRail` (pickup → drop → …N line with an icon per stop) on the
   offer card, active-route card and Route screen.
-- **Home:** a pinned `DPUtilityBar` shift bar, a **This shift** summary, an always-present **Offers**
+- **All authenticated pages:** a pinned `DPUtilityBar` shift bar (`DeliveryHeader`) — Faazio logo,
+  alerts with unread badge, presence switch — so availability and alerts are reachable everywhere.
+  Onboarding/auth pages (`PhoneEntry`, `OtpVerify`, `Register`, `SubmissionSuccess`) have no bar.
+- **Home:** the pinned shift bar plus a **This shift** summary, an always-present **Offers**
   section with honest waiting copy, and **Your route** as `DPOrderCard`s.
 - **Reference used as vocabulary, not a blueprint:** no Active/History split on the Home tab and no
   Gigs/Bazaar/Offers-matrix tabs — the Orders/Earnings/Alerts tabs own those and Gigs/Bazaar have no
   gateway. No invented data.
-- **Tokens/primitives:** `client/mobile/src/theme/deliveryTokens.ts` (anchored on `parentRamp`) and
-  `client/mobile/src/components/shared/dp/` (`DPRouteRail`, `DPUtilityBar`, `DPOrderCard`,
-  `DPTabStrip`, `DPFadeIn`, `DPKpiCard`, `DPButton`, …).
+- **Tokens/primitives:** `client/mobile/src/theme/deliveryTokens.ts` (anchored on `parentRamp`;
+  text roles via `DP_TYPE`, including `micro` and the OTP `code` role — **no `kicker`/eyebrow role**)
+  and `client/mobile/src/components/shared/dp/` (`DPRouteRail`, `DPUtilityBar`, `DPOrderCard`,
+  `DPTabStrip`, `DPFadeIn`, `DPKpiCard`, `DPStat`/`DPStatStrip`, `DPSectionHeader`, `DPBackLink`,
+  `DPButton`, ...). Headers are title-only: `DPPageHeader`/`DPSectionCard` carry **no kicker/eyebrow
+  label above a title**. Delivery screens carry **no raw hex and no local font sizes** — colours
+  resolve through `DELIVERY`/`DP_TONE`, text through `DP_TYPE`; shared order helpers live in
+  `features/delivery-partner/order.ts` and money formatting in `features/delivery-partner/format.ts`.
 
 Routes, screens, store actions, `GatewayClient` calls, timers, modals and validation rules are
 preserved; the bottom nav moved from a per-screen footer to a real tab navigator under `Main`.
@@ -51,7 +59,7 @@ preserved; the bottom nav moved from a per-screen footer to a real tab navigator
 | Fulfillment | Customer handover / OTP / COD | `Route` | [customer-handover.md](./fulfillment/customer-handover.md) |
 | Earnings | Payout ledger | `Payouts` | [earnings/index.md](./earnings/index.md) · [earnings-ledger.md](./earnings/earnings-ledger.md) |
 | Earnings | Single-order breakdown | `EarningsDetail` | [earnings/earnings-detail.md](./earnings/earnings-detail.md) |
-| Profile | Bottom nav + profile / settings / support / alerts / history | `Main` (`Dashboard`, `Payouts`, `OrderHistory`, `Notifications`, `RiderProfile`), `Settings`, `Support` | [more/index.md](./more/index.md) |
+| Profile | Bottom nav + profile / settings / support / alerts / history | `Main` (`Dashboard`, `Payouts`, `OrderHistory`, `Notifications`, `RiderProfile`), `EditProfile`, `Settings`, `Support` | [more/index.md](./more/index.md) |
 
 ## Cross-cutting rules
 

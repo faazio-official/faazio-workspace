@@ -17,6 +17,7 @@ import {
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type NotificationRecord } from '@/services/api/GatewayClient';
 import { hs, ms, vs } from '@/utils/responsive';
+import { DeliveryHeader } from '../components/DeliveryHeader';
 
 const formatWhen = (iso: string): string => {
   const d = new Date(iso);
@@ -77,10 +78,10 @@ export function NotificationsScreen() {
 
   return (
     <DPPage
+      header={<DeliveryHeader />}
       refreshControl={<RefreshControl refreshing={loading && items.length > 0} onRefresh={() => void load()} />}
     >
       <DPPageHeader
-        kicker="Alerts"
         title="Notifications"
         description={unreadCount > 0 ? `${unreadCount} unread` : 'You are all caught up.'}
         actions={

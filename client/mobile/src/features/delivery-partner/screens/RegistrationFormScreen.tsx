@@ -25,14 +25,9 @@ import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
+import { DELIVERY_VEHICLES as VEHICLES, capacityCapFor } from '../vehicles';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Register'>;
-
-const VEHICLES: { id: DeliveryVehicleType; label: string; cap: number }[] = [
-  { id: 'BICYCLE', label: 'Bicycle', cap: 1 },
-  { id: 'TWO_WHEELER', label: 'Two-wheeler', cap: 2 },
-  { id: 'FOUR_WHEELER', label: 'Four-wheeler', cap: 5 },
-];
 
 const BASE_DOCS: { id: DeliveryDocType; label: string }[] = [
   { id: 'AADHAAR', label: 'Aadhaar' },
@@ -58,6 +53,7 @@ export function RegistrationFormScreen({ navigation }: Props) {
   const phone = storedPhone || (user?.phone ? user.phone.replace('+91', '') : '');
 
   const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
   const [stateCode, setStateCode] = useState('');
   const [hubZone, setHubZone] = useState('');
   const [address, setAddress] = useState('');
@@ -79,7 +75,7 @@ export function RegistrationFormScreen({ navigation }: Props) {
     () => (vehicleType === 'BICYCLE' ? BASE_DOCS : [...BASE_DOCS, ...MOTOR_DOCS]),
     [vehicleType],
   );
-  const capacityCap = VEHICLES.find((v) => v.id === vehicleType)?.cap ?? 2;
+  const capacityCap = capacityCapFor(vehicleType);
   const missingDocs = requiredDocs.filter((d) => !docs[d.id]).length;
 
   const chooseVehicle = useCallback((id: DeliveryVehicleType, cap: number) => {
@@ -108,6 +104,7 @@ export function RegistrationFormScreen({ navigation }: Props) {
 
   const validate = useCallback((): string | null => {
     if (fullName.trim().length < 3) return 'Enter your full name as on your ID.';
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email.trim())) return 'Enter a valid email address.';
     if (stateCode.trim().length !== 2) return 'Enter the 2-letter state code (e.g. TS).';
     if (hubZone.trim() === '') return 'Enter your hub zone.';
     if (address.trim().length < 5) return 'Enter your delivery address.';
@@ -122,7 +119,7 @@ export function RegistrationFormScreen({ navigation }: Props) {
     if (!/^[A-Za-z]{4}0[A-Za-z0-9]{6}$/.test(ifsc.trim())) return 'Enter a valid IFSC code.';
     return null;
   }, [
-    accountName, accountNumber, address, city, emergencyContact, fullName, hubZone, ifsc,
+    accountName, accountNumber, address, city, email, emergencyContact, fullName, hubZone, ifsc,
     missingDocs, pincode, stateCode,
   ]);
 
@@ -136,6 +133,7 @@ export function RegistrationFormScreen({ navigation }: Props) {
     setSubmitting(true);
     const payload: DeliveryApplicationInput = {
       fullName: fullName.trim(),
+      email: email.trim().toLowerCase(),
       stateCode: stateCode.trim().toUpperCase(),
       hubZone: hubZone.trim(),
       address: address.trim(),
@@ -169,20 +167,29 @@ export function RegistrationFormScreen({ navigation }: Props) {
       setSubmitting(false);
     }
   }, [
-    accountName, accountNumber, address, capacity, city, docs, emergencyContact, fullName,
+    accountName, accountNumber, address, capacity, city, docs, email, emergencyContact, fullName,
     hubZone, ifsc, navigation, phone, requiredDocs, setRider, stateCode, validate, vehicleType,
   ]);
 
   return (
     <DPPage>
       <DPPageHeader
-        kicker="Step 2 of 2"
         title="Your application"
-        description="Documents are captured live (gallery uploads are blocked) and stored in a private bucket."
+        description="Step 2 of 2. Documents are captured live (gallery uploads are blocked) and stored in a private bucket."
       />
 
       <DPSectionCard title="Personal details" style={styles.section}>
         <DPField label="Full name" value={fullName} onChangeText={setFullName} placeholder="As on Aadhaar" />
+        <DPField
+          label="Email"
+          value={email}
+          onChangeText={setEmail}
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="email"
+          placeholder="you@example.com"
+        />
         <View style={styles.row}>
           <View style={styles.rowItem}>
             <DPField
