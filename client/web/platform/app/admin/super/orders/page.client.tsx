@@ -25,7 +25,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime, formatINR, formatNumber } from "@/lib/format";
-import { useAdminOrders } from "@/lib/api/hooks";
+import { useAdminOrders, useStates } from "@/lib/api/hooks";
 import type { OrderStatus } from "@/data/types";
 
 const STATUSES: (OrderStatus | "ALL")[] = [
@@ -69,7 +69,8 @@ function SuperOrders() {
     ...(stateCode !== "ALL" ? { stateCode } : {}),
   });
 
-  const states = Array.from(new Set(data.map((o) => o.stateCode).filter(Boolean))).sort();
+  // Full state list (not derived from the filtered rows) so the dropdown stays stable while filtering.
+  const states = useStates();
   const open = data.filter((o) => o.status !== "DELIVERED" && o.status !== "CANCELLED");
   const outForDelivery = data.filter((o) => o.status === "SHIPPED");
   const deliveredToday = data.filter((o) => o.status === "DELIVERED" && isToday(o.statusDate));
@@ -122,9 +123,9 @@ function SuperOrders() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ALL">All states</SelectItem>
-                {states.map((code) => (
-                  <SelectItem key={code} value={code}>
-                    {code}
+                {states.map((s) => (
+                  <SelectItem key={s.stateCode} value={s.stateCode}>
+                    {s.stateCode} · {s.name}
                   </SelectItem>
                 ))}
               </SelectContent>
