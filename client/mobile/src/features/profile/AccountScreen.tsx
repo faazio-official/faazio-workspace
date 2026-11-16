@@ -5,6 +5,7 @@ import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { logoutUser } from '@/services/logout';
 import { AccountView } from '@/features/profile/AccountView';
+import { useThemeMode } from '@/hooks/useThemeMode';
 import type { MainTabParamList, RootStackParamList } from '@/navigation/types';
 
 type Props = CompositeScreenProps<
@@ -18,6 +19,8 @@ type Props = CompositeScreenProps<
  * AccountView and wires navigation callbacks that bubble to the root stack.
  */
 export function AccountScreen({ navigation }: Props) {
+  const { palette } = useThemeMode();
+
   const handleLogout = useCallback(() => {
     void logoutUser()
       .catch(() => {})
@@ -59,6 +62,10 @@ export function AccountScreen({ navigation }: Props) {
     navigation.navigate('FaazioRewards');
   }, [navigation]);
 
+  const handleOpenAppearance = useCallback(() => {
+    navigation.navigate('Theme');
+  }, [navigation]);
+
   const handleOpenSellWithUs = useCallback(() => {
     navigation.navigate('SellWithUs');
   }, [navigation]);
@@ -76,7 +83,7 @@ export function AccountScreen({ navigation }: Props) {
   }, [navigation]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: palette.canvas }]}>
       <AccountView
         onOpenDetails={handleOpenDetails}
         onOpenAddresses={handleOpenAddresses}
@@ -85,6 +92,7 @@ export function AccountScreen({ navigation }: Props) {
         onOpenOrders={handleOpenOrders}
         onOpenFavourites={handleOpenFavourites}
         onOpenRewards={handleOpenRewards}
+        onOpenAppearance={handleOpenAppearance}
         onOpenSellWithUs={handleOpenSellWithUs}
         onOpenSellerRequests={handleOpenSellerRequests}
         onOpenFeeChangeRequests={handleOpenFeeChangeRequests}
@@ -96,5 +104,5 @@ export function AccountScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F6F9' },
+  container: { flex: 1 },
 });

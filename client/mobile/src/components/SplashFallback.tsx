@@ -3,6 +3,7 @@ import { StyleSheet, View, ActivityIndicator, Image } from 'react-native';
 import { FaazioLogo } from '@/components/FaazioLogo';
 import logoImg from '@/assets/logo.png';
 import { parentRamp } from '@/theme/brandTokens';
+import { useThemeMode } from '@/hooks/useThemeMode';
 
 interface SplashFallbackProps {
   /**
@@ -19,6 +20,7 @@ interface SplashFallbackProps {
  * Lightweight on purpose — avoid importing heavy components here.
  */
 export function SplashFallback({ variant = 'default' }: SplashFallbackProps) {
+  const { palette } = useThemeMode();
   if (variant === 'royal') {
     return (
       <View style={[styles.container, styles.royalContainer]}>
@@ -32,7 +34,7 @@ export function SplashFallback({ variant = 'default' }: SplashFallbackProps) {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: palette.background }]}>
       <FaazioLogo size={40} />
       <ActivityIndicator size="small" color={parentRamp.base} style={styles.spinner} />
     </View>
@@ -44,7 +46,6 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: '#ffffff',
   },
   royalContainer: {
     backgroundColor: parentRamp.base,

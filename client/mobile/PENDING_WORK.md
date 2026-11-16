@@ -15,6 +15,33 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W97 — Customer appearance: light / dark / auto (default Light)
+
+**Status:** 🟡 Shipped mechanism + themed shell; **dark screen coverage partial** (JS-only; CI builds
+the APK).
+
+- **Preference.** `src/state/themeStore.ts` persists `light` / `dark` / `auto` in AsyncStorage
+  (`faazio.theme`) with **Light as the default**; `hydrate()` runs in the `App.tsx` startup gate so a
+  saved choice applies before the splash ends.
+- **Resolution.** `src/hooks/useThemeMode.ts` resolves `auto` against the live device scheme and
+  calls `Appearance.setColorScheme` so native chrome (alerts, keyboards, Android `DayNight`) matches.
+  `ios/Faazio/Info.plist` no longer forces `UIUserInterfaceStyle = Light`, so `auto` can observe the
+  OS.
+- **Application.** `src/theme/theme.ts` adds the palette (`lightPalette` / `darkPalette`),
+  `getStatusBarBarStyle`, and `createNavigationTheme`. `App.tsx` builds the navigation theme from the
+  resolved scheme and paints the status bar + root background; `MainTabs`, `Screen`,
+  `SplashFallback`, `OfflinePage`, `ErrorBoundary`, and the Account/Appearance surfaces read the same
+  palette. `HomeTabScreen` restores the themed status-bar style on blur instead of hardcoded dark.
+- **Settings.** My Account gains a client-side **Preferences → Appearance** row (server
+  `/account-nav` untouched) opening the typed `Theme` route (`ThemeScreen.tsx`).
+- **Known debt.** Dark coverage is partial — Home/Mart/Food/Pharma/search/orders/modals still carry
+  light literals. Tracked in `docs/user-interaction-workflow/KNOWN_GAPS.md`; per-screen conversion is
+  the follow-up.
+- Docs: `docs/architecture/mobile-app.md`, `docs/user-interaction-workflow/customer/profile/theme.md`,
+  `docs/user-interaction-workflow/customer/README.md`, `docs/user-interaction-workflow/customer/profile/index.md`,
+  `docs/user-interaction-workflow/KNOWN_GAPS.md`, `docs/UI_DESIGN_SYSTEM.md`, `client/mobile/AGENTS.md`.
+- Verify: `npm run ts:check`, `npm run check:boundaries`, `npm run check:ui`.
+
 ## W96 — Delivery Partner: minimal login, editable work details, blue wordmark
 
 **Status:** 🟢 Shipped (JS + gateway `PUT /delivery/me`; CI builds the APK).

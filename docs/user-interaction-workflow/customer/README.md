@@ -8,10 +8,10 @@
 `Notifications`, `SavedAddresses`, `UserDetails`, `FaazioRewards`, `PrescriptionFlow`,
 `MedicalShopDetails`, `BloodDonor*`, `SellWithUs`, `SellerRequests`, `SellerRequestDetail`,
 `SellerPlatformFeeRequest`, `FeeChangeRequests`, `RateVendor`, `DeleteAccount`,
-`RequestDataDeletion`, `PaymentOptions` (registered, unused), `PaymentCallback`.
+`RequestDataDeletion`, `Theme`, `PaymentOptions` (registered, unused), `PaymentCallback`.
 
 **State:** `src/state/` (auth, cart, favorite, orders, rewards, location, language, onboarding,
-pharma, bloodDonor, search, foodFilter, vendorRating, remoteConfig, connectivity).
+pharma, bloodDonor, search, foodFilter, vendorRating, remoteConfig, connectivity, theme).
 **Data:** `GatewayClient` (`src/services/api/GatewayClient.ts`) is the only online origin.
 `@data/*` is an offline/error shell or type source. Home/Food/Pharma online rails render server
 rows or honest empty/error states (fixtures only when the gateway is disabled).
@@ -42,6 +42,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Profile | Saved addresses | `SavedAddresses` | [saved-addresses.md](./profile/saved-addresses.md) |
 | Profile | Rewards ledger | `FaazioRewards` | [rewards-ledger.md](./profile/rewards-ledger.md) |
 | Profile | Rate vendor | `RateVendor` | [rate-vendor.md](./profile/rate-vendor.md) |
+| Profile | Appearance (theme) | `Theme` (`features/profile/ThemeScreen.tsx`) | [profile/theme.md](./profile/theme.md) |
 | Pharma | Prescription upload | `PrescriptionFlow` | [pharma/index.md](./pharma/index.md) · [prescription-upload.md](./pharma/prescription-upload.md) |
 | Pharma | Blood donor | `BloodDonor` | [blood-donor.md](./pharma/blood-donor.md) |
 | Pharma | Blood donor detail / request description | `BloodDonorDetails`, `BloodRequestDescription` | [pharma/blood-donor-details.md](./pharma/blood-donor-details.md) |

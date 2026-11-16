@@ -61,8 +61,8 @@ export function HomeTabScreen({ navigation }: Props) {
   // light while this tab is focused. Restore dark icons when it blurs.
   useFocusEffect(
     useCallback(() => {
-      StatusBar.setBarStyle('light-content');
-      return () => StatusBar.setBarStyle('dark-content');
+      const entry = StatusBar.pushStackEntry({ barStyle: 'light-content' });
+      return () => StatusBar.popStackEntry(entry);
     }, []),
   );
 

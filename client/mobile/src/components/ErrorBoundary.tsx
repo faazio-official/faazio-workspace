@@ -1,7 +1,9 @@
 import React from 'react';
-import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { Appearance, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { reportRenderError } from '@/services/crashReporting';
 import { parentRamp } from '@/theme/brandTokens';
+import { useThemeStore } from '@/state/themeStore';
+import { getPalette, resolveEffectiveMode } from '@/theme/theme';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -51,19 +53,24 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       const { scope, onReset } = this.props;
       const error = this.state.error;
       const firstFrame = __DEV__ ? error?.stack?.split('\n')[1]?.trim() : undefined;
+      const palette = getPalette(
+        resolveEffectiveMode(useThemeStore.getState().themeMode, Appearance.getColorScheme()),
+      );
 
       return (
-        <View style={styles.container}>
-          <Text style={styles.title}>Something went wrong</Text>
-          <Text style={styles.subtitle}>An unexpected error occurred. Please try again.</Text>
-          {!!scope && <Text style={styles.scope}>{scope}</Text>}
+        <View style={[styles.container, { backgroundColor: palette.background }]}>
+          <Text style={[styles.title, { color: palette.text }]}>Something went wrong</Text>
+          <Text style={[styles.subtitle, { color: palette.textMuted }]}>
+            An unexpected error occurred. Please try again.
+          </Text>
+          {!!scope && <Text style={[styles.scope, { color: palette.accent }]}>{scope}</Text>}
           {!!error?.message && (
-            <Text style={styles.message} numberOfLines={4}>
+            <Text style={[styles.message, { color: palette.textMuted }]} numberOfLines={4}>
               {error.message}
             </Text>
           )}
           {!!firstFrame && (
-            <Text style={styles.stack} numberOfLines={2}>
+            <Text style={[styles.stack, { color: palette.textSubtle }]} numberOfLines={2}>
               {firstFrame}
             </Text>
           )}
@@ -94,7 +101,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: 24,
-    backgroundColor: '#ffffff',
   },
   title: {
     fontSize: 16,

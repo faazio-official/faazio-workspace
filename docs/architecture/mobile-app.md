@@ -625,6 +625,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `bloodDonorStore` | Blood Donor wizard draft + committed registration + outgoing targeted requests (`donorMatchRequests`) + server-hydrated incoming requests (`incomingMatchRequests`; recipient-scoped, `respondToMatch` accept/decline) + the offline write outbox (`pendingOps`; register/interest/match/match-status/request; flushed on hydration/foreground, server-wins reconcile) |
 | `searchStore` | Search state/history |
 | `languageStore` | Selected language |
+| `themeStore` | Appearance preference (`light` / `dark` / `auto`), device-local AsyncStorage `faazio.theme`; **default `light`**. `hydrate()` runs in the startup gate with auth/language/onboarding. `useThemeMode()` resolves `auto` against the live device scheme, returns the semantic palette, and calls `Appearance.setColorScheme` so native chrome (alerts, keyboards, Android DayNight) matches. No gateway write |
 | `uiStore` | Sub-app id (`FA_MART`/`FOOD`/`PHARMA`), tab name |
 | `foodFilterStore` | Food sub-app Veg / Non-Veg diet filter (`all`/`veg`/`nonveg`), session-scoped |
 | `rewardsStore` | FaazioCoins balance, streak, discount card + ledger — **server-authoritative** (`GET /rewards`); AsyncStorage `faazio/rewards/v1` is an offline read-through cache only and there is no client earn/redeem (coins are written inside the checkout order transaction). `reconcile()` on login/focus, reset on logout; the seeded 245-coin/5-streak fiction is gone. A server reconcile result is race-guarded so a slow AsyncStorage hydration read can never overwrite fresh balances |
@@ -1234,6 +1235,14 @@ Shared, token-based primitives introduced by the UI-craft pass, all under `src/t
   `EnterpriseIcon` is keyed by semantic strings (`mart`, `food`, `pharma`, `dining`, `dairy`, …)
   and resolves legacy `@data/*`/server emoji through an escaped alias table, so no emoji glyph is
   rendered or stored in source.
+- `theme/theme.ts` — mobile appearance contract. `ThemeMode` (`light`/`dark`/`auto`, default
+  `light`), `AppPalette` roles for both schemes, `resolveEffectiveMode`, `getPalette`,
+  `getStatusBarBarStyle`, and `createNavigationTheme` (React Navigation theme from the resolved
+  scheme while keeping the app font family). `auto` follows the device via `useColorScheme`; an
+  unset/unreadable preference falls back to light. The themed shell covers `App.tsx` (navigation
+  theme, status bar, root background), the tab bar, `Screen`, `SplashFallback`, `OfflinePage`,
+  `ErrorBoundary`, and the Account/Appearance surfaces. Dark coverage is **partial**: screens that
+  still carry light literals are listed in `docs/user-interaction-workflow/KNOWN_GAPS.md`.
 - `theme/motion.ts` — the motion contract (docs/UI_DESIGN_SYSTEM.md §3 Pass 9): two curves
   (`EASE_ENTRANCE` ease-out for arrivals, `EASE_MOVE` ease-in-out for on-screen movement),
   semantic durations (`press 120`, `menu 180`, `enter 240`, `exit 192` = 80% of enter, `move 280`),

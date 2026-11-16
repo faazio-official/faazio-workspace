@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -27,6 +27,7 @@ import {
   Percent,
   Trash2,
   ShieldCheck,
+  Palette,
 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
@@ -38,7 +39,8 @@ import { STREAK_TARGET_DAYS } from '@data/rewards/rewards';
 import { isPartnerAdmin, useAuthStore } from '@/state/authStore';
 import { openTrustedUrl } from '@/lib/externalLinks';
 import { COOKIES_URL, DISCLAIMER_URL, PRIVACY_URL, REFUNDS_URL, TERMS_URL } from '@/lib/site';
-import { parentRamp } from '@/theme/brandTokens';
+import { useThemeMode } from '@/hooks/useThemeMode';
+import type { AppPalette } from '@/theme/theme';
 
 const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   idcard: IdCard,
@@ -64,8 +66,6 @@ const LEGAL_LINKS: Record<string, string> = {
   disclaimer: DISCLAIMER_URL,
 };
 
-const BRAND_BLUE = parentRamp.base;
-
 export interface AccountViewProps {
   /** When provided, a back arrow is rendered in the fixed header (pushed mode). */
   onBack?: () => void;
@@ -76,6 +76,7 @@ export interface AccountViewProps {
   onOpenOrders: () => void;
   onOpenFavourites?: () => void;
   onOpenRewards?: () => void;
+  onOpenAppearance?: () => void;
   onOpenSellWithUs?: () => void;
   onOpenSellerRequests?: () => void;
   onOpenFeeChangeRequests?: () => void;
@@ -98,6 +99,7 @@ export function AccountView({
   onOpenOrders,
   onOpenFavourites,
   onOpenRewards,
+  onOpenAppearance,
   onOpenSellWithUs,
   onOpenSellerRequests,
   onOpenFeeChangeRequests,
@@ -105,6 +107,14 @@ export function AccountView({
   onLogout,
 }: AccountViewProps) {
   const insets = useSafeAreaInsets();
+  const { themeMode, effectiveMode, palette } = useThemeMode();
+  const styles = useMemo(() => createStyles(palette), [palette]);
+  const appearanceLabel =
+    themeMode === 'auto'
+      ? `Auto — ${effectiveMode === 'dark' ? 'Dark' : 'Light'}`
+      : themeMode === 'dark'
+        ? 'Dark'
+        : 'Light';
   const coinBalance = useRewardsStore((s) => s.coinBalance);
   const streakCount = useRewardsStore((s) => s.streakCount);
   const authUser = useAuthStore((s) => s.user);
@@ -166,6 +176,7 @@ export function AccountView({
       onOpenSellWithUs,
       onOpenDetails,
       onOpenAddresses,
+      onOpenAppearance,
       onOpenDeleteAccount,
       onOpenRequestDataDeletion,
     ]
@@ -183,7 +194,7 @@ export function AccountView({
             accessibilityRole="button"
             accessibilityLabel="Go back"
           >
-            <ChevronLeft size={ms(26)} color="#0f172a" strokeWidth={2.2} />
+            <ChevronLeft size={ms(26)} color={palette.text} strokeWidth={2.2} />
           </TouchableOpacity>
         ) : null}
         <View style={styles.headerText}>
@@ -210,7 +221,7 @@ export function AccountView({
           <View style={styles.coinsHeader}>
             <View style={styles.coinsTitleRow}>
               <View style={styles.coinsIcon}>
-                <Coins size={ms(16)} color="#B45309" strokeWidth={2.2} />
+                <Coins size={ms(16)} color={palette.coinText} strokeWidth={2.2} />
               </View>
               <AppText style={styles.coinsTitle}>FaazioCoins</AppText>
             </View>
@@ -227,9 +238,9 @@ export function AccountView({
                 <View key={i} style={styles.fireWrap}>
                   <Flame
                     size={ms(22)}
-                    color={filled ? '#F97316' : '#E2E8F0'}
+                    color={filled ? palette.flame : palette.flameInactive}
                     strokeWidth={2.2}
-                    fill={filled ? '#F97316' : 'none'}
+                    fill={filled ? palette.flame : 'none'}
                   />
                 </View>
               );
@@ -243,7 +254,7 @@ export function AccountView({
         {/* 5 + 6. Nav groups */}
         {navLoading && accountNavGroups.length === 0 ? (
           <View style={styles.navState}>
-            <ActivityIndicator color={BRAND_BLUE} />
+            <ActivityIndicator color={palette.accent} />
             <AppText style={styles.navStateText}>Loading account settings…</AppText>
           </View>
         ) : navError && accountNavGroups.length === 0 ? (
@@ -295,13 +306,13 @@ export function AccountView({
                     onPress={() => handleRowPress(row)}
                   >
                     <View style={styles.navIconBox}>
-                      <Icon size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+                      <Icon size={ms(18)} color={palette.accent} strokeWidth={2.2} />
                     </View>
                     <View style={styles.navText}>
                       <AppText style={styles.navTitle}>{row.title}</AppText>
                       <AppText style={styles.navSubtitle}>{row.subtitle}</AppText>
                     </View>
-                    <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+                    <ChevronRight size={ms(18)} color={palette.accent} strokeWidth={2.2} />
                   </TouchableOpacity>
                 );
               })}
@@ -309,11 +320,35 @@ export function AccountView({
           </View>
         ))}
 
+        {/* Client-side preferences section. The server nav catalog is untouched. */}
+        <View style={styles.navGroup}>
+          <AppText style={styles.navGroupTitle}>Preferences</AppText>
+          <View style={styles.navCard}>
+            <TouchableOpacity
+              style={[styles.navRow, styles.navRowLast]}
+              activeOpacity={0.7}
+              onPress={onOpenAppearance}
+              disabled={!onOpenAppearance}
+              accessibilityRole="button"
+              accessibilityLabel={`Appearance. ${appearanceLabel}`}
+            >
+              <View style={styles.navIconBox}>
+                <Palette size={ms(18)} color={palette.accent} strokeWidth={2.2} />
+              </View>
+              <View style={styles.navText}>
+                <AppText style={styles.navTitle}>Appearance</AppText>
+                <AppText style={styles.navSubtitle}>{appearanceLabel}</AppText>
+              </View>
+              <ChevronRight size={ms(18)} color={palette.accent} strokeWidth={2.2} />
+            </TouchableOpacity>
+          </View>
+        </View>
+
         {/* 7. Partner admin console (role-gated, not data-driven — gate mirrors seller-review routes). */}
         {isPartnerAdmin(authUser) && onOpenSellerRequests ? (
           <TouchableOpacity style={styles.adminCard} activeOpacity={0.7} onPress={onOpenSellerRequests}>
             <View style={styles.adminIcon}>
-              <Store size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
+              <Store size={ms(18)} color={palette.accent} strokeWidth={2.2} />
             </View>
             <View style={styles.adminText}>
               <AppText style={styles.adminTitle}>Seller applications</AppText>
@@ -323,7 +358,7 @@ export function AccountView({
                   : 'Review sellers in your district'}
               </AppText>
             </View>
-            <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+            <ChevronRight size={ms(18)} color={palette.accent} strokeWidth={2.2} />
           </TouchableOpacity>
         ) : null}
 
@@ -334,7 +369,7 @@ export function AccountView({
             onPress={onOpenFeeChangeRequests}
           >
             <View style={styles.adminIcon}>
-              <Percent size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
+              <Percent size={ms(18)} color={palette.accent} strokeWidth={2.2} />
             </View>
             <View style={styles.adminText}>
               <AppText style={styles.adminTitle}>Fee change requests</AppText>
@@ -344,7 +379,7 @@ export function AccountView({
                   : 'Review platform-fee requests in your district'}
               </AppText>
             </View>
-            <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+            <ChevronRight size={ms(18)} color={palette.accent} strokeWidth={2.2} />
           </TouchableOpacity>
         ) : null}
 
@@ -355,13 +390,13 @@ export function AccountView({
             onPress={onOpenPlatformFeeRequest}
           >
             <View style={styles.adminIcon}>
-              <Percent size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
+              <Percent size={ms(18)} color={palette.accent} strokeWidth={2.2} />
             </View>
             <View style={styles.adminText}>
               <AppText style={styles.adminTitle}>Request a fee change</AppText>
               <AppText style={styles.adminSubtitle}>Ask an admin to update your platform fee</AppText>
             </View>
-            <ChevronRight size={ms(18)} color={BRAND_BLUE} strokeWidth={2.2} />
+            <ChevronRight size={ms(18)} color={palette.accent} strokeWidth={2.2} />
           </TouchableOpacity>
         ) : null}
 
@@ -375,10 +410,11 @@ export function AccountView({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (palette: AppPalette) =>
+  StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#F4F6F9',
+    backgroundColor: palette.canvas,
   },
   scroll: {
     flex: 1,
@@ -394,7 +430,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
     paddingBottom: SPACE.BLOCK,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.card,
     zIndex: 10,
     shadowColor: '#000000',
     shadowOffset: { width: 0, height: 2 },
@@ -413,13 +449,13 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: ms(22),
     fontWeight: '900',
-    color: '#0f172a',
+    color: palette.text,
   },
   coinsCard: {
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.card,
     borderRadius: ms(18),
     borderWidth: 1,
-    borderColor: '#F0F0F0',
+    borderColor: palette.border,
     padding: hs(16),
     marginBottom: SPACE.SECTION,
   },
@@ -437,7 +473,7 @@ const styles = StyleSheet.create({
     width: ms(30),
     height: ms(30),
     borderRadius: ms(9),
-    backgroundColor: '#FEF3C7',
+    backgroundColor: palette.coinSurface,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: hs(8),
@@ -445,7 +481,7 @@ const styles = StyleSheet.create({
   coinsTitle: {
     fontSize: ms(14),
     fontWeight: '900',
-    color: '#1E2022',
+    color: palette.text,
   },
   coinsBalanceWrap: {
     flexDirection: 'row',
@@ -454,12 +490,12 @@ const styles = StyleSheet.create({
   coinsBalance: {
     fontSize: ms(18),
     fontWeight: '900',
-    color: '#B45309',
+    color: palette.coinText,
   },
   coinsBalanceUnit: {
     fontSize: ms(10),
     fontWeight: '700',
-    color: '#94A3B8',
+    color: palette.textSubtle,
     marginLeft: hs(4),
   },
   fireRow: {
@@ -473,13 +509,13 @@ const styles = StyleSheet.create({
   },
   coinsCaption: {
     fontSize: ms(11),
-    color: '#64748B',
+    color: palette.textMuted,
     fontWeight: '600',
     marginTop: SPACE.BLOCK,
     textAlign: 'center',
   },
   navCard: {
-    backgroundColor: '#ffffff',
+    backgroundColor: palette.card,
     borderRadius: ms(16),
     paddingHorizontal: hs(6),
     marginBottom: SPACE.SECTION,
@@ -501,12 +537,12 @@ const styles = StyleSheet.create({
   navStateTitle: {
     fontSize: ms(14),
     fontWeight: '600',
-    color: '#0f172a',
+    color: palette.text,
     textAlign: 'center',
   },
   navStateText: {
     fontSize: ms(12),
-    color: '#64748b',
+    color: palette.textMuted,
     textAlign: 'center',
   },
   navRetryBtn: {
@@ -515,19 +551,19 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(20),
     borderRadius: ms(22),
     borderWidth: 1,
-    borderColor: '#cbd5e1',
+    borderColor: palette.border,
     alignItems: 'center',
     justifyContent: 'center',
   },
   navRetryText: {
     fontSize: ms(13),
     fontWeight: '600',
-    color: BRAND_BLUE,
+    color: palette.accent,
   },
   navGroupTitle: {
     fontSize: ms(12),
     fontWeight: '800',
-    color: '#64748b',
+    color: palette.textMuted,
     textTransform: 'uppercase',
     letterSpacing: 0.6,
     marginLeft: hs(4),
@@ -539,7 +575,7 @@ const styles = StyleSheet.create({
     paddingVertical: vs(14),
     paddingHorizontal: hs(10),
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#EEF1F5',
+    borderBottomColor: palette.border,
   },
   navRowLast: {
     borderBottomWidth: 0,
@@ -548,7 +584,7 @@ const styles = StyleSheet.create({
     width: ms(40),
     height: ms(40),
     borderRadius: ms(12),
-    backgroundColor: '#DBEAFE',
+    backgroundColor: palette.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -560,36 +596,36 @@ const styles = StyleSheet.create({
   navTitle: {
     fontSize: ms(14),
     fontWeight: '700',
-    color: '#0f172a',
+    color: palette.text,
   },
   navSubtitle: {
     fontSize: ms(11.5),
     fontWeight: '500',
-    color: '#94a3b8',
+    color: palette.textSubtle,
     marginTop: vs(2),
   },
   adminCard: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(10),
-    backgroundColor: '#FFFFFF',
+    backgroundColor: palette.card,
     borderRadius: ms(16),
     padding: hs(14),
     marginBottom: SPACE.SECTION,
     borderWidth: 1,
-    borderColor: '#DBEAFE',
+    borderColor: palette.border,
   },
   adminIcon: {
     width: ms(40),
     height: ms(40),
     borderRadius: ms(12),
-    backgroundColor: '#DBEAFE',
+    backgroundColor: palette.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
   },
   adminText: { flex: 1 },
   adminTitle: { fontSize: ms(14), fontWeight: '800', color: '#0f172a' },
-  adminSubtitle: { fontSize: ms(11.5), fontWeight: '500', color: '#94a3b8', marginTop: vs(2) },
+  adminSubtitle: { fontSize: ms(11.5), fontWeight: '500', color: palette.textSubtle, marginTop: vs(2) },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',

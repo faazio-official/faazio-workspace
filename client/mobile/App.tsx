@@ -1,7 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { neutral } from '@/theme/brandTokens';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar, View, StyleSheet, AppState } from 'react-native';
-import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, type Theme } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AppNavigator } from './src/navigation/AppNavigator';
 import { navigationRef } from './src/navigation/navigationRef';
@@ -17,11 +16,14 @@ import { useAuthStore } from './src/state/authStore';
 import { useRemoteConfigStore } from './src/state/remoteConfigStore';
 import { useLiveLocation } from './src/hooks/useLiveLocation';
 import { useLanguageStore } from './src/state/languageStore';
+import { useThemeStore } from './src/state/themeStore';
 import { useOnboardingStore } from './src/state/onboardingStore';
 import { hydrateUserStores } from './src/services/sessionStores';
 import { startCustomerPush } from './src/services/customerPush';
 import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
 import { useBottomInset } from './src/utils/responsive';
+import { useThemeMode } from './src/hooks/useThemeMode';
+import { createNavigationTheme } from './src/theme/theme';
 import { installGlobalErrorHandlers } from './src/services/crashReporting';
 import { flushPendingPaymentCallback, startPaymentCallbackLinks } from './src/services/paymentLinks';
 import { reconcilePendingUpiOrder } from './src/services/paymentReconciliation';
@@ -55,33 +57,22 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-const navigationTheme = {
-  ...DefaultTheme,
-  colors: {
-    ...DefaultTheme.colors,
-    background: neutral.card,
+const navigationFonts: Theme['fonts'] = {
+  regular: {
+    fontFamily: resolveFontFamily('400'),
+    fontWeight: '400' as const,
   },
-  fonts: {
-    regular: {
-      fontFamily: resolveFontFamily('400'),
-      fontWeight: '400' as const,
-    },
-    medium: {
-      fontFamily: resolveFontFamily('500'),
-      fontWeight: '500' as const,
-    },
-    bold: {
-      fontFamily: resolveFontFamily('600'),
-      fontWeight: '600' as const,
-    },
-    heavy: {
-      fontFamily: resolveFontFamily('600'),
-      fontWeight: '600' as const,
-    },
-    heading: {
-      fontFamily: resolveFontFamily('600'),
-      fontWeight: '600' as const,
-    },
+  medium: {
+    fontFamily: resolveFontFamily('500'),
+    fontWeight: '500' as const,
+  },
+  bold: {
+    fontFamily: resolveFontFamily('600'),
+    fontWeight: '600' as const,
+  },
+  heavy: {
+    fontFamily: resolveFontFamily('600'),
+    fontWeight: '600' as const,
   },
 };
 
@@ -94,10 +85,18 @@ const navigationTheme = {
  * stays clear. Modals render in separate native windows, so those keep their
  * own insets.
  */
-function AppLayout({ children }: { children: React.ReactNode }) {
+function AppLayout({
+  children,
+  backgroundColor,
+}: {
+  children: React.ReactNode;
+  backgroundColor: string;
+}) {
   const bottomInset = useBottomInset();
   return (
-    <View style={[styles.container, { paddingBottom: bottomInset }]}>{children}</View>
+    <View style={[styles.container, { backgroundColor, paddingBottom: bottomInset }]}>
+      {children}
+    </View>
   );
 }
 
@@ -109,6 +108,12 @@ export default function App() {
   const hydrateAuth = useAuthStore((s) => s.hydrate);
   const hydrateLanguage = useLanguageStore((s) => s.hydrate);
   const hydrateOnboarding = useOnboardingStore((s) => s.hydrate);
+  const hydrateTheme = useThemeStore((s) => s.hydrate);
+  const { effectiveMode, palette, barStyle } = useThemeMode();
+  const navigationTheme = useMemo(
+    () => createNavigationTheme(effectiveMode, navigationFonts),
+    [effectiveMode],
+  );
   const fetchRemoteConfig = useRemoteConfigStore((s) => s.fetchConfig);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const isOnline = useConnectivityStore((s) => s.isOnline);
@@ -178,6 +183,7 @@ export default function App() {
           withTimeout(hydrateAuth(), 4000, 'hydrateAuth'),
           withTimeout(hydrateLanguage(), 4000, 'hydrateLanguage'),
           withTimeout(hydrateOnboarding(), 4000, 'hydrateOnboarding'),
+          withTimeout(hydrateTheme(), 4000, 'hydrateTheme'),
         ]);
       } catch (error) {
         // A hanging/failing storage module must not block startup or become a
@@ -192,7 +198,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [hydrateAuth, hydrateLanguage, hydrateOnboarding, fetchRemoteConfig]);
+  }, [hydrateAuth, hydrateLanguage, hydrateOnboarding, hydrateTheme, fetchRemoteConfig]);
 
   useEffect(() => {
     if (fontsLoaded && ready) {
@@ -227,7 +233,12 @@ export default function App() {
   }, [isAuthenticated]);
 
   if (!ready) {
-    return <SplashFallback variant="royal" />;
+    return (
+      <>
+        <StatusBar barStyle="light-content" />
+        <SplashFallback variant="royal" />
+      </>
+    );
   }
 
   // Cold start while already offline: show the offline page immediately instead of a blank/loading
@@ -236,20 +247,25 @@ export default function App() {
   if (isOnline === false && !hasConnected) {
     return (
       <SafeAreaProvider>
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle={barStyle} />
         <OfflinePage />
       </SafeAreaProvider>
     );
   }
 
   if (!minSplashDone) {
-    return <SplashFallback variant="royal" />;
+    return (
+      <>
+        <StatusBar barStyle="light-content" />
+        <SplashFallback variant="royal" />
+      </>
+    );
   }
 
   return (
     <SafeAreaProvider>
-      <AppLayout>
-        <StatusBar barStyle="dark-content" />
+      <AppLayout backgroundColor={palette.background}>
+        <StatusBar barStyle={barStyle} />
         <NavigationContainer
           ref={navigationRef}
           theme={navigationTheme}
@@ -260,7 +276,7 @@ export default function App() {
         </NavigationContainer>
         {isOnline === false ? <OfflineToast /> : null}
         {navigationBlocked && isOnline === false ? (
-          <View style={styles.blocker}>
+          <View style={[styles.blocker, { backgroundColor: palette.background }]}>
             <OfflinePage reserveBottomInset={false} />
           </View>
         ) : null}
@@ -272,7 +288,6 @@ export default function App() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: neutral.card,
   },
   blocker: {
     position: 'absolute',
@@ -280,6 +295,5 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: neutral.card,
   },
 });

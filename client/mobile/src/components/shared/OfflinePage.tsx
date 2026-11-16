@@ -7,6 +7,7 @@ import { FaazioLogo } from '@/components/FaazioLogo';
 import { useConnectivityStore } from '@/state/connectivityStore';
 import { ms, vs } from '@/utils/responsive';
 import { parentRamp } from '@/theme/brandTokens';
+import { useThemeMode } from '@/hooks/useThemeMode';
 
 type OfflinePageProps = {
   /**
@@ -33,6 +34,7 @@ export function OfflinePage({
   reserveBottomInset = true,
 }: OfflinePageProps = {}) {
   const insets = useSafeAreaInsets();
+  const { palette } = useThemeMode();
   const isChecking = useConnectivityStore((s) => s.isChecking);
   const checkConnectivity = useConnectivityStore((s) => s.checkConnectivity);
   const [retrying, setRetrying] = useState(false);
@@ -57,17 +59,18 @@ export function OfflinePage({
       style={[
         styles.container,
         {
+          backgroundColor: palette.background,
           paddingTop: insets.top,
           paddingBottom: reserveBottomInset ? insets.bottom : vs(24),
         },
       ]}
     >
       <FaazioLogo size={40} />
-      <View style={styles.iconCircle}>
-        <WifiOff size={26} color={parentRamp.base} />
+      <View style={[styles.iconCircle, { backgroundColor: palette.accentSoft }]}>
+        <WifiOff size={26} color={palette.accent} />
       </View>
-      <AppText style={styles.title}>You&apos;re offline</AppText>
-      <AppText style={styles.body}>
+      <AppText style={[styles.title, { color: palette.text }]}>You&apos;re offline</AppText>
+      <AppText style={[styles.body, { color: palette.textMuted }]}>
         Looks like you&apos;re not connected to the internet. Check your connection and try again.
       </AppText>
       <TouchableOpacity
@@ -94,7 +97,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: ms(32),
-    backgroundColor: '#ffffff',
   },
   iconCircle: {
     marginTop: vs(24),

@@ -3,6 +3,7 @@ import { StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { logoutUser } from '@/services/logout';
 import { AccountView } from '@/features/profile/AccountView';
+import { useThemeMode } from '@/hooks/useThemeMode';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'You'>;
@@ -13,6 +14,8 @@ type Props = NativeStackScreenProps<RootStackParamList, 'You'>;
  * This wrapper IS the root stack, so logout resets directly to Login.
  */
 export function YouScreen({ navigation }: Props) {
+  const { palette } = useThemeMode();
+
   const handleLogout = useCallback(() => {
     void logoutUser()
       .catch(() => {})
@@ -54,6 +57,10 @@ export function YouScreen({ navigation }: Props) {
     navigation.navigate('FaazioRewards');
   }, [navigation]);
 
+  const handleOpenAppearance = useCallback(() => {
+    navigation.navigate('Theme');
+  }, [navigation]);
+
   const handleOpenSellWithUs = useCallback(() => {
     navigation.navigate('SellWithUs');
   }, [navigation]);
@@ -71,7 +78,7 @@ export function YouScreen({ navigation }: Props) {
   }, [navigation]);
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: palette.canvas }]}>
       <AccountView
         onBack={() => navigation.goBack()}
         onOpenDetails={handleOpenDetails}
@@ -81,6 +88,7 @@ export function YouScreen({ navigation }: Props) {
         onOpenOrders={handleOpenOrders}
         onOpenFavourites={handleOpenFavourites}
         onOpenRewards={handleOpenRewards}
+        onOpenAppearance={handleOpenAppearance}
         onOpenSellWithUs={handleOpenSellWithUs}
         onOpenSellerRequests={handleOpenSellerRequests}
         onOpenFeeChangeRequests={handleOpenFeeChangeRequests}
@@ -92,5 +100,5 @@ export function YouScreen({ navigation }: Props) {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F4F6F9' },
+  container: { flex: 1 },
 });

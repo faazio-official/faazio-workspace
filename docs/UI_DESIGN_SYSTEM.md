@@ -630,9 +630,16 @@ Rules specific to this surface:
   `features/pharma/blood-donor/tokens.ts`) that overlap `src/theme`. When you
   touch a screen, move its colours onto `brandTokens` / a shared token rather
   than adding another literal. Do not do a big-bang sweep unasked.
-- The app is **light-only today**. There is no `useTheme` equivalent. If you add
-  dark mode, follow the web contract: one token object per theme, resolved once,
-  no per-component conditionals.
+- The customer app now has a **theme mechanism**: `src/theme/theme.ts` (one
+  palette object per scheme), `src/state/themeStore.ts` (persisted `light` /
+  `dark` / `auto`, **default light**), and `src/hooks/useThemeMode.ts` (resolves
+  `auto` live and syncs `Appearance.setColorScheme`). Convert colours through the
+  palette roles — never a per-component `dark:`-style conditional. Dark screen
+  coverage is **partial** today (shell, tab bar, Screen, splash/offline/error and
+  Account surfaces are converted); remaining light literals are tracked in
+  `docs/user-interaction-workflow/KNOWN_GAPS.md`. When you touch a screen, move
+  its literals onto the palette/token roles. The mobile model mirrors the web
+  contract below (`auto|light|dark`, one token object per theme).
 
 ---
 

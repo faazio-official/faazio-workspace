@@ -50,9 +50,13 @@ and per-feature theme files that overlap `src/theme`
 `features/pharma/blood-donor/tokens.ts`). Fix the screen you are already
 touching; do not run a repo-wide colour sweep unless explicitly asked.
 
-The app is **light-only today** — there is no `useTheme` equivalent. If dark
-mode is added, follow the web contract in `docs/UI_DESIGN_SYSTEM.md` §7: one
-token object per theme, resolved once, no per-component conditionals.
+The customer app has a **theme mechanism** — `src/theme/theme.ts` (palette per
+scheme), `src/state/themeStore.ts` (persisted `light`/`dark`/`auto`, default
+`light`), `src/hooks/useThemeMode.ts` (resolves `auto`, syncs native chrome).
+Follow the web contract in `docs/UI_DESIGN_SYSTEM.md` §7: one token object per
+theme, resolved once, no per-component conditionals. Dark coverage is **partial**
+— convert the screen you touch; remaining gaps are in
+`docs/user-interaction-workflow/KNOWN_GAPS.md`.
 
 ## Verify
 

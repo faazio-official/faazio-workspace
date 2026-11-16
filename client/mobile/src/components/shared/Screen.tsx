@@ -9,6 +9,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { SafeAreaView, type Edges } from 'react-native-safe-area-context';
+import { useThemeMode } from '@/hooks/useThemeMode';
 
 interface ScreenProps {
   edges?: Edges;
@@ -23,16 +24,18 @@ const DEFAULT_EDGES: Edges = ['top', 'left', 'right'];
 
 const Screen = ({
   edges = DEFAULT_EDGES,
-  backgroundColor = '#ffffff',
+  backgroundColor,
   scroll = false,
   keyboardAvoiding = false,
   style,
   children,
 }: ScreenProps) => {
+  const { palette } = useThemeMode();
+  const resolvedBackground = backgroundColor ?? palette.background;
   const safeArea = (
     <SafeAreaView
       edges={edges}
-      style={[styles.container, { backgroundColor }, style]}
+      style={[styles.container, { backgroundColor: resolvedBackground }, style]}
     >
       {children}
     </SafeAreaView>
@@ -41,7 +44,7 @@ const Screen = ({
   if (keyboardAvoiding) {
     return (
       <KeyboardAvoidingView
-        style={[styles.container, { backgroundColor }]}
+        style={[styles.container, { backgroundColor: resolvedBackground }]}
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       >
         {safeArea}
@@ -52,7 +55,7 @@ const Screen = ({
   if (scroll) {
     return (
       <ScrollView
-        style={[styles.container, { backgroundColor }]}
+        style={[styles.container, { backgroundColor: resolvedBackground }]}
         contentContainerStyle={[styles.scrollContent, style]}
       >
         {children}

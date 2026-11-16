@@ -11,6 +11,7 @@ import type { MainTabParamList } from '@/navigation/types';
 import NavbarHomeShortcut from '@/components/shared/NavbarHomeShortcut';
 import { neutral, parentRamp, semantic } from '@/theme/brandTokens';
 import { ICON } from '@/theme/tokens';
+import { useThemeMode } from '@/hooks/useThemeMode';
 
 const lazyNamed = <T extends { [K in string]: unknown }>(
   loader: () => Promise<T>,
@@ -37,20 +38,27 @@ const TAB_ICONS: Record<keyof MainTabParamList, React.ComponentType<any>> = {
 
 const TAB_BAR_PAD = hs(12);
 const TAB_BAR_H = vs(60);
-const ACTIVE_TINT = parentRamp.deep;
-const INACTIVE_TINT = neutral.inkMuted;
-
 function HubTabBar({ state, navigation }: BottomTabBarProps) {
+  const { palette } = useThemeMode();
   const tabBarH = TAB_BAR_H;
   const totalCartQty = useCartStore((s) => s.cart).reduce((acc, curr) => acc + curr.quantity, 0);
 
   return (
-    <View style={[styles.tabBarWrap, { height: tabBarH }]}>
+    <View
+      style={[
+        styles.tabBarWrap,
+        {
+          height: tabBarH,
+          backgroundColor: palette.card,
+          borderTopColor: palette.border,
+        },
+      ]}
+    >
       <View style={styles.tabBarInner}>
         {state.routes.map((route, index) => {
           const name = route.name as keyof MainTabParamList;
           const isActive = state.index === index;
-          const tint = isActive ? ACTIVE_TINT : INACTIVE_TINT;
+          const tint = isActive ? palette.accentStrong : palette.textMuted;
           const Icon = TAB_ICONS[name];
           return (
             <TouchableOpacity
@@ -70,12 +78,12 @@ function HubTabBar({ state, navigation }: BottomTabBarProps) {
                   fill={isActive ? tint : 'transparent'}
                 />
                 {name === 'Cart' && totalCartQty > 0 && (
-                  <View style={styles.cartBadge}>
+                  <View style={[styles.cartBadge, { borderColor: palette.card }]}>
                     <AppText style={styles.cartBadgeText}>{totalCartQty > 99 ? '99+' : totalCartQty}</AppText>
                   </View>
                 )}
               </View>
-              <AppText style={[styles.tabLabel, isActive && { color: ACTIVE_TINT }]}>
+              <AppText style={[styles.tabLabel, { color: tint }]}>
                 {TAB_LABELS[name]}
               </AppText>
             </TouchableOpacity>
@@ -144,7 +152,6 @@ const styles = StyleSheet.create({
   tabLabel: {
     fontSize: ms(11),
     fontWeight: '600',
-    color: INACTIVE_TINT,
   },
   cartBadge: {
     position: 'absolute',
