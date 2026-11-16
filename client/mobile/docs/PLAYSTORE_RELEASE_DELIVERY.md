@@ -68,9 +68,46 @@ Content = **Yes** because orders, routes, payouts and notifications load from th
 | Do you provide a way to request data deletion? | **Yes** |
 | Delete data URL | `https://faazio.com/privacy#delete-account` |
 
-Notes: riders create an account in the app with phone OTP and then submit a partner application.
-There is no in-app delete-account screen; deletion is requested via the privacy page email route
-(completed within 30 days). The privacy policy states it covers delivery partners.
+**Data deletion rationale:**
+
+- Riders create an account in the app with phone OTP, then submit a partner application. Accounts are
+  not created outside the app.
+- The delivery app has **no in-app delete-account screen** (unlike the customer app). Deletion is
+  requested through the email route on the privacy page
+  (`https://faazio.com/privacy#delete-account`), which states it applies to customers, delivery
+  partners, and seller partners (`client/web/landingpage/src/routes/privacy.tsx:46`).
+- Verified deletion requests are completed within **30 days**; tax/accounting and dispute records are
+  retained as described on that page.
+- "Delete data without deleting the account" is **No** — deletion removes the account.
+
+---
+
+## 3b. Data Safety: per-data-type answers
+
+Every selected type below is **Collected only** (Shared = **No**) and **not processed ephemerally**.
+The only recipients (Supabase, MongoDB Atlas, Aiven Valkey, Cloudflare, Render, Firebase) are service
+providers processing on the developer's behalf, which Play exempts from "sharing".
+
+| Data type | Collected/Shared | Ephemeral | Required/Optional | Why collected | Why shared |
+|---|---|---|---|---|---|
+| Approximate location | Collected only | No | Required | App functionality, Fraud prevention/security/compliance | — |
+| Precise location | Collected only | No | Required | App functionality, Fraud prevention/security/compliance | — |
+| Name | Collected only | No | Required | App functionality, Account management, Fraud prevention/security/compliance | — |
+| User IDs | Collected only | No | Required | App functionality, Account management | — |
+| Address | Collected only | No | Required | App functionality, Account management | — |
+| Phone number | Collected only | No | Required | App functionality, Account management, Fraud prevention/security/compliance | — |
+| Other info (government ID, emergency contact, vehicle, hub) | Collected only | No | Required | App functionality, Account management, Fraud prevention/security/compliance | — |
+| User payment info (bank account) | Collected only | No | Required | App functionality (payouts), Fraud prevention/security/compliance | — |
+| Other financial info (earnings, payouts) | Collected only | No | Required | App functionality, Account management | — |
+| Photos (documents) | Collected only | No | Required | App functionality (identity/vehicle verification), Fraud prevention/security/compliance | — |
+| Device or other IDs | Collected only | No | Required | App functionality, Developer communications | — |
+
+Every type **not** listed above is answered **No**; the exhaustive Yes/No selection table is §4.
+
+> **Crash logs / Diagnostics / Other app performance data = No.** `services/crashReporting.ts` sends
+> only the error message, stack, and ErrorBoundary component stack to `POST /errors` (fire-and-forget).
+> It is Non-PII by contract: no user ID, device ID, route params, tokens, or keys are attached
+> (`client/mobile/src/services/crashReporting.ts:3-7`).
 
 ---
 
@@ -121,26 +158,40 @@ providers processing on the developer's behalf, which Play exempts from "sharing
 
 ---
 
-## 5. Data usage and handling (per selected type)
+## 5. Master summary (every Play Console answer)
 
-For every row: **Processed ephemerally = No** (data persists in Supabase/private storage).
+Quick-reference table for re-submissions. Per-type Data Safety details are in §3b; the full store
+description is in §7.
 
-| Data type | Required / Optional | Why collected |
+| Section | Field | Answer |
 |---|---|---|
-| Approximate location | Required | App functionality, Fraud prevention/security/compliance |
-| Precise location | Required | App functionality, Fraud prevention/security/compliance |
-| Name | Required | App functionality, Account management, Fraud prevention/security/compliance |
-| User IDs | Required | App functionality, Account management |
-| Address | Required | App functionality, Account management |
-| Phone number | Required | App functionality, Account management, Fraud prevention/security/compliance |
-| Other info (government ID, emergency contact, vehicle, hub) | Required | App functionality, Account management, Fraud prevention/security/compliance |
-| User payment info (bank account) | Required | App functionality (payouts), Fraud prevention/security/compliance |
-| Other financial info (earnings, payouts) | Required | App functionality, Account management |
-| Photos (documents) | Required | App functionality (identity/vehicle verification), Fraud prevention/security/compliance |
-| Device or other IDs | Required | App functionality, Developer communications |
-
-No type uses Analytics, Advertising or marketing, or Personalization. Emergency contact is required
-by the rider onboarding flow; documents are required before a rider can be activated.
+| App access | Name | `Delivery Partner test account` |
+| App access | Username / phone | `+91 9876543210` |
+| App access | Password | `123456` (fixed Firebase test OTP) |
+| App access | Restricted functionality | **Yes** — "All or some functionality is restricted" |
+| Content rating | Category | All Other App Types |
+| Content rating | Downloaded App | **No** |
+| Content rating | User Content Sharing | **No** |
+| Content rating | Online Content | **Yes** |
+| Content rating | Violence / Sexuality / Language / Controlled Substance / Age-restricted products | **No** (all) |
+| Content rating | Miscellaneous (location share, digital goods, cash rewards, browser, news/education) | **No** (all) |
+| Data collection | Collect or share required data types | **Yes** |
+| Data collection | Encrypted in transit | **Yes** |
+| Data collection | Account creation | Username and other authentication (phone + Firebase OTP) |
+| Data collection | Login with externally created accounts | **No** |
+| Data Safety | Selected types | 11 types — see §3b (Collected only, not ephemeral, all Required) |
+| Data deletion | URL | `https://faazio.com/privacy#delete-account` |
+| Data deletion | Delete data without deleting account | **No** |
+| App features | Financial features | My app doesn't provide any financial features |
+| App features | Health features | My app does not provide any health features |
+| Store listing | App name | Faazio Delivery Partner |
+| Store listing | Short description | Deliver on Faazio: accept orders, follow routes, track earnings. |
+| Store listing | Full description | See §7 (~1,100 / 4000 chars) |
+| Not covered | App category | Maps & Navigation, or Business |
+| Not covered | Target age | 18 and over only |
+| Not covered | Restrict minors | Enabled |
+| Not covered | Advertising / ad ID | No ad SDK, no `AD_ID` permission |
+| Not covered | Independent security review | **No** |
 
 ---
 
@@ -191,9 +242,10 @@ Built to be quick and simple, so you can keep moving.
 
 ---
 
-## 8. Not covered in this chat (recommended defaults)
+## 8. Remaining defaults (not session-answered)
 
-These Play Console screens were not answered here; keep them consistent with the customer listing:
+These screens were not answered during the Play Console session; the values below are the recommended
+defaults (also mirrored in §5) and must stay consistent with the customer listing:
 
 | Question | Recommended |
 |---|---|

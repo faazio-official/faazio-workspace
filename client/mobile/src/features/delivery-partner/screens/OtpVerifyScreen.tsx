@@ -17,7 +17,7 @@ import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { useSmsUserConsent } from '@/lib/smsUserConsent';
-import { otpErrorMessage } from '@/lib/otpError';
+import { otpErrorCode, otpErrorMessage } from '@/lib/otpError';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { ms, vs } from '@/utils/responsive';
 import { DpAuthHero } from '../components/DpAuthHero';
@@ -29,6 +29,18 @@ type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'OtpVerify'>;
 const OTP_LENGTH = 6;
 const RESEND_COOLDOWN_S = 30;
 
+/**
+ * A rider-profile load failure happens after Firebase has already accepted the code, so this copy
+ * must never blame the OTP. The verified session is kept and the screen offers Retry instead of
+ * asking for a new code.
+ */
+function profileErrorMessage(err: unknown): string {
+  if (err instanceof GatewayHttpError && err.status >= 500) {
+    return "You're signed in, but your rider profile could not load. Tap Retry.";
+  }
+  return "You're signed in, but we couldn't load your rider profile. Check your connection and tap Retry.";
+}
+
 export function OtpVerifyScreen({ navigation, route }: Props) {
   const { phone } = route.params;
   const [code, setCode] = useState('');
@@ -37,6 +49,10 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
   const [resending, setResending] = useState(false);
   // A code was just sent before this screen mounted, so the cooldown starts full.
   const [resendCooldown, setResendCooldown] = useState(RESEND_COOLDOWN_S);
+  // Firebase already accepted the code but the rider profile has not loaded yet. Keeping the
+  // session means Retry never asks for another OTP.
+  const [verifiedSession, setVerifiedSession] = useState<FirebaseSession | null>(null);
+  const profilePending = verifiedSession !== null;
   const login = useAuthStore((s) => s.login);
   const setRider = useDeliveryPartnerStore((s) => s.setRider);
   const reduceMotion = useReducedMotion();
@@ -54,11 +70,14 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
   const prevOtpLength = useRef(0);
 
   const handleSmsCode = useCallback((smsCode: string) => {
-    if (submitRef.current) return;
+    if (submitRef.current || verifiedSession) return;
     setError(null);
     setCode(smsCode);
-  }, []);
-  const { restart: restartSmsConsent, stop: stopSmsConsent } = useSmsUserConsent(handleSmsCode, !verifying);
+  }, [verifiedSession]);
+  const { restart: restartSmsConsent, stop: stopSmsConsent } = useSmsUserConsent(
+    handleSmsCode,
+    !verifying && !profilePending,
+  );
 
   useEffect(() => {
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -136,7 +155,7 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     prevOtpLength.current = code.length;
   }, [code, digitAnims]);
 
-  const completeSignIn = useCallback(
+  const loadRider = useCallback(
     async (session: FirebaseSession) => {
       await login({
         user: {
@@ -163,6 +182,33 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     [login, navigation, phone, setRider],
   );
 
+  // The code is already verified; a profile-load failure leaves the session live so the user can
+  // retry the read instead of being sent back to the OTP step.
+  const completeSignIn = useCallback(
+    async (session: FirebaseSession) => {
+      try {
+        await loadRider(session);
+      } catch (err) {
+        setVerifiedSession(session);
+        throw err;
+      }
+    },
+    [loadRider],
+  );
+
+  const retryProfile = useCallback(async () => {
+    if (!verifiedSession) return;
+    setError(null);
+    setVerifying(true);
+    try {
+      await loadRider(verifiedSession);
+    } catch (err) {
+      setError(profileErrorMessage(err));
+    } finally {
+      setVerifying(false);
+    }
+  }, [loadRider, verifiedSession]);
+
   const onVerify = useCallback(async () => {
     if (submitRef.current || code.length !== OTP_LENGTH) return;
     submitRef.current = true;
@@ -172,10 +218,16 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     try {
       session = await verifyOtp(phone, code);
     } catch (err) {
-      // A rejected code is the only failure that is actually an OTP problem.
+      // A rejected code is the only failure that is actually an OTP problem. Anything without an
+      // `auth/*` code means the pending verification was lost (e.g. a reload or a second tap) —
+      // say so instead of blaming the digits with the generic fallback.
       submitRef.current = false;
       setVerifying(false);
-      setError(otpErrorMessage(err, 'Incorrect OTP. Try again.'));
+      setError(
+        otpErrorCode(err)
+          ? otpErrorMessage(err, 'Incorrect OTP. Try again.')
+          : 'That verification expired. Tap "Resend OTP" to get a new code.',
+      );
       return;
     }
     // The code is accepted and the session is live; only the rider-profile load can now fail.
@@ -183,7 +235,7 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
       await completeSignIn(session);
     } catch (err) {
       submitRef.current = false;
-      setError(err instanceof Error ? err.message : 'Could not load your rider profile. Try again.');
+      setError(profileErrorMessage(err));
     } finally {
       setVerifying(false);
     }
@@ -198,7 +250,7 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     void completeSignIn(session)
       .catch((err: unknown) => {
         submitRef.current = false;
-        setError(err instanceof Error ? err.message : 'Could not load your rider profile. Try again.');
+        setError(profileErrorMessage(err));
       })
       .finally(() => {
         setVerifying(false);
@@ -211,6 +263,7 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
   }, [applyAutoVerified]);
 
   useEffect(() => {
+    if (verifiedSession) return;
     if (code.length !== OTP_LENGTH) {
       autoSubmittedRef.current = null;
       return;
@@ -218,9 +271,11 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     if (autoSubmittedRef.current === code || verifying || resending) return;
     autoSubmittedRef.current = code;
     void onVerify();
-  }, [code, onVerify, resending, verifying]);
+  }, [code, onVerify, resending, verifiedSession, verifying]);
 
   const handleOtpChange = useCallback((value: string) => {
+    // The code is already accepted; keep the digits and let Retry re-run the profile read.
+    if (verifiedSession) return;
     const digits = value.replace(/\D/g, '').slice(0, OTP_LENGTH);
     setCode(digits);
     setError(null);
@@ -228,10 +283,10 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
       submitRef.current = false;
       setVerifying(false);
     }
-  }, []);
+  }, [verifiedSession]);
 
   const onResend = useCallback(async () => {
-    if (resending || verifying || resendCooldown > 0) return;
+    if (verifiedSession || resending || verifying || resendCooldown > 0) return;
     setError(null);
     setCode('');
     submitRef.current = false;
@@ -248,11 +303,12 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     } finally {
       setResending(false);
     }
-  }, [phone, restartSmsConsent, resendCooldown, resending, stopSmsConsent, verifying]);
+  }, [phone, restartSmsConsent, resendCooldown, resending, stopSmsConsent, verifiedSession, verifying]);
 
   const goBackToPhoneEntry = useCallback(() => {
     // Never abandon the screen mid-verification; the in-flight `verifyOtp` would still navigate.
     if (verifying) return;
+    setVerifiedSession(null);
     // PhoneEntry stays mounted below in the stack, so its typed number is preserved.
     navigation.goBack();
   }, [navigation, verifying]);
@@ -268,7 +324,7 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     }, [verifying]),
   );
 
-  const resendDisabled = resending || verifying || resendCooldown > 0;
+  const resendDisabled = profilePending || resending || verifying || resendCooldown > 0;
 
   return (
     <DPPage contentStyle={styles.body} keyboardAvoiding>
@@ -294,7 +350,7 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
             caretHidden
             textContentType="oneTimeCode"
             autoComplete="sms-otp"
-            editable={!verifying}
+            editable={!verifying && !profilePending}
             accessibilityLabel="Enter the 6-digit code"
             accessibilityHint="The code was sent to your phone"
             accessibilityValue={{ text: `${code.length} of ${OTP_LENGTH} digits entered` }}
@@ -355,9 +411,9 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
         ) : null}
 
         <DPButton
-          label="Verify & continue"
-          onPress={() => void onVerify()}
-          disabled={code.length !== OTP_LENGTH || verifying}
+          label={profilePending ? 'Retry' : 'Verify & continue'}
+          onPress={() => void (profilePending ? retryProfile() : onVerify())}
+          disabled={profilePending ? verifying : code.length !== OTP_LENGTH || verifying}
           loading={verifying}
         />
         <TouchableOpacity
@@ -365,7 +421,13 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
           disabled={resendDisabled}
           style={styles.resend}
           accessibilityRole="button"
-          accessibilityLabel={resendCooldown > 0 ? `Resend OTP in ${resendCooldown} seconds` : 'Resend OTP'}
+          accessibilityLabel={
+            profilePending
+              ? 'Resend OTP unavailable until the rider profile loads'
+              : resendCooldown > 0
+                ? `Resend OTP in ${resendCooldown} seconds`
+                : 'Resend OTP'
+          }
           accessibilityState={{ disabled: resendDisabled }}
         >
           <AppText style={styles.resendText}>

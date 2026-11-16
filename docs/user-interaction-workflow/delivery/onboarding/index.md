@@ -73,9 +73,13 @@ current digit) with a 30 s resend cooldown and hardware back that returns to the
   `GET /delivery/me` is never mislabelled as a bad code. A rejected/expired code is mapped to user
   copy through `src/lib/otpError.ts` (never the raw `[auth/<code>] ...` SDK text); an expired code
   renders "That code has expired. Tap Resend OTP to get a new one." and drops the dead pending
-  request. Once the code is accepted, a rider-profile load failure (`GET /delivery/me` non-404, e.g.
-  a `delivery_unavailable` 500) surfaces its own message ("Could not load your rider profile") — the
-  session is already live, so the field keeps the entered code and the copy is not "Incorrect OTP".
+  request. A non-Firebase verify failure (no `auth/*` code, e.g. a lost pending request after a JS
+  reload or a second tap) renders "That verification expired. Tap Resend OTP to get a new code."
+  Once the code is accepted, a rider-profile load failure (`GET /delivery/me` non-404, e.g. a
+  `delivery_unavailable` 500) surfaces its own message ("You're signed in, but your rider profile
+  could not load") instead of the gateway's raw text. The verified session is kept, the code stays
+  in the field, the primary button becomes **Retry** to re-run `getDeliveryPartnerMe()` without a
+  new OTP, and resend is disabled until the profile loads.
 - **Empty:** no application → registration; no remembered numbers → the suggestion row is omitted.
 
 ## Known gaps
