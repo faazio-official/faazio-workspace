@@ -523,6 +523,22 @@ export interface RiderPayout {
   balancePaisa?: number;
 }
 
+/** The admin-editable rider rate card (`GET /delivery/rate-card`, mirrors delivery.payout_settings). */
+export interface PayoutSettings {
+  baseRatePaisa: number;
+  baseDistanceKm: number;
+  perExtraKmPaisa: number;
+  nightSurgePaisa: number;
+  weatherSurgePaisa: number;
+  festivalSurgePaisa: number;
+}
+
+/** The rider's lifetime pending/paid totals (`GET /delivery/payouts/summary`). */
+export interface PayoutSummary {
+  pendingPaisa: number;
+  paidPaisa: number;
+}
+
 /** One notifications.outbox row (user-facing copy only). */
 export interface NotificationRecord {
   id: string;
@@ -2463,6 +2479,18 @@ export class GatewayClient {
   async getDeliveryPayouts(limit = 30): Promise<RiderPayout[]> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     return this.http<RiderPayout[]>(`/delivery/payouts?limit=${limit}`);
+  }
+
+  /** Lifetime pending/paid totals for the rider KPI strip (not windowed to the list page). */
+  async getDeliveryPayoutsSummary(): Promise<PayoutSummary> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<PayoutSummary>('/delivery/payouts/summary');
+  }
+
+  /** The live rider rate card so the earnings note never drifts from delivery.payout_settings. */
+  async getDeliveryPayoutSettings(): Promise<PayoutSettings> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<PayoutSettings>('/delivery/rate-card');
   }
 
   async acceptDeliveryOrder(orderId: string): Promise<DeliveryOrder> {
