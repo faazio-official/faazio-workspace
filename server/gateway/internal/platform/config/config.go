@@ -83,6 +83,7 @@ type Config struct {
 	HMSTemplateID             string
 	HMSRoomID                 string
 	HMSRole                   string
+	HMSEndpoint               string
 	HMSRingingAckSeconds      int
 	AllowedOrigins            []string
 	OTelEnabled               bool
@@ -129,6 +130,7 @@ func Load() Config {
 		HMSTemplateID:               env("HMS_TEMPLATE_ID", ""),
 		HMSRoomID:                   env("HMS_ROOM_ID", ""),
 		HMSRole:                     env("HMS_ROLE", "guest"),
+		HMSEndpoint:                 env("HMS_ENDPOINT", ""),
 		HMSRingingAckSeconds:        envInt("HMS_RINGING_ACK_SECONDS", 3),
 		AllowedOrigins:              splitCSV(env("ALLOWED_ORIGINS", "")),
 		OTelEnabled:                 envBool("OTEL_ENABLED", false),

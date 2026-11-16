@@ -2672,12 +2672,16 @@ virtual number. The row stores:
 - `ringing_ack_at` (the <3 s delivery receipt), `accepted_at`, `ended_at`, `end_reason`.
 
 A partial unique index (`states RINGING/ACTIVE`) enforces one open call per rider, so a double tap or
-two devices cannot create parallel rooms. The server-driven fallback window is
-`HMS_RINGING_ACK_SECONDS` (default 3); `GET /calls/{callId}` reports `fallbackAvailable` once a VOIP
-call is still ringing past it and a PSTN number exists. `POST /calls/{callId}/fallback` moves the
-session to PSTN. VOIP tokens are minted per initiate/join (HS256, short-lived) and never stored in
-Postgres or a push payload. RLS mirrors `delivery_boys`: riders read their own rows, state/super
-admins read rows in scope; writes stay `service_role`.
+two devices cannot create parallel rooms. The handler checks that index **before** provisioning a
+100ms room, so a rejected second call cannot leak a provider room. The server-driven fallback window
+is `HMS_RINGING_ACK_SECONDS` (default 3); `GET /calls/{callId}` reports `fallbackAvailable` once a
+VOIP call is still ringing past it and a PSTN number exists. `POST /calls/{callId}/fallback` moves the
+session to PSTN. VOIP tokens are minted per initiate/join (HS256, 2-hour TTL) and never stored in
+Postgres or a push payload. `GET /delivery/calls/active` returns the rider's open row (204 when none)
+so a restarted app can resume or end it. The delivery expiry worker also sweeps calls every 15 s:
+`RINGING` older than 45 s becomes `MISSED`, `ACTIVE` older than 2 h becomes `ENDED`, which releases
+the unique index after a crash or lost push. RLS mirrors `delivery_boys`: riders read their own rows,
+state/super admins read rows in scope; writes stay `service_role`.
 
 **Configuration (env-only, never committed):** `HMS_APP_ACCESS_KEY`, `HMS_APP_SECRET`,
 `HMS_TEMPLATE_ID` (per-call rooms; an optional `HMS_MANAGEMENT_TOKEN` override, otherwise a

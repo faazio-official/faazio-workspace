@@ -281,13 +281,17 @@ caller) and are event-purged on store live toggle and product edit/status change
   Riders read the live card from `GET /delivery/rate-card`; admin `GET|PUT /delivery/payout-settings`
   and super-admin `POST /delivery/payouts/{orderId}/settle` mark PAID.
 - **Masked delivery calling (`internal/delivery`, `0104`):** `POST /delivery/{orderId}/call` starts a
-  call on an accepted job and returns the server-chosen transport — `VOIP` (100ms room + short-lived
-  HS256 auth token) when `HMS_APP_ACCESS_KEY`/`HMS_APP_SECRET` plus a room source are configured,
-  otherwise `PSTN_BRIDGING` with `DELIVERY_CALL_VIRTUAL_NUMBER`. `GET /calls/{callId}` is the
-  authoritative state (including the server-driven `fallbackAvailable` after
-  `HMS_RINGING_ACK_SECONDS`), and `POST /calls/{callId}/{ringing-ack,join,reject,end,fallback}` drive
-  the session. One open call per rider is enforced by a partial unique index. The raw customer phone
-  is never projected or dialled; no provider secret ever reaches the app. The rider half is live;
+  call on an accepted job and returns the server-chosen transport — `VOIP` (100ms room + 2-hour HS256
+  auth token) when `HMS_APP_ACCESS_KEY`/`HMS_APP_SECRET` plus a room source are configured, otherwise
+  `PSTN_BRIDGING` with `DELIVERY_CALL_VIRTUAL_NUMBER`. An open-call check runs before room
+  provisioning, so a rejected retry does not create a room (the unique index guards a true race). `GET /calls/{callId}` is the authoritative
+  state (including the server-driven `fallbackAvailable` after `HMS_RINGING_ACK_SECONDS`),
+  `GET /delivery/calls/active` resumes/closes a row after a client restart, and
+  `POST /calls/{callId}/{ringing-ack,join,reject,end,fallback}` drive the session. One open call per
+  rider is enforced by a partial unique index; the expiry worker sweeps `RINGING` > 45 s and
+  `ACTIVE` > 2 h so a killed app cannot lock the rider out. The raw customer phone is neither
+  projected by the rider order/route endpoints nor dialled; no provider secret ever reaches the app.
+  The rider half is live;
   the customer-app entry point and the Exotel/Edesy bridging webhook remain partial (see
   `docs/user-interaction-workflow/delivery/calling/index.md`).
 - **Weather + festival surge (`internal/weather` + `internal/festival`, `0054`):** `GET

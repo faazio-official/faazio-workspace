@@ -5,6 +5,10 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DeliveryPartnerNavigator } from './features/delivery-partner/DeliveryPartnerNavigator';
 import { deliveryNavigationRef } from './features/delivery-partner/navigationRef';
 import { flushPendingDeliveryOffer } from './services/deliveryLinks';
+import {
+  flushPendingActiveCall,
+  initializeDeliveryCalling,
+} from './features/delivery-partner/calling/callController';
 import { SplashFallback } from './components/SplashFallback';
 import { useAuthStore } from './state/authStore';
 import { useAppFonts, resolveFontFamily } from './theme/fonts';
@@ -40,6 +44,7 @@ export default function DeliveryPartnerApp() {
   const [fontsLoaded] = useAppFonts();
   const [ready, setReady] = useState(false);
   const hydrateAuth = useAuthStore((s) => s.hydrate);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useEffect(() => {
     let active = true;
@@ -50,6 +55,12 @@ export default function DeliveryPartnerApp() {
       active = false;
     };
   }, [hydrateAuth]);
+
+  // Attach CallKeep handlers + recover an open call as early as possible (cold start from a call
+  // push would otherwise miss the answer tap or leave a stale server row).
+  useEffect(() => {
+    if (ready && isAuthenticated) void initializeDeliveryCalling();
+  }, [ready, isAuthenticated]);
 
   if (!ready || !fontsLoaded) {
     return <SplashFallback variant="royal" />;
@@ -62,7 +73,10 @@ export default function DeliveryPartnerApp() {
         <NavigationContainer
           ref={deliveryNavigationRef}
           theme={navigationTheme}
-          onReady={flushPendingDeliveryOffer}
+          onReady={() => {
+            flushPendingDeliveryOffer();
+            flushPendingActiveCall();
+          }}
         >
           <DeliveryPartnerNavigator />
         </NavigationContainer>

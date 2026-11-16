@@ -30,18 +30,33 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 let lockUntil = 0;
 let fallbackPrompted = false;
 let initialised = false;
+let pendingNavigation = false;
 
 function store() {
   return useCallStore.getState();
 }
 
 function navigateToActiveCall(): void {
-  if (!deliveryNavigationRef.isReady()) return;
+  if (!deliveryNavigationRef.isReady()) {
+    pendingNavigation = true;
+    return;
+  }
+  pendingNavigation = false;
   if (deliveryNavigationRef.getCurrentRoute()?.name === 'ActiveCall') return;
   deliveryNavigationRef.navigate('ActiveCall');
 }
 
+/** Flush a call navigation that fired before the NavigationContainer was ready (cold start). */
+export function flushPendingActiveCall(): void {
+  if (pendingNavigation && store().phase !== 'idle') {
+    navigateToActiveCall();
+    return;
+  }
+  pendingNavigation = false;
+}
+
 function leaveCallScreen(): void {
+  pendingNavigation = false;
   if (!deliveryNavigationRef.isReady()) return;
   if (deliveryNavigationRef.getCurrentRoute()?.name === 'ActiveCall') {
     deliveryNavigationRef.goBack();
@@ -108,13 +123,31 @@ async function ensureMicrophone(): Promise<boolean> {
 }
 
 /**
- * One-time native ringing setup. Safe to call on every app start; handlers attach exactly once.
- * A device that refuses the phone account still gets the in-app call surface.
+ * Android 12+ gates Bluetooth headset routing behind a runtime permission. Ask once on first call;
+ * a denial is harmless (audio simply stays on the earpiece/speaker).
  */
-export async function initializeDeliveryCalling(): Promise<void> {
-  if (initialised) return;
-  initialised = true;
-  await setupCallKeep();
+async function ensureBluetooth(): Promise<void> {
+  if (Platform.OS !== 'android' || typeof Platform.Version !== 'number' || Platform.Version < 31) {
+    return;
+  }
+  try {
+    const granted = await PermissionsAndroid.check(
+      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+    );
+    if (granted) return;
+    await PermissionsAndroid.request(PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT, {
+      title: 'Bluetooth for delivery calls',
+      message:
+        'Allow Bluetooth so a paired helmet or headset can be used for delivery calls. You can decline and use the earpiece.',
+      buttonPositive: 'Allow',
+      buttonNegative: 'Not now',
+    });
+  } catch {
+    // Permission model unavailable — keep the earpiece route.
+  }
+}
+
+function ensureCallKeepHandlers(): void {
   attachCallKeepHandlers({
     onAnswer: (callId) => {
       void acceptIncomingCall(callId);
@@ -123,6 +156,16 @@ export async function initializeDeliveryCalling(): Promise<void> {
       void handleNativeEnd(callId);
     },
   });
+}
+
+/**
+ * One-time native ringing setup. Safe to call on every app start; handlers attach exactly once and a
+ * failed phone-account setup is retried on the next call instead of being treated as configured.
+ */
+export async function initializeDeliveryCalling(): Promise<void> {
+  ensureCallKeepHandlers();
+  if (!initialised) initialised = await setupCallKeep();
+  await recoverOpenCall();
 }
 
 /**
@@ -145,7 +188,9 @@ export async function startDeliveryCall(
   navigateToActiveCall();
 
   try {
-    const micGranted = await ensureMicrophone();
+    // The explicit cellular path needs no microphone. Only ask when the VOIP leg may be used.
+    const micGranted = opts.forcePstn ? false : await ensureMicrophone();
+    if (!opts.forcePstn) await ensureBluetooth();
     const call = await gateway.initiateDeliveryCall(orderId, {
       forcePstn: !!opts.forcePstn || !micGranted,
     });
@@ -161,9 +206,21 @@ export async function startDeliveryCall(
     }
     startPolling(call.callId);
   } catch (err) {
-    stopTimers();
+    await teardownFailedCall();
     store().setError(messageFor(err));
   }
+}
+
+/**
+ * A failed start must not leave an open server row: the one-open-call index would then block every
+ * later call until an operator intervenes. End (best-effort) before surfacing the error.
+ */
+async function teardownFailedCall(): Promise<void> {
+  stopTimers();
+  const callId = activeCallId ?? store().call?.callId ?? null;
+  await leaveVoip();
+  if (callId) await gateway.endDeliveryCall(callId, 'start_failed').catch(() => undefined);
+  activeCallId = null;
 }
 
 async function joinVoipLeg(call: DeliveryCall): Promise<void> {
@@ -172,11 +229,20 @@ async function joinVoipLeg(call: DeliveryCall): Promise<void> {
       if (store().phase !== 'active') store().markActive();
       if (activeCallId) markNativeCallActive(activeCallId);
     },
+    onPeerLeft: () => {
+      if (store().phase !== 'active') return;
+      const callId = activeCallId;
+      stopTimers();
+      void leaveVoip();
+      if (callId) void gateway.endDeliveryCall(callId, 'peer_left').catch(() => undefined);
+      activeCallId = null;
+      store().markEnded();
+    },
     onReconnecting: () => store().setReconnecting(true),
     onReconnected: () => store().setReconnecting(false),
     onError: () => {
       // A media failure is the one case where the masked PSTN leg is the honest fallback.
-      if (call.virtualNumber) store().setFallbackPrompt(true);
+      if (call.virtualNumber && store().phase === 'ringing') store().setFallbackPrompt(true);
     },
   });
   store().setBluetoothAvailable(bluetooth);
@@ -202,11 +268,18 @@ async function refreshCall(callId: string): Promise<void> {
   try {
     const call = await gateway.getDeliveryCall(callId);
     store().setCall(call);
+    // The callee's accept is authoritative; mirror it locally instead of waiting for the VOIP
+    // peer event (which can be missed on a slow join).
+    if (call.status === 'ACTIVE' && store().phase === 'ringing') {
+      store().markActive();
+      markNativeCallActive(callId);
+    }
     if (
       !fallbackPrompted &&
       call.fallbackAvailable &&
       call.mode === 'VOIP' &&
-      call.virtualNumber
+      call.virtualNumber &&
+      store().phase === 'ringing'
     ) {
       fallbackPrompted = true;
       store().setFallbackPrompt(true);
@@ -223,30 +296,38 @@ async function refreshCall(callId: string): Promise<void> {
   }
 }
 
-/** Incoming push handler (see `incoming.ts`): ring natively and record the delivery receipt. */
-export async function handleIncomingCall(data: Record<string, unknown>): Promise<void> {
-  const callId = typeof data.callId === 'string' ? data.callId : '';
-  if (!callId) return;
-  const orderId = typeof data.orderId === 'string' ? data.orderId : '';
-  const role = typeof data.peerRole === 'string' ? data.peerRole : 'CUSTOMER';
-  const peerLabel = role === 'CUSTOMER' ? 'Customer' : 'Delivery Partner';
-
-  // Already on a call: report busy so the caller hears it immediately.
-  if (OPEN_PHASES.has(store().phase) && activeCallId !== callId) {
-    await gateway.rejectDeliveryCall(callId, 'busy').catch(() => undefined);
+/**
+ * Recover a call row that outlived the JS runtime (crash, force-quit, reinstall). An incoming call
+ * still ringing is re-surfaced; an outgoing/active call cannot rejoin without a fresh token, so it is
+ * ended to release the one-open-call lock rather than stranding the rider.
+ */
+async function recoverOpenCall(): Promise<void> {
+  if (OPEN_PHASES.has(store().phase)) return;
+  let call: DeliveryCall | null = null;
+  try {
+    call = await gateway.getActiveDeliveryCall();
+  } catch {
     return;
   }
+  if (!call) return;
+  activeCallId = call.callId;
+  if (call.status === 'RINGING' && call.initiatedBy === 'CUSTOMER') {
+    store().beginIncoming(call.orderId, 'Customer');
+    await showIncoming(call.callId, call.orderId);
+    startPolling(call.callId);
+    return;
+  }
+  // The old VOIP leg died with the app; end it so a new call is allowed.
+  await gateway.endDeliveryCall(call.callId, 'app_restarted').catch(() => undefined);
+  activeCallId = null;
+  store().reset();
+}
 
-  activeCallId = callId;
-  fallbackPrompted = false;
-  store().beginIncoming(orderId, peerLabel);
-  // The <3 s delivery receipt: proves this device woke and is ringing, so the server does not need
-  // to fall back to PSTN.
-  await gateway.ackDeliveryCallRinging(callId).catch(() => undefined);
-
+/** Native ringing when available, otherwise the in-app surface. Shared by push and recovery. */
+async function showIncoming(callId: string, orderId: string): Promise<void> {
   const native = await setupCallKeep();
   if (native) {
-    const shown = displayIncomingCall(
+    const shown = await displayIncomingCall(
       callId,
       `Delivery call${orderId ? ` · ${orderId.slice(-6)}` : ''}`,
     );
@@ -256,6 +337,33 @@ export async function handleIncomingCall(data: Record<string, unknown>): Promise
   }
 }
 
+/** Incoming push handler (see `incoming.ts`): ring natively and record the delivery receipt. */
+export async function handleIncomingCall(data: Record<string, unknown>): Promise<void> {
+  const callId = typeof data.callId === 'string' ? data.callId : '';
+  if (!callId) return;
+  const orderId = typeof data.orderId === 'string' ? data.orderId : '';
+  const role = typeof data.peerRole === 'string' ? data.peerRole : 'CUSTOMER';
+  const peerLabel = role === 'CUSTOMER' ? 'Customer' : 'Delivery Partner';
+
+  // A duplicate FCM delivery of the same push must not reset an already accepted/active call.
+  if (activeCallId === callId && OPEN_PHASES.has(store().phase)) return;
+
+  // Already on a call: report busy so the caller hears it immediately.
+  if (OPEN_PHASES.has(store().phase) && activeCallId !== callId) {
+    await gateway.rejectDeliveryCall(callId, 'busy').catch(() => undefined);
+    return;
+  }
+
+  ensureCallKeepHandlers();
+  activeCallId = callId;
+  fallbackPrompted = false;
+  store().beginIncoming(orderId, peerLabel);
+  // The <3 s delivery receipt: proves this device woke and is ringing, so the server does not need
+  // to fall back to PSTN. Fire-and-forget so the native ring is not delayed by a network round-trip.
+  void gateway.ackDeliveryCallRinging(callId).catch(() => undefined);
+  await showIncoming(callId, orderId);
+}
+
 /** Native "answer" or the in-app Accept button. */
 export async function acceptIncomingCall(callId: string): Promise<void> {
   try {
@@ -263,6 +371,7 @@ export async function acceptIncomingCall(callId: string): Promise<void> {
     if (!(await ensureMicrophone())) {
       await gateway.fallbackDeliveryCall(callId).catch(() => undefined);
     }
+    await ensureBluetooth();
     const call = await gateway.joinDeliveryCall(callId);
     activeCallId = call.callId;
     store().setCall(call);
@@ -279,6 +388,8 @@ export async function acceptIncomingCall(callId: string): Promise<void> {
     }
     startPolling(call.callId);
   } catch (err) {
+    void endNativeCall(callId);
+    await teardownFailedCall();
     store().setError(messageFor(err));
   }
 }
@@ -359,10 +470,37 @@ export async function switchCallToPstn(): Promise<void> {
   }
 }
 
+/**
+ * Leave the call surface. While a server session is open, end/reject it first so the rider is not
+ * blocked by the one-open-call index after dismissing an error/ended screen.
+ */
+export async function dismissCall(reason = 'dismissed'): Promise<void> {
+  const callId = activeCallId;
+  const phase = store().phase;
+  if (callId) {
+    stopTimers();
+    endNativeCall(callId);
+    if (phase === 'ringing' || phase === 'connecting') {
+      await gateway.rejectDeliveryCall(callId, reason).catch(() => undefined);
+    } else {
+      await gateway.endDeliveryCall(callId, reason).catch(() => undefined);
+    }
+    await leaveVoip();
+  }
+  clearCall();
+}
+
+/** Sign-out teardown: never leave a call row or native session belonging to the previous account. */
+export async function shutdownCalling(): Promise<void> {
+  await dismissCall('signed_out');
+}
+
 /** Reset the surface after the screen has shown the ended/error state. */
 export function clearCall(): void {
   stopTimers();
   activeCallId = null;
+  fallbackPrompted = false;
+  pendingNavigation = false;
   store().reset();
 }
 

@@ -81,6 +81,7 @@ func (h *Handler) Register(r chi.Router) {
 		// Read-only live rate card for the rider earnings note (non-sensitive pence values).
 		g.Get("/delivery/rate-card", h.payoutSettings)
 		// Masked calling (0104): the server picks VOIP vs PSTN and owns the session state.
+		g.Get("/delivery/calls/active", h.activeCall)
 		g.Post("/delivery/{orderId}/call", h.initiateCall)
 		g.Get("/calls/{callId}", h.getCall)
 		g.Post("/calls/{callId}/ringing-ack", h.ackCall)
@@ -1292,6 +1293,12 @@ func (h *Handler) ExpireOffers(ctx context.Context) (int, error) {
 	return expired, nil
 }
 
+// Call rows are swept so a killed app / lost push can never hold the one-open-call index forever.
+const (
+	deliveryCallRingTTL   = 45 * time.Second
+	deliveryCallActiveTTL = 2 * time.Hour
+)
+
 // RunExpiry sweeps elapsed offers until ctx is cancelled. Started by the composition root when a
 // database is configured.
 func (h *Handler) RunExpiry(ctx context.Context) {
@@ -1307,6 +1314,12 @@ func (h *Handler) RunExpiry(ctx context.Context) {
 				slog.Warn("delivery: offer expiry sweep failed", "err", err)
 			} else if n > 0 {
 				slog.Info("delivery: expired offers re-offered", "count", n)
+			}
+			calls, err := h.repo.SweepOpenCalls(ctx, deliveryCallRingTTL, deliveryCallActiveTTL)
+			if err != nil {
+				slog.Warn("delivery: call expiry sweep failed", "err", err)
+			} else if calls > 0 {
+				slog.Info("delivery: stale calls closed", "count", calls)
 			}
 		}
 	}

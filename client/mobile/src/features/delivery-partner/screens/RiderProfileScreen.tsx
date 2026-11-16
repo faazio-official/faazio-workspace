@@ -27,6 +27,7 @@ import { hs, vs } from '@/utils/responsive';
 import { formatNumber } from '../format';
 import { type DeliveryPartnerStackParamList, type DeliveryTabParamList } from '../navigation';
 import { DeliveryHeader } from '../components/DeliveryHeader';
+import { shutdownCalling } from '../calling/callController';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<DeliveryTabParamList, 'RiderProfile'>,
@@ -68,6 +69,7 @@ export function RiderProfileScreen({ navigation }: Props) {
     stopIOSBackgroundLocation();
     await saveIOSBackgroundConsent(false);
     if (online) await gateway.setDeliveryAvailability(false).catch(() => undefined);
+    await shutdownCalling();
     await logout();
     reset();
     navigation

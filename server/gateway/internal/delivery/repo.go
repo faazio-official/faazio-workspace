@@ -1088,7 +1088,7 @@ func (r *Repo) orderByID(ctx context.Context, riderID, orderID string) (Order, e
 	o.PaymentReceivedAt = iso(payReceived)
 	rows, err := r.pool.Query(ctx, `
 		select stop_id, delivery_order_id, sequence, stop_type::text, status::text, label, address,
-		       latitude, longitude, customer_name, customer_phone,
+		       latitude, longitude, customer_name,
 		       (customer_otp_hash is not null) as requires_otp, coalesce(failure_reason,''),
 		       arrived_at, completed_at, pickup_verified_at
 		  from delivery.delivery_stops where delivery_order_id=$1 order by sequence`, orderID)
@@ -1101,7 +1101,7 @@ func (r *Repo) orderByID(ctx context.Context, riderID, orderID string) (Order, e
 		var s Stop
 		var arrived, done, pickupVerified *time.Time
 		if err := rows.Scan(&s.StopID, &s.DeliveryOrderID, &s.Sequence, &s.StopType, &s.Status,
-			&s.Label, &s.Address, &s.Latitude, &s.Longitude, &s.CustomerName, &s.CustomerPhone,
+			&s.Label, &s.Address, &s.Latitude, &s.Longitude, &s.CustomerName,
 			&s.RequiresOTP, &s.FailureReason, &arrived, &done, &pickupVerified); err != nil {
 			return Order{}, err
 		}
@@ -1165,7 +1165,7 @@ func (r *Repo) ActiveStopsByRider(ctx context.Context, riderIDs []string) (map[s
 	rows, err := r.pool.Query(ctx, `
 		select o.rider_id, s.stop_id, s.delivery_order_id, s.sequence, s.stop_type::text,
 		       s.status::text, s.label, s.address, s.latitude, s.longitude, s.customer_name,
-		       s.customer_phone, (s.customer_otp_hash is not null) as requires_otp,
+		       (s.customer_otp_hash is not null) as requires_otp,
 		       coalesce(s.failure_reason,''), s.arrived_at, s.completed_at
 		  from delivery.delivery_stops s
 		  join delivery.delivery_orders o on o.order_id = s.delivery_order_id
@@ -1182,7 +1182,7 @@ func (r *Repo) ActiveStopsByRider(ctx context.Context, riderIDs []string) (map[s
 		var arrived, done *time.Time
 		if err := rows.Scan(&riderID, &s.StopID, &s.DeliveryOrderID, &s.Sequence, &s.StopType,
 			&s.Status, &s.Label, &s.Address, &s.Latitude, &s.Longitude, &s.CustomerName,
-			&s.CustomerPhone, &s.RequiresOTP, &s.FailureReason, &arrived, &done); err != nil {
+			&s.RequiresOTP, &s.FailureReason, &arrived, &done); err != nil {
 			return nil, err
 		}
 		s.ArrivedAt = iso(arrived)

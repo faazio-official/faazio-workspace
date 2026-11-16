@@ -35,6 +35,14 @@ Shipped:
 - Deps: `@100mslive/react-native-hms@1.12.3`, `react-native-callkeep@4.6.1`. Per-call rooms use
   `HMS_TEMPLATE_ID` (a management token is minted from the app secret; `HMS_MANAGEMENT_TOKEN` is an
   optional override).
+- Hardened: open-call check before room provisioning (a retried/duplicate initiate does not create
+  a 100ms room; the unique index guards a true race), server sweeper for
+  stale `RINGING`/`ACTIVE` rows, `GET /delivery/calls/active` startup resume, failure/dismiss/sign-out
+  teardown of the server row, duplicate-push guard, fire-and-forget ringing-ack, CallKeep
+  `didLoadWithEvents` for cold-start answers, VoIP join timeout + peer-left handling, `beforeRemove`
+  guard on `ActiveCall`, Android 12+ Bluetooth runtime permission, legacy Bluetooth permissions,
+  `HMS_ENDPOINT` wired + all call env vars declared in `render.yaml`, and the raw customer phone
+  removed from the rider order/route projections.
 
 Remaining before Complete:
 
@@ -46,9 +54,10 @@ Remaining before Complete:
   and accurate PSTN timer).
 - GSM-busy pre-check (`TelephonyManager`/`CXCallObserver`), proximity wake-lock, and a queued-call
   banner when the rider is already on another order.
-- Reconcile a stale `ACTIVE` call after a native app termination.
-- Device QA on Android 14/15 (full-screen intent + phone-account permission prompts) and a CI
-  delivery build; never run Gradle locally.
+- Device QA on Android 14/15 (full-screen intent + phone-account permission prompts), Bluetooth
+  routing, cold-start CallKeep answer, and a CI delivery build; never run Gradle locally.
+- Client-side reconciliation still cannot *rejoin* an ACTIVE VOIP call after a crash (no token); it
+  ends that row and the sweeper bounds any row the client never sees.
 
 Flow docs: `docs/user-interaction-workflow/delivery/calling/`.
 

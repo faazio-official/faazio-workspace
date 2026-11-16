@@ -21,7 +21,7 @@ export async function setupCallKeep(): Promise<boolean> {
   if (Platform.OS !== 'android') return false;
   if (configured) return true;
   try {
-    await RNCallKeep.setup({
+    const ok = await RNCallKeep.setup({
       ios: {
         appName: 'Faazio Delivery Partner',
         supportsVideo: false,
@@ -45,6 +45,9 @@ export async function setupCallKeep(): Promise<boolean> {
         },
       },
     });
+    // A cancelled/failed phone-account prompt is not configured: keep retrying on later calls and
+    // fall back to the in-app surface instead of pretending native ringing works.
+    if (!ok) return false;
     configured = true;
     return true;
   } catch {
@@ -52,15 +55,42 @@ export async function setupCallKeep(): Promise<boolean> {
   }
 }
 
-/** Show the native ringing UI. `callId` doubles as the native call UUID. */
-export function displayIncomingCall(callId: string, maskedLabel: string): boolean {
+/**
+ * Show the native ringing UI. `callId` doubles as the native call UUID. Resolves false when the OS
+ * rejects the display (e.g. missing phone account/permission) so the controller can fall back to the
+ * in-app ring instead of leaving the rider with no surface at all.
+ */
+export async function displayIncomingCall(
+  callId: string,
+  maskedLabel: string,
+): Promise<boolean> {
   if (Platform.OS !== 'android' || !configured) return false;
-  try {
-    RNCallKeep.displayIncomingCall(callId, 'Faazio', maskedLabel, 'generic', false);
-    return true;
-  } catch {
-    return false;
-  }
+  return new Promise<boolean>((resolve) => {
+    let settled = false;
+    let listener: { remove(): void } | null = null;
+    const settle = (ok: boolean) => {
+      if (settled) return;
+      settled = true;
+      try {
+        listener?.remove();
+      } catch {
+        // Listener already gone.
+      }
+      resolve(ok);
+    };
+    try {
+      listener = RNCallKeep.addEventListener('didDisplayIncomingCall', (data) => {
+        if (data.callUUID && data.callUUID !== callId) return;
+        settle(!data.error);
+      });
+      RNCallKeep.displayIncomingCall(callId, 'Faazio', maskedLabel, 'generic', false);
+    } catch {
+      settle(false);
+      return;
+    }
+    // Some OEM builds never emit didDisplayIncomingCall; assume shown rather than double-rendering.
+    setTimeout(() => settle(true), 1500);
+  });
 }
 
 export function endNativeCall(callId: string): void {
@@ -93,6 +123,17 @@ export function attachCallKeepHandlers(handlers: CallKeepHandlers): void {
       }),
       RNCallKeep.addEventListener('endCall', ({ callUUID }) => {
         if (callUUID) handlers.onEnd(callUUID);
+      }),
+      // Cold-start answers/ends arrive before the JS navigator is ready. CallKeep buffers them and
+      // replays through didLoadWithEvents; without this the user's tap was silently lost.
+      RNCallKeep.addEventListener('didLoadWithEvents', (events) => {
+        for (const event of events ?? []) {
+          if (event.name === 'RNCallKeepPerformAnswerCallAction' && event.data.callUUID) {
+            handlers.onAnswer(event.data.callUUID);
+          } else if (event.name === 'RNCallKeepPerformEndCallAction' && event.data.callUUID) {
+            handlers.onEnd(event.data.callUUID);
+          }
+        }
       }),
     );
   } catch {

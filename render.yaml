@@ -62,6 +62,28 @@ services:
         value: project-65696e12-8def-460e-b29
       - key: FCM_SERVICE_ACCOUNT_JSON
         sync: false
+      # Delivery calling (0104). VOIP needs HMS_APP_ACCESS_KEY + HMS_APP_SECRET plus either
+      # HMS_TEMPLATE_ID (per-call rooms, production) or HMS_ROOM_ID (single dev room). PSTN_BRIDGING
+      # needs DELIVERY_CALL_VIRTUAL_NUMBER. With none set, initiate returns 503 calling_unavailable
+      # instead of fabricating a room/number. Secrets stay dashboard-only (sync:false).
+      - key: DELIVERY_CALL_VIRTUAL_NUMBER
+        sync: false
+      - key: HMS_APP_ACCESS_KEY
+        sync: false
+      - key: HMS_APP_SECRET
+        sync: false
+      - key: HMS_TEMPLATE_ID
+        sync: false
+      - key: HMS_ROOM_ID
+        sync: false
+      - key: HMS_MANAGEMENT_TOKEN
+        sync: false
+      - key: HMS_ROLE
+        value: guest
+      - key: HMS_ENDPOINT
+        value: https://api.100ms.live
+      - key: HMS_RINGING_ACK_SECONDS
+        value: "3"
       # Routes API (delivery dispatch road time). Server-only key; restrict it to Routes API.
       # Unset is safe: dispatch falls back to a Haversine/urban-speed estimate.
       - key: GOOGLE_ROUTES_API_KEY

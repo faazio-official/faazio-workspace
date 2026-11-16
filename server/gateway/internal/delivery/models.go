@@ -211,11 +211,13 @@ type Stop struct {
 	Latitude        *float64 `json:"latitude,omitempty"`
 	Longitude       *float64 `json:"longitude,omitempty"`
 	CustomerName    string   `json:"customerName,omitempty"`
-	CustomerPhone   string   `json:"customerPhone,omitempty"`
-	RequiresOTP     bool     `json:"requiresOtp"`
-	FailureReason   string   `json:"failureReason,omitempty"`
-	ArrivedAt       string   `json:"arrivedAt,omitempty"`
-	CompletedAt     string   `json:"completedAt,omitempty"`
+	// CustomerPhone is used only to persist/route the stop; it is never projected to a client.
+	// Mobile call flows use the masked call session (0104), not a raw number.
+	CustomerPhone string `json:"-"`
+	RequiresOTP   bool   `json:"requiresOtp"`
+	FailureReason string `json:"failureReason,omitempty"`
+	ArrivedAt     string `json:"arrivedAt,omitempty"`
+	CompletedAt   string `json:"completedAt,omitempty"`
 	// PickupVerifiedAt is set by the seller-QR scan (0088). A PICKUP stop may not transition to
 	// PICKED_UP through the plain status endpoint until this is non-empty.
 	PickupVerifiedAt string `json:"pickupVerifiedAt,omitempty"`

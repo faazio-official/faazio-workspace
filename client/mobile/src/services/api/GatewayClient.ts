@@ -2568,6 +2568,16 @@ export class GatewayClient {
     return this.http<DeliveryCall>(`/calls/${encodeURIComponent(callId)}`);
   }
 
+  /**
+   * The rider's single open call, or null. Recover after a crash/force-quit so a lost call id does
+   * not lock the rider out of calling (the server enforces one open call per rider).
+   */
+  async getActiveDeliveryCall(): Promise<DeliveryCall | null> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    const call = await this.http<DeliveryCall | undefined>('/delivery/calls/active');
+    return call ?? null;
+  }
+
   /** Callee delivery receipt. Must land within the server window or VOIP may fall back to PSTN. */
   async ackDeliveryCallRinging(callId: string): Promise<DeliveryCall> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
@@ -2802,7 +2812,6 @@ export interface DeliveryStop {
   latitude?: number;
   longitude?: number;
   customerName?: string;
-  customerPhone?: string;
   requiresOtp: boolean;
   failureReason?: string;
   arrivedAt?: string;

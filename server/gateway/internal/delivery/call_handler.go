@@ -44,6 +44,16 @@ func (h *Handler) initiateCall(w http.ResponseWriter, r *http.Request) {
 	_ = httpx.Decode(r, &req)
 	forcePSTN := req.ForcePSTN || strings.EqualFold(r.URL.Query().Get("force_pstn"), "true")
 
+	// Reject a second call before provisioning a provider room so a retried/duplicate initiate does not
+	// create a billed 100ms room. The unique index remains the final guard for concurrent creates.
+	if _, err := h.repo.OpenCallForRider(r.Context(), rider.RiderID); err == nil {
+		httpx.Fail(w, http.StatusConflict, "conflict", "finish the current call first")
+		return
+	} else if !errors.Is(err, ErrNotFound) {
+		h.writeErr(w, err)
+		return
+	}
+
 	call := Call{
 		CallID:      "call-" + shortID(),
 		OrderID:     order.OrderID,
@@ -99,6 +109,28 @@ func (h *Handler) getCall(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	call, err := h.repo.CallByID(r.Context(), rider.RiderID, chi.URLParam(r, "callId"))
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	h.enrichCall(&call)
+	httpx.JSON(w, http.StatusOK, call)
+}
+
+// activeCall returns the rider's open call, or 204 when there is none. A client that lost its call
+// id (crash, force-quit, reinstall) can resume/end the row instead of being permanently blocked by
+// the one-open-call index.
+func (h *Handler) activeCall(w http.ResponseWriter, r *http.Request) {
+	rider, err := h.currentRider(r.Context())
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	call, err := h.repo.OpenCallForRider(r.Context(), rider.RiderID)
+	if errors.Is(err, ErrNotFound) {
+		w.WriteHeader(http.StatusNoContent)
+		return
+	}
 	if err != nil {
 		h.writeErr(w, err)
 		return

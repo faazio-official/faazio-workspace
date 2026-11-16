@@ -141,6 +141,7 @@ func NewRouter(d Deps) http.Handler {
 			HMSTemplateID:      d.Config.HMSTemplateID,
 			HMSRoomID:          d.Config.HMSRoomID,
 			HMSRole:            d.Config.HMSRole,
+			HMSEndpoint:        d.Config.HMSEndpoint,
 			RingingAckSeconds:  d.Config.HMSRingingAckSeconds,
 		})
 	if d.WorkersCtx != nil && d.Pool != nil {

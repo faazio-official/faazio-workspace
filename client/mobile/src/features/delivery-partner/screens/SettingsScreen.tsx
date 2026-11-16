@@ -19,6 +19,7 @@ import { useDeliverySettingsStore } from '@/state/deliverySettingsStore';
 import { vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 import { DeliveryHeader } from '../components/DeliveryHeader';
+import { shutdownCalling } from '../calling/callController';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Settings'>;
 
@@ -52,6 +53,7 @@ export function SettingsScreen({ navigation }: Props) {
   }, []);
 
   const onLogout = useCallback(async () => {
+    await shutdownCalling();
     await logout();
     reset();
     navigation.replace('PhoneEntry');

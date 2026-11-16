@@ -20,15 +20,17 @@ import { hs, ms, vs } from '@/utils/responsive';
 import type { DeliveryPartnerStackParamList } from '../navigation';
 import {
   acceptIncomingCall,
-  clearCall,
   currentCallId,
   declineIncomingCall,
+  dismissCall,
   endActiveCall,
   routeToBluetooth,
   switchCallToPstn,
   toggleMute,
   toggleSpeaker,
 } from '../calling/callController';
+
+const OPEN_PHASES = new Set(['connecting', 'ringing', 'active', 'ending']);
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'ActiveCall'>;
 
@@ -65,6 +67,19 @@ export function ActiveCallScreen({ navigation }: Props) {
     return () => clearInterval(timer);
   }, [phase]);
 
+  // Hardware back (or a swipe that slips through) must end the call, not abandon it with no UI.
+  useEffect(
+    () =>
+      navigation.addListener('beforeRemove', (event) => {
+        if (!OPEN_PHASES.has(useCallStore.getState().phase)) return;
+        event.preventDefault();
+        void dismissCall('back').finally(() => {
+          navigation.dispatch(event.data.action);
+        });
+      }),
+    [navigation],
+  );
+
   const elapsed = useMemo(() => {
     const started = connectedAt ?? (call ? Date.parse(call.createdAt) : now);
     return Number.isFinite(started) ? (now - started) / 1000 : 0;
@@ -86,8 +101,7 @@ export function ActiveCallScreen({ navigation }: Props) {
   }, [call, error, incoming, phase, reconnecting]);
 
   const finish = () => {
-    clearCall();
-    navigation.goBack();
+    void dismissCall('done').finally(() => navigation.goBack());
   };
 
   const onEnd = () => {

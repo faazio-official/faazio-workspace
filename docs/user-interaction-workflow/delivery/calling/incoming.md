@@ -11,27 +11,36 @@ the `incoming_call` push yet.
    `setBackgroundMessageHandler` runs on a foreground, background or swiped-away app.
 2. Messages whose `type` is not `incoming_call` fall through to the existing order-offer path.
 3. `handleIncomingCall()`:
+   - ignores a duplicate delivery of the same call id while it is already ringing/active,
    - rejects with `busy` when another call is already open,
    - sets `callStore` to `ringing` with `incoming: true` and the masked peer label,
-   - immediately posts `POST /calls/{callId}/ringing-ack` (the <3 s delivery receipt),
-   - sets up CallKeep and shows the native full-screen ring with "Delivery call · <order suffix>".
+   - fires `POST /calls/{callId}/ringing-ack` without awaiting it (the <3 s delivery receipt must not
+     delay the native ring),
+   - sets up CallKeep and shows the native full-screen ring with "Delivery call · <order suffix>";
+     if CallKeep is unavailable the in-app surface is shown instead.
 4. **Accept** (native answer or the in-app Accept button) → `acceptIncomingCall(callId)`:
    - requests microphone consent; a denial moves the ringing VOIP row to PSTN via
      `POST /calls/{callId}/fallback`,
-   - `POST /calls/{callId}/join` accepts the row (`RINGING → ACTIVE`) and returns a fresh short-lived
+   - `POST /calls/{callId}/join` accepts the row (`RINGING → ACTIVE`) and returns a fresh 2-hour
      VOIP token,
    - joins 100ms (VOIP) or opens the masked dialer (PSTN), then `ActiveCall` shows the timer.
 5. **Decline** (native decline or in-app Decline) → `POST /calls/{callId}/reject`
-   (`RINGING → REJECTED`), native call ends; the caller can hear busy/failure.
+   (`RINGING → REJECTED`; a `busy` reason is recorded as `BUSY`), native call ends; the caller can
+   hear busy/failure.
 6. While ringing, the server watches `ringing_ack_at`; a later `GET /calls/{callId}` reports
    `fallbackAvailable` so the caller can switch to PSTN.
+7. A row that outlives the runtime is handled twice: the client re-surfaces a still-ringing incoming
+   call from `GET /delivery/calls/active` on the next authenticated start, and the gateway sweeper
+   closes `RINGING` rows older than 45 s as `MISSED` (releasing the one-open-call index).
 
 ## State
 
 - `useCallStore` — `phase: 'ringing'`, `incoming: true`, masked peer label, order id; after join the
   normal active-call fields.
-- CallKeep listeners (`answerCall`, `endCall`) are attached once on the Dashboard mount via
-  `initializeDeliveryCalling()`.
+- CallKeep listeners (`answerCall`, `endCall`, and buffered `didLoadWithEvents` for cold-start taps)
+  are attached once as soon as the authenticated app starts, and again idempotently from the
+  background handler/Dashboard. A cancelled phone-account prompt is treated as "not configured" and
+  retried on the next call (never cached as success).
 
 ## Data path
 
@@ -54,7 +63,8 @@ the `incoming_call` push yet.
 - **No VoIP push (PushKit).** iOS is customer-only, so the delivery path is FCM/CallKeep (Android)
   only; a future iOS customer build needs PushKit + CallKit.
 - **Answer when the app was swiped away** depends on the headless JS + CallKeep; device/OEM battery
-  restrictions can suppress it (documented in PENDING_WORK).
+  restrictions can suppress it (documented in PENDING_WORK). Cold-start answer/end events are buffered
+  by CallKeep and replayed through `didLoadWithEvents`.
 - **No GSM-busy pre-check** before ringing.
 
 ## Linked docs

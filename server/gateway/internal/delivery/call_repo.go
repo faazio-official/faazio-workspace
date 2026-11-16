@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -85,6 +86,19 @@ func (r *Repo) CreateCall(ctx context.Context, c Call) (Call, error) {
 	return r.CallByID(ctx, c.RiderID, c.CallID)
 }
 
+// OpenCallForRider returns the rider's single RINGING/ACTIVE call. It is used before provisioning a
+// provider room (so a conflicting request cannot leak a room) and by the resume endpoint so a client
+// that lost its call id after a crash can recover instead of being locked out.
+func (r *Repo) OpenCallForRider(ctx context.Context, riderID string) (Call, error) {
+	if err := r.ready(); err != nil {
+		return Call{}, err
+	}
+	row := r.pool.QueryRow(ctx, callSelect+`
+		 where rider_id=$1 and status in ('RINGING','ACTIVE')
+		 order by created_at desc limit 1`, riderID)
+	return scanCall(row)
+}
+
 // CallByID returns a call scoped to its rider.
 func (r *Repo) CallByID(ctx context.Context, riderID, callID string) (Call, error) {
 	if err := r.ready(); err != nil {
@@ -110,12 +124,18 @@ func (r *Repo) AcceptCall(ctx context.Context, riderID, callID string) (Call, er
 		"only a ringing call can be accepted")
 }
 
-// RejectCall ends an open call as REJECTED.
+// RejectCall ends an open call. A "busy" reason is recorded as BUSY so the caller/ops can tell a
+// second-call rejection from an explicit decline.
 func (r *Repo) RejectCall(ctx context.Context, riderID, callID, reason string) (Call, error) {
+	status := CallStatusRejected
+	if strings.EqualFold(strings.TrimSpace(reason), "busy") {
+		status = CallStatusBusy
+	}
 	return r.transition(ctx, riderID, callID,
-		`update delivery.calls set status='REJECTED', ended_at=now(), end_reason=$3, updated_at=now()
+		`update delivery.calls
+		    set status=$4::delivery_call_status, ended_at=now(), end_reason=$3, updated_at=now()
 		  where call_id=$1 and rider_id=$2 and status in ('RINGING','ACTIVE') returning `+callColumns,
-		"only an open call can be rejected", reason)
+		"only an open call can be rejected", reason, status)
 }
 
 // EndCall ends an open call as ENDED.
@@ -134,6 +154,30 @@ func (r *Repo) SwitchCallToPSTN(ctx context.Context, riderID, callID, virtualNum
 		  where call_id=$1 and rider_id=$2 and status in ('RINGING','ACTIVE') and mode='VOIP'
 		  returning `+callColumns,
 		"only an open VOIP call can switch to PSTN", virtualNumber)
+}
+
+// SweepOpenCalls closes calls that can no longer be live. A RINGING row older than ringTTL is MISSED
+// (nobody answered / the push never landed); an ACTIVE row past activeTTL is ENDED. Without this, a
+// killed app or a lost network leaves an open row that the one-open-call index treats as permanent,
+// locking the rider out of every later call.
+func (r *Repo) SweepOpenCalls(ctx context.Context, ringTTL, activeTTL time.Duration) (int64, error) {
+	if err := r.ready(); err != nil {
+		return 0, err
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update delivery.calls
+		   set status = case when status='RINGING' then 'MISSED'::delivery_call_status
+		                     else 'ENDED'::delivery_call_status end,
+		       ended_at = now(),
+		       end_reason = case when status='RINGING' then 'ring_timeout' else 'max_duration' end,
+		       updated_at = now()
+		 where (status='RINGING' and created_at < now() - make_interval(secs => $1))
+		    or (status='ACTIVE' and coalesce(accepted_at, created_at) < now() - make_interval(secs => $2))`,
+		ringTTL.Seconds(), activeTTL.Seconds())
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 // transition runs an update-scoped statement and reports a conflict when the state moved on.

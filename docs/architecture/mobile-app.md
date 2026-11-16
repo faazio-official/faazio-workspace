@@ -999,20 +999,24 @@ only `remote-notification` in `ios/Faazio/Info.plist` — no background location
 
 **Masked calling (`0104`).** `Route` (DROP stops) and `Dashboard` (accepted jobs) render
 `CallCustomerButton`. The gateway is the authority: `POST /delivery/{orderId}/call` returns
-`VOIP` (100ms room + short-lived auth token) when `HMS_APP_ACCESS_KEY`/`HMS_APP_SECRET` plus a room
+`VOIP` (100ms room + auth token, 2-hour TTL) when `HMS_APP_ACCESS_KEY`/`HMS_APP_SECRET` plus a room
 source are configured, otherwise `PSTN_BRIDGING` with `DELIVERY_CALL_VIRTUAL_NUMBER`. The app never
-chooses the mode and never receives the customer's phone number; the PSTN leg dials only the masked
-landline. `callController.ts` owns the state machine, the 3 s double-tap lock, the ringing-ack poll,
-the one-tap PSTN fallback and mic-denial fallback. `ActiveCallScreen` is a non-dismissible
-full-screen route. Native ringing is Android-only (`react-native-callkeep` ConnectionService +
-`VoiceConnectionService`), with `RECORD_AUDIO`, `BLUETOOTH_CONNECT`, `USE_FULL_SCREEN_INTENT`,
+chooses the mode and the raw customer phone is no longer projected by the rider order/route
+endpoints; the PSTN leg dials only the masked landline. `callController.ts` owns the state machine,
+the 3 s double-tap lock, the ringing-ack poll, the one-tap PSTN fallback, mic-denial fallback,
+failure teardown (an open server row is ended, not leaked) and startup recovery:
+`GET /delivery/calls/active` resumes an incoming ring or ends a stale outgoing row, and the gateway
+sweeper closes `RINGING` rows after 45 s and `ACTIVE` rows after 2 h. `ActiveCallScreen` is a
+non-dismissible full-screen route (hardware back ends the call first). Native ringing is Android-only
+(`react-native-callkeep` ConnectionService + `VoiceConnectionService`), with `RECORD_AUDIO`,
+`BLUETOOTH_CONNECT` (+ legacy Bluetooth ≤ Android 11), `USE_FULL_SCREEN_INTENT`,
 `FOREGROUND_SERVICE_MICROPHONE`/`PHONE_CALL` in the delivery flavor manifest. The native packages
 are excluded from iOS autolinking (`client/mobile/react-native.config.js`) while iOS ships only the
 customer app.
 `index.delivery.js` registers the FCM data-only `incoming_call` background handler before the app
 mounts. `CALLING_ENABLED` (default true) is the only client build flag; provider secrets stay
-server-side. **Status: Partial** — the rider half is implemented; the customer-app "call rider"
-entry point and the Exotel/Edesy bridging webhook are not (see
+server-side. **Status: Partial** — the rider half is hardened; the customer-app "call rider" entry
+point, the call-push sender and the Exotel/Edesy bridging webhook are not built (see
 `docs/user-interaction-workflow/delivery/calling/index.md`).
 
 **Known production limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit Android
