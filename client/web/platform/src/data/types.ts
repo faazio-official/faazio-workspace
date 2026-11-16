@@ -236,17 +236,28 @@ export interface StockRecord {
 /** checkout.orders */
 export interface OrderRecord {
   orderId: string;
+  /** Human order number (admin boards). Optional: the seller wire omits it. */
+  orderNumber?: string | undefined;
   sellerId: string;
   storeId: string;
   customerName: string;
+  /** Real customer phone, server-provided on the admin boards only. */
+  customerPhone?: string | undefined;
+  /** Vendor business name, server-provided on the admin boards only. */
+  sellerName?: string | undefined;
   city: string;
   stateCode: string;
+  /** Operational district of the vendor (admin boards). */
+  districtCode?: string | undefined;
   sector: Sector;
   itemsCount: number;
   amountPaisa: number;
   status: OrderStatus;
   placedAt: string;
+  /** When the order last changed status (admin boards). */
+  statusDate?: string | undefined;
   slaDueAt: string;
+  fulfillment?: string | undefined;
 }
 
 /** payments.settlement_ledger */

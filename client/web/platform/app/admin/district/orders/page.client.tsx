@@ -16,16 +16,14 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime, formatINR, formatNumber, formatPercent } from "@/lib/format";
-import { usePortalLoading, useOrders } from "@/lib/api/hooks";
-import { useSession } from "@/lib/hooks/useSession";
+import { useDistrictAdminOrders } from "@/lib/api/hooks";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 
 function StateOrders() {
-  const session = useSession();
-  const stateCode = session?.stateCode ?? "MH";
-  const loading = usePortalLoading();
-  const orders = useOrders({ stateCode });
+  // District-scoped server board (`GET /admin/district/orders`): the gateway scopes rows to the
+  // caller's district claim, so there is no client-side stateCode filter (or hardcoded fallback).
+  const { data: orders, loading, error } = useDistrictAdminOrders();
   const [tick, setTick] = useState(0);
 
   useEffect(() => {
@@ -65,6 +63,7 @@ function StateOrders() {
       >
         <DataShell
           loading={loading}
+          error={error}
           isEmpty={breaches.length === 0}
           empty={<EmptyState title="No escalations" description="Every open order in your district is inside its SLA." />}
         >
@@ -123,6 +122,7 @@ function StateOrders() {
       <SectionCard title="All open orders" bodyClassName="p-0">
         <DataShell
           loading={loading}
+          error={error}
           isEmpty={open.length === 0}
           empty={<EmptyState title="Nothing open" description="All orders in your district are delivered or cancelled." />}
         >

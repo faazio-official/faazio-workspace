@@ -138,6 +138,7 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "Ads", to: "/admin/super/ads", icon: Megaphone, group: "Growth" },
   { label: "App content (SDUI)", to: "/admin/super/sdui", icon: LayoutTemplate, group: "Growth" },
   { label: "Analytics", to: "/admin/super/analytics", icon: BarChart3, group: "Operations" },
+  { label: "All orders", to: "/admin/super/orders", icon: Activity, group: "Operations" },
   { label: "Manual allocation", to: "/admin/super/delivery/manual-allocation", icon: Truck, group: "Operations" },
   { label: "Manual payouts", to: "/admin/super/payouts", icon: Banknote, group: "Operations" },
   { label: "Delivery payouts", to: "/admin/super/delivery/payouts", icon: Receipt, group: "Operations" },

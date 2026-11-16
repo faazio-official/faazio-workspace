@@ -90,7 +90,9 @@ the last active shop on load (the same console is used in a desktop browser). Th
 **Store scoping is client-side, not a per-shop refetch.** `hydrateFromGateway` (`src/lib/api/sync.ts`)
 fetches the seller's list slices **unfiltered** (`GET /seller/orders`, `/seller/pricing`,
 `/seller/inventory`, `/seller/menus`) — the gateway list endpoints carry no `storeId` query and return
-every shop — so a shop switch never asks the gateway for new rows. The data hooks are memos keyed on
+every shop — so a shop switch never asks the gateway for new rows. Admin roles hydrate the same
+`orders` slice from their role-isolated boards instead: `GET /admin/orders` (SUPER_ADMIN, every
+district) or `GET /admin/district/orders` (DISTRICT_ADMIN, SQL-scoped to the caller's district). The data hooks are memos keyed on
 `JSON.stringify(filter)`; pages pass `storeId`/`venueId` from `useSellerScope()`, and the filter key
 change recomputes the slice client-side. All seller pages already scoped by shop now stay scoped on
 switch; this change also closed the gaps that shipped unscoped: hero campaigns + product rails
@@ -271,7 +273,7 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `admin/district` | dashboard |
 | `admin/district/products` · `admin/district/products/queue` | catalog + review queue |
 | `admin/district/sellers` · `admin/district/sellers/[id]` | seller directory + KYC review: full registration, masked payout account, private-bucket passbook/FSSAI links, platform-fee editor, per-document verify (PAN/GSTIN/FSSAI/passbook), reject with reason, **Verify KYC → ACTIVE** (no Razorpay Route account since `0077`; `internal/payouts` records manual mark-paid amounts instead). SUPER_ADMIN reaches the same detail page from `admin/super/sellers`; a role-gated **Return to super admin** link in the `AdminShell` header and `MobileNavDrawer` (shown only when `scope === "DISTRICT"` and `session.role === "SUPER_ADMIN"`) takes them back to `/admin/super`. |
-| `admin/district/orders` | order oversight |
+| `admin/district/orders` | order oversight (district-scoped `GET /admin/district/orders`, role-isolated — the gateway enforces the caller's district, no client-side stateCode filter) |
 | `admin/district/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address`/`created_by` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
 | `admin/district/customers` | customer list + activity trail |
 | `admin/district/delivery-boys` | delivery-partner control plane (state-scoped): pending KYC queue, per-document verify and admin-side replacement upload (private R2 → `PUT /delivery/register/{id}/documents/{docType}/reupload`; the rider app has no re-upload screen), profile approve → super-admin activation, active-rider list (load/capacity) with on-demand Valkey location, suspend |
@@ -286,6 +288,7 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | Route | Page |
 | --- | --- |
 | `admin/super` | global dashboard — KPI strip + **district matrix** (sellers and active-admin coverage for all 42 TN/PY districts, uncovered-only filter) |
+| `admin/super/orders` · `admin/super/orders/[id]` | **all orders** board — every order across all districts/states (`GET /admin/orders`, filters status/seller/store/state/q/from-to) with real customer name/phone; drill-in `GET /admin/orders/{id}` (line items + delivery rider) plus a super-admin **status override** (`PUT /admin/orders/{id}/status`) for the "customer called" flow |
 | `admin/super/ads` | live ad monitor (Live/Reported/CTR; Takedown/Restore) |
 | `admin/super/sdui` | Home/Mart/Food/Pharma SDUI layout editor (sections, productIds, hero banners incl. `pharmaHero`/`pharmaPopular`/`pharmaEssentials`) |
 | `admin/super/festival` · `admin/super/coupons` | promo authority |
@@ -617,9 +620,10 @@ portal's `CANCELLED` bucket). NEW cards call the explicit rollback-safe
 `PUT /orders/{id}/status`. A PACKED order shows **Pickup QR**, which fetches
 `GET /seller/orders/{id}/pickup-qr` (a short-lived HMAC token from the delivery context, rendered by
 `qrcode.react`) for the rider to scan; the header scan icon opens the same sheet. The seller orders
-slice is hydrated from `GET /seller/orders` (the
-customer name is intentionally not exposed — cards show the order id), so the board reflects real
-gateway rows.
+slice is hydrated from `GET /seller/orders` for a seller (the
+customer name is intentionally not exposed — cards show the order id); admin roles hydrate it from
+their role-isolated boards (`GET /admin/orders` / `GET /admin/district/orders`), which **do** carry
+the real customer name/phone. Either way the board reflects real gateway rows.
   In **development** an empty remote slice keeps the seeded rows (demo fallback); in
   **production** (`NODE_ENV=production`) an empty but successfully-fetched slice clears the local
   slice, so sellers/admins never see phantom demo rows. The gateway speaks **whole

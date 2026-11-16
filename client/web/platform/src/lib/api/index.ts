@@ -31,6 +31,7 @@ import type {
   MenuItemRecord,
   MenuAddonRecord,
   NotificationPreferences,
+  OrderRecord,
   OrderStatus,
   PortalCredential,
   PrescriptionStatus,
@@ -838,6 +839,167 @@ export function rejectOrder(orderId: string, reason: string): void {
     before: before && { status: before.status },
     after: { status: "CANCELLED" },
   });
+}
+
+/* ------------------------------ admin orders ----------------------------- */
+
+/**
+ * Filter accepted by the role-isolated admin order boards. Empty values are dropped from the query
+ * string, so an unfiltered call reads the whole scope (all orders for a super admin, the caller's
+ * district for a district admin).
+ */
+export interface AdminOrdersFilter {
+  sellerId?: string | undefined;
+  storeId?: string | undefined;
+  stateCode?: string | undefined;
+  districtCode?: string | undefined;
+  status?: OrderStatus | "ALL" | undefined;
+  q?: string | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
+  limit?: number | undefined;
+}
+
+type Raw = Record<string, unknown>;
+
+/** One order line on the admin drill-in (unit price in whole rupees, like the seller wire). */
+export interface AdminOrderLineItem {
+  lineId: string;
+  productId?: string | undefined;
+  name: string;
+  variant?: string | undefined;
+  qty: number;
+  unitPrice: number;
+  storeId?: string | undefined;
+}
+
+/** The latest delivery job for an order (absent when it was never dispatched). */
+export interface AdminOrderDelivery {
+  jobId?: string | undefined;
+  riderId?: string | undefined;
+  riderName?: string | undefined;
+  riderPhone?: string | undefined;
+  status?: string | undefined;
+  payoutMode?: string | undefined;
+  assignedAt?: string | undefined;
+}
+
+export interface AdminOrderDetail extends OrderRecord {
+  lineItems: AdminOrderLineItem[];
+  delivery?: AdminOrderDelivery | undefined;
+}
+
+function toStr(v: unknown): string {
+  return v == null ? "" : String(v);
+}
+
+function optStr(v: unknown): string | undefined {
+  return v == null || v === "" ? undefined : String(v);
+}
+
+/** Maps a `GET /admin/orders` row (the checkout admin-board projection) to the portal OrderRecord. */
+export function mapAdminOrderRow(raw: Raw): OrderRecord {
+  const status = toStr(raw["status"]).toUpperCase();
+  const mappedStatus: OrderStatus =
+    status === "REJECTED"
+      ? "CANCELLED"
+      : status === "NEW" ||
+          status === "PACKED" ||
+          status === "SHIPPED" ||
+          status === "DELIVERED" ||
+          status === "CANCELLED" ||
+          status === "RETURNED"
+        ? status
+        : "NEW";
+  const placedAt = toStr(raw["placedAt"]);
+  const placed = Date.parse(placedAt);
+  const slaRaw = toStr(raw["slaDueAt"]);
+  return {
+    orderId: toStr(raw["orderId"]),
+    orderNumber: optStr(raw["orderNumber"]),
+    sellerId: toStr(raw["sellerId"]),
+    storeId: toStr(raw["storeId"]),
+    customerName: toStr(raw["customerName"]) || "Customer",
+    customerPhone: optStr(raw["customerPhone"]),
+    sellerName: optStr(raw["sellerName"]),
+    city: toStr(raw["city"]),
+    stateCode: toStr(raw["stateCode"]),
+    districtCode: optStr(raw["districtCode"]),
+    sector: (toStr(raw["sector"]) || "MART") as Sector,
+    itemsCount: Number(raw["itemsCount"] ?? 0) || 0,
+    amountPaisa: Number(raw["amountPaisa"] ?? 0) || 0,
+    status: mappedStatus,
+    placedAt,
+    statusDate: optStr(raw["statusDate"]),
+    slaDueAt: slaRaw || (Number.isFinite(placed) ? new Date(placed + 4 * 3600 * 1000).toISOString() : placedAt),
+    fulfillment: optStr(raw["fulfillment"]),
+  };
+}
+
+function adminOrderQuery(filter: AdminOrdersFilter): Record<string, string | number | undefined> {
+  return {
+    sellerId: filter.sellerId,
+    storeId: filter.storeId,
+    stateCode: filter.stateCode,
+    districtCode: filter.districtCode,
+    status: filter.status && filter.status !== "ALL" ? filter.status : undefined,
+    q: filter.q,
+    from: filter.from,
+    to: filter.to,
+    limit: filter.limit,
+  };
+}
+
+/** SUPER_ADMIN: every order across all districts/states (real customer identity, live filters). */
+export async function fetchAdminOrders(filter: AdminOrdersFilter = {}): Promise<OrderRecord[]> {
+  if (!remoteConfigured()) return [];
+  const rows = await remote.get<Raw[]>("/admin/orders", { query: adminOrderQuery(filter) });
+  return (toCamel(rows) as Raw[]).map(mapAdminOrderRow);
+}
+
+/** DISTRICT_ADMIN: orders scoped server-side to the caller's own district. */
+export async function fetchDistrictAdminOrders(filter: AdminOrdersFilter = {}): Promise<OrderRecord[]> {
+  if (!remoteConfigured()) return [];
+  const rows = await remote.get<Raw[]>("/admin/district/orders", { query: adminOrderQuery(filter) });
+  return (toCamel(rows) as Raw[]).map(mapAdminOrderRow);
+}
+
+/** SUPER_ADMIN single-order drill-in: line items + the latest delivery job. */
+export async function getAdminOrder(orderId: string): Promise<AdminOrderDetail | null> {
+  if (!remoteConfigured()) return null;
+  const res = await remote.get<Raw | null>(`/admin/orders/${encodeURIComponent(orderId)}`, { allow404: true });
+  if (!res) return null;
+  const raw = toCamel(res) as Raw;
+  const row = mapAdminOrderRow(raw);
+  const lineItems: AdminOrderLineItem[] = Array.isArray(raw["lineItems"])
+    ? (raw["lineItems"] as Raw[]).map((li) => ({
+        lineId: toStr(li["lineId"]),
+        productId: optStr(li["productId"]),
+        name: toStr(li["name"]),
+        variant: optStr(li["variant"]),
+        qty: Number(li["qty"] ?? 0) || 0,
+        unitPrice: Number(li["unitPrice"] ?? 0) || 0,
+        storeId: optStr(li["storeId"]),
+      }))
+    : [];
+  const d = raw["delivery"] as Raw | undefined;
+  const delivery: AdminOrderDelivery | undefined = d
+    ? {
+        jobId: optStr(d["jobId"]),
+        riderId: optStr(d["riderId"]),
+        riderName: optStr(d["riderName"]),
+        riderPhone: optStr(d["riderPhone"]),
+        status: optStr(d["status"]),
+        payoutMode: optStr(d["payoutMode"]),
+        assignedAt: optStr(d["assignedAt"]),
+      }
+    : undefined;
+  return { ...row, lineItems, ...(delivery ? { delivery } : {}) };
+}
+
+/** SUPER_ADMIN status override (the "customer called" support flow). */
+export async function updateAdminOrderStatus(orderId: string, status: OrderStatus): Promise<void> {
+  await writeAwaited("put", `/admin/orders/${encodeURIComponent(orderId)}/status`, { status });
 }
 
 /* --------------------------------- sellers ------------------------------- */

@@ -180,14 +180,30 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/order-status", h.getOrderStatus)
 		g.Get("/account-nav", h.getAccountNav)
 	})
+	// Seller console orders: SELLER only. District and super admins have their own role-isolated
+	// boards below, so a seller token can never read an admin surface and vice versa.
 	r.Group(func(g chi.Router) {
-		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
+		g.Use(auth.RequireRole(auth.RoleSeller))
 		g.Get("/seller/orders", h.sellerOrders)
 		g.Get("/seller/orders/{orderID}", h.sellerOrderDetail)
 		g.Get("/seller/orders/{orderID}/pickup-qr", h.sellerPickupQr)
 		g.Put("/seller/orders/{orderID}/accept", h.acceptSellerOrder)
 		g.Put("/seller/orders/{orderID}/reject", h.rejectSellerOrder)
 		g.Put("/orders/{orderID}/status", h.setOrderStatus)
+	})
+	// Super admin: every order across every district/state (no scope filter), real customer identity,
+	// plus a status override for the "customer called" support flow.
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
+		g.Get("/admin/orders", h.adminOrders)
+		g.Get("/admin/orders/{orderID}", h.adminOrderDetail)
+		g.Put("/admin/orders/{orderID}/status", h.setOrderStatus)
+	})
+	// District admin: orders scoped to the caller's own district (SQL-enforced, never a query param).
+	// No cross-district reach and no path to the super board.
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleDistrictAdmin))
+		g.Get("/admin/district/orders", h.districtAdminOrders)
 	})
 	// Public (no auth): Razorpay signs the body with X-Razorpay-Signature (HMAC), not a session.
 	r.Post("/webhooks/razorpay/payments", h.razorpayPaymentWebhook)
@@ -1009,6 +1025,119 @@ func sellerScope(r *http.Request) SellerScope {
 		DistrictCode: auth.DistrictCode(r.Context()),
 		SuperAdmin:   auth.Role(r.Context()) == auth.RoleSuperAdmin,
 	}
+}
+
+// adminOrders serves the SUPER_ADMIN "All orders" board: every order across all districts/states,
+// newest first, with the real customer name/phone. Optional narrowing (status, seller, store,
+// state, district, q, from/to) is applied but never restricts below "all".
+func (h *Handler) adminOrders(w http.ResponseWriter, r *http.Request) {
+	orders, err := h.repo.AllOrders(r.Context(), parseAdminOrderFilter(r))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	if orders == nil {
+		orders = []AdminOrderRow{}
+	}
+	httpx.JSON(w, http.StatusOK, orders)
+}
+
+// districtAdminOrders serves the DISTRICT_ADMIN board. The district/state come from the caller's
+// verified claims and are SQL-enforced; the state/district query params are ignored so a district
+// admin can never widen their view.
+func (h *Handler) districtAdminOrders(w http.ResponseWriter, r *http.Request) {
+	f := parseAdminOrderFilter(r)
+	f.StateCode = ""
+	f.DistrictCode = ""
+	orders, err := h.repo.DistrictOrders(r.Context(), auth.DistrictCode(r.Context()), auth.StateCode(r.Context()), f)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	if orders == nil {
+		orders = []AdminOrderRow{}
+	}
+	httpx.JSON(w, http.StatusOK, orders)
+}
+
+// adminOrderDetail is the SUPER_ADMIN single-order drill-in (line items + latest delivery job).
+func (h *Handler) adminOrderDetail(w http.ResponseWriter, r *http.Request) {
+	detail, ok, err := h.repo.AdminOrderByID(r.Context(), chi.URLParam(r, "orderID"), SellerScope{SuperAdmin: true})
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "order not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, detail)
+}
+
+// parseAdminOrderFilter reads the shared admin-board query params. Unknown/empty values leave the
+// corresponding filter unset.
+func parseAdminOrderFilter(r *http.Request) AdminOrderFilter {
+	q := r.URL.Query()
+	return AdminOrderFilter{
+		Status:       adminStatusFilter(strings.ToUpper(strings.TrimSpace(q.Get("status")))),
+		SellerID:     strings.TrimSpace(q.Get("sellerId")),
+		StoreID:      strings.TrimSpace(q.Get("storeId")),
+		StateCode:    strings.ToUpper(strings.TrimSpace(q.Get("stateCode"))),
+		DistrictCode: strings.ToUpper(strings.TrimSpace(q.Get("districtCode"))),
+		Query:        strings.TrimSpace(q.Get("q")),
+		From:         parseAdminDate(q.Get("from"), false),
+		To:           parseAdminDate(q.Get("to"), true),
+		Limit:        httpx.LimitParam(r, 100, 200),
+	}
+}
+
+// adminStatusFilter maps the portal status vocabulary onto the stored order_status labels. Empty /
+// ALL means no filter. NEW covers the legacy mobile 'Processing' rows; CANCELLED also covers
+// REJECTED (the portal shows a rejection as cancelled).
+func adminStatusFilter(status string) []string {
+	switch status {
+	case "", "ALL":
+		return []string{}
+	case "NEW":
+		return []string{"NEW", "Processing"}
+	case "SHIPPED":
+		return []string{"SHIPPED", "Shipped"}
+	case "DELIVERED":
+		return []string{"DELIVERED", "Delivered"}
+	case "CANCELLED":
+		return []string{"CANCELLED", "Cancelled", "REJECTED"}
+	default:
+		return []string{status}
+	}
+}
+
+// adminPortalStatus maps a stored order status onto the admin board vocabulary.
+func adminPortalStatus(s string) string {
+	if s == "REJECTED" {
+		return "CANCELLED"
+	}
+	return portalStatus(s)
+}
+
+// parseAdminDate parses a from/to filter: RFC3339, or a date-only calendar day in IST (the business
+// timezone) so a "today" filter does not silently drop the operator's morning.
+func parseAdminDate(raw string, endOfDay bool) *time.Time {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil
+	}
+	if t, err := time.Parse(time.RFC3339, raw); err == nil {
+		return &t
+	}
+	ist := time.FixedZone("IST", 5*3600+1800)
+	t, err := time.ParseInLocation("2006-01-02", raw, ist)
+	if err != nil {
+		return nil
+	}
+	if endOfDay {
+		t = t.Add(24*time.Hour - time.Nanosecond)
+	}
+	return &t
 }
 
 func (h *Handler) sellerOrderDetail(w http.ResponseWriter, r *http.Request) {

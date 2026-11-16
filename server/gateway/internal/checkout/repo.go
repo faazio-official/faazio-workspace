@@ -103,6 +103,65 @@ type SellerScope struct {
 	SuperAdmin   bool
 }
 
+// AdminOrderFilter narrows an admin order board. Every field is optional: the empty slice / ""
+// means "no narrowing". Status carries the stored order_status labels the caller asked for (the
+// handler maps the portal vocabulary onto them, e.g. NEW -> {NEW, Processing}).
+type AdminOrderFilter struct {
+	Status       []string
+	SellerID     string
+	StoreID      string
+	StateCode    string
+	DistrictCode string
+	Query        string
+	From         *time.Time
+	To           *time.Time
+	Limit        int
+}
+
+// AdminOrderRow is one order on the super/district admin board: the checkout.orders row joined to
+// the customer address, vendor store and seller so an admin sees the real customer identity + the
+// operational district and SLA. JSON shaped for the portal's OrderRecord.
+type AdminOrderRow struct {
+	OrderID       string `json:"orderId"`
+	OrderNumber   string `json:"orderNumber"`
+	CustomerName  string `json:"customerName"`
+	CustomerPhone string `json:"customerPhone"`
+	City          string `json:"city"`
+	StateCode     string `json:"stateCode"`
+	DistrictCode  string `json:"districtCode"`
+	SellerID      string `json:"sellerId"`
+	SellerName    string `json:"sellerName"`
+	Sector        string `json:"sector"`
+	StoreID       string `json:"storeId"`
+	ItemsCount    int64  `json:"itemsCount"`
+	AmountPaisa   int64  `json:"amountPaisa"`
+	Status        string `json:"status"`
+	PlacedAt      string `json:"placedAt"`
+	StatusDate    string `json:"statusDate,omitempty"`
+	SlaDueAt      string `json:"slaDueAt"`
+	Fulfillment   string `json:"fulfillment"`
+}
+
+// AdminOrderDelivery is the latest delivery job for an order (nil when the order was never
+// dispatched, e.g. pickup or a rejected NEW order).
+type AdminOrderDelivery struct {
+	JobID      string `json:"jobId,omitempty"`
+	RiderID    string `json:"riderId,omitempty"`
+	RiderName  string `json:"riderName,omitempty"`
+	RiderPhone string `json:"riderPhone,omitempty"`
+	Status     string `json:"status,omitempty"`
+	PayoutMode string `json:"payoutMode,omitempty"`
+	AssignedAt string `json:"assignedAt,omitempty"`
+}
+
+// AdminOrderDetail is one order with its line items + latest delivery job, used by the admin
+// drill-in ("customer called — when will it be delivered?").
+type AdminOrderDetail struct {
+	AdminOrderRow
+	LineItems []OrderLineItem     `json:"lineItems"`
+	Delivery  *AdminOrderDelivery `json:"delivery,omitempty"`
+}
+
 // OrderTracking is the lightweight owner-scoped status projection (polling/monitoring): no line
 // items, addresses or payments. Status is already mapped to the mobile vocabulary.
 type OrderTracking struct {
@@ -510,6 +569,210 @@ func (r *Repo) SellerOrders(ctx context.Context, scope SellerScope, status, filt
 	return r.attachOrderItems(ctx, orders)
 }
 
+// adminOrderSelect is the shared admin-board projection. The order's vendor is resolved from its
+// first order item (0082 backfill) falling back to the vendor_store_ids snapshot, then joined to
+// the store and seller so customer / vendor / district identity comes from Postgres — never from a
+// hardcoded client placeholder.
+const adminOrderSelect = `
+select o.order_id,
+       o.order_number,
+       coalesce(a.name, u.name, '')      as customer_name,
+       coalesce(a.phone, u.phone, '')    as customer_phone,
+       coalesce(dm.district_name, '')    as city,
+       coalesce(sl.state_code, '')       as state_code,
+       coalesce(sl.district_code, '')    as district_code,
+       coalesce(st.seller_id, '')        as seller_id,
+       coalesce(sl.business_name, st.name, '') as seller_name,
+       coalesce(st.app::text, sl.category::text, '') as sector,
+       coalesce(st.id, '')               as store_id,
+       (select coalesce(sum(oi.qty), 0) from checkout.order_items oi where oi.order_id = o.order_id) as items_count,
+       coalesce(nullif(o.total_charged_paisa, 0), o.total_paisa, 0) as amount_paisa,
+       o.status::text                    as status,
+       o.placed_at,
+       coalesce(o.status_date, o.placed_at) as status_date,
+       coalesce(o.fulfillment::text, '') as fulfillment
+  from checkout.orders o
+  left join checkout.addresses a on a.address_id = o.address_id
+  left join checkout.users u on u.user_id = o.user_id
+  left join directory.stores st on st.id = o.vendor_store_ids[1]
+  left join sellers.sellers sl on sl.seller_id = st.seller_id
+  left join admins.district_master dm on dm.district_code = sl.district_code`
+
+// AllOrders returns every order across every district/state (SUPER_ADMIN; no row filter beyond the
+// optional AdminOrderFilter narrowing). The handler guarantees the caller is a super admin, so the
+// scope predicate is a match-all.
+func (r *Repo) AllOrders(ctx context.Context, f AdminOrderFilter) ([]AdminOrderRow, error) {
+	return r.queryAdminOrders(ctx, SellerScope{SuperAdmin: true}, f)
+}
+
+// DistrictOrders returns orders scoped to one district (legacy state fallback). The district/state
+// come from the caller's verified claims, never a query param, so a district admin cannot widen it.
+func (r *Repo) DistrictOrders(ctx context.Context, district, state string, f AdminOrderFilter) ([]AdminOrderRow, error) {
+	return r.queryAdminOrders(ctx, SellerScope{DistrictCode: strings.ToUpper(strings.TrimSpace(district)), StateCode: strings.ToUpper(strings.TrimSpace(state))}, f)
+}
+
+// queryAdminOrders runs the shared admin-board query under a scope predicate. The predicate
+// short-circuits true for a super admin; a district admin passes their district/state.
+func (r *Repo) queryAdminOrders(ctx context.Context, scope SellerScope, f AdminOrderFilter) ([]AdminOrderRow, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("checkout: database not configured")
+	}
+	if f.Limit <= 0 {
+		f.Limit = 100
+	}
+	if f.Limit > 200 {
+		f.Limit = 200
+	}
+	status := f.Status
+	if status == nil {
+		status = []string{}
+	}
+	rows, err := r.pool.Query(ctx, adminOrderSelect+`
+		where `+sellerScopePredicate+`
+		  and (coalesce(cardinality($5::text[]), 0) = 0 or o.status::text = any($5))
+		  and ($6 = '' or exists (
+		        select 1 from directory.stores fs
+		         where fs.seller_id = $6 and fs.id = any(o.vendor_store_ids)))
+		  and ($7 = '' or $7 = any(o.vendor_store_ids))
+		  and ($8 = '' or sl.district_code = $8)
+		  and ($9 = '' or sl.state_code = $9)
+		  and ($10 = '' or o.order_number ilike '%' || $10 || '%'
+		                or o.order_id ilike '%' || $10 || '%'
+		                or coalesce(a.name, u.name, '') ilike '%' || $10 || '%'
+		                or coalesce(a.phone, u.phone, '') ilike '%' || $10 || '%')
+		  and ($11::timestamptz is null or o.placed_at >= $11)
+		  and ($12::timestamptz is null or o.placed_at <= $12)
+		order by o.placed_at desc
+		limit $13`,
+		scope.SuperAdmin, scope.SellerID, scope.DistrictCode, scope.StateCode,
+		status, f.SellerID, f.StoreID, f.DistrictCode, f.StateCode, f.Query,
+		f.From, f.To, f.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanAdminOrderRows(rows)
+}
+
+// AdminOrderByID returns one admin-board row with its line items + latest delivery job, inside the
+// caller's scope. A SUPER_ADMIN scope is unscoped; a district admin must match their district.
+func (r *Repo) AdminOrderByID(ctx context.Context, orderID string, scope SellerScope) (AdminOrderDetail, bool, error) {
+	if r.pool == nil {
+		return AdminOrderDetail{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, adminOrderSelect+`
+		where o.order_id = $5 and `+sellerScopePredicate,
+		scope.SuperAdmin, scope.SellerID, scope.DistrictCode, scope.StateCode, orderID)
+	if err != nil {
+		return AdminOrderDetail{}, false, err
+	}
+	listed, err := scanAdminOrderRows(rows)
+	rows.Close()
+	if err != nil {
+		return AdminOrderDetail{}, false, err
+	}
+	if len(listed) == 0 {
+		return AdminOrderDetail{}, false, nil
+	}
+	items, err := r.lineItemsForOrder(ctx, orderID)
+	if err != nil {
+		return AdminOrderDetail{}, false, err
+	}
+	delivery, err := r.deliveryForOrder(ctx, orderID)
+	if err != nil {
+		return AdminOrderDetail{}, false, err
+	}
+	return AdminOrderDetail{AdminOrderRow: listed[0], LineItems: items, Delivery: delivery}, true, nil
+}
+
+func scanAdminOrderRows(rows pgx.Rows) ([]AdminOrderRow, error) {
+	out := []AdminOrderRow{}
+	for rows.Next() {
+		var (
+			row        AdminOrderRow
+			placedAt   time.Time
+			statusDate time.Time
+		)
+		if err := rows.Scan(&row.OrderID, &row.OrderNumber, &row.CustomerName, &row.CustomerPhone,
+			&row.City, &row.StateCode, &row.DistrictCode, &row.SellerID, &row.SellerName,
+			&row.Sector, &row.StoreID, &row.ItemsCount, &row.AmountPaisa, &row.Status,
+			&placedAt, &statusDate, &row.Fulfillment); err != nil {
+			return nil, err
+		}
+		row.Status = adminPortalStatus(row.Status)
+		row.PlacedAt = placedAt.UTC().Format(time.RFC3339)
+		row.StatusDate = statusDate.UTC().Format(time.RFC3339)
+		// The board's delivery SLA: a 4-hour promise from placement, matching the portal's prior
+		// client-side convention. There is no per-order promised_at column yet.
+		row.SlaDueAt = placedAt.UTC().Add(4 * time.Hour).Format(time.RFC3339)
+		out = append(out, row)
+	}
+	return out, rows.Err()
+}
+
+// deliveryForOrder returns the latest delivery job for an order, or nil when it was never
+// dispatched. Joined to delivery_boys for the rider identity.
+func (r *Repo) deliveryForOrder(ctx context.Context, orderID string) (*AdminOrderDelivery, error) {
+	var (
+		d          AdminOrderDelivery
+		assignedAt *time.Time
+	)
+	err := r.pool.QueryRow(ctx, `
+		select coalesce(d.order_id, ''), coalesce(d.rider_id, ''), coalesce(rb.full_name, ''),
+		       coalesce(rb.phone, ''), coalesce(d.status::text, ''), coalesce(d.payout_mode::text, ''),
+		       d.assigned_at
+		  from delivery.delivery_orders d
+		  left join delivery.delivery_boys rb on rb.rider_id = d.rider_id
+		 where d.customer_order_id = $1
+		 order by d.created_at desc
+		 limit 1`, orderID).Scan(&d.JobID, &d.RiderID, &d.RiderName, &d.RiderPhone,
+		&d.Status, &d.PayoutMode, &assignedAt)
+	if err != nil {
+		if err == pgx.ErrNoRows {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if assignedAt != nil {
+		d.AssignedAt = assignedAt.UTC().Format(time.RFC3339)
+	}
+	return &d, nil
+}
+
+// lineItemsForOrder loads one order's line items + addons (shared by OrderByID and AdminOrderByID).
+func (r *Repo) lineItemsForOrder(ctx context.Context, orderID string) ([]OrderLineItem, error) {
+	rows, err := r.pool.Query(ctx, `
+		select line_id, coalesce(product_id,''), name, coalesce(variant,''), qty, unit_price_paisa,
+		       coalesce(store_id,'')
+		  from checkout.order_items where order_id = $1`, orderID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []OrderLineItem{}
+	for rows.Next() {
+		var li OrderLineItem
+		if err := rows.Scan(&li.LineID, &li.ProductID, &li.Name, &li.Variant, &li.Qty, &li.UnitPrice, &li.StoreID); err != nil {
+			return nil, err
+		}
+		li.UnitPrice = li.UnitPrice / 100
+		items = append(items, li)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	addons, err := r.loadOrderAddons(ctx, []string{orderID})
+	if err != nil {
+		return nil, err
+	}
+	for i := range items {
+		if list, ok := addons[items[i].LineID]; ok {
+			items[i].Addons = list
+		}
+	}
+	return items, nil
+}
+
 // SetOrderStatus transitions an order inside the caller's scope.
 func (r *Repo) SetOrderStatus(ctx context.Context, orderID string, scope SellerScope, status string) (Order, bool, error) {
 	if r.pool == nil {
@@ -688,36 +951,11 @@ func (r *Repo) OrderByID(ctx context.Context, orderID string) (Order, bool, erro
 	if statusDate != nil {
 		o.StatusDate = statusDate.UTC().Format(time.RFC3339)
 	}
-	o.LineItems = []OrderLineItem{}
-
-	itemRows, err := r.pool.Query(ctx, `
-		select line_id, coalesce(product_id,''), name, coalesce(variant,''), qty, unit_price_paisa,
-		       coalesce(store_id,'')
-		  from checkout.order_items where order_id = $1`, orderID)
+	items, err := r.lineItemsForOrder(ctx, orderID)
 	if err != nil {
 		return Order{}, false, err
 	}
-	defer itemRows.Close()
-	for itemRows.Next() {
-		var li OrderLineItem
-		if err := itemRows.Scan(&li.LineID, &li.ProductID, &li.Name, &li.Variant, &li.Qty, &li.UnitPrice, &li.StoreID); err != nil {
-			return Order{}, false, err
-		}
-		li.UnitPrice = li.UnitPrice / 100
-		o.LineItems = append(o.LineItems, li)
-	}
-	if err := itemRows.Err(); err != nil {
-		return Order{}, false, err
-	}
-	addons, err := r.loadOrderAddons(ctx, []string{orderID})
-	if err != nil {
-		return Order{}, false, err
-	}
-	for i := range o.LineItems {
-		if list, ok := addons[o.LineItems[i].LineID]; ok {
-			o.LineItems[i].Addons = list
-		}
-	}
+	o.LineItems = items
 	return o, true, nil
 }
 

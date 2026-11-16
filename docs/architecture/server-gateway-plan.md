@@ -58,9 +58,13 @@ caller) and are event-purged on store live toggle and product edit/status change
   prescriptions), `/membership`, `/order-status`, `/account-nav` (`{key, title, rows}` groups:
   universal titles **and default rows** server-side from `accounts.nav_defaults` (0101), per-user
   overrides from `accounts.nav` filtered to known app destinations; only groups with real rows are
-  served — no empty/placeholder sections), `/seller/orders`, `/seller/orders/:id`,
+  served — no empty/placeholder sections), `/seller/orders`, `/seller/orders/:id` (SELLER-only),
   `/coupons?app=` (anon), `/promo/active-discounts?ids=` (anon), `/ads/live?slot=` (anon),
-  `/admin/user-trail?userId=` (admin, ID-only), `/admin/sdui/home` (super-admin, raw ID-only layout);
+  `/admin/user-trail?userId=` (admin, ID-only), `/admin/sdui/home` (super-admin, raw ID-only layout),
+  `/admin/orders` + `/admin/orders/{id}` (super-admin order board across every district/state — real
+  customer name/phone; filters status/seller/store/state/district/q/from/to; detail adds line items +
+  the latest delivery job) and `/admin/district/orders` (district-admin board, SQL-scoped to the
+  caller's district);
   writes `POST/PUT/DELETE /cart…`, `POST /orders` (festival-discount + coupon settlement +
   streak discount-card settlement — `useDiscountCard` reads the caller's server-held card, applies
   its percent once and clears it after the order commits — + ad attribution + optional live drop fix
@@ -71,7 +75,10 @@ caller) and are event-purged on store live toggle and product edit/status change
   `ops.error_events` insert — migration 0062 — and always a structured `error_event` log line),
   `PUT /admin/sdui/home` (super-admin, publishes the Home layout: version bump + cache purge),
   seller order decisions `PUT /seller/orders/:id/accept` (NEW→PACKED) and
-  `PUT /seller/orders/:id/reject` (NEW→REJECTED, payment ledger marked REFUNDED, customer notified),
+  `PUT /seller/orders/:id/reject` (NEW→REJECTED, payment ledger marked REFUNDED, customer notified) —
+  all `/seller/orders*` and `PUT /orders/:id/status` are **SELLER-only** now,
+  super-admin order status override `PUT /admin/orders/:id/status` (audited; the `PACKED` write still
+  honours the UPI `payment_status` gate),
   and seller listing creation `POST /seller/products` (owned live store, `PENDING_REVIEW`, catalog +
   inventory.stock in one transaction; created rows surface in the public nearby reads once ACTIVE).
   The seller console reads stock/pricing via `GET /seller/inventory` + `GET /seller/pricing` and writes

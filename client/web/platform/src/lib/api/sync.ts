@@ -10,6 +10,7 @@ import {
   fetchSellerPricing,
   fetchSellerStores,
   fetchSubUsers,
+  mapAdminOrderRow,
   type SellerConsoleRow,
 } from "@/lib/api";
 import { usePortalStore } from "@/lib/api/store";
@@ -285,7 +286,21 @@ export async function hydrateFromGateway(): Promise<boolean> {
       safe(() =>
         role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/rewards/ledger").then(toCamel),
       ),
-      safe(() => remote.get<Raw[]>("/seller/orders").then(toCamel)),
+      // Role-isolated order boards: a seller reads their own orders; a district admin their district;
+      // a super admin every order. Each hydrates the shared `orders` slice with real customer
+      // identity (no hardcoded "Customer"). Admins ask for the board's max page (200).
+      safe(() =>
+        remote
+          .get<Raw[]>(
+            role === "SUPER_ADMIN"
+              ? "/admin/orders"
+              : role === "DISTRICT_ADMIN"
+                ? "/admin/district/orders"
+                : "/seller/orders",
+            role === "SELLER" ? undefined : { query: { limit: 200 } },
+          )
+          .then(toCamel),
+      ),
       // Seller console: pricing feeds the products slice, inventory feeds the stock slice. Both carry
       // the shared seller-product projection, so either could hydrate products; keep the split
       // semantic. Admins read the same routes (the gateway scopes them to their district), which is
@@ -544,6 +559,12 @@ export async function hydrateFromGateway(): Promise<boolean> {
     );
     patch["orders"] = mergeById(
       orders.map((raw): OrderRecord => {
+        // Admin boards (`/admin/orders`, `/admin/district/orders`) carry `orderId` and the real
+        // customer identity; the seller wire carries `id` + lineItems and masks the customer.
+        if (str(raw["orderId"])) {
+          const rec = mapAdminOrderRow(raw);
+          return { ...rec, stateCode: rec.stateCode || cur.session?.stateCode || "" };
+        }
         const vendorStoreIds = Array.isArray(raw["vendorStoreIds"])
           ? raw["vendorStoreIds"].map((id) => str(id)).filter(Boolean)
           : [];
@@ -583,7 +604,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
           orderId: str(raw["id"]),
           sellerId,
           storeId,
-          customerName: "Customer",
+          customerName: str(raw["customerName"]) || "Customer",
           city: store?.city ?? "",
           stateCode: store?.stateCode ?? cur.session?.stateCode ?? seller?.stateCode ?? "",
           sector: store?.sector ?? "MART",

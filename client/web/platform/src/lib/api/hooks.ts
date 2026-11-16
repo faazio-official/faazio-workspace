@@ -8,6 +8,7 @@ import * as api from "@/lib/api";
 import type {
   BankAccount,
   NotificationPreferences,
+  OrderRecord,
   OrderStatus,
   Role,
   SellerStatus,
@@ -87,6 +88,64 @@ export function useOrders(
   const orders = usePortalStore((s) => s.orders);
   const key = JSON.stringify(filter);
   return useMemo(() => api.listOrders(filter), [orders, key]);
+}
+
+export interface AdminOrdersState {
+  data: OrderRecord[];
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+}
+
+/**
+ * SUPER_ADMIN "All orders" board (`GET /admin/orders`). A live server-filtered read (not the
+ * hydrated `orders` slice), so status/state/search filters apply across every district instantly.
+ */
+export function useAdminOrders(filter: api.AdminOrdersFilter = {}): AdminOrdersState {
+  return useAdminOrdersSource(filter, api.fetchAdminOrders);
+}
+
+/** DISTRICT_ADMIN board (`GET /admin/district/orders`), scoped server-side to the caller's district. */
+export function useDistrictAdminOrders(filter: api.AdminOrdersFilter = {}): AdminOrdersState {
+  return useAdminOrdersSource(filter, api.fetchDistrictAdminOrders);
+}
+
+function useAdminOrdersSource(
+  filter: api.AdminOrdersFilter,
+  fetcher: (f: api.AdminOrdersFilter) => Promise<OrderRecord[]>,
+): AdminOrdersState {
+  const key = JSON.stringify(filter);
+  const [data, setData] = useState<OrderRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  useEffect(() => {
+    if (!remoteConfigured()) {
+      setData([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    fetcher(JSON.parse(key) as api.AdminOrdersFilter)
+      .then((rows) => {
+        if (cancelled) return;
+        setData(rows);
+        setError(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setData([]);
+        setError("Could not load orders");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [fetcher, key, version]);
+  return { data, loading, error, refresh };
 }
 
 export function useSellers(
@@ -585,6 +644,47 @@ export function useProduct(productId: string) {
 export function useOrder(orderId: string) {
   const orders = usePortalStore((s) => s.orders);
   return useMemo(() => api.getOrder(orderId), [orders, orderId]);
+}
+
+/** SUPER_ADMIN single-order drill-in (`GET /admin/orders/{id}`): line items + latest delivery job. */
+export function useAdminOrder(orderId: string): {
+  order: api.AdminOrderDetail | null;
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+} {
+  const [order, setOrder] = useState<api.AdminOrderDetail | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  useEffect(() => {
+    if (!orderId || !remoteConfigured()) {
+      setOrder(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .getAdminOrder(orderId)
+      .then((detail) => {
+        if (cancelled) return;
+        setOrder(detail);
+        setError(detail ? null : "Order not found");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setOrder(null);
+        setError("Could not load order");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [orderId, version]);
+  return { order, loading, error, refresh };
 }
 
 export function useSeller(sellerId: string) {
