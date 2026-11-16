@@ -4,10 +4,11 @@
 **Route:** `Payouts` (`features/delivery-partner/screens/PayoutScreen.tsx`)
 **Trigger:** Rider taps the Earnings tab (or View earnings on Home).
 **Visual layer:** `Payouts` is the Earnings tab of the persistent bottom-tab navigator (`Main`); it
-shows a KPI strip (Pending leads with a larger figure, then Paid out), then the payout rows. First
-load shows `DPSkeleton` (no fake `₹0`), a load failure shows `DPErrorState` + retry, and an empty
-ledger shows a compact `DPEmptyState`. Headline totals use whole rupees; itemised ledger lines use
-two decimals with tabular figures. Rows open the `EarningsDetail` route.
+shows a KPI strip (Pending leads with a larger figure, then Paid out), then the payout rows. The KPI
+totals are the server's lifetime summary (not the current list page). First load shows `DPSkeleton`
+(no fake `₹0`), a load failure shows `DPErrorState` + retry, and an empty ledger shows a compact
+`DPEmptyState`. Headline totals use whole rupees; itemised ledger lines use two decimals with tabular
+figures. Rows open the breakdown popup (`View breakdown`) or the `EarningsDetail` route.
 
 ## Flows
 
@@ -17,13 +18,16 @@ two decimals with tabular figures. Rows open the `EarningsDetail` route.
 
 ## State
 
-- Local `payouts`, `loading`, `error`.
+- Local `payouts`, `summary`, `rateCard`, `loading`, `error`.
 - `useDeliveryPartnerStore` — rider context.
 
 ## Data path
 
-- `GET /delivery/payouts?limit=` → `delivery.delivery_payouts`, `delivery.payout_settings`.
-- `GET /delivery/payouts/{orderId}` exists for a single order payout but no screen calls it.
+- `GET /delivery/payouts?limit=` → `delivery.delivery_payouts` (lazily backfills completed jobs that
+  predate completion-time materialisation).
+- `GET /delivery/payouts/summary` → lifetime pending/paid totals.
+- `GET /delivery/rate-card` → live `delivery.payout_settings` card for the earnings note.
+- `GET /delivery/payouts/{orderId}` → single-order payout for `EarningsDetail`.
 - No synthetic payouts.
 
 ## Success / error / empty

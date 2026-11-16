@@ -18,15 +18,67 @@ import {
   DPSkeleton,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
-import { gateway, type RiderPayout } from '@/services/api/GatewayClient';
+import {
+  gateway,
+  type PayoutSettings,
+  type PayoutSummary,
+  type RiderPayout,
+} from '@/services/api/GatewayClient';
 import { hs, vs } from '@/utils/responsive';
-import { headlineRupees } from '../format';
+import { formatNumber, headlineRupees, lineRupees } from '../format';
 import type { DeliveryPartnerStackParamList, DeliveryTabParamList } from '../navigation';
 import { DeliveryHeader } from '../components/DeliveryHeader';
 import { PayoutBreakdownModal } from './PayoutBreakdownModal';
 
 function paidAmount(payout: RiderPayout): number {
   return payout.status === 'PAID' ? payout.totalPaisa : payout.paidAmountPaisa ?? 0;
+}
+
+/** A stable, collision-safe short reference for each order in the list (IDs share suffixes rarely
+ * but the last-6 slice alone is not guaranteed unique). Extends the suffix until unique. */
+function buildOrderRefs(orderIds: string[]): Map<string, string> {
+  const refs = new Map<string, string>();
+  const groups = new Map<string, string[]>();
+  for (const id of orderIds) {
+    const suffix = id.slice(-6);
+    const group = groups.get(suffix) ?? [];
+    group.push(id);
+    groups.set(suffix, group);
+  }
+  for (const [suffix, ids] of groups) {
+    if (ids.length === 1) {
+      refs.set(ids[0], suffix);
+      continue;
+    }
+    for (const id of ids) {
+      let length = Math.min(7, id.length);
+      let ref = id.slice(-length);
+      while (length < id.length && ids.some((other) => other !== id && other.slice(-length) === ref)) {
+        length += 1;
+        ref = id.slice(-length);
+      }
+      refs.set(id, ref);
+    }
+  }
+  return refs;
+}
+
+function rateCardRupees(paisa: number): string {
+  // Keep whole-rupee rates clean; show paise when the admin set a non-round value.
+  return paisa % 100 === 0 ? headlineRupees(paisa) : lineRupees(paisa);
+}
+
+function rateCardNote(card: PayoutSettings | null): string {
+  const settlement = 'Faazio settles the total; bank credit timing depends on the payout run.';
+  if (!card) {
+    return `Payout follows Faazio's per-job distance and surge rate card. ${settlement}`;
+  }
+  const baseKm = formatNumber(card.baseDistanceKm, Number.isInteger(card.baseDistanceKm) ? 0 : 1);
+  return (
+    `Payout = ${rateCardRupees(card.baseRatePaisa)} base for the first ${baseKm} km + ` +
+    `${rateCardRupees(card.perExtraKmPaisa)}/km after, plus night (11 PM–3 AM), weather and ` +
+    `festival surge. ${settlement}`
+  );
 }
 
 type Props = CompositeScreenProps<
@@ -39,13 +91,21 @@ export function PayoutScreen({ navigation }: Props) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedPayout, setSelectedPayout] = useState<RiderPayout | null>(null);
+  const [summary, setSummary] = useState<PayoutSummary | null>(null);
+  const [rateCard, setRateCard] = useState<PayoutSettings | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const rows = await gateway.getDeliveryPayouts(50);
+      const [rows, totals, card] = await Promise.all([
+        gateway.getDeliveryPayouts(50),
+        gateway.getDeliveryPayoutsSummary().catch(() => null),
+        gateway.getDeliveryPayoutSettings().catch(() => null),
+      ]);
       setPayouts(Array.isArray(rows) ? rows : []);
+      setSummary(totals);
+      setRateCard(card);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load your payouts.');
     } finally {
@@ -58,6 +118,9 @@ export function PayoutScreen({ navigation }: Props) {
   }, [load]);
 
   const { pending, paid } = useMemo(() => {
+    if (summary) {
+      return { pending: summary.pendingPaisa, paid: summary.paidPaisa };
+    }
     let pendingTotal = 0;
     let paidTotal = 0;
     for (const p of payouts) {
@@ -66,7 +129,9 @@ export function PayoutScreen({ navigation }: Props) {
       pendingTotal += Math.max(0, p.totalPaisa - paidNow);
     }
     return { pending: pendingTotal, paid: paidTotal };
-  }, [payouts]);
+  }, [payouts, summary]);
+
+  const orderRefs = useMemo(() => buildOrderRefs(payouts.map((p) => p.orderId)), [payouts]);
 
   return (
     <>
@@ -87,10 +152,7 @@ export function PayoutScreen({ navigation }: Props) {
               <DPKpiCard label="Paid out" value={headlineRupees(paid)} />
             </DPKpiStrip>
 
-            <AppText style={styles.note}>
-              Payout = ₹30 base for the first 3 km + ₹7/km after, plus night (11 PM–3 AM), weather and
-              festival surge. Faazio settles the total; bank credit timing depends on the payout run.
-            </AppText>
+            <AppText style={styles.note}>{rateCardNote(rateCard)}</AppText>
 
             {error ? <AppText style={styles.error}>{error}</AppText> : null}
 
@@ -106,7 +168,7 @@ export function PayoutScreen({ navigation }: Props) {
               </DPSectionCard>
             ) : (
               payouts.map((p) => {
-                const orderRef = p.orderId.slice(-6);
+                const orderRef = orderRefs.get(p.orderId) ?? p.orderId.slice(-6);
                 return (
                   <TouchableOpacity
                     key={p.payoutId ?? p.orderId}
@@ -146,6 +208,10 @@ export function PayoutScreen({ navigation }: Props) {
       <PayoutBreakdownModal
         visible={selectedPayout !== null}
         payout={selectedPayout}
+        orderRef={
+          selectedPayout ? orderRefs.get(selectedPayout.orderId) ?? selectedPayout.orderId.slice(-6) : undefined
+        }
+        baseDistanceKm={rateCard?.baseDistanceKm}
         onClose={() => setSelectedPayout(null)}
       />
     </>

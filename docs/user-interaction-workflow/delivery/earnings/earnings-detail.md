@@ -7,20 +7,25 @@
 ## Steps
 
 1. The route receives `{ orderId }` (`navigate('EarningsDetail', { orderId })`).
-2. It calls `gateway.getDeliveryPayout(orderId)` (`GET /delivery/payouts/{orderId}`).
-3. It shows the payout breakdown: distance, base (first 3 km), extra km, surge (with reason), total,
-   paid-so-far, balance and paid date. The headline total is whole rupees; itemised lines carry
-   paise, all with tabular figures.
+2. It calls `gateway.getDeliveryPayout(orderId)` (`GET /delivery/payouts/{orderId}`) and reads the
+   live rate card (`GET /delivery/rate-card`) for the base-distance label (best effort).
+3. It shows the payout breakdown: distance, base (first N km from the live card), extra km, surge
+   (with reason), total, paid-so-far, balance and paid date. The headline total is whole rupees;
+   itemised lines carry paise, all with tabular figures.
+4. Paid-so-far is `totalPaisa` for a PAID row, otherwise `paidAmountPaisa ?? 0`; balance prefers the
+   server `balancePaisa` and falls back to `max(0, total − paid)`.
 
 ## State
 
-- Local `payout`, `loading`, `error`.
+- Local `payout`, `rateCard`, `loading`, `error`.
 - `useDeliveryPartnerStore` — rider context.
 
 ## Data path
 
 - `gateway.getDeliveryPayout(orderId)` → `GET /delivery/payouts/{orderId}` →
   `delivery.delivery_payouts` (reuses stored checkout distance + surge; writes `payout_basis`).
+- `gateway.getDeliveryPayoutSettings()` → `GET /delivery/rate-card` → `delivery.payout_settings`
+  (label only; a failed read falls back to "Base").
 - No synthetic payout.
 
 ## Success / error / empty

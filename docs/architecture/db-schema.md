@@ -2167,9 +2167,14 @@ CREATE TABLE delivery.delivery_payouts (
 - Invoice rows are immutable; `GET /orders/{id}/invoice` is owner-scoped and returns a presigned
   R2 URL only when `pdf_key` is populated (PDF rendering is deferred; the app renders the JSON).
 - Rider payout = base (₹30 / 3 km) + ₹7/km beyond + night (23:00–03:00 IST), weather/festival surge.
-  `GET /delivery/payouts/{orderId}` upserts a PENDING row for the owning rider; its breakdown is
-  mirrored onto `delivery.delivery_orders.payout_basis` (audit JSONB) alongside the display
-  `payout_amount_paisa`; `POST /delivery/payouts/{orderId}/settle` is district-scoped for district
+  Completing a route (`UpdateStop` → `ROUTE_COMPLETE`, no failed drop) inserts the PENDING row in the
+  same transaction via the shared calculation, and `GET /delivery/payouts` lazily backfills historical
+  completed jobs with no row; `GET /delivery/payouts/{orderId}` still upserts/recomputes the PENDING
+  calculation for the owning rider. Its breakdown is mirrored onto
+  `delivery.delivery_orders.payout_basis` (audit JSONB) alongside the display
+  `payout_amount_paisa`; `GET /delivery/payouts/summary` returns the lifetime pending/paid totals for
+  the KPI strip and `GET /delivery/rate-card` exposes the live `payout_settings` card to riders.
+  `POST /delivery/payouts/{orderId}/settle` is district-scoped for district
   admins and global for super admins (recorded Mark Paid; no Razorpay transfer). `0055` adds the
   manual allocation + dual payout columns described in `12.27`; **`0077`** makes the mark amount-based:
   `POST /admin/delivery/payouts/{orderId}/mark-paid` (`{amountPaisa}`) accumulates

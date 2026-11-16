@@ -903,6 +903,13 @@ func (r *Repo) UpdateStop(ctx context.Context, riderID, stopID, status, failureR
 				 where rider_id=$1`, riderID, bumpCompleted); err != nil {
 				return Order{}, err
 			}
+			// Materialise the rider's PENDING payout in the same transaction so a completed job is
+			// never missing from the earnings ledger. Only a route with no failed drop is payable.
+			if failed == 0 {
+				if err := completePayoutTx(ctx, tx, orderID); err != nil {
+					return Order{}, err
+				}
+			}
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {

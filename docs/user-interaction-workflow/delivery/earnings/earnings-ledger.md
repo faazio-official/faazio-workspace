@@ -3,35 +3,46 @@
 **App / route:** delivery · `Payouts` (`PayoutScreen.tsx`)
 **Status:** Shipped (server-derived amounts; manual admin disbursement by design)
 **Trigger:** Dashboard → Earnings.
-**Visual layer:** restyled payout cards + KPI strip. Each row shows only the order ref, status pill,
-total payout and a single **View breakdown** button; tapping the button opens the in-page
-`PayoutBreakdownModal` with the full distance / rate-card / settlement breakdown. Tapping the rest of
-the row still opens `EarningsDetail` (`earnings-detail.md`) as the full-page breakdown. The
-pending/paid computation is unchanged.
+**Visual layer:** restyled payout cards + KPI strip. The KPI totals come from the server's lifetime
+summary, not the rows on the page. Each row shows only the order ref, status pill, total payout and a
+single **View breakdown** button; tapping the button opens the in-page `PayoutBreakdownModal` with the
+full distance / rate-card / settlement breakdown. Tapping the rest of the row still opens
+`EarningsDetail` (`earnings-detail.md`) as the full-page breakdown.
 
 ## Steps
 
-1. `PayoutScreen` loads `gateway.getDeliveryPayouts(50)` (`GET /delivery/payouts?limit=`).
-2. It computes pending = `max(0, totalPaisa − paidNow)` per row, and paid = `paidNow`, where
+1. `PayoutScreen` loads `gateway.getDeliveryPayouts(50)` (`GET /delivery/payouts?limit=`), the
+   lifetime totals `gateway.getDeliveryPayoutsSummary()` (`GET /delivery/payouts/summary`), and the
+   live card `gateway.getDeliveryPayoutSettings()` (`GET /delivery/rate-card`) in parallel.
+2. A completed route is materialised as a PENDING payout row in the completing transaction
+   (`UpdateStop` → `ROUTE_COMPLETE`, no failed drop). `GET /delivery/payouts` also lazily backfills
+   historical completed jobs that have no row yet, so the ledger does not omit finished work.
+3. The KPI strip shows the server lifetime totals (`pendingPaisa` / `paidPaisa`); if the summary call
+   fails it falls back to computing `max(0, totalPaisa − paidNow)` over the fetched rows, where
    `paidNow` is `totalPaisa` when status is PAID, otherwise `paidAmountPaisa ?? 0`.
-3. The note explains the rate card: ₹30 base for the first 3 km + ₹7/km, plus night/weather/festival
-   surge; Faazio settles the total manually.
-4. **View breakdown** on a row opens `PayoutBreakdownModal` with that row's `RiderPayout`: distance,
-   base (first 3 km), extra km, surge (+reason), total payout, paid so far, balance and paid-on date.
-   The modal closes via the X or **Done**; no new route or fetch is added (it reuses the list data).
-5. Tapping the row outside the button navigates to `EarningsDetail` for the full-page breakdown.
-6. Admin settlement: `POST /delivery/payouts/{orderId}/settle` or
+4. The note is built from the live rate card (base rate, base distance, per-km rate); if the card
+   fetch fails it falls back to a generic line with no hardcoded numbers.
+5. **View breakdown** on a row opens `PayoutBreakdownModal` with that row's `RiderPayout`: distance,
+   base (live first-N km), extra km, surge (+reason), total payout, paid so far, balance and paid-on
+   date. The modal closes via the X or **Done**; it reuses the list data (no route or extra fetch).
+6. Tapping the row outside the button navigates to `EarningsDetail` for the full-page breakdown.
+7. Admin settlement: `POST /delivery/payouts/{orderId}/settle` or
    `POST /admin/delivery/payouts/{orderId}/mark-paid` (partial payments accumulate).
 
 ## State
 
-- Local `payouts`, `loading`, `error`, and `selectedPayout` (the row shown in the breakdown modal;
-  `null` when the modal is closed).
+- Local `payouts`, `summary`, `rateCard`, `loading`, `error`, and `selectedPayout` (the row shown in
+  the breakdown modal; `null` when the modal is closed).
 
 ## Data path
 
-- `gateway.getDeliveryPayouts` → `GET /delivery/payouts` → `delivery.delivery_payouts`,
-  `delivery.payout_settings`.
+- `gateway.getDeliveryPayouts` → `GET /delivery/payouts` → `delivery.delivery_payouts` (with a
+  bounded lazy backfill of completed orders that have no payout row).
+- `gateway.getDeliveryPayoutsSummary` → `GET /delivery/payouts/summary` → lifetime pending/paid SUMs
+  over `delivery.delivery_payouts` (PAID rows count as settled even for legacy rows with no recorded
+  `paid_amount_paisa`).
+- `gateway.getDeliveryPayoutSettings` → `GET /delivery/rate-card` → `delivery.payout_settings`
+  (read-only; admin edits still go through `PUT /delivery/payout-settings`).
 - `gateway.getDeliveryPayout(orderId)` → `GET /delivery/payouts/{orderId}` is called by
   `EarningsDetailScreen` for the full-page breakdown (reuses stored checkout distance + surge,
   writes `payout_basis`). The in-page `PayoutBreakdownModal` does **not** call it — it renders the

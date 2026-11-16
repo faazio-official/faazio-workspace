@@ -20,7 +20,9 @@ const payout: RiderPayout = {
 
 describe('PayoutBreakdownModal (payout in-page popup)', () => {
   it('renders the itemised breakdown for a payout', async () => {
-    await render(<PayoutBreakdownModal visible payout={payout} onClose={jest.fn()} />);
+    await render(
+      <PayoutBreakdownModal visible payout={payout} baseDistanceKm={3} onClose={jest.fn()} />,
+    );
 
     expect(screen.getByText('Payout breakdown')).toBeTruthy();
     expect(screen.getByText('Order 123456')).toBeTruthy();
@@ -33,6 +35,14 @@ describe('PayoutBreakdownModal (payout in-page popup)', () => {
     expect(screen.getByText('Paid so far')).toBeTruthy();
     expect(screen.getByText('Balance')).toBeTruthy();
     expect(screen.getByText('Paid on')).toBeTruthy();
+  });
+
+  it('uses the live rate-card base distance in the label', async () => {
+    await render(
+      <PayoutBreakdownModal visible payout={payout} orderRef="9f2c1a" baseDistanceKm={4} onClose={jest.fn()} />,
+    );
+    expect(screen.getByText('Order 9f2c1a')).toBeTruthy();
+    expect(screen.getByText('Base (first 4 km)')).toBeTruthy();
   });
 
   it('closes via Done and via the X', async () => {

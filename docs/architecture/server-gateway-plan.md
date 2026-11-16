@@ -269,11 +269,16 @@ caller) and are event-purged on store live toggle and product edit/status change
   (active leaf for the store's app); the gateway validates it and folds the leaf `search_query` into
   `catalog.products.search_tokens` (`0096`).
 - **Rider payouts (`internal/delivery`, `0052` + `0054`):** `GET /delivery/payouts` (rider history)
-  and `GET /delivery/payouts/{orderId}` (upsert a PENDING calculation). The payout reuses the
-  customer-billed distance + surge stored on `checkout.orders` (`delivery_distance_km`,
-  `delivery_surge_paisa`, `delivery_surge_reason`), so base minus ₹5 and every extra/surge rupee are
-  a 1:1 pass-through; legacy orders fall back to the delivery route distance + clock-derived night.
-  `?weather=1&festival=1` forces an admin test derivation. Admin `GET|PUT /delivery/payout-settings`
+  and `GET /delivery/payouts/{orderId}` (upsert a PENDING calculation). Completing a route
+  (`UpdateStop` → `ROUTE_COMPLETE`, no failed drop) materialises the PENDING payout in the same
+  transaction via the shared `CalculatePayoutDetails`, so a finished job never goes missing from the
+  ledger. `GET /delivery/payouts` also lazily heals historical completed jobs with no payout row, and
+  `GET /delivery/payouts/summary` returns the rider's lifetime pending/paid totals (the KPI strip is
+  not windowed to the list page). The payout reuses the customer-billed distance + surge stored on
+  `checkout.orders` (`delivery_distance_km`, `delivery_surge_paisa`, `delivery_surge_reason`), so base
+  minus ₹5 and every extra/surge rupee are a 1:1 pass-through; legacy orders fall back to the delivery
+  route distance + clock-derived night. `?weather=1&festival=1` forces an admin test derivation.
+  Riders read the live card from `GET /delivery/rate-card`; admin `GET|PUT /delivery/payout-settings`
   and super-admin `POST /delivery/payouts/{orderId}/settle` mark PAID.
 - **Weather + festival surge (`internal/weather` + `internal/festival`, `0054`):** `GET
   /checkout/delivery-fee` and `POST /orders` call `contracts.WeatherChecker` (Weather Union,

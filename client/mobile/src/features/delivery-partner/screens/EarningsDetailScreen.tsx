@@ -14,7 +14,7 @@ import {
   DPSeparator,
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
-import { gateway, type RiderPayout } from '@/services/api/GatewayClient';
+import { gateway, type PayoutSettings, type RiderPayout } from '@/services/api/GatewayClient';
 import { hs, vs } from '@/utils/responsive';
 import { headlineRupees, lineRupees, formatNumber } from '../format';
 import type { DeliveryPartnerStackParamList } from '../navigation';
@@ -26,6 +26,7 @@ type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'EarningsDeta
 export function EarningsDetailScreen({ navigation, route }: Props) {
   const { orderId } = route.params;
   const [payout, setPayout] = useState<RiderPayout | null>(null);
+  const [rateCard, setRateCard] = useState<PayoutSettings | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -33,7 +34,12 @@ export function EarningsDetailScreen({ navigation, route }: Props) {
     setLoading(true);
     setError(null);
     try {
-      setPayout(await gateway.getDeliveryPayout(orderId));
+      const [nextPayout, card] = await Promise.all([
+        gateway.getDeliveryPayout(orderId),
+        gateway.getDeliveryPayoutSettings().catch(() => null),
+      ]);
+      setPayout(nextPayout);
+      setRateCard(card);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not load this payout.');
     } finally {
@@ -45,8 +51,12 @@ export function EarningsDetailScreen({ navigation, route }: Props) {
     void load();
   }, [load]);
 
-  const paidNow = payout ? (payout.paidAmountPaisa ?? (payout.status === 'PAID' ? payout.totalPaisa : 0)) : 0;
-  const balance = payout ? Math.max(0, payout.totalPaisa - paidNow) : 0;
+  const paidNow = payout ? (payout.status === 'PAID' ? payout.totalPaisa : payout.paidAmountPaisa ?? 0) : 0;
+  const balance = payout ? payout.balancePaisa ?? Math.max(0, payout.totalPaisa - paidNow) : 0;
+  const baseLabel =
+    rateCard && rateCard.baseDistanceKm > 0
+      ? `Base (first ${formatNumber(rateCard.baseDistanceKm, Number.isInteger(rateCard.baseDistanceKm) ? 0 : 1)} km)`
+      : 'Base';
 
   return (
     <DPPage header={<DeliveryHeader />}>
@@ -68,7 +78,7 @@ export function EarningsDetailScreen({ navigation, route }: Props) {
             <AppText style={styles.total}>{headlineRupees(payout.totalPaisa)}</AppText>
             <DPSeparator />
             <DPKeyValueRow label="Distance" value={`${formatNumber(payout.distanceKm, 1)} km`} />
-            <DPKeyValueRow label="Base (first 3 km)" value={lineRupees(payout.baseRatePaisa)} />
+            <DPKeyValueRow label={baseLabel} value={lineRupees(payout.baseRatePaisa)} />
             <DPKeyValueRow label="Extra km" value={lineRupees(payout.extraKmChargePaisa)} />
             <DPKeyValueRow
               label={payout.surgeReason ? `Surge · ${payout.surgeReason}` : 'Surge'}

@@ -11,15 +11,27 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
+
+// payoutQuerier is satisfied by both *pgxpool.Pool and pgx.Tx, so the payout helpers can run inside
+// the route-completion transaction or on the pool.
+type payoutQuerier interface {
+	Exec(ctx context.Context, sql string, arguments ...any) (pgconn.CommandTag, error)
+	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
+}
 
 // PayoutSettings reads the singleton rider rate card.
 func (r *Repo) PayoutSettings(ctx context.Context) (PayoutSettings, error) {
 	if err := r.ready(); err != nil {
 		return PayoutSettings{}, err
 	}
+	return readPayoutSettings(ctx, r.pool)
+}
+
+func readPayoutSettings(ctx context.Context, q payoutQuerier) (PayoutSettings, error) {
 	var s PayoutSettings
-	err := r.pool.QueryRow(ctx, `
+	err := q.QueryRow(ctx, `
 		select base_rate_paisa, base_distance_km::float8, per_extra_km_paisa,
 		       night_surge_paisa, weather_surge_paisa, festival_surge_paisa
 		  from delivery.payout_settings where id = 1`).
@@ -39,6 +51,10 @@ func (r *Repo) UpsertPayout(ctx context.Context, p RiderPayout) (RiderPayout, er
 	if err := r.ready(); err != nil {
 		return RiderPayout{}, err
 	}
+	return upsertPayout(ctx, r.pool, p)
+}
+
+func upsertPayout(ctx context.Context, q payoutQuerier, p RiderPayout) (RiderPayout, error) {
 	if p.PayoutID == "" {
 		p.PayoutID = "dp-" + payoutID()
 	}
@@ -57,7 +73,7 @@ func (r *Repo) UpsertPayout(ctx context.Context, p RiderPayout) (RiderPayout, er
 	if err != nil {
 		return RiderPayout{}, err
 	}
-	err = r.pool.QueryRow(ctx, `
+	err = q.QueryRow(ctx, `
 		insert into delivery.delivery_payouts
 		  (payout_id, rider_id, order_id, distance_km, base_rate_paisa, extra_km_charge_paisa,
 		   surge_paisa, surge_reason, total_paisa, status, payout_mode,
@@ -90,7 +106,7 @@ func (r *Repo) UpsertPayout(ctx context.Context, p RiderPayout) (RiderPayout, er
 			&out.Status, &paidAt, &out.PayoutMode, &out.ManualDistanceKm, &out.ManualFarePaisa,
 			&out.CalculatedFarePaisa, &out.FareOverrideReason)
 	if errors.Is(err, pgx.ErrNoRows) {
-		existing, ok, ferr := r.PayoutByOrder(ctx, p.OrderID)
+		existing, ok, ferr := payoutByOrder(ctx, q, p.OrderID)
 		if ferr != nil {
 			return RiderPayout{}, ferr
 		}
@@ -104,11 +120,79 @@ func (r *Repo) UpsertPayout(ctx context.Context, p RiderPayout) (RiderPayout, er
 	}
 	out.PaidAt = isoTime(paidAt)
 	// Display projection on the delivery order (never the source of truth), plus the auditable basis.
-	_, _ = r.pool.Exec(ctx, `
+	_, _ = q.Exec(ctx, `
 		update delivery.delivery_orders
 		   set payout_amount_paisa=$2, payout_basis=$3
 		 where order_id=$1`, p.OrderID, out.TotalPaisa, basis)
 	return out, nil
+}
+
+// completePayoutTx materialises the PENDING payout row for a completed delivery inside the
+// route-completion transaction, using the same calculation as the read-time path. It is idempotent:
+// upsertPayout never overwrites a PAID/PARTIAL row.
+func completePayoutTx(ctx context.Context, tx pgx.Tx, orderID string) error {
+	var (
+		o        Order
+		assigned time.Time
+	)
+	err := tx.QueryRow(ctx, `
+		select order_id, rider_id, customer_order_id, total_distance_meters,
+		       payout_mode::text, manual_distance_km::float8, manual_fare_paisa,
+		       calculated_fare_paisa, coalesce(fare_override_reason,''),
+		       coalesce(assigned_at, created_at)
+		  from delivery.delivery_orders where order_id=$1`, orderID).
+		Scan(&o.OrderID, &o.RiderID, &o.CustomerOrderID, &o.TotalDistanceMeters,
+			&o.PayoutMode, &o.ManualDistanceKm, &o.ManualFarePaisa, &o.CalculatedFarePaisa,
+			&o.FareOverrideReason, &assigned)
+	if err != nil {
+		return err
+	}
+	o.AssignedAt = assigned.UTC().Format(time.RFC3339)
+	settings, err := readPayoutSettings(ctx, tx)
+	if err != nil {
+		return err
+	}
+	storedMeters, storedSurge, storedReason, hasBasis, err := readStoredDeliveryBasis(ctx, tx, o.CustomerOrderID)
+	if err != nil {
+		return err
+	}
+	_, err = upsertPayout(ctx, tx, CalculatePayoutDetails(o, settings, storedMeters, storedSurge, storedReason, hasBasis, false, false))
+	return err
+}
+
+// CompletedOrdersMissingPayout returns completed (no failed drop) order ids for a rider that have no
+// payout row yet. The earnings list uses it to lazily self-heal jobs completed before payout rows
+// were materialised at route completion.
+func (r *Repo) CompletedOrdersMissingPayout(ctx context.Context, riderID string, limit int) ([]string, error) {
+	if err := r.ready(); err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	rows, err := r.pool.Query(ctx, `
+		select d.order_id
+		  from delivery.delivery_orders d
+		  left join delivery.delivery_payouts p on p.order_id = d.order_id
+		 where d.rider_id=$1 and d.status='ROUTE_COMPLETE' and p.order_id is null
+		   and not exists (
+		     select 1 from delivery.delivery_stops s
+		      where s.delivery_order_id=d.order_id and s.stop_type='DROP' and s.status='FAILED')
+		 order by coalesce(d.completed_at, d.created_at) desc
+		 limit $2`, riderID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var orderID string
+		if err := rows.Scan(&orderID); err != nil {
+			return nil, err
+		}
+		out = append(out, orderID)
+	}
+	return out, rows.Err()
 }
 
 // StoredDeliveryBasis returns the customer-paid distance + surge total/reason recorded on the
@@ -119,13 +203,17 @@ func (r *Repo) StoredDeliveryBasis(ctx context.Context, customerOrderID string) 
 	if err := r.ready(); err != nil {
 		return 0, 0, "", false, err
 	}
+	return readStoredDeliveryBasis(ctx, r.pool, customerOrderID)
+}
+
+func readStoredDeliveryBasis(ctx context.Context, q payoutQuerier, customerOrderID string) (distanceMeters int64, paisa int64, reason string, ok bool, err error) {
 	if customerOrderID == "" {
 		return 0, 0, "", false, nil
 	}
 	var km float64
 	// delivery_billing_basis (not the columns' defaults) is the sentinel for a post-0054 order:
 	// legacy rows gain the columns with zero defaults, so only the JSON snapshot distinguishes them.
-	err = r.pool.QueryRow(ctx, `
+	err = q.QueryRow(ctx, `
 		select coalesce(delivery_distance_km,0)::float8,
 		       coalesce(delivery_surge_paisa,0), coalesce(delivery_surge_reason,''),
 		       delivery_billing_basis is not null
@@ -148,21 +236,26 @@ func (r *Repo) PayoutByOrder(ctx context.Context, orderID string) (RiderPayout, 
 	if err := r.ready(); err != nil {
 		return RiderPayout{}, false, err
 	}
+	return payoutByOrder(ctx, r.pool, orderID)
+}
+
+func payoutByOrder(ctx context.Context, q payoutQuerier, orderID string) (RiderPayout, bool, error) {
 	var (
 		p      RiderPayout
 		paidAt *time.Time
 	)
-	err := r.pool.QueryRow(ctx, `
+	err := q.QueryRow(ctx, `
 		select payout_id, order_id, rider_id, distance_km::float8, base_rate_paisa,
 		       extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text, paid_at,
 		       payout_mode::text, manual_distance_km::float8, manual_fare_paisa,
 		       calculated_fare_paisa, coalesce(fare_override_reason,''),
-		       coalesce(paid_amount_paisa,0), coalesce(paid_by,'')
+		       coalesce(paid_amount_paisa,0), coalesce(paid_by,''),
+		       case when status='PAID' then 0 else greatest(0, total_paisa - paid_amount_paisa) end
 		  from delivery.delivery_payouts where order_id=$1`, orderID).
 		Scan(&p.PayoutID, &p.OrderID, &p.RiderID, &p.DistanceKm, &p.BaseRatePaisa,
 			&p.ExtraKmChargePaisa, &p.SurgePaisa, &p.SurgeReason, &p.TotalPaisa, &p.Status, &paidAt,
 			&p.PayoutMode, &p.ManualDistanceKm, &p.ManualFarePaisa, &p.CalculatedFarePaisa,
-			&p.FareOverrideReason, &p.PaidAmountPaisa, &p.PaidBy)
+			&p.FareOverrideReason, &p.PaidAmountPaisa, &p.PaidBy, &p.BalancePaisa)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return RiderPayout{}, false, nil
 	}
@@ -186,7 +279,8 @@ func (r *Repo) PayoutsByRider(ctx context.Context, riderID string, limit int) ([
 		       extra_km_charge_paisa, surge_paisa, surge_reason, total_paisa, status::text, paid_at,
 		       payout_mode::text, manual_distance_km::float8, manual_fare_paisa,
 		       calculated_fare_paisa, coalesce(fare_override_reason,''),
-		       coalesce(paid_amount_paisa,0), coalesce(paid_by,'')
+		       coalesce(paid_amount_paisa,0), coalesce(paid_by,''),
+		       case when status='PAID' then 0 else greatest(0, total_paisa - paid_amount_paisa) end
 		  from delivery.delivery_payouts where rider_id=$1
 		 order by created_at desc limit $2`, riderID, limit)
 	if err != nil {
@@ -202,13 +296,29 @@ func (r *Repo) PayoutsByRider(ctx context.Context, riderID string, limit int) ([
 		if err := rows.Scan(&p.PayoutID, &p.OrderID, &p.RiderID, &p.DistanceKm, &p.BaseRatePaisa,
 			&p.ExtraKmChargePaisa, &p.SurgePaisa, &p.SurgeReason, &p.TotalPaisa, &p.Status, &paidAt,
 			&p.PayoutMode, &p.ManualDistanceKm, &p.ManualFarePaisa, &p.CalculatedFarePaisa,
-			&p.FareOverrideReason, &p.PaidAmountPaisa, &p.PaidBy); err != nil {
+			&p.FareOverrideReason, &p.PaidAmountPaisa, &p.PaidBy, &p.BalancePaisa); err != nil {
 			return nil, err
 		}
 		p.PaidAt = isoTime(paidAt)
 		out = append(out, p)
 	}
 	return out, rows.Err()
+}
+
+// PayoutSummary returns the rider's lifetime pending/paid totals across every payout row (not just
+// the rows in a limited list page). A legacy PAID row with no recorded paid_amount counts as settled.
+func (r *Repo) PayoutSummary(ctx context.Context, riderID string) (pendingPaisa, paidPaisa int64, err error) {
+	if err := r.ready(); err != nil {
+		return 0, 0, err
+	}
+	err = r.pool.QueryRow(ctx, `
+		select coalesce(sum(case when status='PAID' then 0
+		                         else greatest(0, total_paisa - paid_amount_paisa) end), 0),
+		       coalesce(sum(case when status='PAID' then total_paisa
+		                         else least(total_paisa, paid_amount_paisa) end), 0)
+		  from delivery.delivery_payouts where rider_id=$1`, riderID).
+		Scan(&pendingPaisa, &paidPaisa)
+	return pendingPaisa, paidPaisa, err
 }
 
 // UpdatePayoutSettings writes the singleton rider rate card.

@@ -55,6 +55,64 @@ type SurgeInput struct {
 	At       time.Time
 }
 
+// CalculatePayoutDetails derives the payout for an order from the rate card and the customer-paid
+// delivery basis. It is shared by the read-time calculation (calculatePayout) and the
+// completion-time materialisation so the two paths can never diverge. weather/festival are the
+// explicit admin test overrides; completion passes false for both.
+func CalculatePayoutDetails(order Order, settings PayoutSettings, storedMeters, storedSurge int64, storedReason string, hasBasis, weather, festival bool) RiderPayout {
+	at := time.Now()
+	if order.AssignedAt != "" {
+		if parsed, err := time.Parse(time.RFC3339, order.AssignedAt); err == nil {
+			at = parsed
+		}
+	}
+
+	// MANUAL orders are settled with the admin-recorded distance + fare. Until the admin records
+	// them, show the rate-card preview so the rider still sees an expected amount.
+	if order.PayoutMode == PayoutManual {
+		meters := order.TotalDistanceMeters
+		if hasBasis && !weather && !festival {
+			meters = storedMeters
+		}
+		preview := ComputeRiderPayoutWithSurge(order.OrderID, order.RiderID, meters,
+			settings, storedSurge, storedReason)
+		if order.ManualDistanceKm != nil {
+			preview = ComputeRiderPayoutWithSurge(order.OrderID, order.RiderID,
+				int64(math.Round(*order.ManualDistanceKm*1000)), settings, storedSurge, storedReason)
+		}
+		total := preview.TotalPaisa
+		if order.ManualFarePaisa != nil {
+			total = *order.ManualFarePaisa
+		}
+		calculated := preview.TotalPaisa
+		return RiderPayout{
+			OrderID: order.OrderID, RiderID: order.RiderID, DistanceKm: preview.DistanceKm,
+			BaseRatePaisa: preview.BaseRatePaisa, ExtraKmChargePaisa: preview.ExtraKmChargePaisa,
+			SurgePaisa: preview.SurgePaisa, SurgeReason: preview.SurgeReason,
+			TotalPaisa: total, PayoutMode: PayoutManual, ManualDistanceKm: order.ManualDistanceKm,
+			ManualFarePaisa: order.ManualFarePaisa, CalculatedFarePaisa: &calculated,
+			FareOverrideReason: order.FareOverrideReason, Status: "PENDING",
+		}
+	}
+
+	var p RiderPayout
+	if hasBasis && !weather && !festival {
+		// Use exactly the distance the customer was billed on, so the ₹5 base margin and the per-km
+		// pass-through hold (road-distance differences never create a divergence). A zero stored
+		// distance is meaningful (e.g. a delivery placed without a live fix, billed at base only),
+		// so never substitute the route distance for a stored basis.
+		p = ComputeRiderPayoutWithSurge(order.OrderID, order.RiderID, storedMeters,
+			settings, storedSurge, storedReason)
+	} else {
+		surge := SurgeInput{Weather: weather, Festival: festival, At: at}
+		p = ComputeRiderPayout(order.OrderID, order.RiderID, order.TotalDistanceMeters, settings, surge)
+	}
+	if order.CalculatedFarePaisa != nil {
+		p.CalculatedFarePaisa = order.CalculatedFarePaisa
+	}
+	return p
+}
+
 // ComputeRiderPayout derives a rider payout from the persisted route distance and the rate card.
 // The night window is 23:00–03:00 IST; weather/festival surges must be asserted by ops.
 func ComputeRiderPayout(orderID, riderID string, distanceMeters int64, s PayoutSettings, surge SurgeInput) RiderPayout {

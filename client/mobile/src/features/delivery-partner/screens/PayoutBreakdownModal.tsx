@@ -18,6 +18,10 @@ import { formatNumber, headlineRupees, lineRupees } from '../format';
 interface Props {
   visible: boolean;
   payout: RiderPayout | null;
+  /** Collision-safe short order reference shown in the header (defaults to the last 6 chars). */
+  orderRef?: string;
+  /** Live base distance from the rate card, so the "Base (first N km)" label never drifts. */
+  baseDistanceKm?: number;
   onClose: () => void;
 }
 
@@ -31,19 +35,24 @@ function formatPaidOn(paidAt?: string): string | null {
   return Number.isNaN(date.getTime()) ? null : date.toLocaleDateString('en-IN');
 }
 
-export function PayoutBreakdownModal({ visible, payout, onClose }: Props) {
+export function PayoutBreakdownModal({ visible, payout, orderRef, baseDistanceKm, onClose }: Props) {
   // Modals render in their own native window; a nested provider reports that window's
   // real insets instead of the app root's.
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose}>
       <SafeAreaProvider>
-        <BreakdownBody payout={payout} onClose={onClose} />
+        <BreakdownBody
+          payout={payout}
+          orderRef={orderRef}
+          baseDistanceKm={baseDistanceKm}
+          onClose={onClose}
+        />
       </SafeAreaProvider>
     </Modal>
   );
 }
 
-function BreakdownBody({ payout, onClose }: Omit<Props, 'visible'>) {
+function BreakdownBody({ payout, orderRef, baseDistanceKm, onClose }: Omit<Props, 'visible'>) {
   const insets = useSafeAreaInsets();
 
   if (!payout) {
@@ -51,15 +60,19 @@ function BreakdownBody({ payout, onClose }: Omit<Props, 'visible'>) {
   }
 
   const paidNow = paidAmount(payout);
-  const balance = Math.max(0, payout.totalPaisa - paidNow);
+  const balance = payout.balancePaisa ?? Math.max(0, payout.totalPaisa - paidNow);
   const paidOn = formatPaidOn(payout.paidAt);
+  const baseLabel =
+    baseDistanceKm && baseDistanceKm > 0
+      ? `Base (first ${formatNumber(baseDistanceKm, Number.isInteger(baseDistanceKm) ? 0 : 1)} km)`
+      : 'Base';
 
   return (
     <View style={styles.page}>
       <View style={[styles.header, { paddingTop: insets.top + vs(8) }]}>
         <View style={styles.headerText}>
           <AppText style={styles.title}>Payout breakdown</AppText>
-          <AppText style={styles.subtitle}>Order {payout.orderId.slice(-6)}</AppText>
+          <AppText style={styles.subtitle}>Order {orderRef ?? payout.orderId.slice(-6)}</AppText>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -81,7 +94,7 @@ function BreakdownBody({ payout, onClose }: Omit<Props, 'visible'>) {
           <AppText style={styles.total}>{headlineRupees(payout.totalPaisa)}</AppText>
           <DPSeparator />
           <DPKeyValueRow label="Distance" value={`${formatNumber(payout.distanceKm, 1)} km`} />
-          <DPKeyValueRow label="Base (first 3 km)" value={lineRupees(payout.baseRatePaisa)} />
+          <DPKeyValueRow label={baseLabel} value={lineRupees(payout.baseRatePaisa)} />
           <DPKeyValueRow label="Extra km" value={lineRupees(payout.extraKmChargePaisa)} />
           <DPKeyValueRow
             label={payout.surgeReason ? `Surge · ${payout.surgeReason}` : 'Surge'}

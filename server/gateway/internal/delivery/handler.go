@@ -74,7 +74,10 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/delivery/route/{deliveryId}", h.getRoute)
 		g.Post("/delivery/otp/verify", h.verifyOTP)
 		g.Get("/delivery/payouts", h.riderPayouts)
+		g.Get("/delivery/payouts/summary", h.riderPayoutSummary)
 		g.Get("/delivery/payouts/{orderId}", h.riderPayout)
+		// Read-only live rate card for the rider earnings note (non-sensitive pence values).
+		g.Get("/delivery/rate-card", h.payoutSettings)
 	})
 
 	// Customer post-delivery rating (any authenticated shopper).

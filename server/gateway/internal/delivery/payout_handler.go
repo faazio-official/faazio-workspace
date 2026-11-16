@@ -3,11 +3,9 @@ package delivery
 import (
 	"context"
 	"errors"
-	"math"
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
@@ -41,6 +39,9 @@ func (h *Handler) riderPayouts(w http.ResponseWriter, r *http.Request) {
 		h.writeErr(w, err)
 		return
 	}
+	// Self-heal historical completed jobs that predate completion-time payout materialisation, so the
+	// earnings ledger never silently omits a finished delivery. Idempotent and bounded.
+	h.healCompletedPayouts(r, rider.RiderID)
 	limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 	items, err := h.repo.PayoutsByRider(r.Context(), rider.RiderID, limit)
 	if err != nil {
@@ -48,6 +49,42 @@ func (h *Handler) riderPayouts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, items)
+}
+
+type payoutSummaryResponse struct {
+	PendingPaisa int64 `json:"pendingPaisa"`
+	PaidPaisa    int64 `json:"paidPaisa"`
+}
+
+// riderPayoutSummary returns the rider's lifetime pending/paid totals for the KPI strip, so the
+// totals are not limited to the rows on the current list page.
+func (h *Handler) riderPayoutSummary(w http.ResponseWriter, r *http.Request) {
+	rider, err := h.currentRider(r.Context())
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	h.healCompletedPayouts(r, rider.RiderID)
+	pending, paid, err := h.repo.PayoutSummary(r.Context(), rider.RiderID)
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	httpx.JSON(w, http.StatusOK, payoutSummaryResponse{PendingPaisa: pending, PaidPaisa: paid})
+}
+
+// healCompletedPayouts materialises payout rows for completed jobs that predate completion-time
+// materialisation. Idempotent and bounded; best-effort so a list still loads if healing fails.
+func (h *Handler) healCompletedPayouts(r *http.Request, riderID string) {
+	ids, err := h.repo.CompletedOrdersMissingPayout(r.Context(), riderID, 100)
+	if err != nil {
+		return
+	}
+	for _, orderID := range ids {
+		if _, err := h.calculatePayout(r, orderID); err != nil {
+			return
+		}
+	}
 }
 
 // settlePayout records a manual "Mark Paid" for one completed delivery. District admins may only
@@ -190,12 +227,6 @@ func (h *Handler) calculatePayout(r *http.Request, orderID string) (RiderPayout,
 	if err != nil {
 		return RiderPayout{}, err
 	}
-	at := time.Now()
-	if order.AssignedAt != "" {
-		if parsed, err := time.Parse(time.RFC3339, order.AssignedAt); err == nil {
-			at = parsed
-		}
-	}
 	queryWeather := truthy(r.URL.Query().Get("weather"))
 	queryFestival := truthy(r.URL.Query().Get("festival"))
 
@@ -206,52 +237,8 @@ func (h *Handler) calculatePayout(r *http.Request, orderID string) (RiderPayout,
 	if err != nil {
 		return RiderPayout{}, err
 	}
-
-	// MANUAL orders are settled with the admin-recorded distance + fare. Until the admin records
-	// them, show the rate-card preview so the rider still sees an expected amount.
-	if order.PayoutMode == PayoutManual {
-		meters := order.TotalDistanceMeters
-		if hasBasis && !queryWeather && !queryFestival {
-			meters = storedMeters
-		}
-		preview := ComputeRiderPayoutWithSurge(order.OrderID, order.RiderID, meters,
-			settings, storedSurge, storedReason)
-		manualKm := order.ManualDistanceKm
-		if manualKm != nil {
-			preview = ComputeRiderPayoutWithSurge(order.OrderID, order.RiderID,
-				int64(math.Round(*manualKm*1000)), settings, storedSurge, storedReason)
-		}
-		total := preview.TotalPaisa
-		if order.ManualFarePaisa != nil {
-			total = *order.ManualFarePaisa
-		}
-		calculated := preview.TotalPaisa
-		return h.repo.UpsertPayout(r.Context(), RiderPayout{
-			OrderID: order.OrderID, RiderID: order.RiderID, DistanceKm: preview.DistanceKm,
-			BaseRatePaisa: preview.BaseRatePaisa, ExtraKmChargePaisa: preview.ExtraKmChargePaisa,
-			SurgePaisa: preview.SurgePaisa, SurgeReason: preview.SurgeReason,
-			TotalPaisa: total, PayoutMode: PayoutManual, ManualDistanceKm: manualKm,
-			ManualFarePaisa: order.ManualFarePaisa, CalculatedFarePaisa: &calculated,
-			FareOverrideReason: order.FareOverrideReason, Status: "PENDING",
-		})
-	}
-
-	var p RiderPayout
-	if hasBasis && !queryWeather && !queryFestival {
-		// Use exactly the distance the customer was billed on, so the ₹5 base margin and the per-km
-		// pass-through hold (road-distance differences never create a divergence). A zero stored
-		// distance is meaningful (e.g. a delivery placed without a live fix, billed at base only),
-		// so never substitute the route distance for a stored basis.
-		p = ComputeRiderPayoutWithSurge(order.OrderID, order.RiderID, storedMeters,
-			settings, storedSurge, storedReason)
-	} else {
-		surge := SurgeInput{Weather: queryWeather, Festival: queryFestival, At: at}
-		p = ComputeRiderPayout(order.OrderID, order.RiderID, order.TotalDistanceMeters, settings, surge)
-	}
-	if order.CalculatedFarePaisa != nil {
-		p.CalculatedFarePaisa = order.CalculatedFarePaisa
-	}
-	return h.repo.UpsertPayout(r.Context(), p)
+	return h.repo.UpsertPayout(r.Context(),
+		CalculatePayoutDetails(order, settings, storedMeters, storedSurge, storedReason, hasBasis, queryWeather, queryFestival))
 }
 
 // SurgeSettings implements contracts.SurgeReader: checkout reads the rider card so the customer
