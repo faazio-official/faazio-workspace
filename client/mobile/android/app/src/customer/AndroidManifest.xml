@@ -1,0 +1,33 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Customer-only masked calling (shared 100ms voice + CallKit/ConnectionService ringing).
+       Seller builds never merge this file. The delivery flavor has its own copy. -->
+  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+  <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+  <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+  <!-- Android 11 and below expose paired-audio discovery through the legacy Bluetooth permission. -->
+  <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+  <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
+  <!-- Incoming call wakes the lock screen (Android 14+ may require the user to grant the special
+       "full-screen notifications" access; a denial degrades to a heads-up notification). -->
+  <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
+  <uses-permission android:name="android.permission.MANAGE_OWN_CALLS"/>
+  <uses-permission android:name="android.permission.READ_PHONE_STATE" android:maxSdkVersion="29"/>
+  <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+  <application>
+    <!-- Native incoming-call UI (ConnectionService). Required by react-native-callkeep. -->
+    <service
+      android:name="io.wazo.callkeep.VoiceConnectionService"
+      android:label="Faazio Calls"
+      android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
+      android:foregroundServiceType="phoneCall"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.telecom.ConnectionService"/>
+      </intent-filter>
+    </service>
+  </application>
+</manifest>

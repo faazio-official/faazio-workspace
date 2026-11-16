@@ -21,6 +21,7 @@ import type { RemoteMessage } from '@react-native-firebase/messaging';
 import { gateway } from './api/GatewayClient';
 import { openDeliveryOffer, startDeliveryOfferLinks } from './deliveryLinks';
 import { handleIncomingCall } from '@/features/delivery-partner/calling/callController';
+import { INCOMING_CALL_TYPE } from '@/features/call/incoming';
 
 const platform: 'android' | 'ios' = Platform.OS === 'ios' ? 'ios' : 'android';
 let initialPushConsumed = false;
@@ -48,7 +49,7 @@ function offerFromMessage(message: RemoteMessage | null): string | null {
 function handleMessage(message: RemoteMessage, onOffer: () => void) {
   const data = message.data as Record<string, unknown> | undefined;
   // Call pushes are handled by the calling surface, never treated as an order offer.
-  if (data?.type === 'incoming_call') {
+  if (data?.type === INCOMING_CALL_TYPE) {
     void handleIncomingCall(data);
     return;
   }

@@ -28,6 +28,8 @@ import { SUPPORT_EMAIL } from '@/lib/site';
 import { usePrescriptionDetail } from '@/features/pharma/prescription/usePrescriptionDetail';
 import { usePrescriptionPayment } from '@/features/pharma/prescription/usePrescriptionPayment';
 import PrescriptionPaymentSheet from '@/features/pharma/prescription/PrescriptionPaymentSheet';
+import { CallDeliveryPartnerButton } from '@/features/customer/components/CallDeliveryPartnerButton';
+import { CALLING_ENABLED } from '@/lib/config';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OrderDetails'>;
@@ -327,6 +329,20 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
             </AppText>
           </View>
         </View>
+
+        {/* Delivery partner call — masked VOIP/PSTN while the rider is assigned (not on Rx orders). */}
+        {CALLING_ENABLED &&
+        order.fulfillment === 'DELIVERY' &&
+        order.status !== 'Cancelled' &&
+        placedOrder?.kind !== 'prescription' ? (
+          <View style={styles.card}>
+            <AppText style={styles.sectionTitle}>Delivery partner</AppText>
+            <AppText style={styles.rateIntro}>
+              Call your delivery partner through a masked line. Your phone number is never shared.
+            </AppText>
+            <CallDeliveryPartnerButton orderId={order.id} />
+          </View>
+        ) : null}
 
         {/* Pharmacy quote — durable Rx status + seller quote + recent history (remote only) */}
         {rx ? (

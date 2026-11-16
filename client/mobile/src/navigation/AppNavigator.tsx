@@ -47,6 +47,7 @@ const RequestDataDeletionScreen = lazyNamed(() => import('@/features/profile/Req
 const MyOrdersScreen = lazyNamed(() => import('@/features/profile/MyOrdersScreen'), 'MyOrdersScreen');
 const NotificationsScreen = lazyNamed(() => import('@/features/notifications/NotificationsScreen'), 'NotificationsScreen');
 const OrderDetailsScreen = lazyNamed(() => import('@/features/profile/OrderDetailsScreen'), 'OrderDetailsScreen');
+const ActiveCallScreen = lazyNamed(() => import('@/features/customer/screens/ActiveCallScreen'), 'ActiveCallScreen');
 const RateVendorScreen = lazyNamed(() => import('@/features/profile/RateVendorScreen'), 'RateVendorScreen');
 const RateProductScreen = lazyNamed(() => import('@/features/product/RateProductScreen'), 'RateProductScreen');
 const OrderFeedbackScreen = lazyNamed(() => import('@/features/profile/OrderFeedbackScreen'), 'OrderFeedbackScreen');
@@ -194,6 +195,11 @@ export function AppNavigator() {
             name="OrderDetails"
             component={OrderDetailsScreen}
             options={{ animation: 'fade', animationDuration: 180 }}
+          />
+          <Stack.Screen
+            name="ActiveCall"
+            component={ActiveCallScreen}
+            options={{ animation: 'fade', gestureEnabled: false, presentation: 'fullScreenModal' }}
           />
           <Stack.Screen
             name="RateVendor"

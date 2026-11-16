@@ -15,10 +15,11 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
-## W98 — Delivery Partner: masked calling (partial)
+## W98 — Masked calling: customer + delivery partner (partial)
 
-**Status:** 🟡 Rider half implemented (server + client + Android native config); customer half and
-PSTN provider integration pending. CI build required (new native deps/permissions).
+**Status:** 🟡 Both client halves implemented (shared call stack + Android native config); the
+gateway customer endpoint / `incoming_call` push sender and PSTN provider integration are pending.
+CI build required (new native deps/permissions).
 
 Shipped:
 
@@ -26,36 +27,43 @@ Shipped:
   call per rider, ringing-ack + fallback window, no raw phone/provider secrets.
 - Gateway routes: `POST /delivery/{orderId}/call`, `GET /calls/{callId}`,
   `POST /calls/{callId}/{ringing-ack,join,reject,end,fallback}`.
-- `GatewayClient` call methods + types; `callStore`; `calling/callController.ts`, `voip.ts` (100ms),
-  `callkeep.ts`, `incoming.ts`; `ActiveCallScreen`; `CallCustomerButton` on Dashboard + Route.
-- Android delivery manifest: `RECORD_AUDIO`, `BLUETOOTH_CONNECT`, `USE_FULL_SCREEN_INTENT`,
-  `MICROPHONE`/`PHONE_CALL` foreground services, CallKeep `VoiceConnectionService`. iOS microphone
-  usage string added; both native calling packages are excluded from iOS autolinking
-  (`react-native.config.js`) because iOS ships only the customer app.
+- `GatewayClient` call methods + types; `callStore`.
+- Shared call stack `features/call/`: `controller.ts` (factory), `voip.ts` (100ms),
+  `callkeep.ts`, `incoming.ts`, `CallSurface.tsx`; delivery binding + `CallCustomerButton` on
+  Dashboard/Route; customer binding + `CallDeliveryPartnerButton` on `OrderDetails`; `ActiveCall`
+  route in both navigators; shared FCM `incoming_call` background handlers in `index.js` and
+  `index.delivery.js`.
+- Android **customer and delivery** flavor manifests: `RECORD_AUDIO`, `BLUETOOTH_CONNECT`,
+  `USE_FULL_SCREEN_INTENT`, `MICROPHONE`/`PHONE_CALL` foreground services, CallKeep
+  `VoiceConnectionService`; seller manifest strips CallKeep's leaked phone permissions. iOS
+  `voip`/`audio` background modes + local-network copy added; both native calling packages remain
+  excluded from iOS autolinking (`react-native.config.js`).
 - Deps: `@100mslive/react-native-hms@1.12.3`, `react-native-callkeep@4.6.1`. Per-call rooms use
   `HMS_TEMPLATE_ID` (a management token is minted from the app secret; `HMS_MANAGEMENT_TOKEN` is an
   optional override).
-- Hardened: open-call check before room provisioning (a retried/duplicate initiate does not create
-  a 100ms room; the unique index guards a true race), server sweeper for
-  stale `RINGING`/`ACTIVE` rows, `GET /delivery/calls/active` startup resume, failure/dismiss/sign-out
-  teardown of the server row, duplicate-push guard, fire-and-forget ringing-ack, CallKeep
-  `didLoadWithEvents` for cold-start answers, VoIP join timeout + peer-left handling, `beforeRemove`
-  guard on `ActiveCall`, Android 12+ Bluetooth runtime permission, legacy Bluetooth permissions,
-  `HMS_ENDPOINT` wired + all call env vars declared in `render.yaml`, and the raw customer phone
-  removed from the rider order/route projections.
+- Hardened: cross-call race guards (late poll/end responses), double-accept guard, UUID-scoped native
+  events, reject-vs-end for ringing, signed-out push drop + sign-out teardown, outgoing PSTN no
+  longer stuck on "Dialing…", timer preserved across VOIP→PSTN, PSTN controls hidden, failed
+  switch keeps the live leg, end/reject retry, duplicate `initialize()` setup, audio-route tracking,
+  open-call check before room provisioning, server sweeper, `GET /delivery/calls/active` startup
+  resume, duplicate-push guard, CallKeep `didLoadWithEvents`, VoIP join timeout + peer-left handling,
+  `beforeRemove` guard, Android 12+ Bluetooth permission, legacy Bluetooth, `HMS_ENDPOINT` +
+  `render.yaml`, and no raw customer phone in rider order/route projections.
 
 Remaining before Complete:
 
-- Customer app "Call delivery partner" button + server endpoint that creates a `CUSTOMER`-initiated
-  call and enqueues the data-only `incoming_call` push (no sender exists today). If the customer iOS
-  app is included, re-enable the two packages in `react-native.config.js` and add PushKit + CallKit
-  entitlements/background modes.
+- **Server customer path:** a `CUSTOMER`-initiated call endpoint (order ownership + customer VOIP
+  token) and a data-only `incoming_call` push sender for the rider. The customer button/route/ring
+  client is built but is rejected by the current rider-only endpoint.
 - Exotel/Edesy Connect API + status webhook (populate `provider_call_ref`, answer/end events, ringback
   and accurate PSTN timer).
-- GSM-busy pre-check (`TelephonyManager`/`CXCallObserver`), proximity wake-lock, and a queued-call
-  banner when the rider is already on another order.
+- GSM-busy pre-check (`TelephonyManager`/`CXCallObserver`), proximity wake-lock, Android 14+
+  full-screen-intent special access, and a queued-call banner when the rider is already on another
+  order.
+- iOS PushKit + CallKit native bridge if the customer iOS app should ring (re-enable the two packages
+  in `react-native.config.js` and add the pods/entitlements).
 - Device QA on Android 14/15 (full-screen intent + phone-account permission prompts), Bluetooth
-  routing, cold-start CallKeep answer, and a CI delivery build; never run Gradle locally.
+  routing, cold-start CallKeep answer, and a CI customer/delivery build; never run Gradle locally.
 - Client-side reconciliation still cannot *rejoin* an ACTIVE VOIP call after a crash (no token); it
   ends that row and the sweeper bounds any row the client never sees.
 

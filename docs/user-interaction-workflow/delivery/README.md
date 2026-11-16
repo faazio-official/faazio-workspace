@@ -5,8 +5,8 @@
 `src/features/delivery-partner/DeliveryPartnerNavigator.tsx`
 **Routes:** `PhoneEntry`, `OtpVerify`, `Register`, `SubmissionSuccess`, `Main` (persistent bottom-tab
 shell), `AcceptReject` (modal, opened by push/deep link or a `Dashboard` offer card), `Route`,
-`EarningsDetail`, `EditProfile`, `Settings`, `Support`; the five tabs inside `Main` are `Dashboard` · `Payouts` ·
-`OrderHistory` · `Notifications` · `RiderProfile`.
+`ActiveCall` (full-screen masked call), `EarningsDetail`, `EditProfile`, `Settings`, `Support`; the
+five tabs inside `Main` are `Dashboard` · `Payouts` · `OrderHistory` · `Notifications` · `RiderProfile`.
 **Navigation:** the authenticated rider area is a persistent `@react-navigation/bottom-tabs`
 navigator (`DeliveryTabs.tsx`) hosted by the single `Main` stack screen; its custom `tabBar`
 (`components/DeliveryTabBar.tsx`) renders `components/shared/dp/DPBottomNav` (Home · Earnings · Orders ·
@@ -70,7 +70,9 @@ preserved; the bottom nav moved from a per-screen footer to a real tab navigator
 - Heartbeats are foreground/background location writes (`POST /delivery/heartbeat`); a missed
   heartbeat is non-fatal (Valkey key expires and dispatch skips the rider).
 - Calls are masked and server-authoritative: the gateway chooses VOIP vs PSTN_BRIDGING, enforces one
-  open call per rider, and the app never receives or dials the customer's raw phone number.
+  open call per rider, and the app never receives or dials the customer's raw phone number. The call
+  state machine, VOIP adapter, CallKeep ring and full-screen surface are shared with the customer app
+  under `src/features/call/`; the delivery binding only supplies navigation and copy.
 - No mock offers or payouts; empty states are honest.
 
 ## Known gaps

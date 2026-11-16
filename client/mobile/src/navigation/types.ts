@@ -75,6 +75,8 @@ export type RootStackParamList = {
   MyOrders: { initialTab?: MyOrdersStatusFilter; highlightOrderId?: string } | undefined;
   /** Durable notification inbox (notifications.outbox) opened from the My Orders bell. */
   Notifications: undefined;
+  /** Full-screen masked call surface (VOIP or PSTN fallback) for the customer ↔ rider call. */
+  ActiveCall: undefined;
   /** Search-results-style Favourites page (pushed from Account). */
   Favourites: undefined;
   /**

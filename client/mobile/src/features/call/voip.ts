@@ -4,14 +4,15 @@ import HMSSDK, {
   HMSConfig,
   HMSUpdateListenerActions,
 } from '@100mslive/react-native-hms';
+import type { CallAudioRoute } from '@/state/callStore';
 import type { DeliveryCall } from '@/services/api/GatewayClient';
 
 /**
- * Thin 100ms adapter for delivery voice calls.
+ * Thin 100ms adapter for masked voice calls, shared by the customer and delivery-partner products.
  *
- * Lifecycle is owned by `callController`: this module only joins/leaves the room, routes audio to
- * the earpiece (or a paired Bluetooth headset) and exposes mute/speaker controls. It intentionally
- * sends no analytics and logs no tokens.
+ * Lifecycle is owned by the shared call controller: this module only joins/leaves the room, routes
+ * audio to a paired Bluetooth headset else the earpiece, tracks the active route and exposes
+ * mute/speaker controls. It intentionally sends no analytics and logs no tokens.
  */
 let sdk: HMSSDK | null = null;
 const attached = new Set<HMSUpdateListenerActions>();
@@ -26,6 +27,13 @@ export interface VoipEvents {
   onReconnecting: () => void;
   onReconnected: () => void;
   onError: (message: string) => void;
+  /** Native audio route changed (headset plugged, Bluetooth connected, speaker toggled). */
+  onAudioRoute: (route: CallAudioRoute, bluetoothAvailable: boolean) => void;
+}
+
+export interface VoipJoinResult {
+  route: CallAudioRoute;
+  bluetoothAvailable: boolean;
 }
 
 function listen(
@@ -48,7 +56,20 @@ function detachAll(instance: HMSSDK): void {
   attached.clear();
 }
 
-export async function joinVoip(call: DeliveryCall, events: VoipEvents): Promise<boolean> {
+function routeForDevice(device: string): CallAudioRoute {
+  if (device === HMSAudioDevice.BLUETOOTH) return 'bluetooth';
+  if (device === HMSAudioDevice.SPEAKER_PHONE) return 'speaker';
+  return 'earpiece';
+}
+
+function hasBluetooth(devices: HMSAudioDevice[]): boolean {
+  return devices.includes(HMSAudioDevice.BLUETOOTH);
+}
+
+export async function joinVoip(
+  call: DeliveryCall,
+  events: VoipEvents,
+): Promise<VoipJoinResult> {
   if (!call.authToken) throw new Error('voip_token_missing');
   await leaveVoip();
   const instance = await HMSSDK.build();
@@ -82,11 +103,26 @@ export async function joinVoip(call: DeliveryCall, events: VoipEvents): Promise<
         : 'voip_error';
     events.onError(message);
   });
+  // Android-only in the 100ms SDK; harmless where the SDK never emits it.
+  listen(instance, HMSUpdateListenerActions.ON_AUDIO_DEVICE_CHANGED, (data: unknown) => {
+    const device =
+      typeof data === 'object' && data && 'device' in data
+        ? String((data as { device?: unknown }).device ?? '')
+        : '';
+    const list =
+      typeof data === 'object' && data && 'audioDevicesList' in data
+        ? (data as { audioDevicesList?: unknown }).audioDevicesList
+        : undefined;
+    const devices = Array.isArray(list)
+      ? (list.filter((item): item is string => typeof item === 'string') as HMSAudioDevice[])
+      : [];
+    events.onAudioRoute(routeForDevice(device), hasBluetooth(devices));
+  });
 
   let timeout: ReturnType<typeof setTimeout> | null = null;
   try {
     await Promise.race([
-      instance.join(new HMSConfig({ username: 'Delivery Partner', authToken: call.authToken })),
+      instance.join(new HMSConfig({ username: 'Faazio', authToken: call.authToken })),
       new Promise<never>((_, reject) => {
         timeout = setTimeout(() => reject(new Error('voip_join_timeout')), JOIN_TIMEOUT_MS);
       }),
@@ -108,29 +144,35 @@ export async function joinVoip(call: DeliveryCall, events: VoipEvents): Promise<
 
 /**
  * Prefer a paired Bluetooth headset (helmet intercom), else the earpiece. Never the loudspeaker for
- * a phone-style call. Android-only API; iOS is not a delivery-partner product.
+ * a phone-style call. Android-only API; iOS has no delivery-partner product and the customer iOS
+ * calling mirror is not native-linked yet.
  */
-export async function routeBestAudio(): Promise<boolean> {
-  if (!sdk || Platform.OS !== 'android') return false;
+export async function routeBestAudio(): Promise<VoipJoinResult> {
+  if (!sdk || Platform.OS !== 'android') {
+    return { route: 'earpiece', bluetoothAvailable: false };
+  }
   const devices = await sdk.getAudioDevicesList().catch(() => [] as HMSAudioDevice[]);
-  const bluetooth = devices.includes(HMSAudioDevice.BLUETOOTH);
+  const bluetooth = hasBluetooth(devices);
+  const route: CallAudioRoute = bluetooth ? 'bluetooth' : 'earpiece';
   await sdk
     .switchAudioOutput(bluetooth ? HMSAudioDevice.BLUETOOTH : HMSAudioDevice.EARPIECE)
     .catch(() => undefined);
-  return bluetooth;
+  return { route, bluetoothAvailable: bluetooth };
 }
 
 export async function setVoipMuted(muted: boolean): Promise<void> {
-  const local = await sdk?.getLocalPeer().catch(() => undefined);
-  local?.localAudioTrack()?.setMute(muted);
+  try {
+    const local = await sdk?.getLocalPeer();
+    local?.localAudioTrack()?.setMute(muted);
+  } catch {
+    // A vanished local peer/track must not surface as an unhandled rejection.
+  }
 }
 
 export async function setVoipSpeaker(speaker: boolean): Promise<void> {
   if (!sdk || Platform.OS !== 'android') return;
   await sdk
-    .switchAudioOutput(
-      speaker ? HMSAudioDevice.SPEAKER_PHONE : HMSAudioDevice.EARPIECE,
-    )
+    .switchAudioOutput(speaker ? HMSAudioDevice.SPEAKER_PHONE : HMSAudioDevice.EARPIECE)
     .catch(() => undefined);
 }
 

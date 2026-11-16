@@ -8,10 +8,11 @@
 `Notifications`, `SavedAddresses`, `UserDetails`, `FaazioRewards`, `PrescriptionFlow`,
 `MedicalShopDetails`, `BloodDonor*`, `SellWithUs`, `SellerRequests`, `SellerRequestDetail`,
 `SellerPlatformFeeRequest`, `FeeChangeRequests`, `RateVendor`, `DeleteAccount`,
-`RequestDataDeletion`, `Theme`, `PaymentOptions` (registered, unused), `PaymentCallback`.
+`RequestDataDeletion`, `Theme`, `PaymentOptions` (registered, unused), `PaymentCallback`,
+`ActiveCall` (masked call to the delivery partner).
 
 **State:** `src/state/` (auth, cart, favorite, orders, rewards, location, language, onboarding,
-pharma, bloodDonor, search, foodFilter, vendorRating, remoteConfig, connectivity, theme).
+pharma, bloodDonor, search, foodFilter, vendorRating, remoteConfig, connectivity, theme, call).
 **Data:** `GatewayClient` (`src/services/api/GatewayClient.ts`) is the only online origin.
 `@data/*` is an offline/error shell or type source. Home/Food/Pharma online rails render server
 rows or honest empty/error states (fixtures only when the gateway is disabled).
@@ -37,6 +38,8 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Checkout | Place order + payment | `Cart` → PAYMENT → RECEIPT, `PaymentCallback` | [place-order.md](./cart-checkout/place-order.md) |
 | Orders | Order history | `MyOrders`, `OrderDetails` | [orders/index.md](./orders/index.md) · [order-history.md](./orders/order-history.md) |
 | Orders | Order feedback | `OrderDetails` → `OrderFeedback` | [order-feedback.md](./orders/order-feedback.md) |
+| Calling | Outgoing masked call (customer → rider) | `OrderDetails` → `ActiveCall` | [calling/index.md](./calling/index.md) · [calling/outgoing.md](./calling/outgoing.md) |
+| Calling | Incoming masked call (rider → customer) | `ActiveCall` (push + CallKeep) | [calling/incoming.md](./calling/incoming.md) · [calling/edge-cases.md](./calling/edge-cases.md) |
 | Profile | Account / profile | `MainTabs` → `You`, `UserDetails` | [profile/index.md](./profile/index.md) |
 | Profile | Profile details | `UserDetails` (`UserDetailsScreen.tsx`) | [profile/user-details.md](./profile/user-details.md) |
 | Profile | Saved addresses | `SavedAddresses` | [saved-addresses.md](./profile/saved-addresses.md) |
@@ -60,7 +63,10 @@ Domain indexes are the entry point for each area; every flow page is linked from
 
 See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Customer-specific gaps currently include the dead
 `PaymentOptions` route registration, the unreachable `Checkout` button in `SubAppWrapper`, the
-invoice-PDF stub, the root `Search` `FOOD` config mismatch, and the `@mock` self-pickup resolver.
+invoice-PDF stub, the root `Search` `FOOD` config mismatch, the `@mock` self-pickup resolver, and
+**calling is client-only**: the shared button/route/ring stack exists but the gateway has no
+customer-initiated call endpoint or `incoming_call` push sender yet
+([calling/index.md](./calling/index.md)).
 The Home header category rail reads the server taxonomy only (`GET /categories/rail`) — there is no
 fixture substitution.
 

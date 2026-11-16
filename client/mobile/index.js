@@ -11,5 +11,9 @@
 
 import { AppRegistry } from 'react-native';
 import App from './App';
+import { registerCustomerCallBackgroundHandler } from './src/features/customer/calling/incoming';
+
+// Register before the app component so a swiped-away app still rings for an incoming call.
+registerCustomerCallBackgroundHandler();
 
 AppRegistry.registerComponent('main', () => App);

@@ -73,6 +73,8 @@
 	<string>Faazio lets you choose existing prescription photos from your photo library.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Faazio uses the microphone only while you are on a delivery call so you and the other person can talk.</string>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Faazio uses the local network only while connecting a delivery call through the voice service.</string>
 	<key>RCTMetroPort</key>
 	<string>$(RCT_METRO_PORT)</string>
 	<key>RCTNewArchEnabled</key>
@@ -80,6 +82,8 @@
 	<key>UIBackgroundModes</key>
 	<array>
 		<string>remote-notification</string>
+		<string>voip</string>
+		<string>audio</string>
 	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>

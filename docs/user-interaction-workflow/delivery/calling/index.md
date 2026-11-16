@@ -1,9 +1,9 @@
 # Delivery calling — domain index
 
-**App / route(s):** delivery · `ActiveCall` + `CallCustomerButton` on `Route` / `Dashboard`
-(`features/delivery-partner/calling/`, `screens/ActiveCallScreen.tsx`)
-**Status:** **Partial** — the rider half is implemented and hardened; the customer-app entry point,
-the call-push sender and the PSTN provider bridging webhook are not.
+**App / route(s):** customer + delivery · `ActiveCall` in both navigators
+(`features/call/`, `features/delivery-partner/calling/`, `features/customer/calling/`)
+**Status:** **Partial** — both client halves are implemented; the gateway still has no
+customer-initiated call endpoint, no `incoming_call` push sender, and no PSTN provider bridge.
 **Authority:** `docs/architecture/mobile-app.md` ("Masked calling"), `monolith-breakdown.md` §1
 (delivery row), `db-schema.md` §12.39.
 
@@ -15,19 +15,31 @@ the call-push sender and the PSTN provider bridging webhook are not.
   and sweeps stale `RINGING` (45 s) / `ACTIVE` (2 h) rows.
 - `GatewayClient`: `initiateDeliveryCall`, `getDeliveryCall`, `getActiveDeliveryCall`,
   `ackDeliveryCallRinging`, `joinDeliveryCall`, `rejectDeliveryCall`, `endDeliveryCall`,
-  `fallbackDeliveryCall`.
-- `callStore` (`src/state/callStore.ts`) + `callController.ts` state machine, 3 s double-tap lock,
-  microphone consent/fallback, status polling, network-reconnect state, failure teardown (an open
-  row is ended, never left to lock the rider out), startup resume via `GET /delivery/calls/active`,
-  duplicate-push guard and sign-out teardown.
-- `ActiveCallScreen` full-screen route with timer, mute, speaker, Bluetooth, "Switch to phone call",
-  Accept/Decline for an in-app incoming ring, End; hardware back ends the call instead of abandoning
-  it.
-- `CallCustomerButton` on accepted-order Dashboard cards and DROP stops on `Route`.
-- Android native ringing: `react-native-callkeep` ConnectionService + delivery-flavor permissions and
-  the `incoming_call` FCM background handler registered in `index.delivery.js`.
-- 100ms voice adapter (`calling/voip.ts`): join/leave, earpiece/Bluetooth routing, mute, reconnect
-  events.
+  `fallbackDeliveryCall` (shared by both apps).
+- Shared call stack in `src/features/call/`:
+  - `controller.ts` — one state machine factory used by both apps: 3 s double-tap lock,
+    double-accept guard, UUID-scoped native events, status polling with cross-call guards,
+    mic/mic-denial fallback, retrying lifecycle teardown, startup recovery, AppState resync,
+    audio-route tracking, notice vs fatal error.
+  - `voip.ts` — 100ms join/leave, earpiece/Bluetooth routing, `ON_AUDIO_DEVICE_CHANGED`, mute,
+    reconnect events, 15 s join timeout.
+  - `callkeep.ts` — Android ConnectionService ring, `hasPhoneAccount`/managed-call checks,
+    `rejectCall` for ringing, `displayIncomingCall` with iOS call options, cold-start
+    `didLoadWithEvents`, `backToForeground`, `setAvailable`.
+  - `incoming.ts` — shared FCM data-only background handler.
+  - `CallSurface.tsx` — shared full-screen call UI; each app injects its theme tokens.
+- `callStore` (`src/state/callStore.ts`) — phase, server call projection, masked peer label,
+  connected timestamp, mute/speaker/audio route/Bluetooth, incoming, reconnecting, fallback
+  prompt, recoverable notice, error. `markActive()` never resets a running timer.
+- Delivery binding: `features/delivery-partner/calling/callController.ts` + `CallCustomerButton`
+  on Dashboard/Route + `ActiveCallScreen` (eventual `DELIVERY` tokens).
+- Customer binding: `features/customer/calling/callController.ts` + `CallDeliveryPartnerButton`
+  on `OrderDetails` + `ActiveCallScreen` (light/dark palette).
+- Android native ringing: `react-native-callkeep` ConnectionService + `VoiceConnectionService` in
+  the **customer and delivery** flavor manifests; `index.js`/`index.delivery.js` register the
+  shared `incoming_call` FCM handler before mount. iOS background modes (`voip`, `audio`) and
+  local-network copy are declared, but the CallKeep/100ms pods remain excluded from iOS
+  autolinking.
 
 ## Flows
 
@@ -37,6 +49,7 @@ the call-push sender and the PSTN provider bridging webhook are not.
 | Incoming call to the rider | [incoming.md](./incoming.md) |
 | Failure/edge handling | [edge-cases.md](./edge-cases.md) |
 | Screens, state and copy | [screens.md](./screens.md) |
+| Customer calls the rider | [`../../customer/calling/`](../../customer/calling/index.md) |
 
 ## Data path
 
@@ -60,8 +73,9 @@ Client: `CALLING_ENABLED` (default true) only — provider secrets never enter t
 
 ## Known gaps
 
-See [edge-cases.md](./edge-cases.md) and `../KNOWN_GAPS.md`. In short: no customer-app "call rider"
-button, no sender for the `incoming_call` push, no Exotel/Edesy Connect/webhook integration, no
-GSM-busy pre-check, no proximity wake-lock. Until the customer side exists a VOIP room has no callee,
-and the PSTN leg only opens the dialer on the configured masked landline — there is no provider
-bridge that connects it to the customer, so the flow is **not** end-to-end usable yet.
+See [edge-cases.md](./edge-cases.md) and `../KNOWN_GAPS.md`. In short: the gateway has no
+customer-initiated call endpoint and no sender for the `incoming_call` push, so the customer app's
+button reaches the rider-only endpoint and is rejected; no Exotel/Edesy Connect/webhook integration
+(PSTN dials only the masked landline); iOS PushKit/CallKit is not native-linked; no GSM-busy
+pre-check, proximity wake-lock, queued-call banner or provider-answer timer. The flow is **not**
+end-to-end usable until the server pieces land.

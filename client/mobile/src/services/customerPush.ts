@@ -1,7 +1,7 @@
 /**
  * Customer push registration. The gateway's notifications outbox drains through the configured
  * push bridge (FCM/APNs/webhook); this module registers the device token so the signed-in customer
- * receives order/Rx notifications on any device.
+ * receives order/Rx notifications and incoming delivery calls on any device.
  *
  * Best-effort by design: a denied permission or an unconfigured native Firebase app must never
  * block the app. The in-app inbox (GET /notifications) remains available as the fallback.
@@ -17,7 +17,10 @@ import {
   onTokenRefresh,
   requestPermission,
 } from '@react-native-firebase/messaging';
+import type { RemoteMessage } from '@react-native-firebase/messaging';
 import { gateway } from './api/GatewayClient';
+import { handleIncomingCall } from '@/features/customer/calling/callController';
+import { INCOMING_CALL_TYPE } from '@/features/call/incoming';
 
 const platform: 'android' | 'ios' = Platform.OS === 'ios' ? 'ios' : 'android';
 
@@ -34,10 +37,20 @@ async function syncToken(): Promise<void> {
   if (token) await gateway.registerPushToken(token, platform);
 }
 
+function handleMessage(message: RemoteMessage, onNotification?: () => void): void {
+  const data = message.data as Record<string, unknown> | undefined;
+  // Call pushes are handled by the calling surface, never treated as an inbox notification.
+  if (data?.type === INCOMING_CALL_TYPE) {
+    void handleIncomingCall(data);
+    return;
+  }
+  onNotification?.();
+}
+
 /**
  * Ask for notification permission, register the token and keep it fresh. `onNotification` runs when
- * a message arrives in the foreground or the customer taps a notification. Returns a cleanup that
- * removes the listeners (the registered token stays valid for the user).
+ * a non-call message arrives in the foreground or the customer taps a notification. Returns a
+ * cleanup that removes the listeners (the registered token stays valid for the user).
  */
 export async function startCustomerPush(onNotification?: () => void): Promise<() => void> {
   if (!gateway.remoteEnabled) return () => {};
@@ -48,13 +61,15 @@ export async function startCustomerPush(onNotification?: () => void): Promise<()
     const unsubToken = onTokenRefresh(messaging, (token) => {
       void gateway.registerPushToken(token, platform).catch(() => undefined);
     });
-    const unsubMessage = onMessage(messaging, () => onNotification?.());
-    const unsubOpen = onNotificationOpenedApp(messaging, () => onNotification?.());
+    const unsubMessage = onMessage(messaging, (message) => handleMessage(message, onNotification));
+    const unsubOpen = onNotificationOpenedApp(messaging, (message) =>
+      handleMessage(message, onNotification),
+    );
 
     // Cold-start notification: report it once so the inbox can refresh on mount.
     void getInitialNotification(messaging)
       .then((initial) => {
-        if (initial) onNotification?.();
+        if (initial) handleMessage(initial, onNotification);
       })
       .catch(() => undefined);
 

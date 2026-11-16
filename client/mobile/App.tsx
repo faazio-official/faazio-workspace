@@ -20,6 +20,11 @@ import { useThemeStore } from './src/state/themeStore';
 import { useOnboardingStore } from './src/state/onboardingStore';
 import { hydrateUserStores } from './src/services/sessionStores';
 import { startCustomerPush } from './src/services/customerPush';
+import {
+  flushPendingActiveCall,
+  initializeCustomerCalling,
+  shutdownCalling,
+} from './src/features/customer/calling/callController';
 import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
 import { useBottomInset } from './src/utils/responsive';
 import { useThemeMode } from './src/hooks/useThemeMode';
@@ -232,6 +237,15 @@ export default function App() {
     };
   }, [isAuthenticated]);
 
+  // Attach the shared call controller after login and tear it down on sign-out, so a signed-out
+  // device cannot ring for the previous account's calls.
+  const wasAuthenticated = useRef(isAuthenticated);
+  useEffect(() => {
+    if (isAuthenticated) void initializeCustomerCalling();
+    else if (wasAuthenticated.current) void shutdownCalling();
+    wasAuthenticated.current = isAuthenticated;
+  }, [isAuthenticated]);
+
   if (!ready) {
     return (
       <>
@@ -269,7 +283,10 @@ export default function App() {
         <NavigationContainer
           ref={navigationRef}
           theme={navigationTheme}
-          onReady={flushPendingPaymentCallback}
+          onReady={() => {
+            flushPendingPaymentCallback();
+            flushPendingActiveCall();
+          }}
           onStateChange={handleNavigationStateChange}
         >
           <AppNavigator />

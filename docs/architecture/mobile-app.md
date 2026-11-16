@@ -33,23 +33,25 @@ src/
 │   # This avoids the fragile react-native-svg `<Image>` + base64 data-URI path; size
 │   # is applied to the visible glyph box (814×227) so both variants share one scale.
 │   └── shared/                 # reusable primitives incl. dp/ (delivery Vite-reference primitives), 17 legacy primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, OfflinePage, OfflineToast, …)
-├── features/                   # vertical feature modules (16)
+├── features/                   # vertical feature modules (20)
 ├── lib/                        # config, externalLinks, site, tokenClaims, smsUserConsent (Android SMS User Consent hook), recentPhones (device-local sign-in suggestions)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, offlineNavigationGuard, types
 ├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed, pricing
-├── state/                      # Zustand stores (incl. deliveryPartner + deliverySettings)
+├── state/                      # Zustand stores (incl. deliveryPartner + deliverySettings + shared callStore)
 ├── theme/                      # brandTokens, spacing (SPACE tokens), fonts, sectorVisuals
 └── utils/                      # responsive (hs/vs/ms/wp/hp)
 ```
 
 ### Features (`src/features/`)
 
-`auth` · `cart` · `catalog` · `delivery-partner` · `ecommerce` · `favourites` · `food` · `home` ·
-`onboarding` · `pharma` · `product` · `profile` · `rewards` · `search` · `seller-onboarding` ·
-`seller-partner` · `sub-app`
+`auth` · `cart` · `catalog` · `call` · `customer` · `delivery-partner` · `ecommerce` ·
+`favourites` · `food` · `home` · `notifications` · `onboarding` · `pharma` · `product` · `profile` ·
+`rewards` · `search` · `seller-onboarding` · `seller-partner` · `sub-app`
 
-`delivery-partner` is the **standalone Delivery Partner app** (not a customer route): see
-"Delivery Partner app" below.
+`call` is the shared masked-calling stack (controller factory, 100ms adapter, CallKeep, FCM
+background handler, full-screen surface) used by both products; `customer` holds the customer
+bindings (`ActiveCallScreen`, `CallDeliveryPartnerButton`). `delivery-partner` is the **standalone
+Delivery Partner app** (not a customer route): see "Delivery Partner app" below.
 
 The former `grocery` sub-app was removed: grocery products/stores merged into Mart
 (`ecommerce`), the `GROCERY` `SubAppId` was dropped, and the `grocery-home/` components,
@@ -632,7 +634,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) + durable `serverOrders` merged from `gateway.getOrders()` **and** `gateway.getPrescriptions()` (`refresh()` on login + My Orders focus); `recordServerOrder(row)` adopts the server order after checkout; `recordOrder` records a just-placed prescription (keyed by the server Rx id); `getOrderById` prefers server history; reset on logout |
 | `vendorRatingStore` | The signed-in user's live vendor ratings (one per `(user, vendor)`, latest wins) + verified-purchase `orderIds`; persisted AsyncStorage `faazio/vendor-ratings/v1`, reset on logout |
 | `deliveryPartnerStore` | Partner-app only: verified application phone + the rider/detail projection from `GET /delivery/me`. The Firebase session itself stays in `authStore`/Keychain and is never duplicated here |
-| `callStore` | Partner-app only: one masked delivery call at a time — phase (`idle`/`connecting`/`ringing`/`active`/`ending`/`ended`/`error`), server call projection, masked peer label, connected timestamp, mute/speaker/Bluetooth, reconnecting + PSTN-fallback prompts. Owned by `features/delivery-partner/calling/callController.ts`; no raw phone number is stored |
+| `callStore` | Shared by the customer and delivery apps: one masked call at a time — phase (`idle`/`connecting`/`ringing`/`active`/`ending`/`ended`/`error`), server call projection, masked peer label, connected timestamp, mute/speaker/audio route (`earpiece`/`speaker`/`bluetooth`), Bluetooth availability, reconnecting + PSTN-fallback prompts, recoverable notice. Owned by `features/call/controller.ts`; no raw phone number or VOIP token is persisted |
 | `remoteConfigStore` | Central remote config (the "Central Digital Menu", `admins.app_config` `0059`): boots `gateway.getAppConfig()` (`GET /app-config`, public, variant-filtered) best-effort under the splash, keeps a flat key→value map, and **never blocks startup** (failure keeps the bake-time `config.ts` defaults). Baked values are the safe defaults; a remote row overrides its key only when present; `GATEWAY_URL`/`APP_VARIANT` are never overridden. Selectors: `selectPlacesApiKey` (wired → `usePlaceAutocomplete` — a `maps.places_api_key` edit is live on the next boot), `selectMaintenanceEnabled` (available, no screen consumes it yet), `resolvePlacesApiKey` (non-hook read for `resolvePlaceLocation`). Not persisted — refetched every cold boot |
 | `connectivityStore` | Live device connectivity (no NetInfo dep): `GET {GATEWAY_URL}/health` with a 5 s timeout, polled every 30 s while foregrounded, re-checked on `AppState` → `active`. Any HTTP response (even 4xx/5xx) means online; only a thrown fetch/timeout means offline. Holds `isOnline` (`null` until the first probe so no cold-start flash), `hasConnected` (first-ever online, distinguishes cold-start offline), `pendingNavigation` + `navigationBlocked` for the offline guard. `checkConnectivity`/`startMonitoring`/`stopMonitoring`. With no gateway configured it reports **unknown** (`isOnline: null`) — it never claims online and never blocks navigation. State only — no UI |
 
@@ -794,6 +796,8 @@ AppNavigator (root native stack)
 │   `martDeals`/`martEssentials` from the Mart rail "View All" (catalog-resolved `productIds`); the
 │   last three carry the paid `SECTOR_RAIL` header shelf)
 ├── You · UserDetails · SavedAddresses · MyOrders · Notifications · Favourites · OrderDetails · FaazioRewards · SellWithUs
+│   └── ActiveCall (full-screen masked call to the assigned delivery partner from OrderDetails;
+│        VOIP or PSTN_BRIDGING chosen by the gateway, light/dark themed shared call surface)
 │   ├── DeleteAccount (Account → Privacy and security; OTP re-auth gate → erases PII + Firebase identity, clears session, returns to Login)
 │   ├── RequestDataDeletion (Account → Privacy and security; partial erasure, keeps the account)
 │   └── SellerRequests (admin application queue, role-gated) ── SellerRequestDetail (`{ sellerId }`; KYC verify/activate/reject)
@@ -863,9 +867,10 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 │                  (`POST /delivery/{orderId}/stop/{stopId}/payment-received`) before the stop may
 │                  reach DELIVERED — otherwise `409 payment_not_received`. Customer-OTP
 │                  handover (document re-upload is admin-side; the app has no re-upload screen)
-├── ActiveCall   — full-screen masked call surface (Route/Dashboard "Call customer"): server-chosen
-│                  VOIP (100ms) or PSTN_BRIDGING (masked landline), timer, mute/speaker/Bluetooth,
-│                  "Switch to phone call", End. No raw customer number is rendered or dialled
+├── ActiveCall   — full-screen masked call surface shared with the customer app (`features/call/`):
+│                  server-chosen VOIP (100ms) or PSTN_BRIDGING (masked landline), timer,
+│                  mute/speaker/Bluetooth, "Switch to phone call", Accept/Decline, End. No raw
+│                  customer number is rendered or dialled
 ├── EditProfile  — rider-editable contact email + vehicle/capacity/hub zone (PUT /delivery/me)
 ├── EarningsDetail — single-order payout breakdown (GET /delivery/payouts/{orderId})
 ├── Settings     — account summary, local "vibrate on new offer" preference (AsyncStorage), system
@@ -995,29 +1000,31 @@ signature.
 one coarse fix and posts the same heartbeat as the foreground loop; the service stops when the
 rider goes offline/signs out. The in-app consent flag is persisted so a cold start while already
 online resumes the watch without re-prompting; sign-out clears it. iOS is customer-only and declares
-only `remote-notification` in `ios/Faazio/Info.plist` — no background location or `fetch`.
+`remote-notification` plus `voip`/`audio` background modes in `ios/Faazio/Info.plist` (the latter two
+are reserved for the call path) — no background location or `fetch`.
 
-**Masked calling (`0104`).** `Route` (DROP stops) and `Dashboard` (accepted jobs) render
-`CallCustomerButton`. The gateway is the authority: `POST /delivery/{orderId}/call` returns
-`VOIP` (100ms room + auth token, 2-hour TTL) when `HMS_APP_ACCESS_KEY`/`HMS_APP_SECRET` plus a room
-source are configured, otherwise `PSTN_BRIDGING` with `DELIVERY_CALL_VIRTUAL_NUMBER`. The app never
-chooses the mode and the raw customer phone is no longer projected by the rider order/route
-endpoints; the PSTN leg dials only the masked landline. `callController.ts` owns the state machine,
-the 3 s double-tap lock, the ringing-ack poll, the one-tap PSTN fallback, mic-denial fallback,
-failure teardown (an open server row is ended, not leaked) and startup recovery:
-`GET /delivery/calls/active` resumes an incoming ring or ends a stale outgoing row, and the gateway
-sweeper closes `RINGING` rows after 45 s and `ACTIVE` rows after 2 h. `ActiveCallScreen` is a
-non-dismissible full-screen route (hardware back ends the call first). Native ringing is Android-only
-(`react-native-callkeep` ConnectionService + `VoiceConnectionService`), with `RECORD_AUDIO`,
-`BLUETOOTH_CONNECT` (+ legacy Bluetooth ≤ Android 11), `USE_FULL_SCREEN_INTENT`,
-`FOREGROUND_SERVICE_MICROPHONE`/`PHONE_CALL` in the delivery flavor manifest. The native packages
-are excluded from iOS autolinking (`client/mobile/react-native.config.js`) while iOS ships only the
-customer app.
-`index.delivery.js` registers the FCM data-only `incoming_call` background handler before the app
-mounts. `CALLING_ENABLED` (default true) is the only client build flag; provider secrets stay
-server-side. **Status: Partial** — the rider half is hardened; the customer-app "call rider" entry
-point, the call-push sender and the Exotel/Edesy bridging webhook are not built (see
-`docs/user-interaction-workflow/delivery/calling/index.md`).
+**Masked calling (`0104`).** The customer and delivery-partner apps share one call stack under
+`features/call/` (`controller.ts` state machine, `voip.ts` 100ms adapter, `callkeep.ts` native ringing,
+`incoming.ts` FCM wake-up, `CallSurface.tsx` full-screen UI); each product binds it with its own
+navigation handle and peer labels. `Route`/`Dashboard` render the rider `CallCustomerButton` and
+`OrderDetails` renders the customer `CallDeliveryPartnerButton`. The gateway is the authority:
+`POST /delivery/{orderId}/call` returns `VOIP` (100ms room + 2-hour token) when configured, otherwise
+`PSTN_BRIDGING` with `DELIVERY_CALL_VIRTUAL_NUMBER`. The app never receives the other peer's raw
+phone number. The controller owns the 3 s double-tap lock, re-entrancy/double-accept guards,
+UUID-scoped native events, the ringing-ack window, one-tap PSTN fallback, mic-denial fallback,
+retrying lifecycle teardown, `GET /delivery/calls/active` recovery, AppState resync and audio-route
+tracking. `callStore` also carries `audioRoute` and a recoverable `notice`. `ActiveCall` is a
+non-dismissible full-screen route in both navigators (hardware back ends the call first). Native
+ringing is Android-only today: `react-native-callkeep` ConnectionService + `VoiceConnectionService`,
+`RECORD_AUDIO`, `BLUETOOTH_CONNECT` (+ legacy Bluetooth ≤ Android 11), `USE_FULL_SCREEN_INTENT`,
+`FOREGROUND_SERVICE_MICROPHONE`/`PHONE_CALL` in the **customer and delivery** flavor manifests.
+`index.js` and `index.delivery.js` register the shared FCM data-only `incoming_call` handler before
+mount. `CALLING_ENABLED` (default true) is the only client build flag; provider secrets stay
+server-side. **Status: Partial** — both client halves are built, but the gateway still has no
+customer-initiated call endpoint and no `incoming_call` push sender, so a customer-originated call
+returns a conflict and the rider ring cannot be triggered yet; iOS PushKit/CallKit is not native-linked
+and the Exotel/Edesy bridging webhook is absent (see
+`docs/user-interaction-workflow/customer/calling/` and `.../delivery/calling/`).
 
 **Known production limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit Android
 background location (plus OEM battery whitelisting) and push delivery is an ops step (fee-free: set the
@@ -1698,10 +1705,10 @@ meta-data (`tools:node="remove"` in `android/app/src/seller/AndroidManifest.xml`
 need the **customer + delivery** packages on their allowlist. Do not delete the shared `react-native-maps`
 dependency to achieve this — that would break customer and delivery.
 The customer product never requests background location. The iOS product is customer-only:
-`ios/Faazio/Info.plist` declares only `remote-notification` and remains foreground-only (it never
-requests "Always" authorization or background location), though it carries
-`NSLocationWhenInUseUsageDescription` for checkout live-address auto-fill. Android keeps background
-location scoped to the delivery flavor manifest.
+`ios/Faazio/Info.plist` declares `remote-notification`, `voip` and `audio` and remains
+foreground-only for location (it never requests "Always" authorization or background location),
+though it carries `NSLocationWhenInUseUsageDescription` for checkout live-address auto-fill.
+Android keeps background location scoped to the delivery flavor manifest.
 
 ## Cart checkout — BAG → FULFILLMENT → PAYMENT → (PAYMENT_STATUS → PAYMENT_FAILED) → RECEIPT
 

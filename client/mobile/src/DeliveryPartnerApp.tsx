@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { flushPendingDeliveryOffer } from './services/deliveryLinks';
 import {
   flushPendingActiveCall,
   initializeDeliveryCalling,
+  shutdownCalling,
 } from './features/delivery-partner/calling/callController';
 import { SplashFallback } from './components/SplashFallback';
 import { useAuthStore } from './state/authStore';
@@ -57,9 +58,13 @@ export default function DeliveryPartnerApp() {
   }, [hydrateAuth]);
 
   // Attach CallKeep handlers + recover an open call as early as possible (cold start from a call
-  // push would otherwise miss the answer tap or leave a stale server row).
+  // push would otherwise miss the answer tap or leave a stale server row). Sign-out tears the
+  // native session + server row down so the next account never inherits this rider's call.
+  const wasAuthenticated = useRef(isAuthenticated);
   useEffect(() => {
     if (ready && isAuthenticated) void initializeDeliveryCalling();
+    else if (wasAuthenticated.current && !isAuthenticated) void shutdownCalling();
+    wasAuthenticated.current = isAuthenticated;
   }, [ready, isAuthenticated]);
 
   if (!ready || !fontsLoaded) {
