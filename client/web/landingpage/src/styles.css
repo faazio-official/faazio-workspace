@@ -14,9 +14,10 @@
  *   Moments   — the hero photograph, and the three sector cards with real food.
  *   Signature — the small "open now" dot beside local availability.
  *
- * The neutrals are warm (hue ~70-80) rather than blue-grey, because the product
- * lives next to paper and food, not dashboards. Faazio blue stays as the single
- * accent and never fills a surface larger than a button.
+ * The page canvas is a cool near-white (`#FAFCFF`); the card, surface and border
+ * ramp stays warm (hue ~70-80) because the product lives next to paper and food,
+ * not dashboards. Faazio blue stays as the single accent and never fills a
+ * surface larger than a button.
  *
  * Every colour is a token defined in `:root` (light) and `.dark`. Components
  * never hardcode a hex value.
@@ -87,8 +88,8 @@
   /* Faazio Blue — the single brand anchor (docs/UI_DESIGN_SYSTEM.md §5). */
   --brand-blue: #1627e9;
 
-  /* Warm paper ramp. */
-  --background: oklch(0.988 0.004 85);
+  /* Page canvas: a cool near-white; the surfaces below keep the warm paper ramp. */
+  --background: #fafcff;
   --foreground: oklch(0.235 0.014 60);
   --surface: oklch(0.968 0.006 82);
   --surface-sunken: oklch(0.952 0.008 80);

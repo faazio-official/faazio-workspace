@@ -17,7 +17,8 @@ this surface.
 
 ## Design direction (decided — do not re-derive)
 
-A neighbourhood storefront, not a SaaS launch. Warm paper neutrals (hue ~70–85),
+A neighbourhood storefront, not a SaaS launch. A cool near-white page canvas
+(`#FAFCFF`) over a warm paper card/surface ramp (hue ~70–85),
 Faazio blue (defined in `docs/UI_DESIGN_SYSTEM.md` §5) as the only accent, **Instrument Sans** for interface and
 **Instrument Serif** for display headlines only. The hero is a scene: real
 photography, type on the calm side it was composed to leave open. The signature

@@ -12,7 +12,8 @@ Built with **TanStack Start** (file-based routing + SSR), **React 19**,
 
 Direction: a neighbourhood storefront, not a SaaS launch. Grounded, warm and
 unhurried; the world is a shop counter (paper, cardboard, produce crates,
-daylight), so the neutrals are warm rather than blue-grey.
+daylight). The page canvas is a cool near-white (`#FAFCFF`); the card, surface
+and border ramp stays warm rather than blue-grey.
 
 - **One accent, never a surface.** Faazio Blue (`--brand`, defined in
   `docs/UI_DESIGN_SYSTEM.md` §5) is the accent and
@@ -55,7 +56,7 @@ daylight), so the neutrals are warm rather than blue-grey.
     `__root.tsx` follow the OS, not the stored preference, so an explicit Light
     choice under a dark OS would paint dark browser chrome above a light page.
     `applyTheme` rewrites both metas to the resolved theme's `--background`
-    (`#fbfaf7` / `#1a1714`), and `themeInitScript` does the same before first
+    (`#fafcff` / `#1a1714`), and `themeInitScript` does the same before first
     paint so the chrome never flashes the wrong colour.
   - **Verify.** `npm run check:theme` asserts the resolution matrix, that the
     pre-paint script implements the same rule and syncs the chrome colour, and

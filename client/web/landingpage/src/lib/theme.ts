@@ -65,7 +65,7 @@ export function resolveTheme(preference: ThemePreference): ResolvedTheme {
  * matches what is actually painted.
  */
 const THEME_COLOR: Record<ResolvedTheme, string> = {
-  light: "#fbfaf7",
+  light: "#fafcff",
   dark: "#1a1714",
 };
 
@@ -88,4 +88,4 @@ export function applyTheme(resolved: ResolvedTheme): void {
  * and run before the first paint. Mirrors readThemePreference/resolveTheme/
  * applyTheme exactly.
  */
-export const themeInitScript = `(function(){try{var p=localStorage.getItem("${THEME_STORAGE_KEY}");if(p!=="auto"&&p!=="light"&&p!=="dark")p="auto";var d=p==="dark"||(p==="auto"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);var m=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<m.length;i++){m[i].setAttribute("content",d?"#1a1714":"#fbfaf7");}}catch(e){}})();`;
+export const themeInitScript = `(function(){try{var p=localStorage.getItem("${THEME_STORAGE_KEY}");if(p!=="auto"&&p!=="light"&&p!=="dark")p="auto";var d=p==="dark"||(p==="auto"&&window.matchMedia("(prefers-color-scheme: dark)").matches);document.documentElement.classList.toggle("dark",d);var m=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<m.length;i++){m[i].setAttribute("content",d?"#1a1714":"#fafcff");}}catch(e){}})();`;
