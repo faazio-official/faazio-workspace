@@ -154,6 +154,17 @@ outstanding anti-abuse step (Play Integrity/APNs) are in
 the DB seed after editing `@data/*`:
 `node server/supabase/seed/generate.mjs`. Details: `server/gateway/README.md`.
 
+**Delivery calling (optional).** The rider app calls through the gateway, which picks VOIP (100ms)
+or PSTN. Server env (never commit): `HMS_APP_ACCESS_KEY`, `HMS_APP_SECRET`, plus
+`HMS_TEMPLATE_ID` (per-call rooms; optional `HMS_MANAGEMENT_TOKEN` override) or `HMS_ROOM_ID` (dev),
+`HMS_ROLE`, `HMS_RINGING_ACK_SECONDS` (default 3), and `DELIVERY_CALL_VIRTUAL_NUMBER` for the masked
+PSTN leg.
+With none set, call buttons still render but the gateway returns `503 calling_unavailable` — no fake
+room or number. The only client flag is `CALLING_ENABLED` (default true) in the app env files. New
+native deps (`@100mslive/react-native-hms`, `react-native-callkeep`) and Android permissions mean a
+CI delivery build is required; never run Gradle locally. Flow/status:
+`docs/user-interaction-workflow/delivery/calling/`.
+
 ### 4b. Ship a release APK
 
 Release builds run in **GitHub Actions**, not on your machine (see `docs/RUNBOOKS/RELEASE.md`):

@@ -73,8 +73,19 @@ type Config struct {
 	// secret, never committed. When unset, push delivery stays disabled (in-app inbox only).
 	FCMProjectID      string
 	FCMServiceAccount string
-	AllowedOrigins    []string
-	OTelEnabled       bool
+	// Delivery calling (0104). VOIP is enabled when the 100ms app key/secret are set plus either a
+	// management token + template (per-call rooms) or a pre-provisioned room id. PSTN_BRIDGING is
+	// enabled when a masked virtual landline is set. Secrets are env-only and never projected.
+	DeliveryCallVirtualNumber string
+	HMSAppAccessKey           string
+	HMSAppSecret              string
+	HMSManagementToken        string
+	HMSTemplateID             string
+	HMSRoomID                 string
+	HMSRole                   string
+	HMSRingingAckSeconds      int
+	AllowedOrigins            []string
+	OTelEnabled               bool
 }
 
 // Load reads config from the environment with safe local-dev defaults.
@@ -111,6 +122,14 @@ func Load() Config {
 		RazorpayWebhookSecret:       env("RAZORPAY_WEBHOOK_SECRET", ""),
 		FCMProjectID:                env("FCM_PROJECT_ID", ""),
 		FCMServiceAccount:           env("FCM_SERVICE_ACCOUNT_JSON", ""),
+		DeliveryCallVirtualNumber:   env("DELIVERY_CALL_VIRTUAL_NUMBER", ""),
+		HMSAppAccessKey:             env("HMS_APP_ACCESS_KEY", ""),
+		HMSAppSecret:                env("HMS_APP_SECRET", ""),
+		HMSManagementToken:          env("HMS_MANAGEMENT_TOKEN", ""),
+		HMSTemplateID:               env("HMS_TEMPLATE_ID", ""),
+		HMSRoomID:                   env("HMS_ROOM_ID", ""),
+		HMSRole:                     env("HMS_ROLE", "guest"),
+		HMSRingingAckSeconds:        envInt("HMS_RINGING_ACK_SECONDS", 3),
 		AllowedOrigins:              splitCSV(env("ALLOWED_ORIGINS", "")),
 		OTelEnabled:                 envBool("OTEL_ENABLED", false),
 	}

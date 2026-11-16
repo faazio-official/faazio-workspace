@@ -1955,7 +1955,7 @@ CREATE UNIQUE INDEX payouts_transfer_uniq
 - The webhook path keys on `razorpay_transfer_id`, now unique per payout. No payload, bank detail or
   secret is stored or logged.
 
-### 12.23 `delivery.*` — Delivery Partner onboarding, dispatch + multi-stop execution (migrations `0042`, `0043`, `0045`, `0102`)
+### 12.23 `delivery.*` — Delivery Partner onboarding, dispatch + multi-stop execution (migrations `0042`, `0043`, `0045`, `0102`, `0104`)
 
 **Authority:** `server-gateway-plan.md` (Delivery partner), `monolith-breakdown.md` §1 (delivery
 row), `caching-cloudflare-valkey.md` (§4–§5 rider keys). Additive only; the customer/marketplace
@@ -1971,13 +1971,15 @@ tables are untouched.
 | `delivery.rider_heartbeats` | Optional low-frequency Postgres mirror. The authoritative live coordinate is Valkey `delivery:rider:{id}:location` (TTL 300 s) |
 | `delivery.rider_shift_days` | `0102`. One completed worked-day roll-up per rider (`rider_id`, `shift_date` PK; `online_seconds`, `earnings_paisa`). Written lazily at the IST day rollover from the Valkey in-progress day (`GET /delivery/shift-summary`); aggregates only, no PII |
 | `delivery.delivery_ratings` | Post-delivery 1–5 rating + comment, unique per order; the rider aggregate is recomputed in the same tx |
+| `delivery.calls` | `0104`. Server-authoritative masked call sessions: `call_id` PK, `order_id`, `rider_id`, `initiated_by` (`RIDER`/`CUSTOMER`), `peer_role` (`CUSTOMER`/`DELIVERY_PARTNER`), `mode` (`VOIP`/`PSTN_BRIDGING`), `status` (`RINGING`/`ACTIVE`/`ENDED`/`REJECTED`/`FAILED`/`MISSED`/`BUSY`), 100ms `provider_room_id`, `virtual_number`, `ringing_ack_at`, `accepted_at`, `ended_at`, `end_reason`, timestamps. A partial unique index allows **one open call per rider**. Stores no phone number or provider secret |
 
 **Security / RLS**
 - Writes are `service_role` only (the gateway). Authenticated riders may read their own rows; a
   `DISTRICT_ADMIN` may read rows in its `district_code` (legacy rows: parent `state_code`); `SUPER_ADMIN` reads all. Nothing is anon-readable.
 - PII (phone, address, emergency contact, customer phone) is auth-scoped and never cached in Valkey
   or exposed to anon feeds. KYC images stay in the private R2 bucket and render through
-  `GET /media/private/{id}` presigned GETs.
+  `GET /media/private/{id}` presigned GETs. `delivery.calls` stores only masked roles, a 100ms room id
+  or the platform virtual number — never either peer's phone number, and never a provider secret.
 - Every rider mutation writes an audit row (`DELIVERY_BOY_APPLY`, `…_DOC_VERIFIED`, `…_VERIFY`,
   `…_REJECT`, `…_DOC_REUPLOAD_ADMIN`, `…_ACTIVATE`, `…_SUSPEND`, `…_BLACKLIST`, `…_ASSIGN`, `…_ACCEPT`,
   `…_REJECT_ORDER`, `…_REASSIGN`, `…_PICKUP`, `…_DELIVERED`).
@@ -2653,3 +2655,31 @@ government-validation status, so a merchant could be activated without an audita
    checksum locally and leaves the account `PENDING`; it never claims a government validation. A
    provider integrates through `Handler.WithCompliance`. RLS: authenticated users read active tiers;
    a seller reads only its own compliance rows (admins in district scope); writes stay service_role.
+
+### 12.39 Delivery calling sessions (migration `0104`)
+
+**Authority:** `monolith-breakdown.md` §1 (delivery row), `mobile-app.md` ("Masked calling"),
+`user-interaction-workflow/delivery/calling/index.md`.
+
+`delivery.calls` is the single source of truth for a masked delivery call. The gateway (not the app)
+chooses the transport: `VOIP` when the 100ms app key/secret plus a room source (management token +
+template, or a pre-provisioned room) are configured; otherwise `PSTN_BRIDGING` with the platform
+virtual number. The row stores:
+
+- `initiated_by` (`RIDER`/`CUSTOMER`) and `peer_role` (`CUSTOMER`/`DELIVERY_PARTNER`) — masked
+  identities only.
+- `mode` + `status` enums; `provider_room_id` for VOIP and `virtual_number` for PSTN.
+- `ringing_ack_at` (the <3 s delivery receipt), `accepted_at`, `ended_at`, `end_reason`.
+
+A partial unique index (`states RINGING/ACTIVE`) enforces one open call per rider, so a double tap or
+two devices cannot create parallel rooms. The server-driven fallback window is
+`HMS_RINGING_ACK_SECONDS` (default 3); `GET /calls/{callId}` reports `fallbackAvailable` once a VOIP
+call is still ringing past it and a PSTN number exists. `POST /calls/{callId}/fallback` moves the
+session to PSTN. VOIP tokens are minted per initiate/join (HS256, short-lived) and never stored in
+Postgres or a push payload. RLS mirrors `delivery_boys`: riders read their own rows, state/super
+admins read rows in scope; writes stay `service_role`.
+
+**Configuration (env-only, never committed):** `HMS_APP_ACCESS_KEY`, `HMS_APP_SECRET`,
+`HMS_TEMPLATE_ID` (per-call rooms; an optional `HMS_MANAGEMENT_TOKEN` override, otherwise a
+short-lived management token is minted from the app secret) or `HMS_ROOM_ID` (dev), `HMS_ROLE`,
+`HMS_RINGING_ACK_SECONDS`, `DELIVERY_CALL_VIRTUAL_NUMBER`.

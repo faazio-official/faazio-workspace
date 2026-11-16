@@ -9,6 +9,7 @@ import { RegistrationFormScreen } from './screens/RegistrationFormScreen';
 import { SubmissionSuccessScreen } from './screens/SubmissionSuccessScreen';
 import { AcceptRejectScreen } from './screens/AcceptRejectScreen';
 import { RouteScreen } from './screens/RouteScreen';
+import { ActiveCallScreen } from './screens/ActiveCallScreen';
 import { EarningsDetailScreen } from './screens/EarningsDetailScreen';
 import { EditProfileScreen } from './screens/EditProfileScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
@@ -50,6 +51,11 @@ export function DeliveryPartnerNavigator() {
       {/* Persistent bottom-tab shell (Home · Earnings · Orders · Alerts · Profile) */}
       <Stack.Screen name="Main" component={DeliveryTabs} />
       <Stack.Screen name="Route" component={RouteScreen} options={{ animation: 'slide_from_right' }} />
+      <Stack.Screen
+        name="ActiveCall"
+        component={ActiveCallScreen}
+        options={{ animation: 'fade', gestureEnabled: false, presentation: 'fullScreenModal' }}
+      />
       <Stack.Screen name="EarningsDetail" component={EarningsDetailScreen} options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} options={{ animation: 'slide_from_right' }} />
       <Stack.Screen name="Settings" component={SettingsScreen} options={{ animation: 'slide_from_right' }} />

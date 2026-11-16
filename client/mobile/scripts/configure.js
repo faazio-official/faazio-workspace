@@ -139,6 +139,11 @@ if (useGateway && !gatewayUrl) {
   warn('USE_GATEWAY=true but GATEWAY_URL is empty — the app boots offline and every GatewayClient call throws GatewayOfflineError.');
 }
 const strict = env('STRICT') === '' ? true : flag('STRICT');
+// Masked delivery calling UI. The gateway remains the authority (it returns 503 when no provider
+// is configured); this flag only hides the affordance for builds that must not offer calling.
+// No provider secret ever enters the client bundle — the server mints rooms/tokens and returns
+// only the masked virtual number or a short-lived room token.
+const callingEnabled = env('CALLING_ENABLED') === '' ? true : flag('CALLING_ENABLED');
 const devUser = env('DEV_USER').trim();
 const googleMapsAndroidKey = env('GOOGLE_MAPS_API_KEY_ANDROID').trim();
 const googleMapsIosKey = env('GOOGLE_MAPS_API_KEY_IOS').trim();
@@ -288,6 +293,8 @@ export const APP_VERSION = ${JSON.stringify(appVersion)};
 export const WEB_PORTAL_URL = ${JSON.stringify(webPortalUrl)};
 export const USE_GATEWAY = ${useGateway};
 export const STRICT = ${strict};
+/** Masked delivery calling affordance. Server-side provider config is still authoritative. */
+export const CALLING_ENABLED = ${callingEnabled};
 export const DEV_USER = ${JSON.stringify(devUser)};
 export const FIREBASE_AUTH_ENABLED = ${useFirebaseAuth};
 /** Debug-only: use Firebase console test phone numbers without the reCAPTCHA web sheet. */

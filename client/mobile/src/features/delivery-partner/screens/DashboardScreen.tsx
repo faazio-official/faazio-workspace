@@ -41,6 +41,8 @@ import { isStopDone } from '../order';
 import { type DeliveryPartnerStackParamList, type DeliveryTabParamList } from '../navigation';
 import { activeOrderFrom } from '../activeOrder';
 import { DeliveryHeader } from '../components/DeliveryHeader';
+import { CallCustomerButton } from '../components/CallCustomerButton';
+import { initializeDeliveryCalling } from '../calling/callController';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<DeliveryTabParamList, 'Dashboard'>,
@@ -167,6 +169,11 @@ export function DashboardScreen({ navigation }: Props) {
     }, 20_000);
     return () => clearInterval(timer);
   }, [online, setActiveOrder]);
+
+  useEffect(() => {
+    // Native call surface is set up only after the rider reaches the authenticated shell.
+    void initializeDeliveryCalling();
+  }, []);
 
   useEffect(() => {
     let stop: (() => void) | undefined;
@@ -493,6 +500,7 @@ export function DashboardScreen({ navigation }: Props) {
                     onPress={() => navigation.navigate('Route')}
                     accessibilityLabel={`Order ${order.orderId.slice(-6)}, ${done} of ${order.stops.length} stops done`}
                   />
+                  <CallCustomerButton orderId={order.orderId} style={styles.activeCall} />
                   </DPFadeIn>
                 );
               })
@@ -506,6 +514,7 @@ export function DashboardScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  activeCall: { marginTop: vs(8), marginBottom: vs(4) },
   section: { marginTop: DELIVERY.space.SECTION },
   summaryPrimary: { flex: 1.4 },
   summaryStat: { flex: 1 },

@@ -35,6 +35,8 @@ type Handler struct {
 	// handoverKey signs the seller→rider pickup QR tokens (0088). Nil disables the flow (503)
 	// rather than issuing an unsigned capability.
 	handoverKey []byte
+	// calls holds the server-side telephony config (0104). Zero value disables calling (503).
+	calls CallConfig
 }
 
 // NewHandler builds the delivery handler. A nil matrix means the route matrix is not configured;
@@ -78,6 +80,15 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/delivery/payouts/{orderId}", h.riderPayout)
 		// Read-only live rate card for the rider earnings note (non-sensitive pence values).
 		g.Get("/delivery/rate-card", h.payoutSettings)
+		// Masked calling (0104): the server picks VOIP vs PSTN and owns the session state.
+		g.Post("/delivery/{orderId}/call", h.initiateCall)
+		g.Get("/calls/{callId}", h.getCall)
+		g.Post("/calls/{callId}/ringing-ack", h.ackCall)
+		g.Post("/calls/{callId}/accept", h.acceptCall)
+		g.Post("/calls/{callId}/join", h.joinCall)
+		g.Post("/calls/{callId}/reject", h.rejectCall)
+		g.Post("/calls/{callId}/end", h.endCall)
+		g.Post("/calls/{callId}/fallback", h.fallbackCall)
 	})
 
 	// Customer post-delivery rating (any authenticated shopper).
@@ -1604,6 +1615,8 @@ func (h *Handler) writeErr(w http.ResponseWriter, err error) {
 		httpx.Fail(w, http.StatusConflict, "pickup_qr_expired", "this pickup QR has expired; ask the seller to refresh it")
 	case errors.Is(err, ErrHandoverUnconfigured):
 		httpx.Fail(w, http.StatusServiceUnavailable, "pickup_qr_unavailable", "pickup QR verification is not configured")
+	case errors.Is(err, ErrCallingUnavailable):
+		httpx.Fail(w, http.StatusServiceUnavailable, "calling_unavailable", "delivery calling is not configured")
 	default:
 		httpx.Fail(w, http.StatusInternalServerError, "delivery_unavailable", "delivery service unavailable")
 	}

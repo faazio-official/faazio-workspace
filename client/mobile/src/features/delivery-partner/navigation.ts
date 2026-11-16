@@ -21,6 +21,8 @@ export type DeliveryPartnerStackParamList = {
   /** The persistent tab navigator (Home · Earnings · Orders · Alerts · Profile). */
   Main: NavigatorScreenParams<DeliveryTabParamList> | undefined;
   Route: undefined;
+  /** Full-screen masked call surface (VOIP or PSTN fallback). */
+  ActiveCall: undefined;
   EarningsDetail: { orderId: string };
   EditProfile: undefined;
   Settings: undefined;

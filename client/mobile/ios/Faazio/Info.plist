@@ -71,6 +71,8 @@
 	<string>Faazio uses your location while the app is open to show nearby stores, estimate delivery distance, suggest your city for blood donation and auto-fill your delivery address. Faazio does not track your location in the background.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Faazio lets you choose existing prescription photos from your photo library.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Faazio uses the microphone only while you are on a delivery call so you and the other person can talk.</string>
 	<key>RCTMetroPort</key>
 	<string>$(RCT_METRO_PORT)</string>
 	<key>RCTNewArchEnabled</key>

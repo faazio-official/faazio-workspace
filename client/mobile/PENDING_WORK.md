@@ -15,6 +15,45 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W98 — Delivery Partner: masked calling (partial)
+
+**Status:** 🟡 Rider half implemented (server + client + Android native config); customer half and
+PSTN provider integration pending. CI build required (new native deps/permissions).
+
+Shipped:
+
+- `delivery.calls` (migration `0104`): server-authoritative `VOIP`/`PSTN_BRIDGING` sessions, one open
+  call per rider, ringing-ack + fallback window, no raw phone/provider secrets.
+- Gateway routes: `POST /delivery/{orderId}/call`, `GET /calls/{callId}`,
+  `POST /calls/{callId}/{ringing-ack,join,reject,end,fallback}`.
+- `GatewayClient` call methods + types; `callStore`; `calling/callController.ts`, `voip.ts` (100ms),
+  `callkeep.ts`, `incoming.ts`; `ActiveCallScreen`; `CallCustomerButton` on Dashboard + Route.
+- Android delivery manifest: `RECORD_AUDIO`, `BLUETOOTH_CONNECT`, `USE_FULL_SCREEN_INTENT`,
+  `MICROPHONE`/`PHONE_CALL` foreground services, CallKeep `VoiceConnectionService`. iOS microphone
+  usage string added; both native calling packages are excluded from iOS autolinking
+  (`react-native.config.js`) because iOS ships only the customer app.
+- Deps: `@100mslive/react-native-hms@1.12.3`, `react-native-callkeep@4.6.1`. Per-call rooms use
+  `HMS_TEMPLATE_ID` (a management token is minted from the app secret; `HMS_MANAGEMENT_TOKEN` is an
+  optional override).
+
+Remaining before Complete:
+
+- Customer app "Call delivery partner" button + server endpoint that creates a `CUSTOMER`-initiated
+  call and enqueues the data-only `incoming_call` push (no sender exists today). If the customer iOS
+  app is included, re-enable the two packages in `react-native.config.js` and add PushKit + CallKit
+  entitlements/background modes.
+- Exotel/Edesy Connect API + status webhook (populate `provider_call_ref`, answer/end events, ringback
+  and accurate PSTN timer).
+- GSM-busy pre-check (`TelephonyManager`/`CXCallObserver`), proximity wake-lock, and a queued-call
+  banner when the rider is already on another order.
+- Reconcile a stale `ACTIVE` call after a native app termination.
+- Device QA on Android 14/15 (full-screen intent + phone-account permission prompts) and a CI
+  delivery build; never run Gradle locally.
+
+Flow docs: `docs/user-interaction-workflow/delivery/calling/`.
+
+---
+
 ## W97 — Customer appearance: light / dark / auto (default Light)
 
 **Status:** 🟡 Shipped mechanism + themed shell; **dark screen coverage partial** (JS-only; CI builds

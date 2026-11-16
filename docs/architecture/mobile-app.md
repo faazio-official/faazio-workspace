@@ -632,6 +632,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `ordersStore` | In-session placed orders (`PlacedOrder`: items or prescription kind) + durable `serverOrders` merged from `gateway.getOrders()` **and** `gateway.getPrescriptions()` (`refresh()` on login + My Orders focus); `recordServerOrder(row)` adopts the server order after checkout; `recordOrder` records a just-placed prescription (keyed by the server Rx id); `getOrderById` prefers server history; reset on logout |
 | `vendorRatingStore` | The signed-in user's live vendor ratings (one per `(user, vendor)`, latest wins) + verified-purchase `orderIds`; persisted AsyncStorage `faazio/vendor-ratings/v1`, reset on logout |
 | `deliveryPartnerStore` | Partner-app only: verified application phone + the rider/detail projection from `GET /delivery/me`. The Firebase session itself stays in `authStore`/Keychain and is never duplicated here |
+| `callStore` | Partner-app only: one masked delivery call at a time — phase (`idle`/`connecting`/`ringing`/`active`/`ending`/`ended`/`error`), server call projection, masked peer label, connected timestamp, mute/speaker/Bluetooth, reconnecting + PSTN-fallback prompts. Owned by `features/delivery-partner/calling/callController.ts`; no raw phone number is stored |
 | `remoteConfigStore` | Central remote config (the "Central Digital Menu", `admins.app_config` `0059`): boots `gateway.getAppConfig()` (`GET /app-config`, public, variant-filtered) best-effort under the splash, keeps a flat key→value map, and **never blocks startup** (failure keeps the bake-time `config.ts` defaults). Baked values are the safe defaults; a remote row overrides its key only when present; `GATEWAY_URL`/`APP_VARIANT` are never overridden. Selectors: `selectPlacesApiKey` (wired → `usePlaceAutocomplete` — a `maps.places_api_key` edit is live on the next boot), `selectMaintenanceEnabled` (available, no screen consumes it yet), `resolvePlacesApiKey` (non-hook read for `resolvePlaceLocation`). Not persisted — refetched every cold boot |
 | `connectivityStore` | Live device connectivity (no NetInfo dep): `GET {GATEWAY_URL}/health` with a 5 s timeout, polled every 30 s while foregrounded, re-checked on `AppState` → `active`. Any HTTP response (even 4xx/5xx) means online; only a thrown fetch/timeout means offline. Holds `isOnline` (`null` until the first probe so no cold-start flash), `hasConnected` (first-ever online, distinguishes cold-start offline), `pendingNavigation` + `navigationBlocked` for the offline guard. `checkConnectivity`/`startMonitoring`/`stopMonitoring`. With no gateway configured it reports **unknown** (`isOnline: null`) — it never claims online and never blocks navigation. State only — no UI |
 
@@ -817,7 +818,8 @@ Entry is `Onboarding` on first launch, `Login` for a returning signed-out user
 The partner experience is a **separate product root and bundle**, not a tab or a deep link in the
 customer SuperApp. `index.js` is the customer entry; `index.delivery.js` mounts
 `src/DeliveryPartnerApp.tsx` (its own `NavigationContainer` + `DeliveryPartnerNavigator`) and
-registers the `FaazioDeliveryHeartbeat` headless task. `MainApplication` selects the
+registers the `FaazioDeliveryHeartbeat` headless task plus the incoming-call push handler.
+`MainApplication` selects the
 partner root for the delivery flavor, and the Gradle bundle step uses the
 delivery entry, so neither APK ships the other product's screens, stores or customer modules.
 
@@ -861,6 +863,9 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 │                  (`POST /delivery/{orderId}/stop/{stopId}/payment-received`) before the stop may
 │                  reach DELIVERED — otherwise `409 payment_not_received`. Customer-OTP
 │                  handover (document re-upload is admin-side; the app has no re-upload screen)
+├── ActiveCall   — full-screen masked call surface (Route/Dashboard "Call customer"): server-chosen
+│                  VOIP (100ms) or PSTN_BRIDGING (masked landline), timer, mute/speaker/Bluetooth,
+│                  "Switch to phone call", End. No raw customer number is rendered or dialled
 ├── EditProfile  — rider-editable contact email + vehicle/capacity/hub zone (PUT /delivery/me)
 ├── EarningsDetail — single-order payout breakdown (GET /delivery/payouts/{orderId})
 ├── Settings     — account summary, local "vibrate on new offer" preference (AsyncStorage), system
@@ -991,6 +996,24 @@ one coarse fix and posts the same heartbeat as the foreground loop; the service 
 rider goes offline/signs out. The in-app consent flag is persisted so a cold start while already
 online resumes the watch without re-prompting; sign-out clears it. iOS is customer-only and declares
 only `remote-notification` in `ios/Faazio/Info.plist` — no background location or `fetch`.
+
+**Masked calling (`0104`).** `Route` (DROP stops) and `Dashboard` (accepted jobs) render
+`CallCustomerButton`. The gateway is the authority: `POST /delivery/{orderId}/call` returns
+`VOIP` (100ms room + short-lived auth token) when `HMS_APP_ACCESS_KEY`/`HMS_APP_SECRET` plus a room
+source are configured, otherwise `PSTN_BRIDGING` with `DELIVERY_CALL_VIRTUAL_NUMBER`. The app never
+chooses the mode and never receives the customer's phone number; the PSTN leg dials only the masked
+landline. `callController.ts` owns the state machine, the 3 s double-tap lock, the ringing-ack poll,
+the one-tap PSTN fallback and mic-denial fallback. `ActiveCallScreen` is a non-dismissible
+full-screen route. Native ringing is Android-only (`react-native-callkeep` ConnectionService +
+`VoiceConnectionService`), with `RECORD_AUDIO`, `BLUETOOTH_CONNECT`, `USE_FULL_SCREEN_INTENT`,
+`FOREGROUND_SERVICE_MICROPHONE`/`PHONE_CALL` in the delivery flavor manifest. The native packages
+are excluded from iOS autolinking (`client/mobile/react-native.config.js`) while iOS ships only the
+customer app.
+`index.delivery.js` registers the FCM data-only `incoming_call` background handler before the app
+mounts. `CALLING_ENABLED` (default true) is the only client build flag; provider secrets stay
+server-side. **Status: Partial** — the rider half is implemented; the customer-app "call rider"
+entry point and the Exotel/Edesy bridging webhook are not (see
+`docs/user-interaction-workflow/delivery/calling/index.md`).
 
 **Known production limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit Android
 background location (plus OEM battery whitelisting) and push delivery is an ops step (fee-free: set the

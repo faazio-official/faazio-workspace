@@ -1,5 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import { Alert, Image, Linking, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Alert, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { useFocusEffect } from '@react-navigation/native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
@@ -35,6 +35,7 @@ import type { DeliveryPartnerStackParamList } from '../navigation';
 import { resetToTab } from '../navigationRoutes';
 import { activeOrderFrom } from '../activeOrder';
 import { DeliveryHeader } from '../components/DeliveryHeader';
+import { CallCustomerButton } from '../components/CallCustomerButton';
 
 type Props = NativeStackScreenProps<DeliveryPartnerStackParamList, 'Route'>;
 
@@ -386,17 +387,12 @@ export function RouteScreen({ navigation }: Props) {
                 </View>
                 <AppText style={styles.stopLabel}>{stop.label || 'Stop'}</AppText>
                 <AppText style={styles.stopAddress}>{stop.address}</AppText>
-                {stop.customerPhone ? (
-                  <TouchableOpacity
-                    onPress={() => void Linking.openURL(`tel:${stop.customerPhone}`)}
-                    accessibilityRole="link"
-                    accessibilityLabel={`Call ${stop.customerName || 'customer'} at ${stop.customerPhone}`}
-                    style={styles.callRow}
-                  >
-                    <AppText style={styles.callText}>
-                      Call {stop.customerName || 'customer'} · {stop.customerPhone}
-                    </AppText>
-                  </TouchableOpacity>
+                {stop.stopType === 'DROP' ? (
+                  <CallCustomerButton
+                    orderId={stop.deliveryOrderId}
+                    showPstn
+                    style={styles.callAction}
+                  />
                 ) : null}
                 {stop.failureReason ? (
                   <AppText style={styles.failText}>{stop.failureReason}</AppText>
@@ -546,8 +542,7 @@ const styles = StyleSheet.create({
   stopType: { ...DP_TYPE.micro, color: DELIVERY.inkMuted },
   stopLabel: { ...DP_TYPE.label, color: DELIVERY.ink, fontWeight: '600', marginTop: vs(4) },
   stopAddress: { ...DP_TYPE.caption, color: DELIVERY.inkMuted, marginTop: vs(2) },
-  callRow: { marginTop: vs(4), minHeight: vs(24), justifyContent: 'center' },
-  callText: { ...DP_TYPE.caption, color: DELIVERY.brand, fontWeight: '600' },
+  callAction: { marginTop: vs(10) },
   failText: { ...DP_TYPE.caption, color: DELIVERY.danger, marginTop: vs(4) },
   qr: {
     width: '62%',

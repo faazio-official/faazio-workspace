@@ -132,7 +132,17 @@ func NewRouter(d Deps) http.Handler {
 	deliveryRepo := delivery.New(d.Pool)
 	deliveryMatrix := delivery.NewRoutesMatrix(d.Config.GoogleRoutesAPIKey, d.Cache)
 	deliveryHandler := delivery.NewHandler(deliveryRepo, d.Cache, adminsRepo, notificationsRepo, deliveryMatrix, checkoutRepo,
-		d.Config.DeliveryMaxDispatchAttempts).WithHandoverSecret(d.Config.PickupHandoverSecret)
+		d.Config.DeliveryMaxDispatchAttempts).WithHandoverSecret(d.Config.PickupHandoverSecret).
+		WithCalling(delivery.CallConfig{
+			VirtualNumber:      d.Config.DeliveryCallVirtualNumber,
+			HMSAppAccessKey:    d.Config.HMSAppAccessKey,
+			HMSAppSecret:       d.Config.HMSAppSecret,
+			HMSManagementToken: d.Config.HMSManagementToken,
+			HMSTemplateID:      d.Config.HMSTemplateID,
+			HMSRoomID:          d.Config.HMSRoomID,
+			HMSRole:            d.Config.HMSRole,
+			RingingAckSeconds:  d.Config.HMSRingingAckSeconds,
+		})
 	if d.WorkersCtx != nil && d.Pool != nil {
 		go deliveryHandler.RunExpiry(d.WorkersCtx)
 	}

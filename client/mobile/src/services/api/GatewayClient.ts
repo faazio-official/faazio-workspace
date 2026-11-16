@@ -2547,6 +2547,67 @@ export class GatewayClient {
     );
   }
 
+  // Calling (0104). Server-authoritative: it decides VOIP vs PSTN, mints the short-lived room
+  // token, and owns the ringing-ack / fallback window. The raw customer phone never reaches the app.
+
+  /** Start a masked call to the customer for an accepted job. */
+  async initiateDeliveryCall(
+    orderId: string,
+    opts: { forcePstn?: boolean } = {},
+  ): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/delivery/${encodeURIComponent(orderId)}/call`, {
+      method: 'POST',
+      body: JSON.stringify({ forcePstn: !!opts.forcePstn }),
+    });
+  }
+
+  /** Authoritative call state (drives the ringing-ack timeout and fallback prompt). */
+  async getDeliveryCall(callId: string): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/calls/${encodeURIComponent(callId)}`);
+  }
+
+  /** Callee delivery receipt. Must land within the server window or VOIP may fall back to PSTN. */
+  async ackDeliveryCallRinging(callId: string): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/calls/${encodeURIComponent(callId)}/ringing-ack`, {
+      method: 'POST',
+    });
+  }
+
+  /** Accept an incoming call and receive a fresh short-lived VOIP token (if VOIP). */
+  async joinDeliveryCall(callId: string): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/calls/${encodeURIComponent(callId)}/join`, {
+      method: 'POST',
+    });
+  }
+
+  async rejectDeliveryCall(callId: string, reason = ''): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/calls/${encodeURIComponent(callId)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async endDeliveryCall(callId: string, reason = ''): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/calls/${encodeURIComponent(callId)}/end`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  /** Switch a ringing VOIP call to the masked PSTN leg (one-tap fallback). */
+  async fallbackDeliveryCall(callId: string): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/calls/${encodeURIComponent(callId)}/fallback`, {
+      method: 'POST',
+    });
+  }
+
   // Admin review (portal role + district scoped server-side).
 
   async listDeliveryApplications(
@@ -2766,15 +2827,53 @@ export interface DeliveryOrder {
   expiresAt?: string;
   completedAt?: string;
   createdAt: string;
-  /** Payment collection (0077): mirrors the checkout method; COD orders gate DELIVERED on paymentReceived. */
   paymentMethod?: string;
   paymentStatus?: string;
   paymentRequired?: boolean;
   paymentReceived?: boolean;
   paymentReceivedAt?: string;
   stops: DeliveryStop[];
-  /** Google-encoded line through the ordered stops (route endpoint only). */
   polyline?: string;
+}
+
+/** Server-decided call transport. The app never chooses; it renders what the gateway returns. */
+export type DeliveryCallMode = 'VOIP' | 'PSTN_BRIDGING';
+
+export type DeliveryCallStatus =
+  | 'RINGING'
+  | 'ACTIVE'
+  | 'ENDED'
+  | 'REJECTED'
+  | 'FAILED'
+  | 'MISSED'
+  | 'BUSY';
+
+/**
+ * One masked delivery call session (0104). No phone number appears here except the platform's
+ * virtual landline for PSTN_BRIDGING; the customer's raw number stays server-side.
+ */
+export interface DeliveryCall {
+  callId: string;
+  orderId: string;
+  riderId: string;
+  initiatedBy: 'RIDER' | 'CUSTOMER';
+  peerRole: 'CUSTOMER' | 'DELIVERY_PARTNER';
+  mode: DeliveryCallMode;
+  status: DeliveryCallStatus;
+  /** VOIP room id (short-lived). */
+  roomId?: string;
+  /** VOIP join token — returned only on initiate/join; never log or persist it. */
+  authToken?: string;
+  /** Masked PSTN landline; present for PSTN_BRIDGING. */
+  virtualNumber?: string;
+  ringingAckAt?: string;
+  acceptedAt?: string;
+  endedAt?: string;
+  endReason?: string;
+  createdAt: string;
+  updatedAt: string;
+  fallbackAvailable: boolean;
+  fallbackAfterSeconds: number;
 }
 
 /** Rider-editable profile fields (`PUT /delivery/me`). */

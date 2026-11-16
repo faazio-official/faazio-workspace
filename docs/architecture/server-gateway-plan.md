@@ -280,6 +280,16 @@ caller) and are event-purged on store live toggle and product edit/status change
   route distance + clock-derived night. `?weather=1&festival=1` forces an admin test derivation.
   Riders read the live card from `GET /delivery/rate-card`; admin `GET|PUT /delivery/payout-settings`
   and super-admin `POST /delivery/payouts/{orderId}/settle` mark PAID.
+- **Masked delivery calling (`internal/delivery`, `0104`):** `POST /delivery/{orderId}/call` starts a
+  call on an accepted job and returns the server-chosen transport — `VOIP` (100ms room + short-lived
+  HS256 auth token) when `HMS_APP_ACCESS_KEY`/`HMS_APP_SECRET` plus a room source are configured,
+  otherwise `PSTN_BRIDGING` with `DELIVERY_CALL_VIRTUAL_NUMBER`. `GET /calls/{callId}` is the
+  authoritative state (including the server-driven `fallbackAvailable` after
+  `HMS_RINGING_ACK_SECONDS`), and `POST /calls/{callId}/{ringing-ack,join,reject,end,fallback}` drive
+  the session. One open call per rider is enforced by a partial unique index. The raw customer phone
+  is never projected or dialled; no provider secret ever reaches the app. The rider half is live;
+  the customer-app entry point and the Exotel/Edesy bridging webhook remain partial (see
+  `docs/user-interaction-workflow/delivery/calling/index.md`).
 - **Weather + festival surge (`internal/weather` + `internal/festival`, `0054`):** `GET
   /checkout/delivery-fee` and `POST /orders` call `contracts.WeatherChecker` (Weather Union,
   30-min per-hex cache + **5-min degraded marker**, 60,000 calls/Indian FY) and

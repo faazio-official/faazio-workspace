@@ -11,7 +11,10 @@
 import { AppRegistry } from 'react-native';
 import DeliveryPartnerApp from './src/DeliveryPartnerApp';
 import { registerDeliveryHeartbeatTask } from './src/services/deliveryHeartbeatTask';
+import { registerDeliveryCallBackgroundHandler } from './src/features/delivery-partner/calling/incoming';
 
 registerDeliveryHeartbeatTask();
+// Register before the app component so a swiped-away app still rings for an incoming call.
+registerDeliveryCallBackgroundHandler();
 
 AppRegistry.registerComponent('main', () => DeliveryPartnerApp);
