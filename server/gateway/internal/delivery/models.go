@@ -139,6 +139,7 @@ type Rider struct {
 	// target and is never projected to a client.
 	UserID           string  `json:"-"`
 	Phone            string  `json:"phone,omitempty"`
+	Email            string  `json:"email,omitempty"`
 	FullName         string  `json:"fullName"`
 	StateCode        string  `json:"stateCode"`
 	HubZone          string  `json:"hubZone"`
@@ -341,6 +342,7 @@ type Heartbeat struct {
 // the body value is never trusted as identity.
 type ApplyRequest struct {
 	FullName         string          `json:"fullName"`
+	Email            string          `json:"email"`
 	StateCode        string          `json:"stateCode"`
 	HubZone          string          `json:"hubZone"`
 	Address          string          `json:"address"`

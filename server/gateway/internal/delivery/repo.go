@@ -57,10 +57,11 @@ func (r *Repo) CreateApplication(ctx context.Context, phone, userID string, req 
 		_, err = tx.Exec(ctx, `
 			insert into delivery.delivery_boys
 			  (rider_id, user_id, phone, full_name, state_code, hub_zone, address, city,
-			   pincode, emergency_contact, vehicle_type, max_capacity, status)
-			values ($1,nullif($2,''),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,'PENDING_REVIEW')`,
+			   pincode, emergency_contact, vehicle_type, max_capacity, email, status)
+			values ($1,nullif($2,''),$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,'PENDING_REVIEW')`,
 			riderID, userID, phone, req.FullName, strings.ToUpper(req.StateCode), req.HubZone,
-			req.Address, req.City, req.Pincode, req.EmergencyContact, req.VehicleType, req.MaxCapacity)
+			req.Address, req.City, req.Pincode, req.EmergencyContact, req.VehicleType, req.MaxCapacity,
+			req.Email)
 		if err != nil {
 			return Rider{}, err
 		}
@@ -74,11 +75,12 @@ func (r *Repo) CreateApplication(ctx context.Context, phone, userID string, req 
 			update delivery.delivery_boys
 			   set user_id=coalesce(nullif($2,''),user_id),
 			       full_name=$3, state_code=$4, hub_zone=$5, address=$6, city=$7, pincode=$8,
-			       emergency_contact=$9, vehicle_type=$10, max_capacity=$11,
+			       emergency_contact=$9, vehicle_type=$10, max_capacity=$11, email=$12,
 			       status='PENDING_REVIEW', rejection_reason='', updated_at=now()
 			 where rider_id=$1`,
 			riderID, userID, req.FullName, strings.ToUpper(req.StateCode), req.HubZone,
-			req.Address, req.City, req.Pincode, req.EmergencyContact, req.VehicleType, req.MaxCapacity)
+			req.Address, req.City, req.Pincode, req.EmergencyContact, req.VehicleType, req.MaxCapacity,
+			req.Email)
 		if err != nil {
 			return Rider{}, err
 		}
@@ -219,14 +221,14 @@ func (r *Repo) riderByID(ctx context.Context, q interface {
 	var created time.Time
 	var shiftReset *time.Time
 	err := q.QueryRow(ctx, `
-		select rider_id, coalesce(user_id,''), phone, full_name, state_code, hub_zone, address, city,
-		       pincode, emergency_contact, vehicle_type::text, max_capacity, status::text, is_available,
-		       current_load, rating, completed_orders, last_heartbeat_at, rejection_reason, created_at,
-		       shift_earnings_paisa, shift_reset_at
+		select rider_id, coalesce(user_id,''), phone, coalesce(email,''), full_name, state_code, hub_zone,
+		       address, city, pincode, emergency_contact, vehicle_type::text, max_capacity, status::text,
+		       is_available, current_load, rating, completed_orders, last_heartbeat_at, rejection_reason,
+		       created_at, shift_earnings_paisa, shift_reset_at
 		  from delivery.delivery_boys where rider_id = $1`, riderID).
-		Scan(&x.RiderID, &x.UserID, &x.Phone, &x.FullName, &x.StateCode, &x.HubZone, &x.Address, &x.City,
-			&x.Pincode, &x.EmergencyContact, &x.VehicleType, &x.MaxCapacity, &x.Status,
-			&x.IsAvailable, &x.CurrentLoad, &x.Rating, &x.CompletedOrders, &last,
+		Scan(&x.RiderID, &x.UserID, &x.Phone, &x.Email, &x.FullName, &x.StateCode, &x.HubZone,
+			&x.Address, &x.City, &x.Pincode, &x.EmergencyContact, &x.VehicleType, &x.MaxCapacity,
+			&x.Status, &x.IsAvailable, &x.CurrentLoad, &x.Rating, &x.CompletedOrders, &last,
 			&x.RejectionReason, &created, &x.ShiftEarningsPaisa, &shiftReset)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return Rider{}, ErrNotFound
@@ -257,6 +259,25 @@ func (r *Repo) RiderByPhone(ctx context.Context, phone string) (Rider, error) {
 	}
 	if err != nil {
 		return Rider{}, err
+	}
+	return r.riderByID(ctx, r.pool, riderID)
+}
+
+// UpdateProfile changes the rider-editable profile fields: contact email, vehicle type, capacity
+// (bounded by the vehicle) and hub zone. Identity, KYC documents and bank details stay admin-owned.
+func (r *Repo) UpdateProfile(ctx context.Context, riderID, email, vehicleType string, maxCapacity int, hubZone string) (Rider, error) {
+	if err := r.ready(); err != nil {
+		return Rider{}, err
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update delivery.delivery_boys
+		   set email=$2, vehicle_type=$3, max_capacity=$4, hub_zone=$5, updated_at=now()
+		 where rider_id=$1`, riderID, email, vehicleType, maxCapacity, hubZone)
+	if err != nil {
+		return Rider{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Rider{}, ErrNotFound
 	}
 	return r.riderByID(ctx, r.pool, riderID)
 }

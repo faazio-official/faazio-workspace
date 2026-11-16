@@ -291,11 +291,12 @@ caller) and are event-purged on store live toggle and product edit/status change
 - **Build order / status:** `docs/architecture/mvp-backend.md` §7.
 
 
-### Delivery partner (`internal/delivery`, migrations `0042`, `0043`, `0045`, `0052`, `0055`, `0088`, `0102`)
+### Delivery partner (`internal/delivery`, migrations `0042`, `0043`, `0045`, `0052`, `0055`, `0088`, `0102`, `0103`)
 
 The partner domain is a first-class context in the same gateway (future service: Go + Postgres).
 Rider endpoints authenticate with the Firebase phone ID token and resolve the rider by E.164 phone:
-`POST /delivery/register` (KYC application), `GET /delivery/me`, `GET /delivery/shift-summary`,
+`POST /delivery/register` (KYC application incl. contact email), `GET /delivery/me`, `PUT /delivery/me`
+(rider-editable profile — contact email, vehicle, capacity, hub zone), `GET /delivery/shift-summary`,
 `PUT /delivery/availability`, `POST /delivery/heartbeat`, `GET /delivery/active`,
 `GET /delivery/route/{id}`, `POST /delivery/{id}/accept|reject`, `PUT /delivery/stop/{id}/status`,
 `POST /delivery/pickup/verify` (seller-QR pickup handover), `POST /delivery/otp/verify`

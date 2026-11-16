@@ -61,6 +61,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.Require)
 		g.Get("/delivery/me", h.me)
+		g.Put("/delivery/me", h.updateMe)
 		g.Get("/delivery/shift-summary", h.shiftSummary)
 		g.Get("/delivery/active", h.activeOrders)
 		g.Post("/delivery/heartbeat", h.heartbeat)
@@ -130,6 +131,7 @@ var validDocTypes = map[string]bool{
 var (
 	ifscPattern    = regexp.MustCompile(`^[A-Z]{4}0[A-Z0-9]{6}$`)
 	pincodePattern = regexp.MustCompile(`^[0-9]{6}$`)
+	emailPattern   = regexp.MustCompile(`^[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}$`)
 )
 
 func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
@@ -166,6 +168,7 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 
 func validateApplication(req *ApplyRequest) (string, bool) {
 	req.FullName = strings.TrimSpace(req.FullName)
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
 	req.StateCode = strings.ToUpper(strings.TrimSpace(req.StateCode))
 	req.HubZone = strings.TrimSpace(req.HubZone)
 	req.Address = strings.TrimSpace(req.Address)
@@ -174,6 +177,9 @@ func validateApplication(req *ApplyRequest) (string, bool) {
 	req.VehicleType = strings.ToUpper(strings.TrimSpace(req.VehicleType))
 	if len(req.FullName) < 3 {
 		return "full name is required", false
+	}
+	if !emailPattern.MatchString(req.Email) {
+		return "a valid email address is required", false
 	}
 	if len(req.StateCode) != 2 {
 		return "a 2-letter state code is required", false
@@ -560,6 +566,76 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, rider)
+}
+
+type updateMeRequest struct {
+	Email       string `json:"email"`
+	VehicleType string `json:"vehicleType"`
+	MaxCapacity int    `json:"maxCapacity"`
+	HubZone     string `json:"hubZone"`
+}
+
+// validateProfile normalizes and checks the rider-editable fields. Capacity is hard-capped by the
+// chosen vehicle and may never drop below the rider's current load.
+func validateProfile(req *updateMeRequest, currentLoad int) (string, bool) {
+	req.Email = strings.ToLower(strings.TrimSpace(req.Email))
+	req.VehicleType = strings.ToUpper(strings.TrimSpace(req.VehicleType))
+	req.HubZone = strings.TrimSpace(req.HubZone)
+	if !emailPattern.MatchString(req.Email) {
+		return "a valid email address is required", false
+	}
+	cap, ok := CapacityForVehicle(req.VehicleType)
+	if !ok {
+		return "vehicle type must be BICYCLE, TWO_WHEELER or FOUR_WHEELER", false
+	}
+	if req.HubZone == "" {
+		return "a hub zone is required", false
+	}
+	if req.MaxCapacity == 0 {
+		req.MaxCapacity = cap
+	}
+	if req.MaxCapacity < 1 || req.MaxCapacity > cap {
+		return fmt.Sprintf("%s capacity is capped at %d orders", req.VehicleType, cap), false
+	}
+	if req.MaxCapacity < currentLoad {
+		return fmt.Sprintf("capacity cannot be below your current load of %d", currentLoad), false
+	}
+	return "", true
+}
+
+// updateMe lets an active rider change their own contact email and work preferences (vehicle,
+// capacity, hub zone) without a new admin-reviewed application. Identity, KYC and bank fields stay
+// admin-owned.
+func (h *Handler) updateMe(w http.ResponseWriter, r *http.Request) {
+	var req updateMeRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_body", "invalid profile payload")
+		return
+	}
+	rider, err := h.currentRider(r.Context())
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	if msg, ok := validateProfile(&req, rider.CurrentLoad); !ok {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_profile", msg)
+		return
+	}
+	before := map[string]any{
+		"vehicleType": rider.VehicleType, "maxCapacity": rider.MaxCapacity, "hubZone": rider.HubZone,
+		"emailChanged": rider.Email != req.Email,
+	}
+	updated, err := h.repo.UpdateProfile(
+		r.Context(), rider.RiderID, req.Email, req.VehicleType, req.MaxCapacity, req.HubZone)
+	if err != nil {
+		h.writeErr(w, err)
+		return
+	}
+	h.auditEvent(r.Context(), "DELIVERY_BOY_UPDATE_PROFILE", rider.RiderID, before, map[string]any{
+		"vehicleType": updated.VehicleType, "maxCapacity": updated.MaxCapacity, "hubZone": updated.HubZone,
+		"emailChanged": updated.Email != rider.Email,
+	})
+	httpx.JSON(w, http.StatusOK, updated)
 }
 
 // ---------------------------------------------------------------- availability + location

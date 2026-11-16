@@ -78,6 +78,7 @@ func TestValidStopTransition(t *testing.T) {
 func TestValidateApplicationRequiresVehicleDocuments(t *testing.T) {
 	base := ApplyRequest{
 		FullName:         "Ravi Kumar",
+		Email:            "ravi@example.com",
 		StateCode:        "ts",
 		HubZone:          "Madhapur",
 		Address:          "12-34, Hitec City Road",
@@ -190,6 +191,7 @@ func TestParseDurationSeconds(t *testing.T) {
 func TestValidateApplicationRequiresContactAndLocation(t *testing.T) {
 	base := ApplyRequest{
 		FullName:         "Ravi Kumar",
+		Email:            "ravi@example.com",
 		StateCode:        "TS",
 		HubZone:          "Madhapur",
 		Address:          "12-34, Hitec City Road",
@@ -211,6 +213,8 @@ func TestValidateApplicationRequiresContactAndLocation(t *testing.T) {
 		name string
 		edit func(*ApplyRequest)
 	}{
+		{"missing email", func(r *ApplyRequest) { r.Email = " " }},
+		{"invalid email", func(r *ApplyRequest) { r.Email = "ravi@" }},
 		{"missing hub", func(r *ApplyRequest) { r.HubZone = " " }},
 		{"missing address", func(r *ApplyRequest) { r.Address = "" }},
 		{"missing city", func(r *ApplyRequest) { r.City = "" }},
@@ -502,5 +506,31 @@ func TestEncodePolyline(t *testing.T) {
 	}
 	if got, want := EncodePolyline(stops), "_p~iF~ps|U_ulLnnqC_mqNvxq`@"; got != want {
 		t.Fatalf("polyline = %q, want %q", got, want)
+	}
+}
+
+func TestValidateProfile(t *testing.T) {
+	valid := updateMeRequest{Email: " Ravi@Example.COM ", VehicleType: " two_wheeler ", MaxCapacity: 2, HubZone: " Madhapur "}
+	if msg, ok := validateProfile(&valid, 0); !ok {
+		t.Fatalf("valid profile rejected: %s", msg)
+	}
+	if valid.Email != "ravi@example.com" || valid.VehicleType != VehicleTwoWheeler || valid.HubZone != "Madhapur" {
+		t.Fatalf("profile not normalized: %+v", valid)
+	}
+	badEmail := updateMeRequest{Email: "ravi@", VehicleType: VehicleTwoWheeler, MaxCapacity: 2, HubZone: "Madhapur"}
+	if _, ok := validateProfile(&badEmail, 0); ok {
+		t.Fatal("invalid email must be rejected")
+	}
+	overCap := updateMeRequest{Email: "ravi@example.com", VehicleType: VehicleBicycle, MaxCapacity: 2, HubZone: "Madhapur"}
+	if _, ok := validateProfile(&overCap, 0); ok {
+		t.Fatal("capacity above the vehicle cap must be rejected")
+	}
+	belowLoad := updateMeRequest{Email: "ravi@example.com", VehicleType: VehicleTwoWheeler, MaxCapacity: 1, HubZone: "Madhapur"}
+	if _, ok := validateProfile(&belowLoad, 2); ok {
+		t.Fatal("capacity below the current load must be rejected")
+	}
+	emptyZone := updateMeRequest{Email: "ravi@example.com", VehicleType: VehicleTwoWheeler, MaxCapacity: 2, HubZone: "  "}
+	if _, ok := validateProfile(&emptyZone, 0); ok {
+		t.Fatal("empty hub zone must be rejected")
 	}
 }
