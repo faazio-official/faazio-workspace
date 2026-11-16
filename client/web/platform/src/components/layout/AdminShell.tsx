@@ -178,7 +178,6 @@ export function AdminShell({
                   : "GLOBAL · All districts"}
               </span>
             </span>
-            <ComponentHelp helpKey="shell:admin-scope" label="About your scope" />
             {scope === "DISTRICT" && session?.role === "SUPER_ADMIN" ? (
               <Link
                 href="/admin/super"
@@ -203,14 +202,12 @@ export function AdminShell({
                   ⌘K
                 </kbd>
               </Button>
-              <ComponentHelp helpKey="shell:admin-search" label="About admin search" />
             </div>
             <div className="ml-auto flex items-center gap-1">
               <ThemeMenu />
               <Button variant="ghost" size="icon" aria-label="Notifications">
                 <Bell className="size-4" />
               </Button>
-              <ComponentHelp helpKey="shell:admin-bell" label="About admin notifications" />
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="ghost" size="sm" className="gap-2">
@@ -234,7 +231,6 @@ export function AdminShell({
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
-              <ComponentHelp helpKey="shell:admin-user" label="About your account menu" />
             </div>
           </header>
           <main className="mx-auto w-full max-w-[1440px] flex-1 px-4 py-5 lg:min-h-0 lg:overflow-y-auto lg:px-6">

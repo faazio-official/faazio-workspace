@@ -364,11 +364,13 @@ and place `<ComponentHelp id="my-control" />` next to it; use a global `helpKey`
 appears on every page.
 
 **Coverage.** Page-level help is on all 65 routes. Component-level help is wired across all three
-consoles — the shared shells (nav, search, notifications, scope badge, account menu), the shared
-patterns and boards (`ImageUploader`, delivery review/allocation/payout boards, fee-change requests,
-account security), and the primary controls of every seller, district-admin and super-admin page
-(main actions, form inputs/selects, filters, and per-column decision headers). Wiring further
-controls is incremental — add the hint entry and the `ComponentHelp`.
+consoles — the seller shell chrome, the shared patterns and boards (`ImageUploader`, delivery
+review/allocation/payout boards, fee-change requests, account security), and the primary controls of
+every seller, district-admin and super-admin page (main actions, form inputs/selects, filters, and
+per-column decision headers). The **admin top bar is deliberately help-free** — the scope badge,
+search, notification bell and account menu carry no "i" buttons, so the header stays quiet and
+only the sidebar keeps a nav help affordance. Wiring further controls is incremental — add the hint
+entry and the `ComponentHelp`.
 
 ## Migration decisions (the "ditto UI" fixes)
 

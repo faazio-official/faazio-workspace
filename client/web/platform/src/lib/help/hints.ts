@@ -839,32 +839,11 @@ const CORE_COMPONENT_HINTS: Record<string, ComponentHint> = {
     example: "Press Cmd-K and type a seller name to open them.",
     app: ["portal"],
   },
-  "shell:admin-bell": {
-    what: "Platform notifications: escalations, approvals waiting and system alerts.",
-    workflow: "Daily operations — catch anything new since you were last here.",
-    changes: "Read-only; opening an alert takes you to the page where you act.",
-    example: "An escalation alert opens the order that needs attention.",
-    app: ["consumer", "delivery"],
-  },
-  "shell:admin-user": {
-    what: "Your admin account menu: role, scope and sign out.",
-    workflow: "Account — confirm which role and district you are acting as.",
-    changes: "Signing out ends this session on this device.",
-    example: "Check the scope badge before making a district-wide change.",
-    app: ["portal"],
-  },
   "shell:admin-signout": {
     what: "Ends your portal session on this device.",
     workflow: "Account security.",
     changes: "Clears your session cookies; you must sign in again.",
     example: "Sign out before leaving a shared computer.",
-    app: ["portal"],
-  },
-  "shell:admin-scope": {
-    what: "Shows the role and district/state you are currently acting as.",
-    workflow: "Account — confirm your scope before an action.",
-    changes: "Read-only; every action you take is limited to this scope.",
-    example: "A DISTRICT_ADMIN scoped to TCH cannot edit another district.",
     app: ["portal"],
   },
   "shell:mobile-nav": {
