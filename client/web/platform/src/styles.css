@@ -168,7 +168,7 @@
   --sidebar-foreground: oklch(0.19 0.04 265);
   --sidebar-muted: oklch(0.53 0.026 258);
   --sidebar-border: oklch(0.918 0.011 250);
-  --sidebar-active: oklch(0.932 0.023 255);
+  --sidebar-active: oklch(1 0 0);
   --sidebar-active-foreground: oklch(0.34 0.09 262);
 
   /* Genuinely dark surfaces only: the help popover and the seed banner. */

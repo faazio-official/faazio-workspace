@@ -5,9 +5,9 @@ import Link from "next/link";
 import { ArrowLeft, X } from "lucide-react";
 import { AnimatePresence, m } from "motion/react";
 import { activeNavHref, normalizeNavPath, type NavItem } from "@/components/layout/nav";
+import { SidebarNavGroupLabel, SidebarNavLink } from "@/components/layout/SidebarNavLink";
 import { Button } from "@/components/ui/button";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
-import { cn } from "@/lib/utils";
 import { DURATION, EASE } from "@/lib/motion";
 import type { AuthUser } from "@/data/types";
 
@@ -140,38 +140,21 @@ export function MobileNavDrawer({
             Return to super admin
           </Link>
         ) : null}
-        <nav className="flex-1 overflow-y-auto p-2">
+        <nav className="flex-1 overflow-y-auto px-2 py-4">
           {groups.map((group) => (
-            <div key={group} className="mb-4">
-              <p className="px-2 pb-1 text-[11px] font-medium text-sidebar-muted">{group}</p>
-              <div className="space-y-0.5">
+            <div key={group} className="mb-5">
+              <SidebarNavGroupLabel>{group}</SidebarNavGroupLabel>
+              <div>
                 {nav
                   .filter((item) => item.group === group)
-                  .map((item) => {
-                    const active = normalizeNavPath(item.to) === current;
-                    return (
-                      <Link
-                        key={item.to}
-                        href={item.to}
-                        onClick={onClose}
-                        aria-current={active ? "page" : undefined}
-                        className={cn(
-                          "focus-ringed mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
-                          active
-                            ? "bg-sidebar-active font-medium text-sidebar-active-foreground"
-                            : "text-sidebar-muted hover:bg-sidebar-active/60 hover:text-sidebar-foreground",
-                        )}
-                        style={
-                          active
-                            ? { boxShadow: "inset 2px 0 0 0 var(--color-primary)" }
-                            : undefined
-                        }
-                      >
-                        <item.icon className="size-4 shrink-0" />
-                        <span className="truncate">{item.label}</span>
-                      </Link>
-                    );
-                  })}
+                  .map((item) => (
+                    <SidebarNavLink
+                      key={item.to}
+                      item={item}
+                      active={normalizeNavPath(item.to) === current}
+                      onNavigate={onClose}
+                    />
+                  ))}
               </div>
             </div>
           ))}

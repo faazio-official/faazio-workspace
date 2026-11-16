@@ -18,6 +18,7 @@ import {
   SUPER_ADMIN_NAV,
 } from "@/components/layout/nav";
 import { MobileNavDrawer } from "@/components/layout/MobileNavDrawer";
+import { SidebarNavGroupLabel, SidebarNavLink } from "@/components/layout/SidebarNavLink";
 import { Button } from "@/components/ui/button";
 import {
   CommandDialog,
@@ -112,38 +113,20 @@ export function AdminShell({
             ) : null}
           </div>
 
-          <nav className="flex-1 overflow-y-auto px-2 py-3">
+          <nav className="flex-1 overflow-y-auto px-2 py-4">
             {groups.map((group) => (
-              <div key={group} className="mb-4">
-                {!collapsed ? (
-                  <p className="px-2 pb-1 text-[11px] font-medium text-sidebar-muted">{group}</p>
-                ) : null}
+              <div key={group} className="mb-5">
+                <SidebarNavGroupLabel collapsed={collapsed}>{group}</SidebarNavGroupLabel>
                 {nav
                   .filter((i) => i.group === group)
-                  .map((item) => {
-                    const active = normalizeNavPath(item.to) === current;
-                    return (
-                      <Link
-                        key={item.to}
-                        href={item.to}
-                        className={cn(
-                          "focus-ringed mb-0.5 flex items-center gap-2 rounded-md px-2 py-2 text-[13px] transition-colors",
-                          active
-                            ? "bg-sidebar-active font-medium text-sidebar-active-foreground"
-                            : "text-sidebar-muted hover:bg-sidebar-active/60 hover:text-sidebar-foreground",
-                        )}
-                        style={
-                          active
-                            ? { boxShadow: "inset 2px 0 0 0 var(--color-primary)" }
-                            : undefined
-                        }
-                        aria-current={active ? "page" : undefined}
-                      >
-                        <item.icon className="size-4 shrink-0" />
-                        {!collapsed ? <span className="truncate">{item.label}</span> : null}
-                      </Link>
-                    );
-                  })}
+                  .map((item) => (
+                    <SidebarNavLink
+                      key={item.to}
+                      item={item}
+                      active={normalizeNavPath(item.to) === current}
+                      collapsed={collapsed}
+                    />
+                  ))}
               </div>
             ))}
           </nav>
