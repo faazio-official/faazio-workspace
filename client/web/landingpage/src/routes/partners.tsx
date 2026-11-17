@@ -5,6 +5,7 @@ import { HiBeaker as Pill, HiBuildingStorefront as Store } from "react-icons/hi2
 import { legalLinkClass } from "@/components/legal";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
+import { SELLER_ONBOARDING_STATUS } from "@/lib/tutorials/seller-onboarding";
 import { seoHead } from "@/lib/seo";
 
 const title = "Partner with Faazio — local stores, restaurants & medicals in Karaikal";
@@ -83,10 +84,7 @@ function Partners() {
               <div className="intent">
                 <p className="eyebrow">Own a local business</p>
                 <h3>Let&apos;s talk about your place on Faazio.</h3>
-                <p>
-                  We are starting with Karaikal. Partner contact and onboarding details are coming
-                  soon.
-                </p>
+                <p>{SELLER_ONBOARDING_STATUS}</p>
                 <p>
                   Read the{" "}
                   <a href="/seller-terms" className={legalLinkClass}>
@@ -94,10 +92,15 @@ function Partners() {
                   </a>{" "}
                   before you apply.
                 </p>
-                <a href="/about" className="btn btn-outline">
-                  Learn more about Faazio
-                  <ArrowRight aria-hidden="true" />
-                </a>
+                <div className="action-row" style={{ marginTop: 4 }}>
+                  <a href="/tutorial" className="btn btn-primary">
+                    See how onboarding works
+                    <ArrowRight aria-hidden="true" />
+                  </a>
+                  <a href="/about" className="btn btn-ghost btn-sm">
+                    About Faazio
+                  </a>
+                </div>
               </div>
             </div>
           </div>

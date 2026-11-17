@@ -13,6 +13,7 @@ this surface.
 - Store presentation colors and reusable visual styles in global semantic tokens; this keeps the brand consistent without component-level color literals.
 - Keep unavailable external actions in informative dialogs until verified destinations are supplied; this prevents fabricated downloads or submissions.
 - Use the shared DownloadButton for app-download actions and Motion for scroll/interaction animation with reduced-motion support; this keeps conversion controls and accessibility consistent.
+- The `/tutorial` seller walkthrough is user-driven. `Watch` plays one pass and stops — never loop. The stage is decorative (`aria-hidden`) and the step rail is the accessible content. Its step script lives in `src/lib/tutorials/seller-onboarding.ts` and must match `docs/user-interaction-workflow/seller/onboarding/`.
 - Always render the Faazio wordmark with `<FaazioLogo />` (`src/components/faazio-logo.tsx`), never raw text or placeholder art. The glyph contours are copied from the mobile brand asset (`client/mobile/src/assets/logo.svg`).
 
 ## Design direction (decided — do not re-derive)
