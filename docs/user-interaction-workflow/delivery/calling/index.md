@@ -17,15 +17,20 @@ customer-initiated call endpoint, no `incoming_call` push sender, and no PSTN pr
   `ackDeliveryCallRinging`, `joinDeliveryCall`, `rejectDeliveryCall`, `endDeliveryCall`,
   `fallbackDeliveryCall` (shared by both apps).
 - Shared call stack in `src/features/call/`:
-  - `controller.ts` — one state machine factory used by both apps: 3 s double-tap lock,
-    double-accept guard, UUID-scoped native events, status polling with cross-call guards,
-    mic/mic-denial fallback, retrying lifecycle teardown, startup recovery, AppState resync,
-    audio-route tracking, notice vs fatal error.
+  - `controller.ts` — one state machine factory used by both apps: 3 s double-tap lock with a
+    matching disabled button state, session-epoch guards so a dismissed/ended session cannot be
+    resurrected by a late response, double-accept and decline-vs-accept guards, UUID-scoped native
+    events, status polling with cross-call guards, mic/mic-denial fallback (verified before join),
+    retrying lifecycle teardown, once-per-session startup recovery, AppState resync, audio-route
+    tracking, notice vs fatal error, and `CALLING_ENABLED` enforcement.
   - `voip.ts` — 100ms join/leave, earpiece/Bluetooth routing, `ON_AUDIO_DEVICE_CHANGED`, mute,
     reconnect events, 15 s join timeout.
+  - `ringtone.ts` — looped ringback while an outgoing VOIP call rings, and the in-app ringtone when
+    CallKit/ConnectionService cannot show the native ring.
   - `callkeep.ts` — Android ConnectionService ring, `hasPhoneAccount`/managed-call checks,
     `rejectCall` for ringing, `displayIncomingCall` with iOS call options, cold-start
-    `didLoadWithEvents`, `backToForeground`, `setAvailable`.
+    `didLoadWithEvents`, `backToForeground`, `setAvailable`, and
+    `foregroundServiceType: phoneCall|microphone`.
   - `incoming.ts` — shared FCM data-only background handler.
   - `CallSurface.tsx` — shared full-screen call UI; each app injects its theme tokens.
 - `callStore` (`src/state/callStore.ts`) — phase, server call projection, masked peer label,
@@ -36,10 +41,11 @@ customer-initiated call endpoint, no `incoming_call` push sender, and no PSTN pr
 - Customer binding: `features/customer/calling/callController.ts` + `CallDeliveryPartnerButton`
   on `OrderDetails` + `ActiveCallScreen` (light/dark palette).
 - Android native ringing: `react-native-callkeep` ConnectionService + `VoiceConnectionService` in
-  the **customer and delivery** flavor manifests; `index.js`/`index.delivery.js` register the
-  shared `incoming_call` FCM handler before mount. iOS background modes (`voip`, `audio`) and
-  local-network copy are declared, but the CallKeep/100ms pods remain excluded from iOS
-  autolinking.
+  the **customer and delivery** flavor manifests, declared with
+  `android:foregroundServiceType="phoneCall|microphone"` so an answered background call keeps
+  microphone access; `index.js`/`index.delivery.js` register the shared `incoming_call` FCM handler
+  before mount. iOS background modes (`voip`, `audio`) and local-network copy are declared, but the
+  CallKeep/100ms pods remain excluded from iOS autolinking.
 
 ## Flows
 

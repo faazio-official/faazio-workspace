@@ -121,7 +121,7 @@ This folder documents the rule enforced by `AGENTS.md`:
 - [Offers](./delivery/offers/index.md) · [Delivery offer](./delivery/offers/delivery-offer.md) · [Route sequencing](./delivery/offers/route-sequencing.md)
 - [Fulfillment](./delivery/fulfillment/index.md) · [Order pickup](./delivery/fulfillment/order-pickup.md) · [Customer handover](./delivery/fulfillment/customer-handover.md)
 - [Earnings](./delivery/earnings/index.md) · [Earnings ledger](./delivery/earnings/earnings-ledger.md) · [Earnings detail](./delivery/earnings/earnings-detail.md)
-- [Calling](./delivery/calling/index.md) · [Outgoing call](./delivery/calling/outgoing.md) · [Incoming call](./delivery/calling/incoming.md) · [Edge cases](./delivery/calling/edge-cases.md)
+- [Calling](./delivery/calling/index.md) · [Outgoing call](./delivery/calling/outgoing.md) · [Incoming call](./delivery/calling/incoming.md) · [Edge cases](./delivery/calling/edge-cases.md) · [Screens](./delivery/calling/screens.md)
 - [More (bottom nav · profile · settings · support · inbox · history)](./delivery/more/index.md)
 
 ### Shared

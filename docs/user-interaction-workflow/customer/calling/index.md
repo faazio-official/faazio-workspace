@@ -11,8 +11,9 @@ ringing) is implemented; the gateway still has no customer-initiated call endpoi
 ## What exists
 
 - `CallDeliveryPartnerButton` on `OrderDetails` for delivery orders with an assigned partner
-  (not cancelled, not a prescription flow). Primary **Call delivery partner** + secondary
-  **Use phone call** (forces `forcePstn`). Hidden when `CALLING_ENABLED=false`.
+  (`Shipped` or `Delivered`, not a prescription flow). Primary **Call delivery partner** + secondary
+  **Use phone call** with a phone-line icon (forces `forcePstn`). Hidden when `CALLING_ENABLED=false`;
+  for 3 s after a tap it reads **Starting call…** and is disabled.
 - Shared call stack (`src/features/call/`): controller factory, 100ms VOIP adapter, CallKeep
   ringing, FCM background handler, and `CallSurface` full-screen UI. The customer binding lives in
   `features/customer/calling/callController.ts`.
@@ -23,7 +24,9 @@ ringing) is implemented; the gateway still has no customer-initiated call endpoi
 - `index.js` registers the shared FCM `incoming_call` background handler before the app mounts;
   `customerPush.ts` routes foreground/cold-start call payloads to the same handler.
 - `App.tsx` initializes the controller after login, flushes a cold-start call navigation on
-  `NavigationContainer.onReady`, and calls `shutdownCalling()` on sign-out.
+  `NavigationContainer.onReady`, and calls `shutdownCalling()` on sign-out. The customer binding sets
+  `recoverActiveCall: false`: `GET /delivery/calls/active` is rider-scoped, so the customer app never
+  probes another role's row and relies on push re-delivery plus the gateway sweeper instead.
 - Android customer flavor manifest (`android/app/src/customer/AndroidManifest.xml`) declares
   microphone/Bluetooth/full-screen-intent/phone-call foreground-service permissions and the CallKeep
   `VoiceConnectionService`. iOS declares `voip` + `audio` background modes and local-network copy,
@@ -43,8 +46,6 @@ ringing) is implemented; the gateway still has no customer-initiated call endpoi
 - `gateway.initiateDeliveryCall(orderId)` → `POST /delivery/{orderId}/call` →
   `delivery.calls` (the endpoint is currently rider-scoped; a customer token is rejected).
 - `gateway.getDeliveryCall(callId)` → `GET /calls/{callId}`.
-- `gateway.getActiveDeliveryCall()` → `GET /delivery/calls/active` (customer token currently
-  rejected).
 - `gateway.ackDeliveryCallRinging` → `POST /calls/{callId}/ringing-ack`.
 - `gateway.joinDeliveryCall` → `POST /calls/{callId}/join`.
 - `gateway.rejectDeliveryCall` / `endDeliveryCall` / `fallbackDeliveryCall` → state transition.
@@ -59,8 +60,9 @@ bundle.
 
 - **Server customer path.** `initiateCall` resolves the caller as a rider (`currentRider`) and
   writes `initiated_by='RIDER'`; there is no customer-owned order check, no CUSTOMER-initiated row,
-  no customer token minting and no `incoming_call` push sender. The customer button therefore
-  returns `409`/`403` until the gateway lands the mirror endpoint.
+  no customer token minting and no `incoming_call` push sender. A normal customer phone is not a
+  rider, so the button currently receives `404 not_found` (or `409` when the phone is missing / the
+  rider row is not ACTIVE) until the gateway lands the mirror endpoint.
 - **PSTN bridge.** Same external Exotel/Edesy gap as the delivery flow — the masked landline does
   not connect to the rider.
 - **iOS PushKit/CallKit** is declared in Info.plist but not native-linked.

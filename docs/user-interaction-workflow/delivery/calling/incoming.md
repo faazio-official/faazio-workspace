@@ -17,15 +17,17 @@ push sender creates the `incoming_call` push yet.
    - rejects with `busy` when another call is already open,
    - sets `callStore` to `ringing` with `incoming: true` and the masked peer label,
    - sets up CallKeep and shows the native full-screen ring with the peer role + order suffix; if
-     CallKeep is unavailable the in-app surface is shown instead,
+     CallKeep is unavailable (or does not confirm the display within 1.5 s) the in-app surface is
+     shown and loops the ringing tone instead,
    - fires `POST /calls/{callId}/ringing-ack` **only when a ring surface is actually visible**
      (native call displayed, or the app is foreground). A headless device without a phone account
      intentionally does not ack, so the server can fall back to PSTN.
 4. **Accept** (native answer or the in-app Accept button) → `acceptIncomingCall(callId)`:
    - is idempotent: an in-flight accept and a native+in-app double answer cannot join twice and
-     tear the connected call down,
+     tear the connected call down; a decline while the join is in flight cancels it,
    - brings the app forward on Android, requests microphone consent; a denial moves the ringing
-     VOIP row to PSTN via `POST /calls/{callId}/fallback`,
+     VOIP row to PSTN via `POST /calls/{callId}/fallback` and only proceeds when the response is
+     `PSTN_BRIDGING` (otherwise the row is torn down with an explicit message),
    - `POST /calls/{callId}/join` accepts the row (`RINGING → ACTIVE`) and returns a fresh 2-hour
      VOIP token,
    - joins 100ms (VOIP) or opens the masked dialer (PSTN), then `ActiveCall` shows the timer.
@@ -33,9 +35,10 @@ push sender creates the `incoming_call` push yet.
    `POST /calls/{callId}/reject` (`RINGING → REJECTED`; a `busy` reason is recorded as `BUSY`).
 6. While ringing, the server watches `ringing_ack_at`; a later `GET /calls/{callId}` reports
    `fallbackAvailable` so the caller can switch to PSTN.
-7. A row that outlives the runtime is handled twice: the client re-surfaces a still-ringing incoming
-   call from `GET /delivery/calls/active` on the next authenticated start (and re-acks when a
-   surface is shown), and the gateway sweeper closes `RINGING` rows older than 45 s as `MISSED`.
+7. A row that outlives the runtime is handled twice: on the next authenticated start the client
+   (once per session) re-surfaces a still-ringing incoming call from `GET /delivery/calls/active`,
+   re-acks when a surface is shown **and** starts the in-app ringing tone when only the in-app
+   surface is visible; the gateway sweeper closes `RINGING` rows older than 45 s as `MISSED`.
 
 ## State
 

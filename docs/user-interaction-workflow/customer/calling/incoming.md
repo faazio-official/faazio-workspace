@@ -18,18 +18,23 @@ sender for the `incoming_call` push yet.
    - sets `callStore` to `ringing` with `incoming: true` and the masked peer label
      ("Delivery Partner"),
    - sets up CallKeep and shows the native full-screen ring with the peer role + order suffix; if
-     CallKeep is unavailable the in-app surface is shown,
+     CallKeep is unavailable (or does not confirm the display within 1.5 s) the in-app surface is
+     shown and loops the ringing tone,
    - sends `POST /calls/{callId}/ringing-ack` only when a ring surface is actually visible (native
      ring displayed or the app is foreground).
 4. **Accept** (native answer or in-app Accept) → `acceptIncomingCall(callId)`:
-   - in-flight/double-answer guarded, brings the app forward on Android, asks for microphone
-     consent (denial moves the ringing VOIP row to PSTN via `POST /calls/{callId}/fallback`),
+   - in-flight/double-answer guarded and cancelled if the user declines while `/join` is in flight,
+     brings the app forward on Android, asks for microphone consent (denial moves the ringing VOIP
+     row to PSTN via `POST /calls/{callId}/fallback` and only proceeds when the response is
+     `PSTN_BRIDGING`),
    - `POST /calls/{callId}/join` accepts the row and returns a fresh token,
    - joins 100ms (VOIP) or opens the masked dialer (PSTN); `ActiveCall` shows the timer.
 5. **Decline** (native decline or in-app Decline) → CallKeep `rejectCall` +
    `POST /calls/{callId}/reject`.
-6. Startup recovery: `GET /delivery/calls/active` re-surfaces a still-ringing customer-initiated
-   row and re-acks when a surface is shown; the gateway sweeper closes stale rows.
+6. There is **no customer startup recovery**: `GET /delivery/calls/active` is rider-scoped and the
+   customer binding sets `recoverActiveCall: false`. A customer row that outlived the runtime is
+   bounded by the gateway sweeper (and a re-delivered push can still ring it); the customer app
+   never probes another role's row.
 
 ## State
 

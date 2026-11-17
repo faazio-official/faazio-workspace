@@ -48,8 +48,8 @@ src/
 `favourites` · `food` · `home` · `notifications` · `onboarding` · `pharma` · `product` · `profile` ·
 `rewards` · `search` · `seller-onboarding` · `seller-partner` · `sub-app`
 
-`call` is the shared masked-calling stack (controller factory, 100ms adapter, CallKeep, FCM
-background handler, full-screen surface) used by both products; `customer` holds the customer
+`call` is the shared masked-calling stack (controller factory, 100ms adapter, CallKeep, ringtone,
+FCM background handler, full-screen surface) used by both products; `customer` holds the customer
 bindings (`ActiveCallScreen`, `CallDeliveryPartnerButton`). `delivery-partner` is the **standalone
 Delivery Partner app** (not a customer route): see "Delivery Partner app" below.
 
@@ -1005,24 +1005,30 @@ are reserved for the call path) — no background location or `fetch`.
 
 **Masked calling (`0104`).** The customer and delivery-partner apps share one call stack under
 `features/call/` (`controller.ts` state machine, `voip.ts` 100ms adapter, `callkeep.ts` native ringing,
-`incoming.ts` FCM wake-up, `CallSurface.tsx` full-screen UI); each product binds it with its own
-navigation handle and peer labels. `Route`/`Dashboard` render the rider `CallCustomerButton` and
+`ringtone.ts` ringback/in-app ring, `incoming.ts` FCM wake-up, `CallSurface.tsx` full-screen UI);
+each product binds it with its own navigation handle and peer labels (`recoverActiveCall` is true
+only for the rider, because `GET /delivery/calls/active` is rider-scoped). `Route`/`Dashboard` render the rider `CallCustomerButton` and
 `OrderDetails` renders the customer `CallDeliveryPartnerButton`. The gateway is the authority:
 `POST /delivery/{orderId}/call` returns `VOIP` (100ms room + 2-hour token) when configured, otherwise
 `PSTN_BRIDGING` with `DELIVERY_CALL_VIRTUAL_NUMBER`. The app never receives the other peer's raw
-phone number. The controller owns the 3 s double-tap lock, re-entrancy/double-accept guards,
-UUID-scoped native events, the ringing-ack window, one-tap PSTN fallback, mic-denial fallback,
-retrying lifecycle teardown, `GET /delivery/calls/active` recovery, AppState resync and audio-route
-tracking. `callStore` also carries `audioRoute` and a recoverable `notice`. `ActiveCall` is a
+phone number. The controller owns the 3 s double-tap lock (mirrored by a disabled **Starting call…**
+button), session-epoch guards that cancel a dismissed/ended connect, join or PSTN switch,
+re-entrancy/double-accept and decline-vs-accept guards, UUID-scoped native events, the ringing-ack
+window, looped VOIP ringback, one-tap PSTN fallback, verified mic-denial fallback (never joins VOIP
+without a mic), retrying lifecycle teardown, once-per-session `GET /delivery/calls/active` recovery,
+AppState resync and audio-route tracking. `callStore` also carries `audioRoute` and a recoverable `notice`. `ActiveCall` is a
 non-dismissible full-screen route in both navigators (hardware back ends the call first). Native
 ringing is Android-only today: `react-native-callkeep` ConnectionService + `VoiceConnectionService`,
 `RECORD_AUDIO`, `BLUETOOTH_CONNECT` (+ legacy Bluetooth ≤ Android 11), `USE_FULL_SCREEN_INTENT`,
-`FOREGROUND_SERVICE_MICROPHONE`/`PHONE_CALL` in the **customer and delivery** flavor manifests.
+`FOREGROUND_SERVICE_MICROPHONE`/`PHONE_CALL` in the **customer and delivery** flavor manifests,
+with `VoiceConnectionService` declared as `phoneCall|microphone` and
+`foregroundServiceType: 132` passed to CallKeep so background audio keeps the mic.
 `index.js` and `index.delivery.js` register the shared FCM data-only `incoming_call` handler before
 mount. `CALLING_ENABLED` (default true) is the only client build flag; provider secrets stay
 server-side. **Status: Partial** — both client halves are built, but the gateway still has no
 customer-initiated call endpoint and no `incoming_call` push sender, so a customer-originated call
-returns a conflict and the rider ring cannot be triggered yet; iOS PushKit/CallKit is not native-linked
+is rejected (`404 not_found` for a normal customer, `409` for an invalid phone/rider state) and the
+rider ring cannot be triggered yet; iOS PushKit/CallKit is not native-linked
 and the Exotel/Edesy bridging webhook is absent (see
 `docs/user-interaction-workflow/customer/calling/` and `.../delivery/calling/`).
 

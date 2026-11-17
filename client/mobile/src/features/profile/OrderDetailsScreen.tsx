@@ -330,10 +330,10 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {/* Delivery partner call — masked VOIP/PSTN while the rider is assigned (not on Rx orders). */}
+        {/* Delivery partner call — masked VOIP/PSTN once a rider is assigned (not on Rx orders). */}
         {CALLING_ENABLED &&
         order.fulfillment === 'DELIVERY' &&
-        order.status !== 'Cancelled' &&
+        (order.status === 'Shipped' || order.status === 'Delivered') &&
         placedOrder?.kind !== 'prescription' ? (
           <View style={styles.card}>
             <AppText style={styles.sectionTitle}>Delivery partner</AppText>

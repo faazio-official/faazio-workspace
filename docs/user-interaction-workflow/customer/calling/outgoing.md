@@ -4,18 +4,19 @@
 (`features/profile/OrderDetailsScreen.tsx`, `features/customer/components/CallDeliveryPartnerButton.tsx`)
 **Status:** **Partial** — the client is implemented; the gateway has no customer-initiated call
 endpoint yet.
-**Trigger:** signed-in customer taps **Call delivery partner** on a delivery order that is not
-cancelled and has an assigned partner (prescription orders excluded); **Use phone call** forces the
-masked PSTN leg.
+**Trigger:** signed-in customer taps **Call delivery partner** on a delivery order whose status is
+`Shipped` or `Delivered` (a rider is assigned; prescription orders excluded); **Use phone call**
+forces the masked PSTN leg.
 
 ## Steps
 
 1. `OrderDetails` renders a **Delivery partner** card with `CallDeliveryPartnerButton` when
-   `order.fulfillment === 'DELIVERY'`, the order is not `Cancelled`, and the order is not a
-   prescription flow.
+   `order.fulfillment === 'DELIVERY'`, the status is `Shipped` or `Delivered`, and the order is not a
+   prescription flow. `Processing`/`Cancelled` orders have no assigned rider and show no call card.
 2. The button calls the shared controller's `startCustomerCall(orderId, 'Delivery Partner')`
    (`features/customer/calling/callController.ts`).
-3. The controller refuses a second call while one is open and locks further taps for 3 s.
+3. The controller refuses a second call while one is open and locks further taps for 3 s. The
+   button mirrors the lock (`Starting call…`, disabled) so a rapid repeated tap is visibly rejected.
 4. Android microphone consent is requested only when the VOIP leg may be used. A denial sends
    `forcePstn: true`; the explicit **Use phone call** action skips the prompt. Android 12+ also asks
    for `BLUETOOTH_CONNECT` (best-effort).
@@ -23,11 +24,12 @@ masked PSTN leg.
    masked peer label and order suffix.
 6. `gateway.initiateDeliveryCall(orderId, { forcePstn })` → `POST /delivery/{orderId}/call`.
    **Server gap:** the endpoint currently resolves the caller as a rider and writes a
-   rider-initiated row; a customer token is rejected, so this step surfaces an honest error on the
-   call surface.
+   rider-initiated row; a normal customer is not a rider, so this step surfaces `404 not_found` (or
+   `409` when the phone/rider state is invalid) as an honest error on the call surface.
 7. When the server path lands, the same branches as the delivery app apply: VOIP joins the 100ms
-   room with the minted token and routes audio to Bluetooth/earpiece; PSTN opens the masked
-   dialer. The phone number of the rider is never rendered or dialled.
+   room with the minted token, routes audio to Bluetooth/earpiece and loops a local ringback until
+   the rider joins; PSTN opens the masked dialer. The phone number of the rider is never rendered or
+   dialled.
 8. The controller polls `GET /calls/{callId}` every 2 s, mirrors a server `ACTIVE` status, and
    offers **Switch to phone call** when the server reports `fallbackAvailable`.
 9. **End / dismiss:** `POST /calls/{callId}/end`, leave the 100ms room, end the native call, phase
@@ -62,7 +64,7 @@ masked PSTN leg.
 - No customer-initiated gateway endpoint, order-ownership check, customer VOIP token minting, or
   `incoming_call` push sender (see `../../KNOWN_GAPS.md`).
 - PSTN provider bridging is external (masked landline only).
-- No local ringback tone; PSTN timer starts at dialer open.
+- PSTN timer starts at dialer open; VOIP ringback is local and stops as soon as the peer joins.
 
 ## Linked docs
 

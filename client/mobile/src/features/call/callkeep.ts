@@ -47,6 +47,10 @@ function setupOptions(config: CallKeepConfig) {
         channelId: config.channelId,
         channelName: config.channelName,
         notificationTitle: config.notificationTitle,
+        // ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL (4) | MICROPHONE (128). The
+        // VoiceConnectionService declares both types in the manifest; without microphone the
+        // answered call loses mic access when the app is backgrounded.
+        foregroundServiceType: 132,
       },
     },
   };
@@ -127,9 +131,10 @@ export async function displayIncomingCall(
       settle(false);
       return;
     }
-    // Some OEM builds never emit didDisplayIncomingCall; assume shown rather than double-rendering.
-    // hasPhoneAccount() above already filtered the known "silently ignored" case.
-    setTimeout(() => settle(true), 1500);
+    // Some OEM builds never emit didDisplayIncomingCall. Treat silence as "not shown" so the
+    // controller falls back to the in-app ringing surface and does not send a false delivery
+    // receipt that would suppress the server's PSTN fallback prompt.
+    setTimeout(() => settle(false), 1500);
   });
 }
 

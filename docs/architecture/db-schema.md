@@ -1971,7 +1971,7 @@ tables are untouched.
 | `delivery.rider_heartbeats` | Optional low-frequency Postgres mirror. The authoritative live coordinate is Valkey `delivery:rider:{id}:location` (TTL 300 s) |
 | `delivery.rider_shift_days` | `0102`. One completed worked-day roll-up per rider (`rider_id`, `shift_date` PK; `online_seconds`, `earnings_paisa`). Written lazily at the IST day rollover from the Valkey in-progress day (`GET /delivery/shift-summary`); aggregates only, no PII |
 | `delivery.delivery_ratings` | Post-delivery 1–5 rating + comment, unique per order; the rider aggregate is recomputed in the same tx |
-| `delivery.calls` | `0104`. Server-authoritative masked call sessions: `call_id` PK, `order_id`, `rider_id`, `initiated_by` (`RIDER`/`CUSTOMER`), `peer_role` (`CUSTOMER`/`DELIVERY_PARTNER`), `mode` (`VOIP`/`PSTN_BRIDGING`), `status` (`RINGING`/`ACTIVE`/`ENDED`/`REJECTED`/`FAILED`/`MISSED`/`BUSY`), 100ms `provider_room_id`, `virtual_number`, `ringing_ack_at`, `accepted_at`, `ended_at`, `end_reason`, timestamps. A partial unique index allows **one open call per rider**. Stores no phone number or provider secret |
+| `delivery.calls` | `0104`. Server-authoritative masked call sessions: `call_id` PK, `order_id`, `rider_id`, `initiated_by` (`RIDER`/`CUSTOMER`), `peer_role` (`CUSTOMER`/`DELIVERY_PARTNER`), `mode` (`VOIP`/`PSTN_BRIDGING`), `status` (`RINGING`/`ACTIVE`/`ENDED`/`REJECTED`/`FAILED`/`MISSED`/`BUSY`), 100ms `provider_room_id`, `provider_call_ref` (reserved for the PSTN provider, schema-only today), `virtual_number`, `ringing_ack_at`, `accepted_at`, `ended_at`, `end_reason`, timestamps. A partial unique index allows **one open call per rider**. Stores no phone number or provider secret |
 
 **Security / RLS**
 - Writes are `service_role` only (the gateway). Authenticated riders may read their own rows; a
@@ -2669,6 +2669,8 @@ virtual number. The row stores:
 - `initiated_by` (`RIDER`/`CUSTOMER`) and `peer_role` (`CUSTOMER`/`DELIVERY_PARTNER`) — masked
   identities only.
 - `mode` + `status` enums; `provider_room_id` for VOIP and `virtual_number` for PSTN.
+- `provider_call_ref` — reserved for the PSTN provider's call id; schema-only today (no provider
+  webhook or Go read/write exists yet).
 - `ringing_ack_at` (the <3 s delivery receipt), `accepted_at`, `ended_at`, `end_reason`.
 
 A partial unique index (`states RINGING/ACTIVE`) enforces one open call per rider, so a double tap or
@@ -2676,8 +2678,10 @@ two devices cannot create parallel rooms. The handler checks that index **before
 100ms room, so a rejected second call cannot leak a provider room. The server-driven fallback window
 is `HMS_RINGING_ACK_SECONDS` (default 3); `GET /calls/{callId}` reports `fallbackAvailable` once a
 VOIP call is still ringing past it and a PSTN number exists. `POST /calls/{callId}/fallback` moves the
-session to PSTN. VOIP tokens are minted per initiate/join (HS256, 2-hour TTL) and never stored in
-Postgres or a push payload. `GET /delivery/calls/active` returns the rider's open row (204 when none)
+session to PSTN. `POST /calls/{callId}/accept` transitions `RINGING → ACTIVE` without a token;
+`POST /calls/{callId}/join` does the same and returns a fresh token. VOIP tokens are minted per
+initiate/join (HS256, 2-hour TTL) and never stored in Postgres or a push payload. `FAILED` is in the
+enum and documented but no current transition writes it (a failed start is ended with `end_reason`). `GET /delivery/calls/active` returns the rider's open row (204 when none)
 so a restarted app can resume or end it. The delivery expiry worker also sweeps calls every 15 s:
 `RINGING` older than 45 s becomes `MISSED`, `ACTIVE` older than 2 h becomes `ENDED`, which releases
 the unique index after a crash or lost push. RLS mirrors `delivery_boys`: riders read their own rows,

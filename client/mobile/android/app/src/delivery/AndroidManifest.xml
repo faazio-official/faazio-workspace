@@ -42,7 +42,7 @@
       android:name="io.wazo.callkeep.VoiceConnectionService"
       android:label="Faazio Delivery Calls"
       android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
-      android:foregroundServiceType="phoneCall"
+      android:foregroundServiceType="phoneCall|microphone"
       android:exported="true">
       <intent-filter>
         <action android:name="android.telecom.ConnectionService"/>

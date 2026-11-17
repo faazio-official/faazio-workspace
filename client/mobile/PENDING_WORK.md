@@ -41,14 +41,22 @@ Shipped:
 - Deps: `@100mslive/react-native-hms@1.12.3`, `react-native-callkeep@4.6.1`. Per-call rooms use
   `HMS_TEMPLATE_ID` (a management token is minted from the app secret; `HMS_MANAGEMENT_TOKEN` is an
   optional override).
-- Hardened: cross-call race guards (late poll/end responses), double-accept guard, UUID-scoped native
-  events, reject-vs-end for ringing, signed-out push drop + sign-out teardown, outgoing PSTN no
-  longer stuck on "Dialing…", timer preserved across VOIP→PSTN, PSTN controls hidden, failed
-  switch keeps the live leg, end/reject retry, duplicate `initialize()` setup, audio-route tracking,
-  open-call check before room provisioning, server sweeper, `GET /delivery/calls/active` startup
-  resume, duplicate-push guard, CallKeep `didLoadWithEvents`, VoIP join timeout + peer-left handling,
-  `beforeRemove` guard, Android 12+ Bluetooth permission, legacy Bluetooth, `HMS_ENDPOINT` +
-  `render.yaml`, and no raw customer phone in rider order/route projections.
+- Hardened: session-epoch guards (cancelled start, decline-during-accept, late PSTN switch cannot
+  resurrect a closed call), PSTN-dialer failure tears the row down, once-per-session startup
+  recovery that re-acks in-app rings, reconnect notices clearing on success, duplicate
+  push-after-decline/end guard, tested mic-denied fallback, `CALLING_ENABLED` enforced in the
+  controller/background handler, local ringback (`ringtone.ts` + `callRingback.wav`) and in-app
+  ringtone, visible 3 s button lock, Android `phoneCall|microphone` foreground-service types,
+  CallKeep display-timeout no longer sends a false receipt, cross-call race guards (late poll/end
+  responses), double-accept guard, UUID-scoped native events, reject-vs-end for ringing, signed-out
+  push drop + sign-out teardown, outgoing PSTN no longer stuck on "Dialing…", timer preserved
+  across VOIP→PSTN, PSTN controls hidden, failed switch keeps the live leg, end/reject retry,
+  duplicate `initialize()` setup, audio-route tracking, open-call check before room provisioning,
+  server sweeper, `GET /delivery/calls/active` startup resume, CallKeep `didLoadWithEvents`, VoIP
+  join timeout + peer-left handling, `beforeRemove` guard, Android 12+ Bluetooth permission, legacy
+  Bluetooth, `HMS_ENDPOINT` + `render.yaml`, and no raw customer phone in rider order/route
+  projections. Regression tests: `src/features/call/__tests__/controller.test.ts`,
+  `src/state/__tests__/callStore.test.ts`.
 
 Remaining before Complete:
 

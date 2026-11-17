@@ -1,6 +1,6 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Phone } from 'lucide-react-native';
+import { Phone, PhoneCall } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { CALLING_ENABLED } from '@/lib/config';
 import { useCallStore } from '@/state/callStore';
@@ -23,6 +23,17 @@ export function CallDeliveryPartnerButton({ orderId }: Props) {
   const { palette } = useThemeMode();
   const phase = useCallStore((s) => s.phase);
   const busy = OPEN.has(phase);
+  // Mirrors the controller's 3 s start lock so a rapid second tap is visibly disabled.
+  const [locked, setLocked] = useState(false);
+  const lockTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (lockTimer.current) clearTimeout(lockTimer.current);
+  }, []);
+  const holdLock = () => {
+    setLocked(true);
+    if (lockTimer.current) clearTimeout(lockTimer.current);
+    lockTimer.current = setTimeout(() => setLocked(false), 3000);
+  };
   if (!CALLING_ENABLED) return null;
 
   const onPrimary = () => {
@@ -30,7 +41,15 @@ export function CallDeliveryPartnerButton({ orderId }: Props) {
       if (navigationRef.isReady()) navigationRef.navigate('ActiveCall');
       return;
     }
+    if (locked) return;
+    holdLock();
     void startCustomerCall(orderId, 'Delivery Partner');
+  };
+
+  const onPstn = () => {
+    if (busy || locked) return;
+    holdLock();
+    void startCustomerCall(orderId, 'Delivery Partner', { forcePstn: true });
   };
 
   return (
@@ -38,9 +57,17 @@ export function CallDeliveryPartnerButton({ orderId }: Props) {
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel={busy ? 'Open the call in progress' : 'Call the delivery partner'}
+        accessibilityState={{ disabled: locked && !busy }}
         activeOpacity={0.9}
+        disabled={locked && !busy}
         onPress={onPrimary}
-        style={[styles.primary, { backgroundColor: busy ? palette.card : palette.accent }]}
+        style={[
+          styles.primary,
+          {
+            backgroundColor: busy ? palette.card : palette.accent,
+            opacity: locked && !busy ? 0.6 : 1,
+          },
+        ]}
       >
         <Phone
           size={ms(17)}
@@ -50,17 +77,18 @@ export function CallDeliveryPartnerButton({ orderId }: Props) {
         <AppText
           style={[styles.primaryLabel, { color: busy ? palette.accent : palette.onAccent }]}
         >
-          {busy ? 'Call in progress' : 'Call delivery partner'}
+          {locked ? 'Starting call…' : busy ? 'Call in progress' : 'Call delivery partner'}
         </AppText>
       </TouchableOpacity>
       <TouchableOpacity
         accessibilityRole="button"
         accessibilityLabel="Use a secure phone call instead"
         activeOpacity={0.7}
-        disabled={busy}
-        onPress={() => void startCustomerCall(orderId, 'Delivery Partner', { forcePstn: true })}
-        style={[styles.secondary, busy && styles.disabled]}
+        disabled={busy || locked}
+        onPress={onPstn}
+        style={[styles.secondary, (busy || locked) && styles.disabled]}
       >
+        <PhoneCall size={ms(14)} color={palette.accent} strokeWidth={1.8} />
         <AppText style={[styles.secondaryText, { color: palette.accent }]}>
           Use phone call
         </AppText>
@@ -80,7 +108,13 @@ const styles = StyleSheet.create({
     gap: hs(8),
   },
   primaryLabel: { fontSize: ms(14), fontWeight: '600' },
-  secondary: { minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  secondary: {
+    minHeight: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: hs(6),
+  },
   secondaryText: { fontSize: ms(13), fontWeight: '600' },
   disabled: { opacity: 0.4 },
 });

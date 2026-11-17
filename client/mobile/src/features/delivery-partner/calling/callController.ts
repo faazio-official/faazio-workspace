@@ -24,6 +24,7 @@ const controller = createCallController({
     channelName: 'Delivery calls',
     notificationTitle: 'Delivery call in progress',
   },
+  recoverActiveCall: true,
   micPrompt: {
     title: 'Microphone for delivery calls',
     message:
@@ -41,6 +42,8 @@ const controller = createCallController({
     unavailable: 'Calling is not configured for this account yet.',
     notFound: 'This call is no longer available.',
     conflict: 'Finish the current call first.',
+    microphoneDenied:
+      'Microphone access is needed for an app call. Allow it in Settings, or use the secure phone line.',
     generic: 'Could not start the call. Please try again.',
   },
 });

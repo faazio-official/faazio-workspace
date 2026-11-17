@@ -387,7 +387,7 @@ export function RouteScreen({ navigation }: Props) {
                 </View>
                 <AppText style={styles.stopLabel}>{stop.label || 'Stop'}</AppText>
                 <AppText style={styles.stopAddress}>{stop.address}</AppText>
-                {stop.stopType === 'DROP' ? (
+                {stop.stopType === 'DROP' && !done ? (
                   <CallCustomerButton
                     orderId={stop.deliveryOrderId}
                     showPstn

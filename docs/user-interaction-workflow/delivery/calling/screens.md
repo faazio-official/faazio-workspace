@@ -7,13 +7,15 @@
 
 | Surface | File | Behavior |
 |---|---|---|
-| `CallCustomerButton` | `features/delivery-partner/components/CallCustomerButton.tsx` | Primary **Call customer** + optional secondary **Use phone call** (forces PSTN). Hidden when `CALLING_ENABLED=false`; while a call is open it opens `ActiveCall` instead of starting a second one |
-| `Route` DROP stop | `screens/RouteScreen.tsx` | Renders the call action for the stop's `deliveryOrderId`; the old raw `tel:customerPhone` row was removed |
+| `CallCustomerButton` | `features/delivery-partner/components/CallCustomerButton.tsx` | Primary **Call customer** + optional secondary **Use phone call** with a phone-line icon (forces PSTN). Hidden when `CALLING_ENABLED=false`; while a call is open it opens `ActiveCall` instead of starting a second one. For 3 s after a tap the button reads **Starting call…** and is disabled |
+| `Route` DROP stop | `screens/RouteScreen.tsx` | Renders the call action for an unfinished DROP stop's `deliveryOrderId`; completed/failed stops hide it. The old raw `tel:customerPhone` row was removed |
 | `Dashboard` active card | `screens/DashboardScreen.tsx` | Renders the call action under each accepted `DPOrderCard` |
 | `ActiveCall` | `screens/ActiveCallScreen.tsx` → shared `features/call/CallSurface.tsx` | Full-screen, non-dismissible (`gestureEnabled: false`, `fullScreenModal`, plus a `beforeRemove` guard that ends the call before leaving). Masked peer label, `Delivery call · #<last6>`, timer (only after connect), status line, mute/speaker/Bluetooth/phone-line controls, End; Accept/Decline when ringing; Done after end/error |
 | Customer `ActiveCall` | `features/customer/screens/ActiveCallScreen.tsx` | Same shared surface with the customer light/dark palette (see customer calling docs) |
 
 ## Visual rules
+
+- While an outgoing VOIP call is `ringing`, `features/call/ringtone.ts` plays a looped local ringback; the status line still says **Ringing…** (copy and audio agree, no fake connect).
 
 - Uses the injected `CallSurfaceColors`; the delivery binding passes `DELIVERY` tokens only, so no
   raw hex or local font sizes enter the screen.
@@ -42,9 +44,15 @@ The shared factory exposes `initialize`, `start`, `handleIncomingCall`, `accept`
 (`startDeliveryCall`, `acceptIncomingCall`, …).
 
 It polls `GET /calls/{id}` every 2 s with a single in-flight request; ignores responses for a
-non-active call id; the 3 s tap lock and the server's pre-provisioning open-call check prevent
-duplicate rooms. Startup calls `GET /delivery/calls/active` to resume/close a row that outlived the
-runtime. Sign-out calls `shutdownCalling()` so no row or native session survives the account switch.
+non-active call id; a session epoch cancels any async connect/join/switch whose surface was
+closed; the 3 s tap lock and the server's pre-provisioning open-call check prevent duplicate rooms.
+Once per authenticated session it calls `GET /delivery/calls/active` to resume/close a row that
+outlived the runtime (a Dashboard remount does not re-run recovery). Sign-out calls
+`shutdownCalling()` so no row or native session survives the account switch.
+
+Regression tests: `src/features/call/__tests__/controller.test.ts` covers the cancelled-start,
+decline-during-accept and late-PSTN-switch races; `src/state/__tests__/callStore.test.ts` covers the
+phase/timer/audio-route contract.
 
 ## Known gaps
 
