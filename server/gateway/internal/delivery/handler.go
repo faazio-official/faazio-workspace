@@ -37,6 +37,8 @@ type Handler struct {
 	handoverKey []byte
 	// calls holds the server-side telephony config (0104). Zero value disables calling (503).
 	calls CallConfig
+	// nudger wakes the push worker so a ring is delivered immediately, not on the next 30s tick.
+	nudger contracts.PushNudger
 }
 
 // NewHandler builds the delivery handler. A nil matrix means the route matrix is not configured;
@@ -94,6 +96,27 @@ func (h *Handler) Register(r chi.Router) {
 
 	// Customer post-delivery rating (any authenticated shopper).
 	r.With(auth.Require).Post("/delivery/{orderId}/rate", h.rate)
+
+	// Customer-initiated masked calling (any authenticated shopper). Ownership of the order is the
+	// authorisation; these live outside the rider group because the caller is the shopper, not a rider.
+	r.Group(func(g chi.Router) {
+		g.Use(auth.Require)
+		g.Get("/orders/{orderId}/delivery-call", h.activeCustomerCall)
+		g.Post("/orders/{orderId}/delivery-call", h.initiateCustomerCall)
+		g.Get("/delivery-calls/{callId}", h.getCustomerCall)
+		g.Post("/delivery-calls/{callId}/ringing-ack", h.ackCustomerCall)
+		g.Post("/delivery-calls/{callId}/join", h.joinCustomerCall)
+		g.Post("/delivery-calls/{callId}/reject", h.rejectCustomerCall)
+		g.Post("/delivery-calls/{callId}/end", h.endCustomerCall)
+		g.Post("/delivery-calls/{callId}/fallback", h.fallbackCustomerCall)
+	})
+
+	// Telephony provider status callback for bridged PSTN calls. Unauthenticated: the provider calls
+	// it and the shared URL token is the gate (verifyWebhookToken). Mounted only when a provider is
+	// configured so an unconfigured deployment has no open reconcile surface.
+	if h.calls.CanReconcilePSTN() {
+		r.Post("/delivery/calls/pstn-webhook", h.pstnWebhook)
+	}
 
 	// Admin / internal control plane.
 	r.Group(func(g chi.Router) {

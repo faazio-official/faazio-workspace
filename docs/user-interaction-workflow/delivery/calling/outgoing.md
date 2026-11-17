@@ -2,8 +2,9 @@
 
 **App / route(s):** delivery · `Dashboard` / `Route` (`CallCustomerButton`) → `ActiveCall`
 (`features/delivery-partner/screens/ActiveCallScreen.tsx` → shared `features/call/CallSurface.tsx`)
-**Status:** **Partial** — rider side shipped; the customer peer app exists but the server has no
-customer-initiated/push path.
+**Status:** **Partial** — rider-initiated calling is end to end on Android (row, VOIP token or PSTN
+leg, and a data-only `incoming_call` push that rings the customer); the iOS PushKit/CallKit ring is
+implemented but unverified on device, and the PSTN bridge is unprovisioned.
 **Trigger:** rider taps **Call customer** on an accepted job (Dashboard active-order card) or on a
 DROP stop on `Route`; **Use phone call** forces the masked PSTN leg.
 
@@ -29,10 +30,12 @@ DROP stop on `Route`; **Use phone call** forces the masked PSTN leg.
    ringback; it stops on peer join, media error, switch, end or dismiss. The phase moves to `active`
    when a remote peer appears; `Reconnecting`/`Reconnected` drive the banner (a successful reconnect
    clears it). `markActive()` preserves the first `connectedAt`, so the timer never resets.
-8. **PSTN:** `Linking.openURL('tel:<virtualNumber>')` opens the dialer on the masked landline. No
-   provider answer webhook exists, so the surface marks the leg active when the dialer opens; the
-   timer starts there, not at provider answer. The customer's raw number is never shown or dialled.
-   If the dialer cannot open, the row is ended (`start_failed`) and polling stops.
+8. **PSTN:** in handoff mode `Linking.openURL('tel:<virtualNumber>')` opens the dialer on the masked
+   landline and the surface marks the leg active when it opens (the timer starts there, not at
+   provider answer). When the server placed the bridge the row carries `bridged: true`: nothing is
+   dialled, the client shows "Connecting the secure phone line…" and the provider webhook flips the
+   row ACTIVE. The customer's raw number is never shown or dialled. If the dialer cannot open, the row
+   is ended (`start_failed`) and polling stops.
 9. The controller polls `GET /calls/{callId}` every 2 s (single in-flight poll; responses for an
    old call are ignored). A VOIP call still `RINGING` past `HMS_RINGING_ACK_SECONDS` (default 3)
    returns `fallbackAvailable`, and while the local phase is still `ringing` the screen offers
@@ -57,15 +60,17 @@ DROP stop on `Route`; **Use phone call** forces the masked PSTN leg.
 ## Data path
 
 - `gateway.initiateDeliveryCall` → `POST /delivery/{orderId}/call` → `delivery.calls`
-  + 100ms room/token or `DELIVERY_CALL_VIRTUAL_NUMBER`.
+  + 100ms room/token or `DELIVERY_CALL_VIRTUAL_NUMBER`, then a data-only `incoming_call` push to the
+  customer (Android `priority=high`, `ttl=45s`; the outbox worker is nudged so it does not wait for
+  its 30 s tick).
 - `gateway.getDeliveryCall` → `GET /calls/{callId}` → `delivery.calls`.
 - `gateway.endDeliveryCall` → `POST /calls/{callId}/end`.
 
 ## Success / error / empty
 
-- **Success:** VOIP joins and the peer appears → `active`; PSTN dialer opens on the masked line.
-  (The customer peer cannot join until the server creates a CUSTOMER-initiated session and pushes
-  it, so VOIP success is only observable with a second test peer.)
+- **Success:** VOIP joins and the peer appears → `active`; PSTN dialer opens on the masked line. The
+  customer is rung by the push the initiate enqueues, so the android customer app answers in the
+  other direction too.
 - **Error:** 409 `order_not_accepted`, 409 open-call conflict, 503 `calling_unavailable`, offline —
   an honest inline message on `ActiveCall`; the ringback is local only while the row is genuinely
   `ringing` and no fake timer runs before connect.
@@ -73,13 +78,15 @@ DROP stop on `Route`; **Use phone call** forces the masked PSTN leg.
 
 ## Known gaps
 
-- **No customer-initiated server path.** The customer app now has the button/route/controller, but
-  the gateway only accepts rider-initiated calls and never enqueues an `incoming_call` push, so the
-  customer button is rejected with a conflict.
-- **PSTN provider is external.** The gateway returns the configured virtual landline; Exotel/Edesy
-  Connect + webhook reconciliation are not implemented (`provider_call_ref` stays empty) — so the
-  call does not reach the customer.
-- **PSTN timer starts at dialer open**, not at the provider's answer (no answer event yet).
+- **PSTN bridge is unprovisioned.** The Exotel Connect bridge, `provider_call_ref` write and
+  `/delivery/calls/pstn-webhook` reconcile are implemented but dormant until the credentials and a
+  public `PSTN_WEBHOOK_URL` exist; without them the masked landline stays a dial-only handoff.
+- **iOS ring is device-unverified.** The PushKit/CallKit bridge exists and the gateway sends APNs
+  `apns-push-type: voip`; a macOS `pod install` + device build is what remains.
+- **A bridged call is never double-dialled.** The server rings both phones and projects
+  `bridged: true`, so the client shows "Connecting the secure phone line…" instead of opening the
+  dialer, and no second `incoming_call` ring is pushed.
+- **PSTN timer starts at dialer open**, not at the provider's answer event.
 
 ## Linked docs
 

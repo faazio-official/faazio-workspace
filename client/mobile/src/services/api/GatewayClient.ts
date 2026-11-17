@@ -1445,12 +1445,20 @@ export class GatewayClient {
     );
   }
 
-  /** Register this device's FCM token so the notifications outbox can reach the signed-in user. */
-  async registerPushToken(token: string, platform: 'android' | 'ios'): Promise<void> {
+  /**
+   * Register this device's push token so the notifications outbox can reach the signed-in user.
+   * `tokenKind` is "push" for the FCM/APNs alert token (default) and "voip" for the iOS PushKit
+   * token an incoming call rings through. Both are stored side by side.
+   */
+  async registerPushToken(
+    token: string,
+    platform: 'android' | 'ios',
+    tokenKind: 'push' | 'voip' = 'push',
+  ): Promise<void> {
     if (!REMOTE_ENABLED) return;
     await this.http<{ ok: boolean }>('/notifications/register', {
       method: 'POST',
-      body: JSON.stringify({ token, platform }),
+      body: JSON.stringify({ token, platform, tokenKind }),
     });
   }
 
@@ -2618,6 +2626,75 @@ export class GatewayClient {
     });
   }
 
+  // Customer-initiated calling. Same session model, but authorised by order ownership rather than
+  // rider identity: the `orders/...` ids are the customer-facing checkout ids, and the call
+  // endpoints are the separate `delivery-calls/...` family the shopper token is allowed to use.
+
+  /** Start a masked call to the rider on an order the caller owns. */
+  async initiateCustomerDeliveryCall(
+    orderId: string,
+    opts: { forcePstn?: boolean } = {},
+  ): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/orders/${encodeURIComponent(orderId)}/delivery-call`, {
+      method: 'POST',
+      body: JSON.stringify({ forcePstn: !!opts.forcePstn }),
+    });
+  }
+
+  /** The caller's open call on this order, or null (`204` when there is none). */
+  async getActiveCustomerDeliveryCall(orderId: string): Promise<DeliveryCall | null> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    const call = await this.http<DeliveryCall | undefined>(
+      `/orders/${encodeURIComponent(orderId)}/delivery-call`,
+    );
+    return call ?? null;
+  }
+
+  async getCustomerDeliveryCall(callId: string): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/delivery-calls/${encodeURIComponent(callId)}`);
+  }
+
+  async ackCustomerDeliveryCallRinging(callId: string): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(
+      `/delivery-calls/${encodeURIComponent(callId)}/ringing-ack`,
+      { method: 'POST' },
+    );
+  }
+
+  /** Accept an incoming rider call and receive a fresh short-lived VOIP token when VOIP. */
+  async joinCustomerDeliveryCall(callId: string): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/delivery-calls/${encodeURIComponent(callId)}/join`, {
+      method: 'POST',
+    });
+  }
+
+  async rejectCustomerDeliveryCall(callId: string, reason = ''): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/delivery-calls/${encodeURIComponent(callId)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async endCustomerDeliveryCall(callId: string, reason = ''): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/delivery-calls/${encodeURIComponent(callId)}/end`, {
+      method: 'POST',
+      body: JSON.stringify({ reason }),
+    });
+  }
+
+  async fallbackCustomerDeliveryCall(callId: string): Promise<DeliveryCall> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<DeliveryCall>(`/delivery-calls/${encodeURIComponent(callId)}/fallback`, {
+      method: 'POST',
+    });
+  }
+
   // Admin review (portal role + district scoped server-side).
 
   async listDeliveryApplications(
@@ -2875,6 +2952,8 @@ export interface DeliveryCall {
   authToken?: string;
   /** Masked PSTN landline; present for PSTN_BRIDGING. */
   virtualNumber?: string;
+  /** True when the server already placed the masked PSTN bridge: do not dial, wait for ACTIVE. */
+  bridged?: boolean;
   ringingAckAt?: string;
   acceptedAt?: string;
   endedAt?: string;

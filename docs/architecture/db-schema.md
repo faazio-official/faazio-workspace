@@ -1448,6 +1448,18 @@ CREATE INDEX notifications_outbox_unread_idx ON notifications.outbox (user_id, c
 CREATE TABLE notifications.push_tokens (
   user_id text PRIMARY KEY, token text NOT NULL, platform text, updated_at timestamptz
 );
+-- 0105: a PushKit VoIP token is a second credential beside the FCM token (an iOS device needs both
+-- at once — alerts over FCM, the CallKit ring over APNs `apns-push-type: voip`). `token_kind`
+-- splits them and the primary key moves to (user_id, token_kind); the drain prefers the voip token
+-- for an `incoming_call` row only when an APNs transport is configured, and only a token that can
+-- carry the row's kind keeps it retryable (a dead push token with a surviving voip token makes an
+-- alert row terminal, never a PENDING row no drain can select).
+ALTER TABLE notifications.push_tokens ADD COLUMN token_kind text NOT NULL DEFAULT 'push';
+ALTER TABLE notifications.push_tokens ADD CONSTRAINT push_tokens_token_kind_check
+  CHECK (token_kind IN ('push','voip'));
+ALTER TABLE notifications.push_tokens DROP CONSTRAINT push_tokens_pkey;
+ALTER TABLE notifications.push_tokens ADD CONSTRAINT push_tokens_pkey PRIMARY KEY (user_id, token_kind);
+CREATE INDEX push_tokens_token_idx ON notifications.push_tokens (token);
 
 -- W24b: admin moderation is a HIDDEN flag (never a hard DELETE; vendor_summary is trigger-owned).
 ALTER TABLE reviews.vendor_reviews ADD COLUMN IF NOT EXISTS hidden BOOLEAN NOT NULL DEFAULT false;
@@ -1462,9 +1474,12 @@ address are surfaced by the query's `CASE` only in those states; the projection 
 /seller/prescriptions/{id}/quotes` replaces the quote lines, recomputes `quoted_total_paisa`, advances
 `RECEIVED/QUOTED → QUOTED` and appends history. `PUT /prescriptions/{id}/status READY` requires ≥1
 quote line, sets the reveal and enqueues `notifications.outbox` (`RX_READY`). The outbox carries no PII
-beyond `user_id`; `push_tokens.token` is a device credential and is never logged. A device token
-belongs to one portal login at a time: registering it deletes any prior owner's row (shared phones),
-and `DELETE /notifications/register` removes it on sign-out. FAILED delivery is **retryable** (the
+beyond `user_id`; `push_tokens.token` is a device credential and is never logged. A user holds at
+most one token per kind (`0105`): `push` (FCM) for alerts and background pushes, `voip` (PushKit) for
+an `incoming_call` APNs push. The drain only selects the `voip` token when the gateway has APNs
+credentials — otherwise it would hand a PushKit token to FCM, which can never accept it. A device
+token belongs to one portal login at a time: registering it deletes any prior owner's row (shared
+phones), and `DELETE /notifications/register` removes it on sign-out. FAILED delivery is **retryable** (the
 drain worker's `MarkFailed` schedules `next_attempt_at` with capped exponential backoff 1s→2s→4s→…
 ≤1h; terminal after 6 attempts, `0058`) — a transient webhook 5xx no longer drops the row, and
 legacy `FAILED` rows were backfilled one retry window. New tables are
@@ -1971,7 +1986,7 @@ tables are untouched.
 | `delivery.rider_heartbeats` | Optional low-frequency Postgres mirror. The authoritative live coordinate is Valkey `delivery:rider:{id}:location` (TTL 300 s) |
 | `delivery.rider_shift_days` | `0102`. One completed worked-day roll-up per rider (`rider_id`, `shift_date` PK; `online_seconds`, `earnings_paisa`). Written lazily at the IST day rollover from the Valkey in-progress day (`GET /delivery/shift-summary`); aggregates only, no PII |
 | `delivery.delivery_ratings` | Post-delivery 1–5 rating + comment, unique per order; the rider aggregate is recomputed in the same tx |
-| `delivery.calls` | `0104`. Server-authoritative masked call sessions: `call_id` PK, `order_id`, `rider_id`, `initiated_by` (`RIDER`/`CUSTOMER`), `peer_role` (`CUSTOMER`/`DELIVERY_PARTNER`), `mode` (`VOIP`/`PSTN_BRIDGING`), `status` (`RINGING`/`ACTIVE`/`ENDED`/`REJECTED`/`FAILED`/`MISSED`/`BUSY`), 100ms `provider_room_id`, `provider_call_ref` (reserved for the PSTN provider, schema-only today), `virtual_number`, `ringing_ack_at`, `accepted_at`, `ended_at`, `end_reason`, timestamps. A partial unique index allows **one open call per rider**. Stores no phone number or provider secret |
+| `delivery.calls` | `0104`. Server-authoritative masked call sessions: `call_id` PK, `order_id`, `rider_id`, `initiated_by` (`RIDER`/`CUSTOMER`), `peer_role` (`CUSTOMER`/`DELIVERY_PARTNER`), `mode` (`VOIP`/`PSTN_BRIDGING`), `status` (`RINGING`/`ACTIVE`/`ENDED`/`REJECTED`/`FAILED`/`MISSED`/`BUSY`), 100ms `provider_room_id`, `provider_call_ref` (the PSTN provider's call id, written by `SetProviderCallRef` on a bridged call and read by `CallByProviderRef` from the status webhook — see §12.39), `virtual_number`, `ringing_ack_at`, `accepted_at`, `ended_at`, `end_reason`, timestamps. A partial unique index allows **one open call per rider**. Stores no phone number or provider secret |
 
 **Security / RLS**
 - Writes are `service_role` only (the gateway). Authenticated riders may read their own rows; a
@@ -2667,10 +2682,13 @@ template, or a pre-provisioned room) are configured; otherwise `PSTN_BRIDGING` w
 virtual number. The row stores:
 
 - `initiated_by` (`RIDER`/`CUSTOMER`) and `peer_role` (`CUSTOMER`/`DELIVERY_PARTNER`) — masked
-  identities only.
+  identities only. Both directions are live: a rider calls from `/delivery/{orderId}/call` and a
+  customer from `/orders/{orderId}/delivery-call` (the customer path resolves the checkout order id
+  to the `delivery_orders` job and requires `customer_id` ownership).
 - `mode` + `status` enums; `provider_room_id` for VOIP and `virtual_number` for PSTN.
-- `provider_call_ref` — reserved for the PSTN provider's call id; schema-only today (no provider
-  webhook or Go read/write exists yet).
+- `provider_call_ref` — the PSTN provider's call id, written by `SetProviderCallRef` when a bridge
+  call is placed and read by `CallByProviderRef` when the status callback arrives (the callback may
+  also carry the call id in the provider's `CustomField`, which is the primary lookup).
 - `ringing_ack_at` (the <3 s delivery receipt), `accepted_at`, `ended_at`, `end_reason`.
 
 A partial unique index (`states RINGING/ACTIVE`) enforces one open call per rider, so a double tap or
@@ -2678,16 +2696,36 @@ two devices cannot create parallel rooms. The handler checks that index **before
 100ms room, so a rejected second call cannot leak a provider room. The server-driven fallback window
 is `HMS_RINGING_ACK_SECONDS` (default 3); `GET /calls/{callId}` reports `fallbackAvailable` once a
 VOIP call is still ringing past it and a PSTN number exists. `POST /calls/{callId}/fallback` moves the
-session to PSTN. `POST /calls/{callId}/accept` transitions `RINGING → ACTIVE` without a token;
-`POST /calls/{callId}/join` does the same and returns a fresh token. VOIP tokens are minted per
+session to PSTN (and places the provider bridge when one is configured, so the fallback is a real
+connection; `Call.bridged` then tells the client not to dial). `POST /calls/{callId}/accept`
+transitions `RINGING → ACTIVE` without a token; `POST /calls/{callId}/join` does the same and returns a
+fresh token. The customer's `POST /delivery-calls/{callId}/join` also moves `RINGING → ACTIVE` — it is
+the callee accepting a rider-initiated call, and leaving it RINGING would let the sweep mark a live
+call MISSED after 45 s. VOIP tokens are minted per
 initiate/join (HS256, 2-hour TTL) and never stored in Postgres or a push payload. `FAILED` is in the
 enum and documented but no current transition writes it (a failed start is ended with `end_reason`). `GET /delivery/calls/active` returns the rider's open row (204 when none)
-so a restarted app can resume or end it. The delivery expiry worker also sweeps calls every 15 s:
+so a restarted app can resume or end it; the customer mirror is `GET /orders/{orderId}/delivery-call`
+(order-scoped rather than rider-scoped, because a shopper has no rider identity to key on). The
+delivery expiry worker also sweeps calls every 15 s:
 `RINGING` older than 45 s becomes `MISSED`, `ACTIVE` older than 2 h becomes `ENDED`, which releases
 the unique index after a crash or lost push. RLS mirrors `delivery_boys`: riders read their own rows,
-state/super admins read rows in scope; writes stay `service_role`.
+state/super admins read rows in scope; customer reads go through the gateway's ownership check
+(`customer_id` on `delivery_orders`) and writes stay `service_role`.
+
+When a provider is configured (`PSTN_PROVIDER=exotel` + `EXOTEL_*`), `POST /delivery/calls/pstn-webhook`
+reconciles the provider's answered/terminal events onto the row. The route is mounted — and a bridge
+placed — only when the provider credentials, `PSTN_WEBHOOK_URL` and `PSTN_WEBHOOK_TOKEN` are all set
+(`CanReconcilePSTN`); the token check fails closed (no token ⇒ no route, never an unauthenticated
+state write) and a bridge whose events never arrive would be swept to `MISSED` mid-call. An unmappable event is acknowledged with `204` rather than
+retried. A bridged call rings both phones from the provider, so `notifyCallee` is skipped for it (no
+duplicate CallKit ring).
 
 **Configuration (env-only, never committed):** `HMS_APP_ACCESS_KEY`, `HMS_APP_SECRET`,
 `HMS_TEMPLATE_ID` (per-call rooms; an optional `HMS_MANAGEMENT_TOKEN` override, otherwise a
 short-lived management token is minted from the app secret) or `HMS_ROOM_ID` (dev), `HMS_ROLE`,
-`HMS_RINGING_ACK_SECONDS`, `DELIVERY_CALL_VIRTUAL_NUMBER`.
+`HMS_RINGING_ACK_SECONDS`, `DELIVERY_CALL_VIRTUAL_NUMBER`. PSTN bridging adds `PSTN_PROVIDER`,
+`EXOTEL_ACCOUNT_SID`, `EXOTEL_API_KEY`, `EXOTEL_API_TOKEN`, `EXOTEL_SUBDOMAIN`, `PSTN_WEBHOOK_URL`,
+`PSTN_WEBHOOK_TOKEN`, `PSTN_TIME_LIMIT_SECONDS` (default 900), `PSTN_TIMEOUT_SECONDS` (default 30).
+The iOS CallKit ring adds `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY_PEM` (the `.p8`),
+`APNS_TOPIC` (default `com.faazio.customer`) and `APNS_ENVIRONMENT`; the tokens live in
+`notifications.push_tokens` (`0105`).

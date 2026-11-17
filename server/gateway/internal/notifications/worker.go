@@ -30,27 +30,46 @@ type Sender interface {
 	Send(ctx context.Context, token, title, body string, data []byte) error
 }
 
-// Worker drains PENDING outbox rows to a Sender on a fixed interval. DrainOnce is serialized with
-// the background tick (single-process monolith) so two movers can never claim the same PENDING row.
+// Worker drains PENDING outbox rows to a SenderRouter on a fixed interval. DrainOnce is serialized
+// with the background tick (single-process monolith) so two movers can never claim the same PENDING
+// row.
 type Worker struct {
 	repo     *Repo
-	sender   Sender
+	router   SenderRouter
 	interval time.Duration
 	batch    int
 	logger   *slog.Logger
 	mu       sync.Mutex
+	// nudge wakes Run early. A ring has a 45s TTL but the default tick is 30s, so a call push that
+	// lands just after a tick would ring too late to answer. Non-blocking: a caller never waits.
+	nudge chan struct{}
 }
 
-// NewWorker builds a drain worker. A nil sender yields a no-op worker (see Enabled).
-func NewWorker(repo *Repo, sender Sender, logger *slog.Logger) *Worker {
+// NewWorker builds a drain worker. A nil router yields a no-op worker (see Enabled).
+func NewWorker(repo *Repo, router SenderRouter, logger *slog.Logger) *Worker {
 	if logger == nil {
 		logger = slog.Default()
 	}
-	return &Worker{repo: repo, sender: sender, interval: DefaultDrainInterval, batch: 100, logger: logger}
+	return &Worker{
+		repo: repo, router: router, interval: DefaultDrainInterval, batch: 100, logger: logger,
+		nudge: make(chan struct{}, 1),
+	}
 }
 
-// Enabled reports whether the worker has both a repo and a sender to run.
-func (w *Worker) Enabled() bool { return w != nil && w.repo != nil && w.sender != nil }
+// Nudge asks the running worker to drain now instead of waiting for the next tick. It is safe to
+// call from any goroutine and never blocks; calls coalesce while a drain is already pending.
+func (w *Worker) Nudge() {
+	if w == nil || w.nudge == nil {
+		return
+	}
+	select {
+	case w.nudge <- struct{}{}:
+	default:
+	}
+}
+
+// Enabled reports whether the worker has both a repo and a router to run.
+func (w *Worker) Enabled() bool { return w != nil && w.repo != nil && w.router != nil }
 
 // DrainOnce runs a single synchronous drain batch — the manual trigger for deployments without a
 // background worker. The batch is capped at adminDrainBatch and stops cleanly if the request context
@@ -79,6 +98,12 @@ func (w *Worker) Run(ctx context.Context) {
 			if err := w.drainOnce(ctx, w.batch); err != nil {
 				w.logger.Warn("notifications drain failed", "err", err)
 			}
+		case <-w.nudge:
+			// A low-latency push (incoming call) is waiting; deliver it now rather than on the next
+			// 30s tick, which would outlive the ring.
+			if err := w.drainOnce(ctx, w.batch); err != nil {
+				w.logger.Warn("notifications drain failed", "err", err)
+			}
 		}
 	}
 }
@@ -94,7 +119,9 @@ func (w *Worker) Run(ctx context.Context) {
 func (w *Worker) drainOnce(ctx context.Context, limit int) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	msgs, err := w.repo.Pending(ctx, limit)
+	// The router decides which token kind is deliverable: a `voip` token is only selectable when an
+	// APNs transport exists, otherwise the drain would repeatedly pull a PushKit token it cannot send.
+	msgs, err := w.repo.Pending(ctx, limit, SupportsVoIP(w.router))
 	if err != nil {
 		return err
 	}
@@ -102,7 +129,17 @@ func (w *Worker) drainOnce(ctx context.Context, limit int) error {
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		if err := w.sender.Send(ctx, m.Token, m.Title, m.Body, m.Data); err != nil {
+		// The router picks the transport from the row's token (iOS VoIP → APNs, everything else →
+		// FCM). A row is marked SENT only after the chosen transport accepted it.
+		msg := RoutedMessage{
+			Platform:  m.Platform,
+			TokenKind: m.TokenKind,
+			Token:     m.Token,
+			Title:     m.Title,
+			Body:      m.Body,
+			Data:      m.Data,
+		}
+		if err := w.router.Send(ctx, msg); err != nil {
 			if errors.Is(err, ErrTokenUnregistered) {
 				if rerr := w.repo.ExpireToken(ctx, m.ID, m.Token); rerr != nil {
 					w.logger.Warn("notification expire-token", "id", m.ID, "err", rerr)

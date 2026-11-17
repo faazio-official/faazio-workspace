@@ -330,10 +330,12 @@ export function OrderDetailsScreen({ navigation, route }: Props) {
           </View>
         </View>
 
-        {/* Delivery partner call — masked VOIP/PSTN once a rider is assigned (not on Rx orders). */}
+        {/* Delivery partner call — masked VOIP/PSTN while the order is out for delivery (not on Rx
+            orders). Delivered orders intentionally have no call surface: the rider job is already
+            ROUTE_COMPLETE, and the gateway only bridges a live ASSIGNED/ACCEPTED job. */}
         {CALLING_ENABLED &&
         order.fulfillment === 'DELIVERY' &&
-        (order.status === 'Shipped' || order.status === 'Delivered') &&
+        order.status === 'Shipped' &&
         placedOrder?.kind !== 'prescription' ? (
           <View style={styles.card}>
             <AppText style={styles.sectionTitle}>Delivery partner</AppText>

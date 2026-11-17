@@ -69,10 +69,21 @@ type Config struct {
 	RazorpayKeySecret     string
 	RazorpayWebhookSecret string
 	// FCMProjectID + FCMServiceAccount enable the gateway's embedded FCM HTTP v1 sender (Android
-	// push). FCMServiceAccount is the raw JSON of the Firebase service account private key — a
-	// secret, never committed. When unset, push delivery stays disabled (in-app inbox only).
+	// push + iOS alert/background relay). FCMServiceAccount is the raw JSON of the Firebase service
+	// account private key — a secret, never committed. When unset, push delivery stays disabled
+	// (in-app inbox only).
 	FCMProjectID      string
 	FCMServiceAccount string
+	// APNs is the direct provider connection used for PushKit VoIP pushes (an iOS incoming call
+	// ring). FCM cannot deliver `apns-push-type: voip`, so this is a separate .p8 auth key. All
+	// fields are env-only; APNsPrivateKeyPEM is the downloaded .p8 contents (PEM or bare base64)
+	// and is never committed. APNsTopic is the app's **bundle id** (`com.faazio.customer`) — the same
+	// topic every APNs push uses; a `.voip` suffix is not a valid topic and APNs rejects it.
+	APNsKeyID         string
+	APNsTeamID        string
+	APNsPrivateKeyPEM string
+	APNsTopic         string
+	APNsEnvironment   string
 	// Delivery calling (0104). VOIP is enabled when the 100ms app key/secret are set plus either a
 	// management token + template (per-call rooms) or a pre-provisioned room id. PSTN_BRIDGING is
 	// enabled when a masked virtual landline is set. Secrets are env-only and never projected.
@@ -85,8 +96,20 @@ type Config struct {
 	HMSRole                   string
 	HMSEndpoint               string
 	HMSRingingAckSeconds      int
-	AllowedOrigins            []string
-	OTelEnabled               bool
+	// PSTN bridge (Exotel Connect API). When the account/key/token are set the server places the
+	// masked call itself and reconciles answer/end from the status webhook; when they are empty the
+	// PSTN leg degrades to the app dialling the masked virtual number. Secrets are env-only.
+	PSTNProvider         string
+	ExotelAccountSID     string
+	ExotelAPIKey         string
+	ExotelAPIToken       string
+	ExotelSubdomain      string
+	PSTNWebhookURL       string
+	PSTNWebhookToken     string
+	PSTNTimeLimitSeconds int
+	PSTNTimeOutSeconds   int
+	AllowedOrigins       []string
+	OTelEnabled          bool
 }
 
 // Load reads config from the environment with safe local-dev defaults.
@@ -123,6 +146,11 @@ func Load() Config {
 		RazorpayWebhookSecret:       env("RAZORPAY_WEBHOOK_SECRET", ""),
 		FCMProjectID:                env("FCM_PROJECT_ID", ""),
 		FCMServiceAccount:           env("FCM_SERVICE_ACCOUNT_JSON", ""),
+		APNsKeyID:                   env("APNS_KEY_ID", ""),
+		APNsTeamID:                  env("APNS_TEAM_ID", ""),
+		APNsPrivateKeyPEM:           env("APNS_PRIVATE_KEY_PEM", ""),
+		APNsTopic:                   env("APNS_TOPIC", "com.faazio.customer"),
+		APNsEnvironment:             env("APNS_ENVIRONMENT", "production"),
 		DeliveryCallVirtualNumber:   env("DELIVERY_CALL_VIRTUAL_NUMBER", ""),
 		HMSAppAccessKey:             env("HMS_APP_ACCESS_KEY", ""),
 		HMSAppSecret:                env("HMS_APP_SECRET", ""),
@@ -132,6 +160,15 @@ func Load() Config {
 		HMSRole:                     env("HMS_ROLE", "guest"),
 		HMSEndpoint:                 env("HMS_ENDPOINT", ""),
 		HMSRingingAckSeconds:        envInt("HMS_RINGING_ACK_SECONDS", 3),
+		PSTNProvider:                env("PSTN_PROVIDER", ""),
+		ExotelAccountSID:            env("EXOTEL_ACCOUNT_SID", ""),
+		ExotelAPIKey:                env("EXOTEL_API_KEY", ""),
+		ExotelAPIToken:              env("EXOTEL_API_TOKEN", ""),
+		ExotelSubdomain:             env("EXOTEL_SUBDOMAIN", ""),
+		PSTNWebhookURL:              env("PSTN_WEBHOOK_URL", ""),
+		PSTNWebhookToken:            env("PSTN_WEBHOOK_TOKEN", ""),
+		PSTNTimeLimitSeconds:        envInt("PSTN_TIME_LIMIT_SECONDS", 900),
+		PSTNTimeOutSeconds:          envInt("PSTN_TIMEOUT_SECONDS", 30),
 		AllowedOrigins:              splitCSV(env("ALLOWED_ORIGINS", "")),
 		OTelEnabled:                 envBool("OTEL_ENABLED", false),
 	}

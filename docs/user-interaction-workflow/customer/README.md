@@ -64,8 +64,9 @@ Domain indexes are the entry point for each area; every flow page is linked from
 See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Customer-specific gaps currently include the dead
 `PaymentOptions` route registration, the unreachable `Checkout` button in `SubAppWrapper`, the
 invoice-PDF stub, the root `Search` `FOOD` config mismatch, the `@mock` self-pickup resolver, and
-**calling is client-only**: the shared button/route/ring stack exists but the gateway has no
-customer-initiated call endpoint or `incoming_call` push sender yet
+**calling is end-to-end on Android, with the iOS PushKit/CallKit ring implemented but not yet
+verified on a device**: the customer-initiated server endpoint and the APNs VoIP push sender exist,
+while the PSTN provider bridge is unprovisioned
 ([calling/index.md](./calling/index.md)).
 The Home header category rail reads the server taxonomy only (`GET /categories/rail`) — there is no
 fixture substitution.

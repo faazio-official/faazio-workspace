@@ -63,6 +63,9 @@ type Deps struct {
 	// Drainer runs one synchronous notification-outbox drain for the manual admin trigger. Optional
 	// (nil disables POST /notifications/drain).
 	Drainer contracts.Drainer
+	// PushNudger wakes the outbox drain worker so a ring push is delivered immediately rather than on
+	// the next 30s tick. Optional: nil keeps calls working, just with the tick's latency.
+	PushNudger contracts.PushNudger
 	// Signer is the shared R2 presigner (nil when credentials are unset → media disabled). Built in
 	// main so the media workers and every context share one signing path.
 	Signer *r2.Signer
@@ -134,16 +137,25 @@ func NewRouter(d Deps) http.Handler {
 	deliveryHandler := delivery.NewHandler(deliveryRepo, d.Cache, adminsRepo, notificationsRepo, deliveryMatrix, checkoutRepo,
 		d.Config.DeliveryMaxDispatchAttempts).WithHandoverSecret(d.Config.PickupHandoverSecret).
 		WithCalling(delivery.CallConfig{
-			VirtualNumber:      d.Config.DeliveryCallVirtualNumber,
-			HMSAppAccessKey:    d.Config.HMSAppAccessKey,
-			HMSAppSecret:       d.Config.HMSAppSecret,
-			HMSManagementToken: d.Config.HMSManagementToken,
-			HMSTemplateID:      d.Config.HMSTemplateID,
-			HMSRoomID:          d.Config.HMSRoomID,
-			HMSRole:            d.Config.HMSRole,
-			HMSEndpoint:        d.Config.HMSEndpoint,
-			RingingAckSeconds:  d.Config.HMSRingingAckSeconds,
-		})
+			VirtualNumber:        d.Config.DeliveryCallVirtualNumber,
+			PSTNProvider:         d.Config.PSTNProvider,
+			ExotelAccountSID:     d.Config.ExotelAccountSID,
+			ExotelAPIKey:         d.Config.ExotelAPIKey,
+			ExotelAPIToken:       d.Config.ExotelAPIToken,
+			ExotelSubdomain:      d.Config.ExotelSubdomain,
+			PSTNWebhookURL:       d.Config.PSTNWebhookURL,
+			PSTNWebhookToken:     d.Config.PSTNWebhookToken,
+			PSTNTimeLimitSeconds: d.Config.PSTNTimeLimitSeconds,
+			PSTNTimeOutSeconds:   d.Config.PSTNTimeOutSeconds,
+			HMSAppAccessKey:      d.Config.HMSAppAccessKey,
+			HMSAppSecret:         d.Config.HMSAppSecret,
+			HMSManagementToken:   d.Config.HMSManagementToken,
+			HMSTemplateID:        d.Config.HMSTemplateID,
+			HMSRoomID:            d.Config.HMSRoomID,
+			HMSRole:              d.Config.HMSRole,
+			HMSEndpoint:          d.Config.HMSEndpoint,
+			RingingAckSeconds:    d.Config.HMSRingingAckSeconds,
+		}).WithPushNudger(d.PushNudger)
 	if d.WorkersCtx != nil && d.Pool != nil {
 		go deliveryHandler.RunExpiry(d.WorkersCtx)
 	}

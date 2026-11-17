@@ -1,9 +1,11 @@
 import { navigationRef } from '@/navigation/navigationRef';
 import { createCallController } from '@/features/call/controller';
+import { gateway } from '@/services/api/GatewayClient';
 
 /**
  * Customer-app binding for the shared masked-calling controller. The rider app uses the same state
- * machine, VOIP adapter, CallKeep surface and background handler; only navigation and copy differ.
+ * machine, VOIP adapter, CallKeep surface and background handler; only navigation, the authorised
+ * endpoint surface and copy differ.
  */
 const controller = createCallController({
   appName: 'Faazio',
@@ -19,13 +21,28 @@ const controller = createCallController({
     },
     goBack: () => navigationRef.goBack(),
   },
+  // The shopper token may only reach the order-ownership-gated `delivery-calls` family; the
+  // rider-scoped `/delivery/calls/*` routes reject it.
+  api: {
+    initiate: (orderId, opts) => gateway.initiateCustomerDeliveryCall(orderId, opts),
+    getActive: (orderId) =>
+      orderId ? gateway.getActiveCustomerDeliveryCall(orderId) : Promise.resolve(null),
+    get: (callId) => gateway.getCustomerDeliveryCall(callId),
+    ackRinging: (callId) => gateway.ackCustomerDeliveryCallRinging(callId),
+    join: (callId) => gateway.joinCustomerDeliveryCall(callId),
+    reject: (callId, reason) => gateway.rejectCustomerDeliveryCall(callId, reason),
+    end: (callId, reason) => gateway.endCustomerDeliveryCall(callId, reason),
+    fallback: (callId) => gateway.fallbackCustomerDeliveryCall(callId),
+  },
+  // A customer resolves its open call per order inside `start`/`adoptOpenCall`; there is no
+  // account-wide active-call endpoint for a shopper token (`GET /delivery/calls/active` is
+  // rider-scoped).
+  recoverActiveCall: false,
   callKeep: {
     channelId: 'faazio_customer_calls',
     channelName: 'Delivery calls',
     notificationTitle: 'Delivery call in progress',
   },
-  // `GET /delivery/calls/active` is rider-scoped; a customer token cannot resolve its own row.
-  recoverActiveCall: false,
   micPrompt: {
     title: 'Microphone for delivery calls',
     message:

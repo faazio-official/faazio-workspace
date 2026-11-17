@@ -1,10 +1,11 @@
 import { deliveryNavigationRef } from '../navigationRef';
 import { createCallController } from '@/features/call/controller';
+import { gateway } from '@/services/api/GatewayClient';
 
 /**
  * Delivery-partner binding for the shared masked-calling controller. The state machine, VOIP
  * adapter, CallKeep surface and background handler are shared with the customer app; only the
- * navigation handle and product copy differ.
+ * navigation handle, endpoint surface and product copy differ.
  */
 const controller = createCallController({
   appName: 'Faazio Delivery Partner',
@@ -18,6 +19,16 @@ const controller = createCallController({
       deliveryNavigationRef.navigate('ActiveCall');
     },
     goBack: () => deliveryNavigationRef.goBack(),
+  },
+  api: {
+    initiate: (orderId, opts) => gateway.initiateDeliveryCall(orderId, opts),
+    getActive: () => gateway.getActiveDeliveryCall(),
+    get: (callId) => gateway.getDeliveryCall(callId),
+    ackRinging: (callId) => gateway.ackDeliveryCallRinging(callId),
+    join: (callId) => gateway.joinDeliveryCall(callId),
+    reject: (callId, reason) => gateway.rejectDeliveryCall(callId, reason),
+    end: (callId, reason) => gateway.endDeliveryCall(callId, reason),
+    fallback: (callId) => gateway.fallbackDeliveryCall(callId),
   },
   callKeep: {
     channelId: 'faazio_delivery_calls',

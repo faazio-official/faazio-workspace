@@ -75,6 +75,11 @@ LoginScreen / delivery PhoneEntry / seller signature
                            └─ checkout.ProvisionUserID links auth_uid → checkout.users
 ```
 
+Backing out of the customer code step calls `cancelPrimaryOtp()`: it clears the pending
+confirmation and the auto-retrieval watcher, and signs out a native session that auto-retrieval
+created but the UI never consumed. A late auto-retrieval for the abandoned number therefore cannot
+sign the next attempt in, and re-entering a different number starts from a clean Firebase state.
+
 `sendOtp`/`verifyOtp` sign in the **primary** Firebase app so `refreshIdToken()` can rotate the
 session. Seller onboarding uses `sendSellerOtp`/`verifySellerOtp`, a disposable secondary app, because
 that OTP is only a signature and must not replace the shopper session. The seller signature uses the
@@ -174,6 +179,21 @@ permission.
   `server/gateway/.env` sourced) confirms a key parses before a deploy; it skips when the env vars
   are unset.
 
+### Server-side APNs VoIP credentials (iOS CallKit ring)
+
+The incoming-call ring is **not** an FCM push: only `apns-push-type: voip` to a PushKit token can
+raise CallKit, and FCM cannot carry it. The gateway therefore talks to APNs directly when these are
+set (secrets in the Render dashboard, `sync: false` in `render.yaml`):
+
+- `APNS_KEY_ID` / `APNS_TEAM_ID` — the `.p8` Auth Key's Key ID and the Apple Developer Team ID.
+- `APNS_PRIVATE_KEY_PEM` — the `.p8` contents (PEM or bare base64).
+- `APNS_TOPIC` — `com.faazio.customer` (the only iOS product); `APNS_ENVIRONMENT` — `production` or
+  `sandbox`, matching the provisioning profile.
+
+Without them the drain prefers the FCM token (`Pending(ctx, limit, preferVoIP=false)`), so an iPhone
+still gets the background push but no CallKit ring. The PushKit token is stored beside the FCM token
+in `notifications.push_tokens` (`token_kind='voip'`, `0105`).
+
 ### 3.1 iOS: why a browser opens, and how to avoid it
 
 Firebase verifies the caller with a **silent APNs push**. When that cannot happen it opens an
@@ -235,6 +255,9 @@ edit is needed; the customer scheme is also committed in `Info.plist` as a fallb
   Current state (verified via the Firebase Management API):
   - `com.faazio.customer` — Play App Signing `DE:0E:7A:EF:…` (SHA-256 `7B:3C:7B:F0:…`) ✓ and
     debug `5E:8F:16:06:…` ✓. The upload key was reset on 2026-11-10; its new SHA-1 is pending in Firebase — add it before this sideloaded/CI lane needs phone OTP.
+    The `DE:0E:7A:EF:…` / `7B:3C:7B:F0:…` pair is an **old** cert kept in Firebase **only** for
+    phone-OTP app verification; do not treat it as the build/upload key or use it for Maps/Places
+    restrictions (see `SIGNING_FINGERPRINTS.md` §2.1).
   - `com.faazio.sellerpartner` / `com.faazio.deliverypartner` — release/upload ✓ and debug ✓
     (debug added 2026-11-06). Their Play App Signing certs do not exist yet (no Play listing); add
     them here once each listing exists.

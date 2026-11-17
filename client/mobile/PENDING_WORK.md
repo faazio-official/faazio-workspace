@@ -17,8 +17,10 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ## W98 — Masked calling: customer + delivery partner (partial)
 
-**Status:** 🟡 Both client halves implemented (shared call stack + Android native config); the
-gateway customer endpoint / `incoming_call` push sender and PSTN provider integration are pending.
+**Status:** 🟡 Android is end-to-end in both directions (server customer endpoint, `incoming_call`
+push, Exotel bridge wiring). The iOS PushKit/CallKit ring is implemented but not yet verified on a
+device. Remaining gaps are the unverified iOS build, unprovisioned PSTN credentials, and the
+GSM/proximity/queued-call edge cases.
 CI build required (new native deps/permissions).
 
 Shipped:
@@ -60,16 +62,18 @@ Shipped:
 
 Remaining before Complete:
 
-- **Server customer path:** a `CUSTOMER`-initiated call endpoint (order ownership + customer VOIP
-  token) and a data-only `incoming_call` push sender for the rider. The customer button/route/ring
-  client is built but is rejected by the current rider-only endpoint.
-- Exotel/Edesy Connect API + status webhook (populate `provider_call_ref`, answer/end events, ringback
-  and accurate PSTN timer).
+- **PSTN credentials + verification:** the Exotel bridge, `provider_call_ref` write and the
+  `POST /delivery/calls/pstn-webhook` reconcile are implemented and declared in `render.yaml`, but
+  no account is provisioned and no public `PSTN_WEBHOOK_URL` is set, so a deployment without them
+  keeps the dial-only masked handoff. Needs a live account to verify answer/terminal events.
 - GSM-busy pre-check (`TelephonyManager`/`CXCallObserver`), proximity wake-lock, Android 14+
   full-screen-intent special access, and a queued-call banner when the rider is already on another
   order.
-- iOS PushKit + CallKit native bridge if the customer iOS app should ring (re-enable the two packages
-  in `react-native.config.js` and add the pods/entitlements).
+- iOS PushKit + CallKit is written natively (`ios/Faazio/VoipCallManager.swift` +
+  `VoipCallBridge.m`, one `CXProvider`, PushKit before RN boots) and the gateway sends APNs
+  `apns-push-type: voip` from `APNS_*` (`0105` keeps the `voip` token beside the FCM token). What is
+  left: run `pod install` on macOS (the 100ms pod must link; `Podfile.lock` predates it), build with
+  the PushKit/background-audio entitlements, and verify ring/answer/decline with the screen locked.
 - Device QA on Android 14/15 (full-screen intent + phone-account permission prompts), Bluetooth
   routing, cold-start CallKeep answer, and a CI customer/delivery build; never run Gradle locally.
 - Client-side reconciliation still cannot *rejoin* an ACTIVE VOIP call after a crash (no token); it

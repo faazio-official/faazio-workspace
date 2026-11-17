@@ -9,11 +9,11 @@ import (
 )
 
 // deadTokenSender always reports a permanently-dead token, as FCM does for a revoked/rotated token
-// (UNREGISTERED).
+// (UNREGISTERED) and APNs for a pruned VoIP token (410 Unregistered).
 type deadTokenSender struct{}
 
 // Send never logs the token; it only reports that the token can no longer accept pushes.
-func (deadTokenSender) Send(_ context.Context, _, _, _ string, _ []byte) error {
+func (deadTokenSender) Send(_ context.Context, _ RoutedMessage) error {
 	return ErrTokenUnregistered
 }
 
@@ -35,7 +35,7 @@ func TestDrainExpiresUnregisteredToken(t *testing.T) {
 		on conflict (user_id) do nothing`, userID); err != nil {
 		t.Fatalf("seed checkout.user: %v", err)
 	}
-	if err := repo.Register(ctx, userID, token, "android"); err != nil {
+	if err := repo.Register(ctx, userID, token, "android", TokenKindPush); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 	defer func() {
@@ -47,7 +47,7 @@ func TestDrainExpiresUnregisteredToken(t *testing.T) {
 	if err := repo.Enqueue(ctx, userID, "ORDER_SHIPPED", "Shipped", "On the way", nil); err != nil {
 		t.Fatalf("Enqueue: %v", err)
 	}
-	rows, err := repo.Pending(ctx, 10)
+	rows, err := repo.Pending(ctx, 10, true)
 	if err != nil {
 		t.Fatalf("Pending: %v", err)
 	}
@@ -83,7 +83,7 @@ func TestDrainExpiresUnregisteredToken(t *testing.T) {
 		t.Fatalf("dead token must be pruned from push_tokens, %d row(s) remain", count)
 	}
 
-	left, err := repo.Pending(ctx, 10)
+	left, err := repo.Pending(ctx, 10, true)
 	if err != nil {
 		t.Fatalf("Pending after prune: %v", err)
 	}

@@ -19,12 +19,17 @@ import {
 import {
   attachCallKeepHandlers,
   bringCallToForeground,
+  clearPendingNativeCall,
   displayIncomingCall,
   endNativeCall,
+  isNativeRinging,
+  markNativeAnswered,
   markNativeCallActive,
   rejectNativeCall,
+  requestMicrophone,
   setNativeCallingAvailable,
   setupCallKeep,
+  takePendingNativeCall,
   type CallKeepConfig,
 } from './callkeep';
 
@@ -38,6 +43,28 @@ export interface CallNavigation {
   goBack(): void;
 }
 
+/**
+ * The server endpoints for one product. The customer and rider app share the call state machine but
+ * not the routes: a shopper token may only reach the order-ownership-gated `delivery-calls` family,
+ * and a rider token may only reach the rider-scoped family. Passing the surface explicitly keeps the
+ * controller from calling an endpoint the caller is not authorised for.
+ */
+export interface CallApi {
+  initiate(orderId: string, opts?: { forcePstn?: boolean }): Promise<DeliveryCall>;
+  /**
+   * The open call for this caller. `orderId` is the order the session was last associated with; a
+   * rider-scoped surface ignores it (the account has at most one open call), an order-scoped
+   * customer surface requires it.
+   */
+  getActive(orderId: string | null): Promise<DeliveryCall | null>;
+  get(callId: string): Promise<DeliveryCall>;
+  ackRinging(callId: string): Promise<DeliveryCall>;
+  join(callId: string): Promise<DeliveryCall>;
+  reject(callId: string, reason?: string): Promise<DeliveryCall>;
+  end(callId: string, reason?: string): Promise<DeliveryCall>;
+  fallback(callId: string): Promise<DeliveryCall>;
+}
+
 export interface CallControllerConfig {
   /** Product label used by CallKeep. */
   appName: string;
@@ -46,10 +73,12 @@ export interface CallControllerConfig {
   defaultPeerLabel: string;
   peerLabelForRole: (role: string | undefined) => string;
   navigation: CallNavigation;
+  /** Endpoint surface this product is authorised to use. */
+  api: CallApi;
   callKeep: Omit<CallKeepConfig, 'appName'>;
   /**
-   * Whether this product can resolve its own open call via `GET /delivery/calls/active`. The
-   * endpoint is rider-scoped, so the customer product must not call it.
+   * Whether this product can resolve its own open call. The rider surface exposes a
+   * rider-scoped active call; the customer surface resolves per order (see `activeOrderId`).
    */
   recoverActiveCall: boolean;
   micPrompt: { title: string; message: string; negative: string };
@@ -103,6 +132,12 @@ function delay(ms: number): Promise<void> {
  */
 export function createCallController(config: CallControllerConfig): CallController {
   let activeCallId: string | null = null;
+  /*
+   * The order the current call belongs to. The customer surface resolves its open call per order
+   * (the rider-scoped `/delivery/calls/active` is not available to a shopper token), so recovery
+   * needs the order id that the call was last associated with.
+   */
+  let activeOrderId: string | null = null;
   let pollTimer: ReturnType<typeof setInterval> | null = null;
   let pollInFlight = false;
   let lockUntil = 0;
@@ -112,6 +147,11 @@ export function createCallController(config: CallControllerConfig): CallControll
   let accepting = false;
   let declining = false;
   let declinedCallId: string | null = null;
+  /*
+   * The CallKit UUID for the current call. iOS keys a native call by UUID, not by our `call-<hex>`
+   * id, so every native end/answer/connect call needs it. Android ignores it entirely.
+   */
+  let activeCallUuid: string | null = null;
   /*
    * Monotonic session epoch. Any async continuation (`start`, `accept`, `switchToPstn`) compares
    * the epoch it began with against the current one, so a user who ends/declines/dismisses while a
@@ -161,6 +201,15 @@ export function createCallController(config: CallControllerConfig): CallControll
     pollInFlight = false;
   }
 
+  /**
+   * The native call UUID for an incoming push. iOS pushes carry `callUuid`; older payloads (and
+   * Android) have none, in which case the call id doubles as the native key as before.
+   */
+  function callUuidFrom(data: Record<string, unknown>): string | null {
+    const uuid = typeof data.callUuid === 'string' ? data.callUuid.trim() : '';
+    return uuid || null;
+  }
+
   function messageFor(err: unknown): string {
     if (err instanceof GatewayOfflineError) return config.messages.offline;
     if (err instanceof GatewayHttpError) {
@@ -199,6 +248,9 @@ export function createCallController(config: CallControllerConfig): CallControll
    * masked PSTN leg, which needs no microphone permission.
    */
   async function ensureMicrophone(): Promise<boolean> {
+    // iOS has no runtime-permission API in JS: the native CallKit owner prompts, and a denial must
+    // route the call to the masked phone line instead of joining a VOIP room that records silence.
+    if (Platform.OS === 'ios') return requestMicrophone();
     if (Platform.OS !== 'android') return true;
     try {
       const granted = await PermissionsAndroid.check(
@@ -246,11 +298,19 @@ export function createCallController(config: CallControllerConfig): CallControll
 
   function ensureCallKeepHandlers(): void {
     attachCallKeepHandlers({
-      onAnswer: (callId) => {
+      onAnswer: (callId, callUuid) => {
+        // iOS keys the native call by UUID; without it a later end/answer cannot reach CallKit.
+        if (callUuid) activeCallUuid = callUuid;
         void accept(callId);
       },
-      onEnd: (callId) => {
+      onEnd: (callId, callUuid) => {
+        if (callUuid) activeCallUuid = callUuid;
         void handleNativeEnd(callId);
+      },
+      // iOS: the VoIP push was reported to CallKit before/while JS was alive. Run the same incoming
+      // path Android uses so the state machine, the ack and the fallback decision all match.
+      onIncoming: (data) => {
+        void handleIncomingCall(data);
       },
     });
   }
@@ -278,12 +338,52 @@ export function createCallController(config: CallControllerConfig): CallControll
     if (!initialising) {
       initialising = (async () => {
         await setupCallKeep(callKeepOptions());
+        // iOS: a VoIP push may have rung (or been answered/ended) while React Native was not
+        // running. Adopt it before the recovery query so its CallKit UUID is not lost.
+        await adoptPendingNativeCall();
         await recoverOpenCall();
       })().finally(() => {
         initialising = null;
       });
     }
     await initialising;
+  }
+
+  /**
+   * Adopt the call a PushKit wake-up left behind before the JS runtime existed. The native side has
+   * persisted the payload and whether the user answered/ended it on the CallKit screen, so a cold
+   * start can resume the same call instead of ringing a second time or losing the answer.
+   */
+  async function adoptPendingNativeCall(): Promise<void> {
+    const pending = await takePendingNativeCall();
+    if (!pending.call) return;
+    const data = pending.call;
+    const callId = typeof data.callId === 'string' ? data.callId : '';
+    if (!callId) {
+      clearPendingNativeCall();
+      return;
+    }
+    if (pending.ended) {
+      // The user hung up from the system screen before JS booted: release the row so the
+      // one-open-call lock cannot strand the caller.
+      clearPendingNativeCall();
+      await mutateWithRetry(() => config.api.reject(callId, 'declined'));
+      return;
+    }
+    await handleIncomingCall(data);
+    // `handleIncomingCall` can bail (signed out, or already on another call → busy). In that case the
+    // native pending call must be dropped, never accepted: `accept` would join a call this device
+    // already refused.
+    if (activeCallId !== callId) {
+      clearPendingNativeCall();
+      return;
+    }
+    // Only clear the native pending state after the controller has taken the UUID, so a re-entrant
+    // `isNativeRinging` during `showIncoming` still sees the call.
+    clearPendingNativeCall();
+    // An answer the user gave on the CallKit screen must be honoured now that JS is running.
+    // Without this the call would stay `ringing` forever and the VOIP leg would never join.
+    if (pending.answered) await accept(callId);
   }
 
   /**
@@ -305,6 +405,7 @@ export function createCallController(config: CallControllerConfig): CallControll
     stopRinging();
     fallbackPrompted = false;
     declinedCallId = null;
+    activeOrderId = orderId;
     store().begin(orderId, peerLabel);
     navigateToActiveCall();
 
@@ -314,13 +415,13 @@ export function createCallController(config: CallControllerConfig): CallControll
       if (myEpoch !== epoch) return;
       if (!opts.forcePstn) await ensureBluetooth();
       if (myEpoch !== epoch) return;
-      const call = await gateway.initiateDeliveryCall(orderId, {
+      const call = await config.api.initiate(orderId, {
         forcePstn: !!opts.forcePstn || !micGranted,
       });
       // The user closed the surface while the server was creating the row. Release the
       // one-open-call lock instead of joining a call with no UI.
       if (myEpoch !== epoch) {
-        await mutateWithRetry(() => gateway.rejectDeliveryCall(call.callId, 'cancelled'));
+        await mutateWithRetry(() => config.api.reject(call.callId, 'cancelled'));
         return;
       }
       activeCallId = call.callId;
@@ -344,9 +445,59 @@ export function createCallController(config: CallControllerConfig): CallControll
       startPolling(call.callId);
     } catch (err) {
       if (myEpoch !== epoch) return;
+      // A conflicting open call usually means a previous session outlived the JS runtime (crash,
+      // force-quit) and its row is still RINGING/ACTIVE. Adopt it instead of dead-ending the caller
+      // on "finish the current call first", which they cannot do from a closed surface.
+      if (err instanceof GatewayHttpError && err.code === 'conflict' && (await adoptOpenCall(orderId))) {
+        return;
+      }
       await teardownFailedCall();
       store().setError(messageFor(err));
     }
+  }
+
+  /**
+   * Re-attach to an open call on this order after a `conflict`. Only a call this device initiated and
+   * that is still ringing is adoptable; an active call cannot be re-joined without a fresh token, so
+   * it is ended to release the lock rather than left blocking every later call.
+   */
+  async function adoptOpenCall(orderId: string): Promise<boolean> {
+    let open: DeliveryCall | null = null;
+    try {
+      open = await config.api.getActive(orderId);
+    } catch {
+      return false;
+    }
+    if (!open) return false;
+    if (open.initiatedBy === config.incomingInitiatedBy) {
+      // Someone else is calling us on this order; that push path owns the surface.
+      return false;
+    }
+    if (open.status === 'RINGING') {
+      activeCallId = open.callId;
+      activeOrderId = open.orderId;
+      store().setCall(open);
+      if (open.mode === 'VOIP') {
+        store().markRinging();
+        startRinging();
+        // `getActive` returns no token, so re-join through the server: `join` accepts the row and
+        // mints a fresh one. Joining with the tokenless projection would fail media silently.
+        const joined = await config.api.join(open.callId).catch(() => null);
+        if (!joined) {
+          await teardownFailedCall();
+          return false;
+        }
+        store().setCall(joined);
+        await joinVoipLeg(joined).catch(() => undefined);
+      } else if (!(await openPstnLeg(open))) {
+        await teardownFailedCall();
+        return false;
+      }
+      startPolling(open.callId);
+      return true;
+    }
+    await mutateWithRetry(() => config.api.end(open.callId, 'stale_session'));
+    return false;
   }
 
   /**
@@ -359,10 +510,11 @@ export function createCallController(config: CallControllerConfig): CallControll
     const callId = activeCallId ?? store().call?.callId ?? null;
     await leaveVoip();
     if (callId) {
-      endNativeCall(callId);
-      await mutateWithRetry(() => gateway.endDeliveryCall(callId, 'start_failed'));
+      endNativeCall(callId, activeCallUuid ?? undefined);
+      await mutateWithRetry(() => config.api.end(callId, 'start_failed'));
     }
     activeCallId = null;
+    activeCallUuid = null;
   }
 
   /** Retry an idempotent lifecycle mutation once; a 4xx means the server already moved the row. */
@@ -386,7 +538,7 @@ export function createCallController(config: CallControllerConfig): CallControll
         store().setNotice(null);
         store().setFallbackPrompt(false);
         if (store().phase !== 'active') store().markActive();
-        if (activeCallId) markNativeCallActive(activeCallId);
+        if (activeCallId) markNativeCallActive(activeCallId, activeCallUuid ?? undefined);
       },
       onPeerLeft: () => {
         if (store().phase !== 'active') return;
@@ -395,10 +547,11 @@ export function createCallController(config: CallControllerConfig): CallControll
         stopTimers();
         void leaveVoip();
         if (callId) {
-          endNativeCall(callId);
-          void mutateWithRetry(() => gateway.endDeliveryCall(callId, 'peer_left'));
+          endNativeCall(callId, activeCallUuid ?? undefined);
+          void mutateWithRetry(() => config.api.end(callId, 'peer_left'));
         }
         activeCallId = null;
+        activeCallUuid = null;
         store().markEnded();
       },
       onReconnecting: () => store().setReconnecting(true),
@@ -431,21 +584,26 @@ export function createCallController(config: CallControllerConfig): CallControll
       store().setError('No secure calling line is configured.');
       return false;
     }
-    // The masked platform landline bridges to the peer. The app never dials the raw number.
-    const url = `tel:${call.virtualNumber}`;
-    const canOpen = await Linking.canOpenURL(url).catch(() => false);
-    if (!canOpen) {
-      store().setError('This device cannot open the phone dialer.');
-      return false;
+    // A bridged call is already placed by the server: both phones ring from the provider. Opening
+    // the dialer here would add a second call on top of the live bridge, so wait for the provider
+    // webhook to flip the row ACTIVE instead.
+    if (call.bridged) {
+      store().setFallbackPrompt(false);
+      store().setNotice('Connecting the secure phone line…');
+      return true;
     }
+    // The masked platform landline bridges to the peer. The app never dials the raw number.
+    // Attempt the dial directly: `canOpenURL('tel:')` returns false on iOS unless the scheme is
+    // declared and on Android 11+ without a <queries> entry, which would wrongly report that the
+    // device has no dialer.
     try {
-      await Linking.openURL(url);
+      await Linking.openURL(`tel:${call.virtualNumber}`);
     } catch {
       store().setError('This device cannot open the phone dialer.');
       return false;
     }
-    // No provider answer webhook exists yet: treat the system dialer opening as the active leg so
-    // the surface does not stay on "Dialing…" forever. The timer starts at dialer open, not answer.
+    // Handoff mode has no provider answer webhook: treat the system dialer opening as the active leg
+    // so the surface does not stay on "Dialing…" forever. The timer starts at dialer open, not answer.
     store().setFallbackPrompt(false);
     store().markActive();
     return true;
@@ -466,7 +624,7 @@ export function createCallController(config: CallControllerConfig): CallControll
     // A late response from an ended call must never tear down the call that replaced it.
     if (callId !== activeCallId) return;
     try {
-      const call = await gateway.getDeliveryCall(callId);
+      const call = await config.api.get(callId);
       if (callId !== activeCallId) return;
       store().setCall(call);
       // The callee's accept is authoritative; mirror it locally instead of waiting for the VOIP
@@ -474,7 +632,7 @@ export function createCallController(config: CallControllerConfig): CallControll
       if (call.status === 'ACTIVE' && store().phase === 'ringing') {
         stopRinging();
         store().markActive();
-        markNativeCallActive(callId);
+        markNativeCallActive(callId, activeCallUuid ?? undefined);
       }
       if (
         !fallbackPrompted &&
@@ -489,10 +647,11 @@ export function createCallController(config: CallControllerConfig): CallControll
       if (isTerminal(call)) {
         stopTimers();
         stopRinging();
-        endNativeCall(callId);
+        endNativeCall(callId, activeCallUuid ?? undefined);
         void leaveVoip();
         store().markEnded();
         activeCallId = null;
+        activeCallUuid = null;
       }
     } catch {
       // Keep the last authoritative state; the next tick retries.
@@ -509,7 +668,7 @@ export function createCallController(config: CallControllerConfig): CallControll
     if (OPEN_PHASES.has(store().phase)) return;
     let call: DeliveryCall | null = null;
     try {
-      call = await gateway.getActiveDeliveryCall();
+      call = await config.api.getActive(activeOrderId);
     } catch {
       // Transient failure: leave `recovered` false so a later initialise can retry.
       return;
@@ -517,6 +676,7 @@ export function createCallController(config: CallControllerConfig): CallControll
     recovered = true;
     if (!call) return;
     activeCallId = call.callId;
+    activeOrderId = call.orderId;
     fallbackPrompted = false;
     if (call.status === 'RINGING' && call.initiatedBy === config.incomingInitiatedBy) {
       const peerLabel = config.peerLabelForRole(call.peerRole);
@@ -525,26 +685,36 @@ export function createCallController(config: CallControllerConfig): CallControll
       // Ack whenever a ring surface is visible — native *or* the foreground in-app surface.
       if (shownNative || AppState.currentState === 'active') {
         if (!shownNative) startRinging();
-        void gateway.ackDeliveryCallRinging(call.callId).catch(() => undefined);
+        void config.api.ackRinging(call.callId).catch(() => undefined);
       }
       startPolling(call.callId);
       return;
     }
     // The old VOIP leg died with the app; end it so a new call is allowed.
-    await mutateWithRetry(() => gateway.endDeliveryCall(call.callId, 'app_restarted'));
+    await mutateWithRetry(() => config.api.end(call.callId, 'app_restarted'));
     activeCallId = null;
+    activeCallUuid = null;
     store().reset();
   }
 
   /**
    * Native ringing when available, otherwise the in-app surface. Returns true when a native ring was
    * actually displayed; callers use that to decide whether the server needs the PSTN fallback.
+   *
+   * iOS is different: the system ring was reported by the app delegate from the VoIP push before JS
+   * existed, so there is no display step here — we only confirm that CallKit is showing this call.
    */
   async function showIncoming(
     callId: string,
     orderId: string,
     peerLabel: string,
   ): Promise<boolean> {
+    if (Platform.OS === 'ios') {
+      const uuid = activeCallUuid;
+      if (uuid && (await isNativeRinging(uuid))) return true;
+      navigateToActiveCall();
+      return false;
+    }
     const native = await setupCallKeep(callKeepOptions());
     if (native) {
       const suffix = orderId ? ` · #${orderId.slice(-6)}` : '';
@@ -562,12 +732,15 @@ export function createCallController(config: CallControllerConfig): CallControll
     if (!callId) return;
     const orderId = typeof data.orderId === 'string' ? data.orderId : '';
     const role = typeof data.peerRole === 'string' ? data.peerRole : undefined;
-    const peerLabel = config.peerLabelForRole(role);
+    // iOS carries the masked caller label in the VoIP payload; the role alone cannot distinguish
+    // "Delivery Partner" from a future peer type.
+    const label = typeof data.callerLabel === 'string' ? data.callerLabel.trim() : '';
+    const peerLabel = label || config.peerLabelForRole(role);
 
     // A signed-out device must never wake for the previous account's calls.
     if (!(await ensureAuthenticated())) return;
 
-    // A duplicate FCM delivery of the same push must not reset an already accepted/active call,
+    // A duplicate delivery of the same push must not reset an already accepted/active call,
     // nor re-ring a call this device already declined.
     if (activeCallId === callId && OPEN_PHASES.has(store().phase)) return;
     if (declinedCallId === callId) return;
@@ -581,13 +754,15 @@ export function createCallController(config: CallControllerConfig): CallControll
 
     // Already on a call: report busy so the caller hears it immediately.
     if (OPEN_PHASES.has(store().phase) && activeCallId !== callId) {
-      await gateway.rejectDeliveryCall(callId, 'busy').catch(() => undefined);
+      await config.api.reject(callId, 'busy').catch(() => undefined);
       return;
     }
 
     ensureCallKeepHandlers();
     ensureAppState();
     activeCallId = callId;
+    activeCallUuid = callUuidFrom(data);
+    if (orderId) activeOrderId = orderId;
     fallbackPrompted = false;
     declinedCallId = null;
     store().beginIncoming(orderId, peerLabel);
@@ -597,8 +772,11 @@ export function createCallController(config: CallControllerConfig): CallControll
     // with no phone account must let the server fall back instead.
     if (shownNative || AppState.currentState === 'active') {
       if (!shownNative) startRinging();
-      void gateway.ackDeliveryCallRinging(callId).catch(() => undefined);
+      void config.api.ackRinging(callId).catch(() => undefined);
     }
+    // Poll even when the ring is native-only: if the caller gives up, only the server knows, and
+    // without this the callee would keep ringing (and the store stay `ringing`) until the sweep.
+    startPolling(callId);
   }
 
   /** Native "answer" or the in-app Accept button. Idempotent under a double tap/native+in-app race. */
@@ -612,15 +790,18 @@ export function createCallController(config: CallControllerConfig): CallControll
     bringCallToForeground();
     try {
       stopRinging();
+      // The user may have answered from the in-app surface while CallKit is still ringing: tell the
+      // system so it stops, and so the delegate does not re-announce an answer JS already handled.
+      if (activeCallUuid) markNativeAnswered(activeCallUuid);
       // No mic permission → move the ringing VOIP session onto the masked PSTN leg before joining.
       const micGranted = await ensureMicrophone();
       if (myEpoch !== epoch || declining) return;
       if (!micGranted) {
-        const fallback = await gateway.fallbackDeliveryCall(callId).catch(() => null);
+        const fallback = await config.api.fallback(callId).catch(() => null);
         if (myEpoch !== epoch || declining) return;
         // Never join a VOIP room without a microphone: the peer would hear silence.
         if (!fallback || fallback.mode !== 'PSTN_BRIDGING') {
-          endNativeCall(callId);
+          endNativeCall(callId, activeCallUuid ?? undefined);
           await teardownFailedCall();
           store().setError(config.messages.microphoneDenied);
           return;
@@ -628,17 +809,18 @@ export function createCallController(config: CallControllerConfig): CallControll
       }
       await ensureBluetooth();
       if (myEpoch !== epoch || declining) return;
-      const call = await gateway.joinDeliveryCall(callId);
+      const call = await config.api.join(callId);
       if (myEpoch !== epoch || declining) {
         // The user declined/ended while the join was in flight.
-        await mutateWithRetry(() => gateway.endDeliveryCall(call.callId, 'cancelled'));
+        await mutateWithRetry(() => config.api.end(call.callId, 'cancelled'));
         return;
       }
       activeCallId = call.callId;
+      activeOrderId = call.orderId;
       store().setCall(call);
       store().setIncoming(false);
       navigateToActiveCall();
-      markNativeCallActive(call.callId);
+      markNativeCallActive(call.callId, activeCallUuid ?? undefined);
 
       if (call.mode === 'VOIP') {
         await joinVoipLeg(call);
@@ -653,7 +835,7 @@ export function createCallController(config: CallControllerConfig): CallControll
       startPolling(call.callId);
     } catch (err) {
       if (myEpoch !== epoch || declining) return;
-      endNativeCall(callId);
+      endNativeCall(callId, activeCallUuid ?? undefined);
       await teardownFailedCall();
       store().setError(messageFor(err));
     } finally {
@@ -671,13 +853,16 @@ export function createCallController(config: CallControllerConfig): CallControll
     stopTimers();
     stopRinging();
     declinedCallId = callId;
-    rejectNativeCall(callId);
+    rejectNativeCall(callId, activeCallUuid ?? undefined);
     try {
-      await mutateWithRetry(() => gateway.rejectDeliveryCall(callId, 'declined'));
+      await mutateWithRetry(() => config.api.reject(callId, 'declined'));
     } finally {
       declining = false;
     }
     if (activeCallId === callId) activeCallId = null;
+    // Drop the CallKit UUID too: leaving it behind makes a later end/reject target the previous
+    // (already reported) call instead of the one on screen.
+    activeCallUuid = null;
     store().markEnded();
     leaveCallScreen();
   }
@@ -690,11 +875,12 @@ export function createCallController(config: CallControllerConfig): CallControll
     stopRinging();
     store().markEnding();
     if (callId) {
-      endNativeCall(callId);
-      await mutateWithRetry(() => gateway.endDeliveryCall(callId, reason));
+      endNativeCall(callId, activeCallUuid ?? undefined);
+      await mutateWithRetry(() => config.api.end(callId, reason));
     }
     await leaveVoip();
     activeCallId = null;
+    activeCallUuid = null;
     store().markEnded();
     leaveCallScreen();
   }
@@ -742,7 +928,7 @@ export function createCallController(config: CallControllerConfig): CallControll
     const myEpoch = epoch;
     const wasActive = store().phase === 'active';
     try {
-      const call = await gateway.fallbackDeliveryCall(callId);
+      const call = await config.api.fallback(callId);
       // The user ended/dismissed (or another session began) while the request was in flight:
       // never resurrect an ended call by opening the dialer.
       if (myEpoch !== epoch || activeCallId !== callId) return;
@@ -774,11 +960,11 @@ export function createCallController(config: CallControllerConfig): CallControll
     stopRinging();
     if (callId) {
       stopTimers();
-      endNativeCall(callId);
+      endNativeCall(callId, activeCallUuid ?? undefined);
       if (phase === 'ringing' || phase === 'connecting') {
-        await mutateWithRetry(() => gateway.rejectDeliveryCall(callId, reason));
+        await mutateWithRetry(() => config.api.reject(callId, reason));
       } else {
-        await mutateWithRetry(() => gateway.endDeliveryCall(callId, reason));
+        await mutateWithRetry(() => config.api.end(callId, reason));
       }
       await leaveVoip();
     }
@@ -803,6 +989,8 @@ export function createCallController(config: CallControllerConfig): CallControll
     stopRinging();
     epoch += 1;
     activeCallId = null;
+    activeCallUuid = null;
+    activeOrderId = null;
     fallbackPrompted = false;
     pendingNavigation = false;
     declinedCallId = null;

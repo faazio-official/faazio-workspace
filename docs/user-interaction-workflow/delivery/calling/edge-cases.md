@@ -26,7 +26,7 @@
 | Android 14+ full-screen intent | Permission declared; the special-access grant is not requested/checked, so a denial degrades to a heads-up notification | Gap |
 | End by native UI | CallKeep `endCall` → `rejectCall` while ringing, `endCall` when active; events are UUID-scoped | Implemented |
 | Provider outage (100ms) | Initiate falls back to PSTN when `DELIVERY_CALL_VIRTUAL_NUMBER` is set, else `503 calling_unavailable` | Implemented |
-| PSTN provider failure | The gateway returns the configured landline; there is no provider call-ref/webhook yet | Gap |
+| PSTN provider failure | `POST /delivery/calls/pstn-webhook` reconciles the provider's answered/terminal events onto the row (looked up by `CustomField`, falling back to `provider_call_ref`); an unmappable event is acknowledged `204` rather than retried. Dormant until `PSTN_PROVIDER`/`EXOTEL_*` credentials are provisioned | Wired, unprovisioned |
 | PSTN outgoing state | The local surface marks the leg active when the dialer opens (the server row stays `RINGING`); timer starts at dialer open | Partial |
 | PSTN dialer cannot open | `openPstnLeg` reports failure, the controller ends the row (`start_failed`) and stops polling instead of leaving an error surface over an open session | Implemented |
 | PSTN controls | Mute/speaker/Bluetooth are hidden for `PSTN_BRIDGING` (they would be no-ops) | Implemented |
@@ -38,14 +38,14 @@
 
 The following must land before this domain can be marked **Complete**:
 
-1. Gateway customer-initiated call endpoint + `incoming_call` push sender.
-2. Exotel/Edesy Connect API + status webhook (populate `provider_call_ref`, answer/end events, and
-   ringback/timer accuracy for the PSTN leg).
-3. GSM-busy pre-check and proximity/wake-lock handling.
-4. A queued-call banner for a rider already on a call.
-5. Android 14+ full-screen-intent special-access prompt.
-6. An iOS customer build needs PushKit + CallKit pods/entitlements if incoming calls ship there
-   (the delivery partner is Android-only).
+1. Exotel/Edesy Connect credentials + a public `PSTN_WEBHOOK_URL` so the wired bridge and status
+   reconcile go live (answer/end events, ringback/timer accuracy on the PSTN leg).
+2. GSM-busy pre-check and proximity/wake-lock handling.
+3. A queued-call banner for a rider already on a call.
+4. Android 14+ full-screen-intent special-access prompt.
+5. The iOS customer ring (PushKit + CallKit, APNs `voip`, `APNS_*` server credentials) is implemented
+   but must be verified on a macOS build with the PushKit entitlement; FCM cannot deliver a VoIP push.
+   The delivery partner stays Android-only.
 
 **Fixed in this pass:** the caller-can-cancel-a-connecting-call ghost race, decline-vs-accept media
 join, late PSTN-switch resurrection, PSTN-dialer failure leaving an open row, recovery re-acking

@@ -39,6 +39,7 @@ import { decodeIdToken } from '@/lib/tokenClaims';
 import { formatAsYouType, isValidPhone, nationalDigits, toE164 } from '@/lib/phone';
 import { getRecentPhones, saveRecentPhone } from '@/lib/recentPhones';
 import {
+  cancelPrimaryOtp,
   consumeAutoVerifiedOtp,
   displayName,
   firebaseAuthConfigured,
@@ -474,6 +475,9 @@ export function LoginScreen({ navigation }: Props) {
       Keyboard.dismiss();
       return;
     }
+    // Abandon this request entirely: a late auto-retrieval for the old number must not be
+    // consumed by the next send, and a phantom native session must not linger.
+    cancelPrimaryOtp();
     setOtpState(false);
     setOtpCode('');
     setOtpError('');

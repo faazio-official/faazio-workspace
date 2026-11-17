@@ -75,6 +75,10 @@
 	<string>Faazio uses the microphone only while you are on a delivery call so you and the other person can talk.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Faazio uses the local network only while connecting a delivery call through the voice service.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Faazio uses Bluetooth only so a paired headset or car audio can be used during a delivery call.</string>
+	<key>NSBluetoothPeripheralUsageDescription</key>
+	<string>Faazio uses Bluetooth only so a paired headset or car audio can be used during a delivery call.</string>
 	<key>RCTMetroPort</key>
 	<string>$(RCT_METRO_PORT)</string>
 	<key>RCTNewArchEnabled</key>

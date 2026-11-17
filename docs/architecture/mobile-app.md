@@ -1006,30 +1006,42 @@ are reserved for the call path) — no background location or `fetch`.
 **Masked calling (`0104`).** The customer and delivery-partner apps share one call stack under
 `features/call/` (`controller.ts` state machine, `voip.ts` 100ms adapter, `callkeep.ts` native ringing,
 `ringtone.ts` ringback/in-app ring, `incoming.ts` FCM wake-up, `CallSurface.tsx` full-screen UI);
-each product binds it with its own navigation handle and peer labels (`recoverActiveCall` is true
-only for the rider, because `GET /delivery/calls/active` is rider-scoped). `Route`/`Dashboard` render the rider `CallCustomerButton` and
-`OrderDetails` renders the customer `CallDeliveryPartnerButton`. The gateway is the authority:
-`POST /delivery/{orderId}/call` returns `VOIP` (100ms room + 2-hour token) when configured, otherwise
-`PSTN_BRIDGING` with `DELIVERY_CALL_VIRTUAL_NUMBER`. The app never receives the other peer's raw
-phone number. The controller owns the 3 s double-tap lock (mirrored by a disabled **Starting call…**
+each product binds it with its own navigation handle and peer labels through an injected `CallApi`
+surface (`features/{customer,delivery-partner}/calling/callController.ts`), so each app only reaches
+its own authorised endpoints (`recoverActiveCall` is true only for the rider, because
+`GET /delivery/calls/active` is rider-scoped; the customer resumes with the order-scoped
+`GET /orders/{orderId}/delivery-call`). `Route`/`Dashboard` render the rider `CallCustomerButton` and
+`OrderDetails` renders the customer `CallDeliveryPartnerButton`. The gateway is the authority and
+both directions are supported: a rider calls `POST /delivery/{orderId}/call`, a customer calls
+`POST /orders/{orderId}/delivery-call` (the checkout order id is resolved to the `delivery_orders`
+job via `customer_order_id` and gated on `customer_id` ownership). Both share one server `startCall`
+and return `VOIP` (100ms room + 2-hour token) when configured, otherwise `PSTN_BRIDGING` with
+`DELIVERY_CALL_VIRTUAL_NUMBER`; the other peer is woken with a **data-only** `incoming_call` push
+(Android `priority=high`, `ttl=45s` — a `notification` block would stop the background handler from
+running). The app never receives the other peer's raw phone number. The controller owns the 3 s
+double-tap lock (mirrored by a disabled **Starting call…**
 button), session-epoch guards that cancel a dismissed/ended connect, join or PSTN switch,
 re-entrancy/double-accept and decline-vs-accept guards, UUID-scoped native events, the ringing-ack
-window, looped VOIP ringback, one-tap PSTN fallback, verified mic-denial fallback (never joins VOIP
-without a mic), retrying lifecycle teardown, once-per-session `GET /delivery/calls/active` recovery,
-AppState resync and audio-route tracking. `callStore` also carries `audioRoute` and a recoverable `notice`. `ActiveCall` is a
+window, looped VOIP ringback, one-tap PSTN fallback (a server-placed bridge is never re-dialled), verified mic-denial fallback
+(iOS prompts natively, Android via `PermissionsAndroid`; never joins VOIP without a mic), retrying lifecycle teardown, once-per-session recovery, `409 conflict` adoption of an
+open call, AppState resync and audio-route tracking. `callStore` also carries `audioRoute` and a recoverable `notice`. `ActiveCall` is a
 non-dismissible full-screen route in both navigators (hardware back ends the call first). Native
-ringing is Android-only today: `react-native-callkeep` ConnectionService + `VoiceConnectionService`,
-`RECORD_AUDIO`, `BLUETOOTH_CONNECT` (+ legacy Bluetooth ≤ Android 11), `USE_FULL_SCREEN_INTENT`,
-`FOREGROUND_SERVICE_MICROPHONE`/`PHONE_CALL` in the **customer and delivery** flavor manifests,
-with `VoiceConnectionService` declared as `phoneCall|microphone` and
-`foregroundServiceType: 132` passed to CallKeep so background audio keeps the mic.
-`index.js` and `index.delivery.js` register the shared FCM data-only `incoming_call` handler before
-mount. `CALLING_ENABLED` (default true) is the only client build flag; provider secrets stay
-server-side. **Status: Partial** — both client halves are built, but the gateway still has no
-customer-initiated call endpoint and no `incoming_call` push sender, so a customer-originated call
-is rejected (`404 not_found` for a normal customer, `409` for an invalid phone/rider state) and the
-rider ring cannot be triggered yet; iOS PushKit/CallKit is not native-linked
-and the Exotel/Edesy bridging webhook is absent (see
+ringing differs per platform. **Android** uses `react-native-callkeep` ConnectionService +
+`VoiceConnectionService`, `RECORD_AUDIO`, `BLUETOOTH_CONNECT` (+ legacy Bluetooth ≤ Android 11),
+`USE_FULL_SCREEN_INTENT`, `FOREGROUND_SERVICE_MICROPHONE`/`PHONE_CALL` in the **customer and delivery**
+flavor manifests, with `VoiceConnectionService` declared as `phoneCall|microphone` and
+`foregroundServiceType: 132` passed to CallKeep so background audio keeps the mic. **iOS** (customer
+product only) owns one `CXProvider` natively in `ios/Faazio/VoipCallManager.swift`: PushKit reports the
+ring from the APNs `voip` push before React Native boots, persists the payload, and the
+`VoipCallBridge` module hands answers/ends/token updates to JS. `react-native-callkeep` stays
+Android-only so two providers never compete. `index.js` and `index.delivery.js` register the shared
+FCM data-only `incoming_call` handler before mount. `CALLING_ENABLED` (default true) is the only
+client build flag; provider secrets stay server-side. **Status: Partial** — Android is end-to-end
+(both directions create a session, mint a VOIP token or open the PSTN leg, and push the callee, so the
+app rings with the screen off or swiped away). iOS ring is implemented (PushKit + CallKit, APNs
+`apns-push-type: voip`, second `voip` push token from `0105`, native mic prompt); it is unverified
+until a macOS `pod install` + device build, and the Exotel PSTN bridge is wired but dormant until
+credentials and a public `PSTN_WEBHOOK_URL` are provisioned (see
 `docs/user-interaction-workflow/customer/calling/` and `.../delivery/calling/`).
 
 **Known production limits** (tracked in `client/mobile/PENDING_WORK.md`): force-quit Android

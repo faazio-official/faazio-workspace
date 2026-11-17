@@ -8,9 +8,14 @@ export const INCOMING_CALL_TYPE = 'incoming_call';
  * Background/quit-state call wake-up, shared by both products. Must be registered at the entry
  * module, before the app component mounts, so a swiped-away app still rings.
  *
- * The payload is data-only (no notification block) so Android delivers it to this handler rather
- * than the system tray. It carries: type, callId, orderId, peerRole. The VOIP token is minted
- * server-side on answer, never carried in a push.
+ * Android: the payload is data-only (no notification block) so the system delivers it to this
+ * handler rather than the tray. It carries: type, callId, callUuid, orderId, peerRole, callerLabel.
+ * The VOIP token is minted server-side on answer, never carried in a push.
+ *
+ * iOS: this handler never fires for a ring. An iOS incoming call arrives as a PushKit VoIP push
+ * (`apns-push-type: voip`) handled natively in `ios/Faazio/VoipCallManager.swift`, because only
+ * CallKit can ring and iOS terminates an app that takes a VoIP push without reporting a call. The
+ * native side persists the payload and the JS layer adopts it via `takePendingNativeCall()`.
  */
 export function registerCallBackgroundHandler(
   type: string,

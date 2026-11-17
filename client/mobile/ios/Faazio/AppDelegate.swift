@@ -29,6 +29,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
     // after this call. The notification-permission prompt is still handled later by Messaging.
     application.registerForRemoteNotifications()
 
+    // PushKit + CallKit must exist before the first VoIP push is delivered, including when that push
+    // launches the app in the background with no React Native runtime yet. iOS terminates an app
+    // that receives a VoIP push without reporting an incoming call to CallKit.
+    VoipCallManager.shared.start()
+
     let delegate = ReactNativeDelegate()
     let factory = RCTReactNativeFactory(delegate: delegate)
     delegate.dependencyProvider = RCTAppDependencyProvider()

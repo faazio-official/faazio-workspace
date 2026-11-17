@@ -58,7 +58,7 @@ preserved; the bottom nav moved from a per-screen footer to a real tab navigator
 | Fulfillment | Pickup | `Route` | [fulfillment/index.md](./fulfillment/index.md) · [order-pickup.md](./fulfillment/order-pickup.md) |
 | Fulfillment | Customer handover / OTP / COD | `Route` | [customer-handover.md](./fulfillment/customer-handover.md) |
 | Calling | Outgoing masked call (rider → customer) | `Route`, `Dashboard` → `ActiveCall` | [calling/index.md](./calling/index.md) · [calling/outgoing.md](./calling/outgoing.md) |
-| Calling | Incoming masked call (customer → rider) — **Partial**: client ring path only, no server `incoming_call` sender | `ActiveCall` (push + CallKeep) | [calling/incoming.md](./calling/incoming.md) · [calling/edge-cases.md](./calling/edge-cases.md) · [calling/screens.md](./calling/screens.md) |
+| Calling | Incoming masked call (customer → rider) — **Partial**: server push + Android ring implemented; iOS CallKit and PSTN provisioning pending | `ActiveCall` (push + CallKeep) | [calling/incoming.md](./calling/incoming.md) · [calling/edge-cases.md](./calling/edge-cases.md) · [calling/screens.md](./calling/screens.md) |
 | Earnings | Payout ledger | `Payouts` | [earnings/index.md](./earnings/index.md) · [earnings-ledger.md](./earnings/earnings-ledger.md) |
 | Earnings | Single-order breakdown | `EarningsDetail` | [earnings/earnings-detail.md](./earnings/earnings-detail.md) |
 | Profile | Bottom nav + profile / settings / support / alerts / history | `Main` (`Dashboard`, `Payouts`, `OrderHistory`, `Notifications`, `RiderProfile`), `EditProfile`, `Settings`, `Support` | [more/index.md](./more/index.md) |
@@ -80,9 +80,12 @@ preserved; the bottom nav moved from a per-screen footer to a real tab navigator
 See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Delivery-specific gaps: Android background-location
 best-effort limits (OEM battery optimisation; the app is Android/Play only) are documented in
 `client/mobile/PENDING_WORK.md`. OTP handover is enabled (COD/UPI checkout orders)
-and delivered through the notifications outbox. Delivery calling is **Partial**: the rider half and
-the customer-app UI are implemented; the gateway's customer-initiated endpoint, the `incoming_call`
-push sender and the PSTN provider webhook are not ([calling/index.md](./calling/index.md)).
+and delivered through the notifications outbox. Delivery calling is **Partial**: both directions are
+live server-side (rider `POST /delivery/{orderId}/call`, customer
+`POST /orders/{orderId}/delivery-call`), the `incoming_call` push is data-only and high priority, and
+the Exotel PSTN bridge plus fail-closed status webhook are wired; the iOS PushKit/CallKit ring is
+implemented but device-unverified, and no provider credentials are provisioned
+([calling/index.md](./calling/index.md)).
 
 ## Linked docs
 

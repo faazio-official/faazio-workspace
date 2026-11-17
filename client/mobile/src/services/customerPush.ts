@@ -21,6 +21,7 @@ import type { RemoteMessage } from '@react-native-firebase/messaging';
 import { gateway } from './api/GatewayClient';
 import { handleIncomingCall } from '@/features/customer/calling/callController';
 import { INCOMING_CALL_TYPE } from '@/features/call/incoming';
+import { getVoipToken, subscribeVoipToken } from '@/features/call/callkeep';
 
 const platform: 'android' | 'ios' = Platform.OS === 'ios' ? 'ios' : 'android';
 
@@ -35,6 +36,17 @@ function permissionGranted(status: number): boolean {
 async function syncToken(): Promise<void> {
   const token = await getToken(getMessaging());
   if (token) await gateway.registerPushToken(token, platform);
+}
+
+/**
+ * Register the PushKit VoIP token. This is a second, separately-scoped credential: only it can make
+ * CallKit ring an incoming call (an APNs `voip` push), while order/Rx pushes still use the FCM
+ * token. PushKit may deliver the token before or after sign-in, so this reads the persisted value
+ * rather than waiting for an event.
+ */
+async function syncVoipToken(): Promise<void> {
+  const token = await getVoipToken();
+  if (token) await gateway.registerPushToken(token, 'ios', 'voip');
 }
 
 function handleMessage(message: RemoteMessage, onNotification?: () => void): void {
@@ -54,6 +66,18 @@ function handleMessage(message: RemoteMessage, onNotification?: () => void): voi
  */
 export async function startCustomerPush(onNotification?: () => void): Promise<() => void> {
   if (!gateway.remoteEnabled) return () => {};
+  // iOS rings through PushKit, not FCM, so the VoIP token must be registered even when the user
+  // denies notification permission (a call ring needs the microphone, not the alert authorization).
+  let unsubVoip = () => {};
+  if (platform === 'ios') {
+    void syncVoipToken().catch(() => undefined);
+    // PushKit delivers/rotates the token after launch, so listen for it too: reading once at start
+    // would leave a first-launch device unregistered until the next app start.
+    const voipSub = subscribeVoipToken((token) => {
+      void gateway.registerPushToken(token, 'ios', 'voip').catch(() => undefined);
+    });
+    unsubVoip = () => voipSub.remove();
+  }
   try {
     const messaging = getMessaging();
     if (permissionGranted(await requestPermission(messaging))) await syncToken();
@@ -77,9 +101,11 @@ export async function startCustomerPush(onNotification?: () => void): Promise<()
       unsubToken();
       unsubMessage();
       unsubOpen();
+      unsubVoip();
     };
   } catch {
     // Permission denied or native Firebase not configured — the in-app inbox still works.
+    unsubVoip();
     return () => {};
   }
 }

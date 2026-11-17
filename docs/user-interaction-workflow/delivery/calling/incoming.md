@@ -1,8 +1,9 @@
 # Incoming delivery call (customer → rider)
 
 **App / route(s):** delivery · shared FCM handler → native ringing (CallKeep) → `ActiveCall`
-**Status:** **Partial** — the rider receive/ring/answer path is implemented; no gateway endpoint or
-push sender creates the `incoming_call` push yet.
+**Status:** **Partial** — send, receive, ring and answer are implemented on Android (the delivery
+partner is Android-only); the remaining gaps are the device-unverified iOS customer ring and PSTN
+provider provisioning.
 **Trigger:** data-only FCM message `{ type: "incoming_call", callId, orderId, peerRole }`.
 
 ## Steps
@@ -21,7 +22,9 @@ push sender creates the `incoming_call` push yet.
      shown and loops the ringing tone instead,
    - fires `POST /calls/{callId}/ringing-ack` **only when a ring surface is actually visible**
      (native call displayed, or the app is foreground). A headless device without a phone account
-     intentionally does not ack, so the server can fall back to PSTN.
+     intentionally does not ack, so the server can fall back to PSTN,
+   - starts the 2 s status poll, so a caller cancel/end (only the server knows) stops the ring
+     instead of ringing until the 45 s sweep.
 4. **Accept** (native answer or the in-app Accept button) → `acceptIncomingCall(callId)`:
    - is idempotent: an in-flight accept and a native+in-app double answer cannot join twice and
      tear the connected call down; a decline while the join is in flight cancels it,
@@ -30,7 +33,10 @@ push sender creates the `incoming_call` push yet.
      `PSTN_BRIDGING` (otherwise the row is torn down with an explicit message),
    - `POST /calls/{callId}/join` accepts the row (`RINGING → ACTIVE`) and returns a fresh 2-hour
      VOIP token,
-   - joins 100ms (VOIP) or opens the masked dialer (PSTN), then `ActiveCall` shows the timer.
+   - joins 100ms (VOIP) or opens the masked dialer in handoff mode (PSTN); when the server already
+     placed the bridge (`bridged: true`) nothing is dialled — the client shows "Connecting the secure
+     phone line…" and waits for the provider webhook to mark the row ACTIVE. Then `ActiveCall` shows
+     the timer.
 5. **Decline** (native decline or in-app Decline) → CallKeep `rejectCall` for the ringing UI +
    `POST /calls/{callId}/reject` (`RINGING → REJECTED`; a `busy` reason is recorded as `BUSY`).
 6. While ringing, the server watches `ringing_ack_at`; a later `GET /calls/{callId}` reports
@@ -65,12 +71,13 @@ push sender creates the `incoming_call` push yet.
 
 ## Known gaps
 
-- **No sender.** No endpoint enqueues the `incoming_call` data push (the customer-app entry point
-  is now built, but its call is rejected by the rider-only endpoint), so this path cannot be
-  triggered in production yet.
-- **No VoIP push (PushKit).** iOS is customer-only; the delivery path is FCM/CallKeep (Android)
-  only. iOS `voip`/`audio` background modes are declared but the PushKit/CallKit native pods are
-  not linked.
+- **Provisioning.** The `incoming_call` push is sent by both initiate paths and the Android
+  background handler rings on it, but a production ring still needs FCM credentials
+  (`FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID`) — without them the outbox has no sender.
+- **iOS ring unverified.** The customer iOS app owns PushKit/CallKit natively
+  (`VoipCallManager.swift`) and the gateway sends the `voip` push over APNs; the delivery partner app
+  stays Android/FCM (`incoming_call` data push → CallKeep). A macOS `pod install` + device build is
+  still required to prove the iOS path.
 - **Answer when the app was swiped away** depends on headless JS + CallKeep; device/OEM battery
   restrictions can suppress it.
 - **No GSM-busy pre-check** before ringing, and no queued-call banner for a second caller.

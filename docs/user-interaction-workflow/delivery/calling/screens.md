@@ -62,7 +62,9 @@ phase/timer/audio-route contract.
   primary path.
 - CallKeep "answered" from a killed app is replayed via `didLoadWithEvents`; a device that denies the
   phone account gets the in-app surface (or lets the server PSTN-fallback if headless).
-- The customer app surface exists but the server cannot create a customer-initiated call yet.
+- The customer app surface reaches its own order-scoped endpoints
+  (`POST /orders/{orderId}/delivery-call`); a shopper token cannot drive a rider-scoped route, and a
+  rider token cannot drive `/delivery-calls/{callId}`.
 
 ## Linked docs
 

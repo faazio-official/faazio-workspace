@@ -325,6 +325,14 @@ contract stable so the swap is invisible to the app):
     before DELIVERED (see `db-schema.md` §12.31). Seller onboarding KYC/review fields from `0039`
     remain. Owner: `db-schema.md` §12.31, `mobile-app.md`, `web-portal.md`, `server-gateway-plan.md`,
     `monolith-breakdown.md` §1.
+22. ✅ **Masked delivery calling (`0104`, `0105`).** `0104` adds `delivery.calls` (VOIP/PSTN session
+    state, one open call per rider via a partial unique index, no phone numbers or provider
+    secrets); `0105` gives `notifications.push_tokens` a `token_kind` (`push`/`voip`) with PK
+    `(user_id, token_kind)` so an iOS device can hold its FCM token and its PushKit token at once.
+    The gateway gains the rider + customer call endpoints (one shared `startCall`), the Exotel bridge
+    with a fail-closed status webhook, and an APNs HTTP/2 sender (`APNS_*`) that is the only way to
+    deliver `apns-push-type: voip`. Owner: `db-schema.md` §12.12, `mobile-app.md`,
+    `monolith-breakdown.md` §1, `user-interaction-workflow/{delivery,customer}/calling/`.
 
 ---
 

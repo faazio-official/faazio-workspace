@@ -13,7 +13,10 @@
    Firebase `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode and starts the 30 s
    resend cooldown (`RESEND_COOLDOWN_S`). A successful send records the number in the suggestion list.
 3. The user enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval) in an
-   animated 6-segment field driven by a hidden `oneTimeCode`/`sms-otp` input.
+   animated 6-segment field driven by a hidden `oneTimeCode`/`sms-otp` input. Backing out of the
+   code step calls `cancelPrimaryOtp()`, dropping the pending confirmation/watch — a late
+   auto-retrieval for the abandoned number can never be consumed by the next send, and a phantom
+   native session is signed out.
 4. `verifyOtp(phoneE164, code)` returns a Firebase session. `completeLogin` decodes the ID-token
    claims (`role`, `stateCode`, `districtCode`, `sellerId`) and calls `useAuthStore.login`.
 5. The session is persisted via `react-native-keychain` (`services/secureSession.ts`).

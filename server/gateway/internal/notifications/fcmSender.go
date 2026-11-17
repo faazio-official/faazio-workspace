@@ -33,6 +33,19 @@ const (
 // terminal: no retry budget is spent and the token is pruned from push_tokens (repo.ExpireToken).
 var ErrTokenUnregistered = errors.New("fcm: token unregistered")
 
+const (
+	// callPushType is the data `type` the app's call background handler reacts to.
+	callPushType = "incoming_call"
+	// callPushTTL bounds how long FCM may hold an undelivered call push. A ring that arrives minutes
+	// late is worse than no ring: the call row has already been swept to MISSED.
+	callPushTTL = "45s"
+)
+
+// isCallPush reports whether a flattened data map is an incoming-call wake-up.
+func isCallPush(data map[string]string) bool {
+	return data != nil && data["type"] == callPushType
+}
+
 // FCMSender delivers one push message to an FCM registration token via the HTTP v1 API. Safe for
 // concurrent use (the oauth2 token source and http.Client are concurrency-safe). The token travels
 // only in the request body.
@@ -76,12 +89,37 @@ func (s *FCMSender) Send(ctx context.Context, token, title, body string, data []
 		return fmt.Errorf("fcm: oauth token: %w", err)
 	}
 
+	flat := fcmStringData(data)
 	message := map[string]any{"token": token}
-	if title != "" || body != "" {
+	if isCallPush(flat) {
+		// An incoming-call push must reach the app's background handler, not the tray: Android only
+		// runs the headless JS handler for a DATA-ONLY high-priority message, so a `notification`
+		// block here would silently stop a killed/swiped app from ever ringing. TTL bounds how long a
+		// stale ring can be delivered.
+		//
+		// iOS note: FCM cannot deliver a PushKit VoIP push (that requires APNs with
+		// `apns-push-type: voip` and a separate .p8 provider key). This is therefore a plain silent
+		// background push on iOS: it can wake an app that still holds background privileges, but it
+		// cannot by itself make CallKit ring. See docs/user-interaction-workflow/customer/calling/.
+		message["android"] = map[string]any{
+			"priority": "high",
+			"ttl":      callPushTTL,
+		}
+		message["apns"] = map[string]any{
+			"headers": map[string]string{
+				// A background push must be priority 5; 10 is only valid for alert/voip pushes.
+				"apns-priority":  "5",
+				"apns-push-type": "background",
+			},
+			"payload": map[string]any{
+				"aps": map[string]any{"content-available": 1},
+			},
+		}
+	} else if title != "" || body != "" {
 		message["notification"] = map[string]string{"title": title, "body": body}
 	}
-	if d := fcmStringData(data); len(d) > 0 {
-		message["data"] = d
+	if len(flat) > 0 {
+		message["data"] = flat
 	}
 	b, err := json.Marshal(map[string]any{"message": message})
 	if err != nil {

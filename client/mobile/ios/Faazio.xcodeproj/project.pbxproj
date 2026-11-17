@@ -14,6 +14,8 @@
 		A822E0F40DDA996D4B26C3AE /* Pods_Faazio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = F01BBCC2268A715612DB6861 /* Pods_Faazio.framework */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 		FA10E0012E9A000000000001 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = FA10E0022E9A000000000002 /* GoogleService-Info.plist */; };
+		FA20A0022E9B000000000002 /* VoipCallManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA20A0012E9B000000000001 /* VoipCallManager.swift */; };
+		FA20A0042E9B000000000004 /* VoipCallBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = FA20A0032E9B000000000003 /* VoipCallBridge.m */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +31,8 @@
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = Faazio/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* Faazio-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "Faazio-Bridging-Header.h"; path = "Faazio/Faazio-Bridging-Header.h"; sourceTree = "<group>"; };
 		FA10E0022E9A000000000002 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Faazio/GoogleService-Info.plist"; sourceTree = "<group>"; };
+		FA20A0012E9B000000000001 /* VoipCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VoipCallManager.swift; path = Faazio/VoipCallManager.swift; sourceTree = "<group>"; };
+		FA20A0032E9B000000000003 /* VoipCallBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = VoipCallBridge.m; path = Faazio/VoipCallBridge.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -48,6 +52,8 @@
 			isa = PBXGroup;
 			children = (
 				F11748412D0307B40044C1D9 /* AppDelegate.swift */,
+				FA20A0012E9B000000000001 /* VoipCallManager.swift */,
+				FA20A0032E9B000000000003 /* VoipCallBridge.m */,
 				F11748442D0722820044C1D9 /* Faazio-Bridging-Header.h */,
 				BB2F792B24A3F905000567C9 /* Supporting */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -399,6 +405,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
+				FA20A0022E9B000000000002 /* VoipCallManager.swift in Sources */,
+				FA20A0042E9B000000000004 /* VoipCallBridge.m in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

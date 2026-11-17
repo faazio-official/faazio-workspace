@@ -507,6 +507,13 @@ type Drainer interface {
 	DrainOnce(ctx context.Context) error
 }
 
+// PushNudger asks the outbox drain worker to deliver now instead of on its next tick. A ring push
+// has a 45s TTL against a 30s tick, so an un-nudged call could land too late to answer. Implemented
+// by notifications.Worker; nil (non-blocking, no-op) when no worker runs.
+type PushNudger interface {
+	Nudge()
+}
+
 // Sweeper runs one media GC pass — deletes orphaned DRAFT assets (R2 object + registry row) past the
 // draft TTL (implemented by media.Sweeper). The admin endpoint uses it as a manual trigger when no
 // background worker is deployed; it returns the number of assets reclaimed.

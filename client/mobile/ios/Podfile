@@ -24,6 +24,11 @@ target 'Faazio' do
 
   pod 'FaazioGeocoder', :path => './FaazioGeocoder'
 
+  # PushKit/CallKit are native (ios/Faazio/VoipCallManager.swift). The answered call runs on the
+  # 100ms SDK, so its pod must be linked on iOS as well as Android; it is autolinked from
+  # node_modules/@100mslive/react-native-hms (no `ios: null` override in react-native.config.js).
+  # react-native-callkeep stays Android-only: its iOS provider would collide with VoipCallManager.
+
   post_install do |installer|
     react_native_post_install(
       installer,

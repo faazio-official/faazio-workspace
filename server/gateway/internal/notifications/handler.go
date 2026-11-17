@@ -84,6 +84,9 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		Token    string `json:"token"`
 		Platform string `json:"platform"`
+		// TokenKind distinguishes the FCM/APNs alert token ("push", default) from the PushKit VoIP
+		// token ("voip"). A device registers both; the drain query prefers the VoIP token for calls.
+		TokenKind string `json:"tokenKind"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
@@ -94,7 +97,12 @@ func (h *Handler) register(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid token")
 		return
 	}
-	if err := h.repo.Register(r.Context(), auth.UserID(r.Context()), token, strings.ToLower(strings.TrimSpace(body.Platform))); err != nil {
+	kind := strings.ToLower(strings.TrimSpace(body.TokenKind))
+	if kind != TokenKindVoIP {
+		kind = TokenKindPush
+	}
+	if err := h.repo.Register(r.Context(), auth.UserID(r.Context()), token,
+		strings.ToLower(strings.TrimSpace(body.Platform)), kind); err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "register_failed", "could not register device")
 		return
 	}

@@ -1,7 +1,7 @@
 import { Linking } from 'react-native';
 import { createCallController } from '../controller';
 import { useCallStore } from '@/state/callStore';
-import { gateway, type DeliveryCall } from '@/services/api/GatewayClient';
+import { gateway, GatewayHttpError, type DeliveryCall } from '@/services/api/GatewayClient';
 import { joinVoip } from '../voip';
 
 jest.mock('@/services/api/GatewayClient', () => ({
@@ -15,7 +15,16 @@ jest.mock('@/services/api/GatewayClient', () => ({
     endDeliveryCall: jest.fn(),
     fallbackDeliveryCall: jest.fn(),
   },
-  GatewayHttpError: class GatewayHttpError extends Error {},
+  GatewayHttpError: class GatewayHttpError extends Error {
+    status: number;
+    code?: string;
+    constructor(status: number, code?: string, message?: string) {
+      super(message ?? 'gateway ' + status);
+      this.name = 'GatewayHttpError';
+      this.status = status;
+      this.code = code;
+    }
+  },
   GatewayOfflineError: class GatewayOfflineError extends Error {},
 }));
 
@@ -44,6 +53,7 @@ jest.mock('../callkeep', () => ({
   endNativeCall: jest.fn(),
   markNativeCallActive: jest.fn(),
   rejectNativeCall: jest.fn(),
+  requestMicrophone: jest.fn(async () => true),
   setNativeCallingAvailable: jest.fn(),
   setupCallKeep: jest.fn(async () => false),
 }));
@@ -99,6 +109,16 @@ function makeController() {
       navigateToActiveCall: jest.fn(),
       goBack: jest.fn(),
     },
+    api: {
+      initiate: (orderId, opts) => gateway.initiateDeliveryCall(orderId, opts),
+      getActive: () => gateway.getActiveDeliveryCall(),
+      get: (callId) => gateway.getDeliveryCall(callId),
+      ackRinging: (callId) => gateway.ackDeliveryCallRinging(callId),
+      join: (callId) => gateway.joinDeliveryCall(callId),
+      reject: (callId, reason) => gateway.rejectDeliveryCall(callId, reason),
+      end: (callId, reason) => gateway.endDeliveryCall(callId, reason),
+      fallback: (callId) => gateway.fallbackDeliveryCall(callId),
+    },
     callKeep: {
       channelId: 'test_calls',
       channelName: 'Test calls',
@@ -126,6 +146,7 @@ const gatewayMock = gateway as unknown as {
   endDeliveryCall: jest.Mock;
   fallbackDeliveryCall: jest.Mock;
   getDeliveryCall: jest.Mock;
+  getActiveDeliveryCall: jest.Mock;
   ackDeliveryCallRinging: jest.Mock;
 };
 
@@ -200,5 +221,46 @@ describe('shared call controller', () => {
     expect(joinVoip).not.toHaveBeenCalled();
     expect(gatewayMock.endDeliveryCall).toHaveBeenCalledWith('c1', 'cancelled');
     expect(useCallStore.getState().phase).toBe('ended');
+  });
+
+  it('adopts a stale ringing call on conflict and re-joins through the server for a token', async () => {
+    // `getActive` returns the tokenless projection, so adopting it must mint a token via join —
+    // joining the projection directly would fail media silently.
+    gatewayMock.initiateDeliveryCall.mockRejectedValue(
+      new GatewayHttpError(409, 'conflict'),
+    );
+    gatewayMock.getActiveDeliveryCall.mockResolvedValue(
+      makeCall({ callId: 'stale', authToken: undefined, status: 'RINGING' }),
+    );
+    gatewayMock.joinDeliveryCall.mockResolvedValue(
+      makeCall({ callId: 'stale', status: 'ACTIVE', authToken: 'fresh' }),
+    );
+    const controller = makeController();
+
+    await controller.start('o1', 'Customer');
+
+    expect(gatewayMock.joinDeliveryCall).toHaveBeenCalledWith('stale');
+    expect(joinVoip).toHaveBeenCalledWith(
+      expect.objectContaining({ callId: 'stale', authToken: 'fresh' }),
+      expect.anything(),
+    );
+    expect(useCallStore.getState().phase).not.toBe('error');
+    // Adopting starts status polling; end the session so no timer outlives the test.
+    await controller.dismiss();
+  });
+
+  it('ends a stale call it cannot adopt so the one-open-call lock is released', async () => {
+    gatewayMock.initiateDeliveryCall.mockRejectedValue(
+      new GatewayHttpError(409, 'conflict'),
+    );
+    gatewayMock.getActiveDeliveryCall.mockResolvedValue(
+      makeCall({ callId: 'stale', status: 'ACTIVE' }),
+    );
+    const controller = makeController();
+
+    await controller.start('o1', 'Customer');
+
+    expect(gatewayMock.endDeliveryCall).toHaveBeenCalledWith('stale', 'stale_session');
+    expect(joinVoip).not.toHaveBeenCalled();
   });
 });

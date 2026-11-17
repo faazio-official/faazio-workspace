@@ -144,8 +144,9 @@ export async function joinVoip(
 
 /**
  * Prefer a paired Bluetooth headset (helmet intercom), else the earpiece. Never the loudspeaker for
- * a phone-style call. Android-only API; iOS has no delivery-partner product and the customer iOS
- * calling mirror is not native-linked yet.
+ * a phone-style call. The 100ms routing helpers are Android-only: on iOS CallKit's audio session
+ * (configured in `VoipCallManager.didActivate`) owns the route, so the app keeps the earpiece and the
+ * headset's hands-free profile without an in-app switch.
  */
 export async function routeBestAudio(): Promise<VoipJoinResult> {
   if (!sdk || Platform.OS !== 'android') {

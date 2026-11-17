@@ -198,15 +198,29 @@ type PendingMessage struct {
 	ID     string
 	UserID string
 	Token  string
-	Title  string
-	Body   string
-	Data   []byte
+	// Platform is the token's registered platform (ios/android/web; "" when unrecorded).
+	Platform string
+	// TokenKind is push (FCM/APNs alert) or voip (PushKit, incoming calls only).
+	TokenKind string
+	Title     string
+	Body      string
+	Data      []byte
 }
 
 // Pending returns up to limit drainable rows that have a registered push token, oldest first:
 // status PENDING plus FAILED rows whose next_attempt_at has passed (retry window). Rows past
 // MaxDeliveryAttempts (next_attempt_at NULL) and rows without a token stay out of the drain.
-func (r *Repo) Pending(ctx context.Context, limit int) ([]PendingMessage, error) {
+//
+// Token selection: a user may hold a `push` token and a `voip` token at once (migration 0105), so
+// the lateral join picks exactly one per row. An `incoming_call` prefers the VoIP token — only a
+// PushKit token can make CallKit ring — and falls back to the push token on a device that has none
+// (Android). Every other kind only ever uses the push token: an alert cannot be delivered to a
+// VoIP-scoped token.
+//
+// `preferVoIP` is false when no APNs transport is configured. A PushKit token is not an FCM
+// registration token, so routing it to FCM can only fail; selecting the push token instead means an
+// iOS device still gets the background wake-up even though it cannot ring.
+func (r *Repo) Pending(ctx context.Context, limit int, preferVoIP bool) ([]PendingMessage, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("notifications: database not configured")
 	}
@@ -214,13 +228,25 @@ func (r *Repo) Pending(ctx context.Context, limit int) ([]PendingMessage, error)
 		limit = 100
 	}
 	rows, err := r.pool.Query(ctx, `
-		select o.id, o.user_id, t.token, o.title, o.body, o.data
+		select o.id, o.user_id, t.token, coalesce(t.platform,''), t.token_kind, o.title, o.body, o.data
 		  from notifications.outbox o
-		  join notifications.push_tokens t on t.user_id = o.user_id
+		  join lateral (
+		    select pt.token, pt.platform, pt.token_kind
+		      from notifications.push_tokens pt
+		     where pt.user_id = o.user_id
+		       and (o.kind = 'incoming_call' or pt.token_kind = 'push')
+		     order by case
+		                when $2 and o.kind = 'incoming_call' and pt.token_kind = 'voip' then 0
+		                when pt.token_kind = 'push' then 1
+		                else 2
+		              end,
+		              pt.updated_at desc
+		     limit 1
+		  ) t on true
 		 where o.status = 'PENDING'
 		    or (o.status = 'FAILED' and o.next_attempt_at is not null and o.next_attempt_at <= now())
 		 order by o.created_at asc
-		 limit $1`, limit)
+		 limit $1`, limit, preferVoIP)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +257,7 @@ func (r *Repo) Pending(ctx context.Context, limit int) ([]PendingMessage, error)
 			m    PendingMessage
 			data []byte
 		)
-		if err := rows.Scan(&m.ID, &m.UserID, &m.Token, &m.Title, &m.Body, &data); err != nil {
+		if err := rows.Scan(&m.ID, &m.UserID, &m.Token, &m.Platform, &m.TokenKind, &m.Title, &m.Body, &data); err != nil {
 			return nil, err
 		}
 		m.Data = data
@@ -270,11 +296,17 @@ func (r *Repo) MarkFailed(ctx context.Context, id string) error {
 	return err
 }
 
-// ExpireToken marks the outbox row terminal (retry budget exhausted, next_attempt_at null) AND
-// prunes the device's push_tokens row in one transaction. Called when FCM reports a permanently-dead
-// token (UNREGISTERED): retrying against it would waste the whole budget on every future enqueue, and
-// keeping the row would re-attempt it forever. Atomic so a terminal row can never survive without its
-// dead token being pruned (and vice versa).
+// ExpireToken prunes the device's push_tokens row when the provider reports a permanently-dead token
+// (FCM UNREGISTERED / APNs 410 Unregistered). Retrying against it would waste the whole budget on
+// every future enqueue, and keeping the row would re-attempt it forever.
+//
+// A user can hold a second token of a different kind (migration 0105): an iOS device has both a
+// PushKit VoIP token and an FCM token. If one dies while a token that can still carry this message
+// survives, the row goes back to PENDING with no backoff so the next drain delivers it over the
+// surviving transport — only the last usable token dying makes the row terminal. "Usable" is
+// kind-specific: a VoIP token can carry only an `incoming_call`, never an alert (the drain query
+// would otherwise strand the row in PENDING forever, because nothing can select it). Everything
+// happens in one transaction so a terminal row can never survive without its dead token pruned.
 func (r *Repo) ExpireToken(ctx context.Context, id, token string) error {
 	if r.pool == nil {
 		return fmt.Errorf("notifications: database not configured")
@@ -284,6 +316,37 @@ func (r *Repo) ExpireToken(ctx context.Context, id, token string) error {
 		return err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	var userID, kind string
+	if err := tx.QueryRow(ctx,
+		`select user_id, kind from notifications.outbox where id = $1`, id).Scan(&userID, &kind); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `delete from notifications.push_tokens where token = $1`, token); err != nil {
+		return err
+	}
+	// A call may go out over either token kind; an alert only over a push token.
+	usable := `pt.token_kind = 'push'`
+	if kind == "incoming_call" {
+		usable = `pt.token_kind in ('push','voip')`
+	}
+	var remaining int
+	if err := tx.QueryRow(ctx,
+		`select count(*) from notifications.push_tokens pt where pt.user_id = $1 and `+usable,
+		userID).Scan(&remaining); err != nil {
+		return err
+	}
+	if remaining > 0 {
+		// Another usable token for this user survives; let the next drain try it immediately.
+		if _, err := tx.Exec(ctx, `
+			update notifications.outbox
+			   set status = 'PENDING',
+			       next_attempt_at = null,
+			       updated_at = now()
+			 where id = $1`, id); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
+	}
 	if _, err := tx.Exec(ctx, `
 		update notifications.outbox
 		   set status = 'FAILED',
@@ -293,14 +356,12 @@ func (r *Repo) ExpireToken(ctx context.Context, id, token string) error {
 		 where id = $1`, id, MaxDeliveryAttempts); err != nil {
 		return err
 	}
-	if _, err := tx.Exec(ctx, `delete from notifications.push_tokens where token = $1`, token); err != nil {
-		return err
-	}
 	return tx.Commit(ctx)
 }
 
-// Register upserts a device push token for the user.
-func (r *Repo) Register(ctx context.Context, userID, token, platform string) error {
+// Register upserts a device push token for the user. kind is push (FCM/APNs alert) or voip
+// (PushKit); the two coexist per user, and each is replaced independently on refresh.
+func (r *Repo) Register(ctx context.Context, userID, token, platform, kind string) error {
 	if r.pool == nil {
 		return fmt.Errorf("notifications: database not configured")
 	}
@@ -308,18 +369,24 @@ func (r *Repo) Register(ctx context.Context, userID, token, platform string) err
 	if platform == "ios" || platform == "android" || platform == "web" {
 		plat = platform
 	}
+	if kind != TokenKindVoIP {
+		kind = TokenKindPush
+	}
 	// A device can only belong to one portal login at a time: drop any previous owner of this
 	// token before the per-user upsert (shared phones must not receive the old seller's orders).
+	// Only the token value is evicted, so the same user's other token kind is untouched (the FCM and
+	// the PushKit token are different credentials and coexist for one device).
 	if _, err := r.pool.Exec(ctx,
-		`delete from notifications.push_tokens where token = $1 and user_id <> $2`, token, userID); err != nil {
+		`delete from notifications.push_tokens where token = $1 and user_id <> $2`,
+		token, userID); err != nil {
 		return err
 	}
 	_, err := r.pool.Exec(ctx, `
-		insert into notifications.push_tokens (user_id, token, platform)
-		values ($1,$2,$3)
-		on conflict (user_id) do update
+		insert into notifications.push_tokens (user_id, token, platform, token_kind)
+		values ($1,$2,$3,$4)
+		on conflict (user_id, token_kind) do update
 		  set token = excluded.token, platform = excluded.platform, updated_at = now()`,
-		userID, token, plat)
+		userID, token, plat, kind)
 	return err
 }
 

@@ -185,9 +185,12 @@ func TestWorkerDisabledWithEmptyFCM(t *testing.T) {
 	if err != nil || s != nil {
 		t.Fatalf("empty FCM config must be a nil sender, got %v, %v", s, err)
 	}
-	w := NewWorker(nil, s, nil)
+	if router := NewMultiSender(s, nil); router != nil {
+		t.Fatalf("no transport must build a nil router, got %v", router)
+	}
+	w := NewWorker(nil, NewMultiSender(s, nil), nil)
 	if w.Enabled() {
-		t.Fatal("a nil FCM sender must leave the worker disabled")
+		t.Fatal("a nil router must leave the worker disabled")
 	}
 	if err := w.DrainOnce(context.Background()); err != ErrNoSender {
 		t.Fatalf("DrainOnce without a sender must return ErrNoSender, got %v", err)
@@ -204,5 +207,73 @@ func TestFCMStringData(t *testing.T) {
 	}
 	if fcmStringData([]byte("not json")) != nil {
 		t.Fatal("malformed data must be dropped silently")
+	}
+}
+
+// Regression: an incoming-call push MUST be data-only and high priority. FCM only runs the app's
+// Android background handler for a data-only message; a `notification` block would deliver it to
+// the tray and a killed/swiped app would never ring — the whole point of the call push.
+func TestFCMSenderCallPushIsDataOnlyHighPriority(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	s := &FCMSender{projectID: "project-1", endpoint: srv.URL, httpClient: srv.Client(),
+		tokenSrc: staticTokenSource{tok: &oauth2.Token{AccessToken: "t"}}}
+	payload, _ := json.Marshal(map[string]string{
+		"type":     "incoming_call",
+		"callId":   "call-1",
+		"orderId":  "o1",
+		"peerRole": "CUSTOMER",
+	})
+	if err := s.Send(context.Background(), "device-token", "Incoming call", "Tap to answer", payload); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	msg, _ := got["message"].(map[string]any)
+	if _, has := msg["notification"]; has {
+		t.Fatalf("a call push must be data-only so the background handler runs: %v", msg)
+	}
+	android, ok := msg["android"].(map[string]any)
+	if !ok || android["priority"] != "high" || android["ttl"] != callPushTTL {
+		t.Fatalf("call push needs android priority=high + ttl: %v", msg["android"])
+	}
+	apns, ok := msg["apns"].(map[string]any)
+	if !ok {
+		t.Fatalf("call push needs an apns block: %v", msg)
+	}
+	headers, _ := apns["headers"].(map[string]any)
+	if headers["apns-priority"] != "5" || headers["apns-push-type"] != "background" {
+		t.Fatalf("apns headers must be a legal background push: %v", headers)
+	}
+	data, _ := msg["data"].(map[string]any)
+	if data["type"] != "incoming_call" || data["callId"] != "call-1" {
+		t.Fatalf("call identity must survive the string flattening: %v", data)
+	}
+}
+
+// Every non-call push keeps its visible notification block.
+func TestFCMSenderNonCallPushKeepsNotification(t *testing.T) {
+	var got map[string]any
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_ = json.NewDecoder(r.Body).Decode(&got)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	s := &FCMSender{projectID: "project-1", endpoint: srv.URL, httpClient: srv.Client(),
+		tokenSrc: staticTokenSource{tok: &oauth2.Token{AccessToken: "t"}}}
+	payload, _ := json.Marshal(map[string]string{"type": "order_offer", "orderId": "o1"})
+	if err := s.Send(context.Background(), "t", "New order", "Tap to view", payload); err != nil {
+		t.Fatalf("Send: %v", err)
+	}
+	msg, _ := got["message"].(map[string]any)
+	if _, has := msg["notification"]; !has {
+		t.Fatal("a non-call push must keep its notification block")
+	}
+	if _, has := msg["android"]; has {
+		t.Fatalf("a non-call push must not be forced to high priority: %v", msg["android"])
 	}
 }

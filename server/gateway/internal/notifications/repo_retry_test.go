@@ -29,7 +29,7 @@ func TestOutboxRetryBackoffAndTerminal(t *testing.T) {
 		t.Fatalf("seed checkout.user: %v", err)
 	}
 
-	if err := repo.Register(ctx, userID, token, "android"); err != nil {
+	if err := repo.Register(ctx, userID, token, "android", TokenKindPush); err != nil {
 		t.Fatalf("Register: %v", err)
 	}
 	defer func() {
@@ -42,7 +42,7 @@ func TestOutboxRetryBackoffAndTerminal(t *testing.T) {
 		t.Fatalf("Enqueue: %v", err)
 	}
 
-	rows, err := repo.Pending(ctx, 10)
+	rows, err := repo.Pending(ctx, 10, true)
 	if err != nil {
 		t.Fatalf("Pending: %v", err)
 	}
@@ -70,7 +70,7 @@ func TestOutboxRetryBackoffAndTerminal(t *testing.T) {
 		`update notifications.outbox set next_attempt_at = now() - interval '1 second' where id = $1`, id); err != nil {
 		t.Fatalf("open retry window: %v", err)
 	}
-	again, err := repo.Pending(ctx, 10)
+	again, err := repo.Pending(ctx, 10, true)
 	if err != nil {
 		t.Fatalf("Pending after window: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestOutboxRetryBackoffAndTerminal(t *testing.T) {
 	if terminal != nil {
 		t.Fatalf("expected terminal row (next_attempt_at null), got %v", terminal)
 	}
-	left, err := repo.Pending(ctx, 10)
+	left, err := repo.Pending(ctx, 10, true)
 	if err != nil {
 		t.Fatalf("Pending after budget: %v", err)
 	}

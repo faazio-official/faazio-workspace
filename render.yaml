@@ -84,6 +84,42 @@ services:
         value: https://api.100ms.live
       - key: HMS_RINGING_ACK_SECONDS
         value: "3"
+      # PSTN bridge (optional). PSTN_PROVIDER=exotel plus the EXOTEL_* credentials turns the masked
+      # landline from a dial-only handoff into a server-placed bridge call. PSTN_WEBHOOK_TOKEN gates
+      # the provider's status callback; without any of these the flow stays a client-side dial.
+      - key: PSTN_PROVIDER
+        sync: false
+      - key: EXOTEL_ACCOUNT_SID
+        sync: false
+      - key: EXOTEL_API_KEY
+        sync: false
+      - key: EXOTEL_API_TOKEN
+        sync: false
+      - key: EXOTEL_SUBDOMAIN
+        sync: false
+      - key: PSTN_WEBHOOK_URL
+        sync: false
+      - key: PSTN_WEBHOOK_TOKEN
+        sync: false
+      - key: PSTN_TIME_LIMIT_SECONDS
+        value: "900"
+      - key: PSTN_TIMEOUT_SECONDS
+        value: "30"
+      # APNs PushKit (iOS CallKit ring). A direct APNs connection is the only way to deliver
+      # `apns-push-type: voip`; FCM cannot, so without these an iPhone gets no CallKit ring (the
+      # outbox prefers the FCM token when no APNs transport exists). APNS_PRIVATE_KEY_PEM is the
+      # .p8 auth key (secret → dashboard only, sync:false). APNS_TOPIC is the customer bundle id;
+      # APNS_ENVIRONMENT is production or sandbox (must match the provisioning profile).
+      - key: APNS_KEY_ID
+        sync: false
+      - key: APNS_TEAM_ID
+        sync: false
+      - key: APNS_PRIVATE_KEY_PEM
+        sync: false
+      - key: APNS_TOPIC
+        value: com.faazio.customer
+      - key: APNS_ENVIRONMENT
+        value: production
       # Routes API (delivery dispatch road time). Server-only key; restrict it to Routes API.
       # Unset is safe: dispatch falls back to a Haversine/urban-speed estimate.
       - key: GOOGLE_ROUTES_API_KEY

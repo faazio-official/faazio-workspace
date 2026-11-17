@@ -333,6 +333,20 @@ async function verifyOtpForScope(
 }
 
 /**
+ * Abandon the pending primary OTP round-trip (the user backed out of the code screen). Drops the
+ * confirmation and the auto-verification watch so a late auto-retrieval for the abandoned number
+ * can never leak into the next send, and signs out a session that native auto-retrieval created
+ * but the UI never consumed. The next number then starts from a clean Firebase session.
+ */
+export function cancelPrimaryOtp(): void {
+  const current = pending;
+  if (!current || current.scope !== 'primary') return;
+  pending = null;
+  clearAutoWatch();
+  if (current.autoSession) void signOutRemote();
+}
+
+/**
  * Send (or resend) a 6-digit SMS OTP through the native Firebase SDK. Android may verify
  * automatically without the user typing; iOS falls back to reCAPTCHA without APNs.
  *

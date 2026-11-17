@@ -59,31 +59,46 @@ func main() {
 	logPaymentStartup(cfg)
 
 	// Notification outbox drain worker. The worker is always constructed so the admin manual trigger
-	// (POST /notifications/drain) works; the background loop only runs when a sender is configured,
-	// so PENDING rows are never marked SENT without a real delivery attempt. The embedded FCM HTTP
-	// v1 sender (FCM_SERVICE_ACCOUNT_JSON + FCM_PROJECT_ID) is the only transport. When it is unset
-	// push delivery is disabled and an admin drain returns 503 push_unconfigured without touching
-	// PENDING rows (their in-app inbox read is unaffected).
+	// (POST /notifications/drain) works; the background loop only runs when at least one transport is
+	// configured, so PENDING rows are never marked SENT without a real delivery attempt. Two
+	// transports feed one router: the embedded FCM HTTP v1 sender (alerts + Android/background) and a
+	// direct APNs sender (PushKit VoIP only — FCM cannot carry `apns-push-type: voip`). When both are
+	// unset push delivery is disabled and an admin drain returns 503 push_unconfigured without
+	// touching PENDING rows (their in-app inbox read is unaffected).
 	workerCtx, stopWorkers := context.WithCancel(context.Background())
 	defer stopWorkers()
-	var pushSender notifications.Sender
+	var fcmSender notifications.Sender
 	if cfg.FCMProjectID != "" && cfg.FCMServiceAccount != "" {
-		fcmSender, fcmErr := notifications.NewFCMSender(cfg.FCMProjectID, []byte(cfg.FCMServiceAccount))
+		sender, fcmErr := notifications.NewFCMSender(cfg.FCMProjectID, []byte(cfg.FCMServiceAccount))
 		if fcmErr != nil {
 			log.Printf("notifications: fcm sender disabled (%v)", fcmErr)
 		} else {
-			pushSender = fcmSender
+			fcmSender = sender
 			log.Printf("notifications: using FCM HTTP v1 sender (project=%s)", cfg.FCMProjectID)
 		}
 	}
-	notifyWorker := notifications.NewWorker(notifications.New(pool, valkey), pushSender, nil)
-	if pushSender != nil && pool != nil {
+	var apnsSender notifications.Sender
+	if cfg.APNsKeyID != "" && cfg.APNsTeamID != "" && cfg.APNsPrivateKeyPEM != "" {
+		sender, apnsErr := notifications.NewAPNSender(
+			cfg.APNsKeyID, cfg.APNsTeamID, []byte(cfg.APNsPrivateKeyPEM), cfg.APNsTopic, cfg.APNsEnvironment)
+		if apnsErr != nil {
+			log.Printf("notifications: apns sender disabled (%v)", apnsErr)
+		} else {
+			apnsSender = sender
+			log.Printf("notifications: using APNs VoIP sender (topic=%s env=%s)", cfg.APNsTopic, cfg.APNsEnvironment)
+		}
+	}
+	pushRouter := notifications.NewMultiSender(fcmSender, apnsSender)
+	notifyWorker := notifications.NewWorker(notifications.New(pool, valkey), pushRouter, nil)
+	if pushRouter != nil && pool != nil {
 		go notifyWorker.Run(workerCtx)
 	}
-	// FCM-only transport: a missing/broken service-account config must be loud at boot, not surface
-	// as a silent no-push outage. Greppable key=value, matching the portal_auth= line above.
-	if pushSender == nil && pool != nil {
-		log.Print("notifications_push=disabled reason=fcm_credentials_unset hint=set FCM_PROJECT_ID + FCM_SERVICE_ACCOUNT_JSON (docs/RUNBOOKS/FIREBASE_AUTH.md)")
+	// A missing/broken transport config must be loud at boot, not surface as a silent no-push outage.
+	// Greppable key=value, matching the portal_auth= line above.
+	if pushRouter == nil && pool != nil {
+		log.Print("notifications_push=disabled reason=no_push_transport hint=set FCM_PROJECT_ID + FCM_SERVICE_ACCOUNT_JSON and/or APNS_KEY_ID + APNS_TEAM_ID + APNS_PRIVATE_KEY_PEM (docs/RUNBOOKS/FIREBASE_AUTH.md)")
+	} else if pushRouter != nil {
+		log.Printf("notifications_push=%s", pushTransports(fcmSender, apnsSender))
 	}
 
 	// Media plane: one R2 signer shared by the registry, the GC sweeper and the CDN purge worker.
@@ -131,8 +146,11 @@ func main() {
 		Cache:   valkey,
 		Mongo:   mongoDB,
 		Drainer: notifyWorker,
-		Signer:  r2Signer,
-		Sweeper: mediaGC,
+		// Same worker: a call push nudges it so the ring is delivered in milliseconds, not on the
+		// next 30s tick (which would outlive the 45s ring TTL).
+		PushNudger: notifyWorker,
+		Signer:     r2Signer,
+		Sweeper:    mediaGC,
 		// Manual SUPER_ADMIN trigger parity with POST /media/gc (test/ops without waiting for midnight).
 		AuditPurger: auditPurger,
 		// Delivery offer expiry: releases 45 s accept windows that no rider acted on.
@@ -165,6 +183,18 @@ func main() {
 		log.Printf("shutdown: %v", err)
 	}
 	log.Print("gateway stopped")
+}
+
+// pushTransports names the live push transports for the greppable boot line (fcm, apns, apns+fcm).
+func pushTransports(fcm, apns notifications.Sender) string {
+	switch {
+	case fcm != nil && apns != nil:
+		return "apns+fcm"
+	case apns != nil:
+		return "apns"
+	default:
+		return "fcm"
+	}
 }
 
 // logPaymentStartup reports whether the customer Razorpay rail is configured. Mirrors the

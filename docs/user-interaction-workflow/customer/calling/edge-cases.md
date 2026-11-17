@@ -5,7 +5,7 @@
 
 | Case | Current behavior | Status |
 |---|---|---|
-| Double tap / two devices | The button disables for 3 s (`Starting call…`) and the controller enforces the same window; shared controller ignores late responses for a non-active call id; the gateway's one-open-call constraint is the final guard | Implemented (server customer path pending) |
+| Double tap / two devices | The button disables for 3 s (`Starting call…`) and the controller enforces the same window; shared controller ignores late responses for a non-active call id; the gateway's one-open-call-per-rider index is the final guard, and a `409 conflict` makes the client adopt the existing open call instead of erroring | Implemented |
 | End / Done / back while `connecting` | The session epoch cancels the in-flight initiate; a row created after the surface closed is rejected (`cancelled`) instead of joining a call with no UI | Implemented |
 | Double Accept (native + in-app) | In-flight guard + already-active early return; a duplicated join cannot tear down a connected call | Implemented |
 | Decline during Accept | `decline` bumps the session epoch; an accept still awaiting `/join` ends the row (`cancelled`) instead of joining media after the user declined | Implemented |
@@ -14,7 +14,7 @@
 | Wi-Fi → cellular handoff | Reconnecting banner + one-tap **Switch to phone call**; no automatic switch/timeout | Partial |
 | Call not answered | Server `fallbackAvailable` drives the PSTN prompt while ringing | Implemented |
 | End/reject network failure | Lifecycle mutations retry once; local session clears; the gateway sweeper bounds any row that never lands | Implemented (best-effort) |
-| App swiped away mid-call | `endCallsWhenReactNativeStops` ends native ringing; the sweeper closes stale rows. The customer app has no startup recovery (`GET /delivery/calls/active` is rider-scoped), so a stale customer row is bounded by the sweeper rather than ended by the client | Partial — bounded delay |
+| App swiped away mid-call | `endCallsWhenReactNativeStops` ends native ringing; the sweeper closes stale rows. The customer resumes with the order-scoped `GET /orders/{orderId}/delivery-call`, so a row that outlived the process is adopted rather than left to the sweeper | Implemented (startup recovery is opt-in per product) |
 | Re-delivered push after decline/end | The controller remembers the declined call id and ignores a duplicate push for a call already `ended`/`error` | Implemented |
 | Late PSTN switch after end | `switchToPstn` captures the session epoch + call id; a fallback response that lands after end/dismiss is discarded and never reopens the dialer | Implemented |
 | PSTN dialer cannot open | The controller ends the row (`start_failed`) and stops polling instead of showing an error over an open session | Implemented |
@@ -23,19 +23,18 @@
 | Already on a GSM call | No telephony pre-check; CallKeep's managed-call check prevents a second app call | Gap |
 | Proximity sensor on earpiece | No wake-lock/proximity handling | Gap |
 | Android 14+ full-screen intent | Permission declared; special-access grant is not requested/checked | Gap |
-| iOS incoming call | `voip`/`audio` background modes declared, but PushKit/CallKit pods are not native-linked | Gap |
+| iOS incoming call | Native PushKit + CallKit (`VoipCallManager.swift`, one `CXProvider`) reports the APNs `voip` push before JS boots; `VoipCallFailed` falls back to the in-app surface | Implemented (device-unverified) |
 | PSTN controls | Mute/speaker/Bluetooth hidden on `PSTN_BRIDGING` (no-ops otherwise) | Implemented |
 | Switch to PSTN fails | Live VOIP leg kept; recoverable `notice` instead of a terminal error | Implemented |
 | Raw phone exposure | Only the masked virtual number is returned; the rider's raw number never reaches the customer client | Implemented |
 
 ## Known gaps summary
 
-1. Gateway customer-initiated call endpoint (order ownership + `initiated_by='CUSTOMER'`) and a
-   customer-join token path.
-2. `incoming_call` push sender for the rider.
-3. Exotel/Edesy Connect + status webhook for PSTN.
-4. GSM-busy pre-check, proximity wake-lock, provider-answer timer.
-5. iOS PushKit + CallKit native bridge.
+1. Exotel/Edesy Connect credentials + a public `PSTN_WEBHOOK_URL` to make the wired bridge live;
+   until then the masked landline stays a dial-only handoff.
+2. GSM-busy pre-check, proximity wake-lock, provider-answer timer.
+3. Verify the iOS PushKit + CallKit bridge on a macOS build (the code exists; `pod install` and a
+   device build with the PushKit entitlement are what is missing — FCM cannot deliver a VoIP push).
 
 ## Linked docs
 
