@@ -1,10 +1,16 @@
 import { createFileRoute } from "@tanstack/react-router";
 import {
+  HiOutlineBell,
   HiOutlineBuildingStorefront,
   HiOutlineCheckCircle,
-  HiOutlineClock,
+  HiOutlineCog6Tooth,
+  HiOutlineCube,
   HiOutlineDocumentText,
-  HiOutlineShieldCheck,
+  HiOutlineInbox,
+  HiOutlineLifebuoy,
+  HiOutlineReceiptPercent,
+  HiOutlineSparkles,
+  HiOutlineWallet,
 } from "react-icons/hi2";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
@@ -16,14 +22,15 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 import { SELLER_ONBOARDING_STATUS, SELLER_TOUR_STEPS } from "@/lib/tutorials/seller-onboarding";
+import { SELLER_JOURNEY_CHAPTERS } from "@/lib/tutorials/seller-journey";
 import { SITE_URL } from "@/lib/site";
 import { seoHead, type JsonLdNode } from "@/lib/seo";
 
-const title = "Seller onboarding — how to sell with Faazio | Karaikal";
+const title = "How to sell on Faazio — the full seller journey | Karaikal";
 const description =
-  "A step-by-step guide to selling on Faazio: open Sell with us in the app, add your business and shops, accept the partner terms, verify your phone and send the application for review.";
+  "Every step of selling on Faazio, animated: apply, set up your store, add and maintain products, run offers and add-ons, fulfil orders with the pickup QR, then manage notifications, payouts and settings.";
 const keywords =
-  "sell with Faazio, Faazio seller onboarding, become a Faazio partner, sell online Karaikal, Faazio seller application, partner with Faazio";
+  "sell with Faazio, Faazio seller tutorial, Faazio seller portal, seller orders pickup QR, seller payouts, become a Faazio partner, sell online Karaikal";
 
 const howToNode: JsonLdNode = {
   "@type": "HowTo",
@@ -40,6 +47,20 @@ const howToNode: JsonLdNode = {
   })),
 };
 
+const journeyNode: JsonLdNode = {
+  "@type": "ItemList",
+  "@id": `${SITE_URL}/tutorial#seller-journey`,
+  name: "The Faazio seller journey",
+  description:
+    "The chapters of the seller walkthrough, from the application through store setup, catalog, orders, notifications, payouts and settings.",
+  itemListElement: SELLER_JOURNEY_CHAPTERS.map((chapter, index) => ({
+    "@type": "ListItem",
+    position: index + 1,
+    name: chapter.title,
+    description: chapter.subtitle,
+  })),
+};
+
 const requiredItems = [
   "Business name, owner name and PAN — a GSTIN is optional",
   "Business address and a contact phone and email",
@@ -49,20 +70,19 @@ const requiredItems = [
   "A phone that can receive the one-time code",
 ];
 
-const afterApply = [
-  {
-    title: "Documents are reviewed",
-    copy: "A district admin checks your KYC documents. The application stays Pending review until they are verified.",
-  },
-  {
-    title: "Your seller login is created",
-    copy: "On approval, Faazio provisions your seller portal login. You create your store from the portal.",
-  },
-  {
-    title: "Products and orders follow",
-    copy: "Add products in the portal; each one starts as Pending review and goes live once approved. Orders and payouts follow.",
-  },
-];
+const chapterIcons = [
+  HiOutlineBuildingStorefront,
+  HiOutlineCube,
+  HiOutlineReceiptPercent,
+  HiOutlineInbox,
+  HiOutlineBell,
+  HiOutlineWallet,
+  HiOutlineCog6Tooth,
+  HiOutlineSparkles,
+  HiOutlineLifebuoy,
+] as const;
+
+const afterApply = SELLER_JOURNEY_CHAPTERS.slice(1);
 
 const questions: [string, string][] = [
   [
@@ -85,11 +105,22 @@ const questions: [string, string][] = [
     "What happens after approval?",
     "Faazio provisions your seller portal login. You create your store, add products and they go live after review.",
   ],
+  [
+    "Does this cover the whole seller portal?",
+    "Yes. Onboarding is chapter 1; the other nine chapters walk through store setup, products, offers and add-ons, orders, notifications, payouts, settings and the remaining console surfaces. The walkthrough is an illustration — the real work happens in the Faazio app and the seller portal.",
+  ],
 ];
 
 export const Route = createFileRoute("/tutorial")({
   component: Tutorial,
-  head: () => seoHead({ path: "/tutorial", title, description, keywords, extraNodes: [howToNode] }),
+  head: () =>
+    seoHead({
+      path: "/tutorial",
+      title,
+      description,
+      keywords,
+      extraNodes: [howToNode, journeyNode],
+    }),
 });
 
 function Tutorial() {
@@ -102,8 +133,8 @@ function Tutorial() {
             <p className="eyebrow">Tutorials</p>
             <h1 id="tutorial-title">How selling on Faazio works.</h1>
             <p className="page-lead">
-              A step-by-step look at the seller application inside the Faazio app — from Sell with
-              us to Pending review.
+              Every seller action, animated — from Sell with us in the app to products, offers,
+              orders, payouts and settings in the seller portal.
             </p>
             <p className="hero-note">
               <span className="open-dot" aria-hidden="true" />
@@ -116,12 +147,14 @@ function Tutorial() {
           <div className="page-width">
             <div className="section-head">
               <div className="section-head-copy">
-                <p className="eyebrow">Seller onboarding</p>
-                <h2 id="seller-tour-title" className="headline" style={{ marginTop: 12 }}>
-                  From Sell with us to your first order.
+                <h2 id="seller-tour-title" className="headline">
+                  The walkthrough.
                 </h2>
               </div>
-              <p>Five steps, in the same order the app asks for them.</p>
+              <p>
+                One row per chapter, in the order you meet them. Open a row to watch it once, or
+                step through it yourself.
+              </p>
             </div>
             <SellerTour />
           </div>
@@ -144,20 +177,22 @@ function Tutorial() {
             </div>
 
             <div>
-              <h2 className="headline">After you send it.</h2>
+              <h2 className="headline">After approval.</h2>
+              <p style={{ marginTop: 10 }}>
+                A district admin checks your KYC documents first. Once verified, Faazio creates your
+                portal login and these chapters open up.
+              </p>
               <ol className="steps" style={{ marginTop: 20 }}>
-                {afterApply.map((step, index) => {
-                  const Icon = [HiOutlineShieldCheck, HiOutlineBuildingStorefront, HiOutlineClock][
-                    index
-                  ]!;
+                {afterApply.map((chapter, index) => {
+                  const Icon = chapterIcons[index % chapterIcons.length]!;
                   return (
-                    <li key={step.title} className="step">
+                    <li key={chapter.id} className="step">
                       <span className="step-number" aria-hidden="true">
                         <Icon width={13} height={13} />
                       </span>
                       <div className="step-body">
-                        <h3>{step.title}</h3>
-                        <p>{step.copy}</p>
+                        <h3>{chapter.title}</h3>
+                        <p>{chapter.subtitle}</p>
                       </div>
                     </li>
                   );

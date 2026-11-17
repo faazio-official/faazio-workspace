@@ -35,6 +35,12 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Web portal | Settings (profile, bank, notifications, sub-users, security) | portal `/seller/settings` | [web-portal/settings.md](./web-portal/settings.md) |
 | Web portal | Team invite acceptance | portal `/accept-invite?token=…` | [web-portal/accept-invite.md](./web-portal/accept-invite.md) |
 | Web portal | Super admin categories + home rail | `/admin/super/categories` | [web-portal/super-admin-categories.md](./web-portal/super-admin-categories.md) |
+| Tutorial | Full seller-journey walkthrough (10 chapters, every seller action) | landing page `/tutorial` | [tutorial.md](./tutorial.md) |
+
+> The landing page `/tutorial` covers the full journey, not just onboarding: chapter 1 is the
+> application, then store setup, catalog, offers/add-ons, orders, notifications, payouts, settings
+> and the rest of the console. See [`tutorial.md`](./tutorial.md) for the step → action → endpoint
+> map.
 
 ## Cross-cutting rules
 

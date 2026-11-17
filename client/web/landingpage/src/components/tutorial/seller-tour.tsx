@@ -1,54 +1,103 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useReducedMotion } from "motion/react";
-import { SELLER_TOUR_STEPS } from "@/lib/tutorials/seller-onboarding";
-import { TourControls } from "./tour-controls";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import { SELLER_JOURNEY_CHAPTERS, type SellerJourneyChapter } from "@/lib/tutorials/seller-journey";
 import { TourStage } from "./tour-stage";
 
 const TRAVEL_MS = 520;
 const PRESS_MS = 140;
 
 /**
- * User-driven step machine. Watch plays the walkthrough once and stops; it
- * never loops (UI_DESIGN_SYSTEM §3 Pass 9 / §10). Playback also stops as soon
- * as the section leaves the viewport or the tab is hidden.
+ * Seller journey as a list of FAQ-style rows, one per chapter. Opening a row plays that chapter
+ * once, top to bottom, then stops on its last screen with Replay — it never loops
+ * (UI_DESIGN_SYSTEM §3 Pass 9 / §10). Only the open chapter animates, so a long page costs one
+ * player at a time. The stage is decorative; the step list under it is the accessible content.
  */
 export function SellerTour() {
-  const reduced = useReducedMotion() ?? false;
+  const [open, setOpen] = useState<string>(SELLER_JOURNEY_CHAPTERS[0]!.id);
+
+  return (
+    <Accordion
+      type="single"
+      collapsible
+      value={open}
+      onValueChange={setOpen}
+      className="journey-list"
+    >
+      {SELLER_JOURNEY_CHAPTERS.map((chapter, index) => (
+        <AccordionItem key={chapter.id} value={chapter.id} className="journey-item">
+          <AccordionTrigger className="journey-trigger py-5 hover:no-underline">
+            <span className="journey-trigger-inner">
+              <span className="journey-num" aria-hidden="true">
+                {String(index + 1).padStart(2, "0")}
+              </span>
+              <span className="journey-trigger-text">
+                <span className="journey-trigger-title">{chapter.title}</span>
+                <span className="journey-trigger-sub">{chapter.subtitle}</span>
+              </span>
+              <span className="journey-count">
+                {chapter.steps.length} {chapter.steps.length === 1 ? "step" : "steps"}
+              </span>
+            </span>
+          </AccordionTrigger>
+          <AccordionContent className="pb-7">
+            <ChapterPlayer chapter={chapter} open={open === chapter.id} />
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
+  );
+}
+
+function ChapterPlayer({ chapter, open }: { chapter: SellerJourneyChapter; open: boolean }) {
+  const prefersReduced = useReducedMotion() ?? false;
+  // useReducedMotion is false during SSR and true on the client, so branching on it directly
+  // renders different markup on hydrate. Only honour it after mount.
+  const [mounted, setMounted] = useState(false);
+  const reduced = mounted && prefersReduced;
+  const steps = chapter.steps;
+  const total = steps.length;
   const [index, setIndex] = useState(0);
-  const [playing, setPlaying] = useState(false);
+  const [finished, setFinished] = useState(false);
   const [pressed, setPressed] = useState(false);
   const [rippleKey, setRippleKey] = useState(0);
-  const [announcement, setAnnouncement] = useState("");
+  const [visible, setVisible] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
-  const total = SELLER_TOUR_STEPS.length;
-  const step = SELLER_TOUR_STEPS[index] ?? SELLER_TOUR_STEPS[0]!;
+  const step = steps[index] ?? steps[0]!;
 
-  const goTo = useCallback(
-    (next: number, announce: boolean) => {
-      const clamped = Math.max(0, Math.min(total - 1, next));
-      setIndex(clamped);
-      if (announce) {
-        const target = SELLER_TOUR_STEPS[clamped]!;
-        setAnnouncement(`Step ${clamped + 1} of ${total}: ${target.title}`);
-      }
-    },
-    [total],
-  );
-
-  const select = useCallback(
-    (next: number) => {
-      setPlaying(false);
-      goTo(next, true);
-    },
-    [goTo],
-  );
+  useEffect(() => setMounted(true), []);
 
   useEffect(() => {
-    if (reduced) {
-      setPressed(false);
+    if (!open) {
+      setVisible(false);
       return;
     }
+    const root = rootRef.current;
+    if (!root || typeof IntersectionObserver === "undefined") {
+      setVisible(true);
+      return;
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0]?.isIntersecting) {
+          setVisible(true);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.35 },
+    );
+    observer.observe(root);
+    return () => observer.disconnect();
+  }, [open]);
+
+  useEffect(() => {
+    if (reduced || !visible || finished) return;
     setPressed(false);
     const press = window.setTimeout(() => setPressed(true), TRAVEL_MS);
     const release = window.setTimeout(() => {
@@ -59,108 +108,51 @@ export function SellerTour() {
       window.clearTimeout(press);
       window.clearTimeout(release);
     };
-  }, [index, reduced]);
+  }, [reduced, visible, finished, index]);
 
   useEffect(() => {
-    if (!playing) return;
-    if (index >= total - 1) {
-      setPlaying(false);
-      return;
-    }
+    if (reduced || !visible || finished) return;
     const timer = window.setTimeout(
-      () => goTo(index + 1, false),
+      () => {
+        if (index >= total - 1) setFinished(true);
+        else setIndex((value) => value + 1);
+      },
       TRAVEL_MS + PRESS_MS + step.holdMs,
     );
     return () => window.clearTimeout(timer);
-  }, [playing, index, total, step.holdMs, goTo]);
+  }, [reduced, visible, finished, index, step.holdMs, total]);
 
-  useEffect(() => {
-    const root = rootRef.current;
-    if (!root) return;
-
-    const observer =
-      typeof IntersectionObserver === "undefined"
-        ? null
-        : new IntersectionObserver(
-            (entries) => {
-              const entry = entries[0];
-              if (entry && !entry.isIntersecting) setPlaying(false);
-            },
-            { threshold: 0.25 },
-          );
-    observer?.observe(root);
-
-    const onVisibility = () => {
-      if (document.hidden) setPlaying(false);
-    };
-    document.addEventListener("visibilitychange", onVisibility);
-
-    return () => {
-      observer?.disconnect();
-      document.removeEventListener("visibilitychange", onVisibility);
-    };
+  const restart = useCallback(() => {
+    setIndex(0);
+    setFinished(false);
+    setVisible(true);
+    setPressed(false);
+    setRippleKey(0);
   }, []);
 
-  const togglePlay = () => {
-    if (playing) {
-      setPlaying(false);
-      return;
-    }
-    if (index >= total - 1) goTo(0, true);
-    setPlaying(true);
-  };
-
-  const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (event.key === "ArrowRight") {
-      event.preventDefault();
-      select(index + 1);
-    } else if (event.key === "ArrowLeft") {
-      event.preventDefault();
-      select(index - 1);
-    }
-  };
+  const next = useCallback(() => {
+    if (index >= total - 1) restart();
+    else setIndex((value) => value + 1);
+  }, [index, restart, total]);
 
   return (
-    <div className="tour" ref={rootRef} onKeyDown={onKeyDown}>
-      <p className="sr-only" aria-live="polite">
-        {announcement}
+    <div className="journey-panel" ref={rootRef}>
+      <TourStage step={step} pressed={pressed} rippleKey={rippleKey} />
+      <p className="journey-caption" aria-live="polite">
+        <span className="journey-caption-step">
+          Step {index + 1} of {total}
+        </span>
+        {finished ? ` · ${chapter.title} complete` : ` · ${step.title}`}
       </p>
-
-      <div className="tour-layout">
-        <ol className="tour-rail">
-          {SELLER_TOUR_STEPS.map((item, i) => (
-            <li key={item.id} id={`step-${item.id}`}>
-              <button
-                type="button"
-                aria-current={i === index ? "step" : undefined}
-                onClick={() => select(i)}
-              >
-                <span className="tour-rail-num" aria-hidden="true">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <span className="tour-rail-text">
-                  <span className="tour-rail-title">{item.title}</span>
-                  <span className="tour-rail-detail">{item.detail}</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ol>
-
-        <div className="tour-main">
-          <TourStage step={step} pressed={pressed} rippleKey={rippleKey} />
-          <TourControls
-            index={index}
-            labels={SELLER_TOUR_STEPS.map((item) => item.title)}
-            playing={playing}
-            reduced={reduced}
-            onPrev={() => select(index - 1)}
-            onNext={() => select(index + 1)}
-            onSelect={select}
-            onTogglePlay={togglePlay}
-          />
-        </div>
-      </div>
+      {reduced || finished ? (
+        <button type="button" className="btn btn-outline btn-sm" onClick={next}>
+          {index >= total - 1 ? "Replay chapter" : "Next step"}
+        </button>
+      ) : (
+        <button type="button" className="btn btn-ghost btn-sm" onClick={restart}>
+          Restart
+        </button>
+      )}
     </div>
   );
 }

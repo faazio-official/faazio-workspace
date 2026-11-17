@@ -153,3 +153,130 @@ export function MockButton({
 export function MockHint({ children }: { children: ReactNode }) {
   return <p className="tour-hint">{children}</p>;
 }
+
+export function MockToggle({
+  label,
+  on = false,
+  target,
+  active = false,
+}: {
+  label: string;
+  on?: boolean;
+} & TargetProps) {
+  return (
+    <div
+      className="tour-toggle-row"
+      data-tour-target={target}
+      data-active={active ? "true" : undefined}
+    >
+      <span className="tour-toggle-label">{label}</span>
+      <span className="tour-toggle" data-on={on || undefined} aria-hidden="true" />
+    </div>
+  );
+}
+
+export function MockSteps({
+  items,
+  activeIndex = 0,
+  target,
+  active = false,
+}: {
+  items: readonly string[];
+  activeIndex?: number;
+} & TargetProps) {
+  return (
+    <div className="tour-steps" data-tour-target={target} data-active={active ? "true" : undefined}>
+      {items.map((item, index) => (
+        <span
+          key={item}
+          className="tour-step"
+          data-state={index < activeIndex ? "done" : index === activeIndex ? "current" : undefined}
+        >
+          <span className="tour-step-dot" aria-hidden="true" />
+          <span className="tour-step-label">{item}</span>
+        </span>
+      ))}
+    </div>
+  );
+}
+
+export function MockStat({
+  label,
+  value,
+  target,
+  active = false,
+}: {
+  label: string;
+  value: string;
+} & TargetProps) {
+  return (
+    <div className="tour-stat" data-tour-target={target} data-active={active ? "true" : undefined}>
+      <span className="tour-stat-label">{label}</span>
+      <span className="tour-stat-value">{value}</span>
+    </div>
+  );
+}
+
+export function MockBars({
+  values,
+  target,
+  active = false,
+}: {
+  values: readonly number[];
+} & TargetProps) {
+  return (
+    <div className="tour-bars" data-tour-target={target} data-active={active ? "true" : undefined}>
+      {values.map((value, index) => (
+        <span key={index} className="tour-bar" style={{ height: `${value}%` }} />
+      ))}
+    </div>
+  );
+}
+
+export function MockQR({ target, active = false }: TargetProps) {
+  return (
+    <div className="tour-qr" data-tour-target={target} data-active={active ? "true" : undefined}>
+      <svg viewBox="0 0 29 29" aria-hidden="true">
+        <g fill="currentColor">
+          <rect x="0" y="0" width="7" height="7" />
+          <rect x="22" y="0" width="7" height="7" />
+          <rect x="0" y="22" width="7" height="7" />
+        </g>
+        <g fill="var(--color-card)">
+          <rect x="1" y="1" width="5" height="5" />
+          <rect x="23" y="1" width="5" height="5" />
+          <rect x="1" y="23" width="5" height="5" />
+        </g>
+        <g fill="currentColor">
+          <rect x="2" y="2" width="3" height="3" />
+          <rect x="24" y="2" width="3" height="3" />
+          <rect x="2" y="24" width="3" height="3" />
+          <rect x="9" y="2" width="2" height="2" />
+          <rect x="13" y="5" width="2" height="2" />
+          <rect x="9" y="9" width="2" height="2" />
+          <rect x="12" y="12" width="2" height="2" />
+          <rect x="15" y="9" width="2" height="2" />
+          <rect x="18" y="13" width="2" height="2" />
+          <rect x="21" y="10" width="2" height="2" />
+          <rect x="25" y="9" width="2" height="2" />
+          <rect x="9" y="15" width="2" height="2" />
+          <rect x="12" y="18" width="2" height="2" />
+          <rect x="15" y="16" width="2" height="2" />
+          <rect x="18" y="19" width="2" height="2" />
+          <rect x="21" y="15" width="2" height="2" />
+          <rect x="25" y="18" width="2" height="2" />
+          <rect x="9" y="21" width="2" height="2" />
+          <rect x="13" y="24" width="2" height="2" />
+          <rect x="16" y="22" width="2" height="2" />
+          <rect x="18" y="25" width="2" height="2" />
+          <rect x="22" y="22" width="2" height="2" />
+          <rect x="25" y="24" width="2" height="2" />
+          <rect x="20" y="5" width="2" height="2" />
+          <rect x="5" y="10" width="2" height="2" />
+          <rect x="5" y="14" width="2" height="2" />
+          <rect x="5" y="18" width="2" height="2" />
+        </g>
+      </svg>
+    </div>
+  );
+}
