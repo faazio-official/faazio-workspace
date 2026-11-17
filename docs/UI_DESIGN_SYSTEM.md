@@ -563,11 +563,13 @@ Rules specific to this surface:
   destinations exist. Never fabricate a download or a submission.
 - Use the shared `DownloadButton` for app-download actions.
 - Motion via `motion/react` with `MotionConfig reducedMotion="user"`.
-- An explainer walkthrough (the `/tutorial` seller tour) may play one pass on
-  request, then stop with a Replay control — never loop. Its stage is
-  decorative (`aria-hidden`); the step list carries the accessible content.
-  With reduced motion the cursor is removed and only the steps and highlight
-  remain.
+- An explainer walkthrough (the `/tutorial` seller tour) is one FAQ-style
+  single-open dropdown row per chapter. Opening a row plays that chapter
+  continuously once, then stops with a Replay control — never loop. Only the
+  open chapter animates, so a long page runs one player at a time. Its stage is
+  decorative (`aria-hidden`); the trigger, the live caption and the
+  requirements list carry the accessible content. With reduced motion the
+  cursor is removed and the screens advance on request.
 - Always render `<FaazioLogo />`, never raw text or placeholder art.
 - Photographs: `.dark` pulls exposure and saturation down on hero and sector
   photos so daylight photography sits in the dark room instead of glowing.
