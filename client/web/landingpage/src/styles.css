@@ -1614,93 +1614,6 @@
 }
 
 /* ── Seller onboarding tutorial ──────────────────────────────────────────── */
-.tour-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 330px);
-  gap: 56px;
-  align-items: start;
-}
-
-.tour-rail {
-  list-style: none;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.tour-rail button {
-  width: 100%;
-  display: grid;
-  grid-template-columns: 26px minmax(0, 1fr);
-  gap: 12px;
-  align-items: start;
-  padding: 12px 12px 12px 10px;
-  border: 1px solid transparent;
-  border-radius: var(--radius-lg);
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    background-color var(--motion-press) var(--ease-entrance),
-    border-color var(--motion-press) var(--ease-entrance);
-}
-
-.tour-rail button:hover {
-  background: var(--color-surface);
-}
-
-.tour-rail button[aria-current="step"] {
-  background: var(--color-surface);
-  border-color: var(--color-border);
-}
-
-.tour-rail-num {
-  display: grid;
-  place-items: center;
-  width: 26px;
-  height: 26px;
-  border-radius: 50%;
-  border: 1px solid var(--color-border-strong);
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  color: var(--color-muted-foreground);
-}
-
-.tour-rail button[aria-current="step"] .tour-rail-num {
-  background: var(--color-brand);
-  border-color: var(--color-brand);
-  color: var(--color-primary-foreground);
-}
-
-.tour-rail-text {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-
-.tour-rail-title {
-  font-size: 0.9375rem;
-  font-weight: 500;
-  line-height: 1.35;
-  color: var(--color-foreground);
-}
-
-.tour-rail-detail {
-  font-size: 0.875rem;
-  line-height: 1.55;
-  color: var(--color-muted-foreground);
-}
-
-.tour-main {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
 .tour-stage-wrap {
   display: flex;
   flex-direction: column;
@@ -2047,94 +1960,130 @@
 
 .tour-disclaimer {
   max-width: 36ch;
+  margin: 24px auto 0;
   font-size: 0.75rem;
   line-height: 1.5;
   color: var(--color-muted-foreground);
   text-align: center;
 }
 
-.tour-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  width: 100%;
-  max-width: 330px;
-  margin-top: 18px;
+/* FAQ-style step list: one step and one animation per row. */
+.onboarding {
+  max-width: 820px;
+  margin-inline: auto;
 }
 
-.tour-controls-group {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+.onboarding-item {
+  border-bottom: 1px solid var(--color-border);
 }
 
-.tour-controls .btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
+.onboarding-item:first-child {
+  border-top: 1px solid var(--color-border);
 }
 
-.tour-dots {
+.onboarding-trigger {
+  gap: 16px;
+}
+
+.onboarding-trigger-main {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 14px;
+  min-width: 0;
 }
 
-.tour-dot {
+.onboarding-num {
   display: grid;
   place-items: center;
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  background: none;
-  cursor: pointer;
-}
-
-.tour-dot span {
-  width: 8px;
-  height: 8px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--color-border-strong);
   border-radius: 50%;
-  background: var(--color-border-strong);
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-muted-foreground);
+  flex-shrink: 0;
   transition:
-    background-color var(--motion-press) var(--ease-entrance),
-    transform var(--motion-press) var(--ease-entrance);
+    background-color var(--motion-menu) var(--ease-entrance),
+    border-color var(--motion-menu) var(--ease-entrance),
+    color var(--motion-menu) var(--ease-entrance);
 }
 
-.tour-dot[aria-current="true"] span {
+.onboarding-trigger[data-state="open"] .onboarding-num {
   background: var(--color-brand);
-  transform: scale(1.25);
+  border-color: var(--color-brand);
+  color: var(--color-primary-foreground);
 }
 
-.tour-guide {
-  display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
-  gap: 56px;
-  align-items: start;
+.onboarding-title {
+  font-size: 0.9375rem;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--color-foreground);
 }
 
-.tour-checklist {
-  list-style: none;
-  margin: 16px 0 0;
-  padding: 0;
-  display: grid;
+.onboarding-panel {
+  max-width: 620px;
+  margin-inline: auto;
+  padding-top: 2px;
+}
+
+.onboarding-detail {
+  margin-bottom: 18px;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-muted-foreground);
+  text-align: center;
+}
+
+.onboarding-demo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   gap: 10px;
 }
 
-.tour-checklist li {
+.onboarding-demo .tour-stage {
+  max-width: 330px;
+}
+
+.onboarding-needs {
+  margin-top: 26px;
+  padding: 16px 18px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.onboarding-needs h3 {
+  margin-bottom: 10px;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--color-foreground);
+}
+
+.onboarding-needs ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.onboarding-needs li {
   display: flex;
   align-items: flex-start;
   gap: 10px;
   font-size: 0.9375rem;
-  line-height: 1.6;
+  line-height: 1.55;
   color: var(--color-muted-foreground);
 }
 
-.tour-checklist svg {
+.onboarding-needs svg {
   width: 16px;
   height: 16px;
-  margin-top: 4px;
+  margin-top: 3px;
   color: var(--color-brand-ink);
   flex-shrink: 0;
 }
@@ -2146,23 +2095,15 @@
   margin-top: 28px;
 }
 
-@media (max-width: 900px) {
-  .tour-layout {
-    grid-template-columns: 1fr;
-    gap: 32px;
+@media (max-width: 640px) {
+  .onboarding-panel {
+    padding-inline: 0;
   }
-  .tour-main {
-    order: -1;
+  .onboarding-detail {
+    text-align: left;
   }
-  .tour-guide {
-    grid-template-columns: 1fr;
-    gap: 36px;
-  }
-}
-
-@media (max-width: 520px) {
-  .tour-controls {
-    justify-content: center;
+  .onboarding-demo .tour-stage {
+    max-width: 100%;
   }
 }
 

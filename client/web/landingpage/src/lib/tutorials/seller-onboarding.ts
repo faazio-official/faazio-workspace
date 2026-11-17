@@ -14,19 +14,16 @@
 
 export type SellerTourScreen = "account" | "business" | "shops" | "contract" | "verify";
 
-export type SellerTourAction = "tap" | "type";
-
 export type SellerTourStep = {
-  /** Stable anchor id, also used as the React key (`#step-entry`). */
+  /** Stable anchor id, also used as the accordion value (`#step-entry`). */
   id: string;
   screen: SellerTourScreen;
   /** Must match a `data-tour-target` in the matching screen. */
   target: string;
-  action: SellerTourAction;
   title: string;
   detail: string;
-  /** Dwell time in Watch mode, after the tap. */
-  holdMs: number;
+  /** Shown under the animation, inside the same dropdown. */
+  requirements: readonly string[];
 };
 
 /**
@@ -45,49 +42,54 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     id: "entry",
     screen: "account",
     target: "sell-with-us",
-    action: "tap",
     title: "Open My Account and tap Sell with us",
     detail: "In the Faazio app, Sell with us sits under Earn with us in your account menu.",
-    holdMs: 1500,
+    requirements: ["The Faazio app, signed in with your account"],
   },
   {
     id: "business",
     screen: "business",
     target: "business-name",
-    action: "type",
     title: "Add your business and payout details",
     detail:
       "Business name, owner, PAN, an optional GSTIN, your address and the bank account for payouts.",
-    holdMs: 1900,
+    requirements: [
+      "Business name, owner name and PAN — GSTIN is optional",
+      "Business address, contact phone and email",
+      "Bank account, IFSC and a passbook photo",
+    ],
   },
   {
     id: "shops",
     screen: "shops",
     target: "add-shop",
-    action: "tap",
     title: "Add each shop you sell from",
     detail:
       "Every shop needs an address, a category and its licence — FSSAI for food, a drug licence for pharmacy.",
-    holdMs: 1900,
+    requirements: [
+      "Each shop's name, address, category and its own pin",
+      "FSSAI details for food, or a drug licence for pharmacy",
+    ],
   },
   {
     id: "contract",
     screen: "contract",
     target: "contract-tier",
-    action: "tap",
     title: "Review the contract tier and agreements",
     detail:
       "Faazio shows the commission and payout terms from its own rate card. You then accept the terms and the content licence.",
-    holdMs: 2200,
+    requirements: [
+      "Faazio's commission and payout rate card",
+      "The seller agreement and content licence",
+    ],
   },
   {
     id: "verify",
     screen: "verify",
     target: "otp",
-    action: "type",
     title: "Verify your phone and submit for review",
     detail:
       "A one-time code signs the application. It reaches Faazio as Pending review — nothing is approved automatically.",
-    holdMs: 2400,
+    requirements: ["A phone that can receive the one-time code"],
   },
 ];

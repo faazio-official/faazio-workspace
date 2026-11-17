@@ -96,12 +96,14 @@ export function TourStage({
         ) : null}
 
         {!reduced && rect ? (
-          <TourCursor x={rect.x} y={rect.y} pressed={pressed} rippleKey={rippleKey} />
+          <TourCursor
+            x={rect.width > 220 ? rect.x + rect.width / 2 - 30 : rect.x}
+            y={rect.y}
+            pressed={pressed}
+            rippleKey={rippleKey}
+          />
         ) : null}
       </div>
-      <p className="tour-disclaimer">
-        An illustration of the Faazio app. Nothing on this page submits an application.
-      </p>
     </div>
   );
 }

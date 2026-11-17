@@ -19,12 +19,11 @@ describe("seller onboarding walkthrough", () => {
     );
   });
 
-  it("has copy and a dwell time for every step", () => {
+  it("has copy and requirements for every step", () => {
     for (const step of SELLER_TOUR_STEPS) {
       expect(step.title.length).toBeGreaterThan(0);
       expect(step.detail.length).toBeGreaterThan(0);
-      expect(step.holdMs).toBeGreaterThanOrEqual(1200);
-      expect(step.holdMs).toBeLessThanOrEqual(3000);
+      expect(step.requirements.length).toBeGreaterThan(0);
     }
   });
 });

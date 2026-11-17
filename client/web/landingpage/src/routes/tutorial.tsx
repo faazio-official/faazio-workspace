@@ -1,21 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
-import {
-  HiOutlineBuildingStorefront,
-  HiOutlineCheckCircle,
-  HiOutlineClock,
-  HiOutlineDocumentText,
-  HiOutlineShieldCheck,
-} from "react-icons/hi2";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { SellerTour } from "@/components/tutorial/seller-tour";
+import { SellerOnboardingList } from "@/components/tutorial/seller-onboarding-list";
 import {
   Accordion,
   AccordionContent,
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { SELLER_ONBOARDING_STATUS, SELLER_TOUR_STEPS } from "@/lib/tutorials/seller-onboarding";
+import { SELLER_TOUR_STEPS } from "@/lib/tutorials/seller-onboarding";
 import { SITE_URL } from "@/lib/site";
 import { seoHead, type JsonLdNode } from "@/lib/seo";
 
@@ -39,30 +32,6 @@ const howToNode: JsonLdNode = {
     text: step.detail,
   })),
 };
-
-const requiredItems = [
-  "Business name, owner name and PAN — a GSTIN is optional",
-  "Business address and a contact phone and email",
-  "Bank account, IFSC and a passbook photo",
-  "Each shop's name, address, category and its own pin",
-  "FSSAI details for food, or a drug licence for pharmacy",
-  "A phone that can receive the one-time code",
-];
-
-const afterApply = [
-  {
-    title: "Documents are reviewed",
-    copy: "A district admin checks your KYC documents. The application stays Pending review until they are verified.",
-  },
-  {
-    title: "Your seller login is created",
-    copy: "On approval, Faazio provisions your seller portal login. You create your store from the portal.",
-  },
-  {
-    title: "Products and orders follow",
-    copy: "Add products in the portal; each one starts as Pending review and goes live once approved. Orders and payouts follow.",
-  },
-];
 
 const questions: [string, string][] = [
   [
@@ -100,15 +69,7 @@ function Tutorial() {
         <section className="page-hero" aria-labelledby="tutorial-title">
           <div className="page-width">
             <p className="eyebrow">Tutorials</p>
-            <h1 id="tutorial-title">How selling on Faazio works.</h1>
-            <p className="page-lead">
-              A step-by-step look at the seller application inside the Faazio app — from Sell with
-              us to Pending review.
-            </p>
-            <p className="hero-note">
-              <span className="open-dot" aria-hidden="true" />
-              {SELLER_ONBOARDING_STATUS}
-            </p>
+            <h1 id="tutorial-title">Seller onboarding.</h1>
           </div>
         </section>
 
@@ -116,63 +77,13 @@ function Tutorial() {
           <div className="page-width">
             <div className="section-head">
               <div className="section-head-copy">
-                <p className="eyebrow">Seller onboarding</p>
-                <h2 id="seller-tour-title" className="headline" style={{ marginTop: 12 }}>
-                  From Sell with us to your first order.
+                <h2 id="seller-tour-title" className="headline">
+                  The five steps.
                 </h2>
               </div>
-              <p>Five steps, in the same order the app asks for them.</p>
+              <p>Open a step to see the screen and what you need.</p>
             </div>
-            <SellerTour />
-          </div>
-        </section>
-
-        <section className="section" aria-labelledby="seller-guide-title">
-          <div className="page-width tour-guide">
-            <div>
-              <h2 id="seller-guide-title" className="headline">
-                What you&apos;ll need.
-              </h2>
-              <ul className="tour-checklist">
-                {requiredItems.map((item) => (
-                  <li key={item}>
-                    <HiOutlineCheckCircle aria-hidden="true" />
-                    <span>{item}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div>
-              <h2 className="headline">After you send it.</h2>
-              <ol className="steps" style={{ marginTop: 20 }}>
-                {afterApply.map((step, index) => {
-                  const Icon = [HiOutlineShieldCheck, HiOutlineBuildingStorefront, HiOutlineClock][
-                    index
-                  ]!;
-                  return (
-                    <li key={step.title} className="step">
-                      <span className="step-number" aria-hidden="true">
-                        <Icon width={13} height={13} />
-                      </span>
-                      <div className="step-body">
-                        <h3>{step.title}</h3>
-                        <p>{step.copy}</p>
-                      </div>
-                    </li>
-                  );
-                })}
-              </ol>
-              <div className="action-row">
-                <a href="/partners" className="btn btn-outline">
-                  Partner with Faazio
-                </a>
-                <a href="/seller-terms" className="btn btn-ghost btn-sm">
-                  <HiOutlineDocumentText aria-hidden="true" />
-                  Seller &amp; Partner Terms
-                </a>
-              </div>
-            </div>
+            <SellerOnboardingList />
           </div>
         </section>
 

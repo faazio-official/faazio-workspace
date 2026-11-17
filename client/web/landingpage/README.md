@@ -130,7 +130,7 @@ When the production domain changes, update `SITE_URL` in `src/lib/site.ts`,
 | `src/routes/about.tsx`        | Company story (`/about`)                                                      |
 | `src/routes/faq.tsx`          | FAQ page with `FAQPage` structured data (`/faq`)                              |
 | `src/routes/partners.tsx`     | Partner page for local businesses (`/partners`)                               |
-| `src/routes/tutorial.tsx`     | Seller onboarding walkthrough with `HowTo` data (`/tutorial`)                 |
+| `src/routes/tutorial.tsx`     | FAQ-style seller onboarding steps with `HowTo` data (`/tutorial`)             |
 | `src/routes/karaikal.tsx`     | Karaikal location page (`/karaikal`)                                          |
 | `src/routes/download.tsx`     | App download page (`/download`)                                               |
 | `src/routes/privacy.tsx`      | Privacy policy (`/privacy`)                                                   |

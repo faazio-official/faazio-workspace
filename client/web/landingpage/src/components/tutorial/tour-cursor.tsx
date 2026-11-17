@@ -11,8 +11,9 @@ type TourCursorProps = {
 /**
  * The tapping hand. Movement is transform-only and x/y travel on slightly
  * different durations, so the hand follows an arc rather than a straight line
- * (UI_DESIGN_SYSTEM §3 Pass 9). The SVG's fingertip is offset onto the measured
- * target centre so the tap lands where the eye expects.
+ * (UI_DESIGN_SYSTEM §3 Pass 9). The SVG's fingertip lands on the measured
+ * target; wide targets are tapped towards their trailing edge so the hand does
+ * not cover the row text.
  */
 export function TourCursor({ x, y, pressed, rippleKey }: TourCursorProps) {
   return (
