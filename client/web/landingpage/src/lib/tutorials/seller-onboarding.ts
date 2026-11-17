@@ -15,15 +15,15 @@
 export type SellerTourScreen = "account" | "business" | "shops" | "contract" | "verify";
 
 export type SellerTourStep = {
-  /** Stable anchor id, also used as the accordion value (`#step-entry`). */
+  /** Stable id used by the player and the `#step-*` anchor. */
   id: string;
   screen: SellerTourScreen;
   /** Must match a `data-tour-target` in the matching screen. */
   target: string;
   title: string;
   detail: string;
-  /** Shown under the animation, inside the same dropdown. */
-  requirements: readonly string[];
+  /** How long the screen is held before the animation moves on. */
+  holdMs: number;
 };
 
 /**
@@ -33,9 +33,20 @@ export type SellerTourStep = {
 export const SELLER_ONBOARDING_STATUS =
   "Starting in Karaikal. Applications open in the Faazio app when partner onboarding launches.";
 
+/** Documents and details the applicant gathers before they start. */
+export const SELLER_ONBOARDING_REQUIREMENTS = [
+  "Business name, owner name and PAN — a GSTIN is optional",
+  "Business address and a contact phone and email",
+  "Bank account, IFSC and a passbook photo",
+  "Each shop's name, address, category and its own pin",
+  "FSSAI details for food, or a drug licence for pharmacy",
+  "A phone that can receive the one-time code",
+] as const;
+
 /**
- * Minimum steps that still show the whole application: entry → business
- * details → shops → contract → phone verification and submit.
+ * Minimum screens that still show the whole application: entry → business
+ * details → shops → contract → phone verification and submit. The screens play
+ * as one continuous pass; they are not exposed as separate steps.
  */
 export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
   {
@@ -44,7 +55,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     target: "sell-with-us",
     title: "Open My Account and tap Sell with us",
     detail: "In the Faazio app, Sell with us sits under Earn with us in your account menu.",
-    requirements: ["The Faazio app, signed in with your account"],
+    holdMs: 1500,
   },
   {
     id: "business",
@@ -53,11 +64,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     title: "Add your business and payout details",
     detail:
       "Business name, owner, PAN, an optional GSTIN, your address and the bank account for payouts.",
-    requirements: [
-      "Business name, owner name and PAN — GSTIN is optional",
-      "Business address, contact phone and email",
-      "Bank account, IFSC and a passbook photo",
-    ],
+    holdMs: 1900,
   },
   {
     id: "shops",
@@ -66,10 +73,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     title: "Add each shop you sell from",
     detail:
       "Every shop needs an address, a category and its licence — FSSAI for food, a drug licence for pharmacy.",
-    requirements: [
-      "Each shop's name, address, category and its own pin",
-      "FSSAI details for food, or a drug licence for pharmacy",
-    ],
+    holdMs: 1900,
   },
   {
     id: "contract",
@@ -78,18 +82,15 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     title: "Review the contract tier and agreements",
     detail:
       "Faazio shows the commission and payout terms from its own rate card. You then accept the terms and the content licence.",
-    requirements: [
-      "Faazio's commission and payout rate card",
-      "The seller agreement and content licence",
-    ],
+    holdMs: 2200,
   },
   {
     id: "verify",
     screen: "verify",
-    target: "otp",
+    target: "submit",
     title: "Verify your phone and submit for review",
     detail:
       "A one-time code signs the application. It reaches Faazio as Pending review — nothing is approved automatically.",
-    requirements: ["A phone that can receive the one-time code"],
+    holdMs: 2400,
   },
 ];

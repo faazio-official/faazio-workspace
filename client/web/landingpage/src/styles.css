@@ -1967,7 +1967,7 @@
   text-align: center;
 }
 
-/* FAQ-style step list: one step and one animation per row. */
+/* FAQ-style row: one continuous animation, then the requirements. */
 .onboarding {
   max-width: 820px;
   margin-inline: auto;
@@ -1983,44 +1983,7 @@
 
 .onboarding-trigger {
   gap: 16px;
-}
-
-.onboarding-trigger-main {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  min-width: 0;
-}
-
-.onboarding-num {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 50%;
-  font-family: var(--font-mono);
-  font-size: 0.6875rem;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-muted-foreground);
-  flex-shrink: 0;
-  transition:
-    background-color var(--motion-menu) var(--ease-entrance),
-    border-color var(--motion-menu) var(--ease-entrance),
-    color var(--motion-menu) var(--ease-entrance);
-}
-
-.onboarding-trigger[data-state="open"] .onboarding-num {
-  background: var(--color-brand);
-  border-color: var(--color-brand);
-  color: var(--color-primary-foreground);
-}
-
-.onboarding-title {
   font-size: 0.9375rem;
-  font-weight: 500;
-  line-height: 1.4;
-  color: var(--color-foreground);
 }
 
 .onboarding-panel {
@@ -2029,27 +1992,28 @@
   padding-top: 2px;
 }
 
-.onboarding-detail {
-  margin-bottom: 18px;
-  font-size: 0.9375rem;
-  line-height: 1.6;
-  color: var(--color-muted-foreground);
-  text-align: center;
-}
-
-.onboarding-demo {
+.onboarding-player {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
 }
 
-.onboarding-demo .tour-stage {
+.onboarding-player .tour-stage {
   max-width: 330px;
 }
 
+.onboarding-caption {
+  min-height: 1.4em;
+  font-size: 0.875rem;
+  font-weight: 500;
+  line-height: 1.5;
+  color: var(--color-foreground);
+  text-align: center;
+}
+
 .onboarding-needs {
-  margin-top: 26px;
+  margin-top: 30px;
   padding: 16px 18px;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
@@ -2099,10 +2063,7 @@
   .onboarding-panel {
     padding-inline: 0;
   }
-  .onboarding-detail {
-    text-align: left;
-  }
-  .onboarding-demo .tour-stage {
+  .onboarding-player .tour-stage {
     max-width: 100%;
   }
 }

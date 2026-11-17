@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { SELLER_TOUR_STEPS } from "@/lib/tutorials/seller-onboarding";
+import {
+  SELLER_ONBOARDING_REQUIREMENTS,
+  SELLER_TOUR_STEPS,
+} from "@/lib/tutorials/seller-onboarding";
 
 describe("seller onboarding walkthrough", () => {
-  it("has the five application steps in order", () => {
+  it("has the five application screens in order", () => {
     expect(SELLER_TOUR_STEPS.map((step) => step.id)).toEqual([
       "entry",
       "business",
@@ -19,11 +22,17 @@ describe("seller onboarding walkthrough", () => {
     );
   });
 
-  it("has copy and requirements for every step", () => {
+  it("has copy and pacing for every screen", () => {
     for (const step of SELLER_TOUR_STEPS) {
       expect(step.title.length).toBeGreaterThan(0);
       expect(step.detail.length).toBeGreaterThan(0);
-      expect(step.requirements.length).toBeGreaterThan(0);
+      expect(step.holdMs).toBeGreaterThanOrEqual(1200);
+      expect(step.holdMs).toBeLessThanOrEqual(3000);
     }
+  });
+
+  it("lists what the applicant needs before starting", () => {
+    expect(SELLER_ONBOARDING_REQUIREMENTS.length).toBeGreaterThanOrEqual(6);
+    expect(SELLER_ONBOARDING_REQUIREMENTS.join(" ")).toContain("PAN");
   });
 });

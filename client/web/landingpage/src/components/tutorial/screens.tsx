@@ -200,19 +200,21 @@ export function ContractScreen({ activeTarget }: ScreenProps) {
 }
 
 export function VerifyScreen({ activeTarget }: ScreenProps) {
-  const active = activeTarget === "otp";
+  const active = activeTarget === "submit";
   return (
     <>
       <MockAppBar title="Sell with us" back />
       <div className="tour-screen-body">
         <MockGroup title="Verify your phone">
           <MockCard>
-            <MockField label="One-time code" value="••••••" mono target="otp" active={active} />
+            <MockField label="One-time code" value="••••••" mono />
           </MockCard>
           <MockHint>Sent to +91 98436 31722. The code signs the application.</MockHint>
         </MockGroup>
 
-        <MockButton block>Submit for review</MockButton>
+        <MockButton block target="submit" active={active}>
+          Submit for review
+        </MockButton>
 
         <MockGroup title="Application status">
           <MockCard>

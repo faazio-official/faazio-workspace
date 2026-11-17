@@ -1,7 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
-import { SellerOnboardingList } from "@/components/tutorial/seller-onboarding-list";
+import { SellerOnboardingWalkthrough } from "@/components/tutorial/seller-onboarding-walkthrough";
 import {
   Accordion,
   AccordionContent,
@@ -78,12 +78,12 @@ function Tutorial() {
             <div className="section-head">
               <div className="section-head-copy">
                 <h2 id="seller-tour-title" className="headline">
-                  The five steps.
+                  The walkthrough.
                 </h2>
               </div>
-              <p>Open a step to see the screen and what you need.</p>
+              <p>One continuous pass, from Sell with us to Pending review.</p>
             </div>
-            <SellerOnboardingList />
+            <SellerOnboardingWalkthrough />
           </div>
         </section>
 
