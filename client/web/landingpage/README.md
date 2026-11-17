@@ -2,7 +2,7 @@
 
 Marketing landing page for the Faazio Daily SuperApp (Mart · Food · Pharma),
 starting in Karaikal. An SEO-focused long-scrolling homepage at `/` plus
-content pages at `/about`, `/faq`, `/partners`, `/karaikal`, `/download`, and
+content pages at `/about`, `/faq`, `/partners`, `/tutorial`, `/karaikal`, `/download`, and
 the legal pages `/terms`, `/seller-terms`, `/privacy`, `/refunds`, `/cookies`, and `/disclaimer`.
 
 Built with **TanStack Start** (file-based routing + SSR), **React 19**,
@@ -130,6 +130,7 @@ When the production domain changes, update `SITE_URL` in `src/lib/site.ts`,
 | `src/routes/about.tsx`        | Company story (`/about`)                                                      |
 | `src/routes/faq.tsx`          | FAQ page with `FAQPage` structured data (`/faq`)                              |
 | `src/routes/partners.tsx`     | Partner page for local businesses (`/partners`)                               |
+| `src/routes/tutorial.tsx`     | Seller onboarding walkthrough with `HowTo` data (`/tutorial`)                 |
 | `src/routes/karaikal.tsx`     | Karaikal location page (`/karaikal`)                                          |
 | `src/routes/download.tsx`     | App download page (`/download`)                                               |
 | `src/routes/privacy.tsx`      | Privacy policy (`/privacy`)                                                   |

@@ -3,7 +3,9 @@
 **Status:** Shipped (by design: application is mobile-only; the seller's login is auto-provisioned on approval; the seller app is a WebView over the portal). Vendor fee/cover steps remain tracked as separate gaps in [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 **Surfaces:** mobile `SellWithUs` (`SellerRegistrationScreen.tsx`) for application + KYC upload,
 portal `/seller/onboarding` for vendor creation, district-admin review at
-`/admin/district/sellers/[id]` (super admin has a list only), fee-change boards.
+`/admin/district/sellers/[id]` (super admin has a list only), fee-change boards, and the landing
+page `/tutorial` — an illustrative walkthrough of the application that shows no data and submits
+nothing (`client/web/landingpage/src/lib/tutorials/seller-onboarding.ts`).
 **Trigger:** "Sell with us" entry in the customer app; a seller opens onboarding/stores in the
 portal; an admin opens a seller application.
 

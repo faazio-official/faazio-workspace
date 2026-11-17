@@ -22,6 +22,7 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RefundsRouteImport } from './routes/refunds'
 import { Route as SellerTermsRouteImport } from './routes/seller-terms'
 import { Route as TermsRouteImport } from './routes/terms'
+import { Route as TutorialRouteImport } from './routes/tutorial'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -88,6 +89,11 @@ const TermsRoute = TermsRouteImport.update({
   path: '/terms',
   getParentRoute: () => rootRouteImport,
 } as any)
+const TutorialRoute = TutorialRouteImport.update({
+  id: '/tutorial',
+  path: '/tutorial',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -103,6 +109,7 @@ export interface FileRoutesByFullPath {
   '/refunds': typeof RefundsRoute
   '/seller-terms': typeof SellerTermsRoute
   '/terms': typeof TermsRoute
+  '/tutorial': typeof TutorialRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/refunds': typeof RefundsRoute
   '/seller-terms': typeof SellerTermsRoute
   '/terms': typeof TermsRoute
+  '/tutorial': typeof TutorialRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -134,6 +142,7 @@ export interface FileRoutesById {
   '/refunds': typeof RefundsRoute
   '/seller-terms': typeof SellerTermsRoute
   '/terms': typeof TermsRoute
+  '/tutorial': typeof TutorialRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/refunds'
     | '/seller-terms'
     | '/terms'
+    | '/tutorial'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -166,6 +176,7 @@ export interface FileRouteTypes {
     | '/refunds'
     | '/seller-terms'
     | '/terms'
+    | '/tutorial'
   id:
     | '__root__'
     | '/'
@@ -181,6 +192,7 @@ export interface FileRouteTypes {
     | '/refunds'
     | '/seller-terms'
     | '/terms'
+    | '/tutorial'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -197,6 +209,7 @@ export interface RootRouteChildren {
   RefundsRoute: typeof RefundsRoute
   SellerTermsRoute: typeof SellerTermsRoute
   TermsRoute: typeof TermsRoute
+  TutorialRoute: typeof TutorialRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -292,6 +305,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TermsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/tutorial': {
+      id: '/tutorial'
+      path: '/tutorial'
+      fullPath: '/tutorial'
+      preLoaderRoute: typeof TutorialRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -309,6 +329,7 @@ const rootRouteChildren: RootRouteChildren = {
   RefundsRoute: RefundsRoute,
   SellerTermsRoute: SellerTermsRoute,
   TermsRoute: TermsRoute,
+  TutorialRoute: TutorialRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
