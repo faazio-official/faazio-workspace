@@ -197,7 +197,10 @@ The provisioned key (Apple Developer → Keys → **+**, one key may cover sever
 | Name | `Faazio APNs VoIP` |
 | Key ID | `D47Z2ZWYCN` |
 | Services | Apple Push Notifications service (APNs) |
-| Team ID | `HMAPFA7MR3` (the App Store team, `APPSTORE_TEAM_ID`) |
+| Team ID | `HMAPFA7MR3` — the App Store team already used as `APPSTORE_TEAM_ID` (`client/mobile/.env.ios`). It **must** be the team that owns the key: a mismatch makes APNs reject the provider token. |
+
+This key covers the APNs service, so it is capable of alert pushes too; the gateway uses it only for
+the `voip` transport today. FCM keeps carrying Android and iOS alert/background pushes.
 
 The downloaded `AuthKey_D47Z2ZWYCN.p8` is kept **outside git** in the same gitignored folder as the
 Firebase service account: `server/gateway/.secrets/AuthKey_D47Z2ZWYCN.p8`. Never commit it and never
@@ -308,7 +311,12 @@ edit is needed; the customer scheme is also committed in `Info.plist` as a fallb
 - [ ] **Part 6 — anti-abuse (blocked): Firebase project is not linked to Google Cloud.**
   - [ ] Enable **Play Integrity API** in the linked GCP project.
   - [ ] App Check → Android app → Play Integrity → **Enforce** (after testing).
-  - [ ] Upload the APNs **.p8 auth key** (Key ID + Team ID) for iOS.
+  - [ ] Upload the APNs **.p8 auth key** to Firebase → Project Settings → Cloud Messaging (Key ID
+    `D47Z2ZWYCN`, Team ID `HMAPFA7MR3`). The key provisioned above (see
+    "Server-side APNs VoIP credentials") covers the APNs service, so the same `.p8` can be uploaded
+    here — it is not a second key. The Firebase upload is what enables silent phone-auth verification;
+    the gateway reads the key from `APNS_*` for the CallKit ring. Both are outstanding until it is
+    uploaded.
   - [x] Add each app's **Play App Signing / release** and its own **debug** SHA-1/SHA-256 in
     Firebase Project Settings → Your apps. Customer Play App Signing + debug done; seller/delivery
     release + debug done; seller/delivery Play App Signing certs pending their listings.
