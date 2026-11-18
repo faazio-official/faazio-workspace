@@ -17,4 +17,5 @@ Verify: `npm run ts:check` and `npm run check:boundaries` (run from `client/mobi
 - [docs/README.md](docs/README.md) — index + reading order
 - [docs/DEVELOPER_ONBOARDING.md](docs/DEVELOPER_ONBOARDING.md) — getting started
 - `data/DATA_CONTROL.md` — data ownership & status matrix
+- [SELLER_WORKFLOWS.md](SELLER_WORKFLOWS.md) — every seller workflow, its surface, writes and doc
 - [PAGE_CATALOG.md](PAGE_CATALOG.md) — every screen/path
