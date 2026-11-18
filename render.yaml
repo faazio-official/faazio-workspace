@@ -110,6 +110,9 @@ services:
       # outbox prefers the FCM token when no APNs transport exists). APNS_PRIVATE_KEY_PEM is the
       # .p8 auth key (secret → dashboard only, sync:false). APNS_TOPIC is the customer bundle id;
       # APNS_ENVIRONMENT is production or sandbox (must match the provisioning profile).
+      # Provisioned key: "Faazio APNs VoIP", Key ID D47Z2ZWYCN, APNs service — Team ID HMAPFA7MR3.
+      # The downloaded .p8 stays out of git (server/gateway/.secrets/AuthKey_D47Z2ZWYCN.p8); paste
+      # its contents into APNS_PRIVATE_KEY_PEM here. See docs/RUNBOOKS/FIREBASE_AUTH.md.
       - key: APNS_KEY_ID
         sync: false
       - key: APNS_TEAM_ID

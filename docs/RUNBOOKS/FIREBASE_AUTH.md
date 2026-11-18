@@ -190,6 +190,23 @@ set (secrets in the Render dashboard, `sync: false` in `render.yaml`):
 - `APNS_TOPIC` — `com.faazio.customer` (the only iOS product); `APNS_ENVIRONMENT` — `production` or
   `sandbox`, matching the provisioning profile.
 
+The provisioned key (Apple Developer → Keys → **+**, one key may cover several services):
+
+| Field | Value |
+|---|---|
+| Name | `Faazio APNs VoIP` |
+| Key ID | `D47Z2ZWYCN` |
+| Services | Apple Push Notifications service (APNs) |
+| Team ID | `HMAPFA7MR3` (the App Store team, `APPSTORE_TEAM_ID`) |
+
+The downloaded `AuthKey_D47Z2ZWYCN.p8` is kept **outside git** in the same gitignored folder as the
+Firebase service account: `server/gateway/.secrets/AuthKey_D47Z2ZWYCN.p8`. Never commit it and never
+move it into a bundle, an Xcode target, or a CI artifact — the gateway only needs its contents in
+`APNS_PRIVATE_KEY_PEM` (Render dashboard secret, `sync: false`). On a developer machine the same
+values live in the gitignored `server/gateway/.env`, so
+`go test ./internal/notifications/ -run TestNewAPNSenderLiveCredentials -v` re-parses the key before
+a deploy (it skips when unset, never prints the key).
+
 Without them the drain prefers the FCM token (`Pending(ctx, limit, preferVoIP=false)`), so an iPhone
 still gets the background push but no CallKit ring. The PushKit token is stored beside the FCM token
 in `notifications.push_tokens` (`token_kind='voip'`, `0105`).

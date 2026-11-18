@@ -9,6 +9,11 @@ dist/
 # FCM_SERVICE_ACCOUNT_JSON env var / dashboard secret).
 server/gateway/.secrets/
 server/gateway/project-*.json
+# Apple Push Notifications auth key (APNs .p8). Downloads land in the repo root; the key must
+# never enter git — the gateway reads it from APNS_PRIVATE_KEY_PEM instead. Keep the file at
+# server/gateway/.secrets/AuthKey_*.p8 (also covered by the .secrets/ rule above).
+AuthKey_*.p8
+*.p8
 *.apk
 *.aab
 
