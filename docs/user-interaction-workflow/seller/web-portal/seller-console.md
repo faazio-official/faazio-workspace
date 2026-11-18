@@ -58,7 +58,9 @@
   4px grid and derives from `--seller-nav-h` / `--seller-nav-gap`.
 - Mobile headers (`OrdersTopBar`, `HubHeader`, `OutletHeader`) share one hairline bottom border,
   `px-4` padding and the `env(safe-area-inset-top)` offset; action clusters are `shrink-0` so the
-  shop name truncates instead of crowding the icons.
+  shop name truncates instead of crowding the icons. In `OrdersTopBar` the shop-name bar (name +
+  area) is the `StoreSwitcher` trigger, while the `Online`/`Offline` chip beside it is a separate
+  link to `/seller/restaurant-status` — the two are distinct targets, never one control.
 - Product rows on `/seller/products` are viewport-clamped (`min-w-0 max-w-full overflow-hidden`):
   the image + chevron + status pill are `shrink-0` and pinned, while the name, `category · productId`
   and price truncate via `min-w-0`. The image is `h-12 w-12` below `sm` and `h-14 w-14` at `sm`+, so
@@ -71,7 +73,9 @@
   `env(safe-area-inset-top)`. `PageHeader` always ends with an Explore escape (except on Explore
   itself), so no detail/settings page is a mobile dead end.
 - Settings' `UnderlineTabs` wrap instead of hiding tabs in a scroll row.
-- Hub-mode tab bar includes `/seller/onboarding`; landscape phones ≥ `md` get the desktop sidebar.
+- Hub-mode tab bar includes `/seller/onboarding`, `/seller/fee-change-request` and
+  `/seller/fee-history`; landscape phones ≥ `md` get the desktop sidebar (Account group carries
+  **Platform fee** → `/seller/fee-change-request`).
 
 ## Success / error / empty
 
