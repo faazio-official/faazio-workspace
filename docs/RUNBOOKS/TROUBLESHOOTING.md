@@ -446,6 +446,16 @@ never called, and the list's `onLayout` never fires. Do not "fix" it by swapping
   (`5432`) and that migrations/seed ran (`GET /health` shows `"db":true`).
 - **`TestCreateProductHandlerCachePurge` / any cache test skips** → `TEST_VALKEY_URL` unset; the
   no-op cache has no keys to purge. Set `TEST_VALKEY_URL` to run it.
+- **Run packages serially when they share one database.** `go test ./...` builds each package's
+  test binary in parallel, and every context's integration tests point at the **same** Postgres.
+  Several tests assert on global state (a district's store count in `internal/directory`, picking a
+  stocked product in `internal/checkout`, an arbitrary menu row), so a concurrent package's writes
+  make them fail intermittently with a different test each run. Use `-p 1` (what CI does):
+  ```bash
+  go test -count=1 -p 1 ./...
+  ```
+  A single flaky failure that passes when the package is run alone
+  (`go test ./internal/directory/`) is this race, not a product bug.
 - **Portal unit tests** (`client/web/platform`): `npm test` (vitest). No DB/Docker needed —
   `createProduct` is exercised with mocked network/store.
 - **Workflow integration tests** (COD order + delivery fulfilment): `scripts/e2e-delivery-flow.sh`
