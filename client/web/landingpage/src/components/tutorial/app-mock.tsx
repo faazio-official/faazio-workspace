@@ -12,13 +12,13 @@ import {
 
 /**
  * Primitives that reproduce the customer app's onboarding screens in the
- * `/tutorial` stage. Sizes follow `client/mobile/src` (dp scaled to the 330px
+ * `/help-centre` stage. Sizes follow `client/mobile/src` (dp scaled to the 330px
  * stage); colours are the `--ta-*` tokens in `styles.css`, which mirror
  * `client/mobile/src/theme/theme.ts`. Nothing here renders a focusable control:
  * the stage is decorative and `aria-hidden`.
  */
 
-type TargetProps = { target?: string | undefined };
+type TargetProps = { target?: string | undefined; active?: boolean };
 
 export function AppPhone({ children }: { children: ReactNode }) {
   return <div className="ta-device">{children}</div>;
@@ -116,6 +116,7 @@ export function AppField({
   label,
   value,
   target,
+  active = false,
   readOnly = false,
   mono = false,
 }: {
@@ -123,9 +124,9 @@ export function AppField({
   value: string;
   readOnly?: boolean;
   mono?: boolean;
-} & Pick<TargetProps, "target">) {
+} & Pick<TargetProps, "target" | "active">) {
   return (
-    <div className="ta-field" data-tour-target={target}>
+    <div className="ta-field" data-tour-target={target} data-active={active ? "true" : undefined}>
       <span className="ta-field-label">{label}</span>
       <span
         className="ta-field-box"
@@ -144,15 +145,16 @@ export function AppSelect({
   placeholder = false,
   required = false,
   target,
+  active = false,
 }: {
   label: string;
   value: string;
   /** Renders the value in the muted placeholder tone. */
   placeholder?: boolean;
   required?: boolean;
-} & Pick<TargetProps, "target">) {
+} & Pick<TargetProps, "target" | "active">) {
   return (
-    <div className="ta-field" data-tour-target={target}>
+    <div className="ta-field" data-tour-target={target} data-active={active ? "true" : undefined}>
       <span className="ta-field-label">
         {label}
         {required ? <span className="ta-required"> *</span> : null}
@@ -239,10 +241,15 @@ export function AppContractSummary({
   );
 }
 
-export function AppOtpRow({ target }: Pick<TargetProps, "target">) {
+export function AppOtpRow({ target, active = false }: Pick<TargetProps, "target" | "active">) {
   return (
     <div className="ta-otp">
-      <span className="ta-field-box" data-placeholder data-tour-target={target}>
+      <span
+        className="ta-field-box"
+        data-placeholder
+        data-tour-target={target}
+        data-active={active ? "true" : undefined}
+      >
         6-digit OTP
       </span>
       <span className="ta-otp-btn">Send OTP</span>
@@ -250,7 +257,15 @@ export function AppOtpRow({ target }: Pick<TargetProps, "target">) {
   );
 }
 
-export function AppShopCard({ app, name }: { app: string; name: string }) {
+export function AppShopCard({
+  app,
+  name,
+  active = false,
+}: {
+  app: string;
+  name: string;
+  active?: boolean;
+}) {
   return (
     <div className="ta-shop">
       <div className="ta-shop-head">
@@ -260,7 +275,7 @@ export function AppShopCard({ app, name }: { app: string; name: string }) {
         <span className="ta-shop-title">Shop 1</span>
       </div>
 
-      <AppSelect label="App" required value={app} target="shop-app" />
+      <AppSelect label="App" required value={app} target="shop-app" active={active} />
       <AppField label="Shop name" value={name} />
       <AppField label="Shop address" value="12, Bharathiar Road, Karaikal" />
       <AppSelect label="Category" required value="Grocery" />
@@ -307,9 +322,9 @@ export function AppGeoNote() {
   );
 }
 
-export function AppSubmit({ target }: Pick<TargetProps, "target">) {
+export function AppSubmit({ target, active = false }: Pick<TargetProps, "target" | "active">) {
   return (
-    <span className="ta-submit" data-tour-target={target}>
+    <span className="ta-submit" data-tour-target={target} data-active={active ? "true" : undefined}>
       <HiOutlineLockClosed aria-hidden="true" />
       Submit for review
     </span>
@@ -328,7 +343,7 @@ export function AppSecureNote() {
   );
 }
 
-export function AppReviewCard() {
+export function AppReviewCard({ active = false }: Pick<TargetProps, "active">) {
   return (
     <div className="ta-review">
       <span className="ta-review-icon" aria-hidden="true">
@@ -354,7 +369,11 @@ export function AppReviewCard() {
         <span className="ta-review-key">Compliance</span>
         <span className="ta-review-value">Pending verification</span>
       </div>
-      <span className="ta-review-done" data-tour-target="review-done">
+      <span
+        className="ta-review-done"
+        data-tour-target="review-done"
+        data-active={active ? "true" : undefined}
+      >
         Done
       </span>
     </div>

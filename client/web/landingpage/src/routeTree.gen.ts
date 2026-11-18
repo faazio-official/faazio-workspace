@@ -15,6 +15,7 @@ import { Route as CookiesRouteImport } from './routes/cookies'
 import { Route as DisclaimerRouteImport } from './routes/disclaimer'
 import { Route as DownloadRouteImport } from './routes/download'
 import { Route as FaqRouteImport } from './routes/faq'
+import { Route as HelpCentreRouteImport } from './routes/help-centre'
 import { Route as KaraikalRouteImport } from './routes/karaikal'
 import { Route as PartnerTermsRouteImport } from './routes/partner-terms'
 import { Route as PartnersRouteImport } from './routes/partners'
@@ -52,6 +53,11 @@ const DownloadRoute = DownloadRouteImport.update({
 const FaqRoute = FaqRouteImport.update({
   id: '/faq',
   path: '/faq',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HelpCentreRoute = HelpCentreRouteImport.update({
+  id: '/help-centre',
+  path: '/help-centre',
   getParentRoute: () => rootRouteImport,
 } as any)
 const KaraikalRoute = KaraikalRouteImport.update({
@@ -102,6 +108,7 @@ export interface FileRoutesByFullPath {
   '/disclaimer': typeof DisclaimerRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
+  '/help-centre': typeof HelpCentreRoute
   '/karaikal': typeof KaraikalRoute
   '/partner-terms': typeof PartnerTermsRoute
   '/partners': typeof PartnersRoute
@@ -118,6 +125,7 @@ export interface FileRoutesByTo {
   '/disclaimer': typeof DisclaimerRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
+  '/help-centre': typeof HelpCentreRoute
   '/karaikal': typeof KaraikalRoute
   '/partner-terms': typeof PartnerTermsRoute
   '/partners': typeof PartnersRoute
@@ -135,6 +143,7 @@ export interface FileRoutesById {
   '/disclaimer': typeof DisclaimerRoute
   '/download': typeof DownloadRoute
   '/faq': typeof FaqRoute
+  '/help-centre': typeof HelpCentreRoute
   '/karaikal': typeof KaraikalRoute
   '/partner-terms': typeof PartnerTermsRoute
   '/partners': typeof PartnersRoute
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/disclaimer'
     | '/download'
     | '/faq'
+    | '/help-centre'
     | '/karaikal'
     | '/partner-terms'
     | '/partners'
@@ -169,6 +179,7 @@ export interface FileRouteTypes {
     | '/disclaimer'
     | '/download'
     | '/faq'
+    | '/help-centre'
     | '/karaikal'
     | '/partner-terms'
     | '/partners'
@@ -185,6 +196,7 @@ export interface FileRouteTypes {
     | '/disclaimer'
     | '/download'
     | '/faq'
+    | '/help-centre'
     | '/karaikal'
     | '/partner-terms'
     | '/partners'
@@ -202,6 +214,7 @@ export interface RootRouteChildren {
   DisclaimerRoute: typeof DisclaimerRoute
   DownloadRoute: typeof DownloadRoute
   FaqRoute: typeof FaqRoute
+  HelpCentreRoute: typeof HelpCentreRoute
   KaraikalRoute: typeof KaraikalRoute
   PartnerTermsRoute: typeof PartnerTermsRoute
   PartnersRoute: typeof PartnersRoute
@@ -254,6 +267,13 @@ declare module '@tanstack/react-router' {
       path: '/faq'
       fullPath: '/faq'
       preLoaderRoute: typeof FaqRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/help-centre': {
+      id: '/help-centre'
+      path: '/help-centre'
+      fullPath: '/help-centre'
+      preLoaderRoute: typeof HelpCentreRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/karaikal': {
@@ -322,6 +342,7 @@ const rootRouteChildren: RootRouteChildren = {
   DisclaimerRoute: DisclaimerRoute,
   DownloadRoute: DownloadRoute,
   FaqRoute: FaqRoute,
+  HelpCentreRoute: HelpCentreRoute,
   KaraikalRoute: KaraikalRoute,
   PartnerTermsRoute: PartnerTermsRoute,
   PartnersRoute: PartnersRoute,

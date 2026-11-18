@@ -1,7 +1,7 @@
 /**
  * Seller onboarding walkthrough script.
  *
- * This is the single source of truth for chapter 1 of the `/tutorial` page.
+ * This is the single source of truth for chapter 1 of the `/help-centre` page.
  * The steps mirror the real application in the customer app — see
  * `docs/user-interaction-workflow/seller/onboarding/` and
  * `client/mobile/src/features/seller-onboarding/SellerRegistrationScreen.tsx`.
@@ -29,6 +29,8 @@ export type SellerTourStep = {
   /** Must match a `data-tour-target` in the matching screen. */
   target: string;
   action: SellerTourAction;
+  /** The exact visible label the step presses, named on the stage. */
+  control: string;
   title: string;
   detail: string;
   /** Dwell time in Watch mode, after the tap. */
@@ -53,6 +55,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     screen: "account",
     target: "sell-with-us",
     action: "tap",
+    control: "Sell with us",
     title: "Open My Account and tap Sell with us",
     detail:
       "In the Faazio app, Sell with us sits under Earn with us in your account menu, below the FaazioCoins streak card.",
@@ -63,6 +66,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     screen: "registration",
     target: "business-name",
     action: "type",
+    control: "Business name",
     title: "Add your business identity",
     detail:
       "Business name, owner name, PAN and an optional GSTIN, plus the address, phone and email the review team contacts.",
@@ -73,6 +77,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     screen: "registration",
     target: "payout-account",
     action: "type",
+    control: "Account number",
     title: "Add the payout account and passbook",
     detail:
       "Bank name, account number, IFSC and beneficiary, with the passbook photo. The full account number goes to the payment provider, never stored by Faazio.",
@@ -83,6 +88,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     screen: "registration",
     target: "contract-tier",
     action: "tap",
+    control: "Contract tier",
     title: "Pick the contract tier and accept the agreements",
     detail:
       "Faazio's rate card sets the commission and payout days. You then accept the Terms, the Seller / Partner Agreement and the content licence.",
@@ -93,6 +99,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     screen: "registration",
     target: "otp",
     action: "type",
+    control: "Send OTP",
     title: "Verify your phone — the digital signature",
     detail:
       "A one-time code sent by Firebase signs the application. Editing the phone number invalidates the code.",
@@ -103,6 +110,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     screen: "registration",
     target: "shop-app",
     action: "tap",
+    control: "App",
     title: "Add each shop you sell from",
     detail:
       "Every shop picks its app, category, platform fee, licence and map pin. The first pin sets your state and district.",
@@ -113,6 +121,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     screen: "registration",
     target: "submit-for-review",
     action: "tap",
+    control: "Submit for review",
     title: "Submit for review",
     detail:
       "Submit unlocks only when the OTP, passbook, tier, agreements and each shop's details are complete.",
@@ -123,6 +132,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     screen: "review",
     target: "review-done",
     action: "tap",
+    control: "Done",
     title: "Pending review",
     detail:
       "The application reaches Faazio as Pending review with its application ID, shops, contract and compliance status. Nothing is approved automatically.",

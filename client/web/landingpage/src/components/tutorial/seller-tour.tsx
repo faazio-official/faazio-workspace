@@ -6,11 +6,23 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { SELLER_JOURNEY_CHAPTERS, type SellerJourneyChapter } from "@/lib/tutorials/seller-journey";
+import {
+  SELLER_JOURNEY_CHAPTERS,
+  type SellerJourneyChapter,
+  type SellerJourneyStep,
+} from "@/lib/tutorials/seller-journey";
 import { TourStage } from "./tour-stage";
 
 const TRAVEL_MS = 520;
 const PRESS_MS = 140;
+
+/** The caption's verb, matching the stage callout's. */
+const ACTION_LABEL: Record<SellerJourneyStep["action"], string> = {
+  tap: "Tap",
+  type: "Type in",
+  scan: "Scan",
+  swipe: "Swipe",
+};
 
 /**
  * Seller journey as a list of FAQ-style rows, one per chapter. Opening a row plays that chapter
@@ -142,7 +154,9 @@ function ChapterPlayer({ chapter, open }: { chapter: SellerJourneyChapter; open:
         <span className="journey-caption-step">
           Step {index + 1} of {total}
         </span>
-        {finished ? ` · ${chapter.title} complete` : ` · ${step.title}`}
+        {finished
+          ? ` · ${chapter.title} complete`
+          : ` · ${step.title} — ${ACTION_LABEL[step.action]} “${step.control}”`}
       </p>
       {reduced || finished ? (
         <button type="button" className="btn btn-outline btn-sm" onClick={next}>

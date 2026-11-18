@@ -4,10 +4,10 @@
 **Surfaces:** mobile `SellWithUs` (`SellerRegistrationScreen.tsx`) for application + KYC upload,
 portal `/seller/onboarding` for vendor creation, district-admin review at
 `/admin/district/sellers/[id]` (super admin has a list only), fee-change boards, and the landing
-page `/tutorial` — an illustrative walkthrough of the application that shows no data and submits
+page `/help-centre` — an illustrative walkthrough of the application that shows no data and submits
 nothing. The tutorial's onboarding chapter (`seller-onboarding.ts`) covers this application; the
 remaining chapters cover the rest of the seller journey (see
-[`../tutorial.md`](../tutorial.md)).
+[`../help-centre.md`](../help-centre.md)).
 **Trigger:** "Sell with us" entry in the customer app; a seller opens onboarding/stores in the
 portal; an admin opens a seller application.
 

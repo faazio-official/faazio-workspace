@@ -2,7 +2,7 @@
 
 Marketing landing page for the Faazio Daily SuperApp (Mart · Food · Pharma),
 starting in Karaikal. An SEO-focused long-scrolling homepage at `/` plus
-content pages at `/about`, `/faq`, `/partners`, `/tutorial`, `/karaikal`, `/download`, and
+content pages at `/about`, `/faq`, `/partners`, `/help-centre`, `/karaikal`, `/download`, and
 the legal pages `/terms`, `/seller-terms`, `/privacy`, `/refunds`, `/cookies`, and `/disclaimer`.
 
 Built with **TanStack Start** (file-based routing + SSR), **React 19**,
@@ -91,7 +91,17 @@ bun run preview     # preview the production build
 bun run typecheck   # tsc --noEmit
 bun run lint        # eslint
 bun run test        # vitest
+bun run check:theme # theme-resolution contract (15 checks)
+bun run check:tour  # walk every walkthrough chapter in Chrome; fails if a
+                    # step's ring does not land on the control it names
 ```
+
+`check:tour` drives the running dev server (`bun run dev` first) with a system
+Chrome; set `CHAPTER=11` to inspect one chapter and `CHROME_PATH` to point at a
+non-default binary. It exists because the walkthrough's ring is positioned from
+layout offsets inside the phone frame — only a rendered page can prove it sits
+on the right element. `src/test/journey-targets.test.tsx` covers the markup half
+(every target exists and is marked active); `check:tour` covers the geometry.
 
 ## Deploy to Vercel
 
@@ -123,25 +133,25 @@ When the production domain changes, update `SITE_URL` in `src/lib/site.ts`,
 
 ## Structure
 
-| Path                          | Purpose                                                                       |
-| ----------------------------- | ----------------------------------------------------------------------------- |
-| `src/routes/__root.tsx`       | App shell, global `<head>` defaults, error/404 UI                             |
-| `src/routes/index.tsx`        | The landing page                                                              |
-| `src/routes/about.tsx`        | Company story (`/about`)                                                      |
-| `src/routes/faq.tsx`          | FAQ page with `FAQPage` structured data (`/faq`)                              |
-| `src/routes/partners.tsx`     | Partner page for local businesses (`/partners`)                               |
-| `src/routes/tutorial.tsx`     | Full seller-journey walkthrough with `HowTo` + `ItemList` data (`/tutorial`)   |
-| `src/routes/karaikal.tsx`     | Karaikal location page (`/karaikal`)                                          |
-| `src/routes/download.tsx`     | App download page (`/download`)                                               |
-| `src/routes/privacy.tsx`      | Privacy policy (`/privacy`)                                                   |
-| `src/routes/terms.tsx`        | Terms & Conditions (`/terms`)                                                 |
-| `src/routes/seller-terms.tsx` | Seller & Partner Terms (`/seller-terms`); `/partner-terms` 301-redirects here |
-| `src/routes/refunds.tsx`      | Refund & cancellation policy (`/refunds`)                                     |
-| `src/routes/cookies.tsx`      | Cookie policy (`/cookies`)                                                    |
-| `src/routes/disclaimer.tsx`   | Disclaimer (`/disclaimer`)                                                    |
-| `src/components/`             | Section + shared components (incl. `faazio-logo.tsx`)                         |
-| `src/components/legal.tsx`    | Shared legal page helpers (`PolicyList`, section type)                        |
-| `src/components/ui/`          | shadcn/ui primitives                                                          |
-| `src/styles.css`              | Tailwind entry + semantic colour tokens                                       |
-| `src/lib/site.ts`             | Canonical SEO + business identity constants                                   |
-| `src/lib/seo.ts`              | Shared `seoHead()` + JSON-LD graph builders                                   |
+| Path                          | Purpose                                                                         |
+| ----------------------------- | ------------------------------------------------------------------------------- |
+| `src/routes/__root.tsx`       | App shell, global `<head>` defaults, error/404 UI                               |
+| `src/routes/index.tsx`        | The landing page                                                                |
+| `src/routes/about.tsx`        | Company story (`/about`)                                                        |
+| `src/routes/faq.tsx`          | FAQ page with `FAQPage` structured data (`/faq`)                                |
+| `src/routes/partners.tsx`     | Partner page for local businesses (`/partners`)                                 |
+| `src/routes/help-centre.tsx`  | Full seller-journey walkthrough with `HowTo` + `ItemList` data (`/help-centre`) |
+| `src/routes/karaikal.tsx`     | Karaikal location page (`/karaikal`)                                            |
+| `src/routes/download.tsx`     | App download page (`/download`)                                                 |
+| `src/routes/privacy.tsx`      | Privacy policy (`/privacy`)                                                     |
+| `src/routes/terms.tsx`        | Terms & Conditions (`/terms`)                                                   |
+| `src/routes/seller-terms.tsx` | Seller & Partner Terms (`/seller-terms`); `/partner-terms` 301-redirects here   |
+| `src/routes/refunds.tsx`      | Refund & cancellation policy (`/refunds`)                                       |
+| `src/routes/cookies.tsx`      | Cookie policy (`/cookies`)                                                      |
+| `src/routes/disclaimer.tsx`   | Disclaimer (`/disclaimer`)                                                      |
+| `src/components/`             | Section + shared components (incl. `faazio-logo.tsx`)                           |
+| `src/components/legal.tsx`    | Shared legal page helpers (`PolicyList`, section type)                          |
+| `src/components/ui/`          | shadcn/ui primitives                                                            |
+| `src/styles.css`              | Tailwind entry + semantic colour tokens                                         |
+| `src/lib/site.ts`             | Canonical SEO + business identity constants                                     |
+| `src/lib/seo.ts`              | Shared `seoHead()` + JSON-LD graph builders                                     |

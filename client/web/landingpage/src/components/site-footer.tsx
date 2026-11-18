@@ -23,7 +23,7 @@ export function SiteFooter() {
               <a href="/about">About Faazio</a>
               <a href="/karaikal">Karaikal</a>
               <a href="/partners">Partner with us</a>
-              <a href="/tutorial">Seller onboarding</a>
+              <a href="/help-centre">Seller help centre</a>
             </div>
             <div>
               <h3>A little help</h3>

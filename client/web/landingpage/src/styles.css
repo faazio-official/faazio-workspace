@@ -2142,6 +2142,21 @@
   color: var(--ta-ink-subtle);
 }
 
+/* The step being played marks the control it presses, so the ring and the
+ * highlighted field are never describing two different things. */
+.ta-field[data-active="true"] .ta-field-box {
+  border-color: var(--ta-brand);
+  box-shadow: 0 0 0 2px var(--ta-brand-tint);
+}
+
+.ta-field[data-active="true"] .ta-field-label {
+  color: var(--ta-brand);
+}
+
+.ta-submit[data-active="true"] {
+  box-shadow: 0 0 0 3px var(--ta-brand-tint);
+}
+
 .ta-required {
   color: var(--ta-brand);
 }
@@ -2605,6 +2620,10 @@
   text-transform: uppercase;
 }
 
+.ta-review-done[data-active="true"] {
+  box-shadow: 0 0 0 3px var(--ta-brand-tint);
+}
+
 .tour-screen {
   position: absolute;
   inset: 0;
@@ -2614,438 +2633,6 @@
   padding: 16px 14px 18px;
   overflow: hidden;
   background: var(--color-background);
-}
-
-.tour-screen-body {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  min-height: 0;
-}
-
-.tour-appbar {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.tour-appbar-title {
-  font-size: 0.9375rem;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  color: var(--color-foreground);
-}
-
-.tour-appbar-back {
-  width: 15px;
-  height: 15px;
-  color: var(--color-muted-foreground);
-  flex-shrink: 0;
-}
-
-.tour-group[data-muted] {
-  opacity: 0.55;
-}
-
-.tour-group-title {
-  margin-bottom: 6px;
-  font-size: 0.6875rem;
-  color: var(--color-muted-foreground);
-}
-
-.tour-card {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: var(--color-card);
-  overflow: hidden;
-}
-
-.tour-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 9px 11px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.tour-row:last-child {
-  border-bottom: 0;
-}
-
-.tour-row[data-muted] {
-  opacity: 0.6;
-}
-
-.tour-row-icon {
-  display: grid;
-  place-items: center;
-  width: 25px;
-  height: 25px;
-  border-radius: 8px;
-  background: var(--color-brand-soft);
-  color: var(--color-brand-ink);
-  flex-shrink: 0;
-}
-
-.tour-row-icon svg {
-  width: 14px;
-  height: 14px;
-}
-
-.tour-row-text {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-
-.tour-row-title {
-  font-size: 0.8125rem;
-  font-weight: 500;
-  line-height: 1.3;
-  color: var(--color-foreground);
-}
-
-.tour-row[data-active="true"] .tour-row-title {
-  color: var(--color-brand);
-  font-weight: 600;
-}
-
-.tour-row[data-active="true"] .tour-row-icon {
-  background: var(--color-brand);
-  color: var(--color-primary-foreground);
-}
-
-.tour-row-sub {
-  font-size: 0.6875rem;
-  line-height: 1.35;
-  color: var(--color-muted-foreground);
-}
-
-.tour-row-chevron {
-  width: 14px;
-  height: 14px;
-  margin-left: auto;
-  color: var(--color-muted-foreground);
-  flex-shrink: 0;
-}
-
-.tour-field {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  padding: 8px 11px;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-card);
-}
-
-.tour-card .tour-field {
-  border: 0;
-  border-bottom: 1px solid var(--color-border);
-  border-radius: 0;
-  background: transparent;
-}
-
-.tour-card .tour-field:last-child {
-  border-bottom: 0;
-}
-
-.tour-field[data-active="true"],
-.tour-mock-btn[data-active="true"] {
-  border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px var(--color-brand-soft);
-}
-
-.tour-field-label {
-  font-size: 0.625rem;
-  color: var(--color-muted-foreground);
-}
-
-.tour-field-value {
-  font-size: 0.8125rem;
-  color: var(--color-foreground);
-  line-height: 1.35;
-}
-
-.tour-field-mono {
-  font-family: var(--font-mono);
-  font-variant-numeric: tabular-nums;
-}
-
-.tour-chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 6px;
-}
-
-.tour-chip {
-  padding: 3px 9px;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  font-size: 0.6875rem;
-  color: var(--color-muted-foreground);
-}
-
-.tour-chip[data-on] {
-  background: var(--color-brand-soft);
-  border-color: var(--color-brand-line);
-  color: var(--color-brand-ink);
-  font-weight: 500;
-}
-
-.tour-check {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 8px 11px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.tour-check:last-child {
-  border-bottom: 0;
-}
-
-.tour-check-box {
-  display: grid;
-  place-items: center;
-  width: 16px;
-  height: 16px;
-  margin-top: 1px;
-  border-radius: 4px;
-  background: var(--color-brand);
-  color: var(--color-primary-foreground);
-  flex-shrink: 0;
-}
-
-.tour-check-label {
-  font-size: 0.75rem;
-  line-height: 1.45;
-  color: var(--color-foreground);
-}
-
-.tour-mock-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  height: 34px;
-  padding-inline: 14px;
-  border: 1px solid transparent;
-  border-radius: 9px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-.tour-mock-btn[data-block] {
-  width: 100%;
-}
-
-.tour-mock-btn[data-variant="primary"] {
-  background: var(--color-primary);
-  color: var(--color-primary-foreground);
-}
-
-.tour-mock-btn[data-variant="outline"] {
-  border-color: var(--color-border-strong);
-  color: var(--color-foreground);
-}
-
-.tour-hint {
-  margin-top: 8px;
-  font-size: 0.6875rem;
-  line-height: 1.45;
-  color: var(--color-muted-foreground);
-}
-
-.tour-toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 10px 11px;
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
-  background: var(--color-card);
-}
-
-.tour-toggle-label {
-  font-size: 0.8125rem;
-  color: var(--color-foreground);
-}
-
-.tour-toggle {
-  position: relative;
-  width: 34px;
-  height: 20px;
-  flex-shrink: 0;
-  border-radius: 999px;
-  background: var(--color-border-strong);
-  transition: background-color var(--motion-press) var(--ease-entrance);
-}
-
-.tour-toggle::after {
-  content: "";
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 16px;
-  height: 16px;
-  border-radius: 50%;
-  background: var(--color-card);
-  transition: transform var(--motion-press) var(--ease-entrance);
-}
-
-.tour-toggle[data-on] {
-  background: var(--color-brand);
-}
-
-.tour-toggle[data-on]::after {
-  transform: translateX(14px);
-}
-
-.tour-toggle-row[data-active="true"] {
-  border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px var(--color-brand-soft);
-}
-
-.tour-steps {
-  display: flex;
-  align-items: flex-start;
-  padding: 11px;
-}
-
-.tour-steps[data-active="true"] {
-  border-radius: 10px;
-  box-shadow: 0 0 0 3px var(--color-brand-soft);
-}
-
-.tour-step {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-  text-align: center;
-}
-
-.tour-step-dot {
-  width: 8px;
-  height: 8px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: 50%;
-  background: var(--color-card);
-}
-
-.tour-step[data-state="done"] .tour-step-dot,
-.tour-step[data-state="current"] .tour-step-dot {
-  border-color: var(--color-brand);
-  background: var(--color-brand);
-}
-
-.tour-step[data-state="current"] .tour-step-dot {
-  box-shadow: 0 0 0 3px var(--color-brand-soft);
-}
-
-.tour-step-label {
-  font-size: 0.625rem;
-  color: var(--color-muted-foreground);
-}
-
-.tour-step[data-state="current"] .tour-step-label {
-  font-weight: 600;
-  color: var(--color-brand-ink);
-}
-
-.tour-stat {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 9px 11px;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.tour-stat:last-child {
-  border-bottom: 0;
-}
-
-.tour-stat-label {
-  font-size: 0.6875rem;
-  color: var(--color-muted-foreground);
-}
-
-.tour-stat-value {
-  font-family: var(--font-mono);
-  font-size: 0.9375rem;
-  font-weight: 600;
-  font-variant-numeric: tabular-nums;
-  color: var(--color-foreground);
-}
-
-.tour-bars {
-  display: flex;
-  align-items: flex-end;
-  gap: 5px;
-  height: 96px;
-  padding: 11px;
-}
-
-.tour-bar {
-  flex: 1;
-  min-width: 0;
-  border-radius: 3px 3px 0 0;
-  background: color-mix(in oklab, var(--color-brand) 55%, transparent);
-  transition: background-color var(--motion-press) var(--ease-entrance);
-}
-
-.tour-bars[data-active="true"] .tour-bar {
-  background: var(--color-brand);
-}
-
-.tour-qr {
-  display: grid;
-  place-items: center;
-  align-self: center;
-  width: 132px;
-  padding: 10px;
-  border: 1px solid var(--color-border);
-  border-radius: 14px;
-  background: var(--color-card);
-  color: var(--color-foreground);
-}
-
-.tour-qr svg {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.tour-qr[data-active="true"] {
-  border-color: var(--color-brand);
-  box-shadow: 0 0 0 3px var(--color-brand-soft);
-}
-
-.tour-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  padding: 4px 9px;
-  border: 1px solid var(--color-brand-line);
-  border-radius: 999px;
-  background: var(--color-brand-soft);
-  font-size: 0.6875rem;
-  color: var(--color-brand-ink);
-}
-
-.tour-status svg {
-  width: 13px;
-  height: 13px;
 }
 
 .tour-ring {
@@ -3081,6 +2668,59 @@
   filter: drop-shadow(0 2px 3px oklch(0.235 0.014 60 / 0.28));
 }
 
+.tour-cursor[data-action="type"],
+.tour-cursor[data-action="scan"] {
+  width: 30px;
+  height: 30px;
+  color: var(--color-brand);
+}
+
+/* Names the control the animation presses, pinned to the highlighted target so
+ * the viewer never has to infer which button a chapter used. */
+.tour-callout {
+  position: absolute;
+  z-index: 7;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  max-width: 200px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: var(--color-primary);
+  color: var(--color-primary-foreground);
+  font-size: 0.6875rem;
+  font-weight: 500;
+  line-height: 1.4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  box-shadow: 0 6px 18px -10px oklch(0.235 0.014 60 / 0.55);
+  animation: tour-callout-in 260ms var(--ease-entrance) both;
+}
+
+.tour-callout[data-below] {
+  transform: translate(-50%, 0);
+}
+
+.tour-callout-verb {
+  font-family: var(--font-mono);
+  font-size: 0.625rem;
+  opacity: 0.72;
+}
+
+@keyframes tour-callout-in {
+  from {
+    opacity: 0;
+    margin-top: -3px;
+  }
+  to {
+    opacity: 1;
+    margin-top: 0;
+  }
+}
+
 .dark .tour-cursor {
   filter: drop-shadow(0 2px 3px oklch(0 0 0 / 0.55));
 }
@@ -3100,6 +2740,4055 @@
   line-height: 1.5;
   color: var(--color-muted-foreground);
   text-align: center;
+}
+
+/* ── Seller portal replica (chapters 2+ of /tutorial) ──────────────────────
+ * The seller console is a mobile-first web app (`client/web/platform`), so the
+ * post-onboarding chapters paint its real chrome instead of the customer app's.
+ * The `--tp-*` tokens mirror `client/web/platform/src/styles.css` (light and
+ * dark) and sizes are the portal's px values scaled to the 330px stage.
+ * Components read these tokens only — no colour literals. */
+:root {
+  --tp-canvas: oklch(0.976 0.004 250);
+  --tp-card: #ffffff;
+  --tp-ink: oklch(0.19 0.04 265);
+  --tp-ink-muted: oklch(0.53 0.026 258);
+  --tp-border: oklch(0.918 0.011 250);
+  --tp-success: oklch(0.5 0.13 163);
+  --tp-success-soft: color-mix(in oklab, var(--tp-success) 13%, var(--tp-card));
+  --tp-info: oklch(0.52 0.17 255);
+  --tp-info-soft: color-mix(in oklab, var(--tp-info) 13%, var(--tp-card));
+  --tp-brand: var(--brand-blue);
+  --tp-brand-soft: color-mix(in oklab, var(--brand-blue) 13%, var(--tp-card));
+  --tp-warn: oklch(0.55 0.14 70);
+  --tp-warn-soft: color-mix(in oklab, var(--tp-warn) 16%, var(--tp-card));
+  --tp-nav: oklch(0.22 0.01 260);
+  --tp-nav-foreground: oklch(0.85 0.005 260);
+  --tp-shadow: 0 1px 2px oklch(0.19 0.04 265 / 0.04);
+}
+
+.dark {
+  --tp-canvas: oklch(0.185 0.014 265);
+  --tp-card: oklch(0.232 0.016 265);
+  --tp-ink: oklch(0.96 0.004 250);
+  --tp-ink-muted: oklch(0.72 0.02 258);
+  --tp-border: oklch(1 0 0 / 9%);
+  --tp-success: oklch(0.72 0.14 163);
+  --tp-success-soft: color-mix(in oklab, var(--tp-success) 20%, var(--tp-card));
+  --tp-info: oklch(0.68 0.15 255);
+  --tp-info-soft: color-mix(in oklab, var(--tp-info) 20%, var(--tp-card));
+  --tp-brand: oklch(0.72 0.16 266);
+  --tp-brand-soft: color-mix(in oklab, var(--tp-brand) 22%, var(--tp-card));
+  --tp-warn: oklch(0.84 0.13 80);
+  --tp-warn-soft: color-mix(in oklab, var(--tp-warn) 22%, var(--tp-card));
+  --tp-nav: oklch(0.27 0.02 258);
+  --tp-nav-foreground: oklch(0.62 0.015 258);
+  --tp-shadow: 0 1px 2px oklch(0 0 0 / 0.3);
+}
+
+.tour-screen[data-portal] {
+  gap: 0;
+  padding: 0;
+  background: var(--tp-canvas);
+  font-family: var(--font-sans);
+}
+
+.tp-device {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--tp-canvas);
+  color: var(--tp-ink);
+}
+
+/* PageHeader: sticky card strip, back arrow, uppercase sub, title, menu. */
+.tp-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+  padding: 10px 14px 9px;
+  border-bottom: 1px solid var(--tp-border);
+  background: var(--tp-card);
+  z-index: 2;
+}
+
+.tp-header-back,
+.tp-header-action {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  color: var(--tp-ink);
+}
+
+.tp-header-back svg,
+.tp-header-action svg {
+  width: 17px;
+  height: 17px;
+}
+
+/* The header's ink action pill (`Add shop` on Stores). */
+.tp-header-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 5px 9px;
+  border-radius: 10px;
+  background: var(--tp-ink);
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--tp-card);
+}
+
+.tp-header-btn svg {
+  width: 10px;
+  height: 10px;
+}
+
+.tp-header-btn[data-tone="soft"] {
+  border: 1px solid var(--tp-border);
+  background: var(--tp-card);
+  color: var(--tp-ink);
+}
+
+.tp-header-btn[data-active="true"] {
+  box-shadow: 0 0 0 3px var(--tp-brand-soft);
+}
+
+.tp-header-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.tp-header-sub {
+  font-size: 8.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tp-ink-muted);
+}
+
+.tp-header-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--tp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The portal `main` is a 16px-padded column with 12px card gaps. */
+.tp-scroll {
+  flex: 1;
+  min-height: 0;
+}
+
+.tp-scroll-inner {
+  gap: 10px;
+  padding: 10px 14px 78px;
+}
+
+.tp-scroll-inner .tp-card + .tp-card {
+  margin-top: 0;
+}
+
+.tp-card {
+  padding: 14px;
+  border: 1px solid var(--tp-border);
+  border-radius: 17px;
+  background: var(--tp-card);
+  box-shadow: var(--tp-shadow);
+}
+
+.tp-card-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-card-note {
+  margin: 2px 0 4px;
+  font-size: 8.5px;
+  line-height: 1.45;
+  color: var(--tp-ink-muted);
+}
+
+/* Vendor card head: name + address above the sector chip. */
+.tp-vendor-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tp-vendor-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tp-vendor-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-vendor-sub {
+  font-size: 9.5px;
+  line-height: 1.4;
+  color: var(--tp-ink-muted);
+}
+
+.tp-sector {
+  flex-shrink: 0;
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tp-sector[data-sector="mart"] {
+  background: var(--tp-success-soft);
+  color: var(--tp-success);
+}
+
+.tp-sector[data-sector="food"] {
+  background: var(--tp-brand-soft);
+  color: var(--tp-brand);
+}
+
+.tp-sector[data-sector="pharma"] {
+  background: var(--tp-info-soft);
+  color: var(--tp-info);
+}
+
+/* The vendor body has a hairline above it, exactly like the card's divider. */
+.tp-vendor-body {
+  margin-top: 10px;
+  padding-top: 2px;
+  border-top: 1px solid var(--tp-border);
+}
+
+.tp-licence {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--tp-border);
+}
+
+/* Toggle rows: label left, switch right, hairline between. */
+.tp-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--tp-border);
+}
+
+.tp-switch-row--top {
+  border-top: 0;
+}
+
+.tp-switch-label {
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--tp-ink);
+}
+
+.tp-toggle {
+  position: relative;
+  width: 34px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 999px;
+  background: var(--tp-border);
+  transition: background-color var(--motion-press) var(--ease-entrance);
+}
+
+.tp-toggle::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--tp-card);
+  box-shadow: 0 1px 2px oklch(0.19 0.04 265 / 0.18);
+  transition: transform var(--motion-press) var(--ease-entrance);
+}
+
+.tp-toggle[data-on] {
+  background: var(--tp-success);
+}
+
+.tp-toggle[data-on]::after {
+  transform: translateX(14px);
+}
+
+/* TextField: muted label above a bordered input box. */
+/* A tappable picker card (the wizard's Store / Category / GST category). */
+/* The read-only sector line on the wizard's first step. */
+.tp-sector-line {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 9px;
+  color: var(--tp-ink);
+}
+
+.tp-sector-line small {
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+}
+
+/* Wizard step 2/4: the GST-rate block and the per-unit deduction table. */
+.tp-gstrate {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 7px;
+  padding: 7px 9px;
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--tp-card) 88%, var(--tp-ink));
+}
+
+.tp-gstrate-label {
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tp-ink-muted);
+}
+
+.tp-gstrate-value {
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-deductions {
+  margin-top: 7px;
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tp-deductions-head {
+  padding: 5px 8px;
+  border-bottom: 1px solid var(--tp-border);
+  font-size: 7.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tp-ink-muted);
+}
+
+.tp-deductions .tp-dl-row {
+  padding: 4px 8px;
+  font-size: 8.5px;
+}
+
+.tp-deductions-note {
+  padding: 5px 8px;
+  border-top: 1px solid var(--tp-border);
+  font-size: 7.5px;
+  line-height: 1.45;
+  color: var(--tp-ink-muted);
+}
+
+.tp-field-hint {
+  margin-top: 3px;
+  font-size: 7.5px;
+  line-height: 1.45;
+  color: var(--tp-ink-muted);
+}
+
+.tp-upload-dashed {
+  margin-top: 6px;
+  padding: 6px;
+  border: 1px dashed var(--tp-border);
+  border-radius: 10px;
+}
+
+.tp-upload-hint {
+  margin-top: 4px;
+  font-size: 7.5px;
+  color: var(--tp-brand);
+}
+
+.tp-review-photos {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.tp-review-photo {
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--tp-border);
+  border-radius: 6px;
+  background: color-mix(in oklab, var(--tp-canvas) 45%, var(--tp-border));
+}
+
+.tp-actionbar-back {
+  flex-shrink: 0;
+  padding: 7px 10px;
+  border: 1px solid var(--tp-border);
+  border-radius: 9px;
+  background: var(--tp-card);
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--tp-ink);
+}
+
+.tp-actionbar .tp-primary[data-grow] {
+  flex: 2;
+}
+
+.tp-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-top: 6px;
+  padding: 7px 9px;
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  background: var(--tp-card);
+}
+
+.tp-picker:first-child {
+  margin-top: 0;
+}
+
+.tp-picker-label {
+  font-size: 8px;
+  font-weight: 500;
+  color: var(--tp-ink-muted);
+}
+
+.tp-picker-value {
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--tp-ink);
+}
+
+.tp-picker-value[data-muted] {
+  font-weight: 500;
+  color: var(--tp-ink-muted);
+}
+
+.tp-picker-note {
+  font-size: 7.5px;
+  line-height: 1.4;
+  color: var(--tp-ink-muted);
+}
+
+.tp-field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 6px 0;
+}
+
+.tp-switch-label small {
+  display: block;
+  margin-top: 1px;
+  font-size: 8px;
+  font-weight: 400;
+  color: var(--tp-ink-muted);
+}
+
+.tp-switchrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--tp-border);
+}
+
+.tp-switchrow-text {
+  font-size: 9px;
+  color: var(--tp-ink);
+}
+
+.tp-switchrow-text small {
+  display: block;
+  margin-top: 1px;
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-radios {
+  margin-top: 4px;
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.tp-field-label {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--tp-ink-muted);
+}
+
+.tp-field-box {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid var(--tp-border);
+  border-radius: 13px;
+  background: var(--tp-card);
+  font-size: 13px;
+  color: var(--tp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-field[data-active="true"] .tp-field-box {
+  border-color: var(--tp-brand);
+  box-shadow: 0 0 0 2px var(--tp-brand-soft);
+}
+
+.tp-field[data-active="true"] .tp-field-label {
+  color: var(--tp-brand);
+  font-weight: 600;
+}
+
+.tp-vendor-head[data-active="true"] .tp-vendor-name,
+.tp-card-head[data-active="true"] .tp-card-title {
+  color: var(--tp-brand);
+}
+
+/* App picker chips. */
+.tp-apps-label {
+  margin-top: 8px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--tp-ink-muted);
+}
+
+/* A pair of bordered header buttons (`Trash` + `Add`). */
+.tp-header-pair {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+}
+
+.tp-chips {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.tp-chip {
+  padding: 4px 12px;
+  border: 1px solid var(--tp-border);
+  border-radius: 999px;
+  background: var(--tp-card);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tp-ink);
+}
+
+.tp-chip[data-on] {
+  border-color: var(--tp-ink);
+  background: var(--tp-ink);
+  color: var(--tp-card);
+}
+
+/* The state picker button. */
+.tp-state {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--tp-border);
+  border-radius: 13px;
+  background: var(--tp-card);
+}
+
+.tp-state-label {
+  font-size: 8.5px;
+  font-weight: 500;
+  color: var(--tp-ink-muted);
+}
+
+.tp-state-value {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tp-ink);
+}
+
+/* Dashed document drop zone. */
+.tp-upload-label {
+  margin-top: 6px;
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--tp-ink-muted);
+}
+
+.tp-upload {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  margin-top: 3px;
+  padding: 12px 10px;
+  border: 1px dashed var(--tp-border);
+  border-radius: 13px;
+  background: var(--tp-card);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tp-ink-muted);
+}
+
+.tp-upload svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
+/* PrimaryButton: ink fill, rounded-xl. */
+.tp-primary {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 37px;
+  padding: 0 14px;
+  border-radius: 13px;
+  background: var(--tp-ink);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--tp-card);
+}
+
+.tp-primary[data-block] {
+  width: 100%;
+}
+
+.tp-vendor-body .tp-primary[data-block],
+.tp-licence .tp-primary[data-block] {
+  margin-top: 10px;
+}
+
+.tp-actionbar .tp-primary {
+  margin-top: 0;
+}
+
+.tp-primary[data-tone="brand"] {
+  background: var(--tp-brand);
+  color: #fff;
+}
+
+.tp-primary[data-active="true"] {
+  box-shadow: 0 0 0 3px var(--tp-brand-soft);
+}
+
+/* FixedActionBar: card strip pinned above the floating nav, floating over the
+ * scrolling page exactly like the portal's fixed bar. */
+.tp-actionbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 62px;
+  padding: 8px 14px;
+  border-top: 1px solid var(--tp-border);
+  background: var(--tp-card);
+  z-index: 3;
+}
+
+.tp-scroll-inner--action {
+  padding-bottom: 128px;
+}
+
+/* SellerBottomNav: round switch beside a dark pill of tabs. */
+.tp-nav {
+  position: absolute;
+  left: 50%;
+  bottom: 9px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  width: calc(100% - 28px);
+  transform: translateX(-50%);
+  z-index: 3;
+}
+
+.tp-nav-switch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 47px;
+  height: 47px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--tp-nav);
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--tp-nav-foreground);
+  box-shadow: 0 3px 10px oklch(0.19 0.04 265 / 0.22);
+}
+
+.tp-nav-switch svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tp-nav-pill {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  gap: 2px;
+  height: 47px;
+  flex: 1;
+  padding: 3px;
+  border-radius: 999px;
+  background: var(--tp-nav);
+  box-shadow: 0 3px 10px oklch(0.19 0.04 265 / 0.22);
+}
+
+.tp-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  flex: 1;
+  height: 100%;
+  border-radius: 999px;
+  font-size: 8px;
+  font-weight: 600;
+  line-height: 1;
+  color: var(--tp-nav-foreground);
+}
+
+.tp-nav-item svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tp-nav-item[data-active] {
+  background: color-mix(in oklab, var(--tp-canvas) 15%, transparent);
+  color: var(--tp-canvas);
+}
+
+/* ── Store chapter: sign-in, orders, create-shop entry, switcher ────────────
+ * The chapter starts before the console exists, so these mirror the portal's
+ * `/login` card, the orders board and the vendor create entry at stage scale. */
+
+/* `/login` inside the native seller WebView. */
+.tp-login {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  padding: 16px 14px;
+  background: var(--tp-canvas);
+}
+
+.tp-login-ring {
+  position: absolute;
+  border-radius: 50%;
+  border: 22px solid color-mix(in oklab, var(--tp-brand) 6%, transparent);
+  pointer-events: none;
+}
+
+/* The rings are decorative and extend past the frame; clip them so they never
+ * add scroll height to the phone. */
+.tp-login-rings {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.tp-login-ring--a {
+  top: -74px;
+  right: -58px;
+  width: 168px;
+  height: 168px;
+}
+
+.tp-login-ring--b {
+  bottom: -86px;
+  left: -62px;
+  width: 190px;
+  height: 190px;
+  border-width: 26px;
+  border-color: color-mix(in oklab, var(--tp-brand) 5%, transparent);
+}
+
+.tp-login-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  padding: 15px 14px;
+  border: 1px solid var(--tp-border);
+  border-radius: 20px;
+  background: var(--tp-card);
+  box-shadow: var(--tp-shadow);
+}
+
+.tp-login-card[data-active="true"] {
+  border-color: var(--tp-brand);
+  box-shadow: 0 0 0 2px var(--tp-brand-soft);
+}
+
+.tp-login-logo {
+  height: 15px;
+  width: auto;
+  color: var(--tp-brand);
+}
+
+.tp-login-title {
+  margin-top: 11px;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--tp-ink);
+}
+
+.tp-login-sub {
+  margin-top: 2px;
+  margin-bottom: 11px;
+  font-size: 9.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-login-label {
+  margin-bottom: 3px;
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--tp-ink);
+}
+
+.tp-login-label + .tp-login-input {
+  margin-bottom: 8px;
+}
+
+.tp-login-input {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 31px;
+  padding: 0 9px;
+  border: 1px solid var(--tp-border);
+  border-radius: 9px;
+  background: var(--tp-canvas);
+  font-size: 10px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-login-input svg {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  color: var(--tp-ink-muted);
+}
+
+.tp-login-remember {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-login-check {
+  display: grid;
+  place-items: center;
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  background: var(--tp-brand);
+  color: var(--tp-card);
+}
+
+.tp-login-submit {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  height: 31px;
+  margin-top: 11px;
+  border-radius: 9px;
+  background: var(--tp-brand);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tp-card);
+}
+
+.tp-login-submit svg {
+  width: 11px;
+  height: 11px;
+}
+
+.tp-login-legal {
+  margin-top: 9px;
+  font-size: 8px;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--tp-ink-muted);
+}
+
+.tp-login-foot {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin-top: 12px;
+  font-size: 8px;
+  line-height: 1.5;
+  color: var(--tp-ink-muted);
+}
+
+.tp-login-foot svg {
+  width: 11px;
+  height: 11px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+/* Orders board header (shop switcher + Online chip + scan/search/menu). */
+/* Role: orders-board header row. */
+.tp-orders-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex: 1;
+}
+
+/* The shop-name bar is a `StoreSwitcher` trigger: it hugs its own name and
+ * address so the tour ring reads as "click the name", never the `Online` chip
+ * that follows it. */
+.tp-orders-shop {
+  display: flex;
+  flex-direction: column;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+
+.tp-orders-name {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--tp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-orders-name svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: var(--tp-ink-muted);
+}
+
+.tp-orders-area {
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-orders-online {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--tp-success);
+  border-radius: 999px;
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--tp-success);
+}
+
+.tp-orders-online svg {
+  width: 8px;
+  height: 8px;
+}
+
+.tp-orders-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--tp-success);
+}
+
+/* `PillTabs`. */
+.tp-pills {
+  display: flex;
+  gap: 5px;
+  overflow: hidden;
+}
+
+.tp-pill {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--tp-ink-muted);
+  white-space: nowrap;
+}
+
+.tp-pill[data-on] {
+  background: var(--tp-ink);
+  color: var(--tp-card);
+}
+
+.tp-pill-count {
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--tp-card);
+  font-size: 8px;
+  color: var(--tp-ink);
+}
+
+/* One order card. */
+.tp-order {
+  padding: 12px;
+  border: 1px solid var(--tp-border);
+  border-radius: 14px;
+  background: var(--tp-card);
+  box-shadow: var(--tp-shadow);
+}
+
+.tp-order[data-active="true"] {
+  border-color: var(--tp-brand);
+  box-shadow: 0 0 0 2px var(--tp-brand-soft);
+}
+
+.tp-order-top {
+  position: relative;
+  padding-right: 44px;
+}
+
+.tp-order-id {
+  margin-top: 5px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-order-customer {
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-order-time {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-order-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 9px;
+  padding-top: 9px;
+  border-top: 1px dashed var(--tp-border);
+  font-size: 9.5px;
+  color: var(--tp-ink);
+}
+
+.tp-order-rows span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.tp-order-rows svg {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+}
+
+.tp-order-rows b {
+  margin-left: auto;
+  font-weight: 600;
+}
+
+.tp-order-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px -12px -12px;
+  padding: 7px 12px;
+  border-top: 1px solid var(--tp-border);
+  border-radius: 0 0 14px 14px;
+  background: color-mix(in oklab, var(--tp-canvas) 60%, var(--tp-card));
+}
+
+.tp-order-sla {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex: 1;
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-order-sla svg {
+  width: 9px;
+  height: 9px;
+}
+
+.tp-order-reject,
+.tp-order-accept {
+  padding: 4px 9px;
+  border-radius: 7px;
+  font-size: 9.5px;
+  font-weight: 600;
+}
+
+.tp-order-reject {
+  border: 1px solid var(--tp-border);
+  background: var(--tp-card);
+  color: var(--tp-ink);
+}
+
+.tp-order-accept {
+  background: var(--tp-ink);
+  color: var(--tp-card);
+}
+
+/* `/seller/products` empty state: no shop yet, so link to creating one. */
+.tp-empty-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 26px 18px 16px;
+  border: 1px solid var(--tp-border);
+  border-radius: 17px;
+  background: var(--tp-card);
+  box-shadow: var(--tp-shadow);
+  text-align: center;
+}
+
+.tp-empty-art {
+  display: grid;
+  place-items: center;
+  width: 58px;
+  height: 58px;
+  margin-bottom: 10px;
+  border-radius: 16px;
+  background: color-mix(in oklab, var(--tp-canvas) 40%, var(--tp-border));
+  color: var(--tp-ink-muted);
+}
+
+.tp-empty-art svg {
+  width: 28px;
+  height: 28px;
+  stroke-width: 1.2;
+}
+
+.tp-empty-text {
+  font-size: 9.5px;
+  line-height: 1.55;
+  color: var(--tp-ink-muted);
+}
+
+.tp-empty-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 33px;
+  margin-top: 13px;
+  border-radius: 10px;
+  background: var(--tp-ink);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tp-card);
+}
+
+.tp-empty-card[data-active="true"] .tp-empty-cta {
+  box-shadow: 0 0 0 3px var(--tp-brand-soft);
+}
+
+/* The dashed `+ Add a shop` row under the vendor list. */
+.tp-create-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 34px;
+  border: 1px dashed var(--tp-border);
+  border-radius: 13px;
+  background: var(--tp-canvas);
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--tp-ink);
+}
+
+.tp-create-row svg {
+  width: 12px;
+  height: 12px;
+}
+
+.tp-create-row[data-active="true"] {
+  border-color: var(--tp-brand);
+  color: var(--tp-brand);
+  box-shadow: 0 0 0 2px var(--tp-brand-soft);
+}
+
+/* `StoreSwitcher` popover — shop list with live dot, sector chip and tick. */
+.tp-switcher {
+  position: absolute;
+  top: 52px;
+  left: 14px;
+  right: 14px;
+  z-index: 4;
+  padding: 7px;
+  border: 1px solid var(--tp-border);
+  border-radius: 15px;
+  background: var(--tp-card);
+  box-shadow: 0 12px 28px -14px oklch(0.19 0.04 265 / 0.35);
+}
+
+.tp-switcher[data-active="true"] {
+  border-color: var(--tp-brand);
+  box-shadow: 0 0 0 2px var(--tp-brand-soft);
+}
+
+.tp-switcher-label {
+  padding: 2px 5px 4px;
+  font-size: 8px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--tp-ink-muted);
+}
+
+.tp-switcher-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 5px;
+  border-radius: 10px;
+}
+
+.tp-switcher-row[data-active="true"] {
+  background: color-mix(in oklab, var(--tp-canvas) 45%, var(--tp-card));
+}
+
+.tp-switcher-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.tp-switcher-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--tp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-switcher-dot {
+  width: 4px;
+  height: 4px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--tp-success);
+}
+
+.tp-switcher-dot[data-off] {
+  background: var(--tp-ink-muted);
+}
+
+.tp-switcher-addr {
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-switcher-tick {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: var(--tp-info);
+}
+
+/* ── Console page replicas (chapters 3–10) ─────────────────────────────────
+ * The later chapters paint the portal's own pages at stage scale: the hub-mode
+ * header with its bell and shop avatar, the products list, the five-step
+ * listing wizard, the order detail, payouts, settings and the remaining
+ * surfaces. Same contract as the block above — `--tp-*` tokens only, nothing
+ * focusable, scaled to the 330px stage. */
+
+/* `HubHeader`: shop switcher block, bell, avatar, explore menu. */
+.tp-hub-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  padding: 9px 14px 8px;
+  border-bottom: 1px solid var(--tp-border);
+  background: var(--tp-card);
+  z-index: 2;
+}
+
+.tp-hub-shop {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tp-hub-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.tp-hub-caption {
+  font-size: 7px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--tp-ink-muted);
+}
+
+.tp-hub-name {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--tp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-hub-shop > svg {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  color: var(--tp-ink-muted);
+}
+
+.tp-icon-btn {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  flex-shrink: 0;
+  color: var(--tp-ink);
+}
+
+.tp-icon-btn svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tp-icon-btn[data-active="true"] {
+  color: var(--tp-brand);
+}
+
+.tp-avatar {
+  display: grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--tp-info);
+  font-size: 7.5px;
+  font-weight: 700;
+  color: var(--tp-card);
+}
+
+.tp-hub-tabs {
+  padding-top: 8px;
+}
+
+/* The period row above Home's cards and the Order history range button: the
+ * active window on the left, its comparator or order count under it, and the
+ * calendar affordance on the right that opens the range sheet. */
+.tp-rangebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 7px 10px;
+  border: 1px solid var(--tp-border);
+  border-radius: 11px;
+  background: var(--tp-card);
+  color: var(--tp-ink);
+}
+
+.tp-rangebar span {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.35;
+}
+
+.tp-rangebar b {
+  font-size: 9.5px;
+  font-weight: 700;
+}
+
+.tp-rangebar small {
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-rangebar svg {
+  width: 12px;
+  height: 12px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-rangebar[data-active="true"] {
+  border-color: var(--tp-brand);
+  background: var(--tp-brand-soft);
+}
+
+/* A spacer between the two stacked outline buttons in Settings › Security. */
+.tp-security-gap {
+  height: 8px;
+}
+
+/* `UnderlineTabs` (Settings). */
+.tp-utabs {
+  display: flex;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-bottom: 1px solid var(--tp-border);
+  background: var(--tp-card);
+}
+
+.tp-utab {
+  flex-shrink: 0;
+  padding: 7px 7px 6px;
+  border-bottom: 2px solid transparent;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--tp-ink-muted);
+  white-space: nowrap;
+}
+
+.tp-utab[data-on] {
+  border-bottom-color: var(--tp-info);
+  color: var(--tp-info);
+}
+
+/* Section heading inside the page body. */
+.tp-sec-title {
+  padding: 2px 0 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+/* A hairline-divided list — review rows, ledger rows, settings rows. */
+.tp-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.tp-lrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--tp-border);
+}
+
+.tp-lrow:last-child {
+  border-bottom: 0;
+}
+
+.tp-lrow[data-active="true"] {
+  margin-inline: -6px;
+  padding-inline: 6px;
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--tp-brand) 8%, var(--tp-card));
+}
+
+/* An unread alert row is tinted, exactly `bg-info-soft` in the console. */
+.tp-lrow[data-unread="true"] {
+  margin-inline: -8px;
+  padding-inline: 8px;
+  background: var(--tp-info-soft);
+}
+
+.tp-lrow-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.tp-lrow-title {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--tp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-lrow-sub {
+  font-size: 8.5px;
+  line-height: 1.35;
+  color: var(--tp-ink-muted);
+}
+
+/* A list inside a border box with a section header row (`Your add-ons`). */
+.tp-list--boxed {
+  border: 1px solid var(--tp-border);
+  border-radius: 12px;
+  overflow: hidden;
+  padding: 0;
+}
+
+.tp-list--boxed .tp-lrow {
+  padding-inline: 9px;
+}
+
+.tp-list-head {
+  padding: 6px 9px;
+  border-bottom: 1px solid var(--tp-border);
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+/* The inline action links under a console row (`Submit for review · Delist`). */
+.tp-lrow-actions {
+  margin-top: 2px;
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--tp-info);
+}
+
+/* A section header with a trailing action button (Add-ons → Create). */
+.tp-section-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.tp-section-text {
+  min-width: 0;
+  flex: 1;
+}
+
+/* A small outlined action inside a card (`Add add-on`). */
+.tp-mini-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--tp-ink);
+}
+
+.tp-mini-btn svg {
+  width: 8px;
+  height: 8px;
+}
+
+/* An add-on link block under `Add-ons per dish`. */
+.tp-dishlink {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--tp-border);
+}
+
+.tp-dishlink-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tp-dishlink-head p {
+  min-width: 0;
+  flex: 1;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--tp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-dishlink-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 5px;
+  padding: 5px 6px;
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--tp-ink) 4%, var(--tp-card));
+}
+
+.tp-dishlink-text {
+  min-width: 0;
+  flex: 1;
+  font-size: 9px;
+  color: var(--tp-ink);
+}
+
+.tp-dishlink-text small {
+  display: block;
+  font-size: 8px;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--tp-ink-muted);
+}
+
+.tp-lrow > svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: var(--tp-ink-muted);
+}
+
+/* Status pill. */
+.tp-badge {
+  flex-shrink: 0;
+  padding: 1.5px 4px;
+  border-radius: 4px;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.tp-badge[data-tone="muted"] {
+  background: color-mix(in oklab, var(--tp-canvas) 55%, var(--tp-border));
+  color: var(--tp-ink-muted);
+}
+
+.tp-badge[data-tone="info"] {
+  background: var(--tp-info-soft);
+  color: var(--tp-info);
+}
+
+.tp-badge[data-tone="success"] {
+  background: var(--tp-success-soft);
+  color: var(--tp-success);
+}
+
+.tp-badge[data-tone="warning"] {
+  background: var(--tp-warn-soft);
+  color: var(--tp-warn);
+}
+
+.tp-badge[data-tone="brand"] {
+  background: var(--tp-brand-soft);
+  color: var(--tp-brand);
+}
+
+/* Search / filter row. */
+.tp-searchrow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tp-search {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  background: var(--tp-card);
+  font-size: 9px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-search svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+}
+
+.tp-filter {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  background: var(--tp-card);
+  color: var(--tp-ink);
+}
+
+.tp-filter svg {
+  width: 12px;
+  height: 12px;
+}
+
+.tp-filter[data-on] {
+  border-color: var(--tp-ink);
+  background: var(--tp-ink);
+  color: var(--tp-card);
+}
+
+/* KPI tiles (`/seller/ads`, `/seller/analytics`). */
+.tp-kpis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+
+.tp-kpi {
+  padding: 8px 9px;
+  border: 1px solid var(--tp-border);
+  border-radius: 12px;
+  background: var(--tp-card);
+  box-shadow: var(--tp-shadow);
+}
+
+.tp-kpi-label {
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-kpi-value {
+  margin-top: 2px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-kpi-value small {
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--tp-brand);
+}
+
+/* A two-column KPI grid and the raw `small`/`b` pair used inside `.tp-kpi`. */
+.tp-kpis--2 {
+  grid-template-columns: 1fr 1fr;
+}
+
+.tp-kpi small {
+  display: block;
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-kpi b {
+  display: block;
+  margin-top: 2px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-kpi b[data-brand="true"] {
+  color: var(--tp-brand);
+}
+
+/* The all-time settlement headline: label, big net figure, footnote. */
+.tp-bignum-label {
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-bignum {
+  margin-top: 2px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--tp-ink);
+}
+
+.tp-bignum-note {
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+}
+
+/* A definition row: label left, value right. */
+.tp-dl {
+  display: flex;
+  flex-direction: column;
+}
+
+.tp-dl-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 9px;
+}
+
+.tp-dl-row dt {
+  color: var(--tp-ink-muted);
+}
+
+.tp-dl-row dd {
+  min-width: 0;
+  font-weight: 600;
+  text-align: right;
+  color: var(--tp-ink);
+}
+
+.tp-dl-row[data-bold] dd {
+  font-weight: 700;
+}
+
+/* The listing wizard's five progress rails. */
+.tp-wizard {
+  display: flex;
+  gap: 3px;
+}
+
+.tp-wizard-step {
+  flex: 1;
+  min-width: 0;
+}
+
+.tp-wizard-bar {
+  height: 3px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tp-canvas) 45%, var(--tp-border));
+}
+
+.tp-wizard-step[data-done] .tp-wizard-bar {
+  background: var(--tp-ink);
+}
+
+.tp-wizard-label {
+  margin-top: 3px;
+  font-size: 6px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  text-align: center;
+  color: var(--tp-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-wizard-step[data-current] .tp-wizard-label {
+  color: var(--tp-ink);
+}
+
+.tp-wizard-current {
+  padding-top: 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+/* A product thumbnail placeholder (the real rows show a photo or emoji). */
+.tp-thumb {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--tp-canvas) 45%, var(--tp-border));
+  font-size: 15px;
+}
+
+.tp-prow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 9px 10px;
+  border: 1px solid var(--tp-border);
+  border-radius: 13px;
+  background: var(--tp-card);
+  box-shadow: var(--tp-shadow);
+}
+
+.tp-prow[data-active="true"] {
+  border-color: var(--tp-brand);
+  box-shadow: 0 0 0 2px var(--tp-brand-soft);
+}
+
+.tp-prow-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.tp-prow-name {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--tp-ink);
+}
+
+.tp-prow-name span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.tp-prow-name small {
+  flex-shrink: 0;
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--tp-ink-muted);
+}
+
+.tp-prow-sub {
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-prow-foot {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 2px;
+  font-size: 9px;
+  color: var(--tp-ink);
+}
+
+.tp-prow-foot b {
+  font-weight: 700;
+}
+
+.tp-prow-foot .tp-badge {
+  margin-left: auto;
+}
+
+/* Veg / non-veg mark, exactly the console's 14px box. */
+.tp-veg {
+  display: grid;
+  place-items: center;
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  border: 1px solid var(--tp-success);
+  border-radius: 2px;
+}
+
+.tp-veg::after {
+  content: "";
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--tp-success);
+}
+
+.tp-veg[data-nonveg] {
+  border-color: var(--tp-brand);
+}
+
+.tp-veg[data-nonveg]::after {
+  background: var(--tp-brand);
+}
+
+/* Order timeline. */
+.tp-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding-top: 2px;
+}
+
+.tp-tl-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-tl-dot {
+  width: 5px;
+  height: 5px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: color-mix(in oklab, var(--tp-canvas) 40%, var(--tp-border));
+}
+
+.tp-tl-row[data-done] {
+  font-weight: 600;
+  color: var(--tp-ink);
+}
+
+.tp-tl-row[data-done] .tp-tl-dot {
+  background: var(--tp-success);
+}
+
+.tp-tl-row .tp-badge {
+  margin-left: auto;
+}
+
+/* Bars + progress used by analytics and shop health. */
+.tp-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 44px;
+  padding-top: 6px;
+}
+
+.tp-bar {
+  flex: 1;
+  min-width: 0;
+  border-radius: 2px 2px 0 0;
+  background: color-mix(in oklab, var(--tp-info) 55%, var(--tp-card));
+}
+
+.tp-bar[data-strong] {
+  background: var(--tp-info);
+}
+
+.tp-progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tp-canvas) 45%, var(--tp-border));
+}
+
+.tp-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--tp-info);
+}
+
+.tp-progress[data-tone="brand"] > span {
+  background: var(--tp-brand);
+}
+
+.tp-progress[data-tone="muted"] > span {
+  background: var(--tp-ink-muted);
+}
+
+/* A labelled progress rail: label + value, then the bar. */
+.tp-progrow {
+  margin-top: 7px;
+}
+
+.tp-progrow-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 3px;
+  font-size: 8.5px;
+  color: var(--tp-ink);
+}
+
+.tp-progrow-head b {
+  flex-shrink: 0;
+  font-weight: 700;
+}
+
+/* The compact 7d / 30d / 90d header buttons. */
+.tp-period {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  flex-shrink: 0;
+}
+
+.tp-period span {
+  padding: 3px 6px;
+  border: 1px solid var(--tp-border);
+  border-radius: 999px;
+  background: var(--tp-card);
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--tp-ink-muted);
+}
+
+.tp-period span[data-on="true"] {
+  border-color: var(--tp-ink);
+  background: var(--tp-ink);
+  color: var(--tp-card);
+}
+
+/* A short sparkline-height bar chart variant. */
+.tp-bars[data-compact] {
+  height: 20px;
+  margin-top: 6px;
+  padding-top: 0;
+}
+
+/* Explore grid: 4 icon tiles per section. */
+.tp-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px 4px;
+}
+
+.tp-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-width: 0;
+}
+
+.tp-tile-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  background: var(--tp-card);
+  box-shadow: var(--tp-shadow);
+  color: var(--tp-ink);
+}
+
+.tp-tile-icon svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tp-tile-label {
+  font-size: 7.5px;
+  line-height: 1.2;
+  text-align: center;
+  color: var(--tp-ink-muted);
+}
+
+.tp-tile-badge {
+  margin-top: 1px;
+  padding: 0 2px;
+  border-radius: 3px;
+  background: var(--tp-brand);
+  font-size: 6.5px;
+  font-weight: 700;
+  color: var(--tp-card);
+}
+
+.tp-tile-badge[data-on="true"] {
+  background: var(--tp-success);
+}
+
+/* Hub header sticky tabs slot. */
+.tp-hub-sticky {
+  flex-basis: 100%;
+  margin-top: 7px;
+}
+
+/* A campaign card head with a thumbnail block. */
+.tp-camp-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tp-camp-thumb {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 34px;
+  height: 26px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--tp-canvas) 40%, var(--tp-border));
+  color: var(--tp-ink-muted);
+}
+
+.tp-camp-thumb svg {
+  width: 13px;
+  height: 13px;
+}
+
+.tp-camp-head .tp-outlet-text {
+  flex: 1;
+}
+
+.tp-camp-head + .tp-kpis {
+  margin-top: 8px;
+}
+
+/* The rating summary strip on reviews. */
+.tp-rating-strip {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 8px;
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  background: var(--tp-card);
+}
+
+.tp-rating-badge {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  border-radius: 5px;
+  background: var(--tp-success);
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--tp-card);
+}
+
+.tp-rating-text {
+  min-width: 0;
+  flex: 1;
+  font-size: 8.5px;
+  color: var(--tp-ink);
+}
+
+.tp-rating-text b {
+  font-weight: 700;
+}
+
+.tp-rating-text small {
+  display: block;
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-rating-stars {
+  display: flex;
+  flex-shrink: 0;
+  gap: 4px;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-rating-stars span {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+}
+
+.tp-rating-stars svg,
+.tp-starpill svg {
+  width: 7px;
+  height: 7px;
+  fill: var(--tp-warn);
+  color: var(--tp-warn);
+}
+
+/* The star filter pills above the review list. */
+.tp-starpills {
+  display: flex;
+  gap: 4px;
+}
+
+.tp-starpill {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+  padding: 3px 8px;
+  border: 1px solid var(--tp-border);
+  border-radius: 999px;
+  background: var(--tp-card);
+  font-size: 8px;
+  color: var(--tp-ink);
+}
+
+/* A review card head and its reply / flag actions. */
+.tp-review-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tp-review-avatar {
+  display: grid;
+  place-items: center;
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tp-canvas) 40%, var(--tp-border));
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-review-head .tp-outlet-text {
+  flex: 1;
+}
+
+.tp-rating-pill {
+  flex-shrink: 0;
+  padding: 1px 4px;
+  border-radius: 4px;
+  background: var(--tp-warn);
+  font-size: 8px;
+  font-weight: 700;
+  color: var(--tp-card);
+}
+
+.tp-rating-pill[data-good="true"] {
+  background: var(--tp-success);
+}
+
+.tp-review-body {
+  margin-top: 6px;
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--tp-ink);
+}
+
+.tp-review-reply {
+  margin-top: 6px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--tp-ink) 5%, var(--tp-card));
+  font-size: 8.5px;
+  line-height: 1.45;
+  color: var(--tp-ink-muted);
+}
+
+.tp-review-reply b {
+  color: var(--tp-ink);
+}
+
+.tp-review-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--tp-info);
+}
+
+.tp-review-actions span[data-brand="true"] {
+  color: var(--tp-brand);
+}
+
+/* A full-width navigation row card (`Stores ›`, `App settings ›`). */
+.tp-linkrow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--tp-border);
+  border-radius: 12px;
+  background: var(--tp-card);
+  box-shadow: var(--tp-shadow);
+  font-size: 9.5px;
+  color: var(--tp-ink);
+}
+
+.tp-linkrow > svg {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  color: var(--tp-ink-muted);
+}
+
+/* The centred `View details ›` affordance under a ledger card. */
+.tp-linkrow--center {
+  justify-content: center;
+  gap: 2px;
+  margin-top: 8px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  font-weight: 600;
+  color: var(--tp-info);
+}
+
+.tp-linkrow--center > svg {
+  width: 9px;
+  height: 9px;
+  color: currentColor;
+}
+
+.tp-linkrow--card {
+  margin-top: 8px;
+  padding: 7px 0 0;
+  border: 0;
+  border-top: 1px solid var(--tp-border);
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+}
+
+.tp-linkrow-end {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+}
+
+/* A card row header with a trailing text action (`Delivery settings · Edit`). */
+.tp-rowhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 9.5px;
+  color: var(--tp-ink);
+}
+
+.tp-rowhead-action {
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--tp-info);
+}
+
+/* A multi-line text field body (`What happened?`). */
+.tp-textarea {
+  margin-top: 2px;
+  padding: 7px 8px;
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  background: var(--tp-card);
+  font-size: 8.5px;
+  line-height: 1.5;
+  color: var(--tp-ink);
+}
+
+/* The Rush-in-kitchen Zap banner. */
+.tp-rush-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 9px;
+  border-radius: 12px;
+  background: var(--tp-info-soft);
+}
+
+.tp-rush-banner > svg {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  color: var(--tp-info);
+}
+
+.tp-rush-banner p {
+  font-size: 9px;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--tp-ink);
+}
+
+/* Outlet info card head, chips and the icon rows under the divider. */
+.tp-outlet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.tp-outlet-text {
+  min-width: 0;
+}
+
+.tp-outlet-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-outlet-rows {
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top: 1px solid var(--tp-border);
+}
+
+.tp-outlet-addr,
+.tp-outlet-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  color: var(--tp-ink);
+}
+
+.tp-outlet-addr > svg,
+.tp-outlet-row > svg {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  color: var(--tp-ink-muted);
+}
+
+.tp-outlet-row + .tp-outlet-row,
+.tp-outlet-addr + .tp-outlet-map + div > .tp-outlet-row {
+  margin-top: 6px;
+}
+
+.tp-outlet-row > span {
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-outlet-row > b {
+  margin-left: auto;
+  max-width: 55%;
+  font-size: 9px;
+  font-weight: 500;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-outlet-map {
+  margin-top: 3px;
+  padding-left: 15px;
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--tp-info);
+}
+
+/* The `ID: …` note in the outlet-info header. */
+.tp-header-note {
+  flex-shrink: 0;
+  max-width: 35%;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Trash card internals. */
+.tp-trash-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.tp-trash-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.tp-trash-price {
+  margin-top: 3px;
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-trash-meta {
+  margin-top: 7px;
+  padding: 5px 7px;
+  border: 1px solid var(--tp-border);
+  border-radius: 9px;
+  background: color-mix(in oklab, var(--tp-ink) 4%, var(--tp-card));
+  font-size: 8px;
+  line-height: 1.45;
+  color: var(--tp-ink-muted);
+}
+
+.tp-trash-meta > p + p {
+  margin-top: 1px;
+}
+
+/* The campaign wizard's step rail and target pills on `Ads`. */
+.tp-steprail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-top: 7px;
+}
+
+.tp-steprail-item {
+  flex-shrink: 0;
+  padding: 3px 6px;
+  border: 1px solid var(--tp-border);
+  border-radius: 999px;
+  background: var(--tp-card);
+  font-size: 7.5px;
+  font-weight: 600;
+  color: var(--tp-ink-muted);
+}
+
+.tp-steprail-item[data-on] {
+  border-color: var(--tp-ink);
+  background: var(--tp-ink);
+  color: var(--tp-card);
+}
+
+.tp-tabpills {
+  display: flex;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.tp-tabpill {
+  padding: 3px 7px;
+  border: 1px solid var(--tp-border);
+  border-radius: 5px;
+  background: var(--tp-card);
+  font-size: 7.5px;
+  font-weight: 500;
+  color: var(--tp-ink-muted);
+}
+
+.tp-tabpill[data-on] {
+  border-color: var(--tp-ink);
+  background: var(--tp-ink);
+  color: var(--tp-card);
+}
+
+/* Completed step in the ad wizard's rail: the real rail turns success with a Check. */
+.tp-steprail-item[data-done] {
+  border-color: var(--tp-success);
+  background: var(--tp-success-soft);
+  color: var(--tp-success);
+}
+
+.tp-steprail-item svg {
+  width: 8px;
+  height: 8px;
+  vertical-align: -1px;
+}
+
+/* Placement checkboxes in the wizard's `Where` step. */
+.tp-placements {
+  display: grid;
+  gap: 4px;
+  margin-top: 6px;
+}
+
+.tp-placement {
+  display: grid;
+  gap: 1px;
+  padding: 5px 7px;
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  background: var(--tp-card);
+}
+
+.tp-placement[data-on] {
+  border-color: var(--tp-info);
+  background: color-mix(in oklab, var(--tp-info) 6%, var(--tp-card));
+}
+
+.tp-placement-label {
+  font-size: 8.5px;
+  font-weight: 600;
+}
+
+.tp-placement-reach {
+  font-size: 7.5px;
+  color: var(--tp-info);
+}
+
+/* The character counter under a wizard field (`20/40`). */
+.tp-count {
+  margin: 2px 0 5px;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The LIVE row above `Publish now` on the wizard's review step. */
+.tp-review-live {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 7px 0;
+}
+
+.tp-lrowbox {
+  margin-top: 5px;
+  padding: 0 7px;
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+}
+
+.tp-lrowbox .tp-lrow:last-child {
+  border-bottom: 0;
+}
+
+.tp-lrow svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: var(--tp-success);
+}
+
+.tp-camp-target {
+  margin-top: 1px;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+}
+
+/* The `bg-info-gradient` strip on Inventory: a sentence plus the `Edit now` pill. */
+.tp-edit-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--tp-info-soft);
+  font-size: 8.5px;
+  color: var(--tp-info);
+}
+
+.tp-edit-pill {
+  flex-shrink: 0;
+  padding: 2px 7px;
+  border-radius: 7px;
+  background: var(--tp-card);
+  font-weight: 600;
+}
+
+/* The Submit / Delist / Edit footer under a Menu card. */
+.tp-menu-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--tp-border);
+  font-size: 8px;
+  font-weight: 600;
+}
+
+.tp-menu-actions {
+  display: flex;
+  gap: 8px;
+  color: var(--tp-warn);
+}
+
+.tp-menu-edit {
+  color: var(--tp-info);
+}
+
+.tp-lrow[data-top="true"] {
+  align-items: flex-start;
+}
+
+.tp-lrow-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 7.5px;
+  font-weight: 600;
+  color: var(--tp-info);
+}
+
+.tp-lrow-actions [data-muted] {
+  color: var(--tp-ink-muted);
+}
+
+/* An offer card: product row, join state, then the live price and discount field. */
+.tp-offer-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tp-offer-head .tp-outlet-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tp-offer-state {
+  flex-shrink: 0;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-offer-foot {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  margin-top: 7px;
+  padding-top: 7px;
+  border-top: 1px solid var(--tp-border);
+}
+
+.tp-offer-foot .tp-outlet-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tp-offer-live {
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-offer-live b {
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-offer-foot .tp-primary {
+  flex-shrink: 0;
+  min-height: 28px;
+  padding: 0 10px;
+  font-size: 8.5px;
+}
+
+/* The rush-mode benefit lines. */
+.tp-benefits {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.tp-benefits span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 8.5px;
+  color: var(--tp-ink);
+}
+
+.tp-benefits svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: var(--tp-success);
+}
+
+/* A prescription card head and its created-at / quote footer. */
+.tp-rx-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.tp-rx-head .tp-outlet-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.tp-rx-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid var(--tp-border);
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-rx-foot b {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+/* The prescription sheet: patient note, Rx scans, quote builder, audited PII. */
+.tp-rx-label {
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--tp-ink-muted);
+}
+
+.tp-rx-note {
+  margin-top: 3px;
+  padding: 5px 7px;
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--tp-ink) 4%, var(--tp-card));
+  font-size: 8px;
+  line-height: 1.45;
+}
+
+.tp-rx-rowhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+.tp-rx-action {
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--tp-info);
+}
+
+.tp-rx-hint {
+  margin-top: 2px;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-rx-thumbs {
+  display: flex;
+  gap: 5px;
+  margin-top: 4px;
+}
+
+.tp-rx-thumb {
+  width: 34px;
+  height: 42px;
+  border: 1px solid var(--tp-border);
+  border-radius: 7px;
+  background: color-mix(in oklab, var(--tp-ink) 8%, var(--tp-card));
+}
+
+.tp-rx-quote {
+  display: grid;
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.tp-rx-item {
+  padding: 5px 7px;
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  background: var(--tp-card);
+}
+
+.tp-rx-item-name {
+  font-size: 8.5px;
+  font-weight: 600;
+}
+
+.tp-rx-item-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 3px;
+  margin-top: 3px;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.tp-rx-item-grid span {
+  padding: 2px 3px;
+  border: 1px solid var(--tp-border);
+  border-radius: 5px;
+  text-align: center;
+}
+
+.tp-rx-total {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--tp-border);
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-rx-total b {
+  font-size: 9.5px;
+  color: var(--tp-ink);
+}
+
+.tp-rx-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 6px;
+}
+
+.tp-rx-actions > * {
+  flex: 1;
+}
+
+.tp-rx-pii {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid color-mix(in oklab, var(--tp-warn) 40%, var(--tp-border));
+  border-radius: 9px;
+  background: var(--tp-warn-soft);
+}
+
+.tp-rx-pii-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--tp-warn);
+}
+
+.tp-rx-pii-head svg {
+  width: 10px;
+  height: 10px;
+}
+
+.tp-rx-pii-body {
+  margin-top: 3px;
+  font-size: 8.5px;
+}
+
+.tp-rx-pii-when {
+  margin-top: 2px;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+}
+
+/* `Request a fee change`: the fee in force, and the history rows. */
+.tp-fee-title {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tp-fee-title svg {
+  width: 12px;
+  height: 12px;
+  color: var(--tp-brand);
+}
+
+.tp-fee-current {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 5px 7px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--tp-ink) 5%, var(--tp-card));
+}
+
+.tp-fee-current-label {
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-fee-current-value {
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tp-fee-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--tp-border);
+}
+
+.tp-fee-row:last-child {
+  border-bottom: 0;
+}
+
+.tp-fee-row .tp-outlet-text {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Explore's section blocks: a bold heading over a 4-up tile grid. */
+.tp-explore-sec {
+  padding-block: 7px;
+  border-bottom: 1px solid var(--tp-border);
+}
+
+.tp-explore-sec:last-of-type {
+  border-bottom: 0;
+}
+
+.tp-explore-title {
+  margin-bottom: 7px;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-avatar[data-muted="true"] {
+  background: color-mix(in oklab, var(--tp-ink) 10%, var(--tp-card));
+  color: var(--tp-ink-muted);
+}
+
+.tp-kpi b small[data-up] {
+  font-size: 7.5px;
+  font-weight: 600;
+  color: var(--tp-success);
+}
+
+.tp-kpi .tp-bars {
+  margin-top: 4px;
+}
+
+.tp-lrow-end {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-kpis--4 {
+  grid-template-columns: repeat(4, 1fr);
+}
+
+.tp-tabwrap {
+  padding: 7px 14px 0;
+}
+
+/* The cycle picker row on `Payments`. */
+.tp-pillwrap {
+  padding: 7px 14px 0;
+}
+
+.tp-cyclepick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.tp-cyclepick-field {
+  display: flex;
+  flex: 1;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 9px;
+  border: 1px solid var(--tp-border);
+  border-radius: 9px;
+  background: var(--tp-card);
+  font-size: 8.5px;
+  color: var(--tp-ink);
+}
+
+.tp-cyclepick-field svg {
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  color: var(--tp-ink-muted);
+}
+
+.tp-cyclepick-field svg:last-child {
+  margin-left: auto;
+}
+
+.tp-cyclepick-get {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 9px;
+  border-radius: 9px;
+  background: var(--tp-ink);
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--tp-card);
+}
+
+.tp-cyclepick-get svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* One payout in the schedule. */
+.tp-payout-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.tp-payout-amount {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-payout-meta {
+  margin-top: 4px;
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-payout-id {
+  margin-top: 2px;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-payout-invoice {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 6px;
+  padding: 3px 7px;
+  border: 1px solid var(--tp-border);
+  border-radius: 7px;
+  background: var(--tp-canvas);
+  font-size: 7.5px;
+  font-weight: 700;
+  color: var(--tp-brand);
+}
+
+.tp-payout-invoice svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* The per-product price rail on `Pricing`. */
+.tp-ratio {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 7px;
+}
+
+.tp-ratio-rail {
+  flex: 1;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tp-ink) 12%, var(--tp-card));
+  overflow: hidden;
+}
+
+.tp-ratio-fill {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--tp-success);
+}
+
+.tp-ratio-fill[data-tone="warning"] {
+  background: var(--tp-warn);
+}
+
+.tp-ratio-note {
+  flex-shrink: 0;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-inline-save {
+  flex-shrink: 0;
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: var(--tp-ink);
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--tp-card);
+}
+
+/* One audit-log entry on `Pricing`. */
+.tp-audit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--tp-border);
+  font-size: 8.5px;
+}
+
+.tp-audit:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.tp-audit-when {
+  color: var(--tp-ink-muted);
+}
+
+.tp-audit-id {
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-audit-delta {
+  flex-basis: 100%;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-mass {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.tp-mass-input {
+  width: 26px;
+  padding: 4px 0;
+  border: 1px solid var(--tp-border);
+  border-radius: 8px;
+  background: var(--tp-card);
+  text-align: center;
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--tp-ink-muted);
+}
+
+/* Shop health: headline score, then a pass/warn part list. */
+.tp-health-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 7px;
+}
+
+.tp-health-score {
+  flex-shrink: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-health-score small {
+  font-size: 8px;
+  font-weight: 600;
+  color: var(--tp-ink-muted);
+}
+
+.tp-health-parts {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.tp-health-parts span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-health-parts span > svg {
+  width: 9px;
+  height: 9px;
+  color: var(--tp-success);
+}
+
+.tp-health-parts span[data-warn="true"] > svg {
+  color: var(--tp-warn);
+}
+
+.tp-health-parts b {
+  margin-left: auto;
+  font-size: 8.5px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+/* The setup checklist rows with tick / empty circles. */
+.tp-tasks {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 8px;
+}
+
+.tp-tasks span {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 8.5px;
+  color: var(--tp-ink);
+}
+
+.tp-tasks span > svg {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  color: var(--tp-ink-muted);
+}
+
+.tp-tasks span[data-done="true"] > svg {
+  color: var(--tp-success);
+}
+
+.tp-tasks span[data-done="true"] {
+  color: var(--tp-ink-muted);
+}
+
+/* The green `● Live` chip on the Today-so-far card. */
+.tp-live {
+  margin-left: 3px;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--tp-success-soft);
+  font-size: 7px;
+  font-style: normal;
+  font-weight: 700;
+  color: var(--tp-success);
+}
+
+/* A headline value inside a `.tp-kpi` tile. */
+.tp-kpi b[data-big="true"] {
+  font-size: 14px;
+}
+
+/* The `Sign out` card at the foot of Explore. */
+.tp-signout {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px;
+  border: 1px solid var(--tp-border);
+  border-radius: 12px;
+  background: var(--tp-card);
+  box-shadow: var(--tp-shadow);
+  font-size: 9px;
+  font-weight: 500;
+  color: var(--tp-ink-muted);
+}
+
+.tp-signout-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--tp-border);
+  border-radius: 9px;
+  background: var(--tp-card);
+}
+
+.tp-signout-icon svg {
+  width: 11px;
+  height: 11px;
+  color: var(--tp-ink);
+}
+
+.tp-tile[data-active="true"] .tp-tile-icon {
+  border-color: var(--tp-brand);
+  box-shadow: 0 0 0 2px var(--tp-brand-soft);
+}
+
+/* Inline note banner (offline warning, info strip). */
+.tp-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  padding: 7px 9px;
+  border-radius: 10px;
+  font-size: 8.5px;
+  line-height: 1.45;
+}
+
+.tp-note[data-tone="info"] {
+  background: var(--tp-info-soft);
+  color: var(--tp-info);
+}
+
+.tp-note[data-tone="brand"] {
+  background: var(--tp-brand-soft);
+  color: var(--tp-brand);
+}
+
+.tp-note[data-tone="warning"] {
+  background: var(--tp-warn-soft);
+  color: var(--tp-warn);
+}
+
+.tp-note svg {
+  width: 10px;
+  height: 10px;
+  margin-top: 1px;
+  flex-shrink: 0;
+}
+
+/* `EmptyState`: big muted art above the sentence. */
+.tp-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 22px 14px;
+  text-align: center;
+}
+
+.tp-empty-art {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  background: color-mix(in oklab, var(--tp-canvas) 40%, var(--tp-border));
+  color: var(--tp-ink-muted);
+}
+
+.tp-empty-art svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 1.2;
+}
+
+.tp-empty p {
+  font-size: 8.5px;
+  line-height: 1.5;
+  color: var(--tp-ink-muted);
+}
+
+/* A row of small tags under a shop name. */
+.tp-tagrow {
+  display: flex;
+  gap: 3px;
+  margin-top: 5px;
+}
+
+.tp-tag {
+  padding: 1.5px 4px;
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--tp-canvas) 55%, var(--tp-border));
+  font-size: 7px;
+  font-weight: 600;
+  color: var(--tp-ink);
+}
+
+/* Secondary button (Cancel / Back / Delete beside the primary). */
+.tp-outline {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid var(--tp-border);
+  border-radius: 12px;
+  background: var(--tp-card);
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--tp-ink);
+}
+
+.tp-outline svg {
+  width: 11px;
+  height: 11px;
+}
+
+/* Two equal-width actions in a sheet footer (`Back` / `Reject order`). */
+.tp-outline[data-grow] {
+  flex: 1;
+}
+
+.tp-outline[data-tone="brand"] {
+  color: var(--tp-brand);
+}
+
+.tp-outline[data-active="true"] {
+  border-color: var(--tp-brand);
+  box-shadow: 0 0 0 2px var(--tp-brand-soft);
+}
+
+.tp-actionrow {
+  display: flex;
+  gap: 6px;
+}
+
+.tp-actionrow > * {
+  flex: 1;
+}
+
+/* A small ink/greyscale action inside a card (Edit / Submit / Delist). */
+.tp-inline-btn {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border-radius: 7px;
+  background: var(--tp-ink);
+  font-size: 8.5px;
+  font-weight: 600;
+  color: var(--tp-card);
+}
+
+.tp-inline-btn svg {
+  width: 9px;
+  height: 9px;
+}
+
+.tp-inline-btn[data-tone="soft"] {
+  border: 1px solid var(--tp-border);
+  background: var(--tp-card);
+  color: var(--tp-ink);
+}
+
+/* A sheet over the page: 62% ink scrim, a rounded card pinned to the bottom. */
+.tp-sheet {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  background: color-mix(in oklab, var(--tp-nav) 55%, transparent);
+  z-index: 5;
+}
+
+.tp-sheet-card {
+  padding: 9px 12px 12px;
+  border-radius: 16px 16px 0 0;
+  background: var(--tp-card);
+  box-shadow: 0 -8px 22px -16px oklch(0.19 0.04 265 / 0.5);
+}
+
+.tp-sheet-card[data-active="true"] {
+  box-shadow:
+    0 0 0 2px var(--tp-brand-soft),
+    0 -8px 22px -16px oklch(0.19 0.04 265 / 0.5);
+}
+
+.tp-sheet-grip {
+  width: 26px;
+  height: 2.5px;
+  margin: 0 auto 7px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--tp-canvas) 40%, var(--tp-border));
+}
+
+.tp-sheet-title {
+  margin-bottom: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+.tp-sheet-note--center {
+  text-align: center;
+}
+
+.tp-sheet-note {
+  margin-bottom: 7px;
+  font-size: 8.5px;
+  line-height: 1.45;
+  text-align: center;
+  color: var(--tp-ink-muted);
+}
+
+/* The `FestivalOptins` intro paragraph. */
+.tp-intro {
+  font-size: 9px;
+  line-height: 1.5;
+  color: var(--tp-ink-muted);
+}
+
+/* The campaign picker button: icon, name/date block, status pill, chevron. */
+.tp-campaign-btn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 9px;
+  border: 1px solid var(--tp-border);
+  border-radius: 10px;
+  background: var(--tp-card);
+}
+
+.tp-campaign-btn > svg {
+  flex-shrink: 0;
+  width: 12px;
+  height: 12px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-campaign-text {
+  min-width: 0;
+  flex: 1;
+}
+
+.tp-campaign-name {
+  display: block;
+  font-size: 9.5px;
+  font-weight: 600;
+  color: var(--tp-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tp-campaign-sub {
+  display: block;
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* The per-sector discount cap table. */
+.tp-captable {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  text-align: center;
+}
+
+/* Offers is sector-scoped, so it renders a single cap cell. */
+.tp-captable[data-single] {
+  grid-template-columns: 1fr;
+}
+
+.tp-captable small {
+  display: block;
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-captable b {
+  font-size: 10px;
+  color: var(--tp-ink);
+}
+
+.tp-cap-note {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid var(--tp-border);
+  text-align: center;
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+}
+
+/* The customer block on the order detail card. */
+.tp-cust {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.tp-cust-name {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--tp-ink);
+}
+
+/* The "New shelf price … · GST included" line under the edit form. */
+.tp-edit-shelf {
+  padding-top: 7px;
+  border-top: 1px solid var(--tp-border);
+  font-size: 8.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-edit-shelf b {
+  color: var(--tp-ink);
+}
+
+/* The MRP strike-through in a dish row. */
+.tp-prow-strike {
+  flex-shrink: 0;
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+  text-decoration: line-through;
+}
+
+/* Inline GST note from `Edit product`: muted panel, tiny uppercase label. */
+.tp-gst-note {
+  margin-top: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--tp-border);
+  border-radius: 13px;
+  background: color-mix(in oklab, var(--tp-canvas) 70%, var(--tp-card));
+  font-size: 9px;
+  line-height: 1.45;
+  color: var(--tp-ink-muted);
+}
+
+.tp-gst-label {
+  margin-bottom: 2px;
+  font-size: 7.5px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--tp-ink-muted);
+}
+
+/* A text action in the page header (`Mark all read`). */
+.tp-header-textaction {
+  flex-shrink: 0;
+  font-size: 9px;
+  font-weight: 600;
+  color: var(--tp-brand);
+}
+
+.tp-scroll-inner--bleed {
+  gap: 0;
+  padding-inline: 0;
+}
+
+/* A full-bleed notification row; unread rows take `bg-info-soft`. */
+.tp-notif {
+  display: flex;
+  gap: 7px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--tp-border);
+}
+
+.tp-notif[data-unread] {
+  background: var(--tp-info-soft);
+}
+
+.tp-notif[data-active="true"] {
+  box-shadow: inset 2px 0 0 var(--tp-brand);
+}
+
+.tp-notif-dot {
+  width: 5px;
+  height: 5px;
+  margin-top: 4px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: transparent;
+}
+
+.tp-notif-dot[data-on] {
+  background: var(--tp-info);
+}
+
+.tp-notif-body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.tp-notif-title {
+  font-size: 9.5px;
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--tp-ink);
+}
+
+.tp-notif-text {
+  font-size: 8px;
+  line-height: 1.4;
+  color: var(--tp-ink-muted);
+}
+
+.tp-notif-time {
+  margin-top: 2px;
+  font-size: 7.5px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-sheet-foot {
+  display: flex;
+  gap: 6px;
+  margin-top: 9px;
+}
+
+.tp-sheet-foot > * {
+  flex: 1;
+}
+
+/* `RadioRow` inside a sheet. */
+.tp-radio-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 0;
+  border-bottom: 1px solid var(--tp-border);
+}
+
+.tp-radio-row:last-child {
+  border-bottom: 0;
+}
+
+.tp-radio-row[data-active="true"] {
+  margin-inline: -5px;
+  padding-inline: 5px;
+  border-radius: 8px;
+  background: color-mix(in oklab, var(--tp-brand) 8%, var(--tp-card));
+}
+
+.tp-radio-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.tp-radio-label {
+  font-size: 9.5px;
+  font-weight: 500;
+  color: var(--tp-ink);
+}
+
+.tp-radio-sub {
+  font-size: 8px;
+  color: var(--tp-ink-muted);
+}
+
+.tp-radio {
+  display: grid;
+  place-items: center;
+  width: 11px;
+  height: 11px;
+  flex-shrink: 0;
+  border: 1.5px solid var(--tp-border);
+  border-radius: 50%;
+}
+
+.tp-radio[data-on] {
+  border-color: var(--tp-ink);
+}
+
+.tp-radio[data-on]::after {
+  content: "";
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--tp-ink);
+}
+
+/* The pickup QR card (`/seller/orders` → Pickup QR sheet). */
+.tp-qrbox {
+  display: grid;
+  place-items: center;
+  width: 118px;
+  height: 118px;
+  margin: 0 auto;
+  padding: 8px;
+  border-radius: 12px;
+  background: var(--tp-card);
+  border: 1px solid var(--tp-border);
+}
+
+.tp-qrbox svg {
+  width: 100%;
+  height: 100%;
+  color: var(--tp-ink);
+}
+
+.tp-qrbox[data-active="true"] {
+  border-color: var(--tp-brand);
+  box-shadow: 0 0 0 2px var(--tp-brand-soft);
+}
+
+/* The accept-invite card (`/accept-invite`). */
+.tp-invite {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1;
+  min-height: 0;
+  padding: 16px 14px;
+  background: var(--tp-canvas);
+}
+
+.tp-invite-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 0 6px;
+  font-size: 7.5px;
+  line-height: 1.5;
+  color: var(--tp-ink-muted);
+}
+
+.tp-invite-note svg {
+  width: 9px;
+  height: 9px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.tp-invite-card {
+  display: flex;
+  flex-direction: column;
+  padding: 15px 14px;
+  border: 1px solid var(--tp-border);
+  border-radius: 18px;
+  background: var(--tp-card);
+  box-shadow: var(--tp-shadow);
+}
+
+.tp-invite-logo {
+  height: 13px;
+  width: auto;
+  color: var(--tp-brand);
+}
+
+.tp-invite-title {
+  margin-top: 9px;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+  color: var(--tp-ink);
+}
+
+.tp-invite-sub {
+  margin-top: 2px;
+  margin-bottom: 8px;
+  font-size: 8.5px;
+  line-height: 1.45;
+  color: var(--tp-ink-muted);
 }
 
 .tour-guide {

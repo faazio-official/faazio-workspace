@@ -13,6 +13,7 @@ import {
   HiOutlineLockClosed,
   HiOutlineMapPin,
   HiOutlinePlus,
+  HiOutlineReceiptPercent,
   HiOutlineShieldCheck,
   HiOutlineShoppingBag,
   HiOutlineSwatch,
@@ -131,7 +132,7 @@ const ACCOUNT_GROUPS: readonly NavGroup[] = [
 ];
 
 /** Customer app "My Account" (`features/profile/AccountView.tsx`) and its entry row. */
-export function AccountScreen() {
+export function AccountScreen({ activeTarget }: ScreenProps) {
   return (
     <AppPhone>
       <AppPageHeader title="My Account" />
@@ -164,7 +165,12 @@ export function AccountScreen() {
               {group.rows.map((row) => {
                 const Icon = row.icon;
                 return (
-                  <div key={row.title} className="ta-nav-row" data-tour-target={row.target}>
+                  <div
+                    key={row.title}
+                    className="ta-nav-row"
+                    data-tour-target={row.target}
+                    data-active={row.target && row.target === activeTarget ? "true" : undefined}
+                  >
                     <span className="ta-nav-icon" aria-hidden="true">
                       <Icon />
                     </span>
@@ -194,6 +200,41 @@ export function AccountScreen() {
             </div>
           </div>
         ))}
+
+        <div className="ta-nav-group">
+          <p className="ta-nav-group-title">Partner</p>
+          <div className="ta-nav-card">
+            <div
+              className="ta-nav-row"
+              data-tour-target="fee-request-entry"
+              data-active={activeTarget === "fee-request-entry" || undefined}
+            >
+              <span className="ta-nav-icon" aria-hidden="true">
+                <HiOutlineReceiptPercent />
+              </span>
+              <span className="ta-nav-text">
+                <span className="ta-nav-name">Request a fee change</span>
+                <span className="ta-nav-sub">Ask for a new platform fee per shop</span>
+              </span>
+              <svg
+                className="ta-nav-chevron"
+                viewBox="0 0 24 24"
+                width="15"
+                height="15"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path
+                  d="M9 5.5 15.5 12 9 18.5"
+                  stroke="currentColor"
+                  strokeWidth="2.2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </div>
+          </div>
+        </div>
 
         <div className="ta-nav-group">
           <p className="ta-nav-group-title">Preferences</p>
@@ -240,7 +281,8 @@ export function AccountScreen() {
  * One scrolling screen with two numbered parts — step 1 (business account) and step 2
  * (your shops). Each tour step is a scroll position on this same screen.
  */
-export function RegistrationScreen() {
+export function RegistrationScreen({ activeTarget }: ScreenProps) {
+  const on = (t: string) => activeTarget === t;
   return (
     <AppPhone>
       <AppHeader title="Sell with us" back />
@@ -253,7 +295,12 @@ export function RegistrationScreen() {
           title="Business identity"
           note="The account that owns your shops. PAN is required; GSTIN is optional."
         >
-          <AppField label="Business name" value="Sharma Traders" target="business-name" />
+          <AppField
+            label="Business name"
+            value="Sharma Traders"
+            target="business-name"
+            active={on("business-name")}
+          />
           <AppField label="Owner / contact name" value="Rohit Sharma" />
           <AppField label="GSTIN (optional)" value="34ABCDE1234F1Z5" mono />
           <AppField label="PAN" value="ABCDE1234F" mono />
@@ -273,7 +320,12 @@ export function RegistrationScreen() {
           title="Payout account"
           note="The default account for every shop. A shop can override it in Part 2. The full account number is sent to Razorpay and never stored by Faazio."
         >
-          <AppField label="Bank name" value="HDFC Bank" target="payout-account" />
+          <AppField
+            label="Bank name"
+            value="HDFC Bank"
+            target="payout-account"
+            active={on("payout-account")}
+          />
           <AppField label="Account number" value="•••• •••• 4821" mono />
           <AppField label="IFSC" value="HDFC0001234" mono />
           <AppField label="Beneficiary name" value="Rohit Sharma" />
@@ -283,7 +335,13 @@ export function RegistrationScreen() {
           title="Contract & terms"
           note="Pick a rate card, then accept the agreements that apply to every shop."
         >
-          <AppSelect label="Contract tier" required value="Standard · 10%" target="contract-tier" />
+          <AppSelect
+            label="Contract tier"
+            required
+            value="Standard · 10%"
+            target="contract-tier"
+            active={on("contract-tier")}
+          />
           <AppContractSummary
             commission="10%"
             payout="T+2 business days"
@@ -299,13 +357,13 @@ export function RegistrationScreen() {
           title="Digital signature"
           note="We send a one-time code to +91 98436 31722. Verifying it signs the application."
         >
-          <AppOtpRow target="otp" />
+          <AppOtpRow target="otp" active={on("otp")} />
           <p className="ta-link">Resend OTP in 42s</p>
         </AppSection>
 
         <AppStep index={2} title="Your shops" />
         <AppSection note="Add every shop you run. Each shop picks its own app, category, platform fee, documents, optional bank account and map pin.">
-          <AppShopCard app="Mart" name="Sharma Traders" />
+          <AppShopCard app="Mart" name="Sharma Traders" active={on("shop-app")} />
           <span className="ta-add-shop">
             <HiOutlinePlus aria-hidden="true" />
             Add another shop
@@ -313,7 +371,7 @@ export function RegistrationScreen() {
           <AppGeoNote />
         </AppSection>
 
-        <AppSubmit target="submit-for-review" />
+        <AppSubmit target="submit-for-review" active={on("submit-for-review")} />
         <AppSecureNote />
       </AppScroll>
     </AppPhone>
@@ -321,12 +379,81 @@ export function RegistrationScreen() {
 }
 
 /** The PENDING_REVIEW state the same screen swaps to after `POST /sellers`. */
-export function ReviewScreen() {
+export function ReviewScreen({ activeTarget }: ScreenProps) {
   return (
     <AppPhone>
       <AppHeader title="Sell with us" back />
       <AppScroll>
-        <AppReviewCard />
+        <AppReviewCard active={activeTarget === "review-done"} />
+      </AppScroll>
+    </AppPhone>
+  );
+}
+
+/**
+ * Seller app `SellerPlatformFeeRequestScreen`
+ * (`features/seller-onboarding/SellerPlatformFeeRequestScreen.tsx`): the store's
+ * current platform fee, the requested-percent field, the reason, `Submit
+ * request`, then the request history as old → requested percent with a status.
+ * One pending request per store; a second submit is refused.
+ */
+export function FeeRequestScreen({ activeTarget }: ScreenProps) {
+  return (
+    <AppPhone>
+      <AppHeader title="Platform fee" back />
+      <AppScroll>
+        <AppSection
+          title="Request a fee change"
+          note="Your platform fee is fixed when your store is approved. Ask for a new rate per shop here and an admin will review it."
+        >
+          <div
+            className="ta-field"
+            data-tour-target="fee-current"
+            data-active={activeTarget === "fee-current" || undefined}
+          >
+            <span className="ta-field-label">Current fee · Sharma Mart</span>
+            <span className="ta-field-box">10%</span>
+          </div>
+          <AppField
+            label="Requested fee (%)"
+            value="12"
+            target="fee-amount"
+            active={activeTarget === "fee-amount"}
+          />
+          <div
+            className="ta-field"
+            data-tour-target="fee-reason"
+            data-active={activeTarget === "fee-reason" || undefined}
+          >
+            <span className="ta-field-label">Why should the fee change?</span>
+            <span className="ta-field-box">
+              Higher packaging and delivery costs in our area this quarter.
+            </span>
+          </div>
+          <p className="ta-note">A request for 12% is pending review.</p>
+          <span
+            className="ta-submit"
+            data-tour-target="fee-submit"
+            data-active={activeTarget === "fee-submit" || undefined}
+          >
+            Submit request
+          </span>
+        </AppSection>
+
+        <AppSection title="History" note="One request per store can be pending at a time.">
+          <div
+            className="ta-field"
+            data-tour-target="fee-history"
+            data-active={activeTarget === "fee-history" || undefined}
+          >
+            <span className="ta-field-label">10% → 12%</span>
+            <span className="ta-field-box">PENDING · 17 Nov 2026</span>
+          </div>
+          <div className="ta-field">
+            <span className="ta-field-label">10% → 8%</span>
+            <span className="ta-field-box">REJECTED · 4 Sep 2026</span>
+          </div>
+        </AppSection>
       </AppScroll>
     </AppPhone>
   );

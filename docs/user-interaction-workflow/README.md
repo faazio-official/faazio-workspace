@@ -109,11 +109,11 @@ This folder documents the rule enforced by `AGENTS.md`:
 
 ### Seller
 - [Seller overview](./seller/README.md)
-- [Seller journey tutorial map](./seller/tutorial.md)
+- [Seller help centre map](./seller/help-centre.md)
 - [Onboarding](./seller/onboarding/index.md) · [Registration](./seller/onboarding/seller-registration.md) · [KYC documents](./seller/onboarding/kyc-documents.md) · [Store setup](./seller/onboarding/store-setup.md)
 - [Catalog](./seller/catalog/index.md) · [Add product](./seller/catalog/add-product.md) · [Price update](./seller/catalog/price-update.md) · [Edit / delete / restore](./seller/catalog/product-trash.md) · [Offers](./seller/catalog/offers.md)
 - [Orders](./seller/orders/index.md) · [Order lifecycle](./seller/orders/order-lifecycle.md) · [Payouts ledger](./seller/orders/payouts-ledger.md)
-- [Web portal](./seller/web-portal/index.md) · [Seller console](./seller/web-portal/seller-console.md) · [Products list](./seller/web-portal/products.md) · [Dish add-ons](./seller/web-portal/addons.md) · [Notifications](./seller/web-portal/notifications.md) · [Settings](./seller/web-portal/settings.md) · [Team invite acceptance](./seller/web-portal/accept-invite.md) · [Super admin categories + home rail](./seller/web-portal/super-admin-categories.md) · [Super admin all orders](./seller/web-portal/super-admin-orders.md)
+- [Web portal](./seller/web-portal/index.md) · [Seller console](./seller/web-portal/seller-console.md) · [Products list](./seller/web-portal/products.md) · [Dish add-ons](./seller/web-portal/addons.md) · [Notifications](./seller/web-portal/notifications.md) · [Settings](./seller/web-portal/settings.md) · [Platform-fee change request](./seller/web-portal/fee-change-requests.md) · [Team invite acceptance](./seller/web-portal/accept-invite.md) · [Super admin categories + home rail](./seller/web-portal/super-admin-categories.md) · [Super admin all orders](./seller/web-portal/super-admin-orders.md)
 
 ### Delivery
 - [Delivery overview](./delivery/README.md)

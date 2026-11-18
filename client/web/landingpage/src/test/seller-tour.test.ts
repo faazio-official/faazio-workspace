@@ -45,13 +45,49 @@ describe("seller journey walkthrough", () => {
       "store",
       "catalog-add",
       "catalog-maintain",
+      "catalog-price-stock",
       "menus-offers-addons",
       "orders",
+      "order-print-history",
       "notifications",
       "payouts",
       "settings",
-      "more",
+      "settings-bank",
+      "settings-team",
+      "settings-signin",
+      "ads",
+      "prescriptions",
+      "platform-fee",
+      "home",
+      "reviews",
+      "explore-outlet",
+      "outlet-status",
+      "support",
     ]);
+  });
+
+  // A row is one surface: opening it must not tour unrelated pages. `store` is the
+  // exception — it is the first-run path (sign-in → orders → products → create → stores).
+  it("keeps each chapter on one surface instead of bundling several", () => {
+    const SCREEN_BUDGET = 4;
+    const STEP_BUDGET = 11;
+    for (const chapter of chapters) {
+      if (chapter.id === "store") continue;
+      const screens = new Set(chapter.steps.map((step) => step.screen));
+      expect(screens.size).toBeLessThanOrEqual(SCREEN_BUDGET);
+      expect(chapter.steps.length).toBeLessThanOrEqual(STEP_BUDGET);
+    }
+  });
+
+  it("leaves the wizard's own numbering to the screen, not the caption", () => {
+    // The caption already reads "Step n of N · <title>", and the wizard screens
+    // print "Step x of y" in their page header. A title starting "Step" is read
+    // out twice, so wizard titles name the panel instead of numbering it.
+    for (const chapter of chapters) {
+      for (const step of chapter.steps) {
+        expect(step.title, `${chapter.id}/${step.id}`).not.toMatch(/^Step \d/);
+      }
+    }
   });
 
   it("keeps the onboarding chapter identical to the application script", () => {

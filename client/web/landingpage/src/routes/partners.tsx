@@ -93,8 +93,8 @@ function Partners() {
                   before you apply.
                 </p>
                 <div className="action-row" style={{ marginTop: 4 }}>
-                  <a href="/tutorial" className="btn btn-primary">
-                    See how onboarding works
+                  <a href="/help-centre" className="btn btn-primary">
+                    See how selling works
                     <ArrowRight aria-hidden="true" />
                   </a>
                   <a href="/about" className="btn btn-ghost btn-sm">
