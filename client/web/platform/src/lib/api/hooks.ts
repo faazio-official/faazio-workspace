@@ -7,6 +7,7 @@ import { remoteConfigured } from "@/lib/config";
 import * as api from "@/lib/api";
 import type {
   BankAccount,
+  FeeChangeRequest,
   NotificationPreferences,
   OrderRecord,
   OrderStatus,
@@ -202,6 +203,44 @@ export function useSellerStores(): {
     };
   }, [version]);
   return { stores, loading, reload };
+}
+
+/**
+ * The signed-in seller's own platform-fee change requests (`GET /sellers/{id}/platform-fee-requests`).
+ * The gateway scopes the read to the caller, so no client-side seller filter is needed.
+ */
+export function useSellerFeeChangeRequests(sellerId: string): {
+  requests: FeeChangeRequest[];
+  loading: boolean;
+  reload: () => void;
+} {
+  const [requests, setRequests] = useState<FeeChangeRequest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState(0);
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
+  useEffect(() => {
+    if (!sellerId || !remoteConfigured()) {
+      setRequests([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .listSellerFeeChangeRequests(sellerId)
+      .then((rows) => {
+        if (!cancelled) setRequests(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setRequests([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sellerId, version]);
+  return { requests, loading, reload };
 }
 
 /**

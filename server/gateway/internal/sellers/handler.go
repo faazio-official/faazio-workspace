@@ -1176,7 +1176,12 @@ func shortEmailHash(v string) string {
 type feeChangeRequestBody struct {
 	StoreID        string `json:"storeId"`
 	PlatformFeePct int    `json:"platformFeePct"`
+	// Reason is the seller's optional explanation, stored on the request row as seller_note (0106).
+	Reason string `json:"reason"`
 }
+
+// feeRequestReasonMaxLen mirrors the seller_note check constraint in 0106.
+const feeRequestReasonMaxLen = 500
 
 // requestPlatformFeeChange lets a seller ASK for a new platform fee for one of their VENDORS. It never
 // mutates the live fee; that only happens when a district/super admin approves the request.
@@ -1223,7 +1228,14 @@ func (h *Handler) requestPlatformFeeChange(w http.ResponseWriter, r *http.Reques
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "requested fee is the current fee")
 		return
 	}
-	f, err := h.repo.CreateFeeChangeRequest(r.Context(), s.SellerID, storeID, s.DistrictCode, currentFee, req.PlatformFeePct)
+	// The seller's "why" is optional. Trim it and refuse anything past the DB column bound instead of
+	// silently truncating the seller's words.
+	sellerNote := strings.TrimSpace(req.Reason)
+	if len(sellerNote) > feeRequestReasonMaxLen {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "reason is too long (max 500 characters)")
+		return
+	}
+	f, err := h.repo.CreateFeeChangeRequest(r.Context(), s.SellerID, storeID, s.DistrictCode, sellerNote, currentFee, req.PlatformFeePct)
 	if err != nil {
 		if errors.Is(err, ErrPendingRequest) {
 			httpx.Fail(w, http.StatusConflict, "request_pending", "a fee-change request is already pending")

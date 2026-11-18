@@ -2068,10 +2068,14 @@ derived from the district.
   `stateCode` (migration `0047`: new onboarding requires a district, and a district-less seller breaks
   district-scoped admin routing). It stays nullable **only** for legacy/backfilled rows;
   `POST /sellers/{id}/edit` keeps validate-when-present so a pre-rollout seller can still resubmit.
-- The live `platform_fee_pct` is still immutable through `PATCH /sellers/{id}/platform-fee` for
-  sellers. A seller files a **request**; a district admin (own district) or super admin approves it.
-  Only `APPROVED` mutates `sellers.sellers.platform_fee_pct`; one `PENDING` request per seller is
-  enforced by the partial unique index, and the seller can read only their own history.
+- The live per-vendor `platform_fee_pct` (`directory.stores`, `0069`) is immutable for sellers. A
+  seller files a **request** against a specific vendor store (`store_id`, `0072`); a district admin
+  (own district) or super admin approves it. Only `APPROVED` mutates
+  `directory.stores.platform_fee_pct` for that store; one `PENDING` request per **store** is
+  enforced by `seller_fee_requests_one_pending_per_store_idx`, and the seller can read only their
+  own history. The seller's optional "why" is `seller_note` (`0106`, `text not null default ''`,
+  ≤ 500 chars) — the seller's words, distinct from the reviewer's `review_reason`. Portal surfaces:
+  `/seller/fee-change-request`, `/seller/fee-history`.
 - Cache keys/TTLs are unchanged (no district cache). RLS: district master is read-only to
   authenticated roles; seller rows, KYC/bank documents, verification history, festival opt-ins and
   fee requests are readable by the owning seller or an admin whose district matches (legacy rows with

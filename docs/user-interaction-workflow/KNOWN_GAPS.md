@@ -38,7 +38,8 @@ Recorded here so a future contributor does not "fix" something that is not broke
 
 | Gap | Evidence | Impact |
 |---|---|---|
-| Store fee/cover have no seller UI | `PUT /seller/stores/{id}/fee` is admin-only (`server/gateway/internal/directory/handler.go:500-503`); no client calls `PUT /seller/stores/{id}/cover` | Sellers can only file a fee-change request; cover image cannot be set from the console |
+| Store fee/cover have no seller UI | `PUT /seller/stores/{id}/fee` is admin-only (`server/gateway/internal/directory/handler.go:500-503`); no client calls `PUT /seller/stores/{id}/cover` | Sellers can only file a fee-change request (`/seller/fee-change-request`); cover image cannot be set from the console |
+| Fee-change request has no cancel | No endpoint sets `CANCELLED` although the schema allows it | A pending request can only be resolved by an admin |
 | Local-only seller surfaces | `app/seller/support` (local tickets), `hub` checklist, `restaurant-status`, `rush-hour` (client-only store in `src/lib/sellerUi.ts`) | These screens are not persisted/DB-backed yet |
 | Toast-only admin actions | District `content` publish, `orders` escalate, `pricing-audit` contact, super `settings` save | UI reports success without a gateway write |
 | District-admins page is district-locked | `app/admin/super/district-admins/page.client.tsx:64` (`TTC_CODE = "TTC"`, used through `:124`) | Cannot provision admins outside Tiruchirappalli |
@@ -120,7 +121,7 @@ here so the folder never claims full coverage it does not have. Add a page befor
 | `Search` | `features/search/SearchRouteScreen.tsx` | See the FOOD-config gap above |
 | `DeleteAccount`, `RequestDataDeletion` | `features/profile/DeleteAccountScreen.tsx`, `RequestDataDeletionScreen.tsx` | `DELETE /users/me`, `POST /users/me/data-deletion` |
 | `Notifications` | `features/notifications/NotificationsScreen.tsx` | `GET /notifications`, read/read-all |
-| `SellerRequests`, `SellerRequestDetail`, `SellerPlatformFeeRequest`, `FeeChangeRequests` | `features/seller-onboarding/` | Seller application/fee-change boards |
+| `SellerRequests`, `SellerRequestDetail`, `SellerPlatformFeeRequest`, `FeeChangeRequests` | `features/seller-onboarding/` | These are **customer-SuperApp** screens (Account tab), not the Seller Partner app — the seller app is a WebView over the portal. Seller-facing equivalents: `/seller/fee-change-request`, `/seller/fee-history`, admin boards `/admin/{district,super}/fee-change-requests`; see `seller/web-portal/fee-change-requests.md` |
 | `DealsLanding` | `features/ecommerce/DealsLandingScreen.tsx` | Mart deals |
 | `RestaurantProfile`, `RestaurantOffers`, `RestaurantMenu` | `FoodStack.tsx:25-27` | Food venue screens (only the Food feed is covered) |
 | `MedicalShopDetails` | `features/pharma/MedicalShopDetailsScreen.tsx` | Described only in `customer/pharma/index.md`; needs a page |
@@ -138,6 +139,7 @@ here so the folder never claims full coverage it does not have. Add a page befor
 | Reviews | `/seller/reviews` | `GET /vendors/{id}/reviews*` |
 | Prescriptions | `/seller/prescriptions` | `GET /seller/prescriptions*`, quotes |
 | Settings / outlet info | `/seller/settings`, `/seller/outlet-info` | Settings = profile/bank/notifications/appearance/security + full sub-user invite lifecycle (link → accept → login → revoke) — see `seller/web-portal/settings.md` and `accept-invite.md`; outlet-info = read-only store summary |
+| Platform fee | `/seller/fee-change-request`, `/seller/fee-history` | Seller files a per-vendor fee-change request and reads its own history — see `seller/web-portal/fee-change-requests.md` |
 | Hub / explore | `/seller/hub`, `/seller/explore` | Checklist + discovery surfaces (partly local-only) |
 | Order history / returns | `/seller/order-history`, `/seller/returns` | Referenced from `seller/orders/index.md`; no dedicated page |
 | Product list / edit | `/seller/products`, `/seller/products/[id]/edit` | Product list and edit surface; no dedicated page |

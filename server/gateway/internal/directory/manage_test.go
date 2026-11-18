@@ -71,8 +71,21 @@ func TestStoreLiveModeration(t *testing.T) {
 	if err != nil || len(stores) != 1 {
 		t.Fatalf("SellerStores: err=%v n=%d", err, len(stores))
 	}
-	if stores, err := repo.SellerStores(ctx, "", "TCH"); err != nil || len(stores) != 1 {
-		t.Fatalf("district SellerStores: err=%v n=%d", err, len(stores))
+	if stores, err := repo.SellerStores(ctx, "", "TCH"); err != nil {
+		t.Fatalf("district SellerStores: err=%v", err)
+	} else {
+		// Other packages seed their own sellers in TCH and `go test ./...` runs packages in
+		// parallel against one database, so assert on THIS seller's row rather than on a district
+		// count that a concurrent test can inflate.
+		foundMine := false
+		for _, s := range stores {
+			if s.ID == storeID {
+				foundMine = true
+			}
+		}
+		if !foundMine {
+			t.Fatalf("district SellerStores missing this seller's store (n=%d)", len(stores))
+		}
 	}
 	if stores, err := repo.SellerStores(ctx, "", "TCO"); err != nil || len(stores) != 0 {
 		t.Fatalf("cross-district SellerStores must be empty: err=%v n=%d", err, len(stores))

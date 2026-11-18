@@ -76,6 +76,8 @@ const HUB_MODE_PATHS = [
   "/seller/notifications",
   "/seller/outlet-info",
   "/seller/onboarding",
+  "/seller/fee-change-request",
+  "/seller/fee-history",
 ];
 
 export function sellerNavMode(pathname: string): "orders" | "hub" {

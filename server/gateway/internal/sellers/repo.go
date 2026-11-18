@@ -1012,6 +1012,7 @@ type FeeChangeRequest struct {
 	RequestedFeePct int    `json:"requestedFeePct"`
 	Status          string `json:"status"`
 	AdminNote       string `json:"adminNote,omitempty"`
+	SellerNote      string `json:"sellerNote,omitempty"`
 	RequestedAt     string `json:"requestedAt"`
 	ReviewedBy      string `json:"reviewedBy,omitempty"`
 	ReviewedAt      string `json:"reviewedAt,omitempty"`
@@ -1020,8 +1021,8 @@ type FeeChangeRequest struct {
 
 const feeRequestColumns = `r.request_id, r.seller_id, coalesce(r.store_id,''), coalesce(s.business_name,''),
 	coalesce(r.district_code, coalesce(s.district_code,'')), r.current_fee_pct, r.requested_fee_pct,
-	r.status, r.admin_note, r.requested_at, coalesce(r.reviewed_by,''), r.reviewed_at,
-	r.review_reason`
+	r.status, r.admin_note, coalesce(r.seller_note,''), r.requested_at, coalesce(r.reviewed_by,''),
+	r.reviewed_at, r.review_reason`
 
 func scanFeeRequest(row rowScanner) (FeeChangeRequest, error) {
 	var (
@@ -1030,7 +1031,7 @@ func scanFeeRequest(row rowScanner) (FeeChangeRequest, error) {
 		reviewedAt *time.Time
 	)
 	if err := row.Scan(&f.RequestID, &f.SellerID, &f.StoreID, &f.BusinessName, &f.DistrictCode,
-		&f.CurrentFeePct, &f.RequestedFeePct, &f.Status, &f.AdminNote, &requested,
+		&f.CurrentFeePct, &f.RequestedFeePct, &f.Status, &f.AdminNote, &f.SellerNote, &requested,
 		&f.ReviewedBy, &reviewedAt, &f.ReviewReason); err != nil {
 		return FeeChangeRequest{}, err
 	}
@@ -1061,18 +1062,19 @@ func (r *Repo) StoreFeeForSeller(ctx context.Context, storeID, sellerID string) 
 
 // CreateFeeChangeRequest inserts a PENDING request for a VENDOR (store_id). A second pending row for
 // the same store is rejected by the partial unique index and surfaces as ErrPendingRequest.
-func (r *Repo) CreateFeeChangeRequest(ctx context.Context, sellerID, storeID, districtCode string, currentPct, requestedPct int) (FeeChangeRequest, error) {
+// sellerNote is the seller's own explanation (already trimmed/capped by the handler).
+func (r *Repo) CreateFeeChangeRequest(ctx context.Context, sellerID, storeID, districtCode, sellerNote string, currentPct, requestedPct int) (FeeChangeRequest, error) {
 	if r.pool == nil {
 		return FeeChangeRequest{}, fmt.Errorf("sellers: database not configured")
 	}
 	f, err := scanFeeRequest(r.pool.QueryRow(ctx, `
 		insert into sellers.seller_fee_change_requests
-		  (request_id, seller_id, store_id, district_code, current_fee_pct, requested_fee_pct)
-		values ($1,$2,nullif($3,''),$4,$5,$6)
+		  (request_id, seller_id, store_id, district_code, current_fee_pct, requested_fee_pct, seller_note)
+		values ($1,$2,nullif($3,''),$4,$5,$6,$7)
 		returning request_id, seller_id, coalesce(store_id,''), '', coalesce(district_code,''), current_fee_pct,
-		          requested_fee_pct, status, admin_note, requested_at, coalesce(reviewed_by,''),
-		          reviewed_at, review_reason`,
-		"fee-"+shortID(), sellerID, storeID, nullIfEmpty(districtCode), currentPct, requestedPct))
+		          requested_fee_pct, status, admin_note, coalesce(seller_note,''), requested_at,
+		          coalesce(reviewed_by,''), reviewed_at, review_reason`,
+		"fee-"+shortID(), sellerID, storeID, nullIfEmpty(districtCode), currentPct, requestedPct, sellerNote))
 	if err != nil {
 		if isUniqueViolation(err) {
 			return FeeChangeRequest{}, ErrPendingRequest
@@ -1202,8 +1204,8 @@ func (r *Repo) ApproveFeeChangeRequest(ctx context.Context, requestID, reviewer,
 		       admin_note = case when $3 = '' then admin_note else $3 end
 		 where request_id = $1
 		 returning request_id, seller_id, coalesce(store_id,''), '', coalesce(district_code,''), current_fee_pct,
-		           requested_fee_pct, status, admin_note, requested_at, coalesce(reviewed_by,''),
-		           reviewed_at, review_reason`, requestID, reviewer, note))
+		           requested_fee_pct, status, admin_note, coalesce(seller_note,''), requested_at,
+		           coalesce(reviewed_by,''), reviewed_at, review_reason`, requestID, reviewer, note))
 	if err != nil {
 		return Seller{}, FeeChangeRequest{}, false, err
 	}
@@ -1223,8 +1225,8 @@ func (r *Repo) RejectFeeChangeRequest(ctx context.Context, requestID, reviewer, 
 		   set status = 'REJECTED', reviewed_by = $2, reviewed_at = now(), review_reason = $3
 		 where request_id = $1 and status = 'PENDING'
 		 returning request_id, seller_id, coalesce(store_id,''), '', coalesce(district_code,''), current_fee_pct,
-		           requested_fee_pct, status, admin_note, requested_at, coalesce(reviewed_by,''),
-		           reviewed_at, review_reason`, requestID, reviewer, reason))
+		           requested_fee_pct, status, admin_note, coalesce(seller_note,''), requested_at,
+		           coalesce(reviewed_by,''), reviewed_at, review_reason`, requestID, reviewer, reason))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return FeeChangeRequest{}, false, nil

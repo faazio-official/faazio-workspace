@@ -80,7 +80,11 @@ jobs:
         run: go vet ./...
 
       - name: Test
-        run: go test -count=1 ./...
+        # -p 1 serializes package binaries. Every context's integration tests share the single
+        # Postgres service below and some assert on global state (district store counts, stocked
+        # product picking, menu rows), so running packages in parallel races them against each
+        # other's writes and fails intermittently.
+        run: go test -count=1 -p 1 ./...
 
       - name: Boundary lint
         run: go run ./tools/importlint

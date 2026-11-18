@@ -2,6 +2,7 @@ package sellers
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/faazio/server/gateway/internal/platform/testenv"
@@ -14,7 +15,7 @@ func TestSellerLifecycle(t *testing.T) {
 
 	s, err := repo.Create(ctx, "user-test-1", Seller{
 		BusinessName: "Test Traders", OwnerName: "A. Kaur",
-		GSTIN: "29ABCDE1234F1Z5", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
+		GSTIN: "29ABCDE1234F1ZW", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
 		ContactPhone: "+91 9000000000", ContactEmail: "test@example.com", StateCode: "KA",
 	})
 	if err != nil {
@@ -121,7 +122,7 @@ func TestUpdateProfileRequeueSemantics(t *testing.T) {
 
 	s, err := repo.Create(ctx, "user-profile-test", Seller{
 		BusinessName: "Profile Test", OwnerName: "P. Test",
-		GSTIN: "29ABCDE1234F1Z5", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
+		GSTIN: "29ABCDE1234F1ZW", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
 		ContactPhone: "+91 9000000000", ContactEmail: "profile-test@example.com", StateCode: "KA",
 	})
 	if err != nil {
@@ -146,7 +147,7 @@ func TestUpdateProfileRequeueSemantics(t *testing.T) {
 	if after.Status != "ACTIVE" {
 		t.Fatalf("phone-only edit re-queued the seller: status=%s", after.Status)
 	}
-	if after.GSTIN != "29ABCDE1234F1Z5" || after.BusinessName != "Profile Test" {
+	if after.GSTIN != "29ABCDE1234F1ZW" || after.BusinessName != "Profile Test" {
 		t.Fatalf("partial edit wiped untouched fields: %+v", after)
 	}
 
@@ -227,7 +228,21 @@ func TestNotificationPreferencesAndSubUsers(t *testing.T) {
 		t.Fatal("resending must invalidate the previous invite token")
 	}
 	token = resendTok
-	active, ok, err := repo.AcceptSubUserInvite(ctx, token, "pu-test-sub")
+	// AcceptSubUserInvite links the roster row to a real admins.portal_users credential
+	// (sub_users_portal_user_fk + portal_users_sub_role_check), so seed one for the sub-user.
+	const portalUserID = "pu-test-sub"
+	if _, err := pool.Exec(ctx, `
+		insert into admins.portal_users
+		  (user_id, email, display_name, password_hash, role, seller_id, sub_role, sub_user_id, active, must_change)
+		values ($1, $2, 'Staff One', 'x', 'SELLER', $3, $4, $5, true, false)
+		on conflict (user_id) do nothing`,
+		portalUserID, "staff@example.com", s.SellerID, u.Role, u.SubUserID); err != nil {
+		t.Fatalf("seed sub-user credential: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from admins.portal_users where user_id = $1`, portalUserID)
+	})
+	active, ok, err := repo.AcceptSubUserInvite(ctx, token, portalUserID)
 	if err != nil || !ok || active.Status != "ACTIVE" || active.AcceptedAt == "" {
 		t.Fatalf("accept: ok=%v err=%v row=%+v", ok, err, active)
 	}
@@ -244,5 +259,90 @@ func TestNotificationPreferencesAndSubUsers(t *testing.T) {
 	// After revoke the same email can be invited again.
 	if _, _, err := repo.InviteSubUser(ctx, s.SellerID, "Staff One", "staff@example.com", "STAFF", "owner-test"); err != nil {
 		t.Fatalf("re-invite after revoke: %v", err)
+	}
+}
+
+// TestFeeChangeRequestLifecycle exercises the full fee-change SQL path: create with a seller note,
+// read it back, approve it (which must carry seller_note through its RETURNING list), then create a
+// second request and reject that one. This is the only test that runs the real column lists — a
+// mismatch between scanFeeRequest's destinations and any RETURNING clause only fails here.
+func TestFeeChangeRequestLifecycle(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	s, err := repo.Create(ctx, "user-fee-test", Seller{
+		BusinessName: "Fee Test", OwnerName: "F. Test",
+		GSTIN: "29ABCDE1234F1ZW", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
+		ContactPhone: "+91 9000000000", ContactEmail: "fee-test@example.com",
+		StateCode: "PY", DistrictCode: "PY0",
+	})
+	if err != nil {
+		t.Fatalf("create seller: %v", err)
+	}
+	storeID := "store-fee-test-1"
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from sellers.seller_fee_change_requests where seller_id = $1`, s.SellerID)
+		_, _ = pool.Exec(ctx, `delete from directory.stores where seller_id = $1`, s.SellerID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id = $1`, s.SellerID)
+	})
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, platform_fee_pct)
+		values ($1, 'FOOD'::app_brand, 'Fee Test Kitchen', $2, 8)`, storeID, s.SellerID); err != nil {
+		t.Fatalf("insert store: %v", err)
+	}
+
+	const note = "Rent and packaging costs went up"
+	created, err := repo.CreateFeeChangeRequest(ctx, s.SellerID, storeID, s.DistrictCode, note, 8, 6)
+	if err != nil {
+		t.Fatalf("create fee request: %v", err)
+	}
+	if created.SellerNote != note || created.CurrentFeePct != 8 || created.RequestedFeePct != 6 {
+		t.Fatalf("created row lost the seller note or fees: %+v", created)
+	}
+	if created.Status != "PENDING" || created.StoreID != storeID {
+		t.Fatalf("created row has the wrong status/store: %+v", created)
+	}
+
+	// One PENDING row per store.
+	if _, err := repo.CreateFeeChangeRequest(ctx, s.SellerID, storeID, s.DistrictCode, "", 8, 7); !errors.Is(err, ErrPendingRequest) {
+		t.Fatalf("second pending request must be refused, got %v", err)
+	}
+
+	history, err := repo.ListSellerFeeChangeRequests(ctx, s.SellerID)
+	if err != nil || len(history) != 1 {
+		t.Fatalf("history: len=%d err=%v", len(history), err)
+	}
+	if history[0].SellerNote != note {
+		t.Fatalf("history lost the seller note: %+v", history[0])
+	}
+
+	// Approval rewrites the store fee and must return seller_note without a column mismatch.
+	_, approved, ok, err := repo.ApproveFeeChangeRequest(ctx, created.RequestID, "admin-test", "looks fine")
+	if err != nil || !ok {
+		t.Fatalf("approve: ok=%v err=%v", ok, err)
+	}
+	if approved.Status != "APPROVED" || approved.SellerNote != note {
+		t.Fatalf("approved row lost the seller note: %+v", approved)
+	}
+	var liveFee int
+	if err := pool.QueryRow(ctx, `select platform_fee_pct from directory.stores where id = $1`, storeID).Scan(&liveFee); err != nil {
+		t.Fatalf("read live fee: %v", err)
+	}
+	if liveFee != 6 {
+		t.Fatalf("approval did not apply the requested fee: got %d want 6", liveFee)
+	}
+
+	// A fresh request after approval, then reject it (the second RETURNING list).
+	second, err := repo.CreateFeeChangeRequest(ctx, s.SellerID, storeID, s.DistrictCode, "", 6, 9)
+	if err != nil {
+		t.Fatalf("second request after approval: %v", err)
+	}
+	rejected, ok, err := repo.RejectFeeChangeRequest(ctx, second.RequestID, "admin-test", "too high")
+	if err != nil || !ok {
+		t.Fatalf("reject: ok=%v err=%v", ok, err)
+	}
+	if rejected.Status != "REJECTED" || rejected.ReviewReason != "too high" {
+		t.Fatalf("rejected row is wrong: %+v", rejected)
 	}
 }

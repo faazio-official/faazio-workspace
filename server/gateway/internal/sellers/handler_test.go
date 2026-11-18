@@ -53,7 +53,7 @@ func TestSellerRoleGating(t *testing.T) {
 	// Onboarding (any authenticated caller) creates a PENDING_REVIEW seller.
 	create := do(t, h, http.MethodPost, "/sellers",
 		`{"businessName":"Gate Test","ownerName":"O","stateCode":"TN","districtCode":"TTC",`+
-			`"gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","contactPhone":"9876543210",`+
+			`"gstin":"29ABCDE1234F1ZW","pan":"ABCDE1234F","contactPhone":"9876543210",`+
 			`"contactEmail":"o@example.com","otpVerified":true,"contractTier":"STANDARD","termsAccepted":true,"partnerAgreementAccepted":true,"ipLicenseGranted":true,`+
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
 			`"bankBeneficiary":"Gate Test","passbookFileKey":"kyc/gate/passbook.jpg",`+
@@ -250,7 +250,7 @@ func createTestSeller(t *testing.T, pool *pgxpool.Pool, h http.Handler, name str
 	t.Helper()
 	create := do(t, h, http.MethodPost, "/sellers",
 		`{"businessName":"`+name+`","ownerName":"O","stateCode":"TN","districtCode":"TTC",`+
-			`"gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","contactPhone":"9876543210",`+
+			`"gstin":"29ABCDE1234F1ZW","pan":"ABCDE1234F","contactPhone":"9876543210",`+
 			`"contactEmail":"o@example.com","otpVerified":true,"contractTier":"STANDARD","termsAccepted":true,"partnerAgreementAccepted":true,"ipLicenseGranted":true,`+
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
 			`"bankBeneficiary":"`+name+`","passbookFileKey":"kyc/gate/passbook.jpg",`+
@@ -319,7 +319,7 @@ func TestRejectResubmit(t *testing.T) {
 	// The seller (REJECTED only) resubmits with a corrected business name.
 	edit := do(t, h, http.MethodPost, "/sellers/"+s.SellerID+"/edit",
 		`{"businessName":"Reject Test (corrected)","ownerName":"O","stateCode":"TN","districtCode":"TTC",
-		  "gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","businessAddress":"","contactPhone":"",
+		  "gstin":"29ABCDE1234F1ZW","pan":"ABCDE1234F","businessAddress":"","contactPhone":"",
 		  "contactEmail":"o@example.com"}`,
 		map[string]string{"X-Dev-Role": "SELLER", "X-Dev-Seller": s.SellerID})
 	if edit.Code != http.StatusOK {
@@ -344,7 +344,7 @@ func TestRejectResubmit(t *testing.T) {
 	// Editing again while PENDING_REVIEW is a 409.
 	again := do(t, h, http.MethodPost, "/sellers/"+s.SellerID+"/edit",
 		`{"businessName":"X","ownerName":"O","stateCode":"TN","districtCode":"TTC",
-		  "gstin":"29ABCDE1234F1Z5","pan":"ABCDE1234F","businessAddress":"","contactPhone":"",
+		  "gstin":"29ABCDE1234F1ZW","pan":"ABCDE1234F","businessAddress":"","contactPhone":"",
 		  "contactEmail":"o@example.com"}`,
 		map[string]string{"X-Dev-Role": "SELLER", "X-Dev-Seller": s.SellerID})
 	if again.Code != http.StatusConflict {

@@ -226,11 +226,14 @@ caller) and are event-purged on store live toggle and product edit/status change
   active `admins.district_master` rows as camelCase `{districtCode,name,stateCode}` to any signed-in
   account (the seller-onboarding picker); `?state=` is an optional 2-letter filter (400 on a longer
   value). The DB is the read authority so seeding a new state/district is data-only; uncached.
-- **Platform-fee change requests:** sellers file `POST /sellers/{id}/platform-fee-request` and read
-  `GET /sellers/{id}/platform-fee-requests`; the review queue is
+- **Platform-fee change requests:** sellers file `POST /sellers/{id}/platform-fee-request`
+  (`{storeId, platformFeePct, reason}` — `storeId` and the whole percent are required, `reason` is an
+  optional ≤ 500-character seller note stored as `seller_note` (`0106`); `httpx.Decode` rejects
+  unknown keys) and read `GET /sellers/{id}/platform-fee-requests`; the review queue is
   `GET /seller/fee-change-requests` (district-scoped) with
-  `PATCH /seller/fee-change-requests/{id}/approve|reject`. Only approval mutates
-  `sellers.sellers.platform_fee_pct`; one `PENDING` row per seller (`0049`).
+  `PATCH /seller/fee-change-requests/{id}/approve|reject`. Only approval mutates the named vendor
+  store's `directory.stores.platform_fee_pct`; one `PENDING` row per **store**
+  (`0049` + `0072`). Portal pages: `/seller/fee-change-request`, `/seller/fee-history`.
 - **Tax + invoicing (`internal/tax` + `internal/platform/taxmath`, `0051` + `0053`):** every order is priced server-side from
   `tax.tax_rates` + `tax.platform_settings` (GST-inclusive split, TCS 1% / TDS 0.1% withheld).
   **Platform commission is charged** per line at each store's `directory.stores.platform_fee_pct`

@@ -44,6 +44,7 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
   const [currentFeePct, setCurrentFeePct] = useState(route.params?.currentFeePct ?? 0);
 
   const [pct, setPct] = useState(route.params?.currentFeePct ? String(route.params.currentFeePct) : '');
+  const [reason, setReason] = useState('');
   const [history, setHistory] = useState<FeeChangeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -129,8 +130,9 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
     }
     setBusy(true);
     try {
-      await gateway.requestSellerPlatformFeeChange(sellerId, storeId, next);
+      await gateway.requestSellerPlatformFeeChange(sellerId, storeId, next, reason.trim());
       setNotice('Request submitted. An admin will review it.');
+      setReason('');
       await load();
     } catch {
       setError('Could not submit the request. A pending request may already exist.');
@@ -232,6 +234,16 @@ export function SellerPlatformFeeRequestScreen({ navigation, route }: Props) {
                 placeholder="e.g. 12"
                 editable={!busy && !pending && Boolean(storeId)}
                 style={styles.input}
+              />
+              <AppText style={styles.label}>Why should this change? (optional)</AppText>
+              <AppTextInput
+                value={reason}
+                onChangeText={setReason}
+                placeholder="e.g. Rent and packaging costs went up"
+                multiline
+                maxLength={500}
+                editable={!busy && !pending && Boolean(storeId)}
+                style={[styles.input, styles.reasonInput]}
               />
             </>
           )}
@@ -350,6 +362,7 @@ const styles = StyleSheet.create({
     color: neutral.ink,
     backgroundColor: neutral.card,
   },
+  reasonInput: { minHeight: vs(72), textAlignVertical: 'top' },
   pendingNote: { marginTop: vs(10), fontSize: ms(12), color: semantic.warning, fontWeight: '700' },
   error: { marginTop: vs(10), fontSize: ms(12), color: semantic.danger, fontWeight: '700' },
   retryBtn: { minHeight: 44, alignSelf: 'flex-start', justifyContent: 'center', marginTop: vs(8) },

@@ -750,6 +750,7 @@ export interface FeeChangeRequest {
   requestedFeePct: number;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' | string;
   adminNote?: string;
+  sellerNote?: string;
   requestedAt: string;
   reviewedBy?: string;
   reviewedAt?: string;
@@ -2093,10 +2094,11 @@ export class GatewayClient {
     sellerId: string,
     storeId: string,
     platformFeePct: number,
+    reason?: string,
   ): Promise<FeeChangeRequest> {
     return this.http<FeeChangeRequest>(
       `/sellers/${encodeURIComponent(sellerId)}/platform-fee-request`,
-      { method: 'POST', body: JSON.stringify({ storeId, platformFeePct }) },
+      { method: 'POST', body: JSON.stringify({ storeId, platformFeePct, reason: reason ?? '' }) },
     );
   }
 

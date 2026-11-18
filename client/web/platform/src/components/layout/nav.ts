@@ -90,6 +90,7 @@ export function sellerNavItems(sector?: Sector | null): NavItem[] {
     { label: "Ads", to: "/seller/ads", icon: Megaphone, group: "Growth" },
     { label: "Analytics", to: "/seller/analytics", icon: BarChart3, group: "Growth" },
     { label: "Stores", to: "/seller/stores", icon: Store, group: "Account" },
+    { label: "Platform fee", to: "/seller/fee-change-request", icon: Receipt, group: "Account" },
     { label: "Reviews", to: "/seller/reviews", icon: MessageSquare, group: "Account" },
     { label: "Settings", to: "/seller/settings", icon: Settings, group: "Account" },
     { label: "Support", to: "/seller/support", icon: LifeBuoy, group: "Account" },

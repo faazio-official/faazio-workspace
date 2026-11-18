@@ -156,6 +156,11 @@ export function FeeChangeRequestsBoard({
                 <TableRow key={row.requestId} className="h-12">
                   <TableCell className="text-[13px] font-medium">
                     {row.businessName || row.sellerId}
+                    {row.sellerNote ? (
+                      <p className="mt-0.5 max-w-[22rem] truncate text-[11px] font-normal text-muted-foreground">
+                        “{row.sellerNote}”
+                      </p>
+                    ) : null}
                   </TableCell>
                   <TableCell className="text-[12px] text-muted-foreground">
                     {row.districtCode ? districtName(districts, row.districtCode) || row.districtCode : "—"}

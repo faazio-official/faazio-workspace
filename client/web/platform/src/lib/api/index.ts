@@ -2374,6 +2374,40 @@ export async function deleteDistrictAdmin(adminId: string): Promise<void> {
 
 /* --------------------- platform-fee change requests ---------------------- */
 
+/**
+ * Seller: file a platform-fee change request for ONE vendor (`POST /sellers/{id}/platform-fee-request`).
+ * The live fee is untouched — a district/super admin approves it. The gateway resolves the current
+ * fee + app brand from the store itself, so only the store, the requested whole percent and the
+ * seller's optional reason are sent (`DisallowUnknownFields` rejects anything else).
+ */
+export async function requestSellerPlatformFeeChange(
+  sellerId: string,
+  storeId: string,
+  platformFeePct: number,
+  reason = "",
+): Promise<FeeChangeRequest> {
+  if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
+  const request = await remote.post<FeeChangeRequest>(
+    `/sellers/${encodeURIComponent(sellerId)}/platform-fee-request`,
+    { storeId, platformFeePct, reason: reason.trim() },
+  );
+  audit({
+    action: "SELLER_PLATFORM_FEE_REQUEST",
+    entity: "sellers.seller_fee_change_requests",
+    entityId: request.requestId,
+    after: { storeId, platformFeePct },
+  });
+  return request;
+}
+
+/** Seller: own platform-fee request history (`GET /sellers/{id}/platform-fee-requests`, server-scoped). */
+export async function listSellerFeeChangeRequests(sellerId: string): Promise<FeeChangeRequest[]> {
+  if (!remoteConfigured()) return [];
+  return remote.get<FeeChangeRequest[]>(
+    `/sellers/${encodeURIComponent(sellerId)}/platform-fee-requests`,
+  );
+}
+
 /** Admin review queue. The gateway scopes district admins automatically. */
 export async function listFeeChangeRequests(
   filter: { districtCode?: string | undefined; status?: string | undefined } = {},

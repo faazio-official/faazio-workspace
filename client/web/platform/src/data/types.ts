@@ -451,12 +451,16 @@ export interface AppConfigRow {
 export interface FeeChangeRequest {
   requestId: string;
   sellerId: string;
+  /** The vendor (`directory.stores` id) the decision applies to (0072); empty on legacy account-level rows. */
+  storeId?: string | undefined;
   businessName?: string | undefined;
   districtCode?: string | undefined;
   currentFeePct: number;
   requestedFeePct: number;
   status: "PENDING" | "APPROVED" | "REJECTED" | "CANCELLED" | string;
   adminNote?: string | undefined;
+  /** The seller's own "why" when filing the request (0106); empty on older rows. */
+  sellerNote?: string | undefined;
   requestedAt: string;
   reviewedBy?: string | undefined;
   reviewedAt?: string | undefined;

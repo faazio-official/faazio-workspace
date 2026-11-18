@@ -282,8 +282,12 @@ with the same email/password as the web portal (gateway HS256 portal JWT; roles 
 DISTRICT_ADMIN / SUPER_ADMIN), then accept incoming NEW orders (→ PACKED, auto-dispatch) or reject
 them (→ REJECTED, captured payment marked REFUNDED and the customer notified). Every seller surface is
 the **portal's seller console** rendered in the WebView: it lands `/seller` → `/seller/orders`
-(orders-first), names the hub **Business Hub** (`/seller/hub`), and mirrors the reference tab bars
-(Orders / Inventory / Menu / Feedback in orders mode; Hub / Growth / Menu / Finance in hub mode). The app is
+(orders-first), names the hub **Business Hub** (`/seller/hub`), mirrors the reference tab bars
+(Orders / Inventory / Menu / Feedback in orders mode; Hub / Growth / Menu / Finance in hub mode), and
+reaches the seller's own fee surfaces — `/seller/fee-change-request` and `/seller/fee-history` — as
+portal routes, not native screens (the native `SellerPlatformFeeRequestScreen` /
+`FeeChangeRequestsScreen` in `features/seller-onboarding/` belong to the customer SuperApp's Account
+tab and are never mounted in this product). The app is
 **seller-only**: an admin (district/super) credential is rejected at sign-in inside the WebView —
 signed straight back out with the generic "Invalid email or password." copy (no role disclosure),
 and any pre-existing admin cookie is cleared on load. Delivery riders keep their separate

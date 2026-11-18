@@ -142,10 +142,16 @@ func TestSingleVenueNotFound(t *testing.T) {
 
 func TestMenuIncludesDisplayFields(t *testing.T) {
 	pool := testenv.Pool(t)
+	// Pick a dish that actually carries both display fields. `limit 1` was arbitrary and other
+	// packages insert menu rows concurrently against the shared test DB, so the test could inspect a
+	// row that legitimately has no description/delivery_time and fail for the wrong reason.
 	var venueID string
-	err := pool.QueryRow(context.Background(), `select venue_id from directory.menus limit 1`).Scan(&venueID)
+	err := pool.QueryRow(context.Background(), `
+		select venue_id from directory.menus
+		 where coalesce(description,'') <> '' and coalesce(delivery_time,'') <> ''
+		 order by venue_id limit 1`).Scan(&venueID)
 	if err != nil {
-		t.Skipf("no seeded menu rows: %v", err)
+		t.Skipf("no seeded menu rows with display fields: %v", err)
 	}
 	rec := httptest.NewRecorder()
 	testRouter(t, pool, false).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/venues/"+venueID+"/menu", nil))

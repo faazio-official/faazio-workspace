@@ -16,6 +16,7 @@ import {
   LogOut,
   Megaphone,
   Package,
+  Percent,
   Receipt,
   RotateCcw,
   Search,
@@ -75,6 +76,7 @@ const SECTIONS: { title: string; tiles: Tile[] }[] = [
     title: "Account",
     tiles: [
       { label: "Stores", icon: Store, to: "/seller/stores" },
+      { label: "Platform fee", icon: Percent, to: "/seller/fee-change-request" },
       { label: "Reviews", icon: Star, to: "/seller/reviews" },
       { label: "Settings", icon: Settings, to: "/seller/settings" },
       { label: "Support", icon: LifeBuoy, to: "/seller/support" },

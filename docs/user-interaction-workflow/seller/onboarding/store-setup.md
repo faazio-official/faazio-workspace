@@ -7,14 +7,19 @@
 ## Steps
 
 1. `GET /seller/stores` lists the caller's vendors (the portal switcher's data source).
-2. Seller creates a vendor with `POST /seller/stores` (name, app, address, phone, hours, live flag;
+2. Seller opens the create form from any of three entry points: `Add shop` in the `/seller/stores`
+   header, the "Create a shop" empty state on `/seller/products/new`, or `/seller/onboarding`
+   directly.
+3. Seller creates a vendor with `POST /seller/stores` (name, app, address, phone, hours, live flag;
    FSSAI/drug licence where applicable). The portal form does not send a platform fee.
-3. Seller edits the profile with `PUT /seller/stores/{id}`. Platform fee is **not** seller-editable:
+4. Seller edits the profile with `PUT /seller/stores/{id}`. Platform fee is **not** seller-editable:
    `PUT /seller/stores/{id}/fee` is admin-only (`403 forbidden`) and a seller-supplied fee is
-   zeroed. Sellers file `POST /sellers/{id}/platform-fee-request` instead.
-4. Seller toggles live/offline with `PUT /seller/stores/{id}/live`. `PUT /seller/stores/{id}/cover`
+   zeroed. Sellers file `POST /sellers/{id}/platform-fee-request` from the portal page
+   `/seller/fee-change-request` instead — see
+   [`../web-portal/fee-change-requests.md`](../web-portal/fee-change-requests.md).
+5. Seller toggles live/offline with `PUT /seller/stores/{id}/live`. `PUT /seller/stores/{id}/cover`
    exists on the gateway but no client calls it yet.
-5. A vendor is a `directory.stores` row with a NOT NULL `seller_id`; products/menus derive ownership
+6. A vendor is a `directory.stores` row with a NOT NULL `seller_id`; products/menus derive ownership
    through the store.
 
 ## State
@@ -40,7 +45,8 @@
 
 ## Known gaps
 
-- Platform fee is admin-controlled; the seller only files a fee-change request.
+- Platform fee is admin-controlled; the seller only files a fee-change request from
+  `/seller/fee-change-request` (mobile `SellerPlatformFeeRequestScreen` is the customer-app path).
 - Cover-image upload has no seller UI even though the endpoint exists.
 - The create-vendor form does not collect a platform fee.
 

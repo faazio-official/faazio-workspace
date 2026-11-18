@@ -22,6 +22,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Onboarding | Registration / application | mobile `SellWithUs` (customer app) | [onboarding/index.md](./onboarding/index.md) · [seller-registration.md](./onboarding/seller-registration.md) |
 | Onboarding | KYC document upload + admin review | mobile `SellWithUs` upload; admin `/admin/district/sellers/[id]` | [kyc-documents.md](./onboarding/kyc-documents.md) |
 | Onboarding | Store/vendor setup | portal `/seller/onboarding` (adds a vendor), `/seller/stores` | [store-setup.md](./onboarding/store-setup.md) |
+| Account | Platform-fee change request + own history | portal `/seller/fee-change-request`, `/seller/fee-history` | [web-portal/fee-change-requests.md](./web-portal/fee-change-requests.md) |
 | Catalog | Add product | portal `/seller/products/new` | [catalog/index.md](./catalog/index.md) · [add-product.md](./catalog/add-product.md) |
 | Catalog | Products list (+ scroll-to-reload) | portal `/seller/products` | [web-portal/products.md](./web-portal/products.md) |
 | Catalog | Price / inventory update | portal `/seller/pricing`, `/seller/inventory` | [price-update.md](./catalog/price-update.md) |
@@ -35,11 +36,11 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Web portal | Settings (profile, bank, notifications, sub-users, security) | portal `/seller/settings` | [web-portal/settings.md](./web-portal/settings.md) |
 | Web portal | Team invite acceptance | portal `/accept-invite?token=…` | [web-portal/accept-invite.md](./web-portal/accept-invite.md) |
 | Web portal | Super admin categories + home rail | `/admin/super/categories` | [web-portal/super-admin-categories.md](./web-portal/super-admin-categories.md) |
-| Tutorial | Full seller-journey walkthrough (10 chapters, every seller action) | landing page `/tutorial` | [tutorial.md](./tutorial.md) |
+| Help centre | Full seller-journey walkthrough (22 chapters, every seller action) | landing page `/help-centre` | [help-centre.md](./help-centre.md) |
 
-> The landing page `/tutorial` covers the full journey, not just onboarding: chapter 1 is the
+> The landing page `/help-centre` covers the full journey, not just onboarding: chapter 1 is the
 > application, then store setup, catalog, offers/add-ons, orders, notifications, payouts, settings
-> and the rest of the console. See [`tutorial.md`](./tutorial.md) for the step → action → endpoint
+> and the rest of the console. See [`help-centre.md`](./help-centre.md) for the step → action → endpoint
 > map.
 
 ## Cross-cutting rules
@@ -55,7 +56,8 @@ Domain indexes are the entry point for each area; every flow page is linked from
 
 See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Seller-specific gaps include local-only support,
 toast-only admin actions, manual invite-link delivery (no email provider), `lowStock`/`campaigns`
-having no event producer yet, and the district-admins page being hardcoded to TTC.
+having no event producer yet, an un-cancellable fee-change request, and the
+district-admins page being hardcoded to TTC.
 
 ## Linked docs
 

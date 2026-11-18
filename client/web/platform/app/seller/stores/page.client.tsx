@@ -1,6 +1,7 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useState } from "react";
-import { Store, Upload } from "lucide-react";
+import { Plus, Store, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Card, TextField, Toggle, EmptyState, SectorBadge } from "@/components/sellers/kit";
 import { updateSellerStore } from "@/lib/api";
@@ -88,7 +89,19 @@ function SellerStores() {
 
   return (
     <>
-      <PageHeader title="Stores" sub="Account" />
+      <PageHeader
+        title="Stores"
+        sub="Account"
+        right={
+          <Link
+            href="/seller/onboarding"
+            className="flex shrink-0 items-center gap-1 rounded-xl bg-foreground px-3 py-2 text-xs font-semibold text-background"
+          >
+            <Plus className="h-3.5 w-3.5" />
+            Add shop
+          </Link>
+        }
+      />
       <div className="space-y-3 px-4 pt-3 pb-8">
         {loading && stores.length === 0 ? (
           <div className="space-y-3">
@@ -97,10 +110,18 @@ function SellerStores() {
             ))}
           </div>
         ) : stores.length === 0 ? (
-          <EmptyState
-            icon={<Store className="h-12 w-12" strokeWidth={1.2} />}
-            text="No vendor yet — finish onboarding to create your first vendor"
-          />
+          <Card>
+            <EmptyState
+              icon={<Store className="h-12 w-12" strokeWidth={1.2} />}
+              text="No vendor yet — create your first shop to start selling."
+            />
+            <Link
+              href="/seller/onboarding"
+              className="block rounded-xl bg-foreground py-3 text-center text-sm font-semibold text-background"
+            >
+              Create a shop
+            </Link>
+          </Card>
         ) : (
           stores.map((store) => {
             const draft = drafts[store.storeId] ?? {
@@ -117,6 +138,12 @@ function SellerStores() {
                     <p className="truncate text-[11px] text-muted-foreground">
                       {store.address || "Address not set"} · {store.platformFeePct}% platform fee
                     </p>
+                    <Link
+                      href="/seller/fee-change-request"
+                      className="mt-1 inline-block text-[11px] font-semibold text-info"
+                    >
+                      Request a fee change
+                    </Link>
                   </div>
                   <span className="shrink-0">
                     <SectorBadge sector={store.sector} />
