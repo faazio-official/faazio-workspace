@@ -130,24 +130,32 @@ jobs:
             const fs = require('fs');
             const app = process.env.APP;
             const f = './app-versions.json';
-            const all = JSON.parse(fs.readFileSync(f, 'utf8'));
-            if (!all[app]) { console.error('::error::app-versions.json has no entry for ' + app); process.exit(1); }
-            const cur = all[app];
+            const raw = JSON.parse(fs.readFileSync(f, 'utf8'));
+            if (!raw[app]) { console.error('::error::app-versions.json has no entry for ' + app); process.exit(1); }
+            const cur = raw[app];
             const version = process.env.VERSION || cur.version;
             const parts = String(version).split('.').map(Number);
             if (parts.length !== 3 || !parts.every((n) => Number.isInteger(n) && n >= 0)) {
               console.error('::error::version must be semver MAJOR.MINOR.PATCH, got ' + version);
               process.exit(1);
             }
-            // Derive from the semver (1.0.4 -> 10004) unless explicitly given.
+            // Precedence: explicit version-code > committed versionCode (when the version is
+            // unchanged) > semver-derived (1.0.4 -> 10004) for a bumped version. Keeping the
+            // committed value matters for a new listing (delivery starts at 1, not 10000).
             const derived = parts[0] * 10000 + parts[1] * 100 + parts[2];
-            const versionCode = process.env.VERSION_CODE ? Number(process.env.VERSION_CODE) : derived;
+            const versionCode = process.env.VERSION_CODE
+              ? Number(process.env.VERSION_CODE)
+              : (version === cur.version ? cur.versionCode : derived);
             if (!Number.isInteger(versionCode) || versionCode < 1) {
               console.error('::error::invalid versionCode ' + process.env.VERSION_CODE);
               process.exit(1);
             }
-            all[app] = { version, versionCode };
-            fs.writeFileSync(f, JSON.stringify(all, null, 2) + '\n');
+            if (versionCode < (cur.versionCode || 0)) {
+              console.error('::error::versionCode ' + versionCode + ' is lower than the committed ' + cur.versionCode + ' for ' + app + ' (Play rejects a downgrade).');
+              process.exit(1);
+            }
+            raw[app] = { version, versionCode };
+            fs.writeFileSync(f, JSON.stringify(raw, null, 2) + '\n');
             console.log(app + ': versionName=' + version + ' versionCode=' + versionCode);
             fs.appendFileSync(process.env.GITHUB_ENV, 'APP_VERSION=' + version + '\nAPP_VERSION_CODE=' + versionCode + '\n');
           "
