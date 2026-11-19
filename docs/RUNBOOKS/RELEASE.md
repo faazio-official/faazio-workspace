@@ -382,7 +382,7 @@ Customer Release**, and it is started **manually** from the Codemagic UI; it bui
 1. Push the commits you want released to `main` (`git push origin main`) — unpushed local commits
    are not built.
 2. Codemagic → **Start new build** → branch `main` → workflow **iOS Customer Release**.
-3. Optionally enter `version` (blank uses `package.json`). To re-release the current marketing
+3. Optionally enter `version` (blank uses the customer entry in `app-versions.json`). To re-release the current marketing
    version, leave it blank; the UTC-timestamp build number still increments.
 4. Start the build. It signs, exports, verifies, and uploads automatically; the IPA is also kept as
    a Codemagic artifact.
@@ -405,7 +405,7 @@ group `ios app` (see `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store"). The 
 `ios-release.yml` workflow is disabled; re-enable it only as a rollback (see
 `docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md`).
 
-The version input (or `package.json`) sets `MARKETING_VERSION`; `CURRENT_PROJECT_VERSION` is a UTC
+The version input (or the customer entry in `app-versions.json`) sets `MARKETING_VERSION`; `CURRENT_PROJECT_VERSION` is a UTC
 timestamp (`YYYYMMDDHHmm`) generated on every run. `Info.plist` reads
 `$(MARKETING_VERSION)`/`$(CURRENT_PROJECT_VERSION)`, so both flow into the submitted bundle. The
 timestamp guarantees each upload — including a rebuild of the same marketing version — is strictly

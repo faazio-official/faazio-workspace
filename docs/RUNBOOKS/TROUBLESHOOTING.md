@@ -79,7 +79,7 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
 - The launcher icon is baked into the APK at build time — it only changes on **reinstall**.
 - If the icon is unchanged after `adb install`, the installed APK predates the icon assets, or the
   OS didn't see a version change. **Bump `versionCode`/`versionName`** in
-  `android/app/build.gradle` (+ `package.json` `version`), rebuild, and reinstall.
+  `app-versions.json` (that app's entry), rebuild, and reinstall.
 - Shipped launcher assets are committed (not generated at build time) and are **per product**:
   - Customer (main): `android/app/src/main/res/` + iOS `AppIcon.appiconset`.
   - Delivery: `android/app/src/delivery/res/`.

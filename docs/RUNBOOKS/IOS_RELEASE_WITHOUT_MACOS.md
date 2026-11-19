@@ -69,7 +69,7 @@ encoded private key" failure only means the value is not the key at all.
 
 ```bash
 cd client/mobile
-# Bump package.json version first, or enter the version in Codemagic.
+# Bump the customer version in app-versions.json first, or enter it in Codemagic.
 # Push to main — Codemagic builds the pushed branch, not your local tree.
 git push origin main
 ```
@@ -79,7 +79,7 @@ config; there is no automatic GitHub trigger):
 
 1. Open the Faazio application → **Start new build**.
 2. Select branch `main` and workflow **iOS Customer Release**.
-3. Optionally enter `version` (e.g. `1.0.6`); blank uses `package.json`. To rebuild the current
+3. Optionally enter `version` (e.g. `1.0.6`); blank uses the customer entry in `app-versions.json`. To rebuild the current
    marketing version, leave it blank — the timestamp build number still increases.
 4. Start the build.
 
