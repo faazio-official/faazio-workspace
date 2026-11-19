@@ -33,14 +33,7 @@ export function RoleGate({ allow, children }: { allow: Role[]; children: ReactNo
     if (blockedRole) void signOut();
   }, [blockedRole]);
 
-  if (!hydrated) {
-    return (
-      <div className="space-y-3 p-6">
-        <Skeleton className="h-14 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
-  }
+  if (!hydrated) return <LoadingShell />;
 
   if (blockedRole) {
     return (
@@ -86,6 +79,11 @@ export function RoleGate({ allow, children }: { allow: Role[]; children: ReactNo
     );
   }
 
+  // The gate can mount after the client hydrates but before `restoreSession()` resolves (a hard
+  // refresh on a protected route). Rendering "Sign in to continue" through that window is a login
+  // flash for a signed-in user, so hold the loading shell instead.
+  if (!session && status === "unknown") return <LoadingShell />;
+
   if (!session) {
     return (
       <Denied
@@ -117,6 +115,16 @@ export function RoleGate({ allow, children }: { allow: Role[]; children: ReactNo
   }
 
   return <>{children}</>;
+}
+
+function LoadingShell() {
+  return (
+    <div className="space-y-3 p-6" role="status" aria-live="polite">
+      <span className="sr-only">Loading your workspace...</span>
+      <Skeleton className="h-14 w-full" />
+      <Skeleton className="h-64 w-full" />
+    </div>
+  );
 }
 
 function Denied({ title, body, action }: { title: string; body: string; action: ReactNode }) {

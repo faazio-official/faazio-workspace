@@ -13,6 +13,20 @@ Sellers sign in to the seller app with the same credentials as the portal.
 > paths are blocked inside the app with a "Not available in the Faazio Seller app" state
 > (`src/features/seller-partner/screens/SellerWebViewScreen.tsx`).
 
+## Cold start (seller app)
+
+1. **Layer 1 — native splash** (Android `Theme.App.SplashScreen`, iOS `LaunchScreen`), unchanged.
+2. **Layer 2 — branded JS splash** (`SplashFallback` `royal`, `SellerPartnerApp.tsx`), whose overlay
+   is dropped only when the WebView reports **auth resolved**: it navigated to `/seller/*`, or the
+   5 s `PORTAL_AUTH_RESOLVE_TIMEOUT_MS` fallback fired (signed-out seller on `/login`), or the
+   portal failed. `onLoadEnd` alone is not a readiness signal — the first painted page is `/login`.
+3. **Portal** — `providers.tsx` restores the HttpOnly-cookie session; while it is in flight
+   (`sessionStatus === "unknown"`) the portal paints a branded loading skeleton, not the login form
+   or "Sign in to continue".
+4. **Result** — a returning seller goes splash → dashboard with no login-page flash; a signed-out
+   seller goes splash → sign-in after the fallback. Details:
+   [web-portal/seller-console.md](./web-portal/seller-console.md).
+
 ## Flow inventory
 
 Domain indexes are the entry point for each area; every flow page is linked from them.

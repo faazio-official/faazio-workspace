@@ -40,6 +40,18 @@ const PERMISSION_EVENT = "faazio-permission-result";
  *  (see `SellerWebViewScreen` handling of `faazio:vendor-change`). */
 export const VENDOR_CHANGE_EVENT = "faazio:vendor-change";
 
+/** Posted to the native seller shell when `restoreSession()` settles with no session, so the
+ *  branded layer-2 splash can drop onto the sign-in page immediately instead of waiting out its
+ *  fallback. (A signed-in seller is released by the `/seller/*` navigation instead.) */
+export const AUTH_RESOLVED_EVENT = "faazio:auth-resolved";
+
+/** Tell the native seller shell the portal session is resolved as signed out. No-op in a plain
+ *  browser. */
+export function notifyAuthResolved(): void {
+  if (typeof window === "undefined" || !isNativeApp() || !window.ReactNativeWebView) return;
+  window.ReactNativeWebView.postMessage(JSON.stringify({ type: AUTH_RESOLVED_EVENT }));
+}
+
 /**
  * Announce an active-shop change inside the portal: keep the injected WebView context
  * (`window.__faazio.vendorId`) in sync for the rest of this session, notify in-page listeners with

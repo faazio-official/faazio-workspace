@@ -1122,11 +1122,15 @@ dashboard, the orders Kanban
 menus, stores, payments, promotions and settings.
 
 Cold start keeps the branded layer-2 splash (`SplashFallback` `royal` — wordmark + the bottom
-**"Product of FA CREATORS"** credit) over the WebView until the portal paints its first page: the
-navigator mounts immediately (the overlay does not delay the load), `SellerWebViewScreen` reports
-`onLoadEnd` / `onError` / a missing `WEB_PORTAL_URL` once via `onPortalReady`, and the overlay drops
-after a 1.2 s minimum — or at 12 s regardless, so a hung WebView falls through to its own loader and
-retry. A retry never re-shows the splash.
+**"Product of FA CREATORS"** credit) over the WebView until the portal's **auth resolves**, not just
+its first paint: the navigator mounts immediately (the overlay does not delay the load), but
+`SellerWebViewScreen` only calls `onPortalReady` once the WebView navigates to a `/seller/*` route
+(session confirmed), when the portal posts the `faazio:auth-resolved` bridge message after a
+signed-out restore, or after a `PORTAL_AUTH_RESOLVE_TIMEOUT_MS` 5 s fallback. `onLoadEnd` alone is
+not a readiness signal — the first painted page is usually `/login`, and the portal redirects
+client-side afterwards, which used to flash the login page. `onError` / a missing `WEB_PORTAL_URL`
+also release the splash. The overlay drops after a 1.2 s minimum; `SPLASH_MAX_WAIT_MS` (5 s) is the
+last-resort release if the WebView never reports. A retry never re-shows the splash.
 
 ```
 SellerPartnerNavigator (native stack, no customer/delivery screens)

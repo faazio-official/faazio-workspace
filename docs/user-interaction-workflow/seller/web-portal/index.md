@@ -45,7 +45,10 @@
 ## Success / error / empty
 
 - **Success:** role home / console page renders live gateway data.
-- **Loading:** real `usePortalLoading()` (first gateway hydration) — no fabricated latency.
+- **Loading:** real `usePortalLoading()` (first gateway hydration) — no fabricated latency. While
+  `restoreSession()` is in flight (`sessionStatus === "unknown"`) `/login` and `RoleGate` show a
+  branded skeleton instead of the form / "Sign in to continue", so a signed-in refresh never flashes
+  unauthenticated UI.
 - **Error:** `not_configured` / `gateway_unreachable` / `portal_auth_unavailable` diagnostics; `401`
   bounces to `/login`. Toast-only actions report success without a gateway write (see Known gaps).
 - **Empty:** honest empty states; no fixtures.

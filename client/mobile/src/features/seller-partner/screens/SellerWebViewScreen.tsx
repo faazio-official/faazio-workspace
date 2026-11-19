@@ -111,6 +111,17 @@ const LAST_VENDOR_KEY = 'faazio.seller.lastVendorId';
 // mirror it into LAST_VENDOR_KEY so a cold start re-opens the portal on the newly chosen shop.
 const VENDOR_CHANGE_EVENT = 'faazio:vendor-change';
 
+// Portal → native announcement once the portal's session restore has settled (signed in or out).
+// It is the real auth boundary: the first painted page is `/login` even for a signed-in seller,
+// and the redirect to `/seller/*` happens client-side afterwards.
+const AUTH_RESOLVED_EVENT = 'faazio:auth-resolved';
+
+// The portal owns the seller session, so its first painted page is usually `/login` while the
+// client-side JS checks the HttpOnly cookie and redirects to `/seller/*`. Announcing readiness on
+// that first paint flashes the login page; instead we wait for the seller route and fall back after
+// this bound so a genuinely signed-out seller is not pinned on the splash.
+const PORTAL_AUTH_RESOLVE_TIMEOUT_MS = 5000;
+
 function portalOrigin(): { protocol: string; host: string } | null {
   if (!portalBase) return null;
   try {
@@ -142,6 +153,15 @@ function isAdminPath(raw: string): boolean {
   }
 }
 
+function isSellerPath(raw: string): boolean {
+  if (!isPortalUrl(raw)) return false;
+  try {
+    return new URL(raw).pathname.startsWith('/seller');
+  } catch {
+    return false;
+  }
+}
+
 function openExternal(raw: string): void {
   if (!/^(https?:|mailto:|tel:|upi:|intent:)/i.test(raw)) return;
   void Linking.openURL(raw).catch(() => undefined);
@@ -154,8 +174,9 @@ function openExternal(raw: string): void {
  */
 interface SellerWebViewScreenProps {
   /**
-   * Fired once the portal painted (or failed) — the root drops the branded layer-2 splash then.
-   * Only the first outcome counts, so a later retry never re-shows the splash.
+   * Fired once the portal's auth has resolved — it navigated to a `/seller/*` route (session
+   * confirmed) or the bounded fallback elapsed / the portal failed. The root drops the branded
+   * layer-2 splash then. Only the first outcome counts, so a later retry never re-shows the splash.
    */
   onPortalReady?: () => void;
 }
@@ -165,6 +186,7 @@ export function SellerWebViewScreen({ onPortalReady }: SellerWebViewScreenProps 
   const canGoBack = useRef(false);
   const loaded = useRef(false);
   const wasInPortal = useRef(false);
+  const portalAuthResolved = useRef(false);
   const pendingOrder = useRef<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -175,6 +197,15 @@ export function SellerWebViewScreen({ onPortalReady }: SellerWebViewScreenProps 
   const announceReady = useCallback(() => {
     onPortalReady?.();
   }, [onPortalReady]);
+
+  // The portal is "ready" for splash purposes only once the seller session has resolved. A signed-in
+  // seller lands on `/seller/*` after the portal's client-side redirect; a signed-out seller stays on
+  // `/login`, so the timeout releases the splash instead of pinning it.
+  const announceAuthResolved = useCallback(() => {
+    if (portalAuthResolved.current) return;
+    portalAuthResolved.current = true;
+    announceReady();
+  }, [announceReady]);
 
   // Restore the last active vendor so every portal (re)load opens scoped to the same shop.
   useEffect(() => {
@@ -226,6 +257,7 @@ export function SellerWebViewScreen({ onPortalReady }: SellerWebViewScreenProps 
   );
 
   // Bridge: the portal posts `{type, ...}` messages and native answers with CustomEvents on window.
+  //  - `faazio:auth-resolved` → the portal's session restore settled; drop the layer-2 splash.
   //  - `faazio:permission` → asks the OS for camera/location/notifications/storage; the portal never
   //    sees a fake grant.
   //  - `faazio:vendor-change` → the seller switched the active shop in the console; persist the new
@@ -240,6 +272,10 @@ export function SellerWebViewScreen({ onPortalReady }: SellerWebViewScreenProps 
       }
       if (!payload || typeof payload !== 'object') return;
       const message = payload as Record<string, unknown>;
+      if (message['type'] === AUTH_RESOLVED_EVENT) {
+        announceAuthResolved();
+        return;
+      }
       if (message['type'] === VENDOR_CHANGE_EVENT) {
         const storeId = typeof message['storeId'] === 'string' ? message['storeId'] : '';
         if (storeId) {
@@ -274,7 +310,7 @@ export function SellerWebViewScreen({ onPortalReady }: SellerWebViewScreenProps 
           );
         });
     },
-    [inject],
+    [announceAuthResolved, inject],
   );
 
   const openOrder = useCallback(
@@ -324,26 +360,39 @@ export function SellerWebViewScreen({ onPortalReady }: SellerWebViewScreenProps 
     return () => subscription.remove();
   }, []);
 
-  const onNavigationChange = useCallback((nav: WebViewNavigation) => {
-    canGoBack.current = nav.canGoBack;
-    let path = '';
-    try {
-      path = new URL(nav.url).pathname;
-    } catch {
-      path = nav.url;
-    }
-    // Defense-in-depth: even if a client-side redirect slips past the portal guard, never leave the
-    // seller shell sitting on an admin route.
-    if (path.startsWith('/admin')) {
-      setBlocked(true);
-    }
-    if (path.startsWith('/seller')) {
-      wasInPortal.current = true;
-    } else if (path === '/login' && wasInPortal.current) {
-      wasInPortal.current = false;
-      webviewRef.current?.clearCache(true);
-    }
-  }, []);
+  const onNavigationChange = useCallback(
+    (nav: WebViewNavigation) => {
+      canGoBack.current = nav.canGoBack;
+      let path = '';
+      try {
+        path = new URL(nav.url).pathname;
+      } catch {
+        path = nav.url;
+      }
+      // Defense-in-depth: even if a client-side redirect slips past the portal guard, never leave the
+      // seller shell sitting on an admin route.
+      if (path.startsWith('/admin')) {
+        setBlocked(true);
+      }
+      if (path.startsWith('/seller')) {
+        wasInPortal.current = true;
+        // The portal has navigated past the sign-in page: the seller session is resolved, so the
+        // branded splash can hand over to the dashboard without flashing the login page.
+        announceAuthResolved();
+      } else if (path === '/login' && wasInPortal.current) {
+        wasInPortal.current = false;
+        webviewRef.current?.clearCache(true);
+      }
+    },
+    [announceAuthResolved],
+  );
+
+  // Fallback: a signed-out seller stays on `/login`, so release the splash after a bound instead of
+  // pinning it forever. No-op when auth already resolved.
+  useEffect(() => {
+    const timeout = setTimeout(announceAuthResolved, PORTAL_AUTH_RESOLVE_TIMEOUT_MS);
+    return () => clearTimeout(timeout);
+  }, [announceAuthResolved]);
 
   const retry = useCallback(() => {
     setError(null);
@@ -392,10 +441,13 @@ export function SellerWebViewScreen({ onPortalReady }: SellerWebViewScreenProps 
           loaded.current = false;
           setLoading(true);
         }}
-        onLoadEnd={() => {
+        onLoadEnd={(event: { nativeEvent: { url?: string } }) => {
           loaded.current = true;
           setLoading(false);
-          announceReady();
+          // `onLoadEnd` fires for the first painted page, which for a returning seller is `/login`
+          // (the portal redirects client-side afterwards). Only a `/seller/*` load means the session
+          // already resolved — otherwise leave the splash up until the navigation change or timeout.
+          if (isSellerPath(event.nativeEvent.url ?? '')) announceAuthResolved();
           injectToken(getSellerPushToken());
           if (pendingOrder.current) {
             const target = pendingOrder.current;
@@ -407,12 +459,12 @@ export function SellerWebViewScreen({ onPortalReady }: SellerWebViewScreenProps 
           loaded.current = false;
           setLoading(false);
           setError(event.nativeEvent.description || 'The portal could not be loaded.');
-          announceReady();
+          announceAuthResolved();
         }}
         onHttpError={(event: { nativeEvent: { statusCode: number } }) => {
           if (event.nativeEvent.statusCode >= 500) {
             setError(`The portal returned ${event.nativeEvent.statusCode}.`);
-            announceReady();
+            announceAuthResolved();
           }
         }}
         onMessage={onMessage}

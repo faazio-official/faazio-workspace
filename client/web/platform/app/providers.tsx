@@ -11,6 +11,7 @@ import { SeedModeBanner } from "@/components/patterns/SeedModeBanner";
 import { OfflineGuard } from "@/components/layout/OfflineGuard";
 import { restoreSession } from "@/lib/api";
 import { hydrateFromGateway } from "@/lib/api/sync";
+import { notifyAuthResolved } from "@/lib/appContext";
 import { armVisibilityRefresh } from "@/lib/portal/auth";
 import { usePortalStore } from "@/lib/api/store";
 
@@ -32,15 +33,22 @@ export function Providers({ children }: { children: ReactNode }) {
         if (cancelled) return;
         if (result.status === "signed-in") {
           await hydrateFromGateway();
+          // A signed-in seller's `/login` redirects to `/seller/*` right away; the native shell
+          // keeps its layer-2 splash until that route paints (dropping it here would expose the
+          // portal's loading skeleton for a frame). No auth-resolved signal is needed.
           return;
         }
-        if (result.status === "signed-out") return;
+        if (result.status === "signed-out") {
+          notifyAuthResolved();
+          return;
+        }
         if (attempt >= TRANSIENT_BACKOFF_MS.length) {
           // The gateway is still unreachable — surface the sign-in gate rather than retry forever.
           usePortalStore.getState().set(() => ({
             session: null,
             sessionStatus: "signed-out",
           }));
+          notifyAuthResolved();
           return;
         }
         await new Promise((resolve) => setTimeout(resolve, TRANSIENT_BACKOFF_MS[attempt]));

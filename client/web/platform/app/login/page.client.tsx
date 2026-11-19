@@ -10,11 +10,12 @@ import { homeFor, ROLE_LABEL } from "@/lib/auth/permissions";
 import { isBlockedInNativeSellerApp } from "@/lib/appContext";
 import { config } from "@/lib/config";
 import { useHydrated } from "@/lib/hooks/useHydrated";
-import { useSession } from "@/lib/hooks/useSession";
+import { useSession, useSessionStatus } from "@/lib/hooks/useSession";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Skeleton } from "@/components/ui/skeleton";
 import { OfflineState } from "@/components/patterns/OfflineState";
 import { FaazioWordmark } from "@/components/brand/FaazioWordmark";
 
@@ -70,6 +71,7 @@ function LoginPage() {
   const router = useRouter();
   const hydrated = useHydrated();
   const session = useSession();
+  const sessionStatus = useSessionStatus();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
@@ -161,6 +163,35 @@ function LoginPage() {
         busy={statusBusy}
         onRetry={() => void checkStatus()}
       />
+    );
+  }
+
+  // A returning user lands on /login while `restoreSession()` is still talking to the gateway. Until
+  // it resolves ("unknown") — and while the redirect effect below is navigating away — hold a branded
+  // loading state instead of painting the form, so a signed-in user never sees a login flash. A
+  // genuine "signed-out" (or "reconnecting", which the RemoteStatus banner/offline state covers)
+  // shows the form so a truly logged-out user is never stuck behind a skeleton.
+  const restoringSession = !hydrated || (session === null && sessionStatus === "unknown");
+  const redirecting = session !== null && !submittedRef.current;
+  if (restoringSession || redirecting) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">
+        <div className="relative w-full max-w-[420px]" role="status" aria-live="polite">
+          <div className="space-y-4 rounded-[28px] border border-border/60 bg-card p-6 shadow-lift sm:p-7">
+            <FaazioWordmark className="h-[22px] w-auto text-primary" />
+            <span className="sr-only">Restoring your session...</span>
+            <div className="space-y-1.5" aria-hidden="true">
+              <Skeleton className="h-3 w-24" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <div className="space-y-1.5" aria-hidden="true">
+              <Skeleton className="h-3 w-20" />
+              <Skeleton className="h-10 w-full" />
+            </div>
+            <Skeleton className="h-10 w-full" aria-hidden="true" />
+          </div>
+        </div>
+      </div>
     );
   }
 

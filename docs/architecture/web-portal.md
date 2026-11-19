@@ -59,7 +59,11 @@ mobile-first instead (see `SellerAppShell` below). The React Native seller app i
 seller console
 (`client/mobile/src/features/seller-partner/SellerWebViewScreen.tsx`). It loads the portal's `/login`
 directly; `/login` skips the form when a live HttpOnly-cookie session already exists (straight to
-`homeFor(role)`). The native layer injects its
+`homeFor(role)`). While `restoreSession()` is still in flight the portal paints a branded loading
+state — `/login` shows a skeleton instead of the form and `RoleGate` shows its loading shell instead
+of "Sign in to continue" (both keyed off `sessionStatus === "unknown"`) — so a signed-in refresh never
+flashes unauthenticated UI. The native shell holds its splash until the WebView reaches `/seller/*`
+(see `mobile-app.md`). The native layer injects its
 FCM token into `window.__faazioPushToken`; `SellerPushBridge`
 registers it through `/api/gateway/notifications/register` and removes it on sign-out. Portal
 sign-out is the only seller session authority (HttpOnly cookies). The sign-out control renders on

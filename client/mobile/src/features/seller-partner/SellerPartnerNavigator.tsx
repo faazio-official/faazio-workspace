@@ -6,7 +6,8 @@ import type { SellerStackParamList } from './navigation';
 const Stack = createNativeStackNavigator<SellerStackParamList>();
 
 interface SellerPartnerNavigatorProps {
-  /** Called once the portal painted its first page (or failed), to drop the branded splash. */
+  /** Called once the portal's seller session resolved (or the bounded fallback fired), to drop the
+   *  branded splash so a returning seller lands straight on the dashboard. */
   onPortalReady?: () => void;
 }
 

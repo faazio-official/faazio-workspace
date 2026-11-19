@@ -13,14 +13,15 @@ import { installGlobalErrorHandlers } from './services/crashReporting';
 installGlobalErrorHandlers('seller');
 
 /**
- * The branded layer-2 splash covers the WebView until the portal paints its
- * first page, so the cold start is native splash → `SplashFallback` (royal) →
- * portal, never native splash → blank/loading WebView. The minimum keeps the
- * credit line visible on a fast portal load; the maximum keeps a hung WebView
- * from stranding the splash (the WebView's own loader/retry takes over).
+ * The branded layer-2 splash covers the WebView until the portal's seller session resolves — the
+ * portal navigates to `/seller/*` (returning seller) or the WebView's bounded auth fallback fires
+ * (signed-out seller lands on `/login`) — so the sign-in page never flashes before the dashboard.
+ * The cold start is native splash → `SplashFallback` (royal) → dashboard or sign-in. The minimum
+ * keeps the credit line visible on a fast auth resolve; the maximum is a last-resort release if the
+ * WebView never reports (the WebView's own loader/retry takes over).
  */
 const SPLASH_MIN_DISPLAY_MS = 1200;
-const SPLASH_MAX_WAIT_MS = 12000;
+const SPLASH_MAX_WAIT_MS = 5000;
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -42,7 +43,9 @@ function Layout({ children }: { children: React.ReactNode }) {
 /**
  * Dedicated Seller Partner root. Built as its own JS entry (`APP_VARIANT=seller`) so the customer
  * and delivery navigators are never mounted in the seller experience. The web portal owns the
- * seller session, so there is no native auth hydration gate here.
+ * seller session, so there is no native auth hydration gate here — instead the branded layer-2
+ * splash stays over the WebView until the portal reports its auth resolved (see
+ * `SellerWebViewScreen.onPortalReady`), which is what prevents the login-page flash.
  */
 export default function SellerPartnerApp() {
   const [fontsLoaded] = useAppFonts();

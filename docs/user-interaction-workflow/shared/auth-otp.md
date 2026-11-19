@@ -98,11 +98,16 @@ phone number.
    to JS).
 5. `providers.tsx` restores the session on mount; proactive/visibility refresh plus
    `refreshTokensSingleflight` keep it fresh. Concurrent rotation has a 30 s idempotent grace.
+   While the restore is in flight (`sessionStatus === "unknown"`), `/login` renders a branded
+   loading state and `RoleGate` its loading shell, so a signed-in refresh never flashes the form or
+   "Sign in to continue".
 6. `RoleGate` + `homeFor()` route to `/seller`, `/admin/district`, or `/admin/super`.
 7. Logout calls `POST /api/auth/portal/logout`, revokes the refresh family, and clears cookies.
 8. The seller partner app is a WebView over the same portal (`SellerPartnerNavigator.tsx` →
    `src/features/seller-partner/screens/SellerWebViewScreen.tsx`); the portal owns the session, so
-   there is no native seller auth gate.
+   there is no native seller auth gate. The native layer-2 splash is held until the WebView reaches
+   `/seller/*` (auth resolved) or a 5 s fallback elapses, so a returning seller goes straight to the
+   dashboard without the sign-in page flashing first.
 
 ### State
 

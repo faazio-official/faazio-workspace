@@ -15,6 +15,33 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W102 — Seller app: no login-page flash on cold start (+ portal session-restore loading)
+
+**Status:** 🟢 Shipped (mobile seller shell + web portal). No server/DB change.
+
+- **Symptom:** a signed-in seller saw the portal login page for 1–2 s before the dashboard, and the
+  web portal showed the login form (or "Sign in to continue") while `restoreSession()` was running.
+- **Mobile (`SellerWebViewScreen.tsx`):** `announceReady()` no longer fires on `onLoadEnd` — that
+  fires for the first painted page, which is `/login`. The shell now calls `onPortalReady` only once
+  the WebView navigates to a `/seller/*` route (auth resolved), when the portal posts
+  `faazio:auth-resolved` after a signed-out restore (`notifyAuthResolved` in
+  `client/web/platform/src/lib/appContext.ts`), or after the `PORTAL_AUTH_RESOLVE_TIMEOUT_MS` (5 s)
+  fallback. `onError` / a missing `WEB_PORTAL_URL` still release it; a retry never re-shows the
+  splash.
+- **Mobile (`SellerPartnerApp.tsx`):** `SPLASH_MAX_WAIT_MS` synced 12 s → 5 s so the layer-2 splash
+  and the WebView fallback agree; comments describe `onPortalReady` as "auth resolved".
+- **Web portal (`app/login/page.client.tsx`, `RoleGate.tsx`):** while `sessionStatus === "unknown"`
+  (restore in flight) `/login` renders a branded skeleton instead of the form and `RoleGate` renders
+  its loading shell instead of the Denied gate. Native splash layer 1 unchanged (already wired for
+  the seller flavor).
+- **Docs:** `docs/architecture/mobile-app.md`, `docs/architecture/web-portal.md`,
+  `docs/user-interaction-workflow/seller/web-portal/seller-console.md`,
+  `docs/user-interaction-workflow/shared/auth-otp.md`.
+
+**Date:** 2026-11-19
+
+---
+
 ## W101 — Home rail unbounded: Mart + Pharma combined, no chip cap
 
 **Status:** 🟢 Shipped (DB comment only + gateway + portal + mobile). Migration `0109`.

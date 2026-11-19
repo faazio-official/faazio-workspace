@@ -10,11 +10,15 @@
 
 ## Steps
 
-1. Cold start (`client/mobile` seller app only): the native splash hands off to the JS **layer-2
-   splash** (`SplashFallback` `royal`) — Faazio wordmark on Faazio Blue with the bottom
-   **"Product of FA CREATORS"** credit. It covers the WebView until the portal paints its first page
-   (minimum 1.2 s, 12 s ceiling), so the seller never sees a blank/loading WebView between the two
-   splash layers.
+1. Cold start (`client/mobile` seller app only): the native splash (layer 1) hands off to the JS
+   **layer-2 splash** (`SplashFallback` `royal`) — Faazio wordmark on Faazio Blue with the bottom
+   **"Product of FA CREATORS"** credit. The WebView mounts behind it (loading `/login`, which the
+   portal middleware redirects to `/seller/*` when the refresh cookie is live), and the splash is
+   only dropped once the portal's **auth has resolved** — `SellerWebViewScreen` calls
+   `onPortalReady` when the WebView navigates to a `/seller/*` route, when the portal posts
+   `faazio:auth-resolved` (a signed-out restore), or after a 5 s fallback
+   (`PORTAL_AUTH_RESOLVE_TIMEOUT_MS`; `SPLASH_MIN_DISPLAY_MS` 1.2 s floor). A returning seller
+   therefore sees splash → dashboard, never the login page flashing first.
 2. `middleware.ts` checks for the refresh cookie (`faazio_prt` / `__Host-faazio_prt`) on
    `/seller/*` and `/admin/*`; absent → redirect to `/login?next=…`.
 3. `/login` calls `signIn` → `POST /api/auth/portal/login` → gateway `POST /auth/portal/login`.
@@ -23,7 +27,9 @@
 5. `setAuthCookies` stores `faazio_pat` (15 min) and `faazio_prt` (30 d) as HttpOnly cookies.
 6. `providers.tsx` calls `restoreSession` on mount; `armProactiveRefresh` /
    `armVisibilityRefresh` keep the session fresh. `refreshTokensSingleflight` dedupes concurrent
-   refreshes.
+   refreshes. While the restore is in flight (`sessionStatus === "unknown"`), `/login` renders a
+   branded loading state instead of the form and `RoleGate` renders its loading shell instead of
+   "Sign in to continue", so a signed-in refresh never flashes unauthenticated UI.
 7. `RoleGate` + `src/lib/auth/permissions.ts` route the role to its home:
    `homeFor()` → `/seller`, `/admin/district`, or `/admin/super`.
 8. Seller console pages read/write via `src/lib/api/*` → `/api/gateway/[...path]` (the proxy
@@ -84,9 +90,11 @@
 
 ## Success / error / empty
 
-- **Success:** role home renders live data.
+- **Success:** role home renders live data. A returning seller cold-starting the app goes
+  splash → dashboard (auth resolved before the splash drops).
 - **Error:** `not_configured` / `gateway_unreachable` / `portal_auth_unavailable` diagnostics on the
-  login page; 401 bounces to login.
+  login page; 401 bounces to login. If auth never resolves, the splash releases after the 5 s
+  fallback and the sign-in page shows.
 - **Empty:** honest empty states.
 
 ## Known gaps
