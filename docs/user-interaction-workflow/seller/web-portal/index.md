@@ -18,6 +18,7 @@
 | Platform-fee change request + own history | [fee-change-requests.md](./fee-change-requests.md) |
 | Team invite acceptance | [accept-invite.md](./accept-invite.md) |
 | Super admin category taxonomy + home rail | [super-admin-categories.md](./super-admin-categories.md) |
+| Super admin global catalog + seller product requests | [super-admin-products.md](./super-admin-products.md) |
 | Super admin all orders (customer delivery lookup) | [super-admin-orders.md](./super-admin-orders.md) |
 | Super admin users directory (find a customer by phone) | [super-admin-users.md](./super-admin-users.md) |
 

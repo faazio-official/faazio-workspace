@@ -243,7 +243,8 @@ export const SUPER_COMPONENT_HINTS: Record<string, ComponentHint> = {
     "config-secret": {
       what: "Marks a value secret: masked here and never served to the apps.",
       workflow: "Remote config — store a credential safely.",
-      changes: "Forces the value private and hides it in this portal; blank keeps the stored secret.",
+      changes:
+        "Forces the value private and hides it in this portal; blank keeps the stored secret.",
       example: "Mark an API key secret so it never leaves the gateway.",
       app: ["consumer", "seller", "delivery"],
     },
@@ -449,6 +450,21 @@ export const SUPER_COMPONENT_HINTS: Record<string, ComponentHint> = {
 
   // ── Global catalog ─────────────────────────────────────────────────────────
   ...pageHints("/admin/super/products", {
+    "view-mode-toggle": {
+      what: "Switches the table between listings that are already live and seller requests awaiting a decision.",
+      workflow: "Global catalog moderation — pick the queue you are working.",
+      changes:
+        "Filters the table (Listed = ACTIVE, Requested = PENDING_REVIEW); nothing is changed.",
+      example: "Pick Requested products to approve or reject new seller submissions.",
+      app: ["consumer"],
+    },
+    "view-details": {
+      what: "Opens the complete listing the seller submitted, with its moderation actions.",
+      workflow: "Global catalog moderation — inspect before deciding.",
+      changes: "Reads the full record and seller profile; Accept/Reject act on a pending request.",
+      example: "Open a pending listing to check the photo, description and price before approving.",
+      app: ["consumer"],
+    },
     "product-search": {
       what: "Filters the global catalog by product name or id.",
       workflow: "Global catalog moderation — find listings.",

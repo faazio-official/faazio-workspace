@@ -298,7 +298,7 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `admin/super/ads` | live ad monitor (Live/Reported/CTR; Takedown/Restore) |
 | `admin/super/sdui` | Home/Mart/Food/Pharma SDUI layout editor (sections, productIds, hero banners incl. `pharmaHero`/`pharmaPopular`/`pharmaEssentials`) |
 | `admin/super/festival` · `admin/super/coupons` | promo authority |
-| `admin/super/products` · `admin/super/sellers` | catalog/seller authority — the seller list links into the shared KYC review detail and shows the platform fee |
+| `admin/super/products` · `admin/super/sellers` | catalog/seller authority — the products board is the **global catalog**: a Listed (`ACTIVE`) / Requested (`PENDING_REVIEW`) switch, search + sector filters, a per-row *View details* dialog with the full seller submission, and Accept/Reject with confirmation (see `docs/user-interaction-workflow/seller/web-portal/super-admin-products.md`); the seller list links into the shared KYC review detail and shows the platform fee |
 | `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage — **GST rate master** (sector + category + GST rate, `tax.tax_rates` via `GET/PUT /admin/tax/categories` + `DELETE /admin/tax/categories/{id}`): the approved category list that seller listings and the checkout tax split both consume |
 | `admin/super/rewards` · `admin/super/users` · `admin/super/districts` | platform — `users` is the customer directory (`GET /customers?q=`, server-filtered by name/phone/user id, shows the sign-in phone, `0110`); `districts` is the per-district drill-down (supply, campaigns, roster) |
 | `admin/{district,super}/fee-change-requests` | seller-initiated platform-fee change review — district admins see their district, super admins every district; the seller's own reason (`seller_note`, `0106`) is shown under the business name, approve applies the fee to the named vendor store, reject requires a reason (server-enforced one pending request per store, `0072`) |
@@ -487,7 +487,9 @@ console and the super admin console on that device.
   `ThemeSegmentedControl` (Settings pages, three labelled options) and
   `ThemeMenu` (the shell header icon menu). Both shells render `ThemeMenu`.
 - **Settings surfaces.** `/seller/settings` (editable Profile, Bank, Notifications,
-  Sub-users and Security tabs plus Appearance; bank uses `GET`/`PUT /sellers/{id}/bank-account`,
+  Sub-users and Security sections plus Appearance; the six sections render via `UnderlineTabs` at
+  `md`+ and **stack full-width below `md`** so narrow screens need no horizontally scrolled tab
+  strip (pure Tailwind classes, no viewport hook); bank uses `GET`/`PUT /sellers/{id}/bank-account`,
   profile uses `PATCH /sellers/{id}`, notifications use `GET`/`PUT /seller/notifications/preferences`,
   sub-users use `GET`/`POST /seller/sub-users` + `POST /seller/sub-users/{id}/resend` + `DELETE
   /seller/sub-users/{id}` (tables from `0097`/`0098`; the invite returns a one-time accept link the

@@ -11,7 +11,12 @@ hidden and enforced server-side. See `accept-invite.md` for the invitee's side.
 ## Steps
 
 1. `useSellerScope()` supplies `sellerId` (the signed-in portal session's `sellerId`). The page
-   renders six underline tabs: Profile, Bank, Notifications, Appearance, Sub-users, Security.
+   renders six sections: Profile, Bank, Notifications, Appearance, Sub-users, Security.
+   **Layout is responsive:** at `md` and wider a horizontal `UnderlineTabs` bar selects one section;
+   below `md` the tab bar is hidden and every visible section renders stacked full-width in that
+   order. The switch is pure Tailwind (`hidden md:block` on the tab bar, a `SectionView` wrapper that
+   is `md:block` only when active and always visible below `md`), so there is no viewport JS and no
+   hydration flash. Section content and behaviour are identical in both layouts.
 2. **Profile** — read rows come from the hydrated `sellers` slice (`useSeller`). "Edit profile"
    opens inline `TextField`s for business name, owner name, GSTIN, PAN, contact phone and registered
    address; "Save changes" sends **only the fields that changed** to `updateSeller(sellerId, patch)`

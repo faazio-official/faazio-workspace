@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import {
@@ -15,6 +15,7 @@ import {
   Sheet,
 } from "@/components/sellers/kit";
 import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
+import { cn } from "@/lib/utils";
 import {
   inviteSubUser,
   removeSubUser,
@@ -100,6 +101,24 @@ function emailErrorMessage(err: unknown): string {
     return err.message;
   }
   return err instanceof Error ? err.message : "Could not change the email.";
+}
+
+/**
+ * One settings section. Below `md` every section renders stacked full-width (no tab strip to
+ * scroll); at `md`+ only the selected tab's section shows. Pure CSS — no viewport JS, no hydration
+ * flash, so the server-rendered markup is already correct.
+ */
+function SectionView({ active, children }: { active: boolean; children: ReactNode }) {
+  return (
+    <div
+      className={cn(
+        "max-md:space-y-6 md:space-y-3",
+        active ? "md:block" : "max-md:block md:hidden",
+      )}
+    >
+      {children}
+    </div>
+  );
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -188,7 +207,8 @@ function SellerSettings() {
       setProfileDraft(null);
       return;
     }
-    const kycChanged = patch.gstin !== undefined || patch.pan !== undefined || patch.businessAddress !== undefined;
+    const kycChanged =
+      patch.gstin !== undefined || patch.pan !== undefined || patch.businessAddress !== undefined;
     setProfileBusy(true);
     try {
       await updateSeller(sellerId, patch);
@@ -377,7 +397,9 @@ function SellerSettings() {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
-      toast.success("Password changed", { description: "You are signed in with your new password." });
+      toast.success("Password changed", {
+        description: "You are signed in with your new password.",
+      });
     } catch {
       await signOut();
       toast.success("Password changed — sign in again with the new password.");
@@ -390,16 +412,15 @@ function SellerSettings() {
   return (
     <>
       <PageHeader title="Settings" sub="Account" />
-      <div className="px-4 pt-3">
+      {/* Narrow viewports stack every section full-width; md+ keeps the underline tabs. */}
+      <div className="hidden px-4 pt-3 md:block">
         <UnderlineTabs tabs={visibleTabs} value={activeTab} onChange={setTab} />
       </div>
 
-      <div className="space-y-3 px-4 pt-3 pb-8">
+      <div className="px-4 pt-3 pb-8 max-md:space-y-6 md:space-y-3">
         {isSubUser ? (
           <Card>
-            <p className="text-sm font-bold">
-              {isViewer ? "Viewer access" : "Staff access"}
-            </p>
+            <p className="text-sm font-bold">{isViewer ? "Viewer access" : "Staff access"}</p>
             <p className="mt-1 text-[11px] text-muted-foreground">
               {isViewer
                 ? "You can view the console but cannot make changes. The shop owner manages the team, bank account and business profile."
@@ -407,392 +428,411 @@ function SellerSettings() {
             </p>
           </Card>
         ) : null}
-        {activeTab === "profile" && (
-          <Card>
-            <p className="mb-2 text-sm font-bold">Business profile</p>
-            <p className="mb-2 text-[10px] text-muted-foreground">
-              Profile changes that affect KYC need admin re-verification.
-            </p>
-            {loading && !seller ? (
-              <div className="space-y-2">
-                {[0, 1, 2, 3].map((i) => (
-                  <div key={i} className="h-9 animate-pulse rounded-xl bg-muted" />
-                ))}
-              </div>
-            ) : profileDraft ? (
-              <>
-                <TextField
-                  label="Business name"
-                  value={profileDraft.businessName ?? ""}
-                  onChange={(v) => setProfileDraft({ ...profileDraft, businessName: v })}
-                />
-                <TextField
-                  label="Owner name"
-                  value={profileDraft.ownerName ?? ""}
-                  onChange={(v) => setProfileDraft({ ...profileDraft, ownerName: v })}
-                />
-                <TextField
-                  label="GSTIN"
-                  value={profileDraft.gstin ?? ""}
-                  onChange={(v) => setProfileDraft({ ...profileDraft, gstin: v.toUpperCase() })}
-                />
-                <TextField
-                  label="PAN"
-                  value={profileDraft.pan ?? ""}
-                  onChange={(v) => setProfileDraft({ ...profileDraft, pan: v.toUpperCase() })}
-                />
-                <TextField
-                  label="Contact phone"
-                  value={profileDraft.contactPhone ?? ""}
-                  onChange={(v) => setProfileDraft({ ...profileDraft, contactPhone: v })}
-                  type="tel"
-                />
-                <TextField
-                  label="Registered address"
-                  value={profileDraft.businessAddress ?? ""}
-                  onChange={(v) => setProfileDraft({ ...profileDraft, businessAddress: v })}
-                />
-                <div className="mt-3 flex gap-2">
-                  <PrimaryButton
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setProfileDraft(null)}
-                    disabled={profileBusy}
-                  >
-                    Cancel
-                  </PrimaryButton>
-                  <PrimaryButton
-                    className="flex-1"
-                    onClick={() => void saveProfile()}
-                    disabled={profileBusy}
-                  >
-                    {profileBusy ? "Saving..." : "Save changes"}
-                  </PrimaryButton>
-                </div>
-              </>
-            ) : (
-              <>
-                <Row label="Business name" value={seller?.businessName ?? ""} />
-                <Row label="Owner name" value={seller?.ownerName ?? ""} />
-                <Row label="GSTIN" value={seller?.gstin ?? ""} />
-                <Row label="PAN" value={seller?.pan ?? ""} />
-                <Row label="Contact phone" value={seller?.contactPhone ?? ""} />
-                <Row label="Registered address" value={seller?.businessAddress ?? ""} />
-                <PrimaryButton className="mt-4 w-full" onClick={startProfileEdit} disabled={!seller}>
-                  Edit profile
-                </PrimaryButton>
-              </>
-            )}
-          </Card>
-        )}
-
-        {activeTab === "bank" && (
-          <Card>
-            <p className="mb-2 text-sm font-bold">Settlement bank account</p>
-            <p className="mb-2 text-[10px] text-muted-foreground">
-              Payouts land in this account. Only the masked tail is stored.
-            </p>
-            {bankDraft ? (
-              <>
-                <TextField
-                  label="Beneficiary name"
-                  value={bankDraft.beneficiaryName}
-                  onChange={(v) => setBankDraft({ ...bankDraft, beneficiaryName: v })}
-                  placeholder="Name on the account"
-                />
-                <TextField
-                  label="Account number"
-                  value={bankDraft.accountNumber}
-                  onChange={(v) => setBankDraft({ ...bankDraft, accountNumber: v })}
-                  placeholder="Account number"
-                />
-                <TextField
-                  label="IFSC"
-                  value={bankDraft.ifsc}
-                  onChange={(v) => setBankDraft({ ...bankDraft, ifsc: v.toUpperCase() })}
-                  placeholder="HDFC0001234"
-                />
-                <TextField
-                  label="Bank name (optional)"
-                  value={bankDraft.bankName ?? ""}
-                  onChange={(v) => setBankDraft({ ...bankDraft, bankName: v })}
-                />
-                <div className="mt-3 flex gap-2">
-                  <PrimaryButton
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => setBankDraft(null)}
-                    disabled={bankBusy}
-                  >
-                    Cancel
-                  </PrimaryButton>
-                  <PrimaryButton
-                    className="flex-1"
-                    onClick={() => void saveBank()}
-                    disabled={bankBusy}
-                  >
-                    {bankBusy ? "Saving..." : "Save account"}
-                  </PrimaryButton>
-                </div>
-              </>
-            ) : bankLoading ? (
-              <div className="space-y-2">
-                {[0, 1, 2].map((i) => (
-                  <div key={i} className="h-9 animate-pulse rounded-xl bg-muted" />
-                ))}
-              </div>
-            ) : bank ? (
-              <>
-                <Row label="Beneficiary" value={bank.beneficiaryName} />
-                <Row label="Account number" value={bank.accountNumberMasked} />
-                <Row label="IFSC" value={bank.ifsc} />
-                {bank.bankName ? <Row label="Bank" value={bank.bankName} /> : null}
-                <PrimaryButton className="mt-4 w-full" onClick={startBankEdit}>
-                  Change account
-                </PrimaryButton>
-              </>
-            ) : (
-              <>
-                <EmptyState text="No settlement account yet — add one to receive payouts." />
-                <PrimaryButton className="w-full" onClick={startBankEdit}>
-                  Add settlement account
-                </PrimaryButton>
-              </>
-            )}
-          </Card>
-        )}
-
-        {activeTab === "notifications" && (
-          <Card>
-            <p className="mb-2 text-sm font-bold">Notifications</p>
-            <p className="mb-1 text-[10px] text-muted-foreground">
-              Choose which alerts you want to receive.
-            </p>
-            {NOTIFICATIONS.map(({ kind, label, sub }) => (
-              <div
-                key={kind}
-                className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0"
-              >
-                <span>
-                  <span className="block text-sm">{label}</span>
-                  <span className="block text-[11px] text-muted-foreground">{sub}</span>
-                </span>
-                <Toggle
-                  label={label}
-                  checked={preferences[kind]}
-                  onChange={(v) => updateNotificationPreferences({ [kind]: v } as Partial<typeof preferences>)}
-                />
-              </div>
-            ))}
-          </Card>
-        )}
-
-        {activeTab === "appearance" && (
-          <Card>
-            <p className="text-sm font-bold">Appearance</p>
-            <p className="mb-3 text-[10px] text-muted-foreground">
-              Applies to this browser, on every console you sign in to.
-            </p>
-            <div className="flex items-center justify-between">
-              <span className="text-sm">
-                Theme
-                <br />
-                <span className="text-[10px] text-muted-foreground">
-                  Auto follows your device&apos;s light or dark setting.
-                </span>
-              </span>
-              <ThemeSegmentedControl />
-            </div>
-          </Card>
-        )}
-
-        {activeTab === "users" && (
-          <>
+        {visibleTabs.some((t) => t.key === "profile") ? (
+          <SectionView active={activeTab === "profile"}>
             <Card>
-              <p className="mb-2 text-sm font-bold">Invite a sub-user</p>
+              <p className="mb-2 text-sm font-bold">Business profile</p>
               <p className="mb-2 text-[10px] text-muted-foreground">
-                Staff can run the console; viewers are read-only. You share a one-time accept link and
-                they choose their own password.
+                Profile changes that affect KYC need admin re-verification.
               </p>
-              <TextField
-                label="Name"
-                value={invite.name}
-                onChange={(v) => setInvite({ ...invite, name: v })}
-                placeholder="Staff name"
-              />
-              <TextField
-                label="Email"
-                value={invite.email}
-                onChange={(v) => setInvite({ ...invite, email: v })}
-                placeholder="staff@example.com"
-                type="email"
-              />
-              <SectionTitle>Role</SectionTitle>
-              <div className="rounded-xl border border-border">
-                {ROLES.map(({ role, label, sub }) => (
-                  <RadioRow
-                    key={role}
-                    label={label}
-                    sub={sub}
-                    checked={invite.role === role}
-                    onClick={() => setInvite({ ...invite, role })}
-                  />
-                ))}
-              </div>
-              <PrimaryButton
-                className="mt-4 w-full"
-                onClick={() => void sendInvite()}
-                disabled={inviteBusy || !invite.name.trim() || !invite.email.trim()}
-              >
-                {inviteBusy ? "Sending..." : "Create invite link"}
-              </PrimaryButton>
-            </Card>
-
-            {inviteResult ? (
-              <Card>
-                <p className="mb-1 text-sm font-bold">Share this accept link</p>
-                <p className="mb-2 text-[10px] text-muted-foreground">
-                  Send it to {inviteResult.email}. It works once and expires{" "}
-                  {inviteResult.inviteExpiresAt
-                    ? new Date(inviteResult.inviteExpiresAt).toLocaleString()
-                    : "in 7 days"}
-                  .
-                </p>
-                <div className="break-all rounded-lg border border-border bg-muted/40 px-3 py-2 text-[11px]">
-                  {typeof window !== "undefined"
-                    ? `${window.location.origin}/accept-invite?token=${encodeURIComponent(inviteResult.inviteToken)}`
-                    : "Generating link..."}
+              {loading && !seller ? (
+                <div className="space-y-2">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="h-9 animate-pulse rounded-xl bg-muted" />
+                  ))}
                 </div>
-                <PrimaryButton
-                  className="mt-3 w-full"
-                  onClick={() => void copyAcceptLink(inviteResult.inviteToken)}
-                >
-                  Copy link
-                </PrimaryButton>
-              </Card>
-            ) : null}
-
-            <Card>
-              <p className="mb-2 text-sm font-bold">Sub-users</p>
-              {subUsers.length === 0 ? (
-                <p className="py-3 text-sm text-muted-foreground">
-                  No sub-users yet — invite your first team member above.
-                </p>
-              ) : (
-                subUsers.map((user) => (
-                  <div
-                    key={user.subUserId}
-                    className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0"
-                  >
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm font-medium">{user.name}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">
-                        {user.email} · {user.role === "STAFF" ? "Staff" : "Viewer"} ·{" "}
-                        {STATUS_LABEL[user.status] ?? user.status}
-                        {user.status === "PENDING_INVITE" && user.inviteExpiresAt
-                          ? ` · link expires ${new Date(user.inviteExpiresAt).toLocaleDateString()}`
-                          : ""}
-                        {user.status === "ACTIVE" && user.lastLoginAt
-                          ? ` · last login ${new Date(user.lastLoginAt).toLocaleDateString()}`
-                          : ""}
-                      </span>
-                    </span>
-                    <div className="flex shrink-0 items-center gap-2">
-                      {user.status === "PENDING_INVITE" ? (
-                        <button
-                          onClick={() => void resendInvite(user.subUserId)}
-                          className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
-                        >
-                          New link
-                        </button>
-                      ) : null}
-                      <button
-                        onClick={() => {
-                          void (async () => {
-                            try {
-                              await removeSubUser(user.subUserId);
-                              toast.success("Sub-user revoked");
-                            } catch (err) {
-                              toast.error("Revoke failed", {
-                                description: err instanceof Error ? err.message : undefined,
-                              });
-                            }
-                          })();
-                        }}
-                        className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
-                      >
-                        Revoke
-                      </button>
-                    </div>
+              ) : profileDraft ? (
+                <>
+                  <TextField
+                    label="Business name"
+                    value={profileDraft.businessName ?? ""}
+                    onChange={(v) => setProfileDraft({ ...profileDraft, businessName: v })}
+                  />
+                  <TextField
+                    label="Owner name"
+                    value={profileDraft.ownerName ?? ""}
+                    onChange={(v) => setProfileDraft({ ...profileDraft, ownerName: v })}
+                  />
+                  <TextField
+                    label="GSTIN"
+                    value={profileDraft.gstin ?? ""}
+                    onChange={(v) => setProfileDraft({ ...profileDraft, gstin: v.toUpperCase() })}
+                  />
+                  <TextField
+                    label="PAN"
+                    value={profileDraft.pan ?? ""}
+                    onChange={(v) => setProfileDraft({ ...profileDraft, pan: v.toUpperCase() })}
+                  />
+                  <TextField
+                    label="Contact phone"
+                    value={profileDraft.contactPhone ?? ""}
+                    onChange={(v) => setProfileDraft({ ...profileDraft, contactPhone: v })}
+                    type="tel"
+                  />
+                  <TextField
+                    label="Registered address"
+                    value={profileDraft.businessAddress ?? ""}
+                    onChange={(v) => setProfileDraft({ ...profileDraft, businessAddress: v })}
+                  />
+                  <div className="mt-3 flex gap-2">
+                    <PrimaryButton
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setProfileDraft(null)}
+                      disabled={profileBusy}
+                    >
+                      Cancel
+                    </PrimaryButton>
+                    <PrimaryButton
+                      className="flex-1"
+                      onClick={() => void saveProfile()}
+                      disabled={profileBusy}
+                    >
+                      {profileBusy ? "Saving..." : "Save changes"}
+                    </PrimaryButton>
                   </div>
-                ))
+                </>
+              ) : (
+                <>
+                  <Row label="Business name" value={seller?.businessName ?? ""} />
+                  <Row label="Owner name" value={seller?.ownerName ?? ""} />
+                  <Row label="GSTIN" value={seller?.gstin ?? ""} />
+                  <Row label="PAN" value={seller?.pan ?? ""} />
+                  <Row label="Contact phone" value={seller?.contactPhone ?? ""} />
+                  <Row label="Registered address" value={seller?.businessAddress ?? ""} />
+                  <PrimaryButton
+                    className="mt-4 w-full"
+                    onClick={startProfileEdit}
+                    disabled={!seller}
+                  >
+                    Edit profile
+                  </PrimaryButton>
+                </>
               )}
             </Card>
-          </>
-        )}
+          </SectionView>
+        ) : null}
 
-        {activeTab === "security" && (
-          <>
+        {visibleTabs.some((t) => t.key === "bank") ? (
+          <SectionView active={activeTab === "bank"}>
             <Card>
-              <p className="mb-2 text-sm font-bold">Sign-in email</p>
+              <p className="mb-2 text-sm font-bold">Settlement bank account</p>
               <p className="mb-2 text-[10px] text-muted-foreground">
-                This is the email you use to sign in. Changing it signs you out of your other devices.
+                Payouts land in this account. Only the masked tail is stored.
               </p>
-              <Row label="Email" value={session?.email ?? ""} />
-              {isSubUser ? (
-                <p className="mt-3 text-[11px] text-muted-foreground">
-                  Your sign-in email is managed by the shop owner.
-                </p>
+              {bankDraft ? (
+                <>
+                  <TextField
+                    label="Beneficiary name"
+                    value={bankDraft.beneficiaryName}
+                    onChange={(v) => setBankDraft({ ...bankDraft, beneficiaryName: v })}
+                    placeholder="Name on the account"
+                  />
+                  <TextField
+                    label="Account number"
+                    value={bankDraft.accountNumber}
+                    onChange={(v) => setBankDraft({ ...bankDraft, accountNumber: v })}
+                    placeholder="Account number"
+                  />
+                  <TextField
+                    label="IFSC"
+                    value={bankDraft.ifsc}
+                    onChange={(v) => setBankDraft({ ...bankDraft, ifsc: v.toUpperCase() })}
+                    placeholder="HDFC0001234"
+                  />
+                  <TextField
+                    label="Bank name (optional)"
+                    value={bankDraft.bankName ?? ""}
+                    onChange={(v) => setBankDraft({ ...bankDraft, bankName: v })}
+                  />
+                  <div className="mt-3 flex gap-2">
+                    <PrimaryButton
+                      variant="outline"
+                      className="flex-1"
+                      onClick={() => setBankDraft(null)}
+                      disabled={bankBusy}
+                    >
+                      Cancel
+                    </PrimaryButton>
+                    <PrimaryButton
+                      className="flex-1"
+                      onClick={() => void saveBank()}
+                      disabled={bankBusy}
+                    >
+                      {bankBusy ? "Saving..." : "Save account"}
+                    </PrimaryButton>
+                  </div>
+                </>
+              ) : bankLoading ? (
+                <div className="space-y-2">
+                  {[0, 1, 2].map((i) => (
+                    <div key={i} className="h-9 animate-pulse rounded-xl bg-muted" />
+                  ))}
+                </div>
+              ) : bank ? (
+                <>
+                  <Row label="Beneficiary" value={bank.beneficiaryName} />
+                  <Row label="Account number" value={bank.accountNumberMasked} />
+                  <Row label="IFSC" value={bank.ifsc} />
+                  {bank.bankName ? <Row label="Bank" value={bank.bankName} /> : null}
+                  <PrimaryButton className="mt-4 w-full" onClick={startBankEdit}>
+                    Change account
+                  </PrimaryButton>
+                </>
               ) : (
+                <>
+                  <EmptyState text="No settlement account yet — add one to receive payouts." />
+                  <PrimaryButton className="w-full" onClick={startBankEdit}>
+                    Add settlement account
+                  </PrimaryButton>
+                </>
+              )}
+            </Card>
+          </SectionView>
+        ) : null}
+
+        {visibleTabs.some((t) => t.key === "notifications") ? (
+          <SectionView active={activeTab === "notifications"}>
+            <Card>
+              <p className="mb-2 text-sm font-bold">Notifications</p>
+              <p className="mb-1 text-[10px] text-muted-foreground">
+                Choose which alerts you want to receive.
+              </p>
+              {NOTIFICATIONS.map(({ kind, label, sub }) => (
+                <div
+                  key={kind}
+                  className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0"
+                >
+                  <span>
+                    <span className="block text-sm">{label}</span>
+                    <span className="block text-[11px] text-muted-foreground">{sub}</span>
+                  </span>
+                  <Toggle
+                    label={label}
+                    checked={preferences[kind]}
+                    onChange={(v) =>
+                      updateNotificationPreferences({ [kind]: v } as Partial<typeof preferences>)
+                    }
+                  />
+                </div>
+              ))}
+            </Card>
+          </SectionView>
+        ) : null}
+
+        {visibleTabs.some((t) => t.key === "appearance") ? (
+          <SectionView active={activeTab === "appearance"}>
+            <Card>
+              <p className="text-sm font-bold">Appearance</p>
+              <p className="mb-3 text-[10px] text-muted-foreground">
+                Applies to this browser, on every console you sign in to.
+              </p>
+              <div className="flex items-center justify-between">
+                <span className="text-sm">
+                  Theme
+                  <br />
+                  <span className="text-[10px] text-muted-foreground">
+                    Auto follows your device&apos;s light or dark setting.
+                  </span>
+                </span>
+                <ThemeSegmentedControl />
+              </div>
+            </Card>
+          </SectionView>
+        ) : null}
+
+        {visibleTabs.some((t) => t.key === "users") ? (
+          <SectionView active={activeTab === "users"}>
+            <>
+              <Card>
+                <p className="mb-2 text-sm font-bold">Invite a sub-user</p>
+                <p className="mb-2 text-[10px] text-muted-foreground">
+                  Staff can run the console; viewers are read-only. You share a one-time accept link
+                  and they choose their own password.
+                </p>
+                <TextField
+                  label="Name"
+                  value={invite.name}
+                  onChange={(v) => setInvite({ ...invite, name: v })}
+                  placeholder="Staff name"
+                />
+                <TextField
+                  label="Email"
+                  value={invite.email}
+                  onChange={(v) => setInvite({ ...invite, email: v })}
+                  placeholder="staff@example.com"
+                  type="email"
+                />
+                <SectionTitle>Role</SectionTitle>
+                <div className="rounded-xl border border-border">
+                  {ROLES.map(({ role, label, sub }) => (
+                    <RadioRow
+                      key={role}
+                      label={label}
+                      sub={sub}
+                      checked={invite.role === role}
+                      onClick={() => setInvite({ ...invite, role })}
+                    />
+                  ))}
+                </div>
                 <PrimaryButton
                   className="mt-4 w-full"
-                  onClick={openEmailSheet}
-                  disabled={!session?.email}
+                  onClick={() => void sendInvite()}
+                  disabled={inviteBusy || !invite.name.trim() || !invite.email.trim()}
                 >
-                  Change email
+                  {inviteBusy ? "Sending..." : "Create invite link"}
                 </PrimaryButton>
-              )}
-            </Card>
+              </Card>
 
-            <Card>
-              <p className="mb-2 text-sm font-bold">Change password</p>
-              <p className="mb-2 text-[10px] text-muted-foreground">
-                Enter your current password, then choose a new one. You stay signed in here.
-              </p>
-              <TextField
-                label="Current password"
-                type="password"
-                value={currentPassword}
-                onChange={setCurrentPassword}
-              />
-              <TextField
-                label="New password"
-                type="password"
-                value={newPassword}
-                onChange={setNewPassword}
-              />
-              <TextField
-                label="Confirm new password"
-                type="password"
-                value={confirmPassword}
-                onChange={setConfirmPassword}
-              />
-              <p className="text-[11px] text-muted-foreground">
-                At least 12 characters. Choose a strong, different password.
-              </p>
-              {passwordError ? (
-                <p className="mt-2 text-[12px] text-destructive">{passwordError}</p>
+              {inviteResult ? (
+                <Card>
+                  <p className="mb-1 text-sm font-bold">Share this accept link</p>
+                  <p className="mb-2 text-[10px] text-muted-foreground">
+                    Send it to {inviteResult.email}. It works once and expires{" "}
+                    {inviteResult.inviteExpiresAt
+                      ? new Date(inviteResult.inviteExpiresAt).toLocaleString()
+                      : "in 7 days"}
+                    .
+                  </p>
+                  <div className="break-all rounded-lg border border-border bg-muted/40 px-3 py-2 text-[11px]">
+                    {typeof window !== "undefined"
+                      ? `${window.location.origin}/accept-invite?token=${encodeURIComponent(inviteResult.inviteToken)}`
+                      : "Generating link..."}
+                  </div>
+                  <PrimaryButton
+                    className="mt-3 w-full"
+                    onClick={() => void copyAcceptLink(inviteResult.inviteToken)}
+                  >
+                    Copy link
+                  </PrimaryButton>
+                </Card>
               ) : null}
-              <PrimaryButton
-                className="mt-4 w-full"
-                onClick={() => void savePassword()}
-                disabled={passwordBusy}
-              >
-                {passwordBusy ? "Changing..." : "Update password"}
-              </PrimaryButton>
-            </Card>
-          </>
-        )}
+
+              <Card>
+                <p className="mb-2 text-sm font-bold">Sub-users</p>
+                {subUsers.length === 0 ? (
+                  <p className="py-3 text-sm text-muted-foreground">
+                    No sub-users yet — invite your first team member above.
+                  </p>
+                ) : (
+                  subUsers.map((user) => (
+                    <div
+                      key={user.subUserId}
+                      className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-0"
+                    >
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-medium">{user.name}</span>
+                        <span className="block truncate text-[11px] text-muted-foreground">
+                          {user.email} · {user.role === "STAFF" ? "Staff" : "Viewer"} ·{" "}
+                          {STATUS_LABEL[user.status] ?? user.status}
+                          {user.status === "PENDING_INVITE" && user.inviteExpiresAt
+                            ? ` · link expires ${new Date(user.inviteExpiresAt).toLocaleDateString()}`
+                            : ""}
+                          {user.status === "ACTIVE" && user.lastLoginAt
+                            ? ` · last login ${new Date(user.lastLoginAt).toLocaleDateString()}`
+                            : ""}
+                        </span>
+                      </span>
+                      <div className="flex shrink-0 items-center gap-2">
+                        {user.status === "PENDING_INVITE" ? (
+                          <button
+                            onClick={() => void resendInvite(user.subUserId)}
+                            className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+                          >
+                            New link
+                          </button>
+                        ) : null}
+                        <button
+                          onClick={() => {
+                            void (async () => {
+                              try {
+                                await removeSubUser(user.subUserId);
+                                toast.success("Sub-user revoked");
+                              } catch (err) {
+                                toast.error("Revoke failed", {
+                                  description: err instanceof Error ? err.message : undefined,
+                                });
+                              }
+                            })();
+                          }}
+                          className="rounded-lg border border-border px-3 py-1.5 text-xs font-semibold text-foreground hover:bg-muted"
+                        >
+                          Revoke
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </Card>
+            </>
+          </SectionView>
+        ) : null}
+
+        {visibleTabs.some((t) => t.key === "security") ? (
+          <SectionView active={activeTab === "security"}>
+            <>
+              <Card>
+                <p className="mb-2 text-sm font-bold">Sign-in email</p>
+                <p className="mb-2 text-[10px] text-muted-foreground">
+                  This is the email you use to sign in. Changing it signs you out of your other
+                  devices.
+                </p>
+                <Row label="Email" value={session?.email ?? ""} />
+                {isSubUser ? (
+                  <p className="mt-3 text-[11px] text-muted-foreground">
+                    Your sign-in email is managed by the shop owner.
+                  </p>
+                ) : (
+                  <PrimaryButton
+                    className="mt-4 w-full"
+                    onClick={openEmailSheet}
+                    disabled={!session?.email}
+                  >
+                    Change email
+                  </PrimaryButton>
+                )}
+              </Card>
+
+              <Card>
+                <p className="mb-2 text-sm font-bold">Change password</p>
+                <p className="mb-2 text-[10px] text-muted-foreground">
+                  Enter your current password, then choose a new one. You stay signed in here.
+                </p>
+                <TextField
+                  label="Current password"
+                  type="password"
+                  value={currentPassword}
+                  onChange={setCurrentPassword}
+                />
+                <TextField
+                  label="New password"
+                  type="password"
+                  value={newPassword}
+                  onChange={setNewPassword}
+                />
+                <TextField
+                  label="Confirm new password"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={setConfirmPassword}
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  At least 12 characters. Choose a strong, different password.
+                </p>
+                {passwordError ? (
+                  <p className="mt-2 text-[12px] text-destructive">{passwordError}</p>
+                ) : null}
+                <PrimaryButton
+                  className="mt-4 w-full"
+                  onClick={() => void savePassword()}
+                  disabled={passwordBusy}
+                >
+                  {passwordBusy ? "Changing..." : "Update password"}
+                </PrimaryButton>
+              </Card>
+            </>
+          </SectionView>
+        ) : null}
       </div>
 
       <Sheet
@@ -806,8 +846,7 @@ function SellerSettings() {
             className="w-full"
             onClick={() => void saveEmail()}
             disabled={
-              emailBusy ||
-              newEmail.trim().toLowerCase() === (session?.email ?? "").toLowerCase()
+              emailBusy || newEmail.trim().toLowerCase() === (session?.email ?? "").toLowerCase()
             }
           >
             {emailBusy ? "Saving..." : "Save email"}

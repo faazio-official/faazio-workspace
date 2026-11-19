@@ -146,7 +146,7 @@ here so the folder never claims full coverage it does not have. Add a page befor
 | Product list / edit | `/seller/products`, `/seller/products/[id]/edit` | Product list and edit surface; no dedicated page |
 | Local-only seller surfaces | `/seller/support`, `/seller/restaurant-status`, `/seller/rush-hour` | Client-local; see the seller gaps table above |
 | District admin | `/admin/district/*` | Documented only where a seller flow references it (KYC review, payouts) |
-| Super admin | `/admin/super/*` (categories + users documented) | Category taxonomy + home-rail curation ([web-portal/super-admin-categories.md](./seller/web-portal/super-admin-categories.md)), all orders ([web-portal/super-admin-orders.md](./seller/web-portal/super-admin-orders.md)) and the customer directory ([web-portal/super-admin-users.md](./seller/web-portal/super-admin-users.md)) have dedicated pages; the rest are documented only where a seller flow references them |
+| Super admin | `/admin/super/*` (categories + users + products documented) | Category taxonomy + home-rail curation ([web-portal/super-admin-categories.md](./seller/web-portal/super-admin-categories.md)), global catalog + seller product requests ([web-portal/super-admin-products.md](./seller/web-portal/super-admin-products.md)), all orders ([web-portal/super-admin-orders.md](./seller/web-portal/super-admin-orders.md)) and the customer directory ([web-portal/super-admin-users.md](./seller/web-portal/super-admin-users.md)) have dedicated pages; the rest are documented only where a seller flow references them |
 
 ## How to close a gap
 
