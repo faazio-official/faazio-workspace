@@ -363,11 +363,18 @@ export interface CategoryRow {
   name: string;
   slug: string;
   description?: string;
+  /** Tamil display name (0107). Empty → the app falls back to `name`. */
+  nameTa?: string;
+  /** Tamil display description (0107). Empty → the app falls back to `description`. */
+  descriptionTa?: string;
   iconUrl?: string;
   parentId: string | null;
   searchQuery?: string;
   isActive: boolean;
-  /** Curated onto the mobile Home header rail (max 3 active globally; FOOD is not eligible). */
+  /**
+   * Curated onto the mobile Home header rail. MART/PHARMA only, any tree level, unbounded count — the
+   * app scrolls the rail horizontally. FOOD is not eligible.
+   */
   showOnHomeRail: boolean;
   sortOrder: number;
   createdAt?: string;
@@ -380,6 +387,8 @@ export interface CategoryInput {
   name: string;
   slug?: string;
   description?: string;
+  nameTa?: string;
+  descriptionTa?: string;
   iconUrl?: string;
   parentId?: string | null;
   searchQuery?: string;
@@ -468,6 +477,9 @@ export async function createProduct(dto: CreateProductInput): Promise<ProductRec
       category: dto.category,
       taxonomyCategoryId: dto.taxonomyCategoryId,
       description: dto.description,
+      // Tamil copy is optional; an untranslated listing sends nothing so the column stays empty.
+      ...(dto.nameTa?.trim() ? { nameTa: dto.nameTa.trim() } : {}),
+      ...(dto.descriptionTa?.trim() ? { descriptionTa: dto.descriptionTa.trim() } : {}),
       // Gateway speaks whole rupees; the DB stores paisa.
       price: toRupees(dto.pricePaisa),
       unit: dto.unit,
@@ -513,12 +525,16 @@ export function updateProduct(productId: string, patch: Partial<ProductRecord>):
   const body: {
     name?: string;
     description?: string;
+    nameTa?: string;
+    descriptionTa?: string;
     category?: string;
     isVeg?: boolean;
     isPrescription?: boolean;
   } = {};
   if (patch.name !== undefined) body.name = patch.name;
   if (patch.description !== undefined) body.description = patch.description;
+  if (patch.nameTa !== undefined) body.nameTa = patch.nameTa;
+  if (patch.descriptionTa !== undefined) body.descriptionTa = patch.descriptionTa;
   if (patch.category !== undefined) body.category = patch.category;
   if (patch.isVeg !== undefined) body.isVeg = patch.isVeg;
   if (patch.isPrescription !== undefined) body.isPrescription = patch.isPrescription;
@@ -704,6 +720,10 @@ export interface SellerConsoleRow {
   storeId?: string;
   price: number;
   description?: string;
+  /** Tamil display name (0107). Empty → the app falls back to `name`. */
+  nameTa?: string;
+  /** Tamil display description (0107). Empty → the app falls back to `description`. */
+  descriptionTa?: string;
   unit?: string;
   emoji?: string;
   imageUrl?: string;
@@ -1429,6 +1449,9 @@ export function listStores(filter: { sellerId?: string | undefined; stateCode?: 
 export interface SellerStoreSummary {
   storeId: string;
   name: string;
+  /** Tamil display copy (0108). Empty → the customer app falls back to `name`/`desc`. */
+  nameTa?: string;
+  descTa?: string;
   sector: Sector;
   address?: string;
   phone?: string;
@@ -1459,6 +1482,8 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
     {
       id: string;
       name: string;
+      nameTa?: string;
+      descTa?: string;
       app: string;
       address?: string;
       phone?: string;
@@ -1479,6 +1504,8 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
   return rows.map((row) => ({
     storeId: row.id,
     name: row.name,
+    ...(row.nameTa ? { nameTa: row.nameTa } : {}),
+    ...(row.descTa ? { descTa: row.descTa } : {}),
     sector: row.app as Sector,
     ...(row.address ? { address: row.address } : {}),
     ...(row.phone ? { phone: row.phone } : {}),
@@ -1553,6 +1580,9 @@ export async function markAllNotificationsRead(): Promise<void> {
 
 export interface CreateVendorInput {
   name: string;
+  /** Tamil display copy (0108). Empty/absent → the customer app falls back to the English copy. */
+  nameTa?: string;
+  descTa?: string;
   app: Sector;
   address?: string;
   phone?: string;
@@ -1588,6 +1618,8 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     drugLicenseCertAssetId?: string;
   }>("/seller/stores", {
     name: input.name,
+    ...(input.nameTa ? { nameTa: input.nameTa } : {}),
+    ...(input.descTa ? { descTa: input.descTa } : {}),
     app: input.app,
     address: input.address ?? "",
     phone: input.phone ?? "",
@@ -1625,6 +1657,9 @@ export async function updateSellerStore(
   storeId: string,
   patch: {
     name?: string;
+    /** Tamil display copy (0108). An empty string clears the translation. */
+    nameTa?: string;
+    descTa?: string;
     address?: string;
     phone?: string;
     hours?: string;
@@ -2745,6 +2780,9 @@ export interface MenuDto {
   venueId: string;
   dishId: string;
   name: string;
+  /** Tamil display copy (0108). Empty/absent → the customer app falls back to the English copy. */
+  nameTa?: string | undefined;
+  descriptionTa?: string | undefined;
   pricePaisa: number;
   /** List price (MRP) for the strike-through; must be ≥ pricePaisa. Omit for no offer. */
   mrpPaisa?: number | undefined;
@@ -2773,6 +2811,8 @@ export function upsertMenu(dto: MenuDto): void {
     `/seller/menus/${encodeURIComponent(dto.venueId)}/${encodeURIComponent(dto.dishId)}`,
     {
       name: dto.name,
+      ...(dto.nameTa ? { nameTa: dto.nameTa } : {}),
+      ...(dto.descriptionTa ? { descriptionTa: dto.descriptionTa } : {}),
       price: toRupees(dto.pricePaisa),
       ...(dto.mrpPaisa != null ? { mrp: toRupees(dto.mrpPaisa) } : {}),
       isVeg: dto.isVeg,
@@ -2844,6 +2884,9 @@ export interface AddonDto {
   venueId: string;
   name: string;
   groupName: string;
+  /** Tamil display copy (0108). Empty/absent → the customer app falls back to the English copy. */
+  nameTa?: string | undefined;
+  groupNameTa?: string | undefined;
   pricePaisa: number;
   isVeg: boolean;
 }
@@ -2853,6 +2896,8 @@ export async function createAddon(dto: AddonDto): Promise<AddonRecord> {
     venueId: dto.venueId,
     name: dto.name,
     groupName: dto.groupName,
+    ...(dto.nameTa ? { nameTa: dto.nameTa } : {}),
+    ...(dto.groupNameTa ? { groupNameTa: dto.groupNameTa } : {}),
     price: toRupees(dto.pricePaisa),
     isVeg: dto.isVeg,
   });
@@ -2860,11 +2905,20 @@ export async function createAddon(dto: AddonDto): Promise<AddonRecord> {
 
 export async function updateAddon(
   addonId: string,
-  dto: { name: string; groupName: string; pricePaisa: number; isVeg: boolean },
+  dto: {
+    name: string;
+    groupName: string;
+    nameTa?: string | undefined;
+    groupNameTa?: string | undefined;
+    pricePaisa: number;
+    isVeg: boolean;
+  },
 ): Promise<AddonRecord> {
   return remote.put<AddonRecord>(`/seller/addons/${encodeURIComponent(addonId)}`, {
     name: dto.name,
     groupName: dto.groupName,
+    ...(dto.nameTa ? { nameTa: dto.nameTa } : {}),
+    ...(dto.groupNameTa ? { groupNameTa: dto.groupNameTa } : {}),
     price: toRupees(dto.pricePaisa),
     isVeg: dto.isVeg,
   });

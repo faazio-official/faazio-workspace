@@ -5,6 +5,8 @@ import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { PharmaPopularMedicine } from '../../../types';
 import { PHARMA_GREY, PHARMA_INK, PHARMA_TEAL } from '@/theme/pharmaTokens';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import PharmaImage from '../PharmaImage';
 
 interface PopularMedicineCardProps {
@@ -22,6 +24,8 @@ const PopularMedicineCard = memo(function PopularMedicineCard({
   onAdd,
   added = false,
 }: PopularMedicineCardProps) {
+  const language = useLanguageStore((s) => s.language);
+  const name = localizedName(item, language);
   return (
     <TouchableOpacity style={[styles.card, { width }]} onPress={onPress} activeOpacity={0.9}>
       <View style={styles.imageWrap}>
@@ -29,7 +33,7 @@ const PopularMedicineCard = memo(function PopularMedicineCard({
       </View>
       <View style={styles.body}>
         <AppText style={styles.name} numberOfLines={1}>
-          {item.name}
+          {name}
         </AppText>
         <AppText style={styles.details} numberOfLines={1}>
           {item.details}
@@ -50,7 +54,7 @@ const PopularMedicineCard = memo(function PopularMedicineCard({
             style={[styles.addBtn, added && styles.addBtnAdded]}
             hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             accessibilityRole="button"
-            accessibilityLabel={`Add ${item.name} to cart`}
+            accessibilityLabel={`Add ${name} to cart`}
           >
             {added ? (
               <Check size={ms(12)} color="#FFFFFF" strokeWidth={3} />

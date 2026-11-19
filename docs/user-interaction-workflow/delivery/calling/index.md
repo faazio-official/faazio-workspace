@@ -42,11 +42,13 @@ wake-lock, provider-answer timer) remain.
   - `voip.ts` — 100ms join/leave, earpiece/Bluetooth routing, `ON_AUDIO_DEVICE_CHANGED`, mute,
     reconnect events, 15 s join timeout.
   - `ringtone.ts` — looped ringback while an outgoing VOIP call rings, and the in-app ringtone when
-    CallKit/ConnectionService cannot show the native ring.
-  - `callkeep.ts` — Android ConnectionService ring, `hasPhoneAccount`/managed-call checks,
-    `rejectCall` for ringing, `displayIncomingCall` with iOS call options, cold-start
-    `didLoadWithEvents`, `backToForeground`, `setAvailable`, and
-    `foregroundServiceType: phoneCall|microphone`.
+    the full-screen-intent notification could not be shown.
+  - `callkeep.ts` — native-ring facade: on Android it posts/dismisses the full-screen-intent
+    notification (no `ConnectionService`, no phone account); on iOS it reports the PushKit/CallKit
+    state (`displayed`/`answered`/`ended`) and forwards `answerCall`/`endCall`.
+  - `fullScreenIntent.ts` — the Android bridge to the `FaazioIncomingCall` native module
+    (`IncomingCallModule.kt`): post/dismiss the ring notification, hold the call-audio foreground
+    service, and take/subscribe the Answer/Decline action.
   - `incoming.ts` — shared FCM data-only background handler.
   - `CallSurface.tsx` — shared full-screen call UI; each app injects its theme tokens.
 - `callStore` (`src/state/callStore.ts`) — phase, server call projection, masked peer label,
@@ -56,12 +58,17 @@ wake-lock, provider-answer timer) remain.
   on Dashboard/Route + `ActiveCallScreen` (eventual `DELIVERY` tokens).
 - Customer binding: `features/customer/calling/callController.ts` + `CallDeliveryPartnerButton`
   on `OrderDetails` + `ActiveCallScreen` (light/dark palette).
-- Android native ringing: `react-native-callkeep` ConnectionService + `VoiceConnectionService` in
-  the **customer and delivery** flavor manifests, declared with
-  `android:foregroundServiceType="phoneCall|microphone"` so an answered background call keeps
-  microphone access; `index.js`/`index.delivery.js` register the shared `incoming_call` FCM handler
-  before mount. iOS background modes (`voip`, `audio`) and local-network copy are declared, but the
-  CallKeep/100ms pods remain excluded from iOS autolinking.
+- Android native ringing: a high-importance **full-screen-intent notification** (the
+  `FaazioIncomingCall` native module + `IncomingCallReceiver`/`CallAudioService`) in the **customer and
+  delivery** flavor manifests — `USE_FULL_SCREEN_INTENT`, `FOREGROUND_SERVICE_MICROPHONE`,
+  `RECORD_AUDIO`, `BLUETOOTH_CONNECT` (+ legacy Bluetooth). No telecom `ConnectionService` and no phone
+  account, so no "Phone account required" dialog after login; `react-native-callkeep`'s phone-account
+  permissions are stripped with `tools:node="remove"`. `index.js`/`index.delivery.js` register the
+  shared `incoming_call` FCM handler before mount. iOS background modes (`voip`, `audio`) and
+  local-network copy are declared, but the CallKeep/100ms pods remain excluded from iOS autolinking.
+- Prompt-free bootstrap: `DeliveryPartnerApp.tsx` calls `bootstrapCalling()` when the rider is
+  authenticated; the native ring surface is initialized lazily on the first **Call** tap
+  (`initializeDeliveryCalling()` in `CallCustomerButton`).
 
 ## Flows
 

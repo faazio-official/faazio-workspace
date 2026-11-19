@@ -3,8 +3,9 @@ import { gateway } from '@/services/api/GatewayClient';
 import { categoryToRailItem, type CategoryRailItem } from '@/services/categoryRail';
 import type { VendorApp } from '@/services/categoryVendors';
 import { useRefreshStore } from '@/state/refreshStore';
+import { useLanguageStore } from '@/state/languageStore';
 
-/** Default page size for the header rail. */
+/** Default page size for the header rail. The rail itself is unbounded — this only batches rendering. */
 export const HEADER_RAIL_PAGE_SIZE = 8;
 
 export interface PagedRail {
@@ -20,10 +21,11 @@ export interface PagedRail {
 }
 
 /**
- * Server-backed header category rail. Fetches the flat active top-level categories
+ * Server-backed header category rail. Fetches the curated active categories
  * (`GET /categories/rail`, superadmin-owned `taxonomy.categories`) once, then pages over the local
- * list. There is no fixture fallback: an offline/empty result renders an empty rail. Presentation-
- * agnostic — the rail owns rendering.
+ * list until every curated chip is rendered. The rail is unbounded: Mart **and** Pharma categories at
+ * any tree level share it and the strip scrolls horizontally, with no fixture fallback — an
+ * offline/empty result renders an empty rail. Presentation-agnostic — the rail owns rendering.
  *
  * `app` optionally scopes the rail to one sub-app so a sub-app header never shows another
  * sub-app's chips (the Home hub omits it and may cross sub-apps).
@@ -40,6 +42,7 @@ export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE, app?: VendorApp):
   const [error, setError] = useState(false);
   const homeTick = useRefreshStore((s) => s.home);
   const bump = useRefreshStore((s) => s.bump);
+  const language = useLanguageStore((s) => s.language);
   // The scope the currently-loaded chips belong to. A failure keeps the chips for the same scope
   // and clears them only when the scope genuinely changed, so a transient error never blanks the
   // header (and one app's chips never leak into another app's rail).
@@ -56,7 +59,7 @@ export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE, app?: VendorApp):
         setError(false);
         setAll(
           categories
-            .map(categoryToRailItem)
+            .map((c) => categoryToRailItem(c, language))
             .filter((c): c is CategoryRailItem => c !== null && (!app || c.app === app)),
         );
       })
@@ -78,7 +81,7 @@ export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE, app?: VendorApp):
     return () => {
       active = false;
     };
-  }, [app, homeTick]);
+  }, [app, homeTick, language]);
 
   const items = all.slice(0, (page + 1) * pageSize);
 

@@ -5,6 +5,8 @@ import { MapPin } from 'lucide-react-native';
 import { hs, ms, vs } from '@/utils/responsive';
 import { DURATION, EASE_ENTRANCE, SCALE } from '@/theme/motion';
 import AppText from '@/components/AppText';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { foodTheme } from '../constants/theme';
 import type { FoodRestaurant } from '../types';
 import RemoteImage from './RemoteImage';
@@ -21,6 +23,8 @@ interface RestaurantCardProps {
  * Flat white card: no shadow, no border, compact text (matches the home feed).
  */
 const RestaurantCard = memo(function RestaurantCard({ restaurant, onPress }: RestaurantCardProps) {
+  const language = useLanguageStore((s) => s.language);
+  const restaurantName = localizedName(restaurant, language);
   const scale = useSharedValue(1);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -43,7 +47,7 @@ const RestaurantCard = memo(function RestaurantCard({ restaurant, onPress }: Res
         onPress={() => onPress?.(restaurant)}
         style={styles.card}
         accessibilityRole="button"
-        accessibilityLabel={`${restaurant.name}, ${restaurant.cuisine}${
+        accessibilityLabel={`${restaurantName}, ${restaurant.cuisine}${
           restaurant.rating > 0 ? `, rated ${restaurant.rating}` : ''
         }${restaurant.distance > 0 ? `, ${restaurant.distance} km away` : ''}`}
       >
@@ -56,7 +60,7 @@ const RestaurantCard = memo(function RestaurantCard({ restaurant, onPress }: Res
 
         <View style={styles.details}>
           <AppText style={styles.name} numberOfLines={1}>
-            {restaurant.name}
+            {restaurantName}
           </AppText>
           <AppText style={styles.cuisine} numberOfLines={1}>
             {restaurant.cuisine}

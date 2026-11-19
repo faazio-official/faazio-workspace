@@ -21,11 +21,11 @@ import { useOnboardingStore } from './src/state/onboardingStore';
 import { hydrateUserStores } from './src/services/sessionStores';
 import { startCustomerPush } from './src/services/customerPush';
 import {
+  bootstrapCalling,
   flushPendingActiveCall,
-  initializeCustomerCalling,
   shutdownCalling,
 } from './src/features/customer/calling/callController';
-import { useAppFonts, resolveFontFamily } from './src/theme/fonts';
+import { useAppFonts, createNavigationFonts } from './src/theme/fonts';
 import { useBottomInset } from './src/utils/responsive';
 import { useThemeMode } from './src/hooks/useThemeMode';
 import { createNavigationTheme } from './src/theme/theme';
@@ -62,25 +62,6 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
-const navigationFonts: Theme['fonts'] = {
-  regular: {
-    fontFamily: resolveFontFamily('400'),
-    fontWeight: '400' as const,
-  },
-  medium: {
-    fontFamily: resolveFontFamily('500'),
-    fontWeight: '500' as const,
-  },
-  bold: {
-    fontFamily: resolveFontFamily('600'),
-    fontWeight: '600' as const,
-  },
-  heavy: {
-    fontFamily: resolveFontFamily('600'),
-    fontWeight: '600' as const,
-  },
-};
-
 /**
  * Single owner of the bottom safe-area reservation. The window is edge-to-edge
  * (transparent Android nav bar), so content would otherwise slip under the
@@ -115,9 +96,14 @@ export default function App() {
   const hydrateOnboarding = useOnboardingStore((s) => s.hydrate);
   const hydrateTheme = useThemeStore((s) => s.hydrate);
   const { effectiveMode, palette, barStyle } = useThemeMode();
+  const language = useLanguageStore((s) => s.language);
   const navigationTheme = useMemo(
-    () => createNavigationTheme(effectiveMode, navigationFonts),
-    [effectiveMode],
+    () =>
+      createNavigationTheme(
+        effectiveMode,
+        createNavigationFonts(language === 'ta') as Theme['fonts'],
+      ),
+    [effectiveMode, language],
   );
   const fetchRemoteConfig = useRemoteConfigStore((s) => s.fetchConfig);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -238,10 +224,12 @@ export default function App() {
   }, [isAuthenticated]);
 
   // Attach the shared call controller after login and tear it down on sign-out, so a signed-out
-  // device cannot ring for the previous account's calls.
+  // device cannot ring for the previous account's calls. `bootstrapCalling` is prompt-free: it
+  // registers no phone account, so no system dialog appears after OTP login. The native ring surface
+  // itself is set up lazily on the first call/incoming push.
   const wasAuthenticated = useRef(isAuthenticated);
   useEffect(() => {
-    if (isAuthenticated) void initializeCustomerCalling();
+    if (isAuthenticated) void bootstrapCalling();
     else if (wasAuthenticated.current) void shutdownCalling();
     wasAuthenticated.current = isAuthenticated;
   }, [isAuthenticated]);

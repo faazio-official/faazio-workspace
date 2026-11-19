@@ -1,6 +1,11 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
-  <!-- Customer-only masked calling (shared 100ms voice + CallKit/ConnectionService ringing).
-       Seller builds never merge this file. The delivery flavor has its own copy. -->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+  <!-- Customer-only masked calling (shared 100ms voice + a full-screen-intent ring notification).
+       Seller builds never merge this file. The delivery flavor has its own copy.
+
+       Android ringing deliberately does NOT use the telecom ConnectionService: a high-importance
+       notification with a full-screen intent rings and wakes the lock screen without a phone
+       account, so the system never shows the "Phone account required" dialog. -->
   <uses-permission android:name="android.permission.RECORD_AUDIO"/>
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
   <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
@@ -12,22 +17,28 @@
   <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
-  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL"/>
-  <uses-permission android:name="android.permission.MANAGE_OWN_CALLS"/>
-  <uses-permission android:name="android.permission.READ_PHONE_STATE" android:maxSdkVersion="29"/>
   <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
+  <!-- react-native-callkeep stays a dependency for a possible future opt-in, but this product never
+       registers a phone account. Strip the phone-account permissions its library manifest merges in
+       so the install-time permission set stays honest (Play data safety + least privilege). -->
+  <uses-permission android:name="android.permission.CALL_PHONE" tools:node="remove"/>
+  <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove"/>
+  <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" tools:node="remove"/>
+  <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" tools:node="remove"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" tools:node="remove"/>
+
   <application>
-    <!-- Native incoming-call UI (ConnectionService). Required by react-native-callkeep. -->
+    <!-- Answer / Decline actions on the ringing notification. -->
+    <receiver
+      android:name=".IncomingCallReceiver"
+      android:exported="false"/>
+    <!-- Holds the microphone grant while a VOIP call is connected (Android 14+ requires a typed
+         foreground service for background microphone access). -->
     <service
-      android:name="io.wazo.callkeep.VoiceConnectionService"
-      android:label="Faazio Calls"
-      android:permission="android.permission.BIND_TELECOM_CONNECTION_SERVICE"
-      android:foregroundServiceType="phoneCall|microphone"
-      android:exported="true">
-      <intent-filter>
-        <action android:name="android.telecom.ConnectionService"/>
-      </intent-filter>
-    </service>
+      android:name=".CallAudioService"
+      android:exported="false"
+      android:foregroundServiceType="microphone"
+      android:stopWithTask="false"/>
   </application>
 </manifest>

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { neutral } from '@/theme/brandTokens';
 import { semanticTint } from '@/theme/brandTokens';
 import { SHADOW_COLOR } from '@/theme/tokens';
-import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing, Linking } from 'react-native';
+import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing, Linking, ActivityIndicator } from 'react-native';
 import { hs, vs, ms, wp, hp } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -212,11 +212,12 @@ function BouncingPin() {
 export function LocationScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const storedAddress = useLocationStore((s) => s.address);
-  // A returning user with a saved address goes straight to the picker; only a
-  // first-time user sees the permission request.
+  // A returning user with a saved address goes straight to the picker; a first-time user sees the
+  // pre-permission primer, and only an explicit tap on its CTA spends the one OS dialog.
   const [step, setStep] = useState<'request' | 'manual' | 'loader'>(
     storedAddress ? 'manual' : 'request',
   );
+  const [requested, setRequested] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState(storedAddress);
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearchFocused, setIsSearchFocused] = useState(false);
@@ -234,7 +235,13 @@ export function LocationScreen({ navigation }: Props) {
   const useMyLocation = async () => {
     setPermissionError('');
     setManualError('');
-    const result = await requestAndRefreshLocation();
+    setRequested(true);
+    let result: Awaited<ReturnType<typeof requestAndRefreshLocation>>;
+    try {
+      result = await requestAndRefreshLocation();
+    } finally {
+      setRequested(false);
+    }
     if (result === 'blocked') {
       setPermissionError(
         'Location access is off for Faazio. Enable it in Settings → Privacy & Security → Location Services, then tap “Use my current location” again.',
@@ -261,6 +268,12 @@ export function LocationScreen({ navigation }: Props) {
     setStep('loader');
   };
 
+  /** Primer opt-out: skip the OS dialog entirely and go straight to manual entry. */
+  const skipToManual = () => {
+    setPermissionError('');
+    setStep('manual');
+  };
+
   const pickSuggestion = async (suggestion: PlaceSuggestion) => {
     setManualError('');
     const resolved = await resolvePlaceLocation(suggestion.placeId);
@@ -271,6 +284,7 @@ export function LocationScreen({ navigation }: Props) {
     useLocationStore.getState().setFix({
       coordinates: resolved.coordinates,
       address: resolved.address,
+      source: 'manual',
     });
     setSelectedLocation(
       resolved.address ||
@@ -409,15 +423,36 @@ export function LocationScreen({ navigation }: Props) {
           </Animated.View>
 
           <View style={styles.bottomCTAs}>
+            {/* Pre-permission primer: explain the benefit before spending the one OS dialog. */}
+            <View style={styles.primerCard}>
+              <AppText style={styles.primerTitle}>Find stores delivering near you</AppText>
+              <AppText style={styles.primerBody}>
+                Faazio uses your device location to show nearby stores, accurate delivery
+                times and fees. Your coordinates stay on this device.
+              </AppText>
+            </View>
+
             <Pressable
               style={({ pressed }) => [
                 styles.allowBtn,
                 { transform: [{ scale: pressed ? 0.95 : 1 }] },
+                requested && styles.allowBtnDisabled,
               ]}
               onPress={useMyLocation}
+              disabled={requested}
+              accessibilityRole="button"
+              accessibilityLabel="Allow location access"
+              accessibilityState={{ disabled: requested, busy: requested }}
             >
-              <AppText style={styles.allowBtnText}>Allow location access</AppText>
+              {requested ? (
+                <ActivityIndicator color={neutral.card} size="small" />
+              ) : (
+                <AppText style={styles.allowBtnText}>Allow location access</AppText>
+              )}
             </Pressable>
+            <AppText style={styles.primerFinePrint}>
+              You can change this any time in Settings.
+            </AppText>
             {permissionError ? (
               <View style={styles.permissionErrorBlock}>
                 <AppText style={styles.permissionError}>{permissionError}</AppText>
@@ -437,7 +472,9 @@ export function LocationScreen({ navigation }: Props) {
                 styles.manualBtn,
                 pressed && { opacity: 0.7 },
               ]}
-              onPress={() => setStep('manual')}
+              onPress={skipToManual}
+              accessibilityRole="button"
+              accessibilityLabel="Enter location manually"
             >
               <AppText style={styles.manualBtnText}>
                 Enter location manually
@@ -704,6 +741,35 @@ const styles = StyleSheet.create({
     color: neutral.card,
     fontWeight: '600',
     fontSize: ms(14),
+  },
+  allowBtnDisabled: {
+    opacity: 0.7,
+  },
+  primerCard: {
+    backgroundColor: neutral.surface,
+    borderWidth: 1,
+    borderColor: neutral.surfaceAlt,
+    borderRadius: ms(14),
+    paddingHorizontal: hs(16),
+    paddingVertical: vs(14),
+    marginBottom: vs(16),
+  },
+  primerTitle: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: neutral.ink,
+    marginBottom: vs(6),
+  },
+  primerBody: {
+    fontSize: ms(11),
+    lineHeight: ms(16),
+    color: neutral.inkMuted,
+  },
+  primerFinePrint: {
+    fontSize: ms(10),
+    color: neutral.inkSubtle,
+    textAlign: 'center',
+    marginTop: vs(10),
   },
   manualBtn: {
     minHeight: 44,

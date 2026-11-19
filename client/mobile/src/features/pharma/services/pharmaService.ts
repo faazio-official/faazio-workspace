@@ -40,6 +40,7 @@ export const quickReorderToProduct = (item: PharmaQuickReorderItem): Product => 
   app: 'PHARMA',
   category: 'medicine',
   name: item.name,
+  ...(item.nameTa ? { nameTa: item.nameTa } : {}),
   price: item.price,
   emoji: 'pharma',
   rating: 4.5,
@@ -60,6 +61,7 @@ function toPopularMedicine(p: ProductView, discountPercent = 0): PharmaPopularMe
   return {
     id: p.id,
     name: p.name,
+    ...(p.nameTa ? { nameTa: p.nameTa } : {}),
     details: p.desc ?? '',
     rating: p.rating,
     price,

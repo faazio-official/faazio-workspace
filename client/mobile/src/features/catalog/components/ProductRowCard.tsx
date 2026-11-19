@@ -7,6 +7,8 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { brandTokens } from '@/theme/brandTokens';
 import { useCartProductActions } from '@/components/shared/hooks';
 import type { Product, AppBrand } from '@data/types';
+import { localizedDesc, localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 
 const IMG_SIZE = 96;
 const GREEN = '#16A34A';
@@ -36,6 +38,9 @@ const ProductRowCard = memo(function ProductRowCard({
 }: ProductRowCardProps) {
   const cart = useCartProductActions(product);
   const tokens = brandTokens[appBrand];
+  const language = useLanguageStore((s) => s.language);
+  const displayName = localizedName(product, language);
+  const displayDesc = localizedDesc(product, language);
   const discountPct = getDiscountPct(product.price, product.originalPrice);
 
   return (
@@ -44,7 +49,7 @@ const ProductRowCard = memo(function ProductRowCard({
       onPress={() => onPress(product)}
       activeOpacity={0.94}
       accessibilityRole="button"
-      accessibilityLabel={`${product.name}, ₹${product.price}`}
+      accessibilityLabel={`${displayName}, ₹${product.price}`}
     >
       <View style={styles.imageWrap}>
         <AppImage
@@ -57,9 +62,9 @@ const ProductRowCard = memo(function ProductRowCard({
       </View>
 
       <View style={styles.body}>
-        <AppText style={styles.name} numberOfLines={2}>{product.name}</AppText>
-        {product.desc ? (
-          <AppText style={styles.desc} numberOfLines={1}>{product.desc}</AppText>
+        <AppText style={styles.name} numberOfLines={2}>{displayName}</AppText>
+        {displayDesc ? (
+          <AppText style={styles.desc} numberOfLines={1}>{displayDesc}</AppText>
         ) : null}
 
         <View style={styles.priceRow}>
@@ -93,7 +98,7 @@ const ProductRowCard = memo(function ProductRowCard({
               onPress={cart.onAdd}
               activeOpacity={0.8}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              accessibilityLabel={`Add ${product.name} to cart`}
+              accessibilityLabel={`Add ${displayName} to cart`}
             >
               {cart.isAdded ? (
                 <Check size={ms(13)} color="#ffffff" strokeWidth={3} />

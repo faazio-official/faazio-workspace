@@ -10,6 +10,7 @@ import { deleteProduct, saveProductImage, updateProduct, upsertPrice } from "@/l
 import { useProduct } from "@/lib/api/hooks";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
 import { productGallery } from "@/lib/media/productImages";
+import { tamilFieldError } from "@/lib/tamil";
 import { sectorLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 import type { ProductStatus } from "@/data/types";
@@ -28,6 +29,11 @@ function EditProduct() {
   const product = useProduct(id);
   const [name, setName] = useState(product?.name ?? "");
   const [description, setDescription] = useState(product?.description ?? "");
+  // Optional Tamil translations (0107). Tamil letters only; blank = not translated.
+  const [nameTa, setNameTa] = useState(product?.nameTa ?? "");
+  const [descriptionTa, setDescriptionTa] = useState(product?.descriptionTa ?? "");
+  const nameTaError = tamilFieldError(nameTa, 200);
+  const descriptionTaError = tamilFieldError(descriptionTa, 4000);
   const [price, setPrice] = useState(product ? String(product.pricePaisa / 100) : "");
   const [isPrescription, setIsPrescription] = useState(product?.isPrescription ?? false);
   const [isVeg, setIsVeg] = useState(product?.isVeg ?? true);
@@ -52,7 +58,8 @@ function EditProduct() {
   }
 
   const pricePaisa = parseRupeesToPaisa(price);
-  const saveable = pricePaisa > 0 && name.trim().length >= 3;
+  const saveable =
+    pricePaisa > 0 && name.trim().length >= 3 && !nameTaError && !descriptionTaError;
 
   return (
     <>
@@ -101,6 +108,24 @@ function EditProduct() {
           </p>
           <TextField label="Name" value={name} onChange={setName} />
           <TextField label="Description" value={description} onChange={setDescription} />
+          <TextField
+            label="Name (Tamil)"
+            lang="ta"
+            value={nameTa}
+            onChange={setNameTa}
+            placeholder="தமிழில் மட்டும்"
+          />
+          {nameTaError ? <p className="text-[11px] text-destructive">{nameTaError}</p> : null}
+          <TextField
+            label="Description (Tamil)"
+            lang="ta"
+            value={descriptionTa}
+            onChange={setDescriptionTa}
+            placeholder="தமிழில் மட்டும்"
+          />
+          {descriptionTaError ? (
+            <p className="text-[11px] text-destructive">{descriptionTaError}</p>
+          ) : null}
           <TextField
             label="Selling price (₹, GST included)"
             type="number"
@@ -156,6 +181,8 @@ function EditProduct() {
             updateProduct(product.productId, {
               name: name.trim(),
               description: description.trim(),
+              nameTa: nameTa.trim(),
+              descriptionTa: descriptionTa.trim(),
               ...(product.sector === "FOOD" ? { isVeg } : {}),
               ...(product.sector === "PHARMA" ? { isPrescription } : {}),
               imageUrl: images[0] ?? "",

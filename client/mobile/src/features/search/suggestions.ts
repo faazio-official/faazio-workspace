@@ -7,6 +7,8 @@ import type { Product } from '@data/types';
 export interface SearchSuggestion {
   id: string;
   term: string;
+  /** Tamil name authored by the seller (0107/0108). Shown instead of `term` when the app is in Tamil. */
+  termTa?: string;
   category: string;
   image?: string;
 }
@@ -35,6 +37,7 @@ export function buildProductSuggestions(
     return {
       id: p.id,
       term: p.name,
+      ...(p.nameTa ? { termTa: p.nameTa } : {}),
       category: p.category,
       image: p.image,
     } as SearchSuggestion;
@@ -46,10 +49,11 @@ export function buildProductSuggestions(
 
   for (const p of products) {
     const name = p.name.toLowerCase();
-    if (name.startsWith(q)) {
+    const nameTa = (p.nameTa ?? '').toLowerCase();
+    if (name.startsWith(q) || (nameTa && nameTa.startsWith(q))) {
       const s = push(p);
       if (s) prefix.push(s);
-    } else if (name.includes(q)) {
+    } else if (name.includes(q) || (nameTa && nameTa.includes(q))) {
       const s = push(p);
       if (s) nameMatch.push(s);
     } else if (p.category.toLowerCase().includes(q)) {

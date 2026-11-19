@@ -14,8 +14,9 @@ masked PSTN leg.
    `order.fulfillment === 'DELIVERY'`, the status is `Shipped`, and the order is not a prescription
    flow. `Processing`/`Cancelled` orders have no assigned rider; a `Delivered` order is already
    terminal (`ROUTE_COMPLETE`), so both show no call card.
-2. The button calls the shared controller's `startCustomerCall(orderId, 'Delivery Partner')`
-   (`features/customer/calling/callController.ts`).
+2. The button first lazily attaches the ring surface (`initializeCustomerCalling()`), so login itself
+   stayed prompt-free, then calls the shared controller's `startCustomerCall(orderId,
+   'Delivery Partner')` (`features/customer/calling/callController.ts`).
 3. The controller refuses a second call while one is open and locks further taps for 3 s. The
    button mirrors the lock (`Starting call…`, disabled) so a rapid repeated tap is visibly rejected.
 4. Android microphone consent is requested only when the VOIP leg may be used. A denial sends

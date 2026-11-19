@@ -2,6 +2,8 @@ import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Star, Clock, MapPin } from 'lucide-react-native';
 import AppText from '@/components/AppText';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { StoreProfile } from '@data/types';
 import PharmaImage from '../components/pharma-home/PharmaImage';
@@ -20,13 +22,16 @@ const PharmaVendorCard = memo(function PharmaVendorCard({
   selected,
   onPress,
 }: PharmaVendorCardProps) {
+  const language = useLanguageStore((s) => s.language);
+  const storeName = localizedName(store, language);
+
   return (
     <TouchableOpacity
       style={[styles.card, selected && styles.cardSelected]}
       onPress={() => onPress?.(store)}
       activeOpacity={0.94}
       accessibilityRole="button"
-      accessibilityLabel={`${store.name}, ${store.distance}`}
+      accessibilityLabel={`${storeName}, ${store.distance}`}
     >
       <View style={styles.imageWrap}>
         <PharmaImage uri={store.coverImage} style={styles.image} />
@@ -37,7 +42,7 @@ const PharmaVendorCard = memo(function PharmaVendorCard({
       </View>
       <View style={styles.body}>
         <AppText style={styles.name} numberOfLines={1}>
-          {store.name}
+          {storeName}
         </AppText>
         <View style={styles.metaRow}>
           <View style={styles.ratingBadge}>
@@ -60,7 +65,7 @@ const PharmaVendorCard = memo(function PharmaVendorCard({
         onPress={() => onPress?.(store)}
         activeOpacity={0.85}
         accessibilityRole="button"
-        accessibilityLabel={`Order from ${store.name}`}
+        accessibilityLabel={`Order from ${storeName}`}
       >
         <AppText style={styles.orderPillText}>Order</AppText>
       </TouchableOpacity>

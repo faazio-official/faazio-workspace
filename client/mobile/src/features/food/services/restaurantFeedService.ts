@@ -34,6 +34,8 @@ function productToDish(p: ProductView): SpecialDish {
   return {
     id: p.id,
     dishName: p.name,
+    ...(p.nameTa ? { dishNameTa: p.nameTa } : {}),
+    ...(p.descTa ? { descriptionTa: p.descTa } : {}),
     restaurant: p.shop ?? '',
     price: p.price,
     mrp: p.originalPrice,
@@ -53,6 +55,7 @@ function venueToRestaurant(v: Venue): FoodRestaurant {
   return {
     id: v.id,
     name: v.name,
+    ...(v.nameTa ? { nameTa: v.nameTa } : {}),
     image: v.coverImage,
     rating: v.rating ?? 0,
     ratingCount: 0,
@@ -79,6 +82,7 @@ export function storeToRestaurant(s: StoreRecord): FoodRestaurant {
   return {
     id: s.id,
     name: s.name,
+    ...(s.nameTa ? { nameTa: s.nameTa } : {}),
     image: s.coverImage,
     rating: s.rating ?? 0,
     ratingCount: s.reviewsCount ?? 0,

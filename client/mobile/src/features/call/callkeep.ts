@@ -1,25 +1,35 @@
 import { NativeEventEmitter, NativeModules, Platform } from 'react-native';
-import RNCallKeep from 'react-native-callkeep';
+import {
+  dismissIncomingCallNotification,
+  isFullScreenIntentAvailable,
+  showIncomingCallNotification,
+  subscribeCallNotificationActions,
+} from './fullScreenIntent';
 
 /**
  * Native ringing surface shared by the customer and delivery-partner apps.
  *
- * Android uses ConnectionService via react-native-callkeep. iOS uses PushKit + CallKit, owned by the
- * native `VoipCallBridge` module (`ios/Faazio/VoipCallManager.swift`): the VoIP push is reported to
- * CallKit by the app delegate before React Native even boots, so there is no JS "display" step there.
- * Exactly one CallKit provider exists per platform — that is why `react-native-callkeep` is not
- * linked on iOS.
+ * Android rings with a high-importance **full-screen-intent notification** (`fullScreenIntent.ts`),
+ * not a telecom `ConnectionService`. That is deliberate: a `ConnectionService` needs a phone
+ * account, and registering one is what made the system show the "Phone account required" dialog
+ * straight after OTP login. The notification path needs only `POST_NOTIFICATIONS` +
+ * `USE_FULL_SCREEN_INTENT`, which is how Swiggy/Zomato ring.
+ *
+ * iOS uses PushKit + CallKit, owned by the native `VoipCallBridge` module
+ * (`ios/Faazio/VoipCallManager.swift`): the VoIP push is reported to CallKit by the app delegate
+ * before React Native even boots, so there is no JS "display" step there. Exactly one CallKit
+ * provider exists per platform — that is why `react-native-callkeep` is not linked on iOS.
  *
  * Every method degrades to a no-op instead of throwing, so a headless push handler and the in-app
  * surface can call them unconditionally. The in-app call surface remains the fallback whenever the
- * OS refuses to display a native call.
+ * OS refuses to display a native ring.
  */
 let configured = false;
 let listenersAttached = false;
 const removers: { remove(): void }[] = [];
 
 export interface CallKeepConfig {
-  /** App label shown in the native phone-account prompt. */
+  /** App label shown on the ringing notification. */
   appName: string;
   channelId: string;
   channelName: string;
@@ -30,6 +40,11 @@ export interface CallKeepHandlers {
   /** `callUuid` is the CallKit UUID on iOS; undefined on Android where the call id is the key. */
   onAnswer: (callId: string, callUuid?: string) => void;
   onEnd: (callId: string, callUuid?: string) => void;
+  /**
+   * Android only: the user tapped the ringing notification's body (not Answer/Decline). The call is
+   * still ringing — bring its surface forward.
+   */
+  onOpen?: (callId: string) => void;
   /**
    * iOS only: a PushKit VoIP push reported a ring to CallKit while JS was running. Android does not
    * use this — there the FCM background handler is the entry point.
@@ -74,44 +89,16 @@ function iosBridge(): VoipBridge | null {
   return voipBridge;
 }
 
-function setupOptions(config: CallKeepConfig) {
-  return {
-    ios: {
-      appName: config.appName,
-      supportsVideo: false,
-      maximumCallGroups: '1',
-      maximumCallsPerCallGroup: '1',
-    },
-    android: {
-      alertTitle: 'Phone account required',
-      alertDescription: `${config.appName} needs phone-account access to ring incoming delivery calls.`,
-      cancelButton: 'Not now',
-      okButton: 'Allow',
-      additionalPermissions: [],
-      // Full-screen incoming UI is owned by ConnectionService; the JS layer handles audio.
-      selfManaged: false,
-      endCallsWhenReactNativeStops: true,
-      foregroundService: {
-        channelId: config.channelId,
-        channelName: config.channelName,
-        notificationTitle: config.notificationTitle,
-        // ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL (4) | MICROPHONE (128). The
-        // VoiceConnectionService declares both types in the manifest; without microphone the
-        // answered call loses mic access when the app is backgrounded.
-        foregroundServiceType: 132,
-      },
-    },
-  };
-}
-
 /**
  * One-time native ringing setup. Safe to call on every app start and from a headless push handler.
  *
  * iOS needs no JS setup: `VoipCallManager.start()` runs in the app delegate and the CallKit provider
- * already exists. Android needs the phone account, and when it was granted on a previous run we skip
- * `setup()` (which needs a foreground Activity on several OEMs and fails headless).
+ * already exists. Android needs no setup at all — the ringing notification channel is created by the
+ * native module at app start, and posting a notification requires no phone account. This returns
+ * true when a ring surface is available so the controller does not fall back needlessly.
  */
 export async function setupCallKeep(config: CallKeepConfig): Promise<boolean> {
+  void config;
   if (Platform.OS === 'ios') {
     const bridge = iosBridge();
     if (!bridge) return false;
@@ -119,38 +106,27 @@ export async function setupCallKeep(config: CallKeepConfig): Promise<boolean> {
     return true;
   }
   if (Platform.OS !== 'android') return false;
-  if (configured) return true;
-  try {
-    const alreadyEnabled = await RNCallKeep.hasPhoneAccount().catch(() => false);
-    if (alreadyEnabled) {
-      // `setup()` needs a foreground Activity on several OEMs, so a headless push cannot call it.
-      // Re-register the phone account + native events directly (both are Activity-free) so
-      // answer/end events are delivered/buffered instead of being silently dropped.
-      RNCallKeep.registerPhoneAccount(setupOptions(config));
-      RNCallKeep.registerAndroidEvents();
-    } else {
-      const ok = await RNCallKeep.setup(setupOptions(config));
-      if (!ok) return false;
-    }
-    RNCallKeep.setReachable();
-    RNCallKeep.setAvailable(true);
-    configured = true;
-    return true;
-  } catch {
-    return false;
-  }
+  configured = true;
+  return isFullScreenIntentAvailable();
 }
 
 /**
- * Show the native ringing UI. On Android `callId` doubles as the native call UUID; on iOS the ring
- * was already reported natively from the VoIP push, so this only reports whether a ring is on screen.
+ * Show the native ringing UI. On Android this posts the full-screen-intent notification; on iOS the
+ * ring was already reported natively from the VoIP push, so this only reports whether a ring is on
+ * screen.
  *
- * Resolves false when the OS rejects the display so the controller falls back to the in-app surface
- * instead of leaving the user with no ring at all.
+ * Resolves false when the OS rejects the ring (notifications blocked) so the controller falls back
+ * to the in-app surface instead of leaving the user with no ring at all.
  */
 export async function displayIncomingCall(
   callId: string,
   maskedLabel: string,
+  options: {
+    callUuid?: string;
+    orderId?: string;
+    /** The originating push payload, so a lock-screen answer on a killed app can adopt the call. */
+    payload?: Record<string, unknown>;
+  } = {},
 ): Promise<boolean> {
   if (Platform.OS === 'ios') {
     // No display call on iOS: the system screen is already ringing (or was refused). The caller
@@ -159,45 +135,19 @@ export async function displayIncomingCall(
     return false;
   }
   if (Platform.OS !== 'android') return false;
-  const enabled = await RNCallKeep.hasPhoneAccount().catch(() => false);
-  if (!enabled) return false;
-  if (await RNCallKeep.checkIsInManagedCall().catch(() => false)) return false;
-
-  return new Promise<boolean>((resolve) => {
-    let settled = false;
-    let listener: { remove(): void } | null = null;
-    const settle = (ok: boolean) => {
-      if (settled) return;
-      settled = true;
-      try {
-        listener?.remove();
-      } catch {
-        // Listener already gone.
-      }
-      resolve(ok);
-    };
-    try {
-      listener = RNCallKeep.addEventListener('didDisplayIncomingCall', (data) => {
-        if (data.callUUID && data.callUUID !== callId) return;
-        settle(!data.error);
-      });
-      RNCallKeep.displayIncomingCall(callId, maskedLabel, maskedLabel, 'generic', false, {
-        ios: {
-          supportsHolding: false,
-          supportsDTMF: false,
-          supportsGrouping: false,
-          supportsUngrouping: false,
-        },
-      });
-    } catch {
-      settle(false);
-      return;
-    }
-    // Some OEM builds never emit didDisplayIncomingCall. Treat silence as "not shown" so the
-    // controller falls back to the in-app ringing surface and does not send a false delivery
-    // receipt that would suppress the server's PSTN fallback prompt.
-    setTimeout(() => settle(false), 1500);
+  return showIncomingCallNotification({
+    callId,
+    label: maskedLabel,
+    ...(options.callUuid ? { callUuid: options.callUuid } : {}),
+    ...(options.orderId ? { orderId: options.orderId } : {}),
+    ...(options.payload ? { payload: options.payload } : {}),
   });
+}
+
+/** Remove a ringing notification once the call is answered, declined, ended or cancelled. */
+export function dismissIncomingRing(callId: string): void {
+  if (Platform.OS !== 'android') return;
+  void dismissIncomingCallNotification(callId);
 }
 
 /**
@@ -222,18 +172,14 @@ export async function isNativeRinging(callUuid: string): Promise<boolean> {
   }
 }
 
-/** Decline a still-ringing incoming call (ConnectionService reject / CallKit end, not a hang-up). */
+/** Decline a still-ringing incoming call (notification dismiss / CallKit end, not a hang-up). */
 export function rejectNativeCall(callId: string, callUuid?: string): void {
   if (Platform.OS === 'ios') {
     if (callUuid) iosBridge()?.module.endCall(callUuid);
     return;
   }
-  if (Platform.OS !== 'android' || !configured) return;
-  try {
-    RNCallKeep.rejectCall(callId);
-  } catch {
-    // Call already gone.
-  }
+  if (Platform.OS !== 'android') return;
+  dismissIncomingRing(callId);
 }
 
 /** End an answered/active native call from the in-app End button. */
@@ -242,29 +188,19 @@ export function endNativeCall(callId: string, callUuid?: string): void {
     if (callUuid) iosBridge()?.module.endCall(callUuid);
     return;
   }
-  if (Platform.OS !== 'android' || !configured) return;
-  try {
-    RNCallKeep.endCall(callId);
-  } catch {
-    // Call already gone.
-  }
+  if (Platform.OS !== 'android') return;
+  dismissIncomingRing(callId);
 }
 
-/** Report a connected call so the system UI switches from ringing to in-call. */
+/**
+ * Report a connected call. Android has no system in-call UI on this path — the ringing notification
+ * is simply removed and the ongoing-audio notification takes over — so this is a no-op there.
+ */
 export function markNativeCallActive(callId: string, callUuid?: string): void {
-  if (Platform.OS === 'ios') {
-    // CallKit already moved the call to connected when the answer action was fulfilled; there is
-    // no separate "connected" report for an incoming call.
-    void callId;
-    void callUuid;
-    return;
-  }
-  if (Platform.OS !== 'android' || !configured) return;
-  try {
-    RNCallKeep.setCurrentCallActive(callId);
-  } catch {
-    // Best-effort.
-  }
+  void callId;
+  void callUuid;
+  if (Platform.OS !== 'android') return;
+  // Nothing to report: the ring notification is dismissed by `accept`.
 }
 
 /**
@@ -277,24 +213,17 @@ export function markNativeAnswered(callUuid: string): void {
   iosBridge()?.module.answerCall(callUuid);
 }
 
-/** Bring the app forward after the user answers from the system call screen (Android 10+). */
+/**
+ * Bring the app forward after the user answers from the system call screen (Android 10+). The
+ * notification's own open-app `PendingIntent` already does this, so it is a no-op here.
+ */
 export function bringCallToForeground(): void {
-  if (Platform.OS !== 'android') return;
-  try {
-    RNCallKeep.backToForeground();
-  } catch {
-    // Not fatal — the in-app surface still opens from the navigation buffer.
-  }
+  // Android: the notification action launches the activity itself.
 }
 
-/** Tell ConnectionService whether this device can take new calls (sign-out disables it). */
+/** Whether this device can take new calls. No phone account is registered, so nothing to toggle. */
 export function setNativeCallingAvailable(available: boolean): void {
-  if (Platform.OS !== 'android') return;
-  try {
-    RNCallKeep.setAvailable(available);
-  } catch {
-    // Best-effort.
-  }
+  void available;
 }
 
 /** The PushKit VoIP token, when PushKit has delivered one. Never logged. */
@@ -407,39 +336,14 @@ export function attachCallKeepHandlers(handlers: CallKeepHandlers): void {
     return;
   }
   if (Platform.OS !== 'android') return;
-  const added: { remove(): void }[] = [];
-  try {
-    added.push(
-      RNCallKeep.addEventListener('answerCall', ({ callUUID }) => {
-        if (callUUID) handlers.onAnswer(callUUID);
-      }),
-      RNCallKeep.addEventListener('endCall', ({ callUUID }) => {
-        if (callUUID) handlers.onEnd(callUUID);
-      }),
-      // Cold-start answers/ends arrive before the JS navigator is ready. CallKeep buffers them and
-      // replays through didLoadWithEvents; without this the user's tap was silently lost.
-      RNCallKeep.addEventListener('didLoadWithEvents', (events) => {
-        for (const event of events ?? []) {
-          if (event.name === 'RNCallKeepPerformAnswerCallAction' && event.data.callUUID) {
-            handlers.onAnswer(event.data.callUUID);
-          } else if (event.name === 'RNCallKeepPerformEndCallAction' && event.data.callUUID) {
-            handlers.onEnd(event.data.callUUID);
-          }
-        }
-      }),
-    );
-    removers.push(...added);
-    listenersAttached = true;
-  } catch {
-    // Roll back any listeners that did register so a later attach is not duplicated.
-    added.forEach((item) => {
-      try {
-        item.remove();
-      } catch {
-        // Already gone.
-      }
-    });
-  }
+  // The Answer/Decline notification buttons are the Android equivalent of CallKit's actions.
+  const subscription = subscribeCallNotificationActions(({ action, callId, callUuid }) => {
+    if (action === 'answer') handlers.onAnswer(callId, callUuid);
+    else if (action === 'open') handlers.onOpen?.(callId);
+    else handlers.onEnd(callId, callUuid);
+  });
+  removers.push(subscription);
+  listenersAttached = true;
 }
 
 export function detachCallKeepHandlers(): void {

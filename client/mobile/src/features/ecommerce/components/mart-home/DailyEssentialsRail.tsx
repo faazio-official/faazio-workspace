@@ -6,6 +6,8 @@ import { useViewableTracking } from '@/hooks/useViewableTracking';
 import type { MartEssential } from '../../types';
 import MartSectionHeader from './MartSectionHeader';
 import MartDealCard from './MartDealCard';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 
 const SALE_CARD_W = hs(150);
 
@@ -23,6 +25,7 @@ const DailyEssentialsRail = memo(function DailyEssentialsRail({
   onViewAll,
   onItemView,
 }: DailyEssentialsRailProps) {
+  const language = useLanguageStore((s) => s.language);
   const { onViewableItemsChanged, viewabilityConfig } = useViewableTracking<MartEssential>((item) =>
     onItemView?.(item),
   );
@@ -31,7 +34,7 @@ const DailyEssentialsRail = memo(function DailyEssentialsRail({
     ({ item }: { item: MartEssential }) => (
       <MartDealCard
         image={item.imageUrl}
-        name={item.name}
+        name={localizedName(item, language)}
         rating={item.rating}
         price={item.price}
         originalPrice={item.originalPrice}
@@ -40,7 +43,7 @@ const DailyEssentialsRail = memo(function DailyEssentialsRail({
         onPress={() => onItemPress?.(item)}
       />
     ),
-    [onItemPress],
+    [onItemPress, language],
   );
 
   return (

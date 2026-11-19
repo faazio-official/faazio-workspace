@@ -2,6 +2,8 @@ import React, { memo } from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { ChevronRight, Clock, MapPin, Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { StoreProfile } from '@data/types';
 import { PHARMA_TEAL } from '@/theme/pharmaTokens';
@@ -15,13 +17,16 @@ interface LocalMedicalCardProps {
 }
 
 const LocalMedicalCard = memo(function LocalMedicalCard({ store, onPress }: LocalMedicalCardProps) {
+  const language = useLanguageStore((s) => s.language);
+  const storeName = localizedName(store, language);
+
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={() => onPress?.(store)}
       activeOpacity={0.94}
       accessibilityRole="button"
-      accessibilityLabel={`${store.name}, ${store.distance}`}
+      accessibilityLabel={`${storeName}, ${store.distance}`}
     >
       <View style={styles.imageWrap}>
         <PharmaImage uri={store.coverImage} style={styles.image} contentFit="cover" />
@@ -32,7 +37,7 @@ const LocalMedicalCard = memo(function LocalMedicalCard({ store, onPress }: Loca
       </View>
 
       <View style={styles.body}>
-        <AppText style={styles.name} numberOfLines={1}>{store.name}</AppText>
+        <AppText style={styles.name} numberOfLines={1}>{storeName}</AppText>
         <View style={styles.metaRow}>
           <View style={styles.ratingBadge}>
             <Star size={ms(10)} color="#FFFFFF" fill="#FFFFFF" strokeWidth={1.5} />

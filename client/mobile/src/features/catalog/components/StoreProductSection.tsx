@@ -2,6 +2,8 @@ import React, { memo } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { Product, StoreProfile, AppBrand } from '@data/types';
@@ -32,6 +34,8 @@ const StoreProductSection = memo(function StoreProductSection({
   onProductPress,
 }: StoreProductSectionProps) {
   const appBrand = brandFor(app);
+  const language = useLanguageStore((s) => s.language);
+  const storeName = localizedName(store, language);
 
   return (
     <View style={styles.section}>
@@ -40,9 +44,9 @@ const StoreProductSection = memo(function StoreProductSection({
         onPress={onStorePress}
         activeOpacity={0.75}
         accessibilityRole="button"
-        accessibilityLabel={store.name}
+        accessibilityLabel={storeName}
       >
-        <AppText style={styles.storeName} numberOfLines={1}>{store.name}</AppText>
+        <AppText style={styles.storeName} numberOfLines={1}>{storeName}</AppText>
         <View style={styles.metaRow}>
           <Star size={ms(11)} color="#F59E0B" fill="#F59E0B" />
           <AppText style={styles.meta}>{store.rating} · {store.distance}</AppText>

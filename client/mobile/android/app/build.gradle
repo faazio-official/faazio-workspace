@@ -1,7 +1,29 @@
+import groovy.json.JsonSlurper
+
 apply plugin: "com.android.application"
 apply plugin: "org.jetbrains.kotlin.android"
 apply plugin: "com.facebook.react"
 apply plugin: "com.google.gms.google-services"
+
+/**
+ * Per-app release versions — `../app-versions.json` is the single source of truth (the three
+ * products ship on independent schedules, so a shared package.json version is wrong: a customer
+ * bump must never move the delivery/seller versionName or versionCode). The CI release workflow
+ * rewrites this file for the app being released; bump it by hand for a local release build.
+ * Each app's versionCode must strictly increase; a brand-new listing starts at 1.
+ */
+def appVersionsFile = rootProject.file("../app-versions.json")
+if (!appVersionsFile.exists()) {
+    throw new GradleException("[version] missing ${appVersionsFile} — per-app versions live there.")
+}
+def appVersions = new JsonSlurper().parse(appVersionsFile)
+def appVersionOf = { String app, String field ->
+    def entry = appVersions[app]
+    if (entry == null || entry[field] == null) {
+        throw new GradleException("[version] app-versions.json has no '${app}.${field}' entry.")
+    }
+    return entry[field]
+}
 
 /**
  * Release signing is PER PRODUCT (all gitignored, restored in CI by
@@ -94,10 +116,8 @@ android {
     defaultConfig {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        // Fallback only: CI derives versionCode/versionName from the semver at build time
-        // (1.0.6 -> 10006). Keep this in sync when bumping the release version.
-        versionCode 10006
-        versionName "1.0.6"
+        // versionName/versionCode are PER FLAVOR (see productFlavors below) — each product has its
+        // own release cadence, tracked in app-versions.json.
 
         buildConfigField "String", "REACT_NATIVE_RELEASE_LEVEL", "\"${findProperty('reactNativeReleaseLevel') ?: 'stable'}\""
     }
@@ -116,16 +136,22 @@ android {
             dimension 'app'
             applicationId 'com.faazio.customer'
             resValue 'string', 'app_name', 'Faazio'
+            versionName appVersionOf('customer', 'version')
+            versionCode appVersionOf('customer', 'versionCode') as int
         }
         delivery {
             dimension 'app'
             applicationId 'com.faazio.deliverypartner'
             resValue 'string', 'app_name', 'Faazio Delivery Partner'
+            versionName appVersionOf('delivery', 'version')
+            versionCode appVersionOf('delivery', 'versionCode') as int
         }
         seller {
             dimension 'app'
             applicationId 'com.faazio.sellerpartner'
             resValue 'string', 'app_name', 'Faazio Seller Partner'
+            versionName appVersionOf('seller', 'version')
+            versionCode appVersionOf('seller', 'versionCode') as int
         }
     }
 

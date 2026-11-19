@@ -8,7 +8,7 @@ import { CALLING_ENABLED } from '@/lib/config';
 import { useCallStore } from '@/state/callStore';
 import { deliveryNavigationRef } from '../navigationRef';
 import { hs, ms, vs } from '@/utils/responsive';
-import { startDeliveryCall } from '../calling/callController';
+import { initializeDeliveryCalling, startDeliveryCall } from '../calling/callController';
 
 interface Props {
   orderId: string;
@@ -52,13 +52,19 @@ export function CallCustomerButton({
     }
     if (locked) return;
     holdLock();
-    void startDeliveryCall(orderId, peerLabel);
+    // Lazily attach the native ring surface only when the rider actually wants to call. Going online
+    // stays completely prompt-free (no phone account, no system dialog).
+    void initializeDeliveryCalling().finally(() => {
+      void startDeliveryCall(orderId, peerLabel);
+    });
   };
 
   const onPstn = () => {
     if (busy || locked) return;
     holdLock();
-    void startDeliveryCall(orderId, peerLabel, { forcePstn: true });
+    void initializeDeliveryCalling().finally(() => {
+      void startDeliveryCall(orderId, peerLabel, { forcePstn: true });
+    });
   };
 
   return (

@@ -39,13 +39,14 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Orders | Order history | `MyOrders`, `OrderDetails` | [orders/index.md](./orders/index.md) · [order-history.md](./orders/order-history.md) |
 | Orders | Order feedback | `OrderDetails` → `OrderFeedback` | [order-feedback.md](./orders/order-feedback.md) |
 | Calling | Outgoing masked call (customer → rider) | `OrderDetails` → `ActiveCall` | [calling/index.md](./calling/index.md) · [calling/outgoing.md](./calling/outgoing.md) |
-| Calling | Incoming masked call (rider → customer) | `ActiveCall` (push + CallKeep) | [calling/incoming.md](./calling/incoming.md) · [calling/edge-cases.md](./calling/edge-cases.md) |
+| Calling | Incoming masked call (rider → customer) | `ActiveCall` (FCM full-screen-intent ring on Android; PushKit + CallKit on iOS) | [calling/incoming.md](./calling/incoming.md) · [calling/edge-cases.md](./calling/edge-cases.md) |
 | Profile | Account / profile | `MainTabs` → `You`, `UserDetails` | [profile/index.md](./profile/index.md) |
 | Profile | Profile details | `UserDetails` (`UserDetailsScreen.tsx`) | [profile/user-details.md](./profile/user-details.md) |
 | Profile | Saved addresses | `SavedAddresses` | [saved-addresses.md](./profile/saved-addresses.md) |
 | Profile | Rewards ledger | `FaazioRewards` | [rewards-ledger.md](./profile/rewards-ledger.md) |
 | Profile | Rate vendor | `RateVendor` | [rate-vendor.md](./profile/rate-vendor.md) |
 | Profile | Appearance (theme) | `Theme` (`features/profile/ThemeScreen.tsx`) | [profile/theme.md](./profile/theme.md) |
+| Profile | Language (English / Tamil) | `Language` (`features/profile/LanguageScreen.tsx`) | [profile/language.md](./profile/language.md) |
 | Pharma | Prescription upload | `PrescriptionFlow` | [pharma/index.md](./pharma/index.md) · [prescription-upload.md](./pharma/prescription-upload.md) |
 | Pharma | Blood donor | `BloodDonor` | [blood-donor.md](./pharma/blood-donor.md) |
 | Pharma | Blood donor detail / request description | `BloodDonorDetails`, `BloodRequestDescription` | [pharma/blood-donor-details.md](./pharma/blood-donor-details.md) |

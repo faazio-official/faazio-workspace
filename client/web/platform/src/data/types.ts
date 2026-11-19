@@ -189,6 +189,9 @@ export interface StoreRecord {
   storeId: string;
   sellerId: string;
   name: string;
+  /** Tamil display copy (0108). Empty → the app falls back to `name`/`description`. */
+  nameTa?: string | undefined;
+  descriptionTa?: string | undefined;
   sector: Sector;
   addressLine: string;
   city: string;
@@ -207,6 +210,10 @@ export interface ProductRecord {
   storeId: string;
   name: string;
   description: string;
+  /** Tamil display name (0107). Empty → the app falls back to `name`. */
+  nameTa?: string;
+  /** Tamil display description (0107). Empty → the app falls back to `description`. */
+  descriptionTa?: string;
   sector: Sector;
   category: string;
   emoji: string;
@@ -639,6 +646,9 @@ export interface MenuItemRecord {
   venueId: string;
   dishId: string;
   name: string;
+  /** Tamil display copy (0108). Empty → the app falls back to `name`. */
+  nameTa?: string | undefined;
+  descriptionTa?: string | undefined;
   pricePaisa: number;
   /** List price (MRP) in paisa for the strike-through. Absent = no offer; never below pricePaisa. */
   mrpPaisa?: number | undefined;
@@ -656,6 +666,9 @@ export interface AddonRecord {
   venueId: string;
   name: string;
   groupName: string;
+  /** Tamil display copy (0108). Empty → the app falls back to `name`/`groupName`. */
+  nameTa?: string | undefined;
+  groupNameTa?: string | undefined;
   pricePaisa: number;
   isVeg: boolean;
   status: ProductStatus;

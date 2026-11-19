@@ -33,6 +33,8 @@ function viewToDish(p: ProductView): SpecialDish {
   return {
     id: p.id,
     dishName: p.name,
+    ...(p.nameTa ? { dishNameTa: p.nameTa } : {}),
+    ...(p.descTa ? { descriptionTa: p.descTa } : {}),
     restaurant,
     price: p.price,
     mrp: p.originalPrice !== undefined && p.originalPrice > p.price ? p.originalPrice : undefined,
@@ -60,8 +62,12 @@ const minutesOf = (deliveryTime: string) => {
   return match ? Number(match[1]) : Number.MAX_SAFE_INTEGER;
 };
 
+// Tamil copy is searchable too: a shopper typing a Tamil dish name must match the translated row.
 const searchableDishText = (d: SpecialDish) =>
-  [d.dishName, d.restaurant, d.description, d.cuisine].join(' ').toLowerCase();
+  [d.dishName, d.dishNameTa, d.restaurant, d.description, d.descriptionTa, d.cuisine]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
 
 function makeDishPredicate(dietFilter: DietFilter) {
   return (d: SpecialDish, query: string, activeFilterIds: string[]) => {

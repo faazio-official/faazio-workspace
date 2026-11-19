@@ -10,6 +10,7 @@ import { useCategoryTree, useSellerScope, useTaxCategories } from "@/lib/api/hoo
 import { sectorLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
+import { tamilFieldError } from "@/lib/tamil";
 import type { Sector } from "@/data/types";
 
 const STEPS = ["Category", "Details", "Pricing", "Inventory", "Review"];
@@ -59,6 +60,11 @@ function NewProduct() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
+  // Optional Tamil translations (0107). Tamil letters only; blank = not translated.
+  const [nameTa, setNameTa] = useState("");
+  const [descriptionTa, setDescriptionTa] = useState("");
+  const nameTaError = tamilFieldError(nameTa, 200);
+  const descriptionTaError = tamilFieldError(descriptionTa, 4000);
   const [unit, setUnit] = useState("1 unit");
   const [images, setImages] = useState<string[]>([]);
   const [isVeg, setIsVeg] = useState(true);
@@ -88,7 +94,11 @@ function NewProduct() {
 
   const stepValid = [
     Boolean(sector && storeId && taxonomyCategoryId && category.trim()),
-    name.trim().length > 2 && description.trim().length > 5 && images.length > 0,
+    name.trim().length > 2 &&
+      description.trim().length > 5 &&
+      images.length > 0 &&
+      !nameTaError &&
+      !descriptionTaError,
     pricePaisa > 0,
     Number(quantity) >= 0,
     true,
@@ -103,6 +113,8 @@ function NewProduct() {
         storeId,
         name: name.trim(),
         description: description.trim(),
+        nameTa: nameTa.trim(),
+        descriptionTa: descriptionTa.trim(),
         sector,
         category: category.trim(),
         taxonomyCategoryId,
@@ -220,6 +232,24 @@ function NewProduct() {
           <Card>
             <TextField label="Product name" value={name} onChange={setName} />
             <TextField label="Description" value={description} onChange={setDescription} />
+            <TextField
+              label="Product name (Tamil)"
+              lang="ta"
+              value={nameTa}
+              onChange={setNameTa}
+              placeholder="தமிழில் மட்டும்"
+            />
+            {nameTaError ? <p className="text-[11px] text-destructive">{nameTaError}</p> : null}
+            <TextField
+              label="Description (Tamil)"
+              lang="ta"
+              value={descriptionTa}
+              onChange={setDescriptionTa}
+              placeholder="தமிழில் மட்டும்"
+            />
+            {descriptionTaError ? (
+              <p className="text-[11px] text-destructive">{descriptionTaError}</p>
+            ) : null}
             <TextField label="Unit" value={unit} onChange={setUnit} />
             <div className="rounded-xl border border-dashed border-border p-3">
               <ImageUploader images={images} onChange={setImages} />
@@ -307,6 +337,7 @@ function NewProduct() {
               <Row label="Sector / category" value={`${sectorLabel(sector)} · ${taxonomyName}`} />
               <Row label="GST category" value={category} />
               <Row label="Name" value={name} />
+              {nameTa.trim() ? <Row label="Name (Tamil)" value={nameTa.trim()} /> : null}
               <Row label="Unit" value={unit} />
               <Row label="Price (GST incl.)" value={formatINR(pricePaisa)} />
               <Row label="GST rate" value={`${taxRatePct}%`} />

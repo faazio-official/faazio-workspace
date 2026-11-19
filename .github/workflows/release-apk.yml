@@ -29,7 +29,11 @@ on:
           - seller
         default: customer
       version:
-        description: "Release version (e.g. 1.0.2) — overrides package.json"
+        description: "Release version for THIS app (e.g. 1.0.2) — overrides app-versions.json"
+        required: false
+        type: string
+      version-code:
+        description: "versionCode for THIS app — defaults to app-versions.json (semver-derived when version is overridden)"
         required: false
         type: string
       tag:
@@ -111,34 +115,41 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Set version (package.json is the source of truth)
-        # Always runs: aligns build.gradle versionName + versionCode to the resolved
-        # version. With -f version it also rewrites package.json. This removes the
-        # stale-committed-versionCode trap (a no-input dispatch previously shipped the
-        # hardcoded versionCode, which could be a downgrade vs a -f version build).
+      - name: Set version (app-versions.json is the source of truth, per app)
+        # Each product has its own version line. This step resolves the version for the app
+        # being built from client/mobile/app-versions.json, optionally overrides it (-f version
+        # / -f version-code), and writes it back for THIS app only — the other two apps are
+        # untouched. Gradle reads the same file, so versionName/versionCode always agree.
+        # versionCode must strictly increase per app: Play rejects a downgrade, and a brand-new
+        # listing starts at 1.
         run: |
-          VERSION="${{ github.event.inputs.version }}" node -e "
+          APP="${{ github.event.inputs.app }}" \
+          VERSION="${{ github.event.inputs.version }}" \
+          VERSION_CODE="${{ github.event.inputs['version-code'] }}" \
+          node -e "
             const fs = require('fs');
-            const p = require('./package.json');
-            const version = process.env.VERSION || p.version;
-            if (process.env.VERSION) {
-              p.version = process.env.VERSION;
-              fs.writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n');
-            }
-            // Derive versionCode deterministically from the semver (e.g. 1.0.4 ->
-            // 10004). Must strictly increase per release to avoid downgrade installs.
+            const app = process.env.APP;
+            const f = './app-versions.json';
+            const all = JSON.parse(fs.readFileSync(f, 'utf8'));
+            if (!all[app]) { console.error('::error::app-versions.json has no entry for ' + app); process.exit(1); }
+            const cur = all[app];
+            const version = process.env.VERSION || cur.version;
             const parts = String(version).split('.').map(Number);
-            let vc = null;
-            if (parts.length >= 3 && parts.every((n) => Number.isInteger(n) && n >= 0)) {
-              vc = parts[0] * 10000 + parts[1] * 100 + parts[2];
+            if (parts.length !== 3 || !parts.every((n) => Number.isInteger(n) && n >= 0)) {
+              console.error('::error::version must be semver MAJOR.MINOR.PATCH, got ' + version);
+              process.exit(1);
             }
-            const g = 'android/app/build.gradle';
-            let s = fs.readFileSync(g, 'utf8');
-            s = s.replace(/versionName \"[^\"]+\"/, 'versionName \"' + version + '\"');
-            if (vc != null) {
-              s = s.replace(/versionCode \d+/, 'versionCode ' + vc);
+            // Derive from the semver (1.0.4 -> 10004) unless explicitly given.
+            const derived = parts[0] * 10000 + parts[1] * 100 + parts[2];
+            const versionCode = process.env.VERSION_CODE ? Number(process.env.VERSION_CODE) : derived;
+            if (!Number.isInteger(versionCode) || versionCode < 1) {
+              console.error('::error::invalid versionCode ' + process.env.VERSION_CODE);
+              process.exit(1);
             }
-            fs.writeFileSync(g, s);
+            all[app] = { version, versionCode };
+            fs.writeFileSync(f, JSON.stringify(all, null, 2) + '\n');
+            console.log(app + ': versionName=' + version + ' versionCode=' + versionCode);
+            fs.appendFileSync(process.env.GITHUB_ENV, 'APP_VERSION=' + version + '\nAPP_VERSION_CODE=' + versionCode + '\n');
           "
 
       - name: Restore keystore + signing properties
@@ -296,7 +307,7 @@ jobs:
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: faazio-${{ github.event.inputs.app }}-${{ github.event.inputs.version || 'release' }}-apk
+          name: faazio-${{ github.event.inputs.app }}-${{ env.APP_VERSION }}-apk
           path: client/mobile/android/app/build/outputs/apk/${{ github.event.inputs.app }}/release/*.apk
           if-no-files-found: error
 
@@ -304,7 +315,7 @@ jobs:
         if: ${{ github.event.inputs['include-aab'] == 'true' }}
         uses: actions/upload-artifact@v4
         with:
-          name: faazio-${{ github.event.inputs.app }}-${{ github.event.inputs.version || 'release' }}-aab
+          name: faazio-${{ github.event.inputs.app }}-${{ env.APP_VERSION }}-aab
           path: client/mobile/android/app/build/outputs/bundle/${{ github.event.inputs.app }}Release/*.aab
           if-no-files-found: error
 
@@ -323,7 +334,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           APP="${{ github.event.inputs.app }}"
-          VERSION="$(node -p "require('./package.json').version")"
+          VERSION="$APP_VERSION"
           if [[ "$APP" == "delivery" ]]; then
             APP_NAME="Faazio Delivery Partner"
             TAG="v${VERSION}-delivery"

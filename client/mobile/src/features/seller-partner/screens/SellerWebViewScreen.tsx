@@ -152,7 +152,15 @@ function openExternal(raw: string): void {
  * cookies). Native only supplies safe-area/status-bar chrome, external-link handling, hardware
  * back, push-token injection and notification deep links. No native auth token is stored.
  */
-export function SellerWebViewScreen() {
+interface SellerWebViewScreenProps {
+  /**
+   * Fired once the portal painted (or failed) — the root drops the branded layer-2 splash then.
+   * Only the first outcome counts, so a later retry never re-shows the splash.
+   */
+  onPortalReady?: () => void;
+}
+
+export function SellerWebViewScreen({ onPortalReady }: SellerWebViewScreenProps = {}) {
   const webviewRef = useRef<WebViewHandle>(null);
   const canGoBack = useRef(false);
   const loaded = useRef(false);
@@ -164,6 +172,9 @@ export function SellerWebViewScreen() {
   const [reloadKey, setReloadKey] = useState(0);
   const [vendorId, setVendorId] = useState<string | null>(null);
   const origin = useMemo(portalOrigin, []);
+  const announceReady = useCallback(() => {
+    onPortalReady?.();
+  }, [onPortalReady]);
 
   // Restore the last active vendor so every portal (re)load opens scoped to the same shop.
   useEffect(() => {
@@ -341,6 +352,11 @@ export function SellerWebViewScreen() {
     setReloadKey((key) => key + 1);
   }, []);
 
+  // A missing portal origin paints its own state — never hold the branded splash over it.
+  useEffect(() => {
+    if (!origin) announceReady();
+  }, [origin, announceReady]);
+
   if (!origin) {
     return (
       <SafeAreaView style={styles.container} edges={['top']}>
@@ -379,6 +395,7 @@ export function SellerWebViewScreen() {
         onLoadEnd={() => {
           loaded.current = true;
           setLoading(false);
+          announceReady();
           injectToken(getSellerPushToken());
           if (pendingOrder.current) {
             const target = pendingOrder.current;
@@ -390,10 +407,12 @@ export function SellerWebViewScreen() {
           loaded.current = false;
           setLoading(false);
           setError(event.nativeEvent.description || 'The portal could not be loaded.');
+          announceReady();
         }}
         onHttpError={(event: { nativeEvent: { statusCode: number } }) => {
           if (event.nativeEvent.statusCode >= 500) {
             setError(`The portal returned ${event.nativeEvent.statusCode}.`);
+            announceReady();
           }
         }}
         onMessage={onMessage}

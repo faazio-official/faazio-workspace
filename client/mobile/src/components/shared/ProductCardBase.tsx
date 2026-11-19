@@ -9,6 +9,8 @@ import AdLabelBadge from './AdLabelBadge';
 import type { Product, AppBrand } from '@data/types';
 import type { CardVariant } from '@data/schema';
 import AppText from '@/components/AppText';
+import { localizedDesc, localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 
 interface ProductCardBaseProps {
   product: Product;
@@ -48,6 +50,9 @@ const ProductCardBase = memo(function ProductCardBase({
   showPrice = true, showAddButton = true,
 }: ProductCardBaseProps) {
   const tokens = brandTokens[appBrand];
+  const language = useLanguageStore((s) => s.language);
+  const displayName = localizedName(product, language);
+  const displayDesc = localizedDesc(product, language);
   const isRail = variant === 'rail' || variant === 'flash';
   const isGrid2 = variant === 'grid2';
 
@@ -71,7 +76,7 @@ const ProductCardBase = memo(function ProductCardBase({
       activeOpacity={0.9}
       accessibilityRole="button"
       accessibilityLabel={
-        showPrice ? `${product.name}, ₹${product.price}` : product.name
+        showPrice ? `${displayName}, ₹${product.price}` : displayName
       }
       accessibilityHint={onPress ? 'Opens product details' : undefined}
     >
@@ -94,7 +99,7 @@ const ProductCardBase = memo(function ProductCardBase({
             onPress={onFavorite}
             hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
             accessibilityRole="button"
-            accessibilityLabel={isFavorite ? `Remove ${product.name} from favourites` : `Add ${product.name} to favourites`}
+            accessibilityLabel={isFavorite ? `Remove ${displayName} from favourites` : `Add ${displayName} to favourites`}
             accessibilityState={{ selected: Boolean(isFavorite) }}
           >
             <View style={styles.heartCircle}>
@@ -126,10 +131,10 @@ const ProductCardBase = memo(function ProductCardBase({
             <AppText style={styles.ratingText}>{formatRating(product.rating)}</AppText>
           </View>
         )}
-        <AppText style={styles.name} numberOfLines={2}>{product.name}</AppText>
-        {showDescription && product.desc && (
-          <AppText style={styles.desc} numberOfLines={1}>{product.desc}</AppText>
-        )}
+        <AppText style={styles.name} numberOfLines={2}>{displayName}</AppText>
+        {showDescription && displayDesc ? (
+          <AppText style={styles.desc} numberOfLines={1}>{displayDesc}</AppText>
+        ) : null}
         {(showPrice || showAddButton) && (
           <View style={styles.priceRow}>
             {showPrice && (
@@ -148,7 +153,7 @@ const ProductCardBase = memo(function ProductCardBase({
                   style={styles.stepperBtn}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Remove one ${product.name}`}
+                  accessibilityLabel={`Remove one ${displayName}`}
                 >
                   <Minus size={ms(12)} color="#ffffff" strokeWidth={3} />
                 </TouchableOpacity>
@@ -158,7 +163,7 @@ const ProductCardBase = memo(function ProductCardBase({
                   style={styles.stepperBtn}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Add one more ${product.name}`}
+                  accessibilityLabel={`Add one more ${displayName}`}
                 >
                   <Plus size={ms(12)} color="#ffffff" strokeWidth={3} />
                 </TouchableOpacity>
@@ -170,7 +175,7 @@ const ProductCardBase = memo(function ProductCardBase({
                 activeOpacity={0.8}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 accessibilityRole="button"
-                accessibilityLabel={`Add ${product.name} to cart`}
+                accessibilityLabel={`Add ${displayName} to cart`}
               >
                 {isAdded ? (
                   <Check size={ms(12)} color="#ffffff" strokeWidth={3} />

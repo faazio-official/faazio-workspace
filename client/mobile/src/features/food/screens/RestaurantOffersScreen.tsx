@@ -50,7 +50,9 @@ export function RestaurantOffersScreen({ navigation, route }: Props) {
       : offerDishes.filter(
           (d) =>
             d.dishName.toLowerCase().includes(q) ||
-            (d.description ?? '').toLowerCase().includes(q),
+            (d.dishNameTa ?? '').toLowerCase().includes(q) ||
+            (d.description ?? '').toLowerCase().includes(q) ||
+            (d.descriptionTa ?? '').toLowerCase().includes(q),
         );
     return [...rows].sort((a, b) => (priceAsc ? a.price - b.price : b.price - a.price));
   }, [offerDishes, searchQuery, priceAsc]);

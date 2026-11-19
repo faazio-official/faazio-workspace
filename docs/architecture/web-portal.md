@@ -550,6 +550,29 @@ A production build with `NEXT_PUBLIC_GATEWAY_URL` unset renders a fixed
 `SEED MODE — not connected to gateway` badge (`SeedModeBanner`), so seed data can
 never masquerade as live data. Dev builds stay quiet.
 
+### Tamil translation fields
+
+Products, categories, stores, menu dishes and dish add-ons carry optional Tamil display copy
+(`0107` product/category, `0108` directory). The portal is the only place that authors it:
+
+| Surface | Route | Fields |
+|---|---|---|
+| Product | `/seller/products/new`, `/seller/products/{id}/edit` | Name (Tamil), Description (Tamil) |
+| Category | `/admin/super/categories` | Name (Tamil), Description (Tamil) |
+| Store | `/seller/stores`, `/seller/onboarding` | Tamil shop name, Tamil description |
+| Menu dish | `/seller/menus` | Tamil item name, Tamil description |
+| Add-on | `/seller/inventory` (create sheet) | Tamil name, Tamil group |
+
+Every field uses `tamilFieldError` from `src/lib/tamil.ts` — Tamil letters, digits, whitespace and
+light punctuation only, blank means "not translated" — and a non-Tamil character blocks Save (inline
+hint on the form pages, toast on the store/menu/add-on sheets). Save omits an empty field so the
+column stays `''` (the store profile is the exception: it sends the trimmed value, so clearing the
+field clears the translation), and the gateway re-validates
+(`internal/platform/locale.IsTamilText`) before writing. The inputs carry `lang="ta"` so the browser
+picks a script-capable font. Translations are display-only: the English name remains the identity
+shown in portal lists (the Tamil name renders as a secondary line once authored). Product Tamil copy
+**is** searchable — `catalog.products.search_vec` indexes `name_ta`/`desc_text_ta` (`0108`).
+
 ### Home SDUI publish (`admin/super/sdui`)
 
 The **App content (SDUI)** page is the control surface for the Home feed. It hydrates the raw

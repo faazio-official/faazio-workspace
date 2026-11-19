@@ -8,6 +8,7 @@ import (
 
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
+	"github.com/faazio/server/gateway/internal/platform/locale"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -65,11 +66,12 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	h.respond(w, r, opts)
 }
 
-// rail returns the curated active top-level categories for the home header rail.
+// rail returns the curated active categories for the home header rail. Any tree level is eligible:
+// the customer drill-in resolves the tapped id and walks its subtree, so a child chip is a valid
+// entry point. FOOD never reaches here (rail writes reject it), so no app scope is applied.
 func (h *Handler) rail(w http.ResponseWriter, r *http.Request) {
 	opts := ListOptions{
 		App:          strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("app"))),
-		TopLevel:     true,
 		ActiveOnly:   true,
 		HomeRailOnly: true,
 	}
@@ -99,6 +101,12 @@ func (h *Handler) respond(w http.ResponseWriter, r *http.Request, opts ListOptio
 	httpx.JSON(w, http.StatusOK, items)
 }
 
+// validTamil reports whether a translated field is Tamil-only (blank means "not translated") and
+// within its character budget.
+func validTamil(value string, maxRunes int) bool {
+	return locale.IsTamilText(value) && len([]rune(value)) <= maxRunes
+}
+
 func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	var req Input
 	if err := httpx.Decode(r, &req); err != nil {
@@ -108,8 +116,14 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	req.App = strings.ToUpper(strings.TrimSpace(req.App))
 	req.Name = strings.TrimSpace(req.Name)
 	req.ID = strings.TrimSpace(req.ID)
+	req.NameTA = strings.TrimSpace(req.NameTA)
+	req.DescriptionTA = strings.TrimSpace(req.DescriptionTA)
 	if !validApp(req.App) || req.Name == "" || len(req.Name) > 120 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "app and name are required")
+		return
+	}
+	if !validTamil(req.NameTA, 120) || !validTamil(req.DescriptionTA, 2000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
 		return
 	}
 	if req.ID != "" && !validID(req.ID) {
@@ -120,7 +134,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "parent category is invalid")
 		return
 	}
-	if msg := homeRailError(req.App, req.ParentID, req.ShowOnHomeRail); msg != "" {
+	if msg := homeRailError(req.App, req.ShowOnHomeRail); msg != "" {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", msg)
 		return
 	}
@@ -128,10 +142,6 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, ErrDuplicate) {
 			httpx.Fail(w, http.StatusConflict, "conflict", "a category with this id already exists")
-			return
-		}
-		if errors.Is(err, ErrRailLimit) {
-			httpx.Fail(w, http.StatusConflict, "rail_full", "the home rail already has 3 active categories")
 			return
 		}
 		httpx.Fail(w, http.StatusInternalServerError, "categories_write_failed", "could not save category")
@@ -149,8 +159,14 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	req.App = strings.ToUpper(strings.TrimSpace(req.App))
 	req.Name = strings.TrimSpace(req.Name)
+	req.NameTA = strings.TrimSpace(req.NameTA)
+	req.DescriptionTA = strings.TrimSpace(req.DescriptionTA)
 	if !validApp(req.App) || req.Name == "" || len(req.Name) > 120 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "app and name are required")
+		return
+	}
+	if !validTamil(req.NameTA, 120) || !validTamil(req.DescriptionTA, 2000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
 		return
 	}
 	if req.ParentID != nil && *req.ParentID == id {
@@ -161,7 +177,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "parent category is invalid")
 		return
 	}
-	if msg := homeRailError(req.App, req.ParentID, req.ShowOnHomeRail); msg != "" {
+	if msg := homeRailError(req.App, req.ShowOnHomeRail); msg != "" {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", msg)
 		return
 	}
@@ -169,10 +185,6 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, ErrNotFound) {
 			httpx.Fail(w, http.StatusNotFound, "not_found", "category not found")
-			return
-		}
-		if errors.Is(err, ErrRailLimit) {
-			httpx.Fail(w, http.StatusConflict, "rail_full", "the home rail already has 3 active categories")
 			return
 		}
 		httpx.Fail(w, http.StatusInternalServerError, "categories_write_failed", "could not save category")
@@ -196,16 +208,16 @@ func (h *Handler) remove(w http.ResponseWriter, r *http.Request) {
 }
 
 // homeRailError rejects rail selections the customer app cannot render: FOOD has no consumer vendor
-// pool, and only top-level rows can be a rail chip (the drill-in expects a root tab).
-func homeRailError(app string, parentID *string, show *bool) string {
+// pool. Any tree level is allowed — the drill-in resolves the tapped id and walks its subtree, so a
+// child chip opens that subtree (there is deliberately no parent check here). The rail itself is
+// unbounded — MART and PHARMA share it and the app scrolls horizontally, so there is no slot cap to
+// enforce here either.
+func homeRailError(app string, show *bool) string {
 	if show == nil || !*show {
 		return ""
 	}
 	if app == "FOOD" {
 		return "FOOD categories cannot appear on the home rail"
-	}
-	if parentID != nil && strings.TrimSpace(*parentID) != "" {
-		return "only top-level categories can appear on the home rail"
 	}
 	return ""
 }

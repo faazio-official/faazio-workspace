@@ -14,13 +14,13 @@
 | Wi-Fi → cellular handoff | Reconnecting banner + one-tap **Switch to phone call**; no automatic switch/timeout | Partial |
 | Call not answered | Server `fallbackAvailable` drives the PSTN prompt while ringing | Implemented |
 | End/reject network failure | Lifecycle mutations retry once; local session clears; the gateway sweeper bounds any row that never lands | Implemented (best-effort) |
-| App swiped away mid-call | `endCallsWhenReactNativeStops` ends native ringing; the sweeper closes stale rows. The customer resumes with the order-scoped `GET /orders/{orderId}/delivery-call`, so a row that outlived the process is adopted rather than left to the sweeper | Implemented (startup recovery is opt-in per product) |
+| App swiped away mid-call | The native ring notification is cleared on teardown; the sweeper closes stale rows. The customer resumes with the order-scoped `GET /orders/{orderId}/delivery-call`, so a row that outlived the process is adopted rather than left to the sweeper | Implemented (startup recovery is opt-in per product) |
 | Re-delivered push after decline/end | The controller remembers the declined call id and ignores a duplicate push for a call already `ended`/`error` | Implemented |
 | Late PSTN switch after end | `switchToPstn` captures the session epoch + call id; a fallback response that lands after end/dismiss is discarded and never reopens the dialer | Implemented |
 | PSTN dialer cannot open | The controller ends the row (`start_failed`) and stops polling instead of showing an error over an open session | Implemented |
-| Outgoing ringback | Local looped ringback while an outgoing VOIP call rings; also used for an incoming call when CallKeep cannot display the native ring | Implemented |
-| Signed-out device receives a call push | Background handler hydrates the Keychain session and drops the push when unauthenticated; sign-out calls `shutdownCalling()` and disables the native phone account | Implemented |
-| Already on a GSM call | No telephony pre-check; CallKeep's managed-call check prevents a second app call | Gap |
+| Outgoing ringback | Local looped ringback while an outgoing VOIP call rings; also used for an incoming call when the full-screen notification could not be shown | Implemented |
+| Signed-out device receives a call push | Background handler hydrates the Keychain session and drops the push when unauthenticated; sign-out calls `shutdownCalling()` and tears the native ring/session down | Implemented |
+| Already on a GSM call | No telephony pre-check; the shared controller's open-call guard prevents a second **app** call | Gap |
 | Proximity sensor on earpiece | No wake-lock/proximity handling | Gap |
 | Android 14+ full-screen intent | Permission declared; special-access grant is not requested/checked | Gap |
 | iOS incoming call | Native PushKit + CallKit (`VoipCallManager.swift`, one `CXProvider`) reports the APNs `voip` push before JS boots; `VoipCallFailed` falls back to the in-app surface | Implemented (device-unverified) |

@@ -111,20 +111,30 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Set version (package.json + Xcode MARKETING_VERSION/CURRENT_PROJECT_VERSION)
+      - name: Set version (app-versions.json + Xcode MARKETING_VERSION/CURRENT_PROJECT_VERSION)
         id: version
-        # Aligns the iOS marketing version + build number with the resolved version.
-        # Info.plist reads $(MARKETING_VERSION)/$(CURRENT_PROJECT_VERSION), so this is
-        # the single source of truth for the submitted build. With -f version it also
-        # rewrites package.json.
+        # Aligns the iOS marketing version + build number with this app's entry in
+        # client/mobile/app-versions.json (iOS ships only the customer app). With -f version it
+        # also rewrites the customer entry. Info.plist reads
+        # $(MARKETING_VERSION)/$(CURRENT_PROJECT_VERSION), so this is the single source of truth
+        # for the submitted build.
         run: |
-          VERSION="${{ github.event.inputs.version }}" node -e "
+          APP_VERSION="${{ github.event.inputs.version }}" node -e "
             const fs = require('fs');
-            const p = require('./package.json');
-            const version = process.env.VERSION || p.version;
-            if (process.env.VERSION) {
-              p.version = process.env.VERSION;
-              fs.writeFileSync('./package.json', JSON.stringify(p, null, 2) + '\n');
+            const f = './app-versions.json';
+            const all = JSON.parse(fs.readFileSync(f, 'utf8'));
+            const version = process.env.APP_VERSION || all.customer.version;
+            if (process.env.APP_VERSION) {
+              const parts = String(version).split('.').map(Number);
+              if (parts.length !== 3 || !parts.every((n) => Number.isInteger(n) && n >= 0)) {
+                console.error('::error::version must be semver MAJOR.MINOR.PATCH, got ' + version);
+                process.exit(1);
+              }
+              all.customer = {
+                version,
+                versionCode: parts[0] * 10000 + parts[1] * 100 + parts[2],
+              };
+              fs.writeFileSync(f, JSON.stringify(all, null, 2) + '\n');
             }
             // App Store Connect requires every upload to have a build number strictly
             // higher than the last one, even when the marketing version is unchanged.
@@ -134,11 +144,11 @@ jobs:
             const pad = (n) => String(n).padStart(2, '0');
             const vc = String(now.getUTCFullYear()) + pad(now.getUTCMonth() + 1) +
               pad(now.getUTCDate()) + pad(now.getUTCHours()) + pad(now.getUTCMinutes());
-            const f = 'ios/Faazio.xcodeproj/project.pbxproj';
-            let s = fs.readFileSync(f, 'utf8');
+            const p = 'ios/Faazio.xcodeproj/project.pbxproj';
+            let s = fs.readFileSync(p, 'utf8');
             s = s.replace(/MARKETING_VERSION = [^;]+;/g, 'MARKETING_VERSION = ' + version + ';');
             s = s.replace(/CURRENT_PROJECT_VERSION = \d+;/g, 'CURRENT_PROJECT_VERSION = ' + vc + ';');
-            fs.writeFileSync(f, s);
+            fs.writeFileSync(p, s);
             console.log('MARKETING_VERSION=' + version + ' CURRENT_PROJECT_VERSION=' + vc);
             if (process.env.GITHUB_OUTPUT) {
               fs.appendFileSync(process.env.GITHUB_OUTPUT, 'build_number=' + vc + '\n');
@@ -293,7 +303,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           APP_NAME="Faazio"
-          VERSION="$(node -p "require('./package.json').version")"
+          VERSION="$(node -p "require('./app-versions.json').customer.version")"
           TAG="v${VERSION}"
           if [[ -n "${{ github.event.inputs.tag }}" ]]; then
             TAG="${{ github.event.inputs.tag }}"

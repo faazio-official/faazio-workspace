@@ -13,6 +13,8 @@ import { ArrowLeft, Clock, MapPin, Phone, Search, Star, X } from 'lucide-react-n
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import AppTextInput from '@/components/AppTextInput';
 import { VendorReviewsSection } from '@/components/shared';
 import CampaignHero from '@/components/shared/CampaignHero';
@@ -38,6 +40,8 @@ const PHARMA_TEAL_DEEP = brandRamp.PHARMA.deep;
 const PHARMA_INK = neutral.ink;
 
 const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
+  const language = useLanguageStore((s) => s.language);
+  const storeName = localizedName(store, language);
   const [openStatus, setOpenStatus] = useState(() => getStoreOpenStatus(store.hours));
 
   // Re-evaluate once a minute so the pill crosses the open/close boundary without a remount.
@@ -59,7 +63,7 @@ const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
           </View>
         </View>
         <View style={styles.identityBody}>
-          <AppText style={styles.storeName} numberOfLines={1}>{store.name}</AppText>
+          <AppText style={styles.storeName} numberOfLines={1}>{storeName}</AppText>
           <View style={styles.metaRow}>
             <MapPin size={ms(13)} color={neutral.inkMuted} strokeWidth={1.75} />
             <AppText style={styles.metaText}>{store.distance} away</AppText>
@@ -87,7 +91,7 @@ const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
               )
             }
             accessibilityRole="link"
-            accessibilityLabel={`Open directions to ${store.name}`}
+            accessibilityLabel={`Open directions to ${storeName}`}
           >
             <MapPin size={ms(15)} color={PHARMA_TEAL} strokeWidth={1.75} />
             <AppText style={styles.contactText}>{store.address}</AppText>
@@ -98,7 +102,7 @@ const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
             style={styles.contactRow}
             onPress={() => void Linking.openURL(`tel:${store.phone?.replace(/[^+\d]/g, '')}`)}
             accessibilityRole="link"
-            accessibilityLabel={`Call ${store.name}`}
+            accessibilityLabel={`Call ${storeName}`}
           >
             <Phone size={ms(15)} color={PHARMA_TEAL} strokeWidth={1.75} />
             <AppText style={styles.contactText}>{store.phone}</AppText>
@@ -142,6 +146,7 @@ const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
 });
 
 export function MedicalShopDetailsScreen({ navigation, route }: Props) {
+  const language = useLanguageStore((s) => s.language);
   const insets = useSafeAreaInsets();
   const inputRef = useRef<TextInput | null>(null);
   const [query, setQuery] = useState('');
@@ -277,7 +282,7 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
             <VendorReviewsSection
               vendorId={store.id}
               accentColor={PHARMA_TEAL}
-              onRatePress={() => navigation.navigate('RateVendor', { vendorId: store.id, vendorName: store.name })}
+              onRatePress={() => navigation.navigate('RateVendor', { vendorId: store.id, vendorName: localizedName(store, language) })}
               style={styles.reviewsSection}
             />
             <View style={styles.productsHeader}>

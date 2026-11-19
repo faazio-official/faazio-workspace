@@ -192,10 +192,11 @@ triggered with the `gh` CLI.
 
 ```bash
 cd client/mobile
-# 1) Bump the version: edit package.json -> version, e.g. "1.1.0", OR pass
-#    -f version=<semver>. Either way the workflow derives versionCode from the
-#    resolved semver (e.g. 1.0.4 -> 10004) and rewrites build.gradle versionName
-#    + versionCode, so the committed values are never stale.
+# 1) Bump the version for the app you are releasing: edit that app's entry in
+#    app-versions.json (the per-app source of truth), OR pass -f version=<semver>.
+#    Either way the workflow derives versionCode from that semver for THAT app only
+#    (e.g. 1.0.4 -> 10004), so a customer release never moves the delivery or seller
+#    version. The other two apps are untouched.
 
 # 2) Trigger the CI build + release (app=customer|delivery|seller).
 #    Default is APK-only; add -f include-aab=true to also build + attach the
@@ -211,10 +212,21 @@ gh run watch
 #    (gh release upload --clobber replaces any previous APK on that tag).
 ```
 
+Versions are **per app** in `client/mobile/app-versions.json`:
+
+```json
+{ "customer": { "version": "1.0.6", "versionCode": 10006 },
+  "delivery": { "version": "1.0.0", "versionCode": 1 },
+  "seller":   { "version": "1.0.6", "versionCode": 10006 } }
+```
+
+`android/app/build.gradle` reads it per flavor and `scripts/configure.js` embeds the same value as
+`APP_VERSION`. A new listing starts at `1.0.0` / versionCode `1`.
+
 The workflow: checkout → setup Node 24 + JDK 21 → `gradle/actions/setup-gradle` (caches
 `~/.gradle` + build cache) → **CI Gradle tuning** (overrides laptop memory caps via
-`~/.gradle/gradle.properties`) → `npm ci` → set version (derives `versionName` + `versionCode` from
-the resolved semver, using `package.json` when `-f version` is omitted) → `restore-keystore.sh <app>` →
+`~/.gradle/gradle.properties`) → `npm ci` → set version (writes the build app's entry in
+`app-versions.json`; Gradle derives `versionName` + `versionCode` from it) → `restore-keystore.sh <app>` →
 `npm run ts:check` + `npm run check:boundaries` →
 `npm run configure` (release cert pins + JS config) → `./gradlew assemble<App>Release` with
 **ABI + R8 minify flags** (see below), plus `bundle<App>Release` when `-f include-aab=true` →
@@ -521,7 +533,7 @@ Run **each pending** migration (numeric order) → then roll the Render deploy. 
 ## ✅ Release checklist
 
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass (both are CI steps).
-- [ ] `versionCode` > the previous release (committed +1 bump, or derived from `-f version` semver — e.g. `1.0.4` → `10004`).
+- [ ] `versionCode` > this app's previous release (derived from `-f version` / `version-code`, or the committed `app-versions.json` entry).
 - [ ] **Play App Signing** SHA-1/SHA-256 registered in Firebase for each Play-listed app (customer production), plus the **upload-key** SHA-1/SHA-256 if sideloaded CI APKs must pass phone OTP; each app's **debug** cert registered for debug testing. Maps/Places keys restricted to the Play App Signing SHA-1 (+ upload-key SHA-1) for **customer + delivery** only (seller mounts no map — see "Register the release cert").
 - [ ] `CERT_PINS` set and Firebase native config committed when `USE_GATEWAY=true` (release configure fails without them).
 - [ ] Per-app GitHub secrets set: `KEYSTORE_BASE64_<APP>`, `KEYSTORE_PASS_<APP>`, `KEY_ALIAS_<APP>`, `ALIAS_PASS_<APP>` for each product being released (all three keystores backed up; customer key reset 2026-11-10).

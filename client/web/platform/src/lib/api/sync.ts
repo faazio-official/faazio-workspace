@@ -178,6 +178,8 @@ function mapSellerProductRow(raw: SellerConsoleRow): ProductRecord {
     storeId: raw.storeId ?? "",
     name: raw.name,
     description: raw.description ?? "",
+    ...(raw.nameTa ? { nameTa: raw.nameTa } : {}),
+    ...(raw.descriptionTa ? { descriptionTa: raw.descriptionTa } : {}),
     sector: (raw.app || "MART") as Sector,
     category: raw.category,
     emoji: raw.emoji ?? "",

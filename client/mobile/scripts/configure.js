@@ -45,9 +45,10 @@ const LIB_DIR = path.join(ROOT, 'src', 'lib');
 const CONFIG_FILE = path.join(LIB_DIR, 'config.ts');
 const TRANSPORT_FILE = path.join(LIB_DIR, 'activeTransport.ts');
 const VARIANT_FILE = path.join(LIB_DIR, 'appVariant.ts');
-// Embedded app version — mirrors package.json (the release workflow rewrites it when `version` is
-// passed). Sent with crash reports so the operator can tell which build failed.
-const appVersion = JSON.parse(fs.readFileSync(path.join(ROOT, 'package.json'), 'utf8')).version || '0.0.0';
+// Per-app release version — `app-versions.json` is the single source of truth (the three products
+// release independently). Resolved after APP_VARIANT is parsed, below. Sent with crash reports so
+// the operator can tell which build failed.
+const APP_VERSIONS_FILE = path.join(ROOT, 'app-versions.json');
 const NSC_FILE = path.join(
   ROOT,
   'android',
@@ -151,6 +152,13 @@ const googlePlacesKey = env('GOOGLE_PLACES_API_KEY').trim();
 const appVariantRaw = env('APP_VARIANT').trim().toLowerCase();
 const appVariant =
   appVariantRaw === 'delivery' || appVariantRaw === 'seller' ? appVariantRaw : 'customer';
+// This product's release version (its own Play/App Store line — never another app's).
+const appVersions = JSON.parse(fs.readFileSync(APP_VERSIONS_FILE, 'utf8'));
+const appVersionEntry = appVersions[appVariant];
+if (!appVersionEntry || !appVersionEntry.version) {
+  fail(`app-versions.json has no version for '${appVariant}'.`);
+}
+const appVersion = String(appVersionEntry.version);
 const firebaseSetting = env('USE_FIREBASE_AUTH').trim().toLowerCase();
 const useFirebaseAuth =
   appVariant === 'seller' ? false : firebaseSetting === '' || ['1', 'true', 'yes'].includes(firebaseSetting);
@@ -284,7 +292,7 @@ write(
   CONFIG_FILE,
   `${header}
 export const GATEWAY_URL = ${JSON.stringify(gatewayUrl)};
-/** Embedded build version (crash-sink release tag). Mirrors package.json. */
+/** Embedded build version (crash-sink release tag). Mirrors app-versions.json for this app. */
 export const APP_VERSION = ${JSON.stringify(appVersion)};
 /**
  * Web Partner Portal origin for the seller WebView shell. Empty disables the seller app

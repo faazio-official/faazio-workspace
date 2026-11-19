@@ -15,6 +15,107 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W101 — Home rail unbounded: Mart + Pharma combined, no chip cap
+
+**Status:** 🟢 Shipped (DB comment only + gateway + portal + mobile). Migration `0109`.
+
+- **Decision:** the Home header rail is a horizontally scrolling strip, so the old 3-chip global cap
+  (Mart + Pharma sharing three slots) was a product choice, not a technical limit. Superadmins now
+  curate any number of **MART/PHARMA** categories — at any tree level — and the app scrolls them to
+  the end.
+- **DB (`0109`, additive):** reuses `taxonomy.categories.show_on_home_rail` and the partial index
+  `categories_home_rail_idx` from `0096`. Only the column comment changes — no new column, no data
+  migration.
+- **Gateway (`internal/categories`):** removed `MaxHomeRailCategories`, `ErrRailLimit`,
+  `railSlotAvailable` and both `409 rail_full` branches; the create/update slot count check is gone.
+  `GET /categories/rail` no longer forces `TopLevel`, and `homeRailError` rejects FOOD only (`400`) —
+  a child row on the rail is valid because `CategoryDrillIn` resolves the tapped id and walks its
+  subtree.
+- **Portal (`/admin/super/categories`):** dropped the pre-save "only 3" count query and the
+  "home rail is full" toast; the Home rail toggle is disabled for FOOD only (child rows are
+  eligible); helper copy now says Mart & Pharma, any level, unlimited, horizontally scrolled.
+- **Mobile:** `usePagedRail` is unchanged in shape but the rail now also auto-advances when a page
+  does **not overflow** the viewport (`onContentSizeChange` + layout width) — a strip wider than the
+  screen loads lazily on scroll, a shorter one grows until every curated chip is rendered. FOOD is
+  filtered defensively in `services/categoryRail.ts`. Tapping a chip still opens the existing
+  `CategoryDrillIn` route; no new screen.
+
+**Date:** 2026-11-19
+
+---
+
+## W100 — Intelligent location permission (primer, resume re-check, no lockout)
+
+**Status:** 🟢 Shipped (JS + native module; requires a CI build for the native additions).
+
+- **State:** `locationStore` gained `blocked` and `source` (`gps | manual`), plus
+  `setPermissionStatus()` so a native re-check updates the permission view without fabricating a fix.
+  A `manual` origin is `ready` but not a permission grant, so it never starts the GPS poll.
+- **Resume detection:** `useLiveLocation` re-reads `getLocationAuthorizationStatus()` +
+  `isLocationServicesEnabled()` on every `AppState` → `active`; a grant made in OS Settings flips the
+  store and runs a silent coarse fix. Manual origins are never silently replaced.
+- **Native:** `FaazioGeocoder` (iOS `CLLocationManager.locationServicesEnabled()`, Android
+  `LocationManager` providers) adds `isLocationServicesEnabled`, and `geocodeAddress` (forward
+  geocode) so a saved address can become the live origin.
+- **Routing:** `AppNavigator` waits for the location hydrate (3 s bound) and sends an authenticated
+  user with `status === 'idle'` to `Location`; denied/blocked stay on `MainTabs`.
+- **UI:** `LocationScreen` shows a pre-permission primer (Allow / Enter manually); `HomeTabScreen`
+  has a location chip + dismissible nudge banner (Open Settings / Enter address) — never a blocker;
+  `SavedAddressesScreen` syncs a selected/default address into the live origin.
+
+---
+
+## W99 — Tamil localization (shipped, with scoped gaps)
+
+**Status:** 🟢 English + Tamil shipped end-to-end for catalog **and** directory copy, including
+search. Remaining items below are deliberate follow-ups, not half-built flows.
+
+Shipped:
+
+- `LanguageSelectionScreen` offers exactly two languages (`en` default, `ta`); no search/suggested
+  section. `useLanguageStore` is the single source, and the list lives once in `src/lib/languages.ts`.
+- **Language is changeable any time** from Account → Preferences → **Language**
+  (`features/profile/LanguageScreen.tsx`, route `Language`), next to Appearance. Switching applies
+  immediately — fonts and all localized catalog/directory copy re-resolve without a restart.
+- Fonts (`src/theme/fonts.ts` + `src/theme/tamilFont.ts`): the Tamil face is **bundled** — Hind
+  Madurai (SIL OFL 1.1) in four static weights under
+  `android/app/src/main/assets/fonts/` and `ios/Faazio/Fonts/` (`UIAppFonts` + pbxproj Resources),
+  licence at `assets/fonts/OFL-HindMadurai.txt`. `tamilFontFamilyForWeight` maps a style's weight to
+  `HindMadurai-Regular|Medium|SemiBold|Bold` and `resolveTextStyle` forces `fontWeight: undefined`
+  (never combine the family with a weight — Android would synthesise a face). No async load gate.
+  `AppText`/`AppTextInput` resolve per node (session language **or** Tamil code points in the text) so
+  untranslated English labels still render correctly in a Tamil session.
+- `src/lib/localizedText.ts` (`localizedName`/`localizedDesc`) with English fallback, wired into
+  `ProductCardBase`, `SearchProductRowCard`, `ProductRowCard`, `CommonProductDetailView`, the header
+  category rail, `CategoryDrillInPanel`, and the Mart / Pharma / Home rails and cards.
+- Server: `catalog.products.name_ta`/`desc_text_ta` + `taxonomy.categories.name_ta`/`description_ta`
+  (migration `0107`), Tamil-only validation (`internal/platform/locale.IsTamilText`) on product
+  create/edit and category create/update; sellers author product copy, super admins category copy.
+- Server (`0108`): `directory.menus.name_ta`/`description_ta`, `directory.addons.name_ta`/
+  `group_name_ta`, `directory.stores.name_ta`/`desc_text_ta`, `directory.dining_venues.name_ta` —
+  same Tamil-only validation on `POST|PUT /seller/menus`, `POST|PUT /seller/addons`,
+  `POST /seller/stores` and `PUT /seller/stores/{id}`.
+- **Search covers Tamil.** `catalog.products.search_vec` now indexes `name_ta` (weight A) and
+  `desc_text_ta` (weight B) under the `simple` config (Postgres has no `tamil` config; `unaccent` is a
+  no-op on the Tamil block). Client predicates include Tamil too: `home`/`mart`/`pharma`/`food`
+  `searchableText`, the type-ahead engine (`suggestions.ts`) matches and renders `nameTa`, and the
+  in-menu/offers filters match `dishNameTa`/`descriptionTa`.
+- Directory rendering is localized: `localizedDishName`/`localizedDishDesc`/`localizedAddonName`/
+  `localizedAddonGroup` wired into `MenuItemRow`, `SearchDishCard`, `AddonPickerSheet`,
+  `StoreCardBase`/`LocalVendorCard`/`LocalMedicalCard`/`PharmaVendorCard`, `RestaurantCard`/
+  `NearbyRestaurantRow`, `RestaurantProfileScreen`/`RestaurantMenuScreen`/`RestaurantOffersScreen`,
+  `StoreProductSection`, `VendorDetailScreen` and `MedicalShopDetailsScreen`.
+- Portal: Tamil inputs + validation on `/seller/products/new`, `/seller/products/{id}/edit`,
+  `/admin/super/categories`, `/seller/stores`, `/seller/onboarding`, `/seller/menus` and the
+  `/seller/inventory` add-on sheet.
+
+Gaps (scoped, not started):
+
+- **Category Tamil copy is not searched.** Only `catalog.products` carries a Tamil FTS vector; typing a
+  Tamil category name does not match the category rail/drill-in.
+- **Cart identity stays English** by design (`addToCart(id, product.name, …)`); order/receipt copy is
+  English.
+
 ## W98 — Masked calling: customer + delivery partner (partial)
 
 **Status:** 🟡 Android is end-to-end in both directions (server customer endpoint, `incoming_call`
@@ -31,16 +132,23 @@ Shipped:
   `POST /calls/{callId}/{ringing-ack,join,reject,end,fallback}`.
 - `GatewayClient` call methods + types; `callStore`.
 - Shared call stack `features/call/`: `controller.ts` (factory), `voip.ts` (100ms),
-  `callkeep.ts`, `incoming.ts`, `CallSurface.tsx`; delivery binding + `CallCustomerButton` on
+  `callkeep.ts` (native-ring facade), `fullScreenIntent.ts` (Android ring-notification bridge),
+  `incoming.ts`, `CallSurface.tsx`; delivery binding + `CallCustomerButton` on
   Dashboard/Route; customer binding + `CallDeliveryPartnerButton` on `OrderDetails`; `ActiveCall`
   route in both navigators; shared FCM `incoming_call` background handlers in `index.js` and
   `index.delivery.js`.
-- Android **customer and delivery** flavor manifests: `RECORD_AUDIO`, `BLUETOOTH_CONNECT`,
-  `USE_FULL_SCREEN_INTENT`, `MICROPHONE`/`PHONE_CALL` foreground services, CallKeep
-  `VoiceConnectionService`; seller manifest strips CallKeep's leaked phone permissions. iOS
-  `voip`/`audio` background modes + local-network copy added; both native calling packages remain
-  excluded from iOS autolinking (`react-native.config.js`).
-- Deps: `@100mslive/react-native-hms@1.12.3`, `react-native-callkeep@4.6.1`. Per-call rooms use
+- Android ring is a **high-importance full-screen-intent notification** (`IncomingCallModule.kt` +
+  `IncomingCallReceiver.kt` + `CallAudioService.kt`), not a telecom `ConnectionService`, so no phone
+  account is registered and the "Phone account required" dialog never appears after OTP/login.
+  Customer and delivery flavor manifests: `RECORD_AUDIO`, `BLUETOOTH_CONNECT`, `USE_FULL_SCREEN_INTENT`,
+  `FOREGROUND_SERVICE_MICROPHONE` (`.CallAudioService`, typed `microphone`); every flavor strips
+  `react-native-callkeep`'s phone permissions (`CALL_PHONE`, `READ_PHONE_STATE`, `READ_PHONE_NUMBERS`,
+  `MANAGE_OWN_CALLS`, `FOREGROUND_SERVICE_PHONE_CALL`) with `tools:node="remove"`. Calling setup is
+  lazy: `bootstrapCalling()` (prompt-free) runs on login, `initialize*Calling()` runs on the first
+  **Call** tap. iOS `voip`/`audio` background modes + local-network copy added; both native calling
+  packages remain excluded from iOS autolinking (`react-native.config.js`).
+- Deps: `@100mslive/react-native-hms@1.12.3`, `react-native-callkeep@4.6.1` (Android-only, optional
+  opt-in; not used for ringing — no phone account is registered). Per-call rooms use
   `HMS_TEMPLATE_ID` (a management token is minted from the app secret; `HMS_MANAGEMENT_TOKEN` is an
   optional override).
 - Hardened: session-epoch guards (cancelled start, decline-during-accept, late PSTN switch cannot
@@ -48,13 +156,15 @@ Shipped:
   recovery that re-acks in-app rings, reconnect notices clearing on success, duplicate
   push-after-decline/end guard, tested mic-denied fallback, `CALLING_ENABLED` enforced in the
   controller/background handler, local ringback (`ringtone.ts` + `callRingback.wav`) and in-app
-  ringtone, visible 3 s button lock, Android `phoneCall|microphone` foreground-service types,
-  CallKeep display-timeout no longer sends a false receipt, cross-call race guards (late poll/end
+  ringtone, visible 3 s button lock, the Android ring moved onto a full-screen-intent notification
+  (native `IncomingCallModule`, no `ConnectionService`/phone account, so no post-login dialog) with
+  lazy calling setup, cross-call race guards (late poll/end
   responses), double-accept guard, UUID-scoped native events, reject-vs-end for ringing, signed-out
   push drop + sign-out teardown, outgoing PSTN no longer stuck on "Dialing…", timer preserved
   across VOIP→PSTN, PSTN controls hidden, failed switch keeps the live leg, end/reject retry,
   duplicate `initialize()` setup, audio-route tracking, open-call check before room provisioning,
-  server sweeper, `GET /delivery/calls/active` startup resume, CallKeep `didLoadWithEvents`, VoIP
+  server sweeper, `GET /delivery/calls/active` startup resume, cold-start notification-action
+  adoption (`takePendingCallAction`), VoIP
   join timeout + peer-left handling, `beforeRemove` guard, Android 12+ Bluetooth permission, legacy
   Bluetooth, `HMS_ENDPOINT` + `render.yaml`, and no raw customer phone in rider order/route
   projections. Regression tests: `src/features/call/__tests__/controller.test.ts`,
@@ -74,8 +184,8 @@ Remaining before Complete:
   `apns-push-type: voip` from `APNS_*` (`0105` keeps the `voip` token beside the FCM token). What is
   left: run `pod install` on macOS (the 100ms pod must link; `Podfile.lock` predates it), build with
   the PushKit/background-audio entitlements, and verify ring/answer/decline with the screen locked.
-- Device QA on Android 14/15 (full-screen intent + phone-account permission prompts), Bluetooth
-  routing, cold-start CallKeep answer, and a CI customer/delivery build; never run Gradle locally.
+- Device QA on Android 14/15 (full-screen intent special access, OEM battery whitelisting), Bluetooth
+  routing, cold-start notification Answer, and a CI customer/delivery build; never run Gradle locally.
 - Client-side reconciliation still cannot *rejoin* an ACTIVE VOIP call after a crash (no token); it
   ends that row and the sweeper bounds any row the client never sees.
 

@@ -29,21 +29,31 @@
 
 ## Language selection
 
-1. `LanguageSelectionScreen` lists suggested + all languages, searchable.
+1. `LanguageSelectionScreen` offers exactly two languages — **English (default, pre-selected)** and
+   **Tamil**. There is no search bar and no "suggested" section; both options render as one flat list.
 2. `handleContinue` writes `useLanguageStore.setLanguage(id)` and navigates to `Location`.
 3. Back returns to `Login` when there is no history.
 
-**State:** `useLanguageStore` (`src/state/languageStore.ts`), persisted in AsyncStorage.
-**Data path:** static language catalogue in the screen (UI copy, not live data).
-**Success:** `Location`. **Error:** none. **Empty:** search with no match shows no results.
+**State:** `useLanguageStore` (`src/state/languageStore.ts`), persisted in AsyncStorage; the value is
+read app-wide (fonts via `AppText`/`AppTextInput`, nav theme, catalog labels via
+`src/lib/localizedText.ts`).
+**Data path:** static language catalogue in the screen (UI copy, not live data). Choosing `ta` makes
+every screen prefer the server-authored Tamil copy (`nameTa`/`descTa`) and fall back to English when
+a translation is empty.
+**Success:** `Location`. **Error:** none. **Empty:** not applicable (two fixed options).
 
 ## Root gate
 
 | Condition | Initial route |
 |---|---|
-| Authenticated | `MainTabs` |
+| Authenticated, `useLocationStore.status === 'idle'` (no usable origin yet) | `Location` (primer step) |
+| Authenticated, origin known (`ready` / `denied` / `blocked`) | `MainTabs` (denied/blocked show the Home nudge banner) |
 | Onboarding seen, no session | `Login` |
 | First launch | `Onboarding` |
+
+The authenticated branch waits for the persisted location to hydrate (3 s bound) before choosing, so
+a returning user with no origin is not stranded on an empty Home tab. See
+[location-picker.md](./location-picker.md).
 
 ## Known gaps
 

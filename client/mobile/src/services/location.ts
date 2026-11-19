@@ -51,6 +51,8 @@ interface NativeGeocoder {
     longitude: number,
   ): Promise<ReverseGeocodeResult | null>;
   getLocationAuthorizationStatus?: () => Promise<LocationAccess>;
+  isLocationServicesEnabled?: () => Promise<boolean>;
+  geocodeAddress?: (address: string) => Promise<Coordinates | null>;
 }
 
 const nativeGeocoder = (NativeModules as { FaazioGeocoder?: NativeGeocoder })
@@ -74,6 +76,29 @@ export async function getLocationAuthorizationStatus(): Promise<LocationAccess> 
     return await nativeGeocoder.getLocationAuthorizationStatus();
   } catch {
     return 'unavailable';
+  }
+}
+
+/**
+ * OS "Location Services" master switch — separate from this app's runtime grant. With it off no
+ * fix is possible at all, so callers must fall back to manual entry instead of trusting the last
+ * stored coordinate. A missing native method (older shell) is reported as `true` because the app
+ * grant check alone is still meaningful.
+ */
+export async function isLocationServicesEnabled(): Promise<boolean> {
+  if (!nativeGeocoder?.isLocationServicesEnabled) {
+    // Android always has the permission API available; the master switch is unknown without it.
+    if (Platform.OS === 'android') {
+      return PermissionsAndroid.check(
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      );
+    }
+    return true;
+  }
+  try {
+    return await nativeGeocoder.isLocationServicesEnabled();
+  } catch {
+    return false;
   }
 }
 
@@ -193,6 +218,24 @@ export async function reverseGeocode(
   if (!nativeGeocoder?.reverseGeocode) return null;
   try {
     return await nativeGeocoder.reverseGeocode(latitude, longitude);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Best-effort forward geocode of an address string. Saved addresses are stored as text, so this is
+ * how a selected saved address becomes the live nearby-feed origin. Resolves `null` when the
+ * address cannot be resolved — callers must never invent coordinates.
+ */
+export async function geocodeAddress(
+  address: string,
+): Promise<Coordinates | null> {
+  if (!nativeGeocoder?.geocodeAddress) return null;
+  const trimmed = address.trim();
+  if (!trimmed) return null;
+  try {
+    return await nativeGeocoder.geocodeAddress(trimmed);
   } catch {
     return null;
   }

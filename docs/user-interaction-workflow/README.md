@@ -104,7 +104,7 @@ This folder documents the rule enforced by `AGENTS.md`:
 - [Cart & checkout](./customer/cart-checkout/index.md) · [Add to cart](./customer/cart-checkout/add-to-cart.md) · [Delivery-fee quote](./customer/cart-checkout/delivery-fee-quote.md) · [Place order](./customer/cart-checkout/place-order.md)
 - [Orders](./customer/orders/index.md) · [Order history](./customer/orders/order-history.md) · [Order feedback](./customer/orders/order-feedback.md)
 - [Calling](./customer/calling/index.md) · [Outgoing](./customer/calling/outgoing.md) · [Incoming](./customer/calling/incoming.md) · [Edge cases](./customer/calling/edge-cases.md) · [Screens](./customer/calling/screens.md)
-- [Profile](./customer/profile/index.md) · [Saved addresses](./customer/profile/saved-addresses.md) · [Rewards ledger](./customer/profile/rewards-ledger.md) · [Rate vendor](./customer/profile/rate-vendor.md)
+- [Profile](./customer/profile/index.md) · [Saved addresses](./customer/profile/saved-addresses.md) · [Language](./customer/profile/language.md) · [Rewards ledger](./customer/profile/rewards-ledger.md) · [Rate vendor](./customer/profile/rate-vendor.md)
 - [Pharma](./customer/pharma/index.md) · [Prescription upload](./customer/pharma/prescription-upload.md) · [Blood donor](./customer/pharma/blood-donor.md)
 
 ### Seller

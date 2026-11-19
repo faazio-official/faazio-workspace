@@ -25,6 +25,7 @@ function toNearbyProduct(p: ProductView): Product {
   return {
     id: p.id,
     name: p.name,
+    ...(p.nameTa ? { nameTa: p.nameTa } : {}),
     price: p.price,
     emoji: p.emoji,
     image: p.image,

@@ -7,9 +7,12 @@ import { PageHeader, Card, TextField, Toggle, EmptyState, SectorBadge } from "@/
 import { updateSellerStore } from "@/lib/api";
 import { useSellerStores } from "@/lib/api/hooks";
 import { uploadPrivateDocument } from "@/lib/media/kyc";
+import { tamilFieldError } from "@/lib/tamil";
 
 type VendorDraft = {
   hours: string;
+  nameTa: string;
+  descTa: string;
   drugLicenseNumber: string;
   drugLicenseFileKey: string;
   drugLicenseAssetId: string;
@@ -26,6 +29,8 @@ function SellerStores() {
         if (!next[store.storeId]) {
           next[store.storeId] = {
             hours: store.hours ?? "",
+            nameTa: store.nameTa ?? "",
+            descTa: store.descTa ?? "",
             drugLicenseNumber: store.drugLicenseNumber ?? "",
             drugLicenseFileKey: store.drugLicenseCertKey ?? "",
             drugLicenseAssetId: store.drugLicenseCertAssetId ?? "",
@@ -43,6 +48,8 @@ function SellerStores() {
     storeId: string,
     patch: {
       hours?: string;
+      nameTa?: string;
+      descTa?: string;
       isLive?: boolean;
       isVeg?: boolean;
       drugLicenseNumber?: string;
@@ -126,6 +133,8 @@ function SellerStores() {
           stores.map((store) => {
             const draft = drafts[store.storeId] ?? {
               hours: store.hours ?? "",
+              nameTa: store.nameTa ?? "",
+              descTa: store.descTa ?? "",
               drugLicenseNumber: store.drugLicenseNumber ?? "",
               drugLicenseFileKey: store.drugLicenseCertKey ?? "",
               drugLicenseAssetId: store.drugLicenseCertAssetId ?? "",
@@ -135,6 +144,11 @@ function SellerStores() {
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
                     <p className="truncate text-sm font-bold">{store.name}</p>
+                    {store.nameTa ? (
+                      <p lang="ta" className="truncate text-[11px] text-muted-foreground">
+                        {store.nameTa}
+                      </p>
+                    ) : null}
                     <p className="truncate text-[11px] text-muted-foreground">
                       {store.address || "Address not set"} · {store.platformFeePct}% platform fee
                     </p>
@@ -172,9 +186,39 @@ function SellerStores() {
                       value={draft.hours}
                       onChange={(v) => updateDraft(store.storeId, { hours: v })}
                     />
+                    <TextField
+                      label="Tamil shop name (optional)"
+                      value={draft.nameTa}
+                      lang="ta"
+                      placeholder="தமிழில் கடை பெயர்"
+                      onChange={(v) => updateDraft(store.storeId, { nameTa: v })}
+                    />
+                    <TextField
+                      label="Tamil description (optional)"
+                      value={draft.descTa}
+                      lang="ta"
+                      placeholder="தமிழில் விவரம்"
+                      onChange={(v) => updateDraft(store.storeId, { descTa: v })}
+                    />
                   </div>
                   <button
-                    onClick={() => void save(store.storeId, { hours: draft.hours })}
+                    onClick={() => {
+                      const nameTaError = tamilFieldError(draft.nameTa, 160, "Tamil shop name");
+                      if (nameTaError) {
+                        toast.error(nameTaError);
+                        return;
+                      }
+                      const descTaError = tamilFieldError(draft.descTa, 2000, "Tamil description");
+                      if (descTaError) {
+                        toast.error(descTaError);
+                        return;
+                      }
+                      void save(store.storeId, {
+                        hours: draft.hours,
+                        nameTa: draft.nameTa.trim(),
+                        descTa: draft.descTa.trim(),
+                      });
+                    }}
                     className="w-full rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background"
                   >
                     Save profile

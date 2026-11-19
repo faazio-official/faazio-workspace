@@ -2,6 +2,8 @@ import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet, type StyleProp, type ViewStyle } from 'react-native';
 import { MapPin } from 'lucide-react-native';
 import AppText from '@/components/AppText';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import type { NearbyRestaurant } from '../types';
@@ -23,19 +25,21 @@ const NearbyRestaurantRow = memo(function NearbyRestaurantRow({
   onPress,
   style,
 }: NearbyRestaurantRowProps) {
+  const language = useLanguageStore((s) => s.language);
+  const restaurantName = localizedName(restaurant, language);
   return (
     <TouchableOpacity
       style={[styles.card, style]}
       onPress={() => onPress?.(restaurant)}
       activeOpacity={0.9}
       accessibilityRole="button"
-      accessibilityLabel={`${restaurant.name}, ${restaurant.cuisine}`}
+      accessibilityLabel={`${restaurantName}, ${restaurant.cuisine}`}
     >
       <RemoteImage uri={restaurant.image} variant="restaurant" style={styles.image} />
 
       <View style={styles.details}>
         <AppText style={styles.name} numberOfLines={1}>
-          {restaurant.name}
+          {restaurantName}
         </AppText>
         <AppText style={styles.cuisine} numberOfLines={1}>
           {restaurant.cuisine}

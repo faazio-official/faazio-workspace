@@ -16,6 +16,9 @@ export interface StoreRecord {
   id: string;
   app: AppBrand;
   name: string;
+  /** Tamil display copy (server translation, 0108). Empty → fall back to `name`/`desc`. */
+  nameTa?: string;
+  descTa?: string;
   categories: string[];
   rating: number;
   reviewsCount?: number;

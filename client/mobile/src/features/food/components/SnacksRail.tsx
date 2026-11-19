@@ -4,6 +4,8 @@ import { FlashList } from '@shopify/flash-list';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { SnackBeverage } from '../types';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import RemoteImage from './RemoteImage';
 
 const ITEM_W = 88;
@@ -19,24 +21,28 @@ interface SnacksRailProps {
  * light-grey backgrounds (rounded) holding cutout food imagery; label below.
  */
 const SnacksRail = memo(function SnacksRail({ snacks, onPress }: SnacksRailProps) {
+  const language = useLanguageStore((s) => s.language);
   const renderItem = useCallback(
-    ({ item }: { item: SnackBeverage }) => (
-      <TouchableOpacity
-        style={styles.item}
-        onPress={() => onPress?.(item)}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel={item.name}
-      >
-        <View style={styles.tile}>
-          <RemoteImage uri={item.image} variant="dish" style={styles.tileImage} />
-        </View>
-        <AppText style={styles.label} numberOfLines={2}>
-          {item.name}
-        </AppText>
-      </TouchableOpacity>
-    ),
-    [onPress],
+    ({ item }: { item: SnackBeverage }) => {
+      const label = localizedName(item, language);
+      return (
+        <TouchableOpacity
+          style={styles.item}
+          onPress={() => onPress?.(item)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+        >
+          <View style={styles.tile}>
+            <RemoteImage uri={item.image} variant="dish" style={styles.tileImage} />
+          </View>
+          <AppText style={styles.label} numberOfLines={2}>
+            {label}
+          </AppText>
+        </TouchableOpacity>
+      );
+    },
+    [onPress, language],
   );
 
   return (

@@ -3,6 +3,8 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Star, Minus, Plus } from 'lucide-react-native';
 import { useCartStore } from '@/state/store';
 import AppText from '@/components/AppText';
+import { localizedDishName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import type { SpecialDish } from '../types';
@@ -35,6 +37,8 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, r
   const updateQuantity = useCartStore((s) => s.updateQuantity);
 
   const quantity = cart.find((i) => i.id === dish.id)?.quantity ?? 0;
+  const language = useLanguageStore((s) => s.language);
+  const dishName = localizedDishName(dish, language);
 
   const handleAdd = () => {
     addToCart(dish.id, dish.dishName, dish.price, CART_ICON_KEY, restaurantId);
@@ -46,7 +50,7 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, r
       onPress={() => onPress?.(dish)}
       activeOpacity={0.9}
       accessibilityRole="button"
-      accessibilityLabel={`${dish.dishName}, by ${dish.restaurant}, ₹${dish.price}`}
+      accessibilityLabel={`${dishName}, by ${dish.restaurant}, ₹${dish.price}`}
     >
       <View style={styles.imageWrap}>
         <RemoteImage uri={dish.image} variant="dish" style={styles.image} />
@@ -55,7 +59,7 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, r
       <View style={styles.details}>
         <View style={styles.titleRow}>
           <AppText style={styles.name} numberOfLines={1}>
-            {dish.dishName}
+            {dishName}
           </AppText>
           <View style={styles.priceCol}>
             {oldPrice !== undefined ? (
@@ -86,7 +90,7 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, r
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={styles.stepperBtn}
                 accessibilityRole="button"
-                accessibilityLabel={`Decrease quantity of ${dish.dishName}`}
+                accessibilityLabel={`Decrease quantity of ${dishName}`}
               >
                 <Minus size={ms(12)} color={foodTheme.primaryDeep} strokeWidth={2.6} />
               </TouchableOpacity>
@@ -96,7 +100,7 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, r
                 hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                 style={styles.stepperBtn}
                 accessibilityRole="button"
-                accessibilityLabel={`Increase quantity of ${dish.dishName}`}
+                accessibilityLabel={`Increase quantity of ${dishName}`}
               >
                 <Plus size={ms(12)} color={foodTheme.primaryDeep} strokeWidth={2.6} />
               </TouchableOpacity>
@@ -108,7 +112,7 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, r
               activeOpacity={0.8}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
-              accessibilityLabel={`Add ${dish.dishName} to cart`}
+              accessibilityLabel={`Add ${dishName} to cart`}
             >
               <AppText style={styles.addBtnText}>+ ADD</AppText>
             </TouchableOpacity>

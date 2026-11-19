@@ -10,20 +10,25 @@
 
 ## Steps
 
-1. `middleware.ts` checks for the refresh cookie (`faazio_prt` / `__Host-faazio_prt`) on
+1. Cold start (`client/mobile` seller app only): the native splash hands off to the JS **layer-2
+   splash** (`SplashFallback` `royal`) — Faazio wordmark on Faazio Blue with the bottom
+   **"Product of FA CREATORS"** credit. It covers the WebView until the portal paints its first page
+   (minimum 1.2 s, 12 s ceiling), so the seller never sees a blank/loading WebView between the two
+   splash layers.
+2. `middleware.ts` checks for the refresh cookie (`faazio_prt` / `__Host-faazio_prt`) on
    `/seller/*` and `/admin/*`; absent → redirect to `/login?next=…`.
-2. `/login` calls `signIn` → `POST /api/auth/portal/login` → gateway `POST /auth/portal/login`.
-3. The gateway verifies credentials (`admins.portal_users`) and mints a portal HS256 JWT
+3. `/login` calls `signIn` → `POST /api/auth/portal/login` → gateway `POST /auth/portal/login`.
+4. The gateway verifies credentials (`admins.portal_users`) and mints a portal HS256 JWT
    (`iss=faazio-portal`, `aud=portal`) + rotating refresh session.
-4. `setAuthCookies` stores `faazio_pat` (15 min) and `faazio_prt` (30 d) as HttpOnly cookies.
-5. `providers.tsx` calls `restoreSession` on mount; `armProactiveRefresh` /
+5. `setAuthCookies` stores `faazio_pat` (15 min) and `faazio_prt` (30 d) as HttpOnly cookies.
+6. `providers.tsx` calls `restoreSession` on mount; `armProactiveRefresh` /
    `armVisibilityRefresh` keep the session fresh. `refreshTokensSingleflight` dedupes concurrent
    refreshes.
-6. `RoleGate` + `src/lib/auth/permissions.ts` route the role to its home:
+7. `RoleGate` + `src/lib/auth/permissions.ts` route the role to its home:
    `homeFor()` → `/seller`, `/admin/district`, or `/admin/super`.
-7. Seller console pages read/write via `src/lib/api/*` → `/api/gateway/[...path]` (the proxy
+8. Seller console pages read/write via `src/lib/api/*` → `/api/gateway/[...path]` (the proxy
    forwards cookies and retries once after rotation).
-8. Logout calls `POST /api/auth/portal/logout` and clears cookies.
+9. Logout calls `POST /api/auth/portal/logout` and clears cookies.
 
 ## State
 

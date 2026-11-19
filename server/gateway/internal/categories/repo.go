@@ -33,6 +33,9 @@ type Category struct {
 	UpdatedAt      string  `json:"updatedAt"`
 	CreatedBy      string  `json:"createdBy"`
 	UpdatedBy      string  `json:"updatedBy,omitempty"`
+	// Tamil display copy (0107). Empty means "not translated" → the app falls back to English.
+	NameTA        string `json:"nameTa,omitempty"`
+	DescriptionTA string `json:"descriptionTa,omitempty"`
 }
 
 // Input is a create/update payload.
@@ -48,19 +51,20 @@ type Input struct {
 	SortOrder      int64   `json:"sortOrder"`
 	IsActive       *bool   `json:"isActive"`
 	ShowOnHomeRail *bool   `json:"showOnHomeRail"` // nil on update = unchanged
+	NameTA         string  `json:"nameTa"`
+	DescriptionTA  string  `json:"descriptionTa"`
 }
 
 // ListOptions filters a category listing.
 type ListOptions struct {
-	App          string
-	ParentID     *string // non-nil → children of that id; nil → no parent filter
-	TopLevel     bool    // only rows with parent_id is null
-	ActiveOnly   bool
-	HomeRailOnly bool // only rows marked show_on_home_rail
+	App        string
+	ParentID   *string // non-nil → children of that id; nil → no parent filter
+	TopLevel   bool    // only rows with parent_id is null
+	ActiveOnly bool
+	// HomeRailOnly restricts the result to curated home-rail chips. FOOD is excluded here as well as
+	// on write, so a legacy row flagged before the rule existed can never surface a FOOD chip.
+	HomeRailOnly bool
 }
-
-// MaxHomeRailCategories is the curated Home header rail size (the customer app renders these chips).
-const MaxHomeRailCategories = 3
 
 // Repo reads/writes taxonomy.categories.
 type Repo struct{ pool *db.Pool }
@@ -70,13 +74,14 @@ func NewRepo(pool *db.Pool) *Repo { return &Repo{pool: pool} }
 
 const rowSelect = `select id, app::text, name, slug, coalesce(description, ''), coalesce(icon_url, ''),
 	parent_id, coalesce(search_query, ''), is_active, show_on_home_rail, sort_order,
-	created_at::text, updated_at::text, created_by, coalesce(updated_by, '')`
+	created_at::text, updated_at::text, created_by, coalesce(updated_by, ''),
+	coalesce(name_ta, ''), coalesce(description_ta, '')`
 
 func scanCategory(row pgx.Row) (Category, error) {
 	var c Category
 	err := row.Scan(&c.ID, &c.App, &c.Name, &c.Slug, &c.Description, &c.IconURL,
 		&c.ParentID, &c.SearchQuery, &c.IsActive, &c.ShowOnHomeRail, &c.SortOrder,
-		&c.CreatedAt, &c.UpdatedAt, &c.CreatedBy, &c.UpdatedBy)
+		&c.CreatedAt, &c.UpdatedAt, &c.CreatedBy, &c.UpdatedBy, &c.NameTA, &c.DescriptionTA)
 	return c, err
 }
 
@@ -91,7 +96,7 @@ func (r *Repo) List(ctx context.Context, opts ListOptions) ([]Category, error) {
 		   and ($2::text is null or parent_id = $2)
 		   and (not $3 or (parent_id is null))
 		   and (not $4 or is_active)
-		   and (not $5 or show_on_home_rail)
+		   and (not $5 or (show_on_home_rail and app::text <> 'FOOD'))
 		 order by app, sort_order, lower(name)`,
 		opts.App, opts.ParentID, opts.TopLevel, opts.ActiveOnly, opts.HomeRailOnly)
 	if err != nil {
@@ -130,9 +135,6 @@ var ErrNotFound = errors.New("categories: not found")
 // ErrDuplicate is returned when a create re-uses an existing category id.
 var ErrDuplicate = errors.New("categories: duplicate id")
 
-// ErrRailLimit is returned when promoting one more category would exceed MaxHomeRailCategories.
-var ErrRailLimit = errors.New("categories: home rail is full")
-
 // Create inserts a new category. When in.ID is empty a stable `cat-<shortid>` id is minted.
 func (r *Repo) Create(ctx context.Context, in Input, actor string) (Category, error) {
 	if r.pool == nil {
@@ -150,15 +152,6 @@ func (r *Repo) Create(ctx context.Context, in Input, actor string) (Category, er
 	if in.ShowOnHomeRail != nil {
 		showOnRail = *in.ShowOnHomeRail
 	}
-	if showOnRail && active {
-		ok, err := r.railSlotAvailable(ctx, "")
-		if err != nil {
-			return Category{}, err
-		}
-		if !ok {
-			return Category{}, ErrRailLimit
-		}
-	}
 	slug := strings.TrimSpace(in.Slug)
 	if slug == "" {
 		slug = slugify(in.Name)
@@ -166,13 +159,15 @@ func (r *Repo) Create(ctx context.Context, in Input, actor string) (Category, er
 	c, err := scanCategory(r.pool.QueryRow(ctx, `
 		insert into taxonomy.categories
 		  (id, app, name, slug, description, icon_url, parent_id, search_query, is_active,
-		   show_on_home_rail, sort_order, created_by, updated_by)
-		values ($1, $2::app_brand, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12)
+		   show_on_home_rail, sort_order, created_by, updated_by, name_ta, description_ta)
+		values ($1, $2::app_brand, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $13, $14)
 		returning `+`id, app::text, name, slug, coalesce(description, ''), coalesce(icon_url, ''),
 			parent_id, coalesce(search_query, ''), is_active, show_on_home_rail, sort_order,
-			created_at::text, updated_at::text, created_by, coalesce(updated_by, '')`,
+			created_at::text, updated_at::text, created_by, coalesce(updated_by, ''),
+			coalesce(name_ta, ''), coalesce(description_ta, '')`,
 		id, in.App, in.Name, slug, nullStr(in.Description), nullStr(in.IconURL),
-		in.ParentID, nullStr(in.SearchQuery), active, showOnRail, in.SortOrder, actor))
+		in.ParentID, nullStr(in.SearchQuery), active, showOnRail, in.SortOrder, actor,
+		strings.TrimSpace(in.NameTA), strings.TrimSpace(in.DescriptionTA)))
 	if err != nil {
 		if isUniqueViolation(err) {
 			return Category{}, ErrDuplicate
@@ -191,19 +186,6 @@ func (r *Repo) Update(ctx context.Context, id string, in Input, actor string) (C
 	if slug == "" {
 		slug = slugify(in.Name)
 	}
-	if in.ShowOnHomeRail != nil && *in.ShowOnHomeRail {
-		// Only an active rail row consumes a slot; a deactivated one is already excluded by the rail.
-		active := in.IsActive == nil || *in.IsActive
-		if active {
-			ok, err := r.railSlotAvailable(ctx, id)
-			if err != nil {
-				return Category{}, err
-			}
-			if !ok {
-				return Category{}, ErrRailLimit
-			}
-		}
-	}
 	c, err := scanCategory(r.pool.QueryRow(ctx, `
 		update taxonomy.categories
 		   set app = $2::app_brand,
@@ -217,13 +199,17 @@ func (r *Repo) Update(ctx context.Context, id string, in Input, actor string) (C
 		       show_on_home_rail = coalesce($10, show_on_home_rail),
 		       sort_order = $11,
 		       updated_by = $12,
+		       name_ta = $13,
+		       description_ta = $14,
 		       updated_at = now()
 		 where id = $1
 		returning `+`id, app::text, name, slug, coalesce(description, ''), coalesce(icon_url, ''),
 			parent_id, coalesce(search_query, ''), is_active, show_on_home_rail, sort_order,
-			created_at::text, updated_at::text, created_by, coalesce(updated_by, '')`,
+			created_at::text, updated_at::text, created_by, coalesce(updated_by, ''),
+			coalesce(name_ta, ''), coalesce(description_ta, '')`,
 		id, in.App, in.Name, slug, nullStr(in.Description), nullStr(in.IconURL),
-		in.ParentID, nullStr(in.SearchQuery), in.IsActive, in.ShowOnHomeRail, in.SortOrder, actor))
+		in.ParentID, nullStr(in.SearchQuery), in.IsActive, in.ShowOnHomeRail, in.SortOrder, actor,
+		strings.TrimSpace(in.NameTA), strings.TrimSpace(in.DescriptionTA)))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Category{}, ErrNotFound
@@ -231,20 +217,6 @@ func (r *Repo) Update(ctx context.Context, id string, in Input, actor string) (C
 		return Category{}, err
 	}
 	return c, nil
-}
-
-// railSlotAvailable reports whether an active spotlight row can be added without exceeding the cap.
-// excludeID is the row being updated so re-saving a rail category never counts itself.
-func (r *Repo) railSlotAvailable(ctx context.Context, excludeID string) (bool, error) {
-	var n int
-	err := r.pool.QueryRow(ctx, `
-		select count(*)
-		  from taxonomy.categories
-		 where show_on_home_rail and is_active and id <> $1`, excludeID).Scan(&n)
-	if err != nil {
-		return false, err
-	}
-	return n < MaxHomeRailCategories, nil
 }
 
 // Deactivate soft-deletes a category (is_active = false) so existing sellers/products that reference

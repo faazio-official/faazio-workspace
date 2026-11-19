@@ -4,6 +4,8 @@ import { FlashList } from '@shopify/flash-list';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { FoodType } from '../types';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import RemoteImage from './RemoteImage';
 
 const ITEM_W = 76;
@@ -19,22 +21,26 @@ interface MindGridRailProps {
  * labels below. Reuses the food-type fixtures (Burgers, Pizza, Biryani, ...).
  */
 const MindGridRail = memo(function MindGridRail({ items, onPress }: MindGridRailProps) {
+  const language = useLanguageStore((s) => s.language);
   const renderItem = useCallback(
-    ({ item }: { item: FoodType }) => (
-      <TouchableOpacity
-        style={styles.item}
-        onPress={() => onPress?.(item)}
-        activeOpacity={0.8}
-        accessibilityRole="button"
-        accessibilityLabel={item.name}
-      >
-        <RemoteImage uri={item.image} variant="dish" style={styles.image} />
-        <AppText style={styles.label} numberOfLines={1}>
-          {item.name}
-        </AppText>
-      </TouchableOpacity>
-    ),
-    [onPress],
+    ({ item }: { item: FoodType }) => {
+      const label = localizedName(item, language);
+      return (
+        <TouchableOpacity
+          style={styles.item}
+          onPress={() => onPress?.(item)}
+          activeOpacity={0.8}
+          accessibilityRole="button"
+          accessibilityLabel={label}
+        >
+          <RemoteImage uri={item.image} variant="dish" style={styles.image} />
+          <AppText style={styles.label} numberOfLines={1}>
+            {label}
+          </AppText>
+        </TouchableOpacity>
+      );
+    },
+    [onPress, language],
   );
 
   return (

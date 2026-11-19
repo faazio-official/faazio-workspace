@@ -65,6 +65,8 @@ export type RootStackParamList = {
   UserDetails: undefined;
   /** Appearance setting — light / dark / auto, device-local (pushed from Account). */
   Theme: undefined;
+  /** Language setting — English / Tamil, device-local (pushed from Account). */
+  Language: undefined;
   /** "Saved Addresses" — manage, select, add delivery locations (pushed from Account). */
   SavedAddresses: undefined;
   /** Permanently delete the account (pushed from Account → Privacy and security). */

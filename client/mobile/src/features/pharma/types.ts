@@ -1,6 +1,8 @@
 export interface PharmaQuickReorderItem {
   id: string;
   name: string;
+  /** Tamil display name (server translation). Empty → fall back to `name`. */
+  nameTa?: string;
   stripDetails: string;
   price: number;
   /** List price (MRP) when an approved server discount lowered `price`; absent otherwise. */
@@ -18,6 +20,8 @@ export interface PharmaTopOffer {
 export interface PharmaPopularMedicine {
   id: string;
   name: string;
+  /** Tamil display name (server translation). Empty → fall back to `name`. */
+  nameTa?: string;
   details: string;
   rating: number;
   price: number;

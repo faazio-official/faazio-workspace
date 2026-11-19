@@ -50,34 +50,42 @@ func TestValidID(t *testing.T) {
 
 func TestHomeRailError(t *testing.T) {
 	yes, no := true, false
-	parent := "cat_smart_gadgets"
 	for _, tt := range []struct {
-		name   string
-		app    string
-		parent *string
-		show   *bool
-		want   string
+		name string
+		app  string
+		show *bool
+		want string
 	}{
-		{"unset", "MART", nil, nil, ""},
-		{"off", "MART", nil, &no, ""},
-		{"mart top level", "MART", nil, &yes, ""},
-		{"pharma top level", "PHARMA", nil, &yes, ""},
-		{"food rejected", "FOOD", nil, &yes, "FOOD categories cannot appear on the home rail"},
-		{"child rejected", "MART", &parent, &yes, "only top-level categories can appear on the home rail"},
-		{"empty child id allowed", "MART", ptr(""), &yes, ""},
+		{"unset", "MART", nil, ""},
+		{"off", "MART", &no, ""},
+		{"mart", "MART", &yes, ""},
+		{"pharma", "PHARMA", &yes, ""},
+		{"food rejected", "FOOD", &yes, "FOOD categories cannot appear on the home rail"},
+		{"food off allowed", "FOOD", &no, ""},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := homeRailError(tt.app, tt.parent, tt.show); got != tt.want {
-				t.Fatalf("homeRailError(%q, %v, %v) = %q, want %q", tt.app, tt.parent, tt.show, got, tt.want)
+			if got := homeRailError(tt.app, tt.show); got != tt.want {
+				t.Fatalf("homeRailError(%q, %v) = %q, want %q", tt.app, tt.show, got, tt.want)
 			}
 		})
 	}
 }
 
-func ptr(s string) *string { return &s }
+// TestHomeRailIsUnbounded pins the locked decisions: no slot cap and no tree-level restriction. The
+// signature is the proof of the latter — homeRailError takes no parent id, so a child row cannot be
+// rejected by the rail rule. Child rows are additionally covered end-to-end by TestHomeRailList.
+func TestHomeRailIsUnbounded(t *testing.T) {
+	yes := true
+	for _, app := range []string{"MART", "PHARMA"} {
+		if msg := homeRailError(app, &yes); msg != "" {
+			t.Fatalf("homeRailError(%q, true) = %q, want accepted", app, msg)
+		}
+	}
+}
 
 // TestCreateValidation pins the 400s that run before any DB access: with a nil pool every accepted
-// body would 500, so a 400 proves the validator rejected it first.
+// body would 500, so a 400 proves the validator rejected it first. A child rail row is absent here on
+// purpose — it is valid now (TestHomeRailList proves the tree level reaches the rail).
 func TestCreateValidation(t *testing.T) {
 	h := NewHandler(NewRepo(nil))
 	for _, tt := range []struct{ name, body string }{
@@ -87,7 +95,9 @@ func TestCreateValidation(t *testing.T) {
 		{"bad id", `{"app":"MART","name":"X","id":"bad id!"}`},
 		{"body not json", `{`},
 		{"food rail", `{"app":"FOOD","name":"X","showOnHomeRail":true}`},
-		{"child rail", `{"app":"MART","name":"X","parentId":"cat_smart_gadgets","showOnHomeRail":true}`},
+		{"tamil name latin", `{"app":"MART","name":"X","nameTa":"Milk"}`},
+		{"tamil desc mixed", `{"app":"MART","name":"X","descriptionTa":"பால் Milk"}`},
+		{"tamil name too long", `{"app":"MART","name":"X","nameTa":"` + strings.Repeat("ண", 121) + `"}`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := httptest.NewRequest(http.MethodPost, "/categories", strings.NewReader(tt.body))

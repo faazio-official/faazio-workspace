@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { HubHeader } from "@/components/sellers/shells";
 import { Sheet, TextField, Toggle, VegMark, EmptyState } from "@/components/sellers/kit";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
+import { tamilFieldError } from "@/lib/tamil";
 import { deleteMenu, setMenuStatus, upsertMenu, type MenuDto } from "@/lib/api";
 import { useMenus, usePortalLoading, useSellerScope } from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
@@ -24,6 +25,8 @@ interface FormState {
   venueId: string;
   dishId: string;
   name: string;
+  nameTa: string;
+  descriptionTa: string;
   price: string;
   mrp: string;
   isVeg: boolean;
@@ -36,6 +39,8 @@ function emptyForm(): FormState {
     venueId: "",
     dishId: "",
     name: "",
+    nameTa: "",
+    descriptionTa: "",
     price: "",
     mrp: "",
     isVeg: true,
@@ -49,6 +54,8 @@ function toForm(m: MenuItemRecord): FormState {
     venueId: m.venueId,
     dishId: m.dishId,
     name: m.name,
+    nameTa: m.nameTa ?? "",
+    descriptionTa: m.descriptionTa ?? "",
     price: String(m.pricePaisa / 100),
     mrp: m.mrpPaisa != null ? String(m.mrpPaisa / 100) : "",
     isVeg: m.isVeg ?? true,
@@ -93,6 +100,16 @@ function SellerMenus() {
       toast.error(`Venue, ${itemLabel.toLowerCase()} id, name and a non-negative price are required`);
       return;
     }
+    const nameTaError = tamilFieldError(form.nameTa, 200, isFood ? "Tamil dish name" : "Tamil item name");
+    if (nameTaError) {
+      toast.error(nameTaError);
+      return;
+    }
+    const descTaError = tamilFieldError(form.descriptionTa, 2000, "Tamil description");
+    if (descTaError) {
+      toast.error(descTaError);
+      return;
+    }
     const mrpRaw = form.mrp.trim();
     const mrpPaisa = mrpRaw === "" ? undefined : parseRupeesToPaisa(mrpRaw);
     if (mrpPaisa != null && mrpPaisa < pricePaisa) {
@@ -104,6 +121,8 @@ function SellerMenus() {
       dishId: form.dishId.trim(),
       name: form.name.trim(),
       pricePaisa,
+      ...(form.nameTa.trim() ? { nameTa: form.nameTa.trim() } : {}),
+      ...(form.descriptionTa.trim() ? { descriptionTa: form.descriptionTa.trim() } : {}),
       ...(mrpPaisa != null ? { mrpPaisa } : {}),
       isVeg: form.isVeg,
       cuisine: form.cuisine.trim(),
@@ -173,6 +192,11 @@ function SellerMenus() {
                   {isFood && <VegMark veg={m.isVeg !== false} />}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-semibold">{m.name}</p>
+                    {m.nameTa ? (
+                      <p lang="ta" className="truncate text-[11px] text-muted-foreground">
+                        {m.nameTa}
+                      </p>
+                    ) : null}
                     <p className="truncate text-[11px] text-muted-foreground">
                       {m.cuisine ?? (isFood ? "No cuisine" : "Item code")} · {m.dishId}
                     </p>
@@ -274,6 +298,20 @@ function SellerMenus() {
             label={isFood ? "Dish name" : "Item name"}
             value={form.name}
             onChange={(v) => setForm({ ...form, name: v })}
+          />
+          <TextField
+            label="Tamil name (optional)"
+            value={form.nameTa}
+            lang="ta"
+            placeholder="தமிழில் பெயர்"
+            onChange={(v) => setForm({ ...form, nameTa: v })}
+          />
+          <TextField
+            label="Tamil description (optional)"
+            value={form.descriptionTa}
+            lang="ta"
+            placeholder="தமிழில் விவரம்"
+            onChange={(v) => setForm({ ...form, descriptionTa: v })}
           />
           <TextField
             label="Price (₹)"

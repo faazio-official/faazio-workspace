@@ -14,6 +14,7 @@ import (
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
+	"github.com/faazio/server/gateway/internal/platform/locale"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
 )
@@ -23,9 +24,12 @@ import (
 // whole rupees). Status mirrors the product_status enum: DRAFT / PENDING_REVIEW / ACTIVE /
 // REJECTED / DELISTED (rejections are stored back as DRAFT + review_reason in this feature).
 type Addon struct {
-	AddonID      string `json:"addonId"`
-	VenueID      string `json:"venueId"`
-	Name         string `json:"name"`
+	AddonID string `json:"addonId"`
+	VenueID string `json:"venueId"`
+	Name    string `json:"name"`
+	// Tamil display copy (0108). Empty means "not translated" → the app falls back to English.
+	NameTA       string `json:"nameTa,omitempty"`
+	GroupNameTA  string `json:"groupNameTa,omitempty"`
 	GroupName    string `json:"groupName"`
 	PricePaisa   int64  `json:"pricePaisa"`
 	IsVeg        bool   `json:"isVeg"`
@@ -43,16 +47,20 @@ type MenuAddon struct {
 
 // PublicAddon is the customer-facing shape (whole rupees, active + enabled links only).
 type PublicAddon struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	GroupName string `json:"groupName"`
-	Price     int64  `json:"price"`
-	IsVeg     bool   `json:"isVeg"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Tamil display copy (0108). Empty means "not translated" → the app falls back to English.
+	NameTA      string `json:"nameTa,omitempty"`
+	GroupNameTA string `json:"groupNameTa,omitempty"`
+	GroupName   string `json:"groupName"`
+	Price       int64  `json:"price"`
+	IsVeg       bool   `json:"isVeg"`
 }
 
 const addonSelect = `
 select a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
-       a.status::text, coalesce(a.review_reason, ''), a.updated_at
+       a.status::text, coalesce(a.review_reason, ''), a.updated_at,
+       coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')
 from directory.addons a
 join directory.stores st on st.id = a.venue_id
 left join sellers.sellers se on se.seller_id = st.seller_id`
@@ -69,7 +77,7 @@ func scanAddon(row pgx.Row) (Addon, time.Time, error) {
 		updatedAt time.Time
 	)
 	err := row.Scan(&a.AddonID, &a.VenueID, &a.Name, &a.GroupName, &a.PricePaisa, &a.IsVeg,
-		&a.Status, &a.ReviewReason, &updatedAt)
+		&a.Status, &a.ReviewReason, &updatedAt, &a.NameTA, &a.GroupNameTA)
 	if err != nil {
 		return Addon{}, time.Time{}, err
 	}
@@ -98,7 +106,7 @@ func (r *Repo) ListAddons(ctx context.Context, sellerID, district, venueID, stat
 			updatedAt time.Time
 		)
 		if err := rows.Scan(&a.AddonID, &a.VenueID, &a.Name, &a.GroupName, &a.PricePaisa, &a.IsVeg,
-			&a.Status, &a.ReviewReason, &updatedAt); err != nil {
+			&a.Status, &a.ReviewReason, &updatedAt, &a.NameTA, &a.GroupNameTA); err != nil {
 			return nil, err
 		}
 		a.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
@@ -124,7 +132,7 @@ func (r *Repo) AddonByID(ctx context.Context, addonID, sellerID, district string
 }
 
 // CreateAddon inserts a DRAFT add-on owned by a venue store in the caller's scope.
-func (r *Repo) CreateAddon(ctx context.Context, venueID, name, group string, pricePaisa int64, isVeg bool, sellerID, district string) (Addon, bool, error) {
+func (r *Repo) CreateAddon(ctx context.Context, venueID, name, group, nameTA, groupTA string, pricePaisa int64, isVeg bool, sellerID, district string) (Addon, bool, error) {
 	if r.pool == nil {
 		return Addon{}, false, fmt.Errorf("catalog: database not configured")
 	}
@@ -136,11 +144,11 @@ func (r *Repo) CreateAddon(ctx context.Context, venueID, name, group string, pri
 		return Addon{}, false, nil
 	}
 	a, _, err := scanAddon(r.pool.QueryRow(ctx, `
-		insert into directory.addons (addon_id, venue_id, name, group_name, price_paisa, is_veg, status)
-		values ($1, $2, $3, $4, $5, $6, 'DRAFT')
+		insert into directory.addons (addon_id, venue_id, name, group_name, name_ta, group_name_ta, price_paisa, is_veg, status)
+		values ($1, $2, $3, $4, $5, $6, $7, $8, 'DRAFT')
 		returning addon_id, venue_id, name, group_name, price_paisa, is_veg, status::text,
-		          coalesce(review_reason, ''), updated_at`,
-		newAddonID(), venueID, name, group, pricePaisa, isVeg))
+		          coalesce(review_reason, ''), updated_at, coalesce(name_ta, ''), coalesce(group_name_ta, '')`,
+		newAddonID(), venueID, name, group, strings.TrimSpace(nameTA), strings.TrimSpace(groupTA), pricePaisa, isVeg))
 	if err != nil {
 		return Addon{}, false, err
 	}
@@ -148,19 +156,20 @@ func (r *Repo) CreateAddon(ctx context.Context, venueID, name, group string, pri
 }
 
 // UpdateAddon patches the editable fields, scoped to the caller.
-func (r *Repo) UpdateAddon(ctx context.Context, addonID, name, group string, pricePaisa int64, isVeg bool, sellerID, district string) (Addon, bool, error) {
+func (r *Repo) UpdateAddon(ctx context.Context, addonID, name, group, nameTA, groupTA string, pricePaisa int64, isVeg bool, sellerID, district string) (Addon, bool, error) {
 	if r.pool == nil {
 		return Addon{}, false, fmt.Errorf("catalog: database not configured")
 	}
 	a, _, err := scanAddon(r.pool.QueryRow(ctx, `
 		update directory.addons a set name = $3, group_name = $4, price_paisa = $5, is_veg = $6,
-		       updated_at = now()
+		       name_ta = $8, group_name_ta = $9, updated_at = now()
 		 from directory.stores st
 		 left join sellers.sellers se on se.seller_id = st.seller_id
 		 where a.addon_id = $7 and st.id = a.venue_id and `+addonScopePredicate+`
 		 returning a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
-		           a.status::text, coalesce(a.review_reason, ''), a.updated_at`,
-		sellerID, district, name, group, pricePaisa, isVeg, addonID))
+		           a.status::text, coalesce(a.review_reason, ''), a.updated_at,
+		           coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')`,
+		sellerID, district, name, group, pricePaisa, isVeg, addonID, strings.TrimSpace(nameTA), strings.TrimSpace(groupTA)))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Addon{}, false, nil
@@ -183,7 +192,8 @@ func (r *Repo) SubmitAddonForReview(ctx context.Context, addonID, sellerID, dist
 		   and a.status in ('DRAFT'::product_status, 'DELISTED'::product_status)
 		   and `+addonScopePredicate+`
 		 returning a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
-		           a.status::text, coalesce(a.review_reason, ''), a.updated_at`,
+		           a.status::text, coalesce(a.review_reason, ''), a.updated_at,
+		           coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')`,
 		sellerID, district, addonID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -208,7 +218,8 @@ func (r *Repo) SetAddonStatus(ctx context.Context, addonID, status, reason, sell
 		 left join sellers.sellers se on se.seller_id = st.seller_id
 		 where a.addon_id = $5 and st.id = a.venue_id and `+addonScopePredicate+`
 		 returning a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
-		           a.status::text, coalesce(a.review_reason, ''), a.updated_at`,
+		           a.status::text, coalesce(a.review_reason, ''), a.updated_at,
+		           coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')`,
 		sellerID, district, status, reason, addonID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -241,7 +252,8 @@ func (r *Repo) ListMenuAddons(ctx context.Context, sellerID, district, venueID, 
 	}
 	rows, err := r.pool.Query(ctx, `
 		select a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
-		       a.status::text, coalesce(a.review_reason, ''), a.updated_at, l.dish_id, l.is_enabled
+		       a.status::text, coalesce(a.review_reason, ''), a.updated_at, l.dish_id, l.is_enabled,
+		       coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')
 		  from directory.menu_addon_links l
 		  join directory.addons a on a.addon_id = l.addon_id and a.venue_id = l.venue_id
 		  join directory.stores st on st.id = a.venue_id
@@ -261,7 +273,7 @@ func (r *Repo) ListMenuAddons(ctx context.Context, sellerID, district, venueID, 
 			updatedAt time.Time
 		)
 		if err := rows.Scan(&m.AddonID, &m.VenueID, &m.Name, &m.GroupName, &m.PricePaisa, &m.IsVeg,
-			&m.Status, &m.ReviewReason, &updatedAt, &m.DishID, &m.Enabled); err != nil {
+			&m.Status, &m.ReviewReason, &updatedAt, &m.DishID, &m.Enabled, &m.NameTA, &m.GroupNameTA); err != nil {
 			return nil, err
 		}
 		m.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
@@ -316,7 +328,8 @@ func (r *Repo) ListDishAddons(ctx context.Context, venueID, dishID string) ([]Pu
 		return nil, fmt.Errorf("catalog: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select a.addon_id, a.name, a.group_name, a.price_paisa, a.is_veg
+		select a.addon_id, a.name, a.group_name, a.price_paisa, a.is_veg,
+		       coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')
 		  from directory.menu_addon_links l
 		  join directory.addons a on a.addon_id = l.addon_id and a.venue_id = l.venue_id
 		 where l.venue_id = $1 and l.dish_id = $2 and l.is_enabled
@@ -329,7 +342,7 @@ func (r *Repo) ListDishAddons(ctx context.Context, venueID, dishID string) ([]Pu
 	out := []PublicAddon{}
 	for rows.Next() {
 		var a PublicAddon
-		if err := rows.Scan(&a.ID, &a.Name, &a.GroupName, &a.Price, &a.IsVeg); err != nil {
+		if err := rows.Scan(&a.ID, &a.Name, &a.GroupName, &a.Price, &a.IsVeg, &a.NameTA, &a.GroupNameTA); err != nil {
 			return nil, err
 		}
 		a.Price = a.Price / 100
@@ -386,11 +399,13 @@ func (h *Handler) getAddon(w http.ResponseWriter, r *http.Request) {
 // whole rupees on the wire and stored as paisa.
 func (h *Handler) createAddon(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		VenueID   string `json:"venueId"`
-		Name      string `json:"name"`
-		GroupName string `json:"groupName"`
-		Price     int64  `json:"price"`
-		IsVeg     bool   `json:"isVeg"`
+		VenueID     string `json:"venueId"`
+		Name        string `json:"name"`
+		GroupName   string `json:"groupName"`
+		NameTA      string `json:"nameTa"`
+		GroupNameTA string `json:"groupNameTa"`
+		Price       int64  `json:"price"`
+		IsVeg       bool   `json:"isVeg"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
@@ -411,12 +426,17 @@ func (h *Handler) createAddon(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid price")
 		return
 	}
+	if !locale.IsTamilText(strings.TrimSpace(body.NameTA)) || len([]rune(strings.TrimSpace(body.NameTA))) > 200 ||
+		!locale.IsTamilText(strings.TrimSpace(body.GroupNameTA)) || len([]rune(strings.TrimSpace(body.GroupNameTA))) > 120 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
+		return
+	}
 	sellerID, district, ok := managementScope(r)
 	if !ok {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "no add-on scope on this account")
 		return
 	}
-	a, found, err := h.repo.CreateAddon(r.Context(), venueID, name, group, body.Price*100, body.IsVeg, sellerID, district)
+	a, found, err := h.repo.CreateAddon(r.Context(), venueID, name, group, body.NameTA, body.GroupNameTA, body.Price*100, body.IsVeg, sellerID, district)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
 		return
@@ -432,10 +452,12 @@ func (h *Handler) createAddon(w http.ResponseWriter, r *http.Request) {
 // updateAddon serves PUT /seller/addons/{addonId}.
 func (h *Handler) updateAddon(w http.ResponseWriter, r *http.Request) {
 	var body struct {
-		Name      string `json:"name"`
-		GroupName string `json:"groupName"`
-		Price     int64  `json:"price"`
-		IsVeg     bool   `json:"isVeg"`
+		Name        string `json:"name"`
+		GroupName   string `json:"groupName"`
+		NameTA      string `json:"nameTa"`
+		GroupNameTA string `json:"groupNameTa"`
+		Price       int64  `json:"price"`
+		IsVeg       bool   `json:"isVeg"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
@@ -455,13 +477,18 @@ func (h *Handler) updateAddon(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid price")
 		return
 	}
+	if !locale.IsTamilText(strings.TrimSpace(body.NameTA)) || len([]rune(strings.TrimSpace(body.NameTA))) > 200 ||
+		!locale.IsTamilText(strings.TrimSpace(body.GroupNameTA)) || len([]rune(strings.TrimSpace(body.GroupNameTA))) > 120 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
+		return
+	}
 	sellerID, district, ok := managementScope(r)
 	if !ok {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "no add-on scope on this account")
 		return
 	}
 	id := chi.URLParam(r, "addonId")
-	a, found, err := h.repo.UpdateAddon(r.Context(), id, name, group, body.Price*100, body.IsVeg, sellerID, district)
+	a, found, err := h.repo.UpdateAddon(r.Context(), id, name, group, body.NameTA, body.GroupNameTA, body.Price*100, body.IsVeg, sellerID, district)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
 		return

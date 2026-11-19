@@ -1,6 +1,6 @@
 # Incoming delivery call (customer → rider)
 
-**App / route(s):** delivery · shared FCM handler → native ringing (CallKeep) → `ActiveCall`
+**App / route(s):** delivery · shared FCM handler → full-screen-intent notification → `ActiveCall`
 **Status:** **Partial** — send, receive, ring and answer are implemented on Android (the delivery
 partner is Android-only); the remaining gaps are the device-unverified iOS customer ring and PSTN
 provider provisioning.
@@ -17,11 +17,11 @@ provider provisioning.
    - ignores a duplicate delivery of the same call id while it is already ringing/active,
    - rejects with `busy` when another call is already open,
    - sets `callStore` to `ringing` with `incoming: true` and the masked peer label,
-   - sets up CallKeep and shows the native full-screen ring with the peer role + order suffix; if
-     CallKeep is unavailable (or does not confirm the display within 1.5 s) the in-app surface is
-     shown and loops the ringing tone instead,
+   - posts the high-importance full-screen-intent ring notification (peer role + order suffix); if the
+     OS refuses it (notifications blocked) the in-app surface is shown and loops the ringing tone
+     instead,
    - fires `POST /calls/{callId}/ringing-ack` **only when a ring surface is actually visible**
-     (native call displayed, or the app is foreground). A headless device without a phone account
+     (notification posted, or the app is foreground). A device whose notifications are blocked
      intentionally does not ack, so the server can fall back to PSTN,
    - starts the 2 s status poll, so a caller cancel/end (only the server knows) stops the ring
      instead of ringing until the 45 s sweep.
@@ -37,8 +37,9 @@ provider provisioning.
      placed the bridge (`bridged: true`) nothing is dialled — the client shows "Connecting the secure
      phone line…" and waits for the provider webhook to mark the row ACTIVE. Then `ActiveCall` shows
      the timer.
-5. **Decline** (native decline or in-app Decline) → CallKeep `rejectCall` for the ringing UI +
-   `POST /calls/{callId}/reject` (`RINGING → REJECTED`; a `busy` reason is recorded as `BUSY`).
+5. **Decline** (native decline or in-app Decline) → the ring notification is dismissed
+   (`declineIncomingCall`) + `POST /calls/{callId}/reject` (`RINGING → REJECTED`; a `busy` reason is
+   recorded as `BUSY`).
 6. While ringing, the server watches `ringing_ack_at`; a later `GET /calls/{callId}` reports
    `fallbackAvailable` so the caller can switch to PSTN.
 7. A row that outlives the runtime is handled twice: on the next authenticated start the client
@@ -50,10 +51,10 @@ provider provisioning.
 
 - `useCallStore` — `phase: 'ringing'`, `incoming: true`, masked peer label, order id; after join the
   normal active-call fields (`connectedAt`, `audioRoute`, …).
-- CallKeep listeners (`answerCall`, `endCall`, and buffered `didLoadWithEvents` for cold-start taps)
-  are attached once as soon as the authenticated app starts, and again idempotently from the
-  background handler/Dashboard. A cancelled phone-account prompt is treated as "not configured" and
-  retried on the next call (never cached as success).
+- The notification's Answer/Decline `PendingIntent`s land in `IncomingCallReceiver`; a live JS runtime
+  gets a `FaazioIncomingCallAction` event, a killed app parks the action in `IncomingCallState` and
+  `takePendingCallAction()` adopts it on the next bootstrap. There is no phone-account prompt at any
+  point, so nothing to cancel/retry.
 
 ## Data path
 
@@ -64,9 +65,9 @@ provider provisioning.
 
 ## Success / error / empty
 
-- **Success:** native ring → answer → active call; decline → caller hears failure.
-- **Error:** CallKeep unavailable → the in-app `ActiveCall` surface shows Accept/Decline instead;
-  push without `callId` is ignored; no session is fabricated.
+- **Success:** full-screen ring → answer → active call; decline → caller hears failure.
+- **Error:** the notification is refused → the in-app `ActiveCall` surface shows Accept/Decline
+  instead; push without `callId` is ignored; no session is fabricated.
 - **Empty:** no push → no ring.
 
 ## Known gaps
@@ -76,10 +77,10 @@ provider provisioning.
   (`FCM_SERVICE_ACCOUNT_JSON` + `FCM_PROJECT_ID`) — without them the outbox has no sender.
 - **iOS ring unverified.** The customer iOS app owns PushKit/CallKit natively
   (`VoipCallManager.swift`) and the gateway sends the `voip` push over APNs; the delivery partner app
-  stays Android/FCM (`incoming_call` data push → CallKeep). A macOS `pod install` + device build is
-  still required to prove the iOS path.
-- **Answer when the app was swiped away** depends on headless JS + CallKeep; device/OEM battery
-  restrictions can suppress it.
+  stays Android/FCM (`incoming_call` data push → full-screen-intent notification). A macOS
+  `pod install` + device build is still required to prove the iOS path.
+- **Answer when the app was swiped away** depends on headless JS + the notification's Answer
+  `PendingIntent`; device/OEM battery restrictions can suppress the background handler.
 - **No GSM-busy pre-check** before ringing, and no queued-call banner for a second caller.
 
 ## Linked docs

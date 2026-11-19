@@ -1,13 +1,28 @@
 import React from 'react';
 import { TextInput } from 'react-native';
 import type { TextInputProps } from 'react-native';
-import { resolveTextStyle } from '@/theme/fonts';
+import { containsTamil, resolveTextStyle } from '@/theme/fonts';
+import { useLanguageStore } from '@/state/languageStore';
 
 const AppTextInput = React.forwardRef<TextInput, TextInputProps>(function AppTextInput(
-  { style, ...props },
+  { style, value, placeholder, ...props },
   ref,
 ) {
-  return <TextInput ref={ref} {...props} style={resolveTextStyle(style)} />;
+  const language = useLanguageStore((s) => s.language);
+  const useTamil =
+    language === 'ta' ||
+    (typeof value === 'string' && containsTamil(value)) ||
+    (typeof placeholder === 'string' && containsTamil(placeholder));
+
+  return (
+    <TextInput
+      ref={ref}
+      {...props}
+      value={value}
+      placeholder={placeholder}
+      style={resolveTextStyle(style, useTamil)}
+    />
+  );
 });
 
 AppTextInput.displayName = 'AppTextInput';

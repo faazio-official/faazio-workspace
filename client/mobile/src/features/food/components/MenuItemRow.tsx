@@ -3,6 +3,8 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Plus, Minus } from 'lucide-react-native';
 import type { SpecialDish } from '@data/types';
 import AppText from '@/components/AppText';
+import { localizedDishDesc, localizedDishName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import RemoteImage from './RemoteImage';
@@ -32,6 +34,9 @@ const MenuItemRow = memo(function MenuItemRow({
   onPress,
 }: MenuItemRowProps) {
   const isAdded = quantity > 0;
+  const language = useLanguageStore((s) => s.language);
+  const dishName = localizedDishName(dish, language);
+  const dishDesc = localizedDishDesc(dish, language);
 
   return (
     <View style={styles.listCard}>
@@ -41,16 +46,16 @@ const MenuItemRow = memo(function MenuItemRow({
         activeOpacity={0.8}
         disabled={!onPress}
         accessibilityRole={onPress ? 'button' : undefined}
-        accessibilityLabel={onPress ? `${dish.dishName}, ₹${dish.price}. Opens details` : undefined}
+        accessibilityLabel={onPress ? `${dishName}, ₹${dish.price}. Opens details` : undefined}
       >
         <View style={styles.vegRow}>
           <View style={[styles.vegMark, dish.isVeg ? styles.vegMarkVeg : styles.vegMarkNonVeg]}>
             <View style={[styles.vegDot, dish.isVeg ? styles.vegDotVeg : styles.vegDotNonVeg]} />
           </View>
-          <AppText style={styles.listTitle} numberOfLines={2}>{dish.dishName}</AppText>
+          <AppText style={styles.listTitle} numberOfLines={2}>{dishName}</AppText>
         </View>
         <AppText numberOfLines={2} style={styles.listDesc}>
-          {dish.description}
+          {dishDesc}
         </AppText>
         <View style={styles.listPriceRow}>
           <AppText style={styles.listPrice}>₹{dish.price}</AppText>
@@ -68,7 +73,7 @@ const MenuItemRow = memo(function MenuItemRow({
               onPress={onDecrement}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
-              accessibilityLabel={`Decrease quantity of ${dish.dishName}`}
+              accessibilityLabel={`Decrease quantity of ${dishName}`}
             >
               <Minus color={foodTheme.primary} size={ms(14)} />
             </TouchableOpacity>
@@ -78,7 +83,7 @@ const MenuItemRow = memo(function MenuItemRow({
               onPress={onIncrement}
               hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
               accessibilityRole="button"
-              accessibilityLabel={`Increase quantity of ${dish.dishName}`}
+              accessibilityLabel={`Increase quantity of ${dishName}`}
             >
               <Plus color={foodTheme.primary} size={ms(14)} />
             </TouchableOpacity>
@@ -88,7 +93,7 @@ const MenuItemRow = memo(function MenuItemRow({
             style={styles.addBtnOutline}
             onPress={onAdd}
             accessibilityRole="button"
-            accessibilityLabel={`Add ${dish.dishName}`}
+            accessibilityLabel={`Add ${dishName}`}
           >
             <Plus color={foodTheme.primary} size={ms(14)} style={styles.addBtnPlus} />
             <AppText style={styles.addBtnOutlineText}>Add</AppText>

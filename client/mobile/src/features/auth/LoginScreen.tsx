@@ -158,7 +158,6 @@ export function LoginScreen({ navigation }: Props) {
   const otpInputRef = useRef<TextInput>(null);
   const submitRef = useRef(false);
   const resendRef = useRef(false);
-  const phoneAdvanceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -194,10 +193,6 @@ export function LoginScreen({ navigation }: Props) {
       showSub.remove();
       hideSub.remove();
     };
-  }, []);
-
-  useEffect(() => () => {
-    if (phoneAdvanceRef.current) clearTimeout(phoneAdvanceRef.current);
   }, []);
 
   useEffect(() => {
@@ -443,17 +438,6 @@ export function LoginScreen({ navigation }: Props) {
     const numericVal = val.replace(/\D/g, '').slice(0, 15);
     setPhone(numericVal);
     setPhoneError('');
-    if (phoneAdvanceRef.current) {
-      clearTimeout(phoneAdvanceRef.current);
-      phoneAdvanceRef.current = null;
-    }
-    // India-only login: a 10-digit national number auto-advances to the OTP screen.
-    if (numericVal.length === 10 && !otpState) {
-      phoneAdvanceRef.current = setTimeout(() => {
-        phoneAdvanceRef.current = null;
-        void requestOtp(numericVal);
-      }, 150);
-    }
   };
 
   const handleOtpChange = (val: string) => {

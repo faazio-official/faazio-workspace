@@ -358,6 +358,9 @@ export interface RewardsView {
 export interface MenuDish {
   id: string;
   name: string;
+  /** Tamil display copy (server translation, 0108). Empty → fall back to `name`/`description`. */
+  nameTa?: string;
+  descTa?: string;
   price: number;
   /** List price (MRP) in whole rupees; present only when authored (discount = mrp > price). */
   mrp?: number;
@@ -373,6 +376,9 @@ export interface MenuDish {
 export interface DishAddon {
   id: string;
   name: string;
+  /** Tamil display copy (server translation, 0108). Empty → fall back to `name`/`groupName`. */
+  nameTa?: string;
+  groupNameTa?: string;
   groupName: string;
   price: number;
   isVeg: boolean;
@@ -383,6 +389,8 @@ export interface Venue {
   id: string;
   app: string;
   name: string;
+  /** Tamil display name (server translation, 0108). Empty → fall back to `name`. */
+  nameTa?: string;
   rating?: number;
   coverImage: string;
   categories: string[];
@@ -408,6 +416,10 @@ export interface Category {
   name: string;
   slug: string;
   description?: string;
+  /** Tamil display name (server translation, 0107). Empty → fall back to `name`. */
+  nameTa?: string;
+  /** Tamil display description (server translation, 0107). Empty → fall back to `description`. */
+  descriptionTa?: string;
   iconUrl?: string;
   parentId: string | null;
   /** Free-text vendor query for a leaf category (drill-in). Null on parent rows. */
@@ -1264,8 +1276,8 @@ export class GatewayClient {
   }
 
   /**
-   * Flat active top-level categories curated onto the Home/Mart header rail
-   * (`GET /categories/rail`, `show_on_home_rail = true`).
+   * Curated categories for the Home/Mart header rail
+   * (`GET /categories/rail`, `show_on_home_rail = true`; Mart + Pharma, any tree level, unbounded).
    */
   async fetchCategoryRail(): Promise<Category[]> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();

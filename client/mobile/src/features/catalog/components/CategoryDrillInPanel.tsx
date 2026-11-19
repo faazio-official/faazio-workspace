@@ -16,6 +16,8 @@ import CampaignHero from '@/components/shared/CampaignHero';
 import AppRefreshControl from '@/components/shared/AppRefreshControl';
 import { ReportIssueButton } from '@/components/shared/ReportIssueButton';
 import type { Product } from '@data/types';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { openHeroTarget } from '@/services/adsTarget';
 import { useCategoryVendors } from '@/features/catalog/hooks/useCategoryVendors';
 import { useCategoryTree } from '@/features/catalog/hooks/useCategoryTree';
@@ -55,6 +57,7 @@ export function CategoryDrillInPanel({
 }: CategoryDrillInPanelProps) {
   const insets = useSafeAreaInsets();
   const accent = FAAZIO_BLUE;
+  const language = useLanguageStore((s) => s.language);
   const bodyRef = useRef<FlatList<VendorProducts>>(null);
 
   // Server-backed taxonomy for this sub-app (superadmin-owned; no fixture fallback).
@@ -88,14 +91,21 @@ export function CategoryDrillInPanel({
       const kids = byParent.get(id) ?? [];
       if (kids.length === 0) {
         const node = categories.find((c) => c.id === id);
-        if (node) out.push({ id: node.id, name: node.name, searchQuery: node.searchQuery || node.name });
+        if (node) {
+          out.push({
+            id: node.id,
+            // `searchQuery` stays the English taxonomy identity — only the label is translated.
+            name: localizedName(node, language),
+            searchQuery: node.searchQuery || node.name,
+          });
+        }
         return;
       }
       for (const k of kids) walk(k.id);
     };
     walk(activeTab.id);
     return out;
-  }, [activeTab, byParent, categories]);
+  }, [activeTab, byParent, categories, language]);
 
   const [activeItemId, setActiveItemId] = useState<string | null>(null);
   const activeItem = items.find((i) => i.id === activeItemId) ?? items[0];

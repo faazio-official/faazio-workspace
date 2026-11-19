@@ -4,6 +4,8 @@ import { Heart, Store, Plus, Minus, Check } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
 import type { Product, AppBrand } from '@data/types';
+import { localizedDesc, localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 
 const TEXT_DARK = '#111827';
 const TEXT_MUTED = '#6B7280';
@@ -63,6 +65,9 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
   onFavorite,
   showStoreHeader = true,
 }: SearchProductRowCardProps) {
+  const language = useLanguageStore((s) => s.language);
+  const displayName = localizedName(product, language);
+  const displayDesc = localizedDesc(product, language);
   const originalPrice = product.originalPrice;
   const discountPct = getDiscountPct(product.price, originalPrice);
   const storeName = resolveStoreName(product);
@@ -73,7 +78,7 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
       onPress={onPress}
       activeOpacity={0.9}
       accessibilityRole="button"
-      accessibilityLabel={`${product.name}, ${storeName}, ₹${product.price}`}
+      accessibilityLabel={`${displayName}, ${storeName}, ₹${product.price}`}
     >
       {showStoreHeader && (
         <View style={styles.headerRow}>
@@ -91,11 +96,11 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
 
         <View style={styles.details}>
           <AppText style={styles.name} numberOfLines={1} ellipsizeMode="tail">
-            {product.name}
+            {displayName}
           </AppText>
 
           <AppText style={styles.desc} numberOfLines={1} ellipsizeMode="tail">
-            {product.desc}
+            {displayDesc}
           </AppText>
 
           <View style={styles.priceRow}>
@@ -115,7 +120,7 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
                   onPress={onDecrement}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Remove one ${product.name}`}
+                  accessibilityLabel={`Remove one ${displayName}`}
                 >
                   <Minus size={ms(13)} color="#ffffff" strokeWidth={3} />
                 </TouchableOpacity>
@@ -124,7 +129,7 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
                   onPress={onIncrement}
                   hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                   accessibilityRole="button"
-                  accessibilityLabel={`Add one more ${product.name}`}
+                  accessibilityLabel={`Add one more ${displayName}`}
                 >
                   <Plus size={ms(13)} color="#ffffff" strokeWidth={3} />
                 </TouchableOpacity>
@@ -135,7 +140,7 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
                 onPress={onAdd}
                 hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
                 accessibilityRole="button"
-                accessibilityLabel={`Add ${product.name} to cart`}
+                accessibilityLabel={`Add ${displayName} to cart`}
               >
                 <Check size={ms(14)} color="#ffffff" strokeWidth={3} />
               </TouchableOpacity>
@@ -150,7 +155,7 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
           onPress={onFavorite}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
-          accessibilityLabel={`Toggle favourite for ${product.name}`}
+          accessibilityLabel={`Toggle favourite for ${displayName}`}
           accessibilityState={{ selected: isFavorite }}
         >
           <Heart

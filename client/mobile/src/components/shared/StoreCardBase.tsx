@@ -6,6 +6,8 @@ import { brandTokens, semantic } from '@/theme/brandTokens';
 import AdLabelBadge from './AdLabelBadge';
 import type { StoreProfile } from '@data/types';
 import AppText from '@/components/AppText';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 
 interface StoreCardBaseProps {
   store: StoreProfile;
@@ -18,6 +20,8 @@ interface StoreCardBaseProps {
 const StoreCardBase = memo(function StoreCardBase({ store, variant = 'vendor', width, showAdLabel = false, onPress }: StoreCardBaseProps) {
   const tokens = brandTokens[store.app];
   const isRail = variant === 'rail';
+  const language = useLanguageStore((s) => s.language);
+  const storeName = localizedName(store, language);
 
   if (isRail) {
     return (
@@ -31,7 +35,7 @@ const StoreCardBase = memo(function StoreCardBase({ store, variant = 'vendor', w
           )}
         </View>
         <View style={styles.meta}>
-          <AppText style={styles.railStoreName} numberOfLines={1}>{store.name}</AppText>
+          <AppText style={styles.railStoreName} numberOfLines={1}>{storeName}</AppText>
           <View style={styles.ratingRow}>
             <Star size={ms(10)} color="#f59e0b" fill="#f59e0b" />
             <AppText style={styles.ratingText}>{store.rating}</AppText>
@@ -66,7 +70,7 @@ const StoreCardBase = memo(function StoreCardBase({ store, variant = 'vendor', w
         <View style={styles.emojiCircle}>
           <AppText style={{ fontSize: ms(20) }}>{store.emoji}</AppText>
         </View>
-        <AppText style={styles.storeName}>{store.name}</AppText>
+        <AppText style={styles.storeName}>{storeName}</AppText>
         {store.isVeg !== undefined && (
           <View style={styles.vegBadge}>
             <View

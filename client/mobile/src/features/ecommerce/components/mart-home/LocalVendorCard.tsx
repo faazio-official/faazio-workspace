@@ -2,6 +2,8 @@ import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Star, Clock, MapPin, ChevronRight } from 'lucide-react-native';
 import AppText from '@/components/AppText';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { hs, ms, vs } from '@/utils/responsive';
 import { brandRamp } from '@/theme/brandTokens';
 import type { StoreProfile } from '@data/types';
@@ -22,13 +24,16 @@ const LocalVendorCard = memo(function LocalVendorCard({
   store,
   onPress,
 }: LocalVendorCardProps) {
+  const language = useLanguageStore((s) => s.language);
+  const storeName = localizedName(store, language);
+
   return (
     <TouchableOpacity
       style={styles.card}
       onPress={() => onPress?.(store)}
       activeOpacity={0.94}
       accessibilityRole="button"
-      accessibilityLabel={`${store.name}, ${store.distance}`}
+      accessibilityLabel={`${storeName}, ${store.distance}`}
     >
       <View style={styles.imageWrap}>
         <MartImage uri={store.coverImage} style={styles.image} />
@@ -39,7 +44,7 @@ const LocalVendorCard = memo(function LocalVendorCard({
       </View>
       <View style={styles.body}>
         <AppText style={styles.name} numberOfLines={1}>
-          {store.name}
+          {storeName}
         </AppText>
         <View style={styles.metaRow}>
           <View style={styles.ratingBadge}>

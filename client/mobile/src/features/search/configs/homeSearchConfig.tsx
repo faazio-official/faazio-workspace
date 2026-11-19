@@ -19,11 +19,14 @@ import type { ActiveFacets, SearchScreenConfig } from '../types';
  * cards are selected by app brand.
  */
 
+// Tamil copy is part of the match: a shopper typing a Tamil product name must find it.
 const searchableText = (p: Product) => {
   const parts = [
     p.name,
+    p.nameTa,
     p.category,
     p.desc,
+    p.descTa,
     p.unit,
     ...Object.values(p.attributes ?? {}).flatMap((v) =>
       Array.isArray(v) ? v : [String(v)],

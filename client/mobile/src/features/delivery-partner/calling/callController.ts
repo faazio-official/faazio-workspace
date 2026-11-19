@@ -4,7 +4,7 @@ import { gateway } from '@/services/api/GatewayClient';
 
 /**
  * Delivery-partner binding for the shared masked-calling controller. The state machine, VOIP
- * adapter, CallKeep surface and background handler are shared with the customer app; only the
+ * adapter, native-ring facade and background handler are shared with the customer app; only the
  * navigation handle, endpoint surface and product copy differ.
  */
 const controller = createCallController({
@@ -59,6 +59,7 @@ const controller = createCallController({
   },
 });
 
+export const bootstrapCalling = controller.bootstrap;
 export const initializeDeliveryCalling = controller.initialize;
 export const flushPendingActiveCall = controller.flushPendingActiveCall;
 export const startDeliveryCall = controller.start;

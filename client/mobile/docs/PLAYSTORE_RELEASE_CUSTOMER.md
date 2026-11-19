@@ -40,7 +40,7 @@ Android metadata lives in the committed native project, not `app.json` (deleted)
 | Setting | File |
 |---|---|
 | `applicationId` / `namespace` | `android/app/build.gradle` (`com.faazio.customer`) |
-| `versionCode` / `versionName` | `android/app/build.gradle` (keep `package.json` version in sync) |
+| `versionCode` / `versionName` | `client/mobile/app-versions.json` (per app — read by `android/app/build.gradle` per flavor) |
 | Permissions | `android/app/src/main/AndroidManifest.xml` |
 | Icons | customer `android/app/src/main/res/`; delivery/seller `android/app/src/<flavor>/res/` (splash stays in `src/main/res/`) |
 | Cleartext / cert pins | `android/app/src/main/res/xml/network_security_config.xml` |
@@ -202,7 +202,7 @@ legal retention. Never ship a build with the row hidden or the route removed.
 
 ## Checklist
 
-- [ ] `versionCode` > previous release (auto-derived from `-f version=` semver, or +1 committed bump) and `versionName` matches `package.json`.
+- [ ] `versionCode` > this app's previous release (auto-derived from `-f version=` semver, or the committed `app-versions.json` entry) and `versionName` matches that entry.
 - [ ] `npm run ts:check` and `npm run check:boundaries` pass (both run in CI).
 - [ ] Customer upload key re-provisioned (Play Console upload-key reset) and the four `_CUSTOMER`
   keystore secrets re-added; customer CI releases are intentionally blocked until then.

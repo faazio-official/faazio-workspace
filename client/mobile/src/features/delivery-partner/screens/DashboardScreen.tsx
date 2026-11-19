@@ -42,7 +42,6 @@ import { type DeliveryPartnerStackParamList, type DeliveryTabParamList } from '.
 import { activeOrderFrom } from '../activeOrder';
 import { DeliveryHeader } from '../components/DeliveryHeader';
 import { CallCustomerButton } from '../components/CallCustomerButton';
-import { initializeDeliveryCalling } from '../calling/callController';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<DeliveryTabParamList, 'Dashboard'>,
@@ -169,11 +168,6 @@ export function DashboardScreen({ navigation }: Props) {
     }, 20_000);
     return () => clearInterval(timer);
   }, [online, setActiveOrder]);
-
-  useEffect(() => {
-    // Native call surface is set up only after the rider reaches the authenticated shell.
-    void initializeDeliveryCalling();
-  }, []);
 
   useEffect(() => {
     let stop: (() => void) | undefined;

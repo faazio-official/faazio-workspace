@@ -6,6 +6,7 @@ import { Upload } from "lucide-react";
 import { PageHeader, Card, TextField, Toggle, Sheet, RadioRow, EmptyState, FixedActionBar } from "@/components/sellers/kit";
 import { createSellerVendor } from "@/lib/api";
 import { useSellerScope, useStates } from "@/lib/api/hooks";
+import { tamilFieldError } from "@/lib/tamil";
 import { uploadPrivateDocument } from "@/lib/media/kyc";
 import { cn } from "@/lib/utils";
 import type { Sector } from "@/data/types";
@@ -18,6 +19,8 @@ function AddVendor() {
   const states = useStates();
   const [form, setForm] = useState({
     name: "",
+    nameTa: "",
+    descTa: "",
     app: "MART" as Sector,
     address: "",
     phone: "",
@@ -67,10 +70,22 @@ function AddVendor() {
 
   async function submit() {
     if (!valid || busy) return;
+    const nameTaError = tamilFieldError(form.nameTa, 160, "Tamil shop name");
+    if (nameTaError) {
+      toast.error(nameTaError);
+      return;
+    }
+    const descTaError = tamilFieldError(form.descTa, 2000, "Tamil description");
+    if (descTaError) {
+      toast.error(descTaError);
+      return;
+    }
     setBusy(true);
     try {
       const vendor = await createSellerVendor({
         name: form.name.trim(),
+        ...(form.nameTa.trim() ? { nameTa: form.nameTa.trim() } : {}),
+        ...(form.descTa.trim() ? { descTa: form.descTa.trim() } : {}),
         app: form.app,
         address: form.address.trim(),
         phone: form.phone.trim(),
@@ -116,6 +131,20 @@ function AddVendor() {
             A vendor is one shop in one app. Your account can own several vendors.
           </p>
           <TextField label="Vendor name" value={form.name} onChange={(v) => field("name", v)} />
+          <TextField
+            label="Tamil shop name (optional)"
+            value={form.nameTa}
+            lang="ta"
+            placeholder="தமிழில் கடை பெயர்"
+            onChange={(v) => field("nameTa", v)}
+          />
+          <TextField
+            label="Tamil description (optional)"
+            value={form.descTa}
+            lang="ta"
+            placeholder="தமிழில் விவரம்"
+            onChange={(v) => field("descTa", v)}
+          />
 
           <p className="mt-2 mb-1 text-xs font-medium text-muted-foreground">App</p>
           <div className="no-scrollbar flex gap-2 overflow-x-auto pb-1">

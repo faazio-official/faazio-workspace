@@ -17,24 +17,31 @@ provider credentials are not provisioned.
   **Call delivery partner** + secondary **Use phone call** with a phone-line icon (forces
   `forcePstn`). Hidden when `CALLING_ENABLED=false`; for 3 s after a tap it reads **Starting call…**
   and is disabled.
-- Shared call stack (`src/features/call/`): controller factory, 100ms VOIP adapter, CallKeep
-  ringing, FCM background handler, and `CallSurface` full-screen UI. The customer binding lives in
-  `features/customer/calling/callController.ts`.
+- Shared call stack (`src/features/call/`): controller factory, 100ms VOIP adapter, native-ring facade
+  (`callkeep.ts`) backed on Android by the full-screen-intent notification
+  (`fullScreenIntent.ts` + native `IncomingCallModule`), FCM background handler, and `CallSurface`
+  full-screen UI. The customer binding lives in `features/customer/calling/callController.ts`.
 - `ActiveCall` root route (`AppNavigator.tsx`, `fullScreenModal`, `gestureEnabled: false`) with a
   light/dark themed `ActiveCallScreen`; hardware back ends the call first.
 - `callStore` (shared) — phase, call projection, masked peer label, `connectedAt`, mute/speaker/
   `audioRoute`/Bluetooth, incoming, reconnecting, fallback prompt, notice, error.
 - `index.js` registers the shared FCM `incoming_call` background handler before the app mounts;
   `customerPush.ts` routes foreground/cold-start call payloads to the same handler.
-- `App.tsx` initializes the controller after login, flushes a cold-start call navigation on
-  `NavigationContainer.onReady`, and calls `shutdownCalling()` on sign-out. The customer binding sets
-  `recoverActiveCall: false`: `GET /delivery/calls/active` is rider-scoped, so recovery happens
+- `App.tsx` calls `bootstrapCalling()` after login — a **prompt-free** attach (listeners, AppState,
+  adoption of a cold-start Answer tap) that registers no phone account, so no system dialog appears
+  after OTP. The native ring surface is set up lazily on the first **Call** tap
+  (`initializeCustomerCalling()` inside `CallDeliveryPartnerButton`), and `shutdownCalling()` runs on
+  sign-out. `NavigationContainer.onReady` flushes a cold-start call navigation. The customer binding
+  sets `recoverActiveCall: false`: `GET /delivery/calls/active` is rider-scoped, so recovery happens
   per order through `GET /orders/{orderId}/delivery-call` inside `start`/`adoptOpenCall`; a row with
   no order id in hand is bounded by the gateway sweeper.
 - Android customer flavor manifest (`android/app/src/customer/AndroidManifest.xml`) declares
-  microphone/Bluetooth/full-screen-intent/phone-call foreground-service permissions and the CallKeep
-  `VoiceConnectionService`. iOS declares `voip` + `audio` background modes and local-network copy,
-  but the CallKeep/100ms pods remain excluded from iOS autolinking.
+  `RECORD_AUDIO`, `BLUETOOTH_CONNECT` (+ legacy Bluetooth ≤ Android 11), `USE_FULL_SCREEN_INTENT`,
+  `FOREGROUND_SERVICE_MICROPHONE` (via `.CallAudioService`, typed `microphone`, held only while a call
+  is connected) and registers `.IncomingCallReceiver`. No telecom `ConnectionService` / phone account
+  is declared, and `react-native-callkeep`'s phone-account permissions are stripped with
+  `tools:node="remove"`. iOS declares `voip` + `audio` background modes and local-network copy, but
+  the CallKeep/100ms pods remain excluded from iOS autolinking.
 
 ## Flows
 

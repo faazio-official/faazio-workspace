@@ -16,6 +16,7 @@ interface MostRatedRestaurantsSectionProps extends SectionProps {
 interface RestaurantStore {
   id: string;
   name: string;
+  nameTa?: string;
   coverImage: string;
   categories: string[];
   rating: number;
@@ -28,6 +29,7 @@ function toRow(store: RestaurantStore) {
   return {
     id: store.id,
     name: store.name,
+    ...(store.nameTa ? { nameTa: store.nameTa } : {}),
     image: store.coverImage,
     cuisine: store.categories[0] ?? 'Restaurant',
     rating: store.rating,

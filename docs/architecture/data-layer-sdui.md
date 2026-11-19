@@ -50,11 +50,26 @@ data/
 
 The category rail (`HeaderCategoryRail` via `usePagedRail`) is now **server-backed**: it reads the
 superadmin-owned `taxonomy.categories` tree through `GatewayClient.fetchCategoryRail`
-(`GET /categories/rail`, only active top-level rows curated with `show_on_home_rail`, max 3 globally)
+(`GET /categories/rail`, only active rows curated with `show_on_home_rail` — unbounded,
+Mart + Pharma combined, any tree level, FOOD excluded)
 and projects rows to chips in `services/categoryRail.ts`. The former
 `data/categories/railFeed.ts` + `masterCategories.ts` fixtures were removed — there is no category
 fixture. The Mart/Pharma drill-in (`useCategoryTree` → `fetchCategories`) reads the same tree, and
 the vendor query per leaf lives on the row (`taxonomy.categories.search_query`).
+
+**Display-only translations.** Catalog rows and categories carry optional Tamil copy
+(`catalog.products.name_ta`/`desc_text_ta`, `taxonomy.categories.name_ta`/`description_ta`, `0107`),
+and the directory carries the same for stores, venues, menu dishes and add-ons
+(`directory.stores.name_ta`/`desc_text_ta`, `directory.dining_venues.name_ta`,
+`directory.menus.name_ta`/`description_ta`, `directory.addons.name_ta`/`group_name_ta`, `0108`) —
+authored in the portals and validated Tamil-only by the gateway. `src/lib/localizedText.ts`
+(`localizedName`/`localizedDesc`, `localizedDishName`/`localizedDishDesc`,
+`localizedAddonName`/`localizedAddonGroup`) picks it only when the shopper chose Tamil **and** a
+translation exists; otherwise the English canonical value is shown. The same optional fields exist on
+the `@data` types (`Product`, `CatalogEntry`, `MartDeal`, `StoreRecord`, `StoreProfile`,
+`SpecialDish`, `FoodRestaurant`, Food/Pharma item models) so an offline shell and a live read share
+one shape — but fixtures never carry Tamil copy. Product Tamil copy **is** searchable (client
+predicates + server `search_vec`, `0108`); the Tantivy `search_tokens` source stays English.
 
 **Blood Donor targeted Ask Blood** (`data/pharma/bloodRequests.ts` and
 `data/pharma/bloodDonors.ts`) exports `DonorMatchRequest`, `DonorProfile`, `BLOOD_DONORS`,

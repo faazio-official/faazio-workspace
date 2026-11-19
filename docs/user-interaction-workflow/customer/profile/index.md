@@ -4,7 +4,7 @@
 `RequestDataDeletion`, `Notifications` are documented only as coverage gaps)
 **Routes:** `MainTabs` → `You` (`AccountScreen.tsx`), `You` pushed (`YouScreen.tsx`), `UserDetails`,
 `SavedAddresses`, `DeleteAccount`, `RequestDataDeletion`, `Notifications`, `FaazioRewards`,
-`RateVendor`, `Theme`
+`RateVendor`, `Theme`, `Language`
 **Trigger:** Tapping the You tab or an account row.
 
 ## Flows
@@ -16,6 +16,7 @@
 | Rewards ledger | [rewards-ledger.md](./rewards-ledger.md) |
 | Rate vendor | [rate-vendor.md](./rate-vendor.md) |
 | Appearance (theme) | [theme.md](./theme.md) |
+| Language (English / Tamil) | [language.md](./language.md) |
 
 ## Account surfaces
 
@@ -26,6 +27,9 @@
 - **Appearance** is a client-side Preferences row added after the server groups (the server catalog
   is untouched). It opens `ThemeScreen` → `useThemeStore` → AsyncStorage `faazio.theme`; no
   gateway/DB read or write. See [theme.md](./theme.md).
+- **Language** is the second Preferences row (`Appearance` → `Language`). It opens `LanguageScreen` →
+  `useLanguageStore` → AsyncStorage `faazio:selectedLanguage`; no gateway/DB read or write. The list
+  comes from `src/lib/languages.ts`, shared with onboarding. See [language.md](./language.md).
 - Profile details: [`UserDetailsScreen` → `getProfile` / `getDetails`](./user-details.md) →
   `accounts.profile` / `accounts.details`.
 - Delete account / partial data deletion: `DeleteAccountScreen` / `RequestDataDeletionScreen` →

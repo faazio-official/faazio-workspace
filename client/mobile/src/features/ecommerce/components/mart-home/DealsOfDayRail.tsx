@@ -6,6 +6,8 @@ import { useViewableTracking } from '@/hooks/useViewableTracking';
 import type { MartDeal } from '../../types';
 import MartSectionHeader from './MartSectionHeader';
 import MartDealCard from './MartDealCard';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 
 const DEAL_CARD_W = hs(150);
 
@@ -23,6 +25,7 @@ const DealsOfDayRail = memo(function DealsOfDayRail({
   onViewAll,
   onItemView,
 }: DealsOfDayRailProps) {
+  const language = useLanguageStore((s) => s.language);
   const { onViewableItemsChanged, viewabilityConfig } = useViewableTracking<MartDeal>((deal) =>
     onItemView?.(deal),
   );
@@ -31,7 +34,7 @@ const DealsOfDayRail = memo(function DealsOfDayRail({
     ({ item }: { item: MartDeal }) => (
       <MartDealCard
         image={item.imageUrl}
-        name={item.name}
+        name={localizedName(item, language)}
         rating={item.rating}
         price={item.price}
         originalPrice={item.originalPrice}
@@ -40,7 +43,7 @@ const DealsOfDayRail = memo(function DealsOfDayRail({
         onPress={() => onDealPress?.(item)}
       />
     ),
-    [onDealPress],
+    [onDealPress, language],
   );
 
   return (

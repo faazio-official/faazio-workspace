@@ -17,8 +17,13 @@ Native app.
     itself (Faazio Blue) lives once in `docs/UI_DESIGN_SYSTEM.md` §5.
   - `spacing.ts` — `SPACE.SECTION` / `BLOCK` / `ITEM` / `LIST_BOTTOM`, the
     canonical vertical rhythm.
-  - `fonts.ts` — platform fonts only (Roboto on Android, `System` on iOS). No
-    custom font module, no font-load gate.
+  - `fonts.ts` — platform fonts for Latin copy (Roboto on Android, `System` on
+    iOS) plus the **bundled Tamil face** (Hind Madurai, SIL OFL 1.1) resolved
+    by `tamilFont.ts`. No custom font module and no async font-load gate — the
+    TTFs are embedded natively (`android/app/src/main/assets/fonts/`,
+    `ios/Faazio/Fonts/` + `UIAppFonts`). Never pass `fontWeight` alongside the
+    bundled Tamil family: the file already encodes the weight and Android would
+    synthesise a second face (`resolveTextStyle` forces `fontWeight: undefined`).
   - `sectorVisuals.ts` — `SECTOR_VISUALS` for sector icon, fill and tint.
 - **`SPACE` owns section rhythm.** A boundary has exactly one owner of its gap:
   a section header owns its top gap (`SPACE.SECTION`); its parent must not also

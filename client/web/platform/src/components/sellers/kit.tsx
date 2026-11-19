@@ -369,6 +369,7 @@ export function TextField({
   placeholder,
   type = "text",
   disabled,
+  lang,
 }: {
   label: string;
   value: string;
@@ -376,6 +377,8 @@ export function TextField({
   placeholder?: string;
   type?: string;
   disabled?: boolean;
+  /** BCP-47 tag for the input text (e.g. `ta`), so the browser picks a script-capable font. */
+  lang?: string;
 }) {
   return (
     <label className="block py-2">
@@ -385,6 +388,7 @@ export function TextField({
         value={value}
         placeholder={placeholder}
         disabled={disabled}
+        lang={lang}
         onChange={(e) => onChange(e.target.value)}
         className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-[16px] outline-none focus:border-info disabled:opacity-50 md:text-sm"
       />

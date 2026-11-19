@@ -68,6 +68,8 @@ function overlayCategoryProduct(authored: PharmaDBItem, row: ProductView): Pharm
     ...authored,
     category: row.category || authored.category,
     name: row.name || authored.name,
+    // Tamil copy comes from the server only; never authored locally.
+    ...(row.nameTa ? { nameTa: row.nameTa } : {}),
     price: row.price,
     originalPrice: row.originalPrice ?? null,
     discountBadge: row.badge ?? null,
@@ -257,6 +259,8 @@ export function PharmaScreen({
     onProductClick?.({
       id: item.id,
       name: item.name,
+      // Display-only Tamil copy for a Tamil session; the PDP falls back to `name` when absent.
+      ...(item.nameTa ? { nameTa: item.nameTa } : {}),
       price: item.price,
       emoji: 'pharma',
       image: item.imageUrl,
@@ -447,6 +451,7 @@ export function PharmaScreen({
             const cardProduct = {
               id: product.id,
               name: product.name,
+              ...(product.nameTa ? { nameTa: product.nameTa } : {}),
               price: displayPrice(product),
               emoji: product.emoji,
               image: product.image,

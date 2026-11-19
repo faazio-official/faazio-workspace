@@ -37,7 +37,8 @@ func New(pool *db.Pool, cdnBase ...string) *Repo {
 const storeSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
        cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, address, phone, hours,
-       coalesce(state_code,''), latitude, longitude, null::float8 as distance_km
+       coalesce(state_code,''), latitude, longitude, null::float8 as distance_km,
+       coalesce(name_ta, ''), coalesce(desc_text_ta, '')
 from directory.stores`
 
 // storeListSelect is the public list projection: it never fetches the PII columns (address/phone),
@@ -45,7 +46,8 @@ from directory.stores`
 const storeListSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
        cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, null::text as address, null::text as phone, hours,
-       coalesce(state_code,''), latitude, longitude, null::float8 as distance_km
+       coalesce(state_code,''), latitude, longitude, null::float8 as distance_km,
+       coalesce(name_ta, ''), coalesce(desc_text_ta, '')
 from directory.stores`
 
 // ByApp returns stores for one app (empty app = all).
@@ -211,7 +213,8 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 		return nil, fmt.Errorf("directory: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, description, emoji, delivery_time
+		select dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, description, emoji, delivery_time,
+		       coalesce(name_ta, ''), coalesce(description_ta, '')
 		  from directory.menus where venue_id = $1 and status = 'ACTIVE'::product_status
 		 order by rating desc nulls last, name asc`, venueID)
 	if err != nil {
@@ -231,7 +234,8 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 			delivery *string
 			imageKey *string
 		)
-		if err := rows.Scan(&d.ID, &d.Name, &d.Price, &mrp, &isVeg, &cuisine, &rating, &d.Image, &imageKey, &desc, &emoji, &delivery); err != nil {
+		if err := rows.Scan(&d.ID, &d.Name, &d.Price, &mrp, &isVeg, &cuisine, &rating, &d.Image, &imageKey, &desc, &emoji, &delivery,
+			&d.NameTA, &d.DescriptionTA); err != nil {
 			return nil, err
 		}
 		if imageKey != nil && *imageKey != "" && r.cdnBase != "" {
@@ -256,7 +260,7 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 // columns (address/phone), so an anonymous venue list cannot reach the wire or the edge cache.
 const venueListSelect = `
 select id, app::text, name, rating, cover_image, categories,
-       null::text as address, null::text as phone, hours
+       null::text as address, null::text as phone, hours, coalesce(name_ta, '')
 from directory.dining_venues`
 
 // Venues returns dining venues for one app (empty app = all), best-rated first. This is the list
@@ -281,7 +285,7 @@ func (r *Repo) Venues(ctx context.Context, app string) ([]contracts.Venue, error
 			phone   *string
 			hours   *string
 		)
-		if err := rows.Scan(&v.ID, &v.App, &v.Name, &rating, &v.CoverImage, &v.Categories, &address, &phone, &hours); err != nil {
+		if err := rows.Scan(&v.ID, &v.App, &v.Name, &rating, &v.CoverImage, &v.Categories, &address, &phone, &hours, &v.NameTA); err != nil {
 			return nil, err
 		}
 		v.Rating = rating
@@ -296,7 +300,7 @@ func (r *Repo) Venues(ctx context.Context, app string) ([]contracts.Venue, error
 // venueSelect is the full single-venue projection (authed reads). Public callers get the list
 // projection instead so PII is never fetched for an anon cache entry.
 const venueSelect = `
-select id, app::text, name, rating, cover_image, categories, address, phone, hours
+select id, app::text, name, rating, cover_image, categories, address, phone, hours, coalesce(name_ta, '')
 from directory.dining_venues`
 
 // VenueByID returns one dining venue (full projection). Public callers must redact before caching.
@@ -318,7 +322,7 @@ func (r *Repo) VenueByID(ctx context.Context, id string) (contracts.Venue, bool,
 			phone   *string
 			hours   *string
 		)
-		if err := rows.Scan(&v.ID, &v.App, &v.Name, &rating, &v.CoverImage, &v.Categories, &address, &phone, &hours); err != nil {
+		if err := rows.Scan(&v.ID, &v.App, &v.Name, &rating, &v.CoverImage, &v.Categories, &address, &phone, &hours, &v.NameTA); err != nil {
 			return contracts.Venue{}, false, err
 		}
 		v.Rating = rating
@@ -355,7 +359,7 @@ func scanStores(rows pgx.Rows, cdnBase string) ([]contracts.Store, error) {
 			&s.ID, &s.App, &s.Name, &s.Categories, &s.Rating, &reviews,
 			&s.DeliveryTime, &s.Distance, &s.CoverImage, &coverKey, &s.Emoji, &s.Desc,
 			&offerTag, &isVeg, &address, &phone, &hours, &s.StateCode,
-			&lat, &lng, &distance,
+			&lat, &lng, &distance, &s.NameTA, &s.DescTA,
 		); err != nil {
 			return nil, err
 		}
@@ -385,8 +389,11 @@ func derefStr(v *string) string {
 
 // SellerStore is the portal-facing store-management projection (includes seller scope + live flag).
 type SellerStore struct {
-	ID           string  `json:"id"`
-	Name         string  `json:"name"`
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	// Tamil display copy (0108). Empty means "not translated" → the app falls back to English.
+	NameTA       string  `json:"nameTa,omitempty"`
+	DescTA       string  `json:"descTa,omitempty"`
 	App          string  `json:"app"`
 	SellerID     string  `json:"sellerId,omitempty"`
 	StateCode    string  `json:"stateCode,omitempty"`
@@ -479,7 +486,8 @@ func (r *Repo) SellerStores(ctx context.Context, sellerID, district string) ([]S
 		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.Address, &s.Phone, &s.Hours, &s.DeliveryTime,
 			&s.IsVeg, &s.IsLive, &s.Rating, &updatedAt, &s.PlatformFeePct, &s.SellerCategoryID,
 			&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID,
-			&s.DrugLicenseNumber, &s.DrugLicenseCertKey, &s.DrugLicenseCertAssetID); err != nil {
+			&s.DrugLicenseNumber, &s.DrugLicenseCertKey, &s.DrugLicenseCertAssetID,
+			&s.NameTA, &s.DescTA); err != nil {
 			return nil, err
 		}
 		s.Rating = math.Round(s.Rating*10) / 10
@@ -560,7 +568,8 @@ const sellerStoreColumns = `s.id, s.name, s.app::text, coalesce(s.seller_id,''),
 	coalesce(s.address,''), coalesce(s.phone,''), coalesce(s.hours,''), coalesce(s.delivery_time,''),
 	coalesce(s.is_veg,false), s.is_live, s.rating, s.updated_at, s.platform_fee_pct, coalesce(s.seller_category_id,''),
 	coalesce(s.fssai_number,''), coalesce(s.fssai_cert_key,''), coalesce(s.fssai_cert_asset_id,''),
-	coalesce(s.drug_license_number,''), coalesce(s.drug_license_cert_key,''), coalesce(s.drug_license_cert_asset_id,'')`
+	coalesce(s.drug_license_number,''), coalesce(s.drug_license_cert_key,''), coalesce(s.drug_license_cert_asset_id,''),
+	coalesce(s.name_ta,''), coalesce(s.desc_text_ta,'')`
 
 func scanSellerStore(row pgx.Row) (SellerStore, error) {
 	var (
@@ -570,7 +579,8 @@ func scanSellerStore(row pgx.Row) (SellerStore, error) {
 	if err := row.Scan(&s.ID, &s.Name, &s.App, &s.SellerID, &s.StateCode, &s.Address, &s.Phone, &s.Hours, &s.DeliveryTime,
 		&s.IsVeg, &s.IsLive, &s.Rating, &updatedAt, &s.PlatformFeePct, &s.SellerCategoryID,
 		&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID,
-		&s.DrugLicenseNumber, &s.DrugLicenseCertKey, &s.DrugLicenseCertAssetID); err != nil {
+		&s.DrugLicenseNumber, &s.DrugLicenseCertKey, &s.DrugLicenseCertAssetID,
+		&s.NameTA, &s.DescTA); err != nil {
 		return SellerStore{}, err
 	}
 	s.Rating = math.Round(s.Rating*10) / 10
@@ -581,7 +591,10 @@ func scanSellerStore(row pgx.Row) (SellerStore, error) {
 // VendorInput is the create/edit payload for a vendor (directory.stores). Commercial fields
 // (platform fee, taxonomy category, FSSAI) belong to the shop, not the account.
 type VendorInput struct {
-	Name      string
+	Name string
+	// Tamil display copy (0108). Empty clears the column on update (seller unchecked the field).
+	NameTA    string
+	DescTA    string
 	App       string
 	StateCode string
 	Address   string
@@ -621,13 +634,15 @@ func (r *Repo) CreateStore(ctx context.Context, sellerID, stateCode string, in V
 		insert into directory.stores
 		  (id, app, name, seller_id, state_code, address, phone, hours, latitude, longitude,
 		   platform_fee_pct, seller_category_id, fssai_number, fssai_cert_key, fssai_cert_asset_id,
-		   drug_license_number, drug_license_cert_key, drug_license_cert_asset_id, is_live)
+		   drug_license_number, drug_license_cert_key, drug_license_cert_asset_id, is_live,
+		   name_ta, desc_text_ta)
 		values ($1, $2::app_brand, $3, $4, nullif($5,''), nullif($6,''), nullif($7,''), nullif($8,''),
-		        $9, $10, $11, nullif($12,''), $13, $14, $15, $16, $17, $18, $19)
+		        $9, $10, $11, nullif($12,''), $13, $14, $15, $16, $17, $18, $19, $20, $21)
 		returning `+sellerStoreColumns,
 		"store-"+storeID(), in.App, in.Name, sellerID, stateCode, in.Address, in.Phone, in.Hours,
 		in.Latitude, in.Longitude, fee, in.SellerCategoryID, in.FSSAINumber, in.FSSAICertKey,
-		in.FSSAICertAssetID, in.DrugLicenseNumber, in.DrugLicenseCertKey, in.DrugLicenseCertAssetID, live))
+		in.FSSAICertAssetID, in.DrugLicenseNumber, in.DrugLicenseCertKey, in.DrugLicenseCertAssetID, live,
+		strings.TrimSpace(in.NameTA), strings.TrimSpace(in.DescTA)))
 }
 
 // UpdateStore edits a vendor, scoped to the caller's seller_id or district (strict) exactly like
@@ -654,6 +669,8 @@ func (r *Repo) UpdateStore(ctx context.Context, id, sellerID, district string, i
 		  drug_license_cert_key = coalesce(nullif($15,''), s.drug_license_cert_key),
 		  drug_license_cert_asset_id = coalesce(nullif($16,''), s.drug_license_cert_asset_id),
 		  is_live = coalesce($17, s.is_live),
+		  name_ta = $19,
+		  desc_text_ta = $20,
 		  updated_at = now()
 		 where s.id = $1 and (
 		       ($2 <> '' and s.seller_id = $2) or
@@ -664,7 +681,8 @@ func (r *Repo) UpdateStore(ctx context.Context, id, sellerID, district string, i
 		 returning `+sellerStoreColumns,
 		id, sellerID, in.Name, in.Address, in.Phone, in.Hours, in.Latitude, in.Longitude,
 		in.PlatformFeePct, in.SellerCategoryID, in.FSSAINumber, in.FSSAICertKey, in.FSSAICertAssetID,
-		in.DrugLicenseNumber, in.DrugLicenseCertKey, in.DrugLicenseCertAssetID, in.IsLive, district))
+		in.DrugLicenseNumber, in.DrugLicenseCertKey, in.DrugLicenseCertAssetID, in.IsLive, district,
+		strings.TrimSpace(in.NameTA), strings.TrimSpace(in.DescTA)))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerStore{}, false, nil
@@ -766,26 +784,30 @@ func storeID() string {
 
 // SellerMenu is the portal-facing menu-management projection (includes seller scope + status).
 type SellerMenu struct {
-	VenueID      string   `json:"venueId"`
-	DishID       string   `json:"dishId"`
-	Name         string   `json:"name"`
-	Price        int64    `json:"price"`         // rupees
-	MRP          *int64   `json:"mrp,omitempty"` // rupees; list price (strike), never below price
-	IsVeg        *bool    `json:"isVeg,omitempty"`
-	Cuisine      string   `json:"cuisine,omitempty"`
-	Rating       *float64 `json:"rating,omitempty"`
-	Image        string   `json:"image,omitempty"`
-	ImageAssetID string   `json:"imageAssetId,omitempty"`
-	ImageKey     string   `json:"-"`
-	SellerID     string   `json:"sellerId,omitempty"`
-	Status       string   `json:"status"`
+	VenueID string `json:"venueId"`
+	DishID  string `json:"dishId"`
+	Name    string `json:"name"`
+	// Tamil display copy (0108); the portal authors it, the customer app falls back to `Name`.
+	NameTA        string   `json:"nameTa,omitempty"`
+	DescriptionTA string   `json:"descriptionTa,omitempty"`
+	Price         int64    `json:"price"`         // rupees
+	MRP           *int64   `json:"mrp,omitempty"` // rupees; list price (strike), never below price
+	IsVeg         *bool    `json:"isVeg,omitempty"`
+	Cuisine       string   `json:"cuisine,omitempty"`
+	Rating        *float64 `json:"rating,omitempty"`
+	Image         string   `json:"image,omitempty"`
+	ImageAssetID  string   `json:"imageAssetId,omitempty"`
+	ImageKey      string   `json:"-"`
+	SellerID      string   `json:"sellerId,omitempty"`
+	Status        string   `json:"status"`
 }
 
 // sellerMenuSelect projects a menu row with its owner derived through the vendor store. A dining
 // venue has no directory.stores row, so its dishes carry no owner (empty seller id).
 const sellerMenuSelect = `
 select m.venue_id, m.dish_id, m.name, m.price_paisa, m.mrp_paisa, m.is_veg, m.cuisine, m.rating,
-       m.image, m.image_key, coalesce(st.seller_id,''), m.status::text
+       m.image, m.image_key, coalesce(st.seller_id,''), m.status::text,
+       coalesce(m.name_ta, ''), coalesce(m.description_ta, '')
 from directory.menus m
 left join directory.stores st on st.id = m.venue_id`
 
@@ -816,7 +838,8 @@ func (r *Repo) SellerMenus(ctx context.Context, sellerID, district, venueID stri
 			rating   *float64
 			imageKey *string
 		)
-		if err := rows.Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &mrp, &isVeg, &cuisine, &rating, &m.Image, &imageKey, &m.SellerID, &m.Status); err != nil {
+		if err := rows.Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &mrp, &isVeg, &cuisine, &rating, &m.Image, &imageKey, &m.SellerID, &m.Status,
+			&m.NameTA, &m.DescriptionTA); err != nil {
 			return nil, err
 		}
 		if imageKey != nil {
@@ -865,10 +888,11 @@ func (r *Repo) UpsertMenu(ctx context.Context, m SellerMenu, sellerID string, al
 		imageKey *string
 	)
 	err := r.pool.QueryRow(ctx, `
-		insert into directory.menus (venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, image_asset_id, status)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'DRAFT')
+		insert into directory.menus (venue_id, dish_id, name, name_ta, description_ta, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, image_asset_id, status)
+		values ($1,$2,$3,$14,$15,$4,$5,$6,$7,$8,$9,$10,$11,'DRAFT')
 		on conflict (venue_id, dish_id) do update
-		   set name = excluded.name, price_paisa = excluded.price_paisa, mrp_paisa = excluded.mrp_paisa,
+		   set name = excluded.name, name_ta = excluded.name_ta, description_ta = excluded.description_ta,
+		       price_paisa = excluded.price_paisa, mrp_paisa = excluded.mrp_paisa,
 		       is_veg = excluded.is_veg, cuisine = excluded.cuisine, rating = excluded.rating,
 		       image = excluded.image, image_key = excluded.image_key, image_asset_id = excluded.image_asset_id
 		 where $12 or exists (
@@ -876,10 +900,12 @@ func (r *Repo) UpsertMenu(ctx context.Context, m SellerMenu, sellerID string, al
 		          where st.id = directory.menus.venue_id and st.seller_id = $13)
 		returning venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key,
 		          coalesce((select st.seller_id from directory.stores st where st.id = directory.menus.venue_id), ''),
-		          status::text`,
+		          status::text, coalesce(name_ta, ''), coalesce(description_ta, '')`,
 		m.VenueID, m.DishID, m.Name, m.Price*100, paisaPtr(m.MRP), m.IsVeg, nullIfEmpty(m.Cuisine), m.Rating, m.Image,
-		nullIfEmpty(m.ImageKey), nullIfEmpty(m.ImageAssetID), all, sellerID).
-		Scan(&out.VenueID, &out.DishID, &out.Name, &out.Price, &mrp, &isVeg, &cuisine, &rating, &out.Image, &imageKey, &out.SellerID, &out.Status)
+		nullIfEmpty(m.ImageKey), nullIfEmpty(m.ImageAssetID), all, sellerID,
+		strings.TrimSpace(m.NameTA), strings.TrimSpace(m.DescriptionTA)).
+		Scan(&out.VenueID, &out.DishID, &out.Name, &out.Price, &mrp, &isVeg, &cuisine, &rating, &out.Image, &imageKey, &out.SellerID, &out.Status,
+			&out.NameTA, &out.DescriptionTA)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerMenu{}, false, nil

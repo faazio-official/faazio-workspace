@@ -5,6 +5,8 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Search, X } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
+import { localizedDishName, localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import AppTextInput from '@/components/AppTextInput';
 import FoodDetailTopBar from '../components/FoodDetailTopBar';
 import DietToggle from '../components/DietToggle';
@@ -33,6 +35,7 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantMenu'>;
  */
 export function RestaurantMenuScreen({ navigation, route }: Props) {
   const { restaurant } = route.params;
+  const language = useLanguageStore((s) => s.language);
 
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
   const [searchQuery, setSearchQuery] = useState('');
@@ -89,7 +92,9 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
     return base.filter(
       (d) =>
         d.dishName.toLowerCase().includes(q) ||
-        (d.description ?? '').toLowerCase().includes(q),
+        (d.dishNameTa ?? '').toLowerCase().includes(q) ||
+        (d.description ?? '').toLowerCase().includes(q) ||
+        (d.descriptionTa ?? '').toLowerCase().includes(q),
     );
   }, [menu, active, searchQuery]);
 
@@ -159,7 +164,7 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
 
       <View style={styles.titleBlock}>
         <AppText style={styles.restaurantName} numberOfLines={2}>
-          {restaurant.name}
+          {localizedName(restaurant, language)}
         </AppText>
       </View>
 
@@ -247,7 +252,7 @@ export function RestaurantMenuScreen({ navigation, route }: Props) {
 
       <AddonPickerSheet
         visible={picker !== null}
-        dishName={picker?.dish.dishName ?? ''}
+        dishName={picker ? localizedDishName(picker.dish, language) : ''}
         basePrice={picker?.dish.price ?? 0}
         addons={picker?.addons ?? []}
         onClose={() => setPicker(null)}

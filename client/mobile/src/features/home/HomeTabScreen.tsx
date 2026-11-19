@@ -1,11 +1,11 @@
 import React, { useCallback, useState } from 'react';
 import { neutral } from '@/theme/brandTokens';
 import { categorical } from '@/theme/categorical';
-import { StyleSheet, View, TouchableOpacity, StatusBar } from 'react-native';
+import { StyleSheet, View, TouchableOpacity, StatusBar, Linking } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { hs, vs, ms } from '@/utils/responsive';
-import { MapPin, ChevronDown, Search } from 'lucide-react-native';
+import { MapPin, ChevronDown, Search, X } from 'lucide-react-native';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -55,7 +55,20 @@ export function HomeTabScreen({ navigation }: Props) {
   const addToCart = useCartStore((s) => s.addToCart);
   const insets = useSafeAreaInsets();
   const savedAddress = useLocationStore((s) => s.address);
+  const locationStatus = useLocationStore((s) => s.status);
+  const locationSource = useLocationStore((s) => s.source);
+  const permissionGranted = useLocationStore((s) => s.permissionGranted);
   const addressLabel = savedAddress || 'Set your location';
+  const [nudgeDismissed, setNudgeDismissed] = useState(false);
+
+  // A GPS origin is missing while the user may still want nearby sorting. A manual origin is a
+  // deliberate choice and never gets nagged; `idle` is handled upstream by the navigator.
+  const showLocationNudge =
+    !nudgeDismissed &&
+    locationSource !== 'manual' &&
+    (locationStatus === 'denied' ||
+      locationStatus === 'blocked' ||
+      (!permissionGranted && locationStatus !== 'ready'));
 
   // The Home header sits on the blue gradient, so the status-bar icons must be
   // light while this tab is focused. Restore dark icons when it blurs.
@@ -144,7 +157,7 @@ export function HomeTabScreen({ navigation }: Props) {
             <Animated.View style={[styles.fadeBlock, fadeTopBlockStyle]} renderToHardwareTextureAndroid>
               <View>
                 <View style={styles.headerTopRow}>
-                  <FaazioLogo size={ms(28)} />
+                  <FaazioLogo size={ms(28)} variant="wordmark" />
 
                   <View style={styles.headerCenter}>
                     <TouchableOpacity
@@ -170,6 +183,51 @@ export function HomeTabScreen({ navigation }: Props) {
                 </View>
               </View>
             </Animated.View>
+
+            {showLocationNudge ? (
+              <View
+                style={styles.locationNudge}
+                accessibilityRole="alert"
+              >
+                <View style={styles.nudgeCopy}>
+                  <AppText style={styles.nudgeTitle}>Location following is off</AppText>
+                  <AppText style={styles.nudgeBody} numberOfLines={2}>
+                    {locationStatus === 'blocked'
+                      ? 'Nearby stores may be wrong. Enable location in Settings or set an address.'
+                      : 'Nearby stores may be wrong. Allow location or set an address.'}
+                  </AppText>
+                  <View style={styles.nudgeActions}>
+                    <TouchableOpacity
+                      onPress={() => void Linking.openSettings()}
+                      style={styles.nudgeAction}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Open device settings"
+                    >
+                      <AppText style={styles.nudgeActionText}>Open Settings</AppText>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      onPress={() => navigation.navigate('Location')}
+                      style={styles.nudgeAction}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Enter an address"
+                    >
+                      <AppText style={styles.nudgeActionText}>Enter address</AppText>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => setNudgeDismissed(true)}
+                  style={styles.nudgeDismiss}
+                  activeOpacity={0.7}
+                  accessibilityRole="button"
+                  accessibilityLabel="Dismiss location notice"
+                >
+                  <X size={ms(13)} color="rgba(255,255,255,0.85)" />
+                </TouchableOpacity>
+              </View>
+            ) : null}
 
             <TouchableOpacity
               style={styles.searchBar}
@@ -253,6 +311,48 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: 'rgba(255,255,255,0.95)',
     maxWidth: hs(160),
+  },
+  locationNudge: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: hs(8),
+    borderRadius: ms(12),
+    backgroundColor: 'rgba(255,255,255,0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.25)',
+    paddingHorizontal: hs(12),
+    paddingVertical: vs(10),
+  },
+  nudgeCopy: { flex: 1 },
+  nudgeTitle: {
+    fontSize: ms(11),
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.98)',
+  },
+  nudgeBody: {
+    fontSize: ms(10),
+    lineHeight: ms(14),
+    color: 'rgba(255,255,255,0.85)',
+    marginTop: vs(2),
+  },
+  nudgeActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(16),
+    marginTop: vs(6),
+  },
+  nudgeAction: { minHeight: 32, justifyContent: 'center' },
+  nudgeActionText: {
+    fontSize: ms(11),
+    fontWeight: '600',
+    color: neutral.card,
+    textDecorationLine: 'underline',
+  },
+  nudgeDismiss: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   searchBar: {
     height: HEADER_SEARCH_H,

@@ -10,7 +10,8 @@ DROP stop on `Route`; **Use phone call** forces the masked PSTN leg.
 
 ## Steps
 
-1. `CallCustomerButton` calls `startDeliveryCall(orderId, 'Customer')`.
+1. `CallCustomerButton` lazily attaches the ring surface (`initializeDeliveryCalling()`) — login stays
+   prompt-free, with no phone account registered — then calls `startDeliveryCall(orderId, 'Customer')`.
 2. The shared controller refuses a second call while one is open and locks further taps for 3 s. The
    button mirrors that lock (`Starting call…`, disabled) so a rapid second tap is visibly rejected
    rather than silently ignored.

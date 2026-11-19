@@ -7,6 +7,10 @@ export interface Product {
   emoji: string;
   image: string;
   desc: string;
+  /** Tamil display name (server translation, 0107). Empty/absent → fall back to `name`. */
+  nameTa?: string;
+  /** Tamil display description (server translation, 0107). Empty/absent → fall back to `desc`. */
+  descTa?: string;
   rating: number;
   app: AppBrand;
   category: string;
@@ -56,6 +60,9 @@ export interface FoodProduct extends Product {
 export interface StoreProfile {
   id: string;
   name: string;
+  /** Tamil display copy (server translation, 0108). Empty → fall back to `name`/`desc`. */
+  nameTa?: string;
+  descTa?: string;
   app: AppBrand;
   categories: string[];
   rating: number;
@@ -85,6 +92,8 @@ export interface MartDeal {
   id: string;
   brand: string;
   name: string;
+  /** Tamil display name (server translation). Empty → fall back to `name`. */
+  nameTa?: string;
   size: string;
   price: number;
   originalPrice: number;
@@ -325,6 +334,10 @@ export interface SpecialDish {
   id: string;
   dishName: string;
   restaurant: string;
+  /** Tamil display copy (server translation, 0108). Empty → fall back to the English field. */
+  dishNameTa?: string;
+  descriptionTa?: string;
+  restaurantTa?: string;
   price: number;
   /** List price (MRP) in whole rupees; a discount exists only when `mrp > price`. Never synthesized. */
   mrp?: number;

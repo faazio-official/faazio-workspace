@@ -9,63 +9,28 @@ import {
 } from 'react-native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/AppNavigator';
-import { Search, Check, ArrowRight, ChevronLeft } from 'lucide-react-native';
+import { Check, ArrowRight, ChevronLeft } from 'lucide-react-native';
 import AppText from '@/components/AppText';
-import AppTextInput from '@/components/AppTextInput';
 import { Screen } from '@/components/shared';
 import { useLanguageStore } from '@/state/languageStore';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { parentRamp } from '@/theme/brandTokens';
 import { TOUCH } from '@/theme/tokens';
+import { LANGUAGES } from '@/lib/languages';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'LanguageSelection'>;
 
-interface Language {
-  id: string;
-  native: string;
-  english: string;
-  avatar: string;
-}
-
-const SUGGESTED_LANGUAGE: Language = {
-  id: 'en',
-  native: 'English',
-  english: 'English',
-  avatar: 'EN',
-};
-
-const ALL_LANGUAGES: Language[] = [
-  { id: 'hi', native: 'हिंदी', english: 'Hindi', avatar: 'हिं' },
-  { id: 'bn', native: 'বাংলা', english: 'Bengali', avatar: 'বাং' },
-  { id: 'te', native: 'తెలుగు', english: 'Telugu', avatar: 'తెలు' },
-  { id: 'mr', native: 'मराठी', english: 'Marathi', avatar: 'मरा' },
-  { id: 'ta', native: 'தமிழ்', english: 'Tamil', avatar: 'தமி' },
-  { id: 'kn', native: 'ಕನ್ನಡ', english: 'Kannada', avatar: 'ಕನ್ನ' },
-  { id: 'ml', native: 'മലയാളം', english: 'Malayalam', avatar: 'മല' },
-  { id: 'gu', native: 'ગુજરાતી', english: 'Gujarati', avatar: 'ગુજ' },
-  { id: 'pa', native: 'ਪੰਜਾਬੀ', english: 'Punjabi', avatar: 'ਪੰਜਾ' },
-  { id: 'ur', native: 'اردو', english: 'Urdu', avatar: 'اردو' },
-];
 
 const ACCENT = parentRamp.base;
 const ACCENT_LIGHT = '#DBEAFE';
 const ACCENT_SOFT = '#EFF6FF';
 
 export default function LanguageSelectionScreen({ navigation }: Props) {
-  const [searchQuery, setSearchQuery] = useState('');
   const [selectedId, setSelectedId] = useState<string>('en');
   const setLanguage = useLanguageStore((s) => s.setLanguage);
 
-  const filteredLanguages = useMemo(() => {
-    if (!searchQuery) return ALL_LANGUAGES;
-    const lowerQuery = searchQuery.toLowerCase();
-    return [SUGGESTED_LANGUAGE, ...ALL_LANGUAGES].filter(
-      (lang) =>
-        lang.english.toLowerCase().includes(lowerQuery) ||
-        lang.native.toLowerCase().includes(lowerQuery)
-    );
-  }, [searchQuery]);
+  const languages = useMemo(() => LANGUAGES, []);
 
   const handleContinue = () => {
     setLanguage(selectedId);
@@ -113,66 +78,9 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
             </View>
           </View>
 
-          {/* SEARCH BAR */}
-          <View style={styles.searchContainer}>
-            <Search size={ms(21)} color="#9CA3AF" style={styles.searchIcon} />
-            <AppTextInput
-              onChangeText={setSearchQuery}
-              placeholder="Search language"
-              placeholderTextColor="#9CA3AF"
-              style={styles.searchInput}
-              value={searchQuery}
-              accessibilityLabel="Search languages"
-              autoCorrect={false}
-              returnKeyType="search"
-            />
-          </View>
-
-          {/* SUGGESTED SECTION */}
-          {!searchQuery && (
-            <>
-              <AppText style={styles.sectionTitleAccent}>Suggested</AppText>
-              <TouchableOpacity
-                activeOpacity={0.8}
-                onPress={() => setSelectedId(SUGGESTED_LANGUAGE.id)}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: selectedId === SUGGESTED_LANGUAGE.id }}
-                accessibilityLabel={`English, ${selectedId === SUGGESTED_LANGUAGE.id ? 'selected' : 'not selected'}`}
-                style={[
-                  styles.rowPill,
-                  styles.suggestedPill,
-                  selectedId === SUGGESTED_LANGUAGE.id && styles.rowPillSelected,
-                ]}
-              >
-                <View style={styles.rowLeft}>
-                  <View style={styles.avatarCircle}>
-                    <AppText style={styles.avatarTextAccent}>
-                      {SUGGESTED_LANGUAGE.avatar}
-                    </AppText>
-                  </View>
-                  <View>
-                    <AppText style={styles.languageNativeText}>
-                      {SUGGESTED_LANGUAGE.native}
-                    </AppText>
-                    <AppText style={styles.languageEnglishText}>
-                      {SUGGESTED_LANGUAGE.english}
-                    </AppText>
-                  </View>
-                </View>
-                {selectedId === SUGGESTED_LANGUAGE.id ? (
-                  <View style={styles.checkedCircle}>
-                    <Check size={ms(14)} color="#FFFFFF" strokeWidth={2.5} />
-                  </View>
-                ) : (
-                  <View style={styles.radioCircle} />
-                )}
-              </TouchableOpacity>
-            </>
-          )}
-
-          {/* ALL LANGUAGES LIST */}
-          <AppText style={styles.sectionTitleDark}>All Languages</AppText>
-          {filteredLanguages.map((lang) => {
+          {/* LANGUAGE OPTIONS */}
+          <AppText style={styles.sectionTitleDark}>Languages</AppText>
+          {languages.map((lang) => {
             const isSelected = selectedId === lang.id;
 
             return (
@@ -210,13 +118,6 @@ export default function LanguageSelectionScreen({ navigation }: Props) {
               </TouchableOpacity>
             );
           })}
-
-          {filteredLanguages.length === 0 ? (
-            <View style={styles.emptyState}>
-              <AppText style={styles.emptyTitle}>No languages match "{searchQuery}"</AppText>
-              <AppText style={styles.emptyBody}>Try a shorter search or clear the field.</AppText>
-            </View>
-          ) : null}
 
           {/* Bottom Padding for scroll area */}
           <View style={{ height: vs(100) }} />
@@ -309,26 +210,7 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '45deg' }],
   },
 
-  /* Search */
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F3F4F6',
-    borderRadius: ms(24),
-    paddingHorizontal: hs(16),
-    height: vs(48),
-    marginBottom: SPACE.SECTION,
-  },
-  searchIcon: { marginRight: hs(8) },
-  searchInput: { flex: 1, fontSize: ms(15), color: '#111827' },
-
   /* Sections */
-  sectionTitleAccent: {
-    fontSize: ms(14),
-    fontWeight: '600',
-    color: ACCENT,
-    marginBottom: SPACE.BLOCK,
-  },
   sectionTitleDark: {
     fontSize: ms(14),
     fontWeight: '600',
@@ -351,10 +233,6 @@ const styles = StyleSheet.create({
   rowPillSelected: {
     backgroundColor: ACCENT_SOFT,
   },
-  suggestedPill: {
-    marginBottom: SPACE.SECTION,
-    borderRadius: ms(20),
-  },
   rowLeft: { flexDirection: 'row', alignItems: 'center' },
 
   /* Avatars */
@@ -367,7 +245,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginRight: hs(16),
   },
-  avatarTextAccent: { color: ACCENT, fontWeight: '600', fontSize: ms(14) },
   avatarTextAccentSmall: { color: ACCENT, fontWeight: '600', fontSize: ms(12) },
 
   /* Text styling */
@@ -390,14 +267,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-
-  /* Empty search */
-  emptyState: {
-    paddingVertical: SPACE.SECTION,
-    paddingHorizontal: hs(8),
-  },
-  emptyTitle: { fontSize: ms(14), fontWeight: '600', color: '#111827' },
-  emptyBody: { fontSize: ms(13), color: '#6B7280', marginTop: vs(4) },
 
   /* Footer */
   footer: {

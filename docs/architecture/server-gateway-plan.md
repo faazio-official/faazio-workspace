@@ -85,7 +85,15 @@ caller) and are event-purged on store live toggle and product edit/status change
   them via `PUT /seller/inventory/{productId}` (qty + ETA) and `PUT /seller/pricing/{productId}`
   (price-only; MRP was retired by `0079`), and edits descriptive fields via `PUT
   /seller/products/{id}` (name/description/category/isVeg/isPrescription; re-tokenizes search), all
-  seller-scoped and audit-logged. `DELETE /seller/products/{id}` soft-deletes to a 7-day trash
+  seller-scoped and audit-logged. Both create and edit also accept the optional display-only Tamil
+  translations `nameTa`/`descriptionTa` (`0107`), validated Tamil-only by
+  `internal/platform/locale.IsTamilText` (Latin/other scripts → `400`); the same rule guards
+  `POST/PUT /categories` (`nameTa`/`descriptionTa`), `POST /seller/stores` + `PUT /seller/stores/{id}`
+  (`nameTa`/`descTa`), `PUT /seller/menus/{venueId}/{dishId}` (`nameTa`/`descTa`) and
+  `POST/PUT /seller/addons` (`nameTa`/`groupNameTa`) — all `0108` directory columns. Postgres FTS now
+  matches Tamil too: `catalog.products.search_vec` indexes `name_ta` (weight A) and `desc_text_ta`
+  (weight B), so `GET /products/search` answers a Tamil query through the same
+  `websearch_to_tsquery('simple', …)` path. `search_tokens` (the Tantivy source) stays English. `DELETE /seller/products/{id}` soft-deletes to a 7-day trash
   (`catalog.products.deleted_at`, `0089`), `GET /seller/products/trash` lists it and `POST
   /seller/products/{id}/restore` restores it; `catalog.purge_deleted_products` removes the product +
   stock after the window. Dish add-ons share the same moderation lifecycle: `GET/POST /seller/addons`,
@@ -259,16 +267,18 @@ caller) and are event-purged on store live toggle and product edit/status change
   stored secret; `is_public` + `value_secret` combined is rejected; key/category/variant are
   validated and values capped at 4 KiB. Only non-chicken-and-egg settings live here —
   `GATEWAY_URL`/`APP_VARIANT`/`TRANSPORT` stay build-time baked.
-- **Central category taxonomy (`internal/categories`, `0067` + `0096`):** `GET /categories?app=&parent_id=`
-  (any signed-in account) and `GET /categories/rail` (only active top-level rows with
-  `show_on_home_rail = true`, max 3 globally) serve the superadmin-owned `taxonomy.categories` tree —
-  the Home header rail and the Mart/Pharma drill-in read it (no category fixture). Portal:
+- **Central category taxonomy (`internal/categories`, `0067` + `0096` + `0109`):** `GET /categories?app=&parent_id=`
+  (any signed-in account) and `GET /categories/rail` (only active rows with `show_on_home_rail = true`,
+  unbounded — Mart + Pharma share one horizontally scrolled strip, any tree level) serve
+  the superadmin-owned `taxonomy.categories` tree — the Home header rail and the Mart/Pharma drill-in
+  read it (no category fixture). Portal:
   `GET /admin/categories` (includes deactivated rows + `showOnHomeRail`), `POST /categories`,
   `PUT /categories/{id}`, `DELETE /categories/{id}` (soft delete — `is_active=false`, references
-  preserved; SUPER_ADMIN). `showOnHomeRail` is accepted on create/update; FOOD and child categories
-  are rejected (`400`) and a fourth active rail row returns `409 rail_full`. Seller onboarding selects
-  a `categoryId` (validated app-scoped against the tree, optional) carried on `POST /sellers` and
-  `POST /sellers/{id}/edit`. Seller product creation accepts an optional `taxonomyCategoryId`
+  preserved; SUPER_ADMIN). `showOnHomeRail` is accepted on create/update for any tree level; FOOD is
+  rejected (`400`), and there is no slot cap (`0109` removed the former `409 rail_full`). Seller
+  onboarding selects a `categoryId` (validated app-scoped against the tree, optional) carried on
+  `POST /sellers` and `POST /sellers/{id}/edit`. Seller product creation accepts an optional
+  `taxonomyCategoryId`
   (active leaf for the store's app); the gateway validates it and folds the leaf `search_query` into
   `catalog.products.search_tokens` (`0096`).
 - **Rider payouts (`internal/delivery`, `0052` + `0054`):** `GET /delivery/payouts` (rider history)

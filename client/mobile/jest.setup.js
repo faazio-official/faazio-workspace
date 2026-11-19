@@ -13,3 +13,9 @@ jest.mock('react-native-safe-area-context', () => ({
 }));
 
 jest.mock('lucide-react-native', () => new Proxy({}, { get: () => () => null }));
+
+// AsyncStorage is a native module with no JS fallback under Jest. Its own official mock keeps the
+// stores (language, theme, location, onboarding) renderable in unit tests.
+jest.mock('@react-native-async-storage/async-storage', () =>
+  require('@react-native-async-storage/async-storage/jest/async-storage-mock'),
+);

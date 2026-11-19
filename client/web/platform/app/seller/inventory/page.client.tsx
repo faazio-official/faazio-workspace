@@ -17,6 +17,7 @@ import {
   updateStock,
 } from "@/lib/api";
 import { useMenus, useSellerScope, useStock } from "@/lib/api/hooks";
+import { tamilFieldError } from "@/lib/tamil";
 import type { AddonRecord, MenuAddonRecord, MenuItemRecord, ProductStatus } from "@/data/types";
 import { formatINR } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -146,6 +147,8 @@ function CreateAddonSheet({
 }) {
   const [name, setName] = useState("");
   const [group, setGroup] = useState("");
+  const [nameTa, setNameTa] = useState("");
+  const [groupTa, setGroupTa] = useState("");
   const [price, setPrice] = useState("");
   const [isVeg, setIsVeg] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -153,6 +156,8 @@ function CreateAddonSheet({
   const reset = () => {
     setName("");
     setGroup("");
+    setNameTa("");
+    setGroupTa("");
     setPrice("");
     setIsVeg(true);
   };
@@ -163,12 +168,24 @@ function CreateAddonSheet({
       toast.error("Add a name and a price greater than ₹0");
       return;
     }
+    const nameTaError = tamilFieldError(nameTa, 200, "Tamil name");
+    if (nameTaError) {
+      toast.error(nameTaError);
+      return;
+    }
+    const groupTaError = tamilFieldError(groupTa, 120, "Tamil group");
+    if (groupTaError) {
+      toast.error(groupTaError);
+      return;
+    }
     setBusy(true);
     try {
       await createAddon({
         venueId,
         name: name.trim(),
         groupName: group.trim(),
+        ...(nameTa.trim() ? { nameTa: nameTa.trim() } : {}),
+        ...(groupTa.trim() ? { groupNameTa: groupTa.trim() } : {}),
         pricePaisa,
         isVeg,
       });
@@ -209,7 +226,21 @@ function CreateAddonSheet({
       }
     >
       <TextField label="Name" value={name} onChange={setName} placeholder="Extra Cheese" />
+      <TextField
+        label="Tamil name (optional)"
+        value={nameTa}
+        onChange={setNameTa}
+        lang="ta"
+        placeholder="தமிழில் பெயர்"
+      />
       <TextField label="Group (optional)" value={group} onChange={setGroup} placeholder="Toppings" />
+      <TextField
+        label="Tamil group (optional)"
+        value={groupTa}
+        onChange={setGroupTa}
+        lang="ta"
+        placeholder="தமிழில் குழு"
+      />
       <TextField label="Price (₹)" value={price} onChange={setPrice} placeholder="20" type="number" />
       <div className="flex items-center justify-between rounded-xl border border-border px-3 py-2.5">
         <div>

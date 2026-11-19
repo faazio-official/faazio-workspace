@@ -9,11 +9,14 @@ import { storeDistanceKm } from '../storeDistance';
 import type { ActiveFacets, SearchScreenConfig } from '../types';
 import { brandRamp } from '@/theme/brandTokens';
 
+// Tamil copy is part of the match: a shopper typing a Tamil product name must find it.
 const searchableText = (p: Product) => {
   const parts = [
     p.name,
+    p.nameTa,
     p.category,
     p.desc,
+    p.descTa,
     ...Object.values(p.attributes ?? {}).flatMap((v) =>
       Array.isArray(v) ? v : [String(v)],
     ),

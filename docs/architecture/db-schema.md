@@ -169,6 +169,7 @@ CREATE TABLE catalog.products (
   category      TEXT NOT NULL,               -- GST/tax label, resolved against tax.tax_rates
   taxonomy_category_id TEXT REFERENCES taxonomy.categories(id), -- discovery leaf (0096)
   name          TEXT NOT NULL,
+  name_ta       TEXT NOT NULL DEFAULT '',    -- Tamil display name (0107); '' = untranslated
   search_tokens TEXT[] NOT NULL DEFAULT '{}',
   price_paisa   INT8 NOT NULL,               -- money as paisa (₹1 = 100)
   rating        REAL NOT NULL DEFAULT 0,     -- 0..5, 1-decimal (0005; scaling stage f64/FAST)
@@ -176,6 +177,7 @@ CREATE TABLE catalog.products (
   emoji         TEXT NOT NULL,
   image_url     TEXT NOT NULL,
   desc_text     TEXT NOT NULL,               -- indexed in Tantivy, not here
+  desc_text_ta  TEXT NOT NULL DEFAULT '',     -- Tamil display description (0107); '' = untranslated
   badge         TEXT,
   shop          TEXT,
   unit          TEXT,
@@ -196,13 +198,15 @@ CREATE TABLE catalog.products (
 | `app` | ENUM | 1–4 | validation + filtering | partial index `(app)` |
 | `category` | TEXT | ~12 | GST/tax grouping (matched against `tax.tax_rates`) | btree |
 | `taxonomy_category_id` | TEXT | ~12 | active leaf of the app's `taxonomy.categories` tree (nullable, `0096`); the server folds the leaf `search_query` into `search_tokens` so the product is discoverable in the category drill-in | partial (`taxonomy_category_id IS NOT NULL`) |
-| `name` | TEXT | ~24 | display | — |
+| `name` | TEXT | ~24 | display (canonical, English) | — |
+| `name_ta` | TEXT | ~24 | Tamil display name (`0107`); `''` when untranslated — the app falls back to `name`. Display only, never used for identity; folded into `search_vec` at weight A (`0108`) so Tamil queries match | — |
 | `search_tokens` | TEXT[] | var | Tantivy source | — |
 | `price_paisa` | INT8 | 8 | money as paisa | btree (price sort/filter) |
 | `rating` | REAL | 4 | sort | btree desc |
 | `reviews_count` | INT4 | 4 | sort | — |
 | `emoji` / `image_url` | TEXT | var | display | — |
 | `desc_text` | TEXT | var | detail page (Tantivy NOT-stored) — **not fetched by list/search reads** | — |
+| `desc_text_ta` | TEXT | var | Tamil display description (`0107`); `''` when untranslated. Detail reads only; list/search reads send `''`. Folded into `search_vec` at weight B (`0108`) | — |
 | `badge`/`shop`/`unit` | TEXT | var | display | — |
 | `attributes` | JSONB | var | facets — **not fetched by list/search reads** | GIN |
 | `review_reason` | TEXT | var | admin moderation note on a `REJECTED` listing, bounded to 500 bytes; cleared on approve/delist (`0087`) | — |
@@ -587,6 +591,11 @@ CREATE TABLE directory.stores (
 CREATE INDEX stores_geo_idx ON directory.stores (latitude, longitude)
   WHERE latitude IS NOT NULL AND longitude IS NOT NULL;
 ```
+
+**Tamil display copy (`0108`, additive):** `name_ta` / `desc_text_ta` (`text not null default ''`),
+display-only translations authored by the seller portal (`POST /seller/stores`,
+`PUT /seller/stores/{id}`) and validated Tamil-only by `locale.IsTamilText`. The public
+`GET /stores` projection and the seller list both carry them; `''` → the app renders `name`.
 
 **Vendor ownership (0068–0076):** `directory.stores` is the VENDOR (the real shop). It now also carries
  `seller_id` (TEXT NOT NULL, FK `stores_seller_fk` → `sellers.sellers(id)` ON DELETE RESTRICT — 0069/0071),
@@ -1048,7 +1057,7 @@ inside `checkout.CreateOrder` via `contracts.RewardsWriter` (no public reconcile
 cannot be forged); the client stays optimistic and reconciles on `GET /rewards`
 (`faazio:v1:rewards:view:{userId}` 60 s, invalidated on earn).
 
-### 12.4 `directory.dining_venues` (extended) + `directory.menus` — source `data/food/diningVenues.ts`, `data/food/menus.ts` (migrations `0013`, `0019`)
+### 12.4 `directory.dining_venues` (extended) + `directory.menus` — source `data/food/diningVenues.ts`, `data/food/menus.ts` (migrations `0013`, `0019`, `0108`)
 
 ```sql
 ALTER TABLE directory.dining_venues
@@ -1086,6 +1095,13 @@ CREATE INDEX menus_venue_idx ON directory.menus (venue_id);
 > menu. The portal `seller/menus` form writes `mrp` (rupees) through
 > `POST`/`PUT /seller/menus/{venueId}/{dishId}`, guarded server-side by `mrp >= price` (mirrors the
 > `menus_mrp_gte_price` check). Seed rows are emitted `ACTIVE`.
+
+**Tamil display copy (`0108`, additive).** `directory.menus.name_ta` / `description_ta`,
+`directory.dining_venues.name_ta` and `directory.addons.name_ta` / `group_name_ta` are
+`text not null default ''` display-only translations. `''` means "not translated" → the app falls
+back to the English column. Written by the seller portal (`PUT /seller/menus/{venueId}/{dishId}`,
+`POST|PUT /seller/addons`) and validated Tamil-only by `locale.IsTamilText`; public menu/venue/add-on
+reads project them alongside the English copy. See §12.30 → "Tamil translations".
 
 `directory.dining_venues` is restaurant identity only — it has no booking/reservation fields,
 time slots, or table counts; Food fulfillment is DELIVERY or PICKUP only. It began as an identity
@@ -2394,13 +2410,15 @@ CREATE TABLE taxonomy.categories (
   id           TEXT PRIMARY KEY,          -- 'cat_smart_gadgets' / 'sg_audio' / 'sub_bt_head'
   app          app_brand NOT NULL,        -- MART | FOOD | PHARMA
   name         TEXT NOT NULL,
+  name_ta      TEXT NOT NULL DEFAULT '',  -- Tamil display name (0107); '' = untranslated
   slug         TEXT NOT NULL,
   description  TEXT,
+  description_ta TEXT NOT NULL DEFAULT '',-- Tamil display description (0107); '' = untranslated
   icon_url     TEXT,
   parent_id    TEXT REFERENCES taxonomy.categories(id),  -- NULL = top-level
   search_query TEXT,                      -- leaf only: the drill-in vendor query
   is_active    BOOLEAN NOT NULL DEFAULT true,
-  show_on_home_rail BOOLEAN NOT NULL DEFAULT false,      -- curated Home chip (0096)
+  show_on_home_rail BOOLEAN NOT NULL DEFAULT false,      -- curated Home chip (0096; unbounded per 0109)
   sort_order   INT8 NOT NULL DEFAULT 0,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -2455,18 +2473,40 @@ CREATE TABLE taxonomy.categories (
   2 LIVE, store-scoped `STORE_TOP` hero campaigns per shop (`ad-cmp-shop-<store>-{1,2}`) targeting
   that shop's own top-2 products. Idempotent (`on conflict do nothing`); the `store-demo-*` portion
   self-guards on `seed/demo_sellers_ttc_karaikal.sql`.
-- **Home rail curation (`0096`):** `show_on_home_rail` marks the categories the mobile Home header
-  renders as chips. `GET /categories/rail` returns only `is_active AND show_on_home_rail` top-level
-  rows. The cap is **3 active rail categories globally** (Mart + Pharma share the slots; FOOD is
-  rejected because it has no consumer vendor pool), enforced by the gateway (`409 rail_full`) for
-  both create and update. `0096` seeds the previous first three MART roots (`cat_smart_gadgets`,
-  `cat_mobiles`, `cat_electronics`) so the rail never blanks on deploy.
+- **Home rail curation (`0096`, unbounded per `0109`):** `show_on_home_rail` marks the categories the
+  mobile Home header renders as chips. `GET /categories/rail` returns only `is_active AND
+  show_on_home_rail` rows. The rail is **unbounded** (`0109`): MART + PHARMA share one horizontally
+  scrolling strip, so any number of active rows may be curated; FOOD is rejected because it has no
+  consumer vendor pool (`400`). Any tree level is eligible — the customer drill-in resolves the tapped
+  id and walks its subtree, so a child chip is a valid entry point. `0096` seeds the previous first
+  three MART roots (`cat_smart_gadgets`, `cat_mobiles`, `cat_electronics`), and `0109` only rewrites
+  the column comment (no new column, no data migration, index `categories_home_rail_idx` reused).
 - **Product ↔ taxonomy link (`0096`):** `catalog.products.taxonomy_category_id` (nullable FK) points
   at an **active leaf** of the store's app brand. Seller product creation sends the id; the gateway
   validates the leaf and folds its `search_query` + name into `catalog.products.search_tokens`, so a
   seller listing is discoverable through the same leaf query the category drill-in runs. The
   human/GST-facing `catalog.products.category` column is unchanged (checkout still matches it against
   `tax.tax_rates`).
+- **Tamil translations (`0107`, additive):** `taxonomy.categories.name_ta` / `description_ta` and
+  `catalog.products.name_ta` / `desc_text_ta` are display-only translations, `text not null default ''`.
+  An empty string means "not translated" and the app falls back to the English canonical column —
+  no read ever renders a blank label. The gateway validates both on write
+  (`internal/platform/locale.IsTamilText`: Tamil script, whitespace, digits and light punctuation
+  only — Latin or any other script is rejected with `400`), so a direct API call cannot store English
+  copy in a Tamil column. Authors: sellers (product name/description, seller portal) and super
+  admins (category name/description, admin portal).
+- **Tamil search (`0108`):** `catalog.products.search_vec` is rebuilt to include `name_ta` at weight
+  `A` and `desc_text_ta` at weight `B`, so a Tamil query matches with the same
+  `websearch_to_tsquery('simple', …)` path as English. Postgres ships no `tamil` text-search
+  configuration, so the `simple` config tokenises Tamil on whitespace — good enough for product
+  search, and `unaccent` is a no-op on the Tamil block. `search_tokens` (Tantivy source) stays
+  English; the `catalog.products_search` view exposes `name_ta`/`desc_text_ta` for reads.
+- **Directory Tamil (`0108`, additive):** the same display-only contract extends to the directory
+  context — `directory.menus.name_ta` / `description_ta`, `directory.addons.name_ta` /
+  `group_name_ta`, `directory.stores.name_ta` / `desc_text_ta` and `directory.dining_venues.name_ta`,
+  all `text not null default ''` and all validated by `locale.IsTamilText` on write. Menu, add-on,
+  store and venue reads project the columns (stores/venues feed the store card and restaurant row,
+  menus feed the Food menu and specials, add-ons feed the picker sheet).
 - **`DELETE /categories/{id}` is a soft delete** (`is_active = false`): hidden from the apps/rail,
   but existing sellers/products that reference it are never orphaned.
 - **RLS (Supabase only):** `anon`/`authenticated` SELECT active rows; `service_role` writes.

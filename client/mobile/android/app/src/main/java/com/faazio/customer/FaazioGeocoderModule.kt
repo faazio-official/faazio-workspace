@@ -1,6 +1,8 @@
 package com.faazio.customer
 
+import android.content.Context
 import android.location.Geocoder
+import android.location.LocationManager
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
@@ -16,6 +18,63 @@ class FaazioGeocoderModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext) {
 
   override fun getName(): String = "FaazioGeocoder"
+
+  /**
+   * OS-level "Location" master switch. Distinct from this app's runtime grant: when it is off no
+   * fix is possible at all, so JS must not treat the last known coordinate as live.
+   */
+  @ReactMethod
+  fun isLocationServicesEnabled(promise: Promise) {
+    try {
+      val manager =
+        reactApplicationContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+      if (manager == null) {
+        promise.resolve(false)
+        return
+      }
+      @Suppress("DEPRECATION")
+      promise.resolve(manager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+        manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER))
+    } catch (error: Exception) {
+      promise.resolve(false)
+    }
+  }
+
+  /**
+   * Forward geocoding for a saved address (the address book stores text, not coordinates), so a
+   * selected saved address can become the live nearby-feed origin. Resolves null when the text
+   * cannot be resolved — callers must not invent coordinates.
+   */
+  @Suppress("DEPRECATION")
+  @ReactMethod
+  fun geocodeAddress(address: String, promise: Promise) {
+    Thread {
+      try {
+        val query = address.trim()
+        if (query.isEmpty() || !Geocoder.isPresent()) {
+          promise.resolve(null)
+          return@Thread
+        }
+
+        val geocoder = Geocoder(reactApplicationContext, Locale.getDefault())
+        val results = geocoder.getFromLocationName(query, 1)
+        val first = results?.firstOrNull()
+        if (first == null) {
+          promise.resolve(null)
+          return@Thread
+        }
+
+        promise.resolve(
+          Arguments.createMap().apply {
+            putDouble("latitude", first.latitude)
+            putDouble("longitude", first.longitude)
+          },
+        )
+      } catch (error: Exception) {
+        promise.resolve(null)
+      }
+    }.start()
+  }
 
   @Suppress("DEPRECATION")
   @ReactMethod

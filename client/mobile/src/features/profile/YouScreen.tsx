@@ -61,6 +61,10 @@ export function YouScreen({ navigation }: Props) {
     navigation.navigate('Theme');
   }, [navigation]);
 
+  const handleOpenLanguage = useCallback(() => {
+    navigation.navigate('Language');
+  }, [navigation]);
+
   const handleOpenSellWithUs = useCallback(() => {
     navigation.navigate('SellWithUs');
   }, [navigation]);
@@ -89,6 +93,7 @@ export function YouScreen({ navigation }: Props) {
         onOpenFavourites={handleOpenFavourites}
         onOpenRewards={handleOpenRewards}
         onOpenAppearance={handleOpenAppearance}
+        onOpenLanguage={handleOpenLanguage}
         onOpenSellWithUs={handleOpenSellWithUs}
         onOpenSellerRequests={handleOpenSellerRequests}
         onOpenFeeChangeRequests={handleOpenFeeChangeRequests}

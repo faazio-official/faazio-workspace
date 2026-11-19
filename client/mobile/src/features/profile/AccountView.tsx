@@ -28,10 +28,13 @@ import {
   Trash2,
   ShieldCheck,
   Palette,
+  Languages,
 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { useLanguageStore } from '@/state/languageStore';
+import { languageLabel } from '@/lib/languages';
 import { useAccountNav } from '@/features/profile/useAccountNav';
 import type { AccountNavGroup, AccountNavRow } from '@data/types';
 import { useRewardsStore } from '@/state/rewardsStore';
@@ -77,6 +80,7 @@ export interface AccountViewProps {
   onOpenFavourites?: () => void;
   onOpenRewards?: () => void;
   onOpenAppearance?: () => void;
+  onOpenLanguage?: () => void;
   onOpenSellWithUs?: () => void;
   onOpenSellerRequests?: () => void;
   onOpenFeeChangeRequests?: () => void;
@@ -100,6 +104,7 @@ export function AccountView({
   onOpenFavourites,
   onOpenRewards,
   onOpenAppearance,
+  onOpenLanguage,
   onOpenSellWithUs,
   onOpenSellerRequests,
   onOpenFeeChangeRequests,
@@ -108,6 +113,7 @@ export function AccountView({
 }: AccountViewProps) {
   const insets = useSafeAreaInsets();
   const { themeMode, effectiveMode, palette } = useThemeMode();
+  const language = useLanguageStore((s) => s.language);
   const styles = useMemo(() => createStyles(palette), [palette]);
   const appearanceLabel =
     themeMode === 'auto'
@@ -177,6 +183,7 @@ export function AccountView({
       onOpenDetails,
       onOpenAddresses,
       onOpenAppearance,
+      onOpenLanguage,
       onOpenDeleteAccount,
       onOpenRequestDataDeletion,
     ]
@@ -325,7 +332,7 @@ export function AccountView({
           <AppText style={styles.navGroupTitle}>Preferences</AppText>
           <View style={styles.navCard}>
             <TouchableOpacity
-              style={[styles.navRow, styles.navRowLast]}
+              style={styles.navRow}
               activeOpacity={0.7}
               onPress={onOpenAppearance}
               disabled={!onOpenAppearance}
@@ -338,6 +345,23 @@ export function AccountView({
               <View style={styles.navText}>
                 <AppText style={styles.navTitle}>Appearance</AppText>
                 <AppText style={styles.navSubtitle}>{appearanceLabel}</AppText>
+              </View>
+              <ChevronRight size={ms(18)} color={palette.accent} strokeWidth={2.2} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.navRow, styles.navRowLast]}
+              activeOpacity={0.7}
+              onPress={onOpenLanguage}
+              disabled={!onOpenLanguage}
+              accessibilityRole="button"
+              accessibilityLabel={`Language. ${languageLabel(language)}`}
+            >
+              <View style={styles.navIconBox}>
+                <Languages size={ms(18)} color={palette.accent} strokeWidth={2.2} />
+              </View>
+              <View style={styles.navText}>
+                <AppText style={styles.navTitle}>Language</AppText>
+                <AppText style={styles.navSubtitle}>{languageLabel(language)}</AppText>
               </View>
               <ChevronRight size={ms(18)} color={palette.accent} strokeWidth={2.2} />
             </TouchableOpacity>

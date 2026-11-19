@@ -11,9 +11,16 @@
    master (`GET /tax/categories`, `tax.tax_rates`). Picking a leaf pre-selects the matching GST
    bucket when the names align; the seller can change it. GST stays a separate bucket because
    checkout resolves the rate from `catalog.products.category`.
-2. Seller fills name, price, unit, description, image, and stock.
+2. Seller fills name, price, unit, description, image, and stock. Two optional Tamil fields —
+   **Name (Tamil)** and **Description (Tamil)** — accept the Tamil display copy. They validate
+   locally with `tamilFieldError` (`src/lib/tamil.ts`): Tamil letters, digits and light punctuation
+   only, and blank means "not translated" (the app falls back to English). A non-Tamil character
+   blocks Save with an inline "Use Tamil letters only." error; the gateway re-validates with
+   `internal/platform/locale.IsTamilText` and returns `400` if a client bypasses the form.
 3. Image upload uses the media pipeline (`POST /media/upload-url` → R2 `PUT` → `POST /media/confirm`).
-4. Save calls `createProduct(input)` (`POST /seller/products`) with `taxonomyCategoryId`.
+4. Save calls `createProduct(input)` (`POST /seller/products`) with `taxonomyCategoryId`; a filled
+   Tamil field is sent as `nameTa`/`descriptionTa`, an empty one is omitted so the column stays `''`.
+   The review step shows the Tamil name under the English one when authored.
 5. The gateway verifies the taxonomy id is an **active leaf of the store's app brand**, folds its
    `search_query` + name into `catalog.products.search_tokens` (so the listing is discoverable in the
    category drill-in), then writes `catalog.products` + `inventory.stock` in one transaction and
@@ -52,7 +59,9 @@
 ## Data path
 
 - `POST /seller/products` → `catalog.products` (`category` = GST label, `taxonomy_category_id` =
-  validated active leaf, `search_tokens` enriched with the leaf's `search_query`), `inventory.stock`.
+  validated active leaf, `search_tokens` enriched with the leaf's `search_query`,
+  `name_ta`/`desc_text_ta` = display-only Tamil copy), `inventory.stock`. Translations are never
+  folded into `search_tokens`; search stays English.
 - `PUT /seller/products/{id}/status` → `catalog.products.status`, `catalog.products.review_reason`;
   ACTIVE/REJECTED enqueues `notifications.outbox` (seller fan-out).
 - `PUT /seller/inventory/{productId}` → `inventory.stock`.

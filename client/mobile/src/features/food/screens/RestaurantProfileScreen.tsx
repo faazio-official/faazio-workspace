@@ -25,6 +25,8 @@ import {
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
+import { localizedDishName, localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { VendorReviewsSection } from '@/components/shared';
 import CampaignHero from '@/components/shared/CampaignHero';
 import { openHeroTarget } from '@/services/adsTarget';
@@ -55,6 +57,7 @@ const RED = '#DC2626';
 
 export function RestaurantProfileScreen({ navigation, route }: Props) {
   const restaurant = route.params.restaurant;
+  const language = useLanguageStore((s) => s.language);
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState('Bestsellers');
   const [picker, setPicker] = useState<{ dish: SpecialDish; addons: DishAddon[] } | null>(null);
@@ -254,7 +257,7 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
 
             <View style={styles.storeDetails}>
               <View style={styles.storeNameRow}>
-                <AppText style={styles.storeName}>{restaurant.name}</AppText>
+                <AppText style={styles.storeName}>{localizedName(restaurant, language)}</AppText>
                 <CheckCircle2 style={styles.verifiedIcon} color="#3B82F6" size={ms(16)} />
               </View>
               <AppText style={styles.storeSub}>{restaurant.cuisine}</AppText>
@@ -348,7 +351,7 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
                       <RemoteImage uri={item.image} variant="dish" style={styles.discountImage} />
                     </View>
                     <AppText numberOfLines={3} style={styles.productName}>
-                      {item.dishName}
+                      {localizedDishName(item, language)}
                     </AppText>
                     <View style={styles.priceRowHoriz}>
                       <View style={styles.priceCol}>
@@ -454,7 +457,7 @@ export function RestaurantProfileScreen({ navigation, route }: Props) {
 
       <AddonPickerSheet
         visible={picker !== null}
-        dishName={picker?.dish.dishName ?? ''}
+        dishName={picker ? localizedDishName(picker.dish, language) : ''}
         basePrice={picker?.dish.price ?? 0}
         addons={picker?.addons ?? []}
         onClose={() => setPicker(null)}

@@ -91,16 +91,19 @@ type Stock struct {
 
 // Product is a catalog row joined with its live stock (CatalogEntry + ProductView).
 type Product struct {
-	ID           string         `json:"id"`
-	App          App            `json:"app"`
-	Category     string         `json:"category"`
-	Name         string         `json:"name"`
-	SearchTokens []string       `json:"searchTokens"`
-	Price        int64          `json:"price"` // rupees
-	Rating       float64        `json:"rating"`
-	Emoji        string         `json:"emoji"`
-	Image        string         `json:"image"`
-	Desc         string         `json:"desc"`
+	ID           string   `json:"id"`
+	App          App      `json:"app"`
+	Category     string   `json:"category"`
+	Name         string   `json:"name"`
+	SearchTokens []string `json:"searchTokens"`
+	Price        int64    `json:"price"` // rupees
+	Rating       float64  `json:"rating"`
+	Emoji        string   `json:"emoji"`
+	Image        string   `json:"image"`
+	Desc         string   `json:"desc"`
+	// Tamil display copy (0107). Empty means "not translated" → the app falls back to English.
+	NameTA       string         `json:"nameTa,omitempty"`
+	DescTA       string         `json:"descTa,omitempty"`
 	Badge        string         `json:"badge,omitempty"`
 	Shop         string         `json:"shop,omitempty"`
 	StoreID      string         `json:"storeId,omitempty"`
@@ -125,11 +128,14 @@ type Store struct {
 	CoverImage   string   `json:"coverImage"`
 	Emoji        string   `json:"emoji"`
 	Desc         string   `json:"desc"`
-	OfferTag     string   `json:"offerTag,omitempty"`
-	IsVeg        *bool    `json:"isVeg,omitempty"`
-	Address      string   `json:"address,omitempty"` // PII — auth-scoped only
-	Phone        string   `json:"phone,omitempty"`   // PII
-	Hours        string   `json:"hours,omitempty"`
+	// Tamil display copy (0108). Empty means "not translated" → the app falls back to English.
+	NameTA   string `json:"nameTa,omitempty"`
+	DescTA   string `json:"descTa,omitempty"`
+	OfferTag string `json:"offerTag,omitempty"`
+	IsVeg    *bool  `json:"isVeg,omitempty"`
+	Address  string `json:"address,omitempty"` // PII — auth-scoped only
+	Phone    string `json:"phone,omitempty"`   // PII
+	Hours    string `json:"hours,omitempty"`
 	// StateCode scopes dispatch to riders in the store's state (2-letter code). Internal only.
 	StateCode string `json:"-"`
 	// Public coordinates. DistanceKm is set only by GET /stores/nearby.
@@ -165,14 +171,19 @@ type MenuDish struct {
 	Description   string   `json:"description,omitempty"`
 	Emoji         string   `json:"emoji,omitempty"`
 	DeliveryTime  string   `json:"deliveryTime,omitempty"`
+	// Tamil display copy (0108). Empty means "not translated" → the app falls back to English.
+	NameTA        string `json:"nameTa,omitempty"`
+	DescriptionTA string `json:"descTa,omitempty"`
 }
 
 // Venue is a directory.dining_venues row (a pure dining room / food venue). Public list reads use
 // the PII-free projection; address/phone are only present on an authenticated read.
 type Venue struct {
-	ID         string   `json:"id"`
-	App        App      `json:"app"`
-	Name       string   `json:"name"`
+	ID   string `json:"id"`
+	App  App    `json:"app"`
+	Name string `json:"name"`
+	// Tamil display name (0108). Empty means "not translated" → the app falls back to English.
+	NameTA     string   `json:"nameTa,omitempty"`
 	Rating     *float64 `json:"rating,omitempty"`
 	CoverImage string   `json:"coverImage"`
 	Categories []string `json:"categories"`

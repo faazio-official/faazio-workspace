@@ -8,9 +8,15 @@
 
 1. Seller opens **Inventory → Add-ons**. The page loads the venue's add-ons (`GET /seller/addons?venueId=`)
    and every dish link (`GET /seller/menu-addons?venueId=`).
-2. **Create add-on** → a sheet collects name, optional group, price (₹) and veg flag. Saving calls
-   `createAddon` (`POST /seller/addons`) and the new row opens as **DRAFT**. The seller sees it in
-   "Your add-ons" and can edit it later.
+2. **Create add-on** → a sheet collects name, optional group, **Tamil name**, **Tamil group**
+   (`0108`, both optional), price (₹) and veg flag. The two Tamil fields validate with
+   `tamilFieldError` (`src/lib/tamil.ts`) — Tamil letters, digits and light punctuation only, blank =
+   untranslated — and a non-Tamil character blocks Save with a toast; a filled value is sent as
+   `nameTa`/`groupNameTa` and an empty one is omitted so the column stays `''`. The gateway re-validates
+   (`internal/platform/locale.IsTamilText`) and returns `400` if bypassed. Saving calls `createAddon`
+   (`POST /seller/addons`) and the new row opens as **DRAFT**. The seller sees it in "Your add-ons" and
+   can edit it later; the Tamil copy is what the customer app shows in the add-on picker when the
+   shopper picked Tamil.
 3. **Link to a dish** → **Add add-on** on a dish opens a multi-select sheet. Saving diffs the
    selection and calls `linkAddonToDish` (`POST /seller/menu-addons`) / `unlinkAddonFromDish`
    (`DELETE /seller/menu-addons/{venueId}/{dishId}/{addonId}`). The on/off toggle on a linked row

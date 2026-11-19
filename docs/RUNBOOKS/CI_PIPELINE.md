@@ -288,21 +288,36 @@ uses `gh release upload --clobber`, re-running the same tag **replaces** the old
 
 | Input | Description |
 |---|---|
-| `version` | Overrides `package.json` `version` (e.g. `1.0.2`). Empty = keep package.json. |
-| `tag` | Git tag for the release (e.g. `v1.0.2`). Empty = `v<version>`. |
+| `version` | Overrides this app's version in `app-versions.json` (e.g. `1.0.2`). Empty = keep the committed value. |
+| `version-code` | Overrides this app's `versionCode`. Empty = derived from the semver (`1.0.4` → `10004`). |
+| `tag` | Git tag for the release (e.g. `v1.0.2`). Empty = `v<version>` (`-delivery` / `-seller` suffix for the partner apps). |
 | `prerelease` | `true` marks the release as a prerelease. |
 | `include-aab` | `true` also builds and attaches the Play-bound AAB (`.aab`); default `false` (APK only). |
 
-### Version bump
+### Version bump — per app
 
-`package.json` `version` is the single source of truth. The workflow **always** rewrites
-`android/app/build.gradle` `versionName` + `versionCode` from the resolved semver (the
-`-f version` input when supplied, otherwise `package.json`), so the build never ships a stale
-committed versionCode. A lower versionCode is a downgrade and `adb install`/Play reject it, so
-**`versionCode` must increase every release** — bump the semver for each release.
+`client/mobile/app-versions.json` is the single source of truth, **one entry per product**
+(`customer` / `delivery` / `seller`). The three apps ship on independent schedules, so a customer
+bump never moves the partner apps' `versionName`/`versionCode`.
 
-- `-f version=<semver>` also rewrites `package.json` and derives `versionCode` (`1.0.4` → `10004`).
-- Without `-f version`, the committed `package.json` version is used and `build.gradle` is aligned to it.
+```json
+{ "customer": { "version": "1.0.6", "versionCode": 10006 },
+  "delivery": { "version": "1.0.0", "versionCode": 1 },
+  "seller":   { "version": "1.0.6", "versionCode": 10006 } }
+```
+
+`android/app/build.gradle` reads that file per flavor, and `scripts/configure.js` embeds the same
+`version` as `APP_VERSION` (crash-sink release tag, Settings → Version), so the APK/AAB, the
+Settings screen and the crash tag always agree.
+
+Bump **only the app you are releasing**:
+
+- `-f version=<semver>` rewrites that app's entry and derives `versionCode` (`1.0.4` → `10004`);
+  `-f version-code=<n>` sets it explicitly.
+- Without inputs, the committed value for that app is used unchanged.
+
+A lower `versionCode` is a downgrade and `adb install`/Play reject it, so an existing listing's
+`versionCode` must increase every release. A **brand-new** listing starts at `1.0.0` / `1`.
 
 > Replacing an older **debug-signed** install with the release-signed APK will fail with
 > `INSTALL_FAILED_UPDATE_INCOMPATIBLE` — `adb uninstall com.faazio.customer` first (clears local

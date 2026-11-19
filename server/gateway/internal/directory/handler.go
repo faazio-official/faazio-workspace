@@ -12,6 +12,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
+	"github.com/faazio/server/gateway/internal/platform/locale"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -312,6 +313,8 @@ func (h *Handler) sellerStores(w http.ResponseWriter, r *http.Request) {
 
 type vendorRequest struct {
 	Name               string   `json:"name"`
+	NameTA             string   `json:"nameTa"`
+	DescTA             string   `json:"descTa"`
 	App                string   `json:"app"`
 	StateCode          string   `json:"stateCode"`
 	SellerID           string   `json:"sellerId"`
@@ -349,6 +352,10 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.PlatformFeePct != 0 && !validVendorFee(req.App, req.PlatformFeePct) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
+		return
+	}
+	if !validTamil(req.NameTA, 160) || !validTamil(req.DescTA, 2000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
 		return
 	}
 	if !validLatLngPtr(req.Latitude, req.Longitude) {
@@ -395,7 +402,8 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	store, err := h.repo.CreateStore(r.Context(), sellerID, stateCode, VendorInput{
-		Name: req.Name, App: req.App, Address: req.Address, Phone: req.Phone, Hours: req.Hours,
+		Name: req.Name, NameTA: strings.TrimSpace(req.NameTA), DescTA: strings.TrimSpace(req.DescTA),
+		App: req.App, Address: req.Address, Phone: req.Phone, Hours: req.Hours,
 		Latitude: req.Latitude, Longitude: req.Longitude, PlatformFeePct: req.PlatformFeePct,
 		SellerCategoryID: strings.TrimSpace(req.SellerCategoryID), FSSAINumber: req.FSSAINumber,
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
@@ -420,6 +428,10 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 	}
 	if !validLatLngPtr(req.Latitude, req.Longitude) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
+		return
+	}
+	if !validTamil(req.NameTA, 160) || !validTamil(req.DescTA, 2000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
 		return
 	}
 	sellerID, district, scopeOK := managementScope(r)
@@ -474,7 +486,8 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	store, ok, err := h.repo.UpdateStore(r.Context(), id, sellerID, district, VendorInput{
-		Name: req.Name, Address: req.Address, Phone: req.Phone, Hours: req.Hours,
+		Name: req.Name, NameTA: strings.TrimSpace(req.NameTA), DescTA: strings.TrimSpace(req.DescTA),
+		Address: req.Address, Phone: req.Phone, Hours: req.Hours,
 		Latitude: req.Latitude, Longitude: req.Longitude, PlatformFeePct: req.PlatformFeePct,
 		SellerCategoryID: strings.TrimSpace(req.SellerCategoryID), FSSAINumber: strings.TrimSpace(req.FSSAINumber),
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
@@ -543,6 +556,12 @@ func (h *Handler) setStoreFee(w http.ResponseWriter, r *http.Request) {
 }
 
 func validVendorApp(a string) bool { return a == "MART" || a == "FOOD" || a == "PHARMA" }
+
+// validTamil reports whether a translated field is Tamil-only (blank means "not translated") and
+// within its character budget.
+func validTamil(value string, maxRunes int) bool {
+	return locale.IsTamilText(value) && len([]rune(value)) <= maxRunes
+}
 
 // validVendorFee enforces the product rule: 1–100, floor 5 for FOOD.
 func validVendorFee(app string, pct int) bool {
@@ -714,6 +733,8 @@ type menuRequest struct {
 	VenueID      string   `json:"venueId"`
 	DishID       string   `json:"dishId"`
 	Name         string   `json:"name"`
+	NameTA       string   `json:"nameTa"`
+	DescTA       string   `json:"descriptionTa"`
 	Price        int64    `json:"price"`
 	MRP          *int64   `json:"mrp"`
 	IsVeg        *bool    `json:"isVeg"`
@@ -750,6 +771,10 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be present, non-negative and not below the selling price")
 		return
 	}
+	if !validTamil(req.NameTA, 200) || !validTamil(req.DescTA, 2000) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
+		return
+	}
 	sellerID, all, ok, err := h.menuOwner(r, req.VenueID, req.DishID)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
@@ -768,7 +793,9 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	m, found, err := h.repo.UpsertMenu(r.Context(), SellerMenu{
-		VenueID: req.VenueID, DishID: req.DishID, Name: req.Name, Price: req.Price, MRP: req.MRP,
+		VenueID: req.VenueID, DishID: req.DishID, Name: req.Name,
+		NameTA: strings.TrimSpace(req.NameTA), DescriptionTA: strings.TrimSpace(req.DescTA),
+		Price: req.Price, MRP: req.MRP,
 		IsVeg: req.IsVeg, Cuisine: req.Cuisine, Rating: req.Rating, Image: req.Image,
 		ImageKey: imageKey, ImageAssetID: imageAssetID,
 	}, sellerID, all)

@@ -36,7 +36,10 @@
   `taxonomy.categories` (both behind `auth.Require`). The Home/Mart header rail (`HeaderCategoryRail`
   → `usePagedRail`) never blanks silently: a failed read keeps the chips already loaded for the
   current app scope and, when it has none, shows a **Retry** chip (dev logs the error, e.g.
-  `GatewayHttpError status: 401`).
+  `GatewayHttpError status: 401`). Rail chips and drill-in titles render through
+  `src/lib/localizedText.ts`: a Tamil session shows `taxonomy.categories.name_ta` when the
+  super admin translated the category and the English `name` otherwise; the chip's `searchQuery`
+  (the vendor/FTS query) always stays English.
 - Stores: `getStores`, `getStoresNearby`, `getStore` → `directory.stores`.
 - Products: `searchProducts`, `getStoreProducts`, `getProductsByIds`, `getProduct` →
   `catalog.products` / `inventory.stock`.

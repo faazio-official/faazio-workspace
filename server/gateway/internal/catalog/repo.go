@@ -41,21 +41,22 @@ select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.emoji, p.image_url, p.image_key, p.desc_text, p.badge, p.shop, coalesce(p.store_id,''),
        p.unit, p.attributes,
        s.available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
-       null::float8 as distance_km
+       null::float8 as distance_km, coalesce(p.name_ta, ''), coalesce(p.desc_text_ta, '')
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
 
 // productListSelect is the slim projection for list/search/batch reads. It never fetches the
 // TOAST-able desc_text / attributes columns (constant placeholders keep the scan shape identical),
 // so search/list stop paying their bytes on the wire and in the Valkey value. Product detail
-// (ByID) keeps the full productSelect.
+// (ByID) keeps the full productSelect. name_ta is small and shown on every card, so it stays real;
+// desc_text_ta is only painted on the detail screen and follows the same placeholder rule.
 const productListSelect = `
 select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.price_paisa, p.rating, p.reviews_count,
        p.emoji, p.image_url, p.image_key, ''::text as desc_text, p.badge, null::text as shop,
        coalesce(p.store_id,''), p.unit, null::jsonb as attributes,
        s.available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
-       null::float8 as distance_km
+       null::float8 as distance_km, coalesce(p.name_ta, ''), ''::text as desc_text_ta
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
 
@@ -106,7 +107,7 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 		       (6371.0088 * acos(least(1, greatest(-1,
 		           sin(radians($1)) * sin(radians(d.latitude)) +
 		           cos(radians($1)) * cos(radians(d.latitude)) * cos(radians(d.longitude) - radians($2))
-		       )))) as distance_km
+		       )))) as distance_km, coalesce(p.name_ta, ''), ''::text as desc_text_ta
 		from catalog.products p
 		left join inventory.stock s on s.product_id = p.id
 		join directory.stores d on d.id = p.store_id
@@ -258,7 +259,7 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 			&pricePaisa, &rating, &reviewsCount,
 			&p.Emoji, &p.Image, &imageKey, &p.Desc, &badge, &shop, &p.StoreID, &unit, &attrsRaw,
 			&sAvail, &sQty, &stockPrice, &sETA, &sRx,
-			&distance,
+			&distance, &p.NameTA, &p.DescTA,
 		); err != nil {
 			return nil, err
 		}
@@ -330,6 +331,8 @@ type SellerProduct struct {
 	StoreID        string `json:"storeId,omitempty"`
 	Price          int64  `json:"price"` // rupees
 	Description    string `json:"description,omitempty"`
+	NameTA         string `json:"nameTa,omitempty"`
+	DescriptionTA  string `json:"descriptionTa,omitempty"`
 	Unit           string `json:"unit,omitempty"`
 	Emoji          string `json:"emoji,omitempty"`
 	ImageURL       string `json:"imageUrl,omitempty"`
@@ -358,7 +361,8 @@ select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(st.seller
        coalesce(p.desc_text,''), coalesce(p.unit,''), coalesce(p.emoji,''),
        coalesce(p.image_url,''), coalesce(p.image_key,''), p.is_veg, p.is_prescription,
        coalesce(s.in_stock_qty, 0), coalesce(s.available, true), coalesce(s.eta, ''),
-       coalesce(p.review_reason, ''), p.updated_at, p.deleted_at, coalesce(p.delete_reason, '')
+       coalesce(p.review_reason, ''), p.updated_at, p.deleted_at, coalesce(p.delete_reason, ''),
+       coalesce(p.name_ta, ''), coalesce(p.desc_text_ta, '')
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id
 left join directory.stores st on st.id = p.store_id`
@@ -431,6 +435,8 @@ type ProductCreateInput struct {
 	Category           string
 	TaxonomyCategoryID string
 	Desc               string
+	NameTA             string
+	DescTA             string
 	Price              int64 // rupees
 	Unit               string
 	Emoji              string
@@ -556,15 +562,15 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 		insert into catalog.products
 		  (id, app, category, name, search_tokens, price_paisa, rating, reviews_count,
 		   emoji, image_url, image_key, image_asset_id, desc_text, unit, store_id, is_prescription,
-		   is_veg, attributes, taxonomy_category_id, status)
+		   is_veg, attributes, taxonomy_category_id, status, name_ta, desc_text_ta)
 		values ($1, $2::app_brand, $3, $4, $5, $6, 0, 0,
 		        $7, $8, $9, $10, $11, $12, $13, $14,
-		        $15, $16, $17, 'PENDING_REVIEW'::product_status)`,
+		        $15, $16, $17, 'PENDING_REVIEW'::product_status, $18, $19)`,
 		id, app, category, name,
 		searchTokens(name, category, e.Desc, taxonomyName, taxonomyQuery), pricePaisa,
 		strings.TrimSpace(e.Emoji), strings.TrimSpace(e.ImageURL), e.ImageKey, e.ImageAssetID,
 		strings.TrimSpace(e.Desc), strings.TrimSpace(e.Unit), storeID, e.IsPrescription, e.IsVeg,
-		attrJSON, taxonomyPtr); err != nil {
+		attrJSON, taxonomyPtr, strings.TrimSpace(e.NameTA), strings.TrimSpace(e.DescTA)); err != nil {
 		return SellerProduct{}, false, err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -621,6 +627,8 @@ type ProductEdit struct {
 	ImageAssetID       *string
 	Name               *string
 	Description        *string
+	NameTA             *string
+	DescriptionTA      *string
 	Category           *string
 	TaxonomyCategoryID *string
 	IsVeg              *bool
@@ -673,7 +681,7 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 			return SellerProduct{}, false, nil
 		}
 	}
-	if e.Name != nil || e.Description != nil || e.Category != nil || e.TaxonomyCategoryID != nil || e.IsVeg != nil || e.IsPrescription != nil {
+	if e.Name != nil || e.Description != nil || e.NameTA != nil || e.DescriptionTA != nil || e.Category != nil || e.TaxonomyCategoryID != nil || e.IsVeg != nil || e.IsPrescription != nil {
 		newName, newDesc, newCategory := curName, curDesc, curCategory
 		if e.Name != nil {
 			newName = strings.TrimSpace(*e.Name)
@@ -710,11 +718,13 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 			       search_tokens   = $5,
 			       is_veg          = coalesce($6, is_veg),
 			       is_prescription = coalesce($7, is_prescription),
-			       taxonomy_category_id = $8
+			       taxonomy_category_id = $8,
+			       name_ta             = coalesce($9, name_ta),
+			       desc_text_ta        = coalesce($10, desc_text_ta)
 			 where id = $1`,
 			id, newName, newDesc, newCategory,
 			searchTokens(newName, newCategory, newDesc, taxonomyName, taxonomyQuery),
-			e.IsVeg, e.IsPrescription, taxonomyPtr); err != nil {
+			e.IsVeg, e.IsPrescription, taxonomyPtr, trimPtr(e.NameTA), trimPtr(e.DescriptionTA)); err != nil {
 			return SellerProduct{}, false, err
 		}
 	}
@@ -888,6 +898,15 @@ func mul100(v *int64) *int64 {
 	return &r
 }
 
+// trimPtr trims a optional edit string, preserving nil (= leave the column unchanged).
+func trimPtr(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*v)
+	return &trimmed
+}
+
 type sellerProductScanner interface{ Scan(dest ...any) error }
 
 func scanSellerProduct(row sellerProductScanner) (SellerProduct, error) {
@@ -899,7 +918,8 @@ func scanSellerProduct(row sellerProductScanner) (SellerProduct, error) {
 	if err := row.Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID,
 		&p.Price, &p.Description, &p.Unit, &p.Emoji, &p.ImageURL, &p.ImageKey,
 		&p.IsVeg, &p.IsPrescription, &p.InStockQty, &p.Available, &p.Eta,
-		&p.ReviewReason, &updatedAt, &deletedAt, &p.DeleteReason); err != nil {
+		&p.ReviewReason, &updatedAt, &deletedAt, &p.DeleteReason,
+		&p.NameTA, &p.DescriptionTA); err != nil {
 		return SellerProduct{}, err
 	}
 	p.Price /= 100

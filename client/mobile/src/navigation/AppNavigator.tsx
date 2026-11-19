@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useRef } from 'react';
+import React, { Suspense, lazy, useEffect, useRef, useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { SplashFallback } from '@/components/SplashFallback';
@@ -11,10 +11,14 @@ import { LocationScreen } from '@/features/auth/LocationScreen';
 import { MainTabs } from './MainTabs';
 import { useAuthStore } from '@/state/authStore';
 import { useOnboardingStore } from '@/state/onboardingStore';
+import { useLocationStore } from '@/state/locationStore';
 
 export type { RootStackParamList, MainTabParamList } from './types';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
+
+/** Upper bound on waiting for the persisted location before routing anyway. */
+const LOCATION_GATE_TIMEOUT_MS = 3000;
 
 // Non-initial routes are lazy-loaded so only the first-frame screens (Onboarding
 // / Login → MainTabs/Home) are evaluated at startup. Each still suspends into the
@@ -41,6 +45,7 @@ const CategoryDrillInScreen = lazyNamed(() => import('@/features/catalog/Categor
 const VendorDetailScreen = lazyNamed(() => import('@/features/catalog/VendorDetailScreen'), 'VendorDetailScreen');
 const UserDetailsScreen = lazyNamed(() => import('@/features/profile/UserDetailsScreen'), 'UserDetailsScreen');
 const ThemeScreen = lazyNamed(() => import('@/features/profile/ThemeScreen'), 'default');
+const LanguageScreen = lazyNamed(() => import('@/features/profile/LanguageScreen'), 'default');
 const SavedAddressesScreen = lazyNamed(() => import('@/features/profile/SavedAddressesScreen'), 'SavedAddressesScreen');
 const DeleteAccountScreen = lazyNamed(() => import('@/features/profile/DeleteAccountScreen'), 'DeleteAccountScreen');
 const RequestDataDeletionScreen = lazyNamed(() => import('@/features/profile/RequestDataDeletionScreen'), 'RequestDataDeletionScreen');
@@ -70,7 +75,22 @@ export function AppNavigator() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const hydrated = useAuthStore((s) => s.hydrated);
   const hasSeenOnboarding = useOnboardingStore((s) => s.hasSeenOnboarding);
+  const locationHydrated = useLocationStore((s) => s.hydrated);
+  const locationStatus = useLocationStore((s) => s.status);
+  const hydrateLocation = useLocationStore((s) => s.hydrate);
   const wasAuthenticated = useRef(isAuthenticated);
+  const [gateExpired, setGateExpired] = useState(false);
+
+  // The authenticated start route depends on the persisted location, so the
+  // navigator must not mount before that read settles (otherwise a user with no
+  // location lands on a Home tab with nothing to show). A hard timeout keeps a
+  // slow/hung storage module from blocking startup.
+  useEffect(() => {
+    if (locationHydrated) return;
+    void hydrateLocation();
+    const timer = setTimeout(() => setGateExpired(true), LOCATION_GATE_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [locationHydrated, hydrateLocation]);
 
   // A dead/revoked session is cleared by GatewayClient.recoverSession, which also resets
   // authStore. Follow that transition here so the customer app actually returns to Login
@@ -87,6 +107,19 @@ export function AppNavigator() {
     }
   }, [hydrated, isAuthenticated]);
 
+  // Only an authenticated cold start is gated on location; signed-out users never
+  // need it (onboarding/login own the first-run chain).
+  const locationGateResolved =
+    !isAuthenticated || locationHydrated || gateExpired;
+
+  const initialRouteName = !isAuthenticated
+    ? hasSeenOnboarding
+      ? 'Login'
+      : 'Onboarding'
+    : locationStatus === 'idle'
+      ? 'Location'
+      : 'MainTabs';
+
   return (
     <ErrorBoundary
       scope="App"
@@ -96,193 +129,202 @@ export function AppNavigator() {
         }
       }}
     >
-      <Suspense fallback={<SplashFallback />}>
-        <Stack.Navigator
-          screenOptions={{ headerShown: false }}
-          initialRouteName={isAuthenticated ? 'MainTabs' : hasSeenOnboarding ? 'Login' : 'Onboarding'}
-        >
-          <Stack.Screen name="Onboarding" component={OnboardingScreen} />
-          <Stack.Screen name="Login" component={LoginScreen} />
-          <Stack.Screen name="LanguageSelection" component={LanguageSelectionScreen} />
-          <Stack.Screen name="Location" component={LocationScreen} />
-          <Stack.Screen name="MainTabs" component={MainTabs} />
-          <Stack.Screen
-            name="SubApp"
-            component={SubAppScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="CategoryDrillIn"
-            component={CategoryDrillInScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="VendorDetails"
-            component={VendorDetailScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="FoodApp"
-            component={FoodStack}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="ProductDetail"
-            component={ProductDetailScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="Search"
-            component={SearchRouteScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="Cart"
-            component={CartScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="You"
-            component={YouScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="PaymentOptions"
-            component={PaymentOptionsScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="PaymentCallback"
-            component={PaymentCallbackScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="UserDetails"
-            component={UserDetailsScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="Theme"
-            component={ThemeScreen}
-            options={{ animation: 'slide_from_right', animationDuration: 220 }}
-          />
-          <Stack.Screen
-            name="SavedAddresses"
-            component={SavedAddressesScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="DeleteAccount"
-            component={DeleteAccountScreen}
-            options={{ animation: 'slide_from_right', animationDuration: 220 }}
-          />
-          <Stack.Screen
-            name="RequestDataDeletion"
-            component={RequestDataDeletionScreen}
-            options={{ animation: 'slide_from_right', animationDuration: 220 }}
-          />
-          <Stack.Screen
-            name="MyOrders"
-            component={MyOrdersScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="Notifications"
-            component={NotificationsScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="OrderDetails"
-            component={OrderDetailsScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="ActiveCall"
-            component={ActiveCallScreen}
-            options={{ animation: 'fade', gestureEnabled: false, presentation: 'fullScreenModal' }}
-          />
-          <Stack.Screen
-            name="RateVendor"
-            component={RateVendorScreen}
-            options={{ animation: 'slide_from_bottom', animationDuration: 220 }}
-          />
-          <Stack.Screen
-            name="RateProduct"
-            component={RateProductScreen}
-            options={{ animation: 'slide_from_bottom', animationDuration: 220 }}
-          />
-          <Stack.Screen
-            name="OrderFeedback"
-            component={OrderFeedbackScreen}
-            options={{ animation: 'slide_from_bottom', animationDuration: 220 }}
-          />
-          <Stack.Screen
-            name="BloodDonor"
-            component={BloodDonorScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="BloodDonorDetails"
-            component={BloodDonorDetailsScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="BloodRequestDescription"
-            component={BloodRequestDescriptionScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="FaazioRewards"
-            component={FaazioRewardsScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="SellWithUs"
-            component={SellWithUsScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="SellerPlatformFeeRequest"
-            component={SellerPlatformFeeRequestScreen}
-            options={{ animation: 'slide_from_right', animationDuration: 220 }}
-          />
-          <Stack.Screen
-            name="FeeChangeRequests"
-            component={FeeChangeRequestsScreen}
-            options={{ animation: 'slide_from_right', animationDuration: 220 }}
-          />
-          <Stack.Screen
-            name="SellerRequests"
-            component={SellerRequestsScreen}
-            options={{ animation: 'slide_from_right', animationDuration: 220 }}
-          />
-          <Stack.Screen
-            name="SellerRequestDetail"
-            component={SellerRequestDetailScreen}
-            options={{ animation: 'slide_from_right', animationDuration: 220 }}
-          />
-          <Stack.Screen
-            name="Favourites"
-            component={FavouritesScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="DealsLanding"
-            component={DealsLandingScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="PrescriptionFlow"
-            component={PrescriptionFlowScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-          <Stack.Screen
-            name="MedicalShopDetails"
-            component={MedicalShopDetailsScreen}
-            options={{ animation: 'fade', animationDuration: 180 }}
-          />
-        </Stack.Navigator>
-      </Suspense>
+      {!locationGateResolved ? (
+        <SplashFallback />
+      ) : (
+        <Suspense fallback={<SplashFallback />}>
+          <Stack.Navigator
+            screenOptions={{ headerShown: false }}
+            initialRouteName={initialRouteName}
+          >
+            <Stack.Screen name="Onboarding" component={OnboardingScreen} />
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="LanguageSelection" component={LanguageSelectionScreen} />
+            <Stack.Screen name="Location" component={LocationScreen} />
+            <Stack.Screen name="MainTabs" component={MainTabs} />
+            <Stack.Screen
+              name="SubApp"
+              component={SubAppScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="CategoryDrillIn"
+              component={CategoryDrillInScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="VendorDetails"
+              component={VendorDetailScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="FoodApp"
+              component={FoodStack}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="ProductDetail"
+              component={ProductDetailScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="Search"
+              component={SearchRouteScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="Cart"
+              component={CartScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="You"
+              component={YouScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="PaymentOptions"
+              component={PaymentOptionsScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="PaymentCallback"
+              component={PaymentCallbackScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="UserDetails"
+              component={UserDetailsScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="Theme"
+              component={ThemeScreen}
+              options={{ animation: 'slide_from_right', animationDuration: 220 }}
+            />
+            <Stack.Screen
+              name="Language"
+              component={LanguageScreen}
+              options={{ animation: 'slide_from_right', animationDuration: 220 }}
+            />
+            <Stack.Screen
+              name="SavedAddresses"
+              component={SavedAddressesScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="DeleteAccount"
+              component={DeleteAccountScreen}
+              options={{ animation: 'slide_from_right', animationDuration: 220 }}
+            />
+            <Stack.Screen
+              name="RequestDataDeletion"
+              component={RequestDataDeletionScreen}
+              options={{ animation: 'slide_from_right', animationDuration: 220 }}
+            />
+            <Stack.Screen
+              name="MyOrders"
+              component={MyOrdersScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="Notifications"
+              component={NotificationsScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="OrderDetails"
+              component={OrderDetailsScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="ActiveCall"
+              component={ActiveCallScreen}
+              options={{ animation: 'fade', gestureEnabled: false, presentation: 'fullScreenModal' }}
+            />
+            <Stack.Screen
+              name="RateVendor"
+              component={RateVendorScreen}
+              options={{ animation: 'slide_from_bottom', animationDuration: 220 }}
+            />
+            <Stack.Screen
+              name="RateProduct"
+              component={RateProductScreen}
+              options={{ animation: 'slide_from_bottom', animationDuration: 220 }}
+            />
+            <Stack.Screen
+              name="OrderFeedback"
+              component={OrderFeedbackScreen}
+              options={{ animation: 'slide_from_bottom', animationDuration: 220 }}
+            />
+            <Stack.Screen
+              name="BloodDonor"
+              component={BloodDonorScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="BloodDonorDetails"
+              component={BloodDonorDetailsScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="BloodRequestDescription"
+              component={BloodRequestDescriptionScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="FaazioRewards"
+              component={FaazioRewardsScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="SellWithUs"
+              component={SellWithUsScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="SellerPlatformFeeRequest"
+              component={SellerPlatformFeeRequestScreen}
+              options={{ animation: 'slide_from_right', animationDuration: 220 }}
+            />
+            <Stack.Screen
+              name="FeeChangeRequests"
+              component={FeeChangeRequestsScreen}
+              options={{ animation: 'slide_from_right', animationDuration: 220 }}
+            />
+            <Stack.Screen
+              name="SellerRequests"
+              component={SellerRequestsScreen}
+              options={{ animation: 'slide_from_right', animationDuration: 220 }}
+            />
+            <Stack.Screen
+              name="SellerRequestDetail"
+              component={SellerRequestDetailScreen}
+              options={{ animation: 'slide_from_right', animationDuration: 220 }}
+            />
+            <Stack.Screen
+              name="Favourites"
+              component={FavouritesScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="DealsLanding"
+              component={DealsLandingScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="PrescriptionFlow"
+              component={PrescriptionFlowScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+            <Stack.Screen
+              name="MedicalShopDetails"
+              component={MedicalShopDetailsScreen}
+              options={{ animation: 'fade', animationDuration: 180 }}
+            />
+          </Stack.Navigator>
+        </Suspense>
+      )}
     </ErrorBoundary>
   );
 }

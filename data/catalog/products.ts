@@ -28,6 +28,10 @@ export interface CatalogEntry {
   emoji: string;
   image: string;
   desc: string;
+  /** Tamil display name (server translation, 0107). Empty/absent → fall back to `name`. */
+  nameTa?: string;
+  /** Tamil display description (server translation, 0107). Empty/absent → fall back to `desc`. */
+  descTa?: string;
   badge?: string;
   shop?: string;
   reviewsCount?: number;

@@ -13,6 +13,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
+	"github.com/faazio/server/gateway/internal/platform/locale"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -159,6 +160,8 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		ImageKey           *string `json:"imageKey"`
 		Name               *string `json:"name"`
 		Description        *string `json:"description"`
+		NameTA             *string `json:"nameTa"`
+		DescriptionTA      *string `json:"descriptionTa"`
 		Category           *string `json:"category"`
 		TaxonomyCategoryID *string `json:"taxonomyCategoryId"`
 		IsVeg              *bool   `json:"isVeg"`
@@ -200,6 +203,22 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		}
 		body.Category = &category
 	}
+	if body.NameTA != nil {
+		nameTA := strings.TrimSpace(*body.NameTA)
+		if !locale.IsTamilText(nameTA) || len([]rune(nameTA)) > 200 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil name accepts Tamil letters only")
+			return
+		}
+		body.NameTA = &nameTA
+	}
+	if body.DescriptionTA != nil {
+		descTA := strings.TrimSpace(*body.DescriptionTA)
+		if !locale.IsTamilText(descTA) || len([]rune(descTA)) > 4000 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil description accepts Tamil letters only")
+			return
+		}
+		body.DescriptionTA = &descTA
+	}
 	if body.TaxonomyCategoryID != nil {
 		taxonomyCategoryID := strings.TrimSpace(*body.TaxonomyCategoryID)
 		body.TaxonomyCategoryID = &taxonomyCategoryID
@@ -217,6 +236,7 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		Price: body.Price, InStockQty: body.InStockQty, Available: body.Available,
 		ImageKey: imageKey, ImageAssetID: imageAssetID,
 		Name: body.Name, Description: body.Description, Category: body.Category,
+		NameTA: body.NameTA, DescriptionTA: body.DescriptionTA,
 		TaxonomyCategoryID: body.TaxonomyCategoryID,
 		IsVeg:              body.IsVeg, IsPrescription: body.IsPrescription,
 	})
@@ -461,6 +481,9 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		TaxonomyCategoryID string         `json:"taxonomyCategoryId"`
 		Desc               string         `json:"desc"`
 		Description        string         `json:"description"`
+		NameTA             string         `json:"nameTa"`
+		DescTA             string         `json:"descTa"`
+		DescriptionTA      string         `json:"descriptionTa"`
 		Price              int64          `json:"price"`
 		Unit               string         `json:"unit"`
 		Emoji              string         `json:"emoji"`
@@ -495,6 +518,19 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "name, category or description too long")
 		return
 	}
+	nameTA := strings.TrimSpace(body.NameTA)
+	descTA := strings.TrimSpace(body.DescTA)
+	if descTA == "" {
+		descTA = strings.TrimSpace(body.DescriptionTA)
+	}
+	if !locale.IsTamilText(nameTA) || len([]rune(nameTA)) > 200 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil name accepts Tamil letters only")
+		return
+	}
+	if !locale.IsTamilText(descTA) || len([]rune(descTA)) > 4000 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil description accepts Tamil letters only")
+		return
+	}
 	sellerID, district, scopeOK := managementScope(r)
 	if !scopeOK {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
@@ -522,6 +558,7 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	p, found, err := h.repo.CreateProduct(r.Context(), sellerID, district, ProductCreateInput{
 		StoreID: storeID, Name: name, Category: category, TaxonomyCategoryID: taxonomyCategoryID, Desc: desc,
+		NameTA: nameTA, DescTA: descTA,
 		Price: body.Price, Unit: body.Unit, Emoji: body.Emoji,
 		ImageURL: imageURL, ImageKey: imageKey, ImageAssetID: imageAssetID,
 		IsVeg: body.IsVeg, IsPrescription: body.IsPrescription, Attributes: body.Attributes,

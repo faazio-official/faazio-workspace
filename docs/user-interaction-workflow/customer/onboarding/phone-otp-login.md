@@ -9,9 +9,11 @@
 1. `LoginScreen` renders a fixed `+91` (India) dial code + phone field — the country is not
    user-selectable. `toE164`/`isValidPhone` validate locally. The field auto-focuses and shows
    device-local **recent numbers** (tappable suggestions) when empty.
-2. An OTP is requested from the "Send code" button or automatically 150 ms after the 10th digit.
-   Firebase `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode and starts the 30 s
-   resend cooldown (`RESEND_COOLDOWN_S`). A successful send records the number in the suggestion list.
+2. An OTP is requested **only** when the user taps "Send code" — there is no auto-send while
+   typing, so a half-typed number can never burn an SMS. The button is disabled until the number
+   passes `isValidPhone`. Firebase `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode
+   and starts the 30 s resend cooldown (`RESEND_COOLDOWN_S`). A successful send records the number
+   in the suggestion list.
 3. The user enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval) in an
    animated 6-segment field driven by a hidden `oneTimeCode`/`sms-otp` input. Backing out of the
    code step calls `cancelPrimaryOtp()`, dropping the pending confirmation/watch — a late

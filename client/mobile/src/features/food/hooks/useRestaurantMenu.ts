@@ -8,6 +8,8 @@ function toSpecialDish(dish: MenuDish, restaurantName: string): SpecialDish {
   return {
     id: dish.id,
     dishName: dish.name,
+    ...(dish.nameTa ? { dishNameTa: dish.nameTa } : {}),
+    ...(dish.descTa ? { descriptionTa: dish.descTa } : {}),
     restaurant: restaurantName,
     price: dish.price,
     mrp: dish.mrp,

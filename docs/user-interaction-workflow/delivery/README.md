@@ -58,7 +58,7 @@ preserved; the bottom nav moved from a per-screen footer to a real tab navigator
 | Fulfillment | Pickup | `Route` | [fulfillment/index.md](./fulfillment/index.md) · [order-pickup.md](./fulfillment/order-pickup.md) |
 | Fulfillment | Customer handover / OTP / COD | `Route` | [customer-handover.md](./fulfillment/customer-handover.md) |
 | Calling | Outgoing masked call (rider → customer) | `Route`, `Dashboard` → `ActiveCall` | [calling/index.md](./calling/index.md) · [calling/outgoing.md](./calling/outgoing.md) |
-| Calling | Incoming masked call (customer → rider) — **Partial**: server push + Android ring implemented; iOS CallKit and PSTN provisioning pending | `ActiveCall` (push + CallKeep) | [calling/incoming.md](./calling/incoming.md) · [calling/edge-cases.md](./calling/edge-cases.md) · [calling/screens.md](./calling/screens.md) |
+| Calling | Incoming masked call (customer → rider) — **Partial**: Android ring implemented; iOS customer CallKit and PSTN provisioning pending | `ActiveCall` (FCM full-screen-intent ring) | [calling/incoming.md](./calling/incoming.md) · [calling/edge-cases.md](./calling/edge-cases.md) · [calling/screens.md](./calling/screens.md) |
 | Earnings | Payout ledger | `Payouts` | [earnings/index.md](./earnings/index.md) · [earnings-ledger.md](./earnings/earnings-ledger.md) |
 | Earnings | Single-order breakdown | `EarningsDetail` | [earnings/earnings-detail.md](./earnings/earnings-detail.md) |
 | Profile | Bottom nav + profile / settings / support / alerts / history | `Main` (`Dashboard`, `Payouts`, `OrderHistory`, `Notifications`, `RiderProfile`), `EditProfile`, `Settings`, `Support` | [more/index.md](./more/index.md) |
@@ -71,8 +71,9 @@ preserved; the bottom nav moved from a per-screen footer to a real tab navigator
   heartbeat is non-fatal (Valkey key expires and dispatch skips the rider).
 - Calls are masked and server-authoritative: the gateway chooses VOIP vs PSTN_BRIDGING, enforces one
   open call per rider, and the app never receives or dials the customer's raw phone number. The call
-  state machine, VOIP adapter, CallKeep ring and full-screen surface are shared with the customer app
-  under `src/features/call/`; the delivery binding only supplies navigation and copy.
+  state machine, VOIP adapter, full-screen-intent ring (Android) and full-screen surface are shared
+  with the customer app under `src/features/call/`; the delivery binding only supplies navigation and
+  copy.
 - No mock offers or payouts; empty states are honest.
 
 ## Known gaps

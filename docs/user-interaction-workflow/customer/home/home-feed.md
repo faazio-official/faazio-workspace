@@ -13,12 +13,17 @@
    `storeIds` through `contracts.ProductReader` / `contracts.StoreReader`.
 4. The app maps each section to a `HomeRow` and renders the matching section component.
 5. Section components may fire their own supporting reads (ads, discounts, ratings) and add to cart.
-6. Pull-to-refresh (`AppRefreshControl`) on the body re-fetches the feed and bumps the shared
+6. The header category rail (`HeaderCategoryRail` → `usePagedRail`) renders every curated Mart +
+   Pharma chip (unbounded, any tree level, FOOD excluded) in a horizontal ScrollView. It pages in more
+   chips as the strip nears its right edge **and** whenever a page does not fill the viewport width,
+   so nothing past page 1 is stranded. Tapping a chip pushes `CategoryDrillIn` for that category's
+   app; a child chip opens that node's subtree.
+7. Pull-to-refresh (`AppRefreshControl`) on the body re-fetches the feed and bumps the shared
    `refreshStore` `home` counter, which also re-fetches the sibling header category rail
    (`HeaderCategoryRail` → `usePagedRail`). Stale rows stay visible while the spinner runs; a failed
    rail fetch keeps the already-loaded chips (only an `app` scope change clears them) and logs the
    failure in dev.
-7. If the rail has never loaded and the fetch fails, `HeaderCategoryRail` renders a single **Retry**
+8. If the rail has never loaded and the fetch fails, `HeaderCategoryRail` renders a single **Retry**
    chip (instead of a silent blank strip) that re-runs `usePagedRail().refresh`.
 
 ## State
@@ -38,10 +43,10 @@
 - Cache: `faazio:v1:gateway:sdui:{locale}:/home` (300 s), purged on SDUI publish.
 - Supporting: `getProductsByIds` (`POST /products/batch`), `getActiveDiscounts`
   (`GET /promo/active-discounts`), `fetchCategoryRail` (`GET /categories/rail` — only active
-  top-level rows curated with `show_on_home_rail`, max 3 globally; FOOD is not eligible). The rail
-  endpoint sits behind the same `auth.Require` middleware as the rest of the app, so an
-  unauthenticated/expired session gets a `401 authentication required` (surfaced by the Retry chip),
-  not an empty server list.
+  rows curated with `show_on_home_rail`, unbounded Mart + Pharma combined, any tree level; FOOD is
+  not eligible). The rail endpoint sits behind the same `auth.Require` middleware as the rest of the
+  app, so an unauthenticated/expired session gets a `401 authentication required` (surfaced by the
+  Retry chip), not an empty server list.
 - Offline shell: `@data/home/sections` registry + section fixtures, used only when the gateway is
   disabled. Online rails render server rows or an honest empty/error state.
 

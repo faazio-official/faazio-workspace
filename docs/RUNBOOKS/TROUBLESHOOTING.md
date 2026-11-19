@@ -254,8 +254,9 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   git checkout -- android/ ios/
   ```
   Then verify `namespace`/`applicationId` = `com.faazio.customer` (partner flavors;
-  `com.faazio.deliverypartner` / `com.faazio.sellerpartner`), `versionCode`/`versionName` in
-  `android/app/build.gradle`, and that `ios/Faazio/AppDelegate.swift` sets moduleName `main`.
+  `com.faazio.deliverypartner` / `com.faazio.sellerpartner`), the per-app
+  `versionCode`/`versionName` in `app-versions.json`, and that `ios/Faazio/AppDelegate.swift` sets
+  moduleName `main`.
 - **NDK / CMake issues** → the project pins NDK `27.1.12297006` (see `android/build.gradle`).
   Install via Android Studio SDK Manager; confirm `ANDROID_HOME` points at the SDK.
 - **Out of memory (OOM) on a memory-pressured laptop** → **lower** concurrent Gradle memory,

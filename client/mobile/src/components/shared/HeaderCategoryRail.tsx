@@ -1,5 +1,13 @@
-import React, { memo, useCallback } from 'react';
-import { View, TouchableOpacity, ScrollView, StyleSheet, NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import React, { memo, useCallback, useRef } from 'react';
+import {
+  View,
+  TouchableOpacity,
+  ScrollView,
+  StyleSheet,
+  NativeSyntheticEvent,
+  NativeScrollEvent,
+  LayoutChangeEvent,
+} from 'react-native';
 import { RefreshCw } from 'lucide-react-native';
 import { AppImage } from './AppImage';
 import AppText from '@/components/AppText';
@@ -24,16 +32,24 @@ interface HeaderCategoryRailProps {
  * on tap. Rendered as a plain horizontal ScrollView (not a FlashList) because this
  * region animates every frame — the virtualization machinery would otherwise
  * re-rasterize inside the sliding overlay.
+ *
+ * The rail is unbounded (Mart + Pharma, any tree level, no count cap), so paging must also
+ * advance when a page does not overflow the viewport: a strip that fits on screen
+ * never emits a scroll event, which would otherwise strand every chip past the
+ * first page.
  */
 const HeaderCategoryRail = memo(function HeaderCategoryRail({
   onCategoryPress,
   app,
 }: HeaderCategoryRailProps) {
-  const { items, loadMore, error, refreshing, refresh } = usePagedRail(HEADER_RAIL_PAGE_SIZE, app);
+  const { items, loadMore, hasMore, error, refreshing, refresh } = usePagedRail(
+    HEADER_RAIL_PAGE_SIZE,
+    app,
+  );
+  const railViewportWidth = useRef(0);
+  const railContentWidth = useRef(0);
 
-  // Load the next static page when the user scrolls near the right edge
-  // (the feed is tiny and fixed, so this is a lightweight equivalent of the
-  // FlashList onEndReached it replaced).
+  // Load the next page when the user scrolls near the right edge.
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
       const { layoutMeasurement, contentOffset, contentSize } = e.nativeEvent;
@@ -42,6 +58,31 @@ const HeaderCategoryRail = memo(function HeaderCategoryRail({
       }
     },
     [loadMore],
+  );
+
+  // A page that fits inside the viewport cannot be scrolled, so no scroll event ever fires. Grow the
+  // visible window until the strip overflows (or every curated chip is rendered). Both measurements
+  // are read through refs because `onLayout` and `onContentSizeChange` can arrive in either order.
+  const growIfNotScrollable = useCallback(() => {
+    const viewport = railViewportWidth.current;
+    const content = railContentWidth.current;
+    if (hasMore && viewport > 0 && content > 0 && content <= viewport) loadMore();
+  }, [hasMore, loadMore]);
+
+  const onContentSizeChange = useCallback(
+    (contentWidth: number) => {
+      railContentWidth.current = contentWidth;
+      growIfNotScrollable();
+    },
+    [growIfNotScrollable],
+  );
+
+  const onLayout = useCallback(
+    (e: LayoutChangeEvent) => {
+      railViewportWidth.current = e.nativeEvent.layout.width;
+      growIfNotScrollable();
+    },
+    [growIfNotScrollable],
   );
 
   // A failed rail with no chips advertises a retry instead of silently rendering a blank strip
@@ -71,6 +112,8 @@ const HeaderCategoryRail = memo(function HeaderCategoryRail({
       showsHorizontalScrollIndicator={false}
       contentContainerStyle={styles.content}
       onScroll={onScroll}
+      onLayout={onLayout}
+      onContentSizeChange={onContentSizeChange}
       scrollEventThrottle={16}
     >
       {items.map((item) => (

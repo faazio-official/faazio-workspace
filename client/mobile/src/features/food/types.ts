@@ -1,6 +1,8 @@
 export interface FoodRestaurant {
   id: string;
   name: string;
+  /** Tamil display name (server translation, 0108). Empty → fall back to `name`. */
+  nameTa?: string;
   image: string;
   rating: number;
   ratingCount: number;
@@ -21,6 +23,8 @@ export interface FoodRestaurant {
 export interface FoodType {
   id: string;
   name: string;
+  /** Tamil display name (server translation). Empty → fall back to `name`. */
+  nameTa?: string;
   image: string;
   rating: number;
   dietType: 'veg' | 'nonveg' | 'both';
@@ -30,6 +34,7 @@ export interface FoodType {
 export interface NearbyRestaurant {
   id: string;
   name: string;
+  nameTa?: string;
   image: string;
   cuisine: string;
   rating: number;

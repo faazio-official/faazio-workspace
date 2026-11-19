@@ -51,6 +51,7 @@ import {
   updateCategory,
 } from "@/lib/api";
 import type { CategoryInput, CategoryRow } from "@/lib/api";
+import { tamilFieldError } from "@/lib/tamil";
 import type { Sector } from "@/data/types";
 
 const SECTORS: Sector[] = ["MART", "FOOD", "PHARMA"];
@@ -77,6 +78,9 @@ export function CategoriesPage() {
 
   const [formApp, setFormApp] = useState<Sector>("MART");
   const [formName, setFormName] = useState("");
+  // Optional Tamil translations (0107). Tamil letters only; blank = not translated.
+  const [formNameTa, setFormNameTa] = useState("");
+  const [formDescriptionTa, setFormDescriptionTa] = useState("");
   const [formParentId, setFormParentId] = useState("");
   const [formIconUrl, setFormIconUrl] = useState("");
   const [formSearchQuery, setFormSearchQuery] = useState("");
@@ -103,6 +107,8 @@ export function CategoriesPage() {
   function resetForm() {
     setFormApp("MART");
     setFormName("");
+    setFormNameTa("");
+    setFormDescriptionTa("");
     setFormParentId("");
     setFormIconUrl("");
     setFormSearchQuery("");
@@ -120,12 +126,16 @@ export function CategoriesPage() {
   function openEdit(row: CategoryRow) {
     setFormApp((SECTORS.includes(row.app as Sector) ? row.app : "MART") as Sector);
     setFormName(row.name);
+    setFormNameTa(row.nameTa ?? "");
+    setFormDescriptionTa(row.descriptionTa ?? "");
     setFormParentId(row.parentId ?? "");
     setFormIconUrl(row.iconUrl ?? "");
     setFormSearchQuery(row.searchQuery ?? "");
     setFormSortOrder(String(row.sortOrder));
     setFormActive(row.isActive);
-    setFormRail(row.showOnHomeRail);
+    // FOOD rows cannot be rail chips (the server rejects them); never prefill a disabled switch as
+    // checked, which would post a value the gateway would 400. Child rows are eligible.
+    setFormRail(row.showOnHomeRail && row.app !== "FOOD");
     setEditing(row);
     setCreating(false);
   }
@@ -140,38 +150,23 @@ export function CategoriesPage() {
       toast.error("Category name is required.");
       return;
     }
+    const nameTaError = tamilFieldError(formNameTa, 120);
+    const descriptionTaError = tamilFieldError(formDescriptionTa, 2000);
+    if (nameTaError || descriptionTaError) {
+      toast.error("Check the Tamil fields", {
+        description: nameTaError ?? descriptionTaError ?? undefined,
+      });
+      return;
+    }
     if (formRail && formApp === "FOOD") {
       toast.error("Food categories cannot appear on the home rail.");
       return;
     }
-    if (formRail && formParentId.trim()) {
-      toast.error("Only top-level categories can appear on the home rail.");
-      return;
-    }
-    if (formRail && formActive) {
-      // The rail is capped globally (Mart + Pharma share the three chips). Fetch the full tree so a
-      // per-app tab cannot hide an existing slot.
-      try {
-        const all = await listCategories("ALL");
-        const used = all.filter(
-          (c) => c.showOnHomeRail && c.isActive && c.id !== editing?.id,
-        ).length;
-        if (used >= 3) {
-          toast.error("The home rail is full", {
-            description: "Turn off another category first — only 3 can be on the home rail.",
-          });
-          return;
-        }
-      } catch (err) {
-        toast.error("Could not check the home rail", {
-          description: err instanceof Error ? err.message : undefined,
-        });
-        return;
-      }
-    }
     const input: CategoryInput = {
       app: formApp,
       name: formName.trim(),
+      ...(formNameTa.trim() ? { nameTa: formNameTa.trim() } : {}),
+      ...(formDescriptionTa.trim() ? { descriptionTa: formDescriptionTa.trim() } : {}),
       parentId: formParentId.trim() ? formParentId.trim() : null,
       sortOrder: Number.isFinite(Number(formSortOrder)) ? Number(formSortOrder) : 0,
       isActive: formActive,
@@ -226,7 +221,7 @@ export function CategoriesPage() {
     <div className="space-y-4">
       <PageHeader
         title="Categories"
-        description="The central category taxonomy (Mart, Food, Pharma). Every app and seller picks from this list — delete hides a category without breaking existing references. Mark up to 3 top-level Mart/Pharma categories as the mobile home rail."
+        description="The central category taxonomy (Mart, Food, Pharma). Every app and seller picks from this list — delete hides a category without breaking existing references. Any number of Mart/Pharma categories (top-level or child) can be marked as the mobile home rail; the app scrolls them horizontally."
         actions={
           <Button size="sm" className="gap-2" onClick={openCreate}>
             <Plus className="size-4" /> New category
@@ -275,6 +270,9 @@ export function CategoriesPage() {
                 <TableRow key={row.id} className="h-12">
                   <TableCell className="text-[13px] font-medium">
                     {row.name}
+                    {row.nameTa ? (
+                      <span className="block text-[12px] text-muted-foreground">{row.nameTa}</span>
+                    ) : null}
                     <span className="num block text-[11px] text-muted-foreground">{row.id}</span>
                   </TableCell>
                   <TableCell className="text-[12px] text-muted-foreground">{row.app}</TableCell>
@@ -370,6 +368,36 @@ export function CategoriesPage() {
             </div>
 
             <div className="space-y-1.5">
+              <Label htmlFor="category-name-ta">Name (Tamil)</Label>
+              <Input
+                id="category-name-ta"
+                lang="ta"
+                value={formNameTa}
+                onChange={(e) => setFormNameTa(e.target.value)}
+                placeholder="தமிழில் மட்டும்"
+              />
+              {tamilFieldError(formNameTa, 120) ? (
+                <p className="text-[11px] text-destructive">{tamilFieldError(formNameTa, 120)}</p>
+              ) : null}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="category-description-ta">Description (Tamil)</Label>
+              <Input
+                id="category-description-ta"
+                lang="ta"
+                value={formDescriptionTa}
+                onChange={(e) => setFormDescriptionTa(e.target.value)}
+                placeholder="தமிழில் மட்டும்"
+              />
+              {tamilFieldError(formDescriptionTa, 2000) ? (
+                <p className="text-[11px] text-destructive">
+                  {tamilFieldError(formDescriptionTa, 2000)}
+                </p>
+              ) : null}
+            </div>
+
+            <div className="space-y-1.5">
               <Label htmlFor="category-parent">Parent category id</Label>
               <Input
                 id="category-parent"
@@ -427,14 +455,15 @@ export function CategoriesPage() {
               <label htmlFor="category-rail" className="text-[13px]">
                 Home rail
                 <span className="block text-[11px] text-muted-foreground">
-                  Shows as a chip on the mobile home header. Max 3 active; food and child categories
-                  are not eligible.
+                  Shows as a chip on the mobile home header (Mart &amp; Pharma only). Any level —
+                  a child chip opens that category's subtree. No limit — shoppers scroll the rail
+                  horizontally. FOOD is not eligible.
                 </span>
               </label>
               <Switch
                 id="category-rail"
                 checked={formRail}
-                disabled={formApp === "FOOD" || Boolean(formParentId.trim())}
+                disabled={formApp === "FOOD"}
                 onCheckedChange={setFormRail}
               />
             </div>

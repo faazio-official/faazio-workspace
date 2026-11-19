@@ -38,10 +38,12 @@ Actions: `begin`, `beginIncoming`, `setCall`, `markRinging`, `markActive`, `setM
 
 ## Controller (`features/call/controller.ts` + delivery binding)
 
-The shared factory exposes `initialize`, `start`, `handleIncomingCall`, `accept`, `decline`, `end`,
-`handleNativeEnd`, `toggleMute`, `toggleSpeaker`, `routeToBluetooth`, `switchToPstn`, `dismiss`,
-`shutdown`, `clear`, `currentCallId`, `isOpen`. The delivery binding re-exports the existing names
-(`startDeliveryCall`, `acceptIncomingCall`, …).
+The shared factory exposes `bootstrap`, `initialize`, `start`, `handleIncomingCall`, `accept`,
+`decline`, `end`, `handleNativeEnd`, `toggleMute`, `toggleSpeaker`, `routeToBluetooth`, `switchToPstn`,
+`dismiss`, `shutdown`, `clear`, `currentCallId`, `isOpen`. The delivery binding calls `bootstrap` on
+the authenticated app start (prompt-free) and re-exports the existing names (`startDeliveryCall`,
+`initializeDeliveryCalling`, `acceptIncomingCall`, …). The native ring surface is set up lazily from
+`CallCustomerButton` on the first **Call** tap.
 
 It polls `GET /calls/{id}` every 2 s with a single in-flight request; ignores responses for a
 non-active call id; a session epoch cancels any async connect/join/switch whose surface was
@@ -58,10 +60,11 @@ phase/timer/audio-route contract.
 
 - No proximity/wake-lock UI (screen may stay on during an earpiece call).
 - The PSTN timer starts at dialer open, not at provider answer.
-- The in-app Accept/Decline surface is shown when CallKeep is unavailable; the native ring is the
-  primary path.
-- CallKeep "answered" from a killed app is replayed via `didLoadWithEvents`; a device that denies the
-  phone account gets the in-app surface (or lets the server PSTN-fallback if headless).
+- The in-app Accept/Decline surface is shown when the full-screen-intent notification is refused; the
+  notification ring is the primary path.
+- An Answer tapped on the ring notification from a killed app is adopted via
+  `takePendingCallAction()` on the next bootstrap; a device whose notifications are blocked gets the
+  in-app surface (or lets the server PSTN-fallback if headless).
 - The customer app surface reaches its own order-scoped endpoints
   (`POST /orders/{orderId}/delivery-call`); a shopper token cannot drive a rider-scoped route, and a
   rider token cannot drive `/delivery-calls/{callId}`.

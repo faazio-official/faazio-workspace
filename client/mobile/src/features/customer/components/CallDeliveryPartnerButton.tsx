@@ -7,7 +7,7 @@ import { useCallStore } from '@/state/callStore';
 import { useThemeMode } from '@/hooks/useThemeMode';
 import { navigationRef } from '@/navigation/navigationRef';
 import { hs, ms, vs } from '@/utils/responsive';
-import { startCustomerCall } from '../calling/callController';
+import { initializeCustomerCalling, startCustomerCall } from '../calling/callController';
 
 const OPEN = new Set(['connecting', 'ringing', 'active', 'ending']);
 
@@ -43,13 +43,19 @@ export function CallDeliveryPartnerButton({ orderId }: Props) {
     }
     if (locked) return;
     holdLock();
-    void startCustomerCall(orderId, 'Delivery Partner');
+    // Lazily attach the native ring surface only when the user actually wants to call. Login stays
+    // completely prompt-free (no phone account, no system dialog).
+    void initializeCustomerCalling().finally(() => {
+      void startCustomerCall(orderId, 'Delivery Partner');
+    });
   };
 
   const onPstn = () => {
     if (busy || locked) return;
     holdLock();
-    void startCustomerCall(orderId, 'Delivery Partner', { forcePstn: true });
+    void initializeCustomerCalling().finally(() => {
+      void startCustomerCall(orderId, 'Delivery Partner', { forcePstn: true });
+    });
   };
 
   return (

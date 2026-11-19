@@ -4,6 +4,8 @@ import {
   distanceMeters,
   getCoarsePosition,
   getHighAccuracyPosition,
+  getLocationAuthorizationStatus,
+  isLocationServicesEnabled,
   requestLocationAccess,
   reverseGeocode,
   type Coordinates,
@@ -20,18 +22,29 @@ function sameOrigin(a: Coordinates | null, b: Coordinates): boolean {
 
 /**
  * Refresh the live fix. `prompt` = explicit user action (may show the OS dialog).
- * Silent refreshes only run when permission was already granted, so the app
- * never prompts on launch.
+ *
+ * Silent refreshes only run when permission was already granted AND Location
+ * Services is on, so the app never prompts on launch and never pretends the last
+ * stored coordinate is live while the OS master switch is off.
  */
 export async function refreshLiveLocation(
   prompt = false,
 ): Promise<boolean> {
   const store = useLocationStore.getState();
   if (!prompt && !store.permissionGranted) return false;
+  if (!prompt && !(await isLocationServicesEnabled())) {
+    // Master switch off: no fix is possible. Surface it without wiping a manual origin.
+    store.setPermissionStatus('blocked', false, false);
+    return false;
+  }
   if (prompt) {
     const access = await requestLocationAccess();
     if (access !== 'granted') {
-      store.setDenied();
+      store.setPermissionStatus(
+        access === 'blocked' ? 'blocked' : 'denied',
+        false,
+        await isLocationServicesEnabled(),
+      );
       return false;
     }
   }
@@ -82,7 +95,11 @@ export async function requestAndRefreshLocation(): Promise<LocationRequestResult
   store.setLoading();
   const access = await requestLocationAccess();
   if (access !== 'granted') {
-    store.setDenied();
+    store.setPermissionStatus(
+      access === 'blocked' ? 'blocked' : 'denied',
+      false,
+      await isLocationServicesEnabled(),
+    );
     return access === 'blocked' ? 'blocked' : 'denied';
   }
   try {
@@ -106,19 +123,100 @@ export async function requestAndRefreshLocation(): Promise<LocationRequestResult
 }
 
 /**
- * Mount once at the app root. Hydrates the persisted fix, then polls while the
- * app is in the foreground. Unmount/background clears the interval.
+ * Resume-time permission re-check. The user can grant/revoke location in the OS
+ * Settings app while Faazio is backgrounded; on the next foreground the native
+ * status is the truth, not the last persisted JS flag.
+ *
+ * - flip to granted → silent coarse fix (feeds re-sort from the new origin);
+ * - flip to denied/blocked → nudge state for the Home banner (manual origin kept);
+ * - `undetermined`/`unavailable` → no state change (never invent a denial).
+ */
+async function reconcilePermissionOnResume(): Promise<void> {
+  const store = useLocationStore.getState();
+  const [access, servicesEnabled] = await Promise.all([
+    getLocationAuthorizationStatus(),
+    isLocationServicesEnabled(),
+  ]);
+
+  if (!servicesEnabled) {
+    store.setPermissionStatus('blocked', false, false);
+    return;
+  }
+
+  if (access === 'granted') {
+    if (store.source === 'manual') {
+      // The user deliberately set this origin by hand (typed area / saved address). Adopt the
+      // grant but never silently replace their choice with a GPS fix.
+      store.setPermissionStatus('idle', true, true);
+      return;
+    }
+    if (!store.permissionGranted) {
+      // Newly granted outside the app: adopt it, then fetch silently.
+      store.setPermissionStatus('idle', true, true);
+      await refreshLiveLocation(false);
+    } else {
+      // Already granted: a cheap drift check keeps a moving user's origin fresh.
+      await refreshLiveLocation(false);
+    }
+    return;
+  }
+
+  if (access === 'blocked') {
+    store.setPermissionStatus('blocked', false, true);
+    return;
+  }
+
+  if (access === 'denied') {
+    store.setPermissionStatus('denied', false, true);
+  }
+}
+
+/**
+ * Mount once at the app root. Hydrates the persisted fix, re-checks permission on
+ * every foreground, then polls while the app is in the foreground. Unmount/
+ * background clears the interval.
  */
 export function useLiveLocation(enabled = true): void {
   const hydrate = useLocationStore((s) => s.hydrate);
+  const status = useLocationStore((s) => s.status);
   const permissionGranted = useLocationStore((s) => s.permissionGranted);
+  const source = useLocationStore((s) => s.source);
+  const servicesEnabled = useLocationStore((s) => s.servicesEnabled);
 
   useEffect(() => {
     void hydrate();
   }, [hydrate]);
 
+  // Resume re-check runs regardless of the current grant, so a user who fixed
+  // permission in Settings is detected without a restart. It also covers the
+  // first mount, which catches a grant made while the app was killed.
   useEffect(() => {
-    if (!enabled || !permissionGranted) return;
+    if (!enabled) return;
+    let cancelled = false;
+    const check = () => {
+      if (cancelled || AppState.currentState !== 'active') return;
+      void reconcilePermissionOnResume();
+    };
+    check();
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') check();
+    });
+    return () => {
+      cancelled = true;
+      sub.remove();
+    };
+  }, [enabled]);
+
+  // Silent foreground poll — GPS origins only, and only while the OS allows a fix.
+  const shouldPoll =
+    enabled &&
+    permissionGranted &&
+    servicesEnabled &&
+    source !== 'manual' &&
+    (status === 'ready' || status === 'loading' || status === 'idle');
+
+  useEffect(() => {
+    if (!shouldPoll) return;
     let cancelled = false;
     let timer: ReturnType<typeof setInterval> | undefined;
 
@@ -129,16 +227,12 @@ export function useLiveLocation(enabled = true): void {
 
     tick();
     timer = setInterval(tick, POLL_MS);
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') tick();
-    });
 
     return () => {
       cancelled = true;
       if (timer) clearInterval(timer);
-      sub.remove();
     };
-  }, [enabled, permissionGranted]);
+  }, [shouldPoll]);
 }
 
 /** Stable live origin (null until the first fix); safe to use in useMemo deps. */
@@ -148,7 +242,7 @@ export function useLiveOrigin(): Coordinates | null {
   const longitude = useLocationStore((s) => s.longitude);
   return useMemo(
     () =>
-      status === 'ready' && latitude !== 0 && longitude !== 0
+      status === 'ready' && !(latitude === 0 && longitude === 0)
         ? { latitude, longitude }
         : null,
     [status, latitude, longitude],

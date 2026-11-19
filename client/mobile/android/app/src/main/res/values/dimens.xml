@@ -1,0 +1,6 @@
+<resources>
+  <!-- Splash credit line ("Product of FA CREATORS") rendered as a bottom layer.
+       The tagline PNG is baked per-density by scripts/generate-splash-logo.py
+       because splash drawables cannot contain text. -->
+  <dimen name="splashscreen_tagline_margin_bottom">56dp</dimen>
+</resources>

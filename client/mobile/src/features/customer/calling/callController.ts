@@ -4,7 +4,7 @@ import { gateway } from '@/services/api/GatewayClient';
 
 /**
  * Customer-app binding for the shared masked-calling controller. The rider app uses the same state
- * machine, VOIP adapter, CallKeep surface and background handler; only navigation, the authorised
+ * machine, VOIP adapter, native-ring facade and background handler; only navigation, the authorised
  * endpoint surface and copy differ.
  */
 const controller = createCallController({
@@ -66,6 +66,7 @@ const controller = createCallController({
   },
 });
 
+export const bootstrapCalling = controller.bootstrap;
 export const initializeCustomerCalling = controller.initialize;
 export const flushPendingActiveCall = controller.flushPendingActiveCall;
 export const startCustomerCall = controller.start;

@@ -13,12 +13,23 @@
 
 ## What the screen composes
 
-- Collapsing header + search entry (`Search` route) + cart entry.
+- Collapsing header with the Faazio wordmark (`FaazioLogo variant="wordmark"`, the generated
+  transparent asset shared with the cold-start splash) + search entry (`Search` route) + cart entry.
 - Sub-app launcher cards: Mart (`SubApp`), Food (`FoodApp`), Pharma (`SubApp`).
 - Ordered SDUI sections from `GET /sdui/home` (`useHomeFeed`).
 - Filter-feed chips and paginated pools.
 - An explicit offline shell (`homeSections` registry + authored fixtures) only when the gateway is
   disabled. While online, a section with no server rows is omitted; loading/error states are honest.
+
+## Location chip + nudge banner
+
+- **Chip:** the header shows `useLocationStore.address` (fallback "Set your location") as a tappable
+  row that pushes the `Location` route — so a user can change area/saved address without logging out.
+- **Nudge banner:** shown while the origin is not GPS-backed and location is not deliberately manual
+  — i.e. `status` is `denied`/`blocked`, or permission is missing without a manual origin. It reads
+  "Location following is off", offers **Open Settings** (`Linking.openSettings()`) and **Enter
+  address** (`Location`), and is dismissible for the session. It is a nudge, never a blocker: the
+  feed still renders. A `manual` origin is a deliberate choice and never gets the banner.
 
 ## State
 

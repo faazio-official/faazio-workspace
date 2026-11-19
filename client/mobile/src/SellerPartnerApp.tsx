@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { DefaultTheme, NavigationContainer } from '@react-navigation/native';
@@ -11,6 +11,16 @@ import { installGlobalErrorHandlers } from './services/crashReporting';
 
 // Release crash observability for the seller partner app (see services/crashReporting.ts).
 installGlobalErrorHandlers('seller');
+
+/**
+ * The branded layer-2 splash covers the WebView until the portal paints its
+ * first page, so the cold start is native splash → `SplashFallback` (royal) →
+ * portal, never native splash → blank/loading WebView. The minimum keeps the
+ * credit line visible on a fast portal load; the maximum keeps a hung WebView
+ * from stranding the splash (the WebView's own loader/retry takes over).
+ */
+const SPLASH_MIN_DISPLAY_MS = 1200;
+const SPLASH_MAX_WAIT_MS = 12000;
 
 const navigationTheme = {
   ...DefaultTheme,
@@ -36,25 +46,57 @@ function Layout({ children }: { children: React.ReactNode }) {
  */
 export default function SellerPartnerApp() {
   const [fontsLoaded] = useAppFonts();
+  const [portalReady, setPortalReady] = useState(false);
+  const [minSplashDone, setMinSplashDone] = useState(false);
+  const [maxWaitDone, setMaxWaitDone] = useState(false);
+
+  useEffect(() => {
+    const min = setTimeout(() => setMinSplashDone(true), SPLASH_MIN_DISPLAY_MS);
+    const max = setTimeout(() => setMaxWaitDone(true), SPLASH_MAX_WAIT_MS);
+    return () => {
+      clearTimeout(min);
+      clearTimeout(max);
+    };
+  }, []);
+
+  const markPortalReady = useCallback(() => setPortalReady(true), []);
 
   if (!fontsLoaded) {
     return <SplashFallback variant="royal" />;
   }
 
+  const splashVisible = !minSplashDone || (!portalReady && !maxWaitDone);
+
   return (
     <SafeAreaProvider>
       <Layout>
-        <StatusBar barStyle="dark-content" />
+        <StatusBar barStyle={splashVisible ? 'light-content' : 'dark-content'} />
         <ErrorBoundary scope="Seller">
           <NavigationContainer theme={navigationTheme}>
-            <SellerPartnerNavigator />
+            <SellerPartnerNavigator onPortalReady={markPortalReady} />
           </NavigationContainer>
         </ErrorBoundary>
       </Layout>
+      {splashVisible ? (
+        <View style={styles.splashOverlay}>
+          <SplashFallback variant="royal" />
+        </View>
+      ) : null}
     </SafeAreaProvider>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f8fafc' },
+  /**
+   * Overlay, not a conditional navigator: the WebView must mount immediately so
+   * the splash only hides the first paint instead of delaying the load.
+   */
+  splashOverlay: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+  },
 });

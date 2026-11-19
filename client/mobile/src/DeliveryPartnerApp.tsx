@@ -6,8 +6,8 @@ import { DeliveryPartnerNavigator } from './features/delivery-partner/DeliveryPa
 import { deliveryNavigationRef } from './features/delivery-partner/navigationRef';
 import { flushPendingDeliveryOffer } from './services/deliveryLinks';
 import {
+  bootstrapCalling,
   flushPendingActiveCall,
-  initializeDeliveryCalling,
   shutdownCalling,
 } from './features/delivery-partner/calling/callController';
 import { SplashFallback } from './components/SplashFallback';
@@ -57,12 +57,14 @@ export default function DeliveryPartnerApp() {
     };
   }, [hydrateAuth]);
 
-  // Attach CallKeep handlers + recover an open call as early as possible (cold start from a call
-  // push would otherwise miss the answer tap or leave a stale server row). Sign-out tears the
-  // native session + server row down so the next account never inherits this rider's call.
+  // Attach call listeners + adopt a notification action / open call as early as possible (a cold
+  // start from an Answer tap or a call push would otherwise miss it). Prompt-free: no phone account
+  // is registered, so the rider never sees the "Phone account required" dialog just for logging in.
+  // Sign-out tears the native session + server row down so the next account never inherits this
+  // rider's call.
   const wasAuthenticated = useRef(isAuthenticated);
   useEffect(() => {
-    if (ready && isAuthenticated) void initializeDeliveryCalling();
+    if (ready && isAuthenticated) void bootstrapCalling();
     else if (wasAuthenticated.current && !isAuthenticated) void shutdownCalling();
     wasAuthenticated.current = isAuthenticated;
   }, [ready, isAuthenticated]);

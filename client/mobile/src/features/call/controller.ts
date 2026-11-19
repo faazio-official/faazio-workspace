@@ -20,6 +20,7 @@ import {
   attachCallKeepHandlers,
   bringCallToForeground,
   clearPendingNativeCall,
+  dismissIncomingRing,
   displayIncomingCall,
   endNativeCall,
   isNativeRinging,
@@ -32,6 +33,7 @@ import {
   takePendingNativeCall,
   type CallKeepConfig,
 } from './callkeep';
+import { startCallAudio, stopCallAudio, takePendingCallAction } from './fullScreenIntent';
 
 const OPEN_PHASES = new Set(['connecting', 'ringing', 'active', 'ending']);
 const TERMINAL_STATUSES = new Set(['ENDED', 'REJECTED', 'FAILED', 'MISSED', 'BUSY']);
@@ -66,7 +68,7 @@ export interface CallApi {
 }
 
 export interface CallControllerConfig {
-  /** Product label used by CallKeep. */
+  /** Product label shown on the native ring surface. */
   appName: string;
   /** Which `initiatedBy` value means "this device is the callee". */
   incomingInitiatedBy: 'CUSTOMER' | 'RIDER';
@@ -95,6 +97,11 @@ export interface CallControllerConfig {
 }
 
 export interface CallController {
+  /**
+   * Prompt-free attach: listeners, AppState, a pending notification action and (iOS) open-call
+   * recovery. Safe to call on login — it registers no phone account and shows no system dialog.
+   */
+  bootstrap: () => Promise<void>;
   initialize: () => Promise<void>;
   flushPendingActiveCall: () => void;
   start: (
@@ -127,8 +134,8 @@ function delay(ms: number): Promise<void> {
  * that choice, owns the per-app call state machine and never substitutes fixture data.
  *
  * Each product creates one controller at module scope with its own navigation handle and copy. The
- * returned functions are safe to call from screens, FCM background handlers and native CallKeep
- * events.
+ * returned functions are safe to call from screens, FCM background handlers and the native
+ * ringing/action listeners.
  */
 export function createCallController(config: CallControllerConfig): CallController {
   let activeCallId: string | null = null;
@@ -307,12 +314,33 @@ export function createCallController(config: CallControllerConfig): CallControll
         if (callUuid) activeCallUuid = callUuid;
         void handleNativeEnd(callId);
       },
+      // Android: the user tapped the ringing notification's body. The call is still ringing, so
+      // just bring the in-app Accept/Decline surface forward.
+      onOpen: (callId) => {
+        if (activeCallId === callId) navigateToActiveCall();
+      },
       // iOS: the VoIP push was reported to CallKit before/while JS was alive. Run the same incoming
       // path Android uses so the state machine, the ack and the fallback decision all match.
       onIncoming: (data) => {
         void handleIncomingCall(data);
       },
     });
+  }
+
+  /**
+   * Keep the microphone grant alive once a VOIP leg is actually connected (Android 14+ refuses
+   * background microphone access without a typed foreground service). Nothing is started until the
+   * peer joins, so the app never holds the mic outside a live call.
+   */
+  function holdCallAudio(): void {
+    if (Platform.OS !== 'android') return;
+    void startCallAudio();
+  }
+
+  /** Release the microphone foreground service on every teardown path. */
+  function releaseCallAudio(): void {
+    if (Platform.OS !== 'android') return;
+    void stopCallAudio();
   }
 
   function ensureAppState(): void {
@@ -328,25 +356,62 @@ export function createCallController(config: CallControllerConfig): CallControll
   }
 
   /**
-   * One-time native ringing setup. Safe to call on every app start and from a headless push handler.
-   * Concurrent callers share one in-flight setup, so the phone-account prompt cannot double-fire.
+   * Prompt-free attach, safe to run on login: native listeners, AppState, a notification action
+   * that outlived the JS runtime, and open-call recovery. It registers no phone account and shows
+   * no system dialog — Android ringing is a notification, so there is nothing to set up eagerly.
    */
-  async function initialize(): Promise<void> {
-    setNativeCallingAvailable(true);
+  async function bootstrap(): Promise<void> {
     ensureCallKeepHandlers();
     ensureAppState();
-    if (!initialising) {
-      initialising = (async () => {
-        await setupCallKeep(callKeepOptions());
-        // iOS: a VoIP push may have rung (or been answered/ended) while React Native was not
-        // running. Adopt it before the recovery query so its CallKit UUID is not lost.
-        await adoptPendingNativeCall();
-        await recoverOpenCall();
-      })().finally(() => {
-        initialising = null;
-      });
-    }
+    if (initialising) return;
+    initialising = (async () => {
+      // Android: an Answer/Decline tap on the ringing notification can launch the app from a killed
+      // state. Adopt it before recovery so the tap is not lost.
+      await adoptPendingCallAction();
+      // iOS: a VoIP push may have rung (or been answered/ended) while React Native was not
+      // running. Adopt it before the recovery query so its CallKit UUID is not lost.
+      await adoptPendingNativeCall();
+      await recoverOpenCall();
+    })().finally(() => {
+      initialising = null;
+    });
     await initialising;
+  }
+
+  /**
+   * Lazily attach the native ring surface, called only when the user actually starts a call. On
+   * Android this is a no-op beyond the notification channel (created natively at app start); on iOS
+   * it confirms the CallKit bridge. It deliberately does no network recovery, so tapping "Call"
+   * never waits on an open-call lookup.
+   */
+  async function initialize(): Promise<void> {
+    ensureCallKeepHandlers();
+    ensureAppState();
+    await setupCallKeep(callKeepOptions());
+  }
+
+  /**
+   * Answer/Decline tapped on the Android ringing notification while React Native was not running.
+   * The payload that arrived with the call is adopted first, so an answer can join the same row the
+   * server is ringing instead of inventing a second session.
+   */
+  async function adoptPendingCallAction(): Promise<void> {
+    const pending = await takePendingCallAction();
+    if (!pending) return;
+    // A signed-out device must never act on the previous account's call.
+    if (!(await ensureAuthenticated())) return;
+    if (pending.action === 'decline') {
+      // The user already dismissed this ring: release the row without re-posting a notification.
+      await decline(pending.callId);
+      return;
+    }
+    // Answer / open: rebuild the ringing session from the push payload first, so the join hits the
+    // same server row the notification was ringing instead of a fabricated one.
+    if (pending.payload) await handleIncomingCall(pending.payload);
+    if (pending.action === 'open') return;
+    if (!activeCallId && pending.callId) activeCallId = pending.callId;
+    if (pending.callUuid) activeCallUuid = pending.callUuid;
+    if (activeCallId === pending.callId) await accept(pending.callId);
   }
 
   /**
@@ -507,6 +572,7 @@ export function createCallController(config: CallControllerConfig): CallControll
   async function teardownFailedCall(): Promise<void> {
     stopTimers();
     stopRinging();
+    releaseCallAudio();
     const callId = activeCallId ?? store().call?.callId ?? null;
     await leaveVoip();
     if (callId) {
@@ -539,6 +605,7 @@ export function createCallController(config: CallControllerConfig): CallControll
         store().setFallbackPrompt(false);
         if (store().phase !== 'active') store().markActive();
         if (activeCallId) markNativeCallActive(activeCallId, activeCallUuid ?? undefined);
+        holdCallAudio();
       },
       onPeerLeft: () => {
         if (store().phase !== 'active') return;
@@ -546,6 +613,7 @@ export function createCallController(config: CallControllerConfig): CallControll
         const callId = activeCallId;
         stopTimers();
         void leaveVoip();
+        releaseCallAudio();
         if (callId) {
           endNativeCall(callId, activeCallUuid ?? undefined);
           void mutateWithRetry(() => config.api.end(callId, 'peer_left'));
@@ -649,6 +717,7 @@ export function createCallController(config: CallControllerConfig): CallControll
         stopRinging();
         endNativeCall(callId, activeCallUuid ?? undefined);
         void leaveVoip();
+        releaseCallAudio();
         store().markEnded();
         activeCallId = null;
         activeCallUuid = null;
@@ -708,6 +777,7 @@ export function createCallController(config: CallControllerConfig): CallControll
     callId: string,
     orderId: string,
     peerLabel: string,
+    payload?: Record<string, unknown>,
   ): Promise<boolean> {
     if (Platform.OS === 'ios') {
       const uuid = activeCallUuid;
@@ -715,10 +785,20 @@ export function createCallController(config: CallControllerConfig): CallControll
       navigateToActiveCall();
       return false;
     }
+    if (AppState.currentState === 'active') {
+      // Foreground: the in-app surface is richer than a heads-up notification (Accept/Decline with
+      // the call context). Post no notification so the same call is not ringing in two places.
+      navigateToActiveCall();
+      return false;
+    }
     const native = await setupCallKeep(callKeepOptions());
     if (native) {
-      const suffix = orderId ? ` · #${orderId.slice(-6)}` : '';
-      const shown = await displayIncomingCall(callId, `${peerLabel}${suffix}`);
+      // The native notification composes the "#order" suffix from `orderId` itself.
+      const shown = await displayIncomingCall(callId, peerLabel, {
+        ...(activeCallUuid ? { callUuid: activeCallUuid } : {}),
+        ...(orderId ? { orderId } : {}),
+        ...(payload ? { payload } : {}),
+      });
       if (shown) return true;
     }
     navigateToActiveCall();
@@ -766,10 +846,10 @@ export function createCallController(config: CallControllerConfig): CallControll
     fallbackPrompted = false;
     declinedCallId = null;
     store().beginIncoming(orderId, peerLabel);
-    const shownNative = await showIncoming(callId, orderId, peerLabel);
+    const shownNative = await showIncoming(callId, orderId, peerLabel, data);
     // The <3 s delivery receipt stops the server falling back to PSTN. Only send it when a ring
-    // surface is actually visible (native call, or the app is in the foreground); a headless device
-    // with no phone account must let the server fall back instead.
+    // surface is actually visible (the ringing notification, or the app is in the foreground); a
+    // device whose notifications are blocked must let the server fall back instead.
     if (shownNative || AppState.currentState === 'active') {
       if (!shownNative) startRinging();
       void config.api.ackRinging(callId).catch(() => undefined);
@@ -790,6 +870,8 @@ export function createCallController(config: CallControllerConfig): CallControll
     bringCallToForeground();
     try {
       stopRinging();
+      // Android: the ringing notification is the "system call screen" — remove it before joining.
+      dismissIncomingRing(callId);
       // The user may have answered from the in-app surface while CallKit is still ringing: tell the
       // system so it stops, and so the delegate does not re-announce an answer JS already handled.
       if (activeCallUuid) markNativeAnswered(activeCallUuid);
@@ -852,6 +934,7 @@ export function createCallController(config: CallControllerConfig): CallControll
     epoch += 1;
     stopTimers();
     stopRinging();
+    releaseCallAudio();
     declinedCallId = callId;
     rejectNativeCall(callId, activeCallUuid ?? undefined);
     try {
@@ -879,13 +962,14 @@ export function createCallController(config: CallControllerConfig): CallControll
       await mutateWithRetry(() => config.api.end(callId, reason));
     }
     await leaveVoip();
+    releaseCallAudio();
     activeCallId = null;
     activeCallUuid = null;
     store().markEnded();
     leaveCallScreen();
   }
 
-  /** CallKeep's end event: reject while ringing, end once active. */
+  /** The ring surface's end event (Android notification/open, iOS CallKit end): reject or end. */
   async function handleNativeEnd(callId: string): Promise<void> {
     if (activeCallId && callId !== activeCallId) return;
     if (
@@ -958,6 +1042,7 @@ export function createCallController(config: CallControllerConfig): CallControll
     const phase = store().phase;
     epoch += 1;
     stopRinging();
+    releaseCallAudio();
     if (callId) {
       stopTimers();
       endNativeCall(callId, activeCallUuid ?? undefined);
@@ -1006,6 +1091,7 @@ export function createCallController(config: CallControllerConfig): CallControll
   }
 
   return {
+    bootstrap,
     initialize,
     flushPendingActiveCall,
     start,

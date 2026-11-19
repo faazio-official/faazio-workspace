@@ -1,6 +1,6 @@
 # Incoming customer call (delivery partner → customer)
 
-**App / route(s):** customer · Android: shared FCM handler → native ringing (CallKeep) · iOS: PushKit VoIP push → CallKit → `ActiveCall`
+**App / route(s):** customer · Android: shared FCM handler → full-screen-intent notification → `ActiveCall` · iOS: PushKit VoIP push → CallKit → `ActiveCall`
 **Status:** **Partial** — send, receive, ring and answer are implemented on Android and iOS; the remaining gap is PSTN provider provisioning.
 **Trigger:** `{ type: "incoming_call", callId, callUuid, orderId, peerRole, callerLabel, mode }` — Android receives it as a data-only FCM message, iOS as a PushKit VoIP push (`apns-push-type: voip`).
 
@@ -21,7 +21,7 @@
    still carry this row's kind survives, it returns to `PENDING` for the next drain, otherwise the row
    is terminal (never a PENDING row no drain can select).
 
-### Android ring (FCM → CallKeep)
+### Android ring (FCM → full-screen-intent notification)
 
 4. `index.js` registers `registerCustomerCallBackgroundHandler()` before the app mounts, using the
    shared `setBackgroundMessageHandler`. `customerPush.ts` routes foreground,
@@ -33,11 +33,11 @@
    - rejects with `busy` when another call is already open,
    - sets `callStore` to `ringing` with `incoming: true` and the masked peer label
      (`callerLabel`, else the role mapping),
-   - sets up CallKeep and shows the native full-screen ring with the peer role + order suffix; if
-     CallKeep is unavailable (or does not confirm the display within 1.5 s) the in-app surface is
-     shown and loops the ringing tone,
+   - posts the high-importance full-screen-intent ring notification (peer role + order suffix) via
+     `displayIncomingCall` → `showIncomingCallNotification`; if the OS refuses it (notifications
+     blocked) the in-app surface is shown and loops the ringing tone,
    - sends `POST /delivery-calls/{callId}/ringing-ack` only when a ring surface is actually visible
-     (native ring displayed or the app is foreground),
+     (notification posted or the app is foreground),
    - starts the 2 s status poll, so a caller cancel/end (only the server knows) stops the ring and
      resets the surface instead of ringing until the 45 s sweep.
 
@@ -74,8 +74,8 @@
       `PSTN_BRIDGING`),
     - `POST /delivery-calls/{callId}/join` accepts the row and returns a fresh token,
     - joins 100ms (VOIP) or opens the masked dialer (PSTN); `ActiveCall` shows the timer.
-13. **Decline** (native decline or in-app Decline) → `rejectNativeCall` (CallKeep `rejectCall` on
-    Android, CallKit `CXEndCallAction` on iOS) + `POST /delivery-calls/{callId}/reject`.
+13. **Decline** (native decline or in-app Decline) → `rejectNativeCall` (notification dismissed +
+    `POST /delivery-calls/{callId}/reject` on Android, CallKit `CXEndCallAction` on iOS).
 14. **Startup recovery** is per-order for the customer: `GET /delivery/calls/active` is rider-scoped,
     so the customer binding resolves its own row with `GET /orders/{orderId}/delivery-call` when a
     start races an existing session. A row that outlived the runtime without an orderId in hand is
@@ -85,7 +85,9 @@
 
 - `useCallStore` — `phase: 'ringing'`, `incoming: true`, masked peer label, order id; after join
   the normal active fields.
-- Android: CallKeep `answerCall`/`endCall`/`didLoadWithEvents` listeners, attached once after login.
+- Android: the notification's Answer/Decline `PendingIntent`s land in `IncomingCallReceiver`; a live
+  JS runtime gets a `FaazioIncomingCallAction` event, a killed app parks the action in
+  `IncomingCallState` and `takePendingCallAction()` adopts it on the next bootstrap.
 - iOS: `activeCallUuid` holds the CallKit UUID (the native key), `VoipCallBridge`
   `VoipCallAnswered`/`VoipCallEnded`/`VoipCallDisplayed` listeners, and the persisted pending-call
   state that survives a cold start.
@@ -102,9 +104,10 @@
 
 ## Success / error / empty
 
-- **Success:** native ring → answer → active call; decline → caller hears failure.
-- **Error:** CallKit/CallKeep unavailable → in-app Accept/Decline; a payload without `callId` or with
-  an unparseable `callUuid` is ignored (never a fabricated ring); no session is fabricated.
+- **Success:** full-screen ring → answer → active call; decline → caller hears failure.
+- **Error:** notification refused / CallKit unavailable → in-app Accept/Decline; a payload without
+  `callId` or with an unparseable `callUuid` is ignored (never a fabricated ring); no session is
+  fabricated.
 - **Empty:** no push → no ring.
 
 ## Known gaps

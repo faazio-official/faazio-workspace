@@ -89,6 +89,13 @@
 		<string>voip</string>
 		<string>audio</string>
 	</array>
+	<key>UIAppFonts</key>
+	<array>
+		<string>HindMadurai-Regular.ttf</string>
+		<string>HindMadurai-Medium.ttf</string>
+		<string>HindMadurai-SemiBold.ttf</string>
+		<string>HindMadurai-Bold.ttf</string>
+	</array>
 	<key>UILaunchStoryboardName</key>
 	<string>SplashScreen</string>
 	<key>UIRequiredDeviceCapabilities</key>

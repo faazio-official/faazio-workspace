@@ -35,6 +35,8 @@ import { gateway } from '@/services/api/GatewayClient';
 import type { Product, StoreProfile } from '@data/types';
 import type { ReviewRow } from '@data/reviews/reviews';
 import type { StockRow } from '@data/inventory/stock';
+import { localizedDesc, localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { semantic } from '@/theme/brandTokens';
 
 interface ProductDetailViewProps {
@@ -105,7 +107,9 @@ export default function CommonProductDetailView({
     product?.rating !== undefined && Number(product.rating) > 0
       ? Number(product.rating)
       : undefined;
-  const safeDesc = product?.desc ?? '';
+  const language = useLanguageStore((s) => s.language);
+  const displayName = product ? localizedName(product, language) : '';
+  const safeDesc = product ? localizedDesc(product, language) : '';
   const discount = discountPercent(safePrice, safeOriginal);
 
   const [imageFailed, setImageFailed] = useState(false);
@@ -446,7 +450,7 @@ export default function CommonProductDetailView({
         {/* Core details */}
         <View style={styles.padded}>
           <AppText style={styles.brandText} numberOfLines={1}>{brand}</AppText>
-          <AppText style={styles.titleText} numberOfLines={2}>{product.name}</AppText>
+          <AppText style={styles.titleText} numberOfLines={2}>{displayName}</AppText>
 
           {safeRating !== undefined ? (
             <View style={styles.ratingRow}>

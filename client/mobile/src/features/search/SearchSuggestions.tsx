@@ -3,6 +3,8 @@ import { View, FlatList, TouchableOpacity, Image, StyleSheet } from 'react-nativ
 import { ArrowUpLeft, Search } from 'lucide-react-native';
 import { hs, ms, vs } from '@/utils/responsive';
 import AppText from '@/components/AppText';
+import { useLanguageStore } from '@/state/languageStore';
+import { TAMIL_LANGUAGE } from '@/lib/localizedText';
 import type { SearchSuggestion } from './suggestions';
 import { semantic } from '@/theme/brandTokens';
 
@@ -25,6 +27,7 @@ const SearchSuggestions = memo(function SearchSuggestions({
   accentColor = semantic.info,
   onSelect,
 }: SearchSuggestionsProps) {
+  const language = useLanguageStore((s) => s.language);
   const data: SearchSuggestion[] =
     suggestions.length > 0
       ? suggestions
@@ -32,13 +35,15 @@ const SearchSuggestions = memo(function SearchSuggestions({
 
   const renderRow = ({ item }: { item: SearchSuggestion }) => {
     const isLiteral = item.id === '__literal__';
+    const term =
+      !isLiteral && language === TAMIL_LANGUAGE && item.termTa ? item.termTa : item.term;
     return (
       <TouchableOpacity
         style={styles.row}
         onPress={() => onSelect(item.term)}
         activeOpacity={0.7}
         accessibilityRole="button"
-        accessibilityLabel={isLiteral ? `Search for ${item.term}` : item.term}
+        accessibilityLabel={isLiteral ? `Search for ${item.term}` : term}
       >
         {isLiteral ? (
           <View style={styles.literalIcon}>
@@ -52,7 +57,7 @@ const SearchSuggestions = memo(function SearchSuggestions({
 
         <View style={styles.details}>
           <AppText style={styles.term} numberOfLines={1} ellipsizeMode="tail">
-            {item.term}
+            {term}
           </AppText>
           {!isLiteral && item.category ? (
             <AppText style={[styles.category, { color: accentColor }]} numberOfLines={1}>

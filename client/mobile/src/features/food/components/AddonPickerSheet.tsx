@@ -5,6 +5,8 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import AppText from '@/components/AppText';
+import { localizedAddonGroup, localizedAddonName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import { foodTheme } from '../constants/theme';
 import type { DishAddon } from '@/services/api/GatewayClient';
 
@@ -28,6 +30,7 @@ const AddonPickerSheet = memo(function AddonPickerSheet({
   onConfirm,
 }: AddonPickerSheetProps) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const language = useLanguageStore((s) => s.language);
 
   // Reset the selection whenever the sheet closes so the next dish starts clean.
   React.useEffect(() => {
@@ -63,6 +66,8 @@ const AddonPickerSheet = memo(function AddonPickerSheet({
 
       {addons.map((addon) => {
         const checked = selectedIds.includes(addon.id);
+        const addonName = localizedAddonName(addon, language);
+        const addonGroup = localizedAddonGroup(addon, language);
         return (
           <TouchableOpacity
             key={addon.id}
@@ -71,14 +76,14 @@ const AddonPickerSheet = memo(function AddonPickerSheet({
             activeOpacity={0.8}
             accessibilityRole="checkbox"
             accessibilityState={{ checked }}
-            accessibilityLabel={`${addon.name}, ₹${addon.price}`}
+            accessibilityLabel={`${addonName}, ₹${addon.price}`}
           >
             <View style={[styles.checkbox, checked && styles.checkboxActive]}>
               {checked ? <Check size={ms(14)} color={foodTheme.white} strokeWidth={3} /> : null}
             </View>
             <View style={styles.rowText}>
-              <AppText style={styles.rowName}>{addon.name}</AppText>
-              {addon.groupName ? <AppText style={styles.rowGroup}>{addon.groupName}</AppText> : null}
+              <AppText style={styles.rowName}>{addonName}</AppText>
+              {addonGroup ? <AppText style={styles.rowGroup}>{addonGroup}</AppText> : null}
             </View>
             <AppText style={styles.rowPrice}>₹{addon.price.toLocaleString('en-IN')}</AppText>
           </TouchableOpacity>

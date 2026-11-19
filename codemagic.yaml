@@ -65,28 +65,35 @@ workflows:
           npm run check:ui
 
       - name: Set version and build number
-        # Aligns the iOS marketing version + build number with the resolved
-        # version. Info.plist reads $(MARKETING_VERSION)/$(CURRENT_PROJECT_VERSION),
-        # so this is the single source of truth for the submitted build.
+        # Aligns the iOS marketing version + build number with the customer entry
+        # in app-versions.json (the per-app source of truth). Info.plist reads
+        # $(MARKETING_VERSION)/$(CURRENT_PROJECT_VERSION), so this is the single
+        # source of truth for the submitted build.
         script: |
           set -euo pipefail
           VERSION="${{ inputs.version }}" node -e '
             const fs = require("fs");
-            const p = require("./package.json");
-            const version = process.env.VERSION || p.version;
+            const f = "./app-versions.json";
+            const all = JSON.parse(fs.readFileSync(f, "utf8"));
+            const version = process.env.VERSION || all.customer.version;
             if (process.env.VERSION) {
-              p.version = process.env.VERSION;
-              fs.writeFileSync("./package.json", JSON.stringify(p, null, 2) + "\n");
+              const parts = String(version).split(".").map(Number);
+              if (parts.length !== 3 || !parts.every((n) => Number.isInteger(n) && n >= 0)) {
+                console.error("version must be semver MAJOR.MINOR.PATCH, got " + version);
+                process.exit(1);
+              }
+              all.customer = { version, versionCode: parts[0] * 10000 + parts[1] * 100 + parts[2] };
+              fs.writeFileSync(f, JSON.stringify(all, null, 2) + "\n");
             }
             const now = new Date();
             const pad = (n) => String(n).padStart(2, "0");
             const vc = String(now.getUTCFullYear()) + pad(now.getUTCMonth() + 1) +
               pad(now.getUTCDate()) + pad(now.getUTCHours()) + pad(now.getUTCMinutes());
-            const f = "ios/Faazio.xcodeproj/project.pbxproj";
-            let s = fs.readFileSync(f, "utf8");
+            const p = "ios/Faazio.xcodeproj/project.pbxproj";
+            let s = fs.readFileSync(p, "utf8");
             s = s.replace(/MARKETING_VERSION = [^;]+;/g, "MARKETING_VERSION = " + version + ";");
             s = s.replace(/CURRENT_PROJECT_VERSION = \d+;/g, "CURRENT_PROJECT_VERSION = " + vc + ";");
-            fs.writeFileSync(f, s);
+            fs.writeFileSync(p, s);
             console.log("MARKETING_VERSION=" + version + " CURRENT_PROJECT_VERSION=" + vc);
           '
 

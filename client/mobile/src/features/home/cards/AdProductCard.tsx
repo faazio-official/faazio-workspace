@@ -5,6 +5,8 @@ import type { Product } from '@data/types';
 import AdLabelBadge from '@/components/shared/AdLabelBadge';
 import MartImage from '@/features/ecommerce/components/mart-home/MartImage';
 import AppText from '@/components/AppText';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 
 interface AdProductCardProps {
   product: Product;
@@ -24,6 +26,8 @@ const AdProductCard = memo(function AdProductCard({
   width,
   onPress,
 }: AdProductCardProps) {
+  const language = useLanguageStore((s) => s.language);
+  const name = localizedName(product, language);
   const hasDiscount =
     product.originalPrice !== undefined && product.originalPrice > product.price;
 
@@ -33,7 +37,7 @@ const AdProductCard = memo(function AdProductCard({
       onPress={() => onPress?.(product)}
       activeOpacity={0.92}
       accessibilityRole="button"
-      accessibilityLabel={product.name}
+      accessibilityLabel={name}
     >
       <View style={styles.imageWrap}>
         <MartImage uri={product.image} style={styles.image} contentFit="cover" />
@@ -43,7 +47,7 @@ const AdProductCard = memo(function AdProductCard({
       </View>
 
       <AppText style={styles.name} numberOfLines={2}>
-        {product.name}
+        {name}
       </AppText>
 
       <View style={styles.priceRow}>

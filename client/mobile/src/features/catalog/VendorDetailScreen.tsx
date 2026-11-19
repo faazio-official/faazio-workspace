@@ -12,6 +12,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AppImage } from '@/components/shared/AppImage';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 import AppTextInput from '@/components/AppTextInput';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
@@ -54,6 +56,7 @@ const ProductRow = memo(function ProductRow({
 export function VendorDetailScreen({ navigation, route }: Props) {
   const { storeId, app, initialQuery } = route.params;
   const insets = useSafeAreaInsets();
+  const language = useLanguageStore((s) => s.language);
   const [query, setQuery] = useState(initialQuery ?? '');
 
   // The server row (directory.stores) is the origin while the gateway is enabled; the
@@ -196,7 +199,7 @@ export function VendorDetailScreen({ navigation, route }: Props) {
                   </View>
                 </View>
                 <View style={styles.storeDetails}>
-                  <AppText style={styles.storeName} numberOfLines={1}>{store.name}</AppText>
+                  <AppText style={styles.storeName} numberOfLines={1}>{localizedName(store, language)}</AppText>
                   <View style={styles.metaRow}>
                     <MapPin size={ms(13)} color={neutral.inkSubtle} />
                     <AppText style={styles.metaText} numberOfLines={1}>

@@ -41,10 +41,12 @@ A thin binding of the shared factory with the root `navigationRef` and customer 
 `routeToBluetooth`, `switchCallToPstn`, `dismissCall`, `shutdownCalling`,
 `flushPendingActiveCall`, `clearCall`, `currentCallId`, `isCallOpen`.
 
-`App.tsx` initializes after login, flushes a pending call navigation in `NavigationContainer.onReady`,
-and shuts down on sign-out. The binding sets `recoverActiveCall: false` because
-`GET /delivery/calls/active` is rider-scoped; the customer resumes per order through
-`GET /orders/{orderId}/delivery-call` inside `start`/`adoptOpenCall` instead.
+`App.tsx` calls `bootstrapCalling()` after login — a prompt-free attach that registers no phone
+account, so no system dialog appears after OTP — lazily sets the ring surface up on the first **Call**
+tap (`initializeCustomerCalling()` in `CallDeliveryPartnerButton`), flushes a pending call navigation
+in `NavigationContainer.onReady`, and shuts down on sign-out. The binding sets
+`recoverActiveCall: false` because `GET /delivery/calls/active` is rider-scoped; the customer resumes
+per order through `GET /orders/{orderId}/delivery-call` inside `start`/`adoptOpenCall` instead.
 
 Regression tests: `src/features/call/__tests__/controller.test.ts` and
 `src/state/__tests__/callStore.test.ts` cover the shared lifecycle races and store contract.
@@ -55,7 +57,8 @@ Regression tests: `src/features/call/__tests__/controller.test.ts` and
   order-scoped `delivery-calls` family; the rider-scoped `/delivery/calls/*` routes stay unreachable
   from this product.
 - No proximity/wake-lock; PSTN timer starts at dialer open.
-- The in-app Accept/Decline surface is the fallback when CallKeep is unavailable.
+- The in-app Accept/Decline surface is the fallback when the full-screen-intent notification is
+  refused (notifications blocked, or Android 14+ special access denied).
 
 ## Linked docs
 

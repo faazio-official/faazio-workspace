@@ -8,7 +8,9 @@
   <style name="Theme.App.SplashScreen" parent="Theme.SplashScreen">
     <item name="windowSplashScreenBackground">@color/splashscreen_background</item>
     <item name="windowSplashScreenAnimatedIcon">@drawable/splashscreen_logo</item>
+    <!-- API 24-30: the splash is the theme's windowBackground drawable, so the
+         "Product of FA CREATORS" credit is composited into the layer-list there. -->
+    <item name="android:windowBackground">@drawable/splash_window_background</item>
     <item name="postSplashScreenTheme">@style/AppTheme</item>
-    <item name="android:windowSplashScreenBehavior">icon_preferred</item>
   </style>
 </resources>

@@ -20,6 +20,8 @@ export interface PharmaDBItem {
   id: string;
   category: string;
   name: string;
+  /** Tamil display name (server translation, 0107). Empty/absent → fall back to `name`. */
+  nameTa?: string;
   price: number;
   originalPrice: number | null;
   discountBadge: string | null;

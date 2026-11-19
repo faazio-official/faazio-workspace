@@ -31,6 +31,8 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { SavedAddress, AddressTag } from '@data/types';
 import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
+import { geocodeAddress } from '@/services/location';
+import { useLocationStore } from '@/state/locationStore';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SavedAddresses'>;
@@ -47,9 +49,11 @@ interface AddressCardProps {
   onSelect: (id: string) => void;
   onEdit: (item: SavedAddress) => void;
   onDelete: (item: SavedAddress) => void;
+  /** True while this card's address is being resolved into the live origin. */
+  syncing?: boolean;
 }
 
-function AddressCard({ item, isSelected, onSelect, onEdit, onDelete }: AddressCardProps) {
+function AddressCard({ item, isSelected, onSelect, onEdit, onDelete, syncing }: AddressCardProps) {
   const TagIcon = TAG_ICONS[item.tag];
   const handleSelect = useCallback(() => onSelect(item.id), [item.id, onSelect]);
 
@@ -111,7 +115,7 @@ function AddressCard({ item, isSelected, onSelect, onEdit, onDelete }: AddressCa
           >
             <MapPin size={ms(14)} color={semantic.success} strokeWidth={2.2} />
             <AppText style={styles.deliverHereText}>
-              {isSelected ? 'Delivering here' : 'Deliver here'}
+              {syncing ? 'Setting location…' : isSelected ? 'Delivering here' : 'Deliver here'}
             </AppText>
           </TouchableOpacity>
         </View>
@@ -403,6 +407,36 @@ export function SavedAddressesScreen({ navigation }: Props) {
     [deleteAddress],
   );
 
+  /**
+   * Selecting a saved card makes it the live origin, so the nearby feeds and checkout agree.
+   * Saved rows carry text only, so the origin comes from a best-effort forward geocode. When that
+   * fails the label is NOT adopted alone — checkout text and a stale nearby origin must not
+   * silently diverge; the user is told and can pick the area from the location screen instead.
+   */
+  const [syncingId, setSyncingId] = useState<string>('');
+  const [syncError, setSyncError] = useState('');
+  const handleSelect = useCallback(async (id: string) => {
+    setSelectedId(id);
+    setSyncError('');
+    const item = addresses.find((a) => a.id === id);
+    if (!item) return;
+    setSyncingId(id);
+    try {
+      const coordinates = await geocodeAddress(item.address);
+      if (!coordinates) {
+        setSyncError(
+          'We could not locate this address on the map. Set it from the location screen so nearby stores match it.',
+        );
+        return;
+      }
+      useLocationStore
+        .getState()
+        .setFix({ coordinates, address: item.address, source: 'manual' });
+    } finally {
+      setSyncingId('');
+    }
+  }, [addresses]);
+
   const handleSave = useCallback(async (draft: SavedAddress) => {
     setSaving(true);
     setSaveError(null);
@@ -427,6 +461,20 @@ export function SavedAddressesScreen({ navigation }: Props) {
       });
       setSelectedId(withId.id);
       setEditorVisible(false);
+      // A saved default (or the row just edited) becomes the live origin, so the nearby feeds and
+      // checkout keep reading the same address.
+      if (withId.isDefault) {
+        setSyncError('');
+        setSyncingId(withId.id);
+        void geocodeAddress(withId.address)
+          .then((coordinates) => {
+            if (!coordinates) return;
+            useLocationStore
+              .getState()
+              .setFix({ coordinates, address: withId.address, source: 'manual' });
+          })
+          .finally(() => setSyncingId(''));
+      }
     } catch {
       setSaveError('Could not save this address. Check your connection and try again.');
     } finally {
@@ -464,6 +512,12 @@ export function SavedAddressesScreen({ navigation }: Props) {
         {/* Section title */}
         <AppText style={styles.sectionTitle}>Saved Addresses</AppText>
 
+        {syncError ? (
+          <AppText style={styles.syncError} accessibilityLiveRegion="polite">
+            {syncError}
+          </AppText>
+        ) : null}
+
         {/* Address cards */}
         {loading && addresses.length === 0 ? (
           <View style={styles.emptyCard}>
@@ -497,9 +551,10 @@ export function SavedAddressesScreen({ navigation }: Props) {
               key={item.id}
               item={item}
               isSelected={activeId === item.id}
-              onSelect={setSelectedId}
+              onSelect={handleSelect}
               onEdit={openEdit}
               onDelete={handleDelete}
+              syncing={syncingId === item.id}
             />
           ))
         )}
@@ -598,6 +653,13 @@ const styles = StyleSheet.create({
     fontSize: ms(15),
     fontWeight: '600',
     color: neutral.ink,
+    marginBottom: SPACE.BLOCK,
+    marginLeft: hs(2),
+  },
+  syncError: {
+    fontSize: ms(12),
+    lineHeight: ms(17),
+    color: semantic.danger,
     marginBottom: SPACE.BLOCK,
     marginLeft: hs(2),
   },

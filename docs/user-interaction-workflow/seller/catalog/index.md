@@ -21,7 +21,10 @@
   `PUT /seller/inventory/{productId}`).
 - **Pricing:** price-only updates (`GET /seller/pricing`, `PUT /seller/pricing/{productId}`).
 - **Menus:** Food dishes per venue (`GET/POST /seller/menus`, `PUT/DELETE
-  /seller/menus/{venueId}/{dishId}`). Food-only; Mart/Pharmacy shops see **Offers** instead.
+  /seller/menus/{venueId}/{dishId}`). Food-only; Mart/Pharmacy shops see **Offers** instead. The dish
+  form carries optional **Tamil item name** / **Tamil description** (`0108`,
+  `nameTa`/`descriptionTa`), validated by `tamilFieldError` locally and
+  `locale.IsTamilText` on the gateway; blank falls back to the English dish copy in the app.
 - **Offers:** product-first festival opt-in for Mart/Pharmacy shops (`GET /seller/promotions`,
   `GET /promo/sector-caps`, `POST /seller/promotions/optin`); the seller submits a discount and
   waits for district-admin approval. See [offers.md](./offers.md).

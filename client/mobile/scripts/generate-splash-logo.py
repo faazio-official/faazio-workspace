@@ -26,10 +26,24 @@ toolchain rather than assumed:
    the field out to transparency and keep only the white wordmark, so the asset
    is background-independent and works on any splash colour, on both platforms.
 
+The JS layer-2 splash (`src/components/SplashFallback.tsx`, `royal` variant)
+must be background-independent too. It previously drew the raw opaque
+`logo.png` and relied on the asset field matching the hardcoded Faazio Blue
+background exactly; any colour drift made the opaque field visible and the
+wordmark look cropped. It now uses the generated transparent wordmark below.
+
+The splash credit line "Product of FA CREATORS" sits at the bottom of both
+visible layers (native + JS). Android splash drawables cannot contain text, so
+the generator bakes `splashscreen_tagline.png` per density; the pre-31 compat
+layer-list composites it, API 31+ uses `windowSplashScreenBrandingImage`, and
+iOS + the JS layer render the same words with native text.
+
 Outputs
 -------
   android/app/src/main/res/drawable-{m,h,xh,xxh,xxxh}dpi/splashscreen_logo.png
+  android/app/src/main/res/drawable-{m,h,xh,xxh,xxxh}dpi/splashscreen_tagline.png
   ios/Faazio/Images.xcassets/SplashScreenLogo.imageset/image{,@2x,@3x}.png
+  src/assets/logo-wordmark-transparent.png   (same canvas/position as logo.png)
 
 Usage
 -----
@@ -43,13 +57,25 @@ import argparse
 import sys
 from pathlib import Path
 
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "src" / "assets" / "logo.png"
 
 ANDROID_RES = ROOT / "android" / "app" / "src" / "main" / "res"
 IOS_IMAGESET = ROOT / "ios" / "Faazio" / "Images.xcassets" / "SplashScreenLogo.imageset"
+JS_WORDMARK = ROOT / "src" / "assets" / "logo-wordmark-transparent.png"
+
+# Android drawables cannot contain text, so the splash credit line is baked to a
+# transparent PNG. iOS and the JS layer render the same words with native text.
+TAGLINE_TEXT = "Product of FA CREATORS"
+TAGLINE_FONT_PX_DP = 12.0
+TAGLINE_TRACKING_DP = 0.3
+TAGLINE_FILL = (255, 255, 255, 230)
+TAGLINE_FONT_CANDIDATES = (
+    "/usr/share/fonts/truetype/roboto/unhinted/RobotoTTF/Roboto-Medium.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+)
 
 # Android: splashscreen_icon_size_no_background = 288dp, so px == dp * density.
 ANDROID_DENSITIES = {
@@ -77,8 +103,8 @@ def _luma(p: tuple[int, int, int]) -> float:
     return 0.2126 * p[0] + 0.7152 * p[1] + 0.0722 * p[2]
 
 
-def load_wordmark() -> tuple[Image.Image, tuple[int, int, int, int]]:
-    """Return the source as RGBA with the blue field keyed out to transparency.
+def load_wordmark() -> tuple[Image.Image, tuple[int, int, int, int], tuple[int, int]]:
+    """Return the keyed wordmark, its ink bbox and the source canvas size.
 
     The source is a flat #1627E9 field carrying a white wordmark. Luma with a
     dead zone separates the two cleanly: every field pixel lands below the
@@ -127,7 +153,7 @@ def load_wordmark() -> tuple[Image.Image, tuple[int, int, int, int]]:
     bbox = out.getchannel("A").point(lambda v: 255 if v >= floor else 0).getbbox()
     if bbox is None:
         raise SystemExit("ERROR: keying produced an empty image; check SOURCE")
-    return out.crop(bbox), bbox
+    return out.crop(bbox), bbox, (w, h)
 
 
 def render_android(ink: Image.Image, density: float) -> Image.Image:
@@ -147,6 +173,58 @@ def render_android(ink: Image.Image, density: float) -> Image.Image:
     return out
 
 
+def _tagline_font(px: int) -> ImageFont.FreeTypeFont:
+    for path in TAGLINE_FONT_CANDIDATES:
+        if Path(path).exists():
+            return ImageFont.truetype(path, px)
+    raise SystemExit("ERROR: no usable font found for the splash tagline")
+
+
+def render_tagline(density: float) -> Image.Image:
+    """Render "Product of FA CREATORS" on a transparent canvas at `density`.
+
+    Per-character placement adds tracking, which Pillow's loader cannot apply.
+    The canvas is trimmed to the ink so the drawable has no dead padding and the
+    layer-list can anchor it by gravity.
+    """
+    px = max(1, round(TAGLINE_FONT_PX_DP * density))
+    tracking = TAGLINE_TRACKING_DP * density
+    font = _tagline_font(px)
+
+    scratch = Image.new("RGBA", (1, 1))
+    measure = ImageDraw.Draw(scratch)
+    advances = [measure.textlength(ch, font=font) for ch in TAGLINE_TEXT]
+    width = round(sum(advances) + tracking * (len(TAGLINE_TEXT) - 1))
+    ascent, descent = font.getmetrics()
+    height = ascent + descent
+
+    out = Image.new("RGBA", (width, ascent + descent), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(out)
+    x = 0.0
+    for ch, adv in zip(TAGLINE_TEXT, advances):
+        draw.text((x, 0), ch, font=font, fill=TAGLINE_FILL)
+        x += adv + tracking
+
+    bbox = out.getchannel("A").getbbox()
+    if bbox is None:
+        raise SystemExit("ERROR: tagline rendered empty")
+    return out.crop(bbox)
+
+
+def render_js_wordmark(
+    ink: Image.Image, bbox: tuple[int, int, int, int], size: tuple[int, int]
+) -> Image.Image:
+    """Paste the keyed wordmark back onto a full-size transparent canvas.
+
+    Keeping the source canvas and the original ink offset means the JS splash
+    renders the wordmark at exactly the same position and size as `logo.png`,
+    only with the opaque blue field replaced by transparency.
+    """
+    out = Image.new("RGBA", size, (0, 0, 0, 0))
+    out.paste(ink, (bbox[0], bbox[1]), ink)
+    return out
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--check", action="store_true", help="verify only, write nothing")
@@ -155,11 +233,18 @@ def main() -> int:
     if not SOURCE.exists():
         raise SystemExit(f"ERROR: source not found: {SOURCE}")
 
-    ink, bbox = load_wordmark()
+    ink, bbox, canvas_size = load_wordmark()
     print(f"source      {SOURCE.relative_to(ROOT)}")
     print(f"ink bbox    {bbox}  ->  {ink.width}x{ink.height}  aspect {ink.width / ink.height:.3f}")
 
     written = 0
+
+    js_img = render_js_wordmark(ink, bbox, canvas_size)
+    if not args.check:
+        JS_WORDMARK.parent.mkdir(parents=True, exist_ok=True)
+        js_img.save(JS_WORDMARK, "PNG", optimize=True)
+    written += 1
+    print(f"js          {JS_WORDMARK.relative_to(ROOT)}  {js_img.width}x{js_img.height}")
 
     for name, density in ANDROID_DENSITIES.items():
         img = render_android(ink, density)
@@ -169,6 +254,15 @@ def main() -> int:
             img.save(path, "PNG", optimize=True)
         written += 1
         print(f"android     {path.relative_to(ROOT)}  {img.width}x{img.height}")
+
+    for name, density in ANDROID_DENSITIES.items():
+        img = render_tagline(density)
+        path = ANDROID_RES / f"drawable-{name}" / "splashscreen_tagline.png"
+        if not args.check:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            img.save(path, "PNG", optimize=True)
+        written += 1
+        print(f"tagline     {path.relative_to(ROOT)}  {img.width}x{img.height}")
 
     for suffix, scale in IOS_SCALES.items():
         img = render_android(ink, scale)

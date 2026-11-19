@@ -50,12 +50,19 @@ jest.mock('../callkeep', () => ({
   attachCallKeepHandlers: jest.fn(),
   bringCallToForeground: jest.fn(),
   displayIncomingCall: jest.fn(async () => false),
+  dismissIncomingRing: jest.fn(),
   endNativeCall: jest.fn(),
   markNativeCallActive: jest.fn(),
   rejectNativeCall: jest.fn(),
   requestMicrophone: jest.fn(async () => true),
   setNativeCallingAvailable: jest.fn(),
   setupCallKeep: jest.fn(async () => false),
+}));
+
+jest.mock('../fullScreenIntent', () => ({
+  startCallAudio: jest.fn(async () => undefined),
+  stopCallAudio: jest.fn(async () => undefined),
+  takePendingCallAction: jest.fn(async () => null),
 }));
 
 jest.mock('../ringtone', () => ({

@@ -10,8 +10,21 @@ import type { Coordinates, ReverseGeocodeResult } from '@/services/location';
  * are persisted (device-local, no reverse-geocode payload). This keeps the
  * header/checkout address honest across restarts instead of resetting to a
  * hardcoded string. Coordinates are never logged.
+ *
+ * `status` is the single source of truth for "is there a usable origin":
+ * - `idle` — never asked / no fix yet (onboarding location step owns this).
+ * - `loading` — a first fix is in flight.
+ * - `ready` — a usable origin exists (GPS or manually picked).
+ * - `denied` — permission refused; the OS may still prompt later.
+ * - `blocked` — permission will not be prompted again (iOS denial or Android
+ *   "don't ask again"), or Location Services is off at the OS level. Recovery is
+ *   the Settings app; a manual address remains a valid origin.
+ *
+ * `source` distinguishes a GPS fix from a manually picked/saved address so a
+ * permission re-check can never wipe a manual origin the user deliberately set.
  */
-export type LocationStatus = 'idle' | 'loading' | 'ready' | 'denied';
+export type LocationStatus = 'idle' | 'loading' | 'ready' | 'denied' | 'blocked';
+export type LocationSource = 'gps' | 'manual';
 
 interface PersistedLocation {
   latitude: number;
@@ -19,10 +32,14 @@ interface PersistedLocation {
   updatedAt: number;
   permissionGranted: boolean;
   address?: string;
+  status?: LocationStatus;
+  source?: LocationSource;
 }
 
 export interface LocationState {
   status: LocationStatus;
+  /** Where the current fix came from; `null` until the first fix. */
+  source: LocationSource | null;
   latitude: number;
   longitude: number;
   accuracy: number | null;
@@ -30,6 +47,8 @@ export interface LocationState {
   place: ReverseGeocodeResult | null;
   updatedAt: number | null;
   permissionGranted: boolean;
+  /** OS Location Services master switch (false when the device has location off). */
+  servicesEnabled: boolean;
   hydrated: boolean;
   setLoading: () => void;
   setFix: (fix: {
@@ -37,7 +56,18 @@ export interface LocationState {
     accuracy?: number | null;
     place?: ReverseGeocodeResult | null;
     address?: string;
+    /** Defaults to `gps`; manual/saved addresses must pass `manual`. */
+    source?: LocationSource;
   }) => void;
+  /**
+   * Update the permission view from a native re-check without fabricating a fix.
+   * Called on resume so granting permission in OS Settings is picked up live.
+   */
+  setPermissionStatus: (
+    status: LocationStatus,
+    granted: boolean,
+    servicesEnabled?: boolean,
+  ) => void;
   setDenied: () => void;
   reset: () => void;
   hydrate: () => Promise<void>;
@@ -56,8 +86,27 @@ function persist(fix: PersistedLocation): void {
   AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(fix)).catch(() => {});
 }
 
+/** Persist the meaningful part of the current state (never a transient `loading`). */
+function persistState(state: LocationState): void {
+  if (state.status === 'idle' || state.status === 'loading') return;
+  persist({
+    latitude: state.latitude,
+    longitude: state.longitude,
+    updatedAt: state.updatedAt ?? Date.now(),
+    permissionGranted: state.permissionGranted,
+    address: state.address || undefined,
+    status: state.status,
+    source: state.source ?? undefined,
+  });
+}
+
+function hasFix(state: Pick<LocationState, 'latitude' | 'longitude'>): boolean {
+  return state.latitude !== 0 || state.longitude !== 0;
+}
+
 export const useLocationStore = create<LocationState>()((set, get) => ({
   status: 'idle',
+  source: null,
   latitude: 0,
   longitude: 0,
   accuracy: null,
@@ -65,53 +114,82 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
   place: null,
   updatedAt: null,
   permissionGranted: false,
+  servicesEnabled: true,
   hydrated: false,
 
   setLoading: () => {
     if (get().status !== 'ready') set({ status: 'loading' });
   },
 
-  setFix: ({ coordinates, accuracy, place, address }) => {
+  setFix: ({ coordinates, accuracy, place, address, source = 'gps' }) => {
     const now = Date.now();
-    const nextAddress = address ?? get().address;
+    const previous = get();
+    const nextAddress = address ?? previous.address;
+    // A manual fix is not a permission grant: it must not start the GPS poll.
+    const permissionGranted =
+      source === 'gps' ? true : previous.permissionGranted;
     set({
       status: 'ready',
+      source,
       latitude: coordinates.latitude,
       longitude: coordinates.longitude,
       accuracy: accuracy ?? null,
-      place: place ?? get().place,
+      place: place ?? previous.place,
       address: nextAddress,
       updatedAt: now,
-      permissionGranted: true,
+      permissionGranted,
     });
     persist({
       latitude: coordinates.latitude,
       longitude: coordinates.longitude,
       updatedAt: now,
-      permissionGranted: true,
+      permissionGranted,
       address: nextAddress || undefined,
+      status: 'ready',
+      source,
     });
   },
 
-  setDenied: () => {
-    const { latitude, longitude, updatedAt, address } = get();
-    set({ status: 'denied', permissionGranted: false });
-    // Keep the last fix for display, but persist `permissionGranted: false` so a revoked
-    // OS permission does not hydrate back as "granted" and restart the silent poll.
-    if (latitude !== 0 || longitude !== 0) {
-      persist({
-        latitude,
-        longitude,
-        updatedAt: updatedAt ?? Date.now(),
+  setPermissionStatus: (status, granted, servicesEnabled) => {
+    const state = get();
+    // A manually chosen address stays a valid origin even when GPS is denied —
+    // the nearby feeds must keep sorting from it.
+    const keepManualOrigin =
+      state.source === 'manual' && state.status === 'ready' && hasFix(state);
+
+    if (granted) {
+      set({
+        // Never fabricate a fix: only an existing fix (GPS or manual) keeps `ready`.
+        status:
+          state.status === 'ready' ||
+          (state.source === 'manual' && hasFix(state))
+            ? 'ready'
+            : 'idle',
+        permissionGranted: true,
+        servicesEnabled: servicesEnabled ?? state.servicesEnabled,
+      });
+    } else {
+      set({
+        status: keepManualOrigin
+          ? 'ready'
+          : status === 'blocked'
+            ? 'blocked'
+            : 'denied',
         permissionGranted: false,
-        address: address || undefined,
+        servicesEnabled: servicesEnabled ?? state.servicesEnabled,
       });
     }
+    persistState(get());
+  },
+
+  setDenied: () => {
+    get().setPermissionStatus('denied', false);
   },
 
   reset: () => {
     set({
       status: 'idle',
+      source: null,
       latitude: 0,
       longitude: 0,
       accuracy: null,
@@ -133,8 +211,26 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
           typeof saved.latitude === 'number' &&
           typeof saved.longitude === 'number'
         ) {
+          const source: LocationSource =
+            saved.source === 'manual' ? 'manual' : 'gps';
+          const coordinatesKnown = saved.latitude !== 0 || saved.longitude !== 0;
+          // Persisted permission state is only a hint: the native re-check on
+          // resume is the truth. A manual origin stays usable regardless.
+          let status: LocationStatus;
+          if (saved.permissionGranted) {
+            status = 'ready';
+          } else if (source === 'manual' && coordinatesKnown) {
+            status = 'ready';
+          } else if (saved.status === 'blocked') {
+            status = 'blocked';
+          } else if (saved.status === 'denied') {
+            status = 'denied';
+          } else {
+            status = 'idle';
+          }
           set({
-            status: saved.permissionGranted ? 'ready' : 'idle',
+            status,
+            source,
             latitude: saved.latitude,
             longitude: saved.longitude,
             address: typeof saved.address === 'string' ? saved.address : '',
@@ -152,11 +248,13 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
   },
 }));
 
-/** Live origin for sorting; null until the first fix. */
+/** Live origin for sorting; null until the first usable fix. */
 export function selectOrigin(
   state: LocationState,
 ): Coordinates | null {
-  return state.status === 'ready' && state.latitude !== 0
+  // (0, 0) is the "no fix yet" sentinel; a single legitimate zero axis must still count.
+  return state.status === 'ready' &&
+    !(state.latitude === 0 && state.longitude === 0)
     ? { latitude: state.latitude, longitude: state.longitude }
     : null;
 }

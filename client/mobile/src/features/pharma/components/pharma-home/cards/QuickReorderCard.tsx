@@ -5,6 +5,8 @@ import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { PharmaQuickReorderItem } from '../../../types';
 import { PHARMA_GREY, PHARMA_INK, PHARMA_TEAL } from '@/theme/pharmaTokens';
+import { localizedName } from '@/lib/localizedText';
+import { useLanguageStore } from '@/state/languageStore';
 
 interface QuickReorderCardProps {
   item: PharmaQuickReorderItem;
@@ -19,6 +21,8 @@ const QuickReorderCard = memo(function QuickReorderCard({
   onPress,
   onAdd,
 }: QuickReorderCardProps) {
+  const language = useLanguageStore((s) => s.language);
+  const name = localizedName(item, language);
   return (
     <TouchableOpacity
       style={[styles.card, { width }]}
@@ -26,7 +30,7 @@ const QuickReorderCard = memo(function QuickReorderCard({
       activeOpacity={0.9}
     >
       <AppText style={styles.name} numberOfLines={2}>
-        {item.name}
+        {name}
       </AppText>
       <AppText style={styles.strip} numberOfLines={1}>
         {item.stripDetails}
@@ -43,7 +47,7 @@ const QuickReorderCard = memo(function QuickReorderCard({
           style={styles.addBtn}
           hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
           accessibilityRole="button"
-          accessibilityLabel={`Add ${item.name} to cart`}
+          accessibilityLabel={`Add ${name} to cart`}
         >
           <Plus size={ms(13)} color="#FFFFFF" strokeWidth={3} />
         </TouchableOpacity>
