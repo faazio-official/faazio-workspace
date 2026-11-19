@@ -312,9 +312,11 @@ Settings screen and the crash tag always agree.
 
 Bump **only the app you are releasing**:
 
-- `-f version=<semver>` rewrites that app's entry and derives `versionCode` (`1.0.4` → `10004`);
-  `-f version-code=<n>` sets it explicitly.
-- Without inputs, the committed value for that app is used unchanged.
+- `-f version=<semver>` rewrites that app's entry; `-f version-code=<n>` sets the code explicitly.
+- Without inputs, the committed entry for that app is used unchanged (so a new listing keeps
+  `versionCode: 1` instead of jumping to the semver-derived value).
+- A bumped `-f version` derives the code from the semver (`1.0.4` → `10004`) unless
+  `-f version-code` is also given. A lower code than the committed one fails the build.
 
 A lower `versionCode` is a downgrade and `adb install`/Play reject it, so an existing listing's
 `versionCode` must increase every release. A **brand-new** listing starts at `1.0.0` / `1`.
