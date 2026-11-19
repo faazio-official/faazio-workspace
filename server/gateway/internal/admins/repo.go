@@ -208,21 +208,26 @@ func (r *Repo) DeleteDistrictAdmin(ctx context.Context, adminID string) error {
 	return err
 }
 
-// Customer is one checkout.users_admin projection row — PII-redacted (no phone/address/email).
+// Customer is one checkout.users_admin projection row. It carries the server-verified phone (0110)
+// so the directory can surface and search a phone-OTP customer by number; addresses/email stay out
+// of the projection. Only the gateway (service_role) reads the view.
 type Customer struct {
 	UserID      string `json:"userId"`
 	Name        string `json:"name"`
 	StateCode   string `json:"stateCode,omitempty"`
+	Phone       string `json:"phone,omitempty"`
 	OrdersCount int64  `json:"ordersCount"`
 	Spend       int64  `json:"spend"` // whole rupees
 	LastOrderAt string `json:"lastOrderAt,omitempty"`
 	CreatedAt   string `json:"createdAt,omitempty"`
 }
 
-// Customers reads the PII-safe customer projection, optionally scoped to one state. The gateway
-// connects as service_role, so it reads the full (redacted) view; direct Supabase clients are never
-// granted SELECT on it (0017).
-func (r *Repo) Customers(ctx context.Context, stateCode string, limit int) ([]Customer, error) {
+// Customers reads the customer projection, optionally scoped to one state and/or search term. The
+// search matches name, phone and user id server-side (ILIKE on the trigram indexes from 0110) so a
+// zero-spend customer that sorts past the board page limit is still findable. The gateway connects
+// as service_role, so it reads the full view; direct Supabase clients are never granted SELECT on it
+// (0017).
+func (r *Repo) Customers(ctx context.Context, stateCode, query string, limit int) ([]Customer, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("admins: database not configured")
 	}
@@ -230,11 +235,15 @@ func (r *Repo) Customers(ctx context.Context, stateCode string, limit int) ([]Cu
 		limit = 200
 	}
 	rows, err := r.pool.Query(ctx, `
-		select user_id, name, coalesce(state_code,''), orders_count, spend_paisa, last_order_at, created_at
+		select user_id, name, coalesce(state_code,''), coalesce(phone,''), orders_count, spend_paisa, last_order_at, created_at
 		  from checkout.users_admin
 		 where ($1 = '' or state_code = $1)
+		   and ($2 = ''
+		        or name ilike '%' || $2 || '%'
+		        or phone ilike '%' || $2 || '%'
+		        or user_id ilike '%' || $2 || '%')
 		 order by spend_paisa desc, user_id asc
-		 limit $2`, stateCode, limit)
+		 limit $3`, stateCode, query, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -246,7 +255,7 @@ func (r *Repo) Customers(ctx context.Context, stateCode string, limit int) ([]Cu
 			lastOrderAt *time.Time
 			createdAt   time.Time
 		)
-		if err := rows.Scan(&c.UserID, &c.Name, &c.StateCode, &c.OrdersCount, &c.Spend, &lastOrderAt, &createdAt); err != nil {
+		if err := rows.Scan(&c.UserID, &c.Name, &c.StateCode, &c.Phone, &c.OrdersCount, &c.Spend, &lastOrderAt, &createdAt); err != nil {
 			return nil, err
 		}
 		c.Spend = c.Spend / 100

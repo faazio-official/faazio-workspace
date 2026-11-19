@@ -19,6 +19,7 @@
 | Team invite acceptance | [accept-invite.md](./accept-invite.md) |
 | Super admin category taxonomy + home rail | [super-admin-categories.md](./super-admin-categories.md) |
 | Super admin all orders (customer delivery lookup) | [super-admin-orders.md](./super-admin-orders.md) |
+| Super admin users directory (find a customer by phone) | [super-admin-users.md](./super-admin-users.md) |
 
 ## Route groups
 

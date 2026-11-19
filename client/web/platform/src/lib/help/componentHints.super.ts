@@ -691,10 +691,10 @@ export const SUPER_COMPONENT_HINTS: Record<string, ComponentHint> = {
   // ── Users (customer monitoring) ────────────────────────────────────────────
   ...pageHints("/admin/super/users", {
     "user-search": {
-      what: "Filters customers by name or user id.",
-      workflow: "Customer monitoring — find a customer.",
-      changes: "Filters the table; nothing is changed.",
-      example: "Type a user id to see their order count and spend.",
+      what: "Searches every customer by name, phone or user id.",
+      workflow: "Customer monitoring — find a customer from a phone call or ticket.",
+      changes: "Filters the list server-side; nothing is changed.",
+      example: "Type the phone number a customer called from to find their row.",
       app: ["portal"],
     },
     "user-orders": {
@@ -707,7 +707,7 @@ export const SUPER_COMPONENT_HINTS: Record<string, ComponentHint> = {
     "user-spend": {
       what: "Total rupees this customer has spent.",
       workflow: "Customer monitoring — read value.",
-      changes: "Read-only; the projection excludes phone, address and email.",
+      changes: "Read-only; the projection excludes address and email.",
       example: "Sort your attention by the biggest spenders.",
       app: ["portal"],
     },

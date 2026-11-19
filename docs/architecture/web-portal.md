@@ -281,7 +281,7 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `admin/district/sellers` · `admin/district/sellers/[id]` | seller directory + KYC review: full registration, masked payout account, private-bucket passbook/FSSAI links, platform-fee editor, per-document verify (PAN/GSTIN/FSSAI/passbook), reject with reason, **Verify KYC → ACTIVE** (no Razorpay Route account since `0077`; `internal/payouts` records manual mark-paid amounts instead). SUPER_ADMIN reaches the same detail page from `admin/super/sellers`; a role-gated **Return to super admin** link in the `AdminShell` header and `MobileNavDrawer` (shown only when `scope === "DISTRICT"` and `session.role === "SUPER_ADMIN"`) takes them back to `/admin/super`. |
 | `admin/district/orders` | order oversight (district-scoped `GET /admin/district/orders`, role-isolated — the gateway enforces the caller's district, no client-side stateCode filter) |
 | `admin/district/blood` | blood requests board (PHARMA) — server `blood.requests` with `contact`/`address`/`created_by` redacted for anon; moderation (`DELETE /blood-requests/{id}`) |
-| `admin/district/customers` | customer list + activity trail |
+| `admin/district/customers` | district customer list (`GET /customers` scoped to the admin's state, `?q=` by name/phone/user id, shows the sign-in phone, `0110`) + activity trail |
 | `admin/district/delivery-boys` | delivery-partner control plane (state-scoped): pending KYC queue, per-document verify and admin-side replacement upload (private R2 → `PUT /delivery/register/{id}/documents/{docType}/reupload`; the rider app has no re-upload screen), profile approve → super-admin activation, active-rider list (load/capacity) with on-demand Valkey location, suspend |
 | `admin/district/delivery/manual-allocation` | district allocation board: PACKED orders with no job + unaccepted/rejected offers, rider picker sorted by road distance from the store, mandatory `AUTOMATED`/`MANUAL` payout mode (`GET /admin/delivery/orders`, `POST …/allocate`) |
 | `admin/district/delivery/payouts` | district payout board: completed jobs (PENDING projected), mode/manual distance/fare editing before payment, `Mark Paid` (`GET /admin/delivery/payouts`, `PUT …/payout-mode`, `POST …/manual-fare`, `POST /admin/delivery/payouts/{orderId}/mark-paid` — amount-based `{amountPaisa}` since `0077`, `PARTIAL` until fully paid; legacy `POST /delivery/payouts/{orderId}/settle` still works) |
@@ -300,7 +300,7 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `admin/super/festival` · `admin/super/coupons` | promo authority |
 | `admin/super/products` · `admin/super/sellers` | catalog/seller authority — the seller list links into the shared KYC review detail and shows the platform fee |
 | `admin/super/sectors` · `admin/super/coverage` | taxonomy + coverage — **GST rate master** (sector + category + GST rate, `tax.tax_rates` via `GET/PUT /admin/tax/categories` + `DELETE /admin/tax/categories/{id}`): the approved category list that seller listings and the checkout tax split both consume |
-| `admin/super/rewards` · `admin/super/users` · `admin/super/districts` | platform — `districts` is the per-district drill-down (supply, campaigns, roster) |
+| `admin/super/rewards` · `admin/super/users` · `admin/super/districts` | platform — `users` is the customer directory (`GET /customers?q=`, server-filtered by name/phone/user id, shows the sign-in phone, `0110`); `districts` is the per-district drill-down (supply, campaigns, roster) |
 | `admin/{district,super}/fee-change-requests` | seller-initiated platform-fee change review — district admins see their district, super admins every district; the seller's own reason (`seller_note`, `0106`) is shown under the business name, approve applies the fee to the named vendor store, reject requires a reason (server-enforced one pending request per store, `0072`) |
 | `admin/super/district-admins` | district-admin directory — **locked to Tiruchirappalli (TTC)**; coverage summary (1 / 1) + progress bar + uncovered chip; roster read from `GET /district-admins?district=TTC` (store also hydrated at login). **Unified creation:** one form (district fixed to TTC) creates the roster + (optionally, `issueLogin` default ON) the portal login + temporary password atomically; duplicate email blocked on/off-server, duplicate phone soft-warned. **Edit sheet** updates name/email/phone via `PUT /district-admins/{id}` (the roster identity and its linked `DISTRICT_ADMIN` portal login email/display-name are kept in sync); deactivate/reactivate also use it. No state picker or state fallback |
 | `admin/super/credentials` | issue/disable seller and district-admin portal logins (role + seller/district scope) |
@@ -660,7 +660,10 @@ the real customer name/phone. Either way the board reflects real gateway rows.
   slice, so sellers/admins never see phantom demo rows. The gateway speaks **whole
   rupees**; the portal stores **paisa**, so the mapper multiplies by 100.
   The `admin/district/customers` page adds an on-demand **activity trail** panel per selected customer
-  (`useUserTrail` → admin-only `GET /admin/user-trail?userId=`, ID-only `user_events`).
+  (`useUserTrail` → admin-only `GET /admin/user-trail?userId=`, ID-only `user_events`). Both customer
+  pages (`admin/super/users`, `admin/district/customers`) are live server-filtered reads of
+  `GET /customers`, whose `?q=` matches name, phone and user id; the sign-in phone is shown per row
+  (`0110`, `db-schema.md` §12.40).
   District-scoped pages read `districtCode` **straight from the session** (no hardcoded fallback):
   `GET /sellers` is already scoped server-side by the caller's district claim — or by the parent
   state for a legacy state-scoped admin — so a fabricated district (e.g. `?? "TCH"`) filtered out

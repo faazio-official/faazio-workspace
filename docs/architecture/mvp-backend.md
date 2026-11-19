@@ -265,7 +265,8 @@ contract stable so the swap is invisible to the app):
     `(state_code, is_live)` index (0015's comment assumed the flag existed but it did not). Owner:
     `db-schema.md` §12.10. The gateway now exposes role-scoped partner management endpoints over
     `catalog`/`directory`/`checkout`/`pharma`/`blood` (see `monolith-breakdown.md` §1).
-14. ✅ **Partner completion (`0017`, v3):** `checkout.users_admin` redacted view (customer monitoring),
+14. ✅ **Partner completion (`0017`, v3):** `checkout.users_admin` customer projection (customer monitoring;
+    `0110` appends the sign-in phone — §12.40),
     `directory.menus.seller_id/status` (food-menu editing), admin-tunable `rewards.rates`, and
     `support.tickets.state_code` (state queue). Owner: `db-schema.md` §12.11. Closed the web↔mobile
     control-plane gaps (W17–W20), web write-through (W21) and mobile `@mock`→`@server` (W22, in

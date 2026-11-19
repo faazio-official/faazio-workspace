@@ -190,8 +190,9 @@ display-only campaign projection joined to store + products (distinct from the s
 `contracts` + `internal/reco` own the layout shape.
 
 **Partner completion (v3, `0017`)** adds four portal-only control surfaces: customer monitoring
-(`GET /customers` in `internal/admins`, reads the redacted `checkout.users_admin` view — state/super
-only, never cached), food-menu editing (`GET /seller/menus` + `POST /seller/menus` /
+(`GET /customers` in `internal/admins`, reads the `checkout.users_admin` view — state/super
+only, never cached; `0110` appends the customer phone, and `?q=` matches name/phone/user id
+server-side), food-menu editing (`GET /seller/menus` + `POST /seller/menus` /
 `PUT /seller/menus/{venueId}/{dishId}` in `internal/directory`, seller-scoped, invalidates
 `directory:menu:{venueId}`), rewards administration
 (`GET /rewards/ledger` + `GET`/`PUT /rewards/rates` in `internal/rewards`; the server stays the sole

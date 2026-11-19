@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
@@ -13,18 +13,26 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatINR, formatDate, formatDateTime } from "@/lib/format";
-import { useCustomers, usePortalLoading, useUserTrail } from "@/lib/api/hooks";
+import { useCustomers, useUserTrail } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 
 function StateCustomers() {
   const session = useSession();
   const stateCode = session?.stateCode;
-  const [query, setQuery] = useState("");
+  const [search, setSearch] = useState("");
+  const [q, setQ] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const loading = usePortalLoading();
-  const customers = useCustomers({ stateCode, query });
+  const { data: customers, loading, error } = useCustomers({
+    ...(stateCode ? { stateCode } : {}),
+    ...(q ? { query: q } : {}),
+  });
   const { events: trail, loading: trailLoading } = useUserTrail(selectedUserId);
+
+  useEffect(() => {
+    const t = window.setTimeout(() => setQ(search.trim()), 300);
+    return () => window.clearTimeout(t);
+  }, [search]);
 
   const totalSpend = useMemo(
     () => customers.reduce((sum, c) => sum + c.spendPaisa, 0),
@@ -35,16 +43,16 @@ function StateCustomers() {
     <div className="space-y-4">
       <PageHeader
         title="Customers"
-        description="PII-safe customer activity for your district (no phone, address or email). Read-only monitoring."
+        description="Customer activity for your district, including their sign-in phone. Read-only monitoring."
       />
 
       <SectionCard bodyClassName="p-0">
         <div className="flex items-center justify-between gap-3 border-b border-border p-3">
           <div className="flex items-center gap-1.5">
             <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search by name or user id"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, user id or phone"
               className="max-w-xs"
             />
             <ComponentHelp id="customer-search" label="About customer search" />
@@ -55,10 +63,11 @@ function StateCustomers() {
         </div>
         <DataShell
           loading={loading}
+          error={error}
           isEmpty={customers.length === 0}
           empty={
             <EmptyState
-              title="No customers yet"
+              title="No customers found"
               description="Customers whose orders fall in this district appear here."
             />
           }
@@ -72,6 +81,7 @@ function StateCustomers() {
                     <ComponentHelp id="customer-row" label="About selecting a customer" />
                   </span>
                 </TableHead>
+                <TableHead>Phone</TableHead>
                 <TableHead>User id</TableHead>
                 <TableHead>State</TableHead>
                 <TableHead className="text-right">Orders</TableHead>
@@ -88,6 +98,7 @@ function StateCustomers() {
                   onClick={() => setSelectedUserId((prev) => (prev === c.userId ? null : c.userId))}
                 >
                   <TableCell className="font-medium">{c.name}</TableCell>
+                  <TableCell className="num">{c.phone || "—"}</TableCell>
                   <TableCell className="text-muted-foreground">{c.userId}</TableCell>
                   <TableCell>{c.stateCode ?? "—"}</TableCell>
                   <TableCell className="num text-right">{c.ordersCount}</TableCell>

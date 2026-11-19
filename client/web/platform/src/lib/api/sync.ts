@@ -527,6 +527,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
         userId: str(c["userId"]),
         name: str(c["name"]),
         stateCode: c["stateCode"] ? str(c["stateCode"]) : undefined,
+        phone: c["phone"] ? str(c["phone"]) : undefined,
         ordersCount: num(c["ordersCount"]),
         spendPaisa: toPaisa(num(c["spend"])),
         lastOrderAt: c["lastOrderAt"] ? str(c["lastOrderAt"]) : undefined,

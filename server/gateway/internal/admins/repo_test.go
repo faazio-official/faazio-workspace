@@ -55,7 +55,7 @@ func TestCustomersProjection(t *testing.T) {
 	orderID := "ord-" + shortID()
 	if _, err := pool.Exec(ctx, `
 		insert into checkout.users (user_id, name, email, phone, state_code)
-		values ($1, 'Customer Test', 'c@t', '0', 'KA')`, uid); err != nil {
+		values ($1, 'Customer Test', 'c@t', '919000000123', 'KA')`, uid); err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.users where user_id=$1`, uid) })
@@ -66,7 +66,7 @@ func TestCustomersProjection(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.orders where order_id=$1`, orderID) })
 
-	list, err := repo.Customers(ctx, "KA", 10)
+	list, err := repo.Customers(ctx, "KA", "", 10)
 	if err != nil {
 		t.Fatalf("Customers: %v", err)
 	}
@@ -82,8 +82,27 @@ func TestCustomersProjection(t *testing.T) {
 	if found.OrdersCount != 1 || found.Spend != 123 { // 12345 paisa -> 123 rupees (integer)
 		t.Fatalf("customer projection wrong: %+v", *found)
 	}
+	if found.Phone != "919000000123" {
+		t.Fatalf("phone missing from projection: %+v", *found)
+	}
+	// The search term matches phone/name/user id server-side.
+	for _, term := range []string{"9000000123", "customer test", uid} {
+		matched, err := repo.Customers(ctx, "", term, 10)
+		if err != nil {
+			t.Fatalf("Customers search %q: %v", term, err)
+		}
+		var hit bool
+		for _, c := range matched {
+			if c.UserID == uid {
+				hit = true
+			}
+		}
+		if !hit {
+			t.Fatalf("search %q did not surface %s", term, uid)
+		}
+	}
 	// Other states are filtered out.
-	other, err := repo.Customers(ctx, "DL", 10)
+	other, err := repo.Customers(ctx, "DL", "", 10)
 	if err != nil {
 		t.Fatalf("Customers DL: %v", err)
 	}

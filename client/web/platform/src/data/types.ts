@@ -630,11 +630,15 @@ export interface SduiLayout {
   updatedAt: string;
 }
 
-/** checkout.users_admin — PII-redacted customer projection (no phone/address/email). */
+/**
+ * checkout.users_admin — admin customer directory projection. Carries the server-verified phone
+ * (0110) for search/support; addresses and email stay out of the projection.
+ */
 export interface CustomerRecord {
   userId: string;
   name: string;
   stateCode?: string | undefined;
+  phone?: string | undefined;
   ordersCount: number;
   spendPaisa: number;
   lastOrderAt?: string | undefined;

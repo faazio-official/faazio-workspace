@@ -96,7 +96,8 @@ func (h *Handler) listCustomers(w http.ResponseWriter, r *http.Request) {
 	if auth.Role(r.Context()) == auth.RoleStateAdmin {
 		stateCode = auth.StateCode(r.Context())
 	}
-	items, err := h.repo.Customers(r.Context(), stateCode, httpx.LimitParam(r, 200, 500))
+	q := strings.TrimSpace(r.URL.Query().Get("q"))
+	items, err := h.repo.Customers(r.Context(), stateCode, q, httpx.LimitParam(r, 200, 500))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "customers_unavailable", "customers unavailable")
 		return

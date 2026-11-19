@@ -151,16 +151,16 @@ export const DISTRICT_COMPONENT_HINTS: Record<string, ComponentHint> = {
 
   // ── Customers ─────────────────────────────────────────────────────────────
   "/admin/district/customers:customer-search": {
-    what: "Search customers in your district by name or user id.",
+    what: "Search customers in your district by name, phone or user id.",
     workflow: "Customer support — find a customer, then read their activity trail.",
     changes: "Filters the list only; no customer data is changed.",
-    example: "Search a user id from a support ticket to open their record.",
+    example: "Search the phone number a customer called from to open their record.",
     app: ["portal"],
   },
   "/admin/district/customers:customer-row": {
-    what: "Selecting a customer reveals their PII-safe activity trail below.",
+    what: "Selecting a customer reveals their ID-only activity trail below.",
     workflow: "Customer support — trace behaviour before acting on a query.",
-    changes: "Shows ID-only events (no phone, address or email).",
+    changes: "Shows ID-only events (no address or email).",
     example: "Click a customer to see which products they viewed.",
     app: ["consumer"],
   },

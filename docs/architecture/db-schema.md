@@ -1355,9 +1355,8 @@ read: customer monitoring, food-menu editing, admin-tunable rewards rates, and a
 queue. `0017` supplies them additively (never rewrites `0001`–`0016`), reusing the §0.1 lean dtypes.
 
 ```sql
--- W17: PII-redacted customer projection for the state/super customers page. The base
--- checkout.users table keeps its own-rows RLS untouched; this view exposes counts only, never
--- phone/address/email.
+-- W17: customer projection for the state/super customers page. The base checkout.users table keeps
+-- its own-rows RLS untouched; at 0017 this exposed counts only (no phone/address/email).
 CREATE VIEW checkout.users_admin AS
   SELECT u.user_id, u.name, u.state_code, u.created_at,
          count(o.order_id)::int4               AS orders_count,
@@ -1366,6 +1365,8 @@ CREATE VIEW checkout.users_admin AS
     FROM checkout.users u
     LEFT JOIN checkout.orders o ON o.user_id = u.user_id
    GROUP BY u.user_id, u.name, u.state_code, u.created_at;
+
+-- `0110` later appends u.phone to this projection (see §12.40).
 
 -- W18: seller-scoped menu editing (mirrors catalog.products.seller_id/status from 0015).
 ALTER TABLE directory.menus ADD COLUMN IF NOT EXISTS seller_id TEXT;
@@ -2773,3 +2774,35 @@ short-lived management token is minted from the app secret) or `HMS_ROOM_ID` (de
 The iOS CallKit ring adds `APNS_KEY_ID`, `APNS_TEAM_ID`, `APNS_PRIVATE_KEY_PEM` (the `.p8`),
 `APNS_TOPIC` (default `com.faazio.customer`) and `APNS_ENVIRONMENT`; the tokens live in
 `notifications.push_tokens` (`0105`).
+
+### 12.40 Customer phone in the admin directory (migration `0110`)
+
+**Authority:** `monolith-breakdown.md` §1 (admins row), `user-interaction-workflow/seller/web-portal/super-admin-users.md`.
+
+`checkout.users_admin` (`0017`) was a counts-only projection, so `/admin/super/users` could neither
+display nor search the phone a Firebase phone-OTP customer signed in with (`checkout.users.phone` is
+provisioned on first authenticated gateway call by `ProvisionUserID`). `0110` appends `u.phone` to the
+view (last column, so `create or replace view` stays valid) and adds trigram indexes for the directory
+search:
+
+```sql
+CREATE OR REPLACE VIEW checkout.users_admin WITH (security_invoker = on) AS
+  SELECT u.user_id, u.name, u.state_code, u.created_at,
+         count(o.order_id)::int4               AS orders_count,
+         coalesce(sum(o.total_paisa),0)::int8  AS spend_paisa,
+         max(o.placed_at)                      AS last_order_at,
+         u.phone
+    FROM checkout.users u
+    LEFT JOIN checkout.orders o ON o.user_id = u.user_id
+   GROUP BY u.user_id, u.name, u.state_code, u.created_at, u.phone;
+
+CREATE INDEX users_name_trgm_idx  ON checkout.users USING gin (name  gin_trgm_ops);
+CREATE INDEX users_phone_trgm_idx ON checkout.users USING gin (phone gin_trgm_ops);
+```
+
+Access control is unchanged: the view keeps `security_invoker = on`, is never granted to
+`anon`/`authenticated`, and is read only by the gateway (`service_role`). Exposing phone here is
+consistent with the super-admin orders board, which already returns real customer name + phone.
+`GET /customers` gains an optional `q` filter matched server-side against name, phone and user id
+(ILIKE on the trigram indexes), so a zero-spend customer that sorts past the 200-row page is still
+findable. Addresses and email remain out of the projection. Idempotent and re-runnable.

@@ -7,6 +7,7 @@ import { remoteConfigured } from "@/lib/config";
 import * as api from "@/lib/api";
 import type {
   BankAccount,
+  CustomerRecord,
   FeeChangeRequest,
   NotificationPreferences,
   OrderRecord,
@@ -803,12 +804,40 @@ export function useSduiLayouts(
   return useMemo(() => api.listSduiLayouts(filter), [sduiLayouts, key]);
 }
 
-export function useCustomers(
-  filter: { stateCode?: string | undefined; query?: string | undefined } = {},
-) {
-  const customers = usePortalStore((s) => s.customers);
+export function useCustomers(filter: api.CustomersFilter = {}): api.CustomersState {
   const key = JSON.stringify(filter);
-  return useMemo(() => api.listCustomers(filter), [customers, key]);
+  const [data, setData] = useState<CustomerRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+  useEffect(() => {
+    if (!remoteConfigured()) {
+      setData([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .fetchCustomers(JSON.parse(key) as api.CustomersFilter)
+      .then((rows) => {
+        if (cancelled) return;
+        setData(rows);
+        setError(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setData([]);
+        setError("Could not load customers");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [key, version]);
+  return { data, loading, error, refresh };
 }
 
 export function useMenus(

@@ -2752,15 +2752,44 @@ export function saveSduiLayoutHome(sections: SduiSection[], locale = "en"): void
 
 /* ------------------------------- customers ------------------------------- */
 
-export function listCustomers(filter: { stateCode?: string | undefined; query?: string | undefined } = {}): CustomerRecord[] {
-  return state().customers.filter((c) => {
-    if (filter.stateCode && c.stateCode !== filter.stateCode) return false;
-    if (filter.query) {
-      const q = filter.query.toLowerCase();
-      if (!c.name.toLowerCase().includes(q) && !c.userId.toLowerCase().includes(q)) return false;
-    }
-    return true;
+export interface CustomersFilter {
+  stateCode?: string | undefined;
+  query?: string | undefined;
+  limit?: number | undefined;
+}
+
+export interface CustomersState {
+  data: CustomerRecord[];
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+}
+
+/** Maps a `GET /customers` row (the checkout.users_admin projection) to the portal CustomerRecord. */
+export function mapCustomerRow(raw: Raw): CustomerRecord {
+  return {
+    userId: toStr(raw["userId"]),
+    name: toStr(raw["name"]),
+    stateCode: optStr(raw["stateCode"]),
+    phone: optStr(raw["phone"]),
+    ordersCount: Number(raw["ordersCount"] ?? 0) || 0,
+    spendPaisa: Math.round((Number(raw["spend"] ?? 0) || 0) * 100),
+    lastOrderAt: optStr(raw["lastOrderAt"]),
+    createdAt: toStr(raw["createdAt"]),
+  };
+}
+
+/**
+ * Live server-filtered read of the admin customer directory (`GET /customers`). `q` matches name,
+ * phone and user id server-side, so a customer with no spend (sorted last) is still findable.
+ * Mirrors the super-admin orders board rather than filtering the hydrated store slice.
+ */
+export async function fetchCustomers(filter: CustomersFilter = {}): Promise<CustomerRecord[]> {
+  if (!remoteConfigured()) return [];
+  const rows = await remote.get<Raw[]>("/customers", {
+    query: { state: filter.stateCode, q: filter.query, limit: filter.limit },
   });
+  return (toCamel(rows) as Raw[]).map(mapCustomerRow);
 }
 
 /* ---------------------------------- menus -------------------------------- */

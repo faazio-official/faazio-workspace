@@ -218,6 +218,11 @@ caller) and are event-purged on store live toggle and product edit/status change
   an email change re-checks the one-person-one-role gate and mirrors the new email + display name onto
   the linked `DISTRICT_ADMIN` login, so the roster↔login link (deactivation keys on `lower(email)`)
   never breaks.
+- **Customer directory (`GET /customers`, `internal/admins`):** `DISTRICT_ADMIN`/`SUPER_ADMIN` read
+  `checkout.users_admin` (a district admin is pinned to its own `state_code` server-side). Optional
+  `q` matches name, phone and user id (ILIKE on the `0110` trigram indexes) and `limit` caps the page
+  (default 200, max 500). `0110` appends the customer's sign-in phone to the projection — same
+  projection the district customers page and the super-admin users page both read.
 - **District scope (`internal/platform/geo`, migrations `0046`–`0049` + `0057`):** the wire role is
   `DISTRICT_ADMIN`; the 42 TN/PY district codes are validated against `admins.district_master` and
   the Go master. Sellers carry a `district_code` — **required on new onboarding** (`0047`; `POST
