@@ -204,10 +204,10 @@ release (Android/Play only). The GitHub `ios-release.yml` workflow is disabled; 
 
 1. Open the Faazio application → **Start new build**.
 2. Select branch `main` and workflow **iOS Customer Release**.
-3. Optionally enter `version` (blank uses `package.json`), then start the build.
+3. Optionally enter `version` (blank uses the customer entry in `app-versions.json`), then start the build.
 
 Steps in [`codemagic.yaml`](../../codemagic.yaml): `npm ci` → `ts:check` + `check:boundaries` +
-`check:ui` → rewrite `package.json` + Xcode `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` →
+`check:ui` → rewrite `app-versions.json` + Xcode `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` →
 `npm run configure` (release) → `pod install` → `xcodebuild -resolvePackageDependencies` →
 `restore-ios-signing.sh customer` + `xcode-project use-profiles --project ios/Faazio.xcodeproj`
 (writes `~/export_options.plist`) → `xcodebuild archive` → `xcodebuild -exportArchive` with that

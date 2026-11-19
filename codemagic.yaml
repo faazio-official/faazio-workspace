@@ -14,8 +14,8 @@
 #      docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md.
 #   3. Click "Check for configuration file" in the top-right corner.
 #
-# Trigger: manual only (Start new build). The `version` input overrides
-# package.json; leaving it blank uses the committed version.
+# Trigger: manual only (Start new build). The `version` input overrides the
+# customer entry in app-versions.json; leaving it blank uses the committed version.
 
 workflows:
   ios-customer-release:
@@ -29,7 +29,7 @@ workflows:
       - App Store
     inputs:
       version:
-        description: "Release version (e.g. 1.0.6). Leave blank to use package.json."
+        description: "Release version (e.g. 1.0.6). Leave blank to use app-versions.json."
         type: string
         default: ""
     environment:
