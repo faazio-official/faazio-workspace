@@ -129,7 +129,8 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 		       (6371.0088 * acos(least(1, greatest(-1,
 		           sin(radians($1)) * sin(radians(latitude)) +
 		           cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2))
-		       )))) as distance_km
+		       )))) as distance_km,
+		       coalesce(name_ta, ''), coalesce(desc_text_ta, '')
 		from directory.stores
 		where is_live
 		  and latitude is not null and longitude is not null
