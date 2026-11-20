@@ -19,7 +19,13 @@
 
 ### Request board + matching
 1. `useBloodRequests` loads `gateway.fetchBloodRequests()` (`GET /blood-requests`) with no filter
-   arguments.
+   arguments. The board refetches on four triggers so a stale feed can never hide a new request:
+   the caller-local `reloadKey` (`DonorDashboard` bumps it from `AskBloodSheet.onPosted`), the store's
+   `requestsReloadKey` (bumped in `bloodDonorStore.applyOutcome` when a `request` op becomes
+   `synced`), a foreground push (`subscribeBoardRefresh` → `refreshBoards('blood-requests')` from
+   `services/customerPush.ts` when the `BLOOD_REQUEST_NEW` message arrives), and screen refocus.
+   Responses are ticket-guarded so a slow earlier fetch cannot overwrite a newer one. There is **no
+   polling** — a write on another device is pushed, never guessed.
 2. `donorDirectory` loads `gateway.fetchBloodDonors(filters)` (`GET /donors`).
 3. Interested/accept calls `gateway.setBloodInterest` / `clearBloodInterest`
    (`PUT/DELETE /blood-requests/{id}/interest`).
@@ -27,13 +33,19 @@
    (`POST /donor-match-requests`).
 5. Recipient sees `gateway.getIncomingDonorMatches()` (`GET /donor-match-requests/incoming`) and
    responds with `gateway.setDonorMatchStatus(id, status)` (`PUT /donor-match-requests/{id}/status`).
-6. Posting a public request: `gateway.createBloodRequest(input)` (`POST /blood-requests`).
+6. Posting a public request: `gateway.createBloodRequest(input)` (`POST /blood-requests`). The server
+   stamp-and-persists, purges the whole board cache namespace, then best-effort enqueues
+   `BLOOD_REQUEST_NEW` to consented, available donors matching the request's blood group + city
+   (`bloodRepo.InterestedDonorIDs`, honouring the donor's `emergencyAlerts` preference). Payload is
+   PII-free (kind only); the receiving device refetches the board rather than trusting a push payload.
 
 ## State
 
 - `useBloodDonorStore` (`src/state/bloodDonorStore.ts`) — draft, registration, outgoing/incoming
-  matches, interested ids, `pendingOps` outbox. Reconciliation is internal: module-private
-  `hydrateFromServer()` and the foreground `flushPendingOps()` replay, not a public `reconcile()`.
+  matches, interested ids, `pendingOps` outbox, and `requestsReloadKey` (device-local, not persisted;
+  the board refetch trigger bumped when a posted request becomes durable). Reconciliation is internal:
+  module-private `hydrateFromServer()` and the foreground `flushPendingOps()` replay, not a public
+  `reconcile()`.
 - `useAuthStore` — donor identity.
 
 ## Data path

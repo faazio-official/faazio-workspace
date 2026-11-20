@@ -1182,7 +1182,12 @@ The public surface is the `blood.donor_directory` security-definer view (consent
 columns only); own rows are RLS-scoped. The request board is public but `contact`/`address` (and the
 internal `created_by` id) are stripped for anon. `blood.expire_requests()` is scheduled (pg_cron,
 daily) to prune expired requests.
-Donor directory + request board cached 60 s (`faazio:v1:blood:requests:{bloodGroup};{city}`).
+Donor directory is uncached; the request board is cached 60 s
+(`faazio:v1:blood:requests:{bloodGroup};{city}`), and a request post or moderation removal purges
+the whole `faazio:v1:blood:requests:` namespace by prefix so filtered boards drop immediately. A
+post also enqueues `BLOOD_REQUEST_NEW` in `notifications.outbox` for consented, available donors
+matching the request's blood group + city (`notif ->> 'emergencyAlerts'` honoured; PII-free payload),
+which refreshes an open board on another device without polling.
 **Author stamp (0061):** `POST /blood-requests` writes the caller's `checkout.users.user_id` into
 `blood.requests.created_by` from the bearer token (client payload stays `{bloodGroup, city}`);
 `DELETE /users/me` deletes the author's rows (their `contact`/`address` PII) — interests on them

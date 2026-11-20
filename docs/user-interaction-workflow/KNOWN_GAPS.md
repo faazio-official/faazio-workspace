@@ -89,6 +89,7 @@ These are code-misleading items, not partial user flows; they do not downgrade a
 | Item | Evidence | Action |
 |---|---|---|
 | Blood-donor `StepPlaceholder` dead code | `client/mobile/src/features/pharma/blood-donor/BloodDonorScreen.tsx:95` | Defensive dead path; add the step or remove it |
+| Open blood board relies on push to learn of another device's post | `server/gateway/internal/blood/handler.go` `notifyNewRequest`; `client/mobile/src/services/pushRefresh.ts` | Correct when FCM/APNs is configured (the normal production state). With push unconfigured a board only refreshes on refocus/post — no polling fallback by design, so it never guesses freshness. Same honest degradation as every other push-driven surface (`KNOWN_GAPS` §Server/data, FCM unset → push disabled) |
 | Re-upload request endpoint is retired | `PUT /delivery/register/{id}/reupload-request` always returns `410 Gone` (`server/gateway/internal/delivery/handler.go:428-434`); admins use `.../documents/{docType}/reupload` | Old clients get a hard failure; current clients use the admin path |
 | `src/services/homeFeed.ts` fixture seam | Removed — it had zero live importers | Done |
 

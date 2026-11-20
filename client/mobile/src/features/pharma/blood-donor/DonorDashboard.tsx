@@ -13,6 +13,7 @@ import { ASK_BLOOD_COPY } from '@data/index';
 import { gateway } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
+import { subscribeBoardRefresh } from '@/services/pushRefresh';
 import { useBloodRequests } from './hooks/useBloodRequests';
 import type { RootStackParamList } from '@/navigation/types';
 import { BloodRequestCard } from './components/BloodRequestCard';
@@ -69,6 +70,7 @@ export function DonorDashboard() {
   const [boardReload, setBoardReload] = useState(0);
   const [respondingId, setRespondingId] = useState<string | null>(null);
   const [notifCount, setNotifCount] = useState(0);
+  const [notifTick, setNotifTick] = useState(0);
   const { requests, source } = useBloodRequests(boardReload);
   const pendingOps = useBloodDonorStore((s) => s.pendingOps);
   const lastWriteStatus = useBloodDonorStore((s) => s.lastWriteStatus);
@@ -81,6 +83,8 @@ export function DonorDashboard() {
   }, [refreshIncoming]);
 
   // Honest inbox count: UNREAD server notifications only (mock/anon → 0), never a fabricated seed.
+  // `notifTick` re-reads it when a push says the inbox changed, so a request posted on another phone
+  // moves the badge without polling.
   useEffect(() => {
     let active = true;
     gateway
@@ -94,7 +98,9 @@ export function DonorDashboard() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [notifTick]);
+
+  useEffect(() => subscribeBoardRefresh(() => setNotifTick((n) => n + 1)), []);
 
   const incomingRequests = incomingMatchRequests;
   const pendingIncoming = incomingRequests.filter((request) => request.status === 'pending').length;

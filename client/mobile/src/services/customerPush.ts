@@ -19,6 +19,7 @@ import {
 } from '@react-native-firebase/messaging';
 import type { RemoteMessage } from '@react-native-firebase/messaging';
 import { gateway } from './api/GatewayClient';
+import { boardForNotificationKind, refreshBoards } from './pushRefresh';
 import { handleIncomingCall } from '@/features/customer/calling/callController';
 import { INCOMING_CALL_TYPE } from '@/features/call/incoming';
 import { getVoipToken, subscribeVoipToken } from '@/features/call/callkeep';
@@ -56,6 +57,10 @@ function handleMessage(message: RemoteMessage, onNotification?: () => void): voi
     void handleIncomingCall(data);
     return;
   }
+  // A board-changing write (e.g. a blood request posted on another phone) refreshes the open board
+  // in place; the fetch — not the push — remains the source of truth for what is shown.
+  const board = boardForNotificationKind(data?.kind);
+  if (board) refreshBoards(board);
   onNotification?.();
 }
 

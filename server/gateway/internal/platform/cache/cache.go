@@ -43,6 +43,11 @@ func Favourites(userID string) string { return fmt.Sprintf("faazio:v1:favourites
 func Rewards(userID string) string    { return fmt.Sprintf("faazio:v1:rewards:view:%s", userID) }
 func BloodRequests(key string) string { return fmt.Sprintf("faazio:v1:blood:requests:%s", key) }
 
+// BloodRequestsPrefix is the purge prefix for every cached board variant (see Cache.DelPrefix).
+// A create/remove must drop filtered keys too — purging only `group=;city=` would leave a
+// `group=O%2B;city=Chennai` reader on a stale board for its full 60 s TTL.
+func BloodRequestsPrefix() string { return "faazio:v1:blood:requests:" }
+
 // WeatherZone caches one zone's rain verdict for 30 minutes so a window costs at most one Weather
 // Union call. WeatherCalls is the financial-year API budget counter; WeatherOverride is the
 // super-admin manual rain flag (same 30-minute window). WeatherDegraded marks a zone whose provider

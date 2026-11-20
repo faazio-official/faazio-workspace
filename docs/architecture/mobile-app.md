@@ -352,7 +352,17 @@ rendered blank, never backfilled with a fixture lookalike. **(W53)** the hook re
 `200 []` renders an honest empty card, while a fetch failure shows the fixture/cache with a
 "Showing saved requests — offline" chip — never blank, never lie. A module-level cache of the
 resolved feed means the detail screen (which resolves by `requestId`) renders instantly after the
-dashboard has loaded. The same `{ … , source }` provenance is exposed by `usePharmaStores`
+dashboard has loaded. Board freshness is explicit: the hook refetches on the caller-local
+`reloadKey` (`DonorDashboard` bumps it from `AskBloodSheet.onPosted`), on
+`bloodDonorStore.requestsReloadKey` (bumped in `applyOutcome` only when a `request` op is `synced`,
+never on the optimistic enqueue), on a foreground `BLOOD_REQUEST_NEW` push
+(`services/pushRefresh.ts` ← `services/customerPush.ts`), and on refocus — so a request posted from
+another device appears without a manual reload, and **without polling**. The push is emitted by
+`internal/blood.notifyNewRequest`, which targets consented, available donors matching the request's
+blood group + city (honouring `emergencyAlerts`) with a PII-free payload; the device refetches the
+board rather than rendering push data. Loads are ticket-guarded so a slow earlier response cannot
+overwrite a newer one. The same
+`{ … , source }` provenance is exposed by `usePharmaStores`
 (`fetchStores('PHARMA')`) and `pharmaService.fetchPharmaFeed` (`fetchPharmaSections`), which show a
 "sample pharmacies — offline" chip when the live rails are unavailable.
 
@@ -662,7 +672,7 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?, addonIds?, addonPrice?, addonSummary?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); the optional add-on args carry selected extras (display hints stored on `inventory.carts`; checkout re-validates + re-prices them). `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item. **Server-authoritative:** every mutation optimistically updates the UI, awaits the durable `inventory.carts` write, and rolls back with `syncError` on failure. An existing line re-add sends its next absolute qty via `updateCartItem` because the gateway `POST/PUT` both **set** (not increment). `hydrate()` pulls + rejoins catalog details at login/cold start (remote mode, including add-on hints); `resetLocal()` drops the device cache on sign-out without deleting the server cart. The `seedCartItems` fixture is gone; mock mode degrades to device-local state |
 | `favoriteStore` | Favourites (ids), server-authoritative via `GET/POST/DELETE /favourites`; optimistic toggle with rollback + `syncError`, `hydrate()` at login/cold start, `reset()` on sign-out |
 | `pharmaStore` | Prescriptions |
-| `bloodDonorStore` | Blood Donor wizard draft + committed registration + outgoing targeted requests (`donorMatchRequests`) + server-hydrated incoming requests (`incomingMatchRequests`; recipient-scoped, `respondToMatch` accept/decline) + the offline write outbox (`pendingOps`; register/interest/match/match-status/request; flushed on hydration/foreground, server-wins reconcile) |
+| `bloodDonorStore` | Blood Donor wizard draft + committed registration + outgoing targeted requests (`donorMatchRequests`) + server-hydrated incoming requests (`incomingMatchRequests`; recipient-scoped, `respondToMatch` accept/decline) + the offline write outbox (`pendingOps`; register/interest/match/match-status/request; flushed on hydration/foreground, server-wins reconcile) + `requestsReloadKey` (device-local, not persisted — bumped when a posted `request` op becomes `synced`; `useBloodRequests` subscribes to it so every mounted board refetches) |
 | `searchStore` | Search state/history |
 | `languageStore` | Selected language — `en` (default) or `ta`; drives Tamil fonts (`theme/fonts.ts`), catalog labels (`lib/localizedText.ts`) and the navigation theme. Persisted AsyncStorage `faazio:selectedLanguage`. Changed at first run (`LanguageSelectionScreen`) or anytime from Account → Preferences → Language (`LanguageScreen`) |
 | `themeStore` | Appearance preference (`light` / `dark` / `auto`), device-local AsyncStorage `faazio.theme`; **default `light`**. `hydrate()` runs in the startup gate with auth/language/onboarding. `useThemeMode()` resolves `auto` against the live device scheme, returns the semantic palette, and calls `Appearance.setColorScheme` so native chrome (alerts, keyboards, Android DayNight) matches. No gateway write |

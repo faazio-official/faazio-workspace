@@ -1,10 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import type {
   BloodGroup,
   BloodRequest,
   BloodRequestUrgency,
 } from '@data/index';
 import { gateway, type BloodRequestRecord, type ReadSource } from '@/services/api/GatewayClient';
+import { useBloodDonorStore } from '@/state/bloodDonorStore';
+import { subscribeBoardRefresh } from '@/services/pushRefresh';
 
 const URGENCIES: BloodRequestUrgency[] = ['urgent', 'high', 'normal'];
 
@@ -76,40 +79,75 @@ let cacheSettled = false;
  *  - fetch failure    → a previously-live cache + `cache-stale`, or an empty board + `offline-fallback`
  *
  * No fixture rows are ever shown; the initial board is an honest empty.
+ *
+ * Refetch triggers (no polling — a create is pushed, never guessed):
+ *  - `reloadKey` — a caller-local bump (dashboard after `onPosted`);
+ *  - `requestsReloadKey` — the store's counter, bumped when a posted request is durably persisted,
+ *    so every mounted board refetches rather than keeping the row-less feed it fetched pre-post;
+ *  - `subscribeBoardRefresh()` — the foreground push handler for the `BLOOD_REQUEST_NEW` broadcast
+ *    the gateway enqueues on `POST /blood-requests`, which is how *another* device learns about it;
+ *  - refocus — a board revisited after a push arrived while unmounted.
  */
 export function useBloodRequests(reloadKey = 0): BloodRequestsFeed {
+  const storeReloadKey = useBloodDonorStore((s) => s.requestsReloadKey);
   const [feed, setFeed] = useState<BloodRequestsFeed>({
     requests: cache,
     source: cacheSource,
     settled: cacheSettled,
   });
 
+  /** Ticket so a slow earlier response cannot overwrite a newer one. */
+  const ticketRef = useRef(0);
+  /** False after unmount, so a late response still warms the module cache but never sets state. */
+  const mountedRef = useRef(true);
+  /** The initial fetch is owned by the trigger effect, so the first focus must not duplicate it. */
+  const focusSeenRef = useRef(false);
+
   useEffect(() => {
-    let active = true;
+    mountedRef.current = true;
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
+
+  const load = useCallback(() => {
+    const ticket = ++ticketRef.current;
     gateway
       .fetchBloodRequests()
       .then((rows) => {
-        if (!active) return;
+        if (ticket !== ticketRef.current) return;
         const mapped = rows.map(toBloodRequest);
         cache = mapped;
         cacheSource = rows.length > 0 ? 'live' : 'empty-authoritative';
         cacheSettled = true;
-        setFeed({ requests: mapped, source: cacheSource, settled: true });
+        if (mountedRef.current) setFeed({ requests: mapped, source: cacheSource, settled: true });
       })
       .catch(() => {
-        if (!active) return;
+        if (ticket !== ticketRef.current) return;
         const stale = cacheSource === 'live' || cacheSource === 'empty-authoritative';
         cacheSettled = true;
+        if (!mountedRef.current) return;
         setFeed({
           requests: cache,
           source: cache.length > 0 && stale ? 'cache-stale' : 'offline-fallback',
           settled: true,
         });
       });
-    return () => {
-      active = false;
-    };
-  }, [reloadKey]);
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load, reloadKey, storeReloadKey]);
+
+  // A pushed board change (foreground message) refetches immediately; refocus catches the rest.
+  useEffect(() => subscribeBoardRefresh(load), [load]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (focusSeenRef.current) load();
+      focusSeenRef.current = true;
+    }, [load]),
+  );
 
   return feed;
 }

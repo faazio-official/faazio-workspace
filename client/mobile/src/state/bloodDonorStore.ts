@@ -197,6 +197,12 @@ interface BloodDonorState {
   pendingOps: PendingDonorOp[];
   /** Status of the most recent write, for immediate UI feedback. */
   lastWriteStatus: BloodWriteStatus | null;
+  /**
+   * Monotonic, device-local counter bumped when a posted public request becomes durable. The board
+   * hook (`useBloodRequests`) subscribes to it, so every mounted board refetches instead of showing
+   * the row-less feed it fetched before the post. Never persisted — it is a refetch trigger, not data.
+   */
+  requestsReloadKey: number;
   /** True once the AsyncStorage hydration read has settled. */
   hydrated: boolean;
   updateDraft: (patch: Partial<BloodDonorDraft>) => void;
@@ -246,6 +252,9 @@ function applyOutcome(op: PendingDonorOp, outcome: BloodWriteOutcome): BloodWrit
     store.setState((s) => ({
       pendingOps: s.pendingOps.filter((o) => o.id !== op.id),
       lastWriteStatus: 'synced',
+      // A new public request only becomes visible once the server persists it; bump the board
+      // trigger here (never on the optimistic enqueue) so every mounted board refetches real rows.
+      requestsReloadKey: op.kind === 'request' ? s.requestsReloadKey + 1 : s.requestsReloadKey,
       registration: s.registration ? { ...s.registration, pendingSync: false } : s.registration,
       donorMatchRequests: op.kind === 'match'
         ? s.donorMatchRequests.map((m) => (m.id === op.targetId ? { ...m, pendingSync: false } : m))
@@ -294,6 +303,7 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
   incomingMatchRequests: [],
   pendingOps: [],
   lastWriteStatus: null,
+  requestsReloadKey: 0,
   hydrated: false,
   updateDraft: (patch) => {
     set({ draft: { ...get().draft, ...patch } });

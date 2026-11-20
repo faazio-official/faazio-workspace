@@ -182,6 +182,36 @@ func (r *Repo) CreateRequest(ctx context.Context, req contracts.BloodRequest) (c
 	return req, nil
 }
 
+// AlertableDonorIDs returns the user ids of consented, available donors who could serve this
+// request (matching blood group, same city, emergency alerts enabled). Used to fan a
+// `BLOOD_REQUEST_NEW` push out to the donors a new public request actually concerns — never the
+// whole user base, and never with contact/clinical detail in the payload.
+func (r *Repo) AlertableDonorIDs(ctx context.Context, bloodGroup, city string) ([]string, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("blood: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select user_id from blood.donors
+		 where consent and available
+		   and blood_group = $1
+		   and ($2 = '' or lower(city) = lower($2))
+		   and (notif is null or notif ->> 'emergencyAlerts' is null or notif ->> 'emergencyAlerts' = 'true')`,
+		bloodGroup, city)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var userID string
+		if err := rows.Scan(&userID); err != nil {
+			return nil, err
+		}
+		out = append(out, userID)
+	}
+	return out, rows.Err()
+}
+
 // DeleteRequest removes a request (moderation), scoped to a state when stateCode is non-empty (a
 // district admin), or globally for a super admin. Reports whether a row existed in scope.
 func (r *Repo) DeleteRequest(ctx context.Context, id, stateCode string) (bool, error) {

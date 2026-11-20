@@ -145,8 +145,30 @@ func (h *Handler) createRequest(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "request_failed", "could not post request")
 		return
 	}
-	h.cache.Del(r.Context(), cache.BloodRequests("group=;city="))
+	h.cache.DelPrefix(r.Context(), cache.BloodRequestsPrefix())
+	h.notifyNewRequest(r, req)
 	httpx.JSON(w, http.StatusCreated, req)
+}
+
+// notifyNewRequest pushes a board-changed signal to the donors the new request concerns, so a board
+// already open on their device refetches instead of waiting for a manual reload. Best-effort: the
+// request is already persisted, so a notification failure must never fail the post. The payload is
+// PII-free — the kind alone, no hospital, contact, or clinical detail — and the copy is deliberately
+// generic because the recipient set is blood-group/city matched, not individually known.
+func (h *Handler) notifyNewRequest(r *http.Request, req contracts.BloodRequest) {
+	if h.notifier == nil {
+		return
+	}
+	donors, err := h.repo.AlertableDonorIDs(r.Context(), req.BloodGroup, req.City)
+	if err != nil {
+		return // an unmatched board is still correct; the next board read picks the row up
+	}
+	for _, donorID := range donors {
+		_ = h.notifier.Enqueue(r.Context(), donorID, "BLOOD_REQUEST_NEW",
+			"A new blood request needs donors",
+			"Open the blood board to see if you can help.",
+			map[string]any{"kind": "BLOOD_REQUEST_NEW"})
+	}
 }
 
 func (h *Handler) interest(w http.ResponseWriter, r *http.Request) {
@@ -293,7 +315,7 @@ func (h *Handler) moderateRequest(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "request not found")
 		return
 	}
-	h.cache.Del(r.Context(), cache.BloodRequests("group=;city="))
+	h.cache.DelPrefix(r.Context(), cache.BloodRequestsPrefix())
 	h.log(r, id)
 	w.WriteHeader(http.StatusNoContent)
 }

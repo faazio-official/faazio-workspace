@@ -31,6 +31,16 @@ existing hospital donation-request feed.
   shows the live status. **Contact is not disclosed on acceptance** (reveal-gated future).
 - `AskBloodSheet` also offers **Post to the public board**: it writes city + blood group to
   `POST /blood-requests` (outcome-returning, never a fabricated local row) and reloads the board.
+- Board freshness is explicit, not incidental: `useBloodRequests` refetches on the caller-local
+  `reloadKey`, on the store's `requestsReloadKey` (bumped in `applyOutcome` only once a `request` op
+  is `synced`, never on the optimistic enqueue), on a foreground `BLOOD_REQUEST_NEW` push
+  (`services/pushRefresh.ts` `subscribeBoardRefresh`, fed by `services/customerPush.ts`), and on
+  refocus. A request posted from another phone therefore appears without a manual reload and
+  without polling — the push is the trigger, the fetch is still the source of truth. Concurrent loads
+  are ticket-guarded (newest wins). The push is produced server-side in
+  `internal/blood.notifyNewRequest`, which fans `BLOOD_REQUEST_NEW` out to consented, available
+  donors matching the request's blood group + city (honouring `emergencyAlerts`) with a PII-free
+  payload.
 - The hospital-request feed is fully server-backed (`GET /blood-requests` via
   `useBloodRequests`): a server `200 []` is an honest empty, and offline shows a labelled
   stale/offline chip — never fixture rows. The feed keeps its filters (chips + the funnel
