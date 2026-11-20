@@ -18,7 +18,13 @@
  *   node scripts/configure.js                  # debug / Metro (both platforms)
  *   CONFIGURE_PLATFORM=android APP_VARIANT=seller node scripts/configure.js
  *   CONFIGURE_PLATFORM=ios node scripts/configure.js
- *   CONFIGURE_RELEASE=1 node scripts/configure.js
+ *   BUILD_VARIANT=prod node scripts/configure.js   # prod (release) config
+ *
+ * BUILD_VARIANT=debug|prod is the explicit debug-vs-prod switch. It defaults to `debug` and is
+ * what the two CI workflows set (android-debug.yml -> debug, release-apk.yml -> prod), so the
+ * generated config can never drift from the build type Gradle is producing. CONFIGURE_RELEASE=1
+ * is still accepted as an alias for BUILD_VARIANT=prod (older scripts/runbooks); setting both to
+ * conflicting values is an error rather than a silent winner.
  *
  * Nothing here is secret at rest: values are public client config. Never put
  * tokens or passwords in these variables.
@@ -162,7 +168,29 @@ const appVersion = String(appVersionEntry.version);
 const firebaseSetting = env('USE_FIREBASE_AUTH').trim().toLowerCase();
 const useFirebaseAuth =
   appVariant === 'seller' ? false : firebaseSetting === '' || ['1', 'true', 'yes'].includes(firebaseSetting);
-const isRelease = flag('CONFIGURE_RELEASE');
+// Debug vs prod is explicit (BUILD_VARIANT), not inferred from a loosely-related flag. The CI
+// workflows set it to match the Gradle build type they run, so an embedded `embedded`/`metro`
+// transport can never disagree with the shell that is being produced.
+const buildVariantRaw = String(env('BUILD_VARIANT') || '')
+  .trim()
+  .toLowerCase();
+const releaseAlias = flag('CONFIGURE_RELEASE');
+if (buildVariantRaw && !['debug', 'prod', 'release'].includes(buildVariantRaw)) {
+  fail(`BUILD_VARIANT must be 'debug' or 'prod' (got '${buildVariantRaw}').`);
+}
+if (buildVariantRaw && releaseAlias) {
+  const fromAlias = 'prod';
+  const fromVariant = buildVariantRaw === 'debug' ? 'debug' : 'prod';
+  if (fromVariant !== fromAlias) {
+    fail(
+      `Conflicting build type: BUILD_VARIANT=${buildVariantRaw} with CONFIGURE_RELEASE=1. ` +
+        'Set only BUILD_VARIANT=debug|prod (CONFIGURE_RELEASE is a deprecated alias for prod).',
+    );
+  }
+}
+const buildVariant =
+  buildVariantRaw === 'debug' ? 'debug' : buildVariantRaw ? 'prod' : releaseAlias ? 'prod' : 'debug';
+const isRelease = buildVariant === 'prod';
 const requirePins = flag('REQUIRE_CERT_PINS');
 // Dev/simulator convenience: skip Firebase app verification so a console-registered test phone
 // number signs in without the iOS reCAPTCHA Safari sheet. Never allowed in release builds.
@@ -308,6 +336,12 @@ export const FIREBASE_AUTH_ENABLED = ${useFirebaseAuth};
 /** Debug-only: use Firebase console test phone numbers without the reCAPTCHA web sheet. */
 export const FIREBASE_APP_VERIFICATION_DISABLED = ${disableAppVerification};
 export const CERT_PINS: readonly string[] = ${JSON.stringify(pins)};
+/**
+ * Build type this config was generated for. 'debug' pairs with the Metro transport (the Gradle
+ * debug build type); 'prod' pairs with the embedded bundle (the Gradle release build type). Set by
+ * BUILD_VARIANT so a build can assert its own type instead of inferring it.
+ */
+export const BUILD_VARIANT: 'debug' | 'prod' = ${JSON.stringify(buildVariant)};
 export const IS_RELEASE_CONFIG = ${isRelease};
 /** Restricted Google Maps SDK keys (native map rendering; Android needs the manifest resource). */
 export const GOOGLE_MAPS_API_KEY_ANDROID = ${JSON.stringify(googleMapsAndroidKey)};
@@ -384,7 +418,8 @@ if (isRelease && fs.existsSync(path.dirname(NSC_FILE))) {
 }
 
 console.log(
-  `[configure] app=${appVariant} platform=${platform || 'all'} env=${platformFiles.join(',')} ` +
+  `[configure] app=${appVariant} platform=${platform || 'all'} build=${buildVariant} ` +
+    `env=${platformFiles.join(',')} ` +
     `transport=${transport} ` +
     `gateway=${gatewayUrl || '(mock)'} ` +
     `portal=${webPortalUrl || '(unconfigured)'} ` +

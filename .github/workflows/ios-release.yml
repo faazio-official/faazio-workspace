@@ -170,7 +170,7 @@ jobs:
       - name: Generate JS/native config (release)
         run: npm run configure
         env:
-          CONFIGURE_RELEASE: "1"
+          BUILD_VARIANT: prod
           REQUIRE_CERT_PINS: "1"
           CONFIGURE_PLATFORM: ios
           GATEWAY_URL: ${{ secrets.GATEWAY_URL || 'https://api.faazio.com' }}

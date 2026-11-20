@@ -93,12 +93,12 @@ function Partners() {
                   before you apply.
                 </p>
                 <div className="action-row" style={{ marginTop: 4 }}>
-                  <a href="/help-centre" className="btn btn-primary">
-                    See how selling works
+                  <a href="/sell-with-us" className="btn btn-primary">
+                    Start the seller enquiry
                     <ArrowRight aria-hidden="true" />
                   </a>
-                  <a href="/about" className="btn btn-ghost btn-sm">
-                    About Faazio
+                  <a href="/help-centre" className="btn btn-ghost btn-sm">
+                    See how selling works
                   </a>
                 </div>
               </div>

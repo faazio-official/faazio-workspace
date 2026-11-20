@@ -8,6 +8,7 @@ import { PHARMA_GREY, PHARMA_INK, PHARMA_TEAL } from '@/theme/pharmaTokens';
 import { localizedName } from '@/lib/localizedText';
 import { useLanguageStore } from '@/state/languageStore';
 import PharmaImage from '../PharmaImage';
+import { formatRating } from '@/components/shared/format';
 
 interface PopularMedicineCardProps {
   item: PharmaPopularMedicine;
@@ -40,7 +41,7 @@ const PopularMedicineCard = memo(function PopularMedicineCard({
         </AppText>
         <View style={styles.metricsRow}>
           <Star size={ms(10)} color={PHARMA_TEAL} fill={PHARMA_TEAL} strokeWidth={1.5} />
-          <AppText style={styles.rating}>{item.rating}</AppText>
+          <AppText style={styles.rating}>{formatRating(item.rating)}</AppText>
         </View>
         <View style={styles.footerRow}>
           <View style={styles.priceWrap}>

@@ -136,5 +136,9 @@ export function getVendorReviewSummary(vendorId: string): VendorReviewSummary {
     distribution[value - 1] += 1;
     sum += value;
   }
-  return { average: sum / reviews.length, count: reviews.length, distribution };
+  return {
+    average: Math.round((sum / reviews.length) * 10) / 10,
+    count: reviews.length,
+    distribution,
+  };
 }

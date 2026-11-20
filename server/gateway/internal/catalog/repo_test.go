@@ -95,7 +95,8 @@ func TestByStorePageActiveOnly(t *testing.T) {
 		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID)
 	})
 
-	// Two ACTIVE rows (ratings 4.5, 4.1) + one DRAFT row (rating 5.0) that must never surface.
+	// Two ACTIVE rows (ratings 4.9, 4.1) + one DRAFT row (rating 5.0) that must never surface.
+	// 4.9 is deliberately not float4-exact, which is what exercises the cursor regression below.
 	active1, active2, draft := "prod-"+manageID(""), "prod-"+manageID(""), "prod-"+manageID("")
 	seed := func(id string, rating float64, status string) {
 		if _, err := pool.Exec(ctx, `
@@ -104,7 +105,7 @@ func TestByStorePageActiveOnly(t *testing.T) {
 			t.Fatalf("seed product %s: %v", id, err)
 		}
 	}
-	seed(active1, 4.5, "ACTIVE")
+	seed(active1, 4.9, "ACTIVE")
 	seed(active2, 4.1, "ACTIVE")
 	seed(draft, 5.0, "DRAFT")
 	t.Cleanup(func() {
@@ -119,8 +120,11 @@ func TestByStorePageActiveOnly(t *testing.T) {
 	if len(page) != 2 {
 		t.Fatalf("first page n=%d, want 2", len(page))
 	}
-	if page[0].ID != active1 || page[0].Rating != 4.5 {
-		t.Fatalf("expected %s (4.5) first, got %s (%v)", active1, page[0].ID, page[0].Rating)
+	if page[0].ID != active1 || page[0].Rating != 4.9 {
+		t.Fatalf("expected %s (4.9) first, got %s (%v)", active1, page[0].ID, page[0].Rating)
+	}
+	if page[0].RatingRaw == page[0].Rating {
+		t.Fatal("RatingRaw lost the stored float4 value; cursor regression would go undetected")
 	}
 	if page[0].StoreID != storeID {
 		t.Fatalf("storeId = %q, want %q", page[0].StoreID, storeID)
@@ -131,8 +135,9 @@ func TestByStorePageActiveOnly(t *testing.T) {
 		}
 	}
 
-	// Keyset cursor resumes after the first row.
-	next, err := repo.ByStorePage(ctx, storeID, 1, page[0].Rating, page[0].ID, true)
+	// Keyset cursor resumes after the first row. Use RatingRaw: the cursor must carry the exact
+	// stored `real` value, not the 1-dp display rating (a rounded cursor drops boundary rows).
+	next, err := repo.ByStorePage(ctx, storeID, 1, page[0].RatingRaw, page[0].ID, true)
 	if err != nil {
 		t.Fatalf("ByStorePage cursor: %v", err)
 	}

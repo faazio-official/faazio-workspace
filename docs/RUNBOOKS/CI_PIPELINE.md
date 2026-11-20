@@ -192,6 +192,35 @@ gh run view --log-failed  # if it fails, pull the Gradle error here
 Add `-f include-aab=true` only for a Play Console upload — it adds the `bundle<App>Release` task and
 attaches the `.aab`; the default dispatch produces the signed APK alone.
 
+### Debug vs prod — one command per app, still CI-only
+
+`scripts/ci-build.mjs` (exposed as npm scripts) is the single entry point for "build `<app>` as
+`debug|prod`". It does not run Gradle — it dispatches the matching workflow, because both build types
+are CI-only:
+
+| npm script | Dispatches | Gradle task | `BUILD_VARIANT` |
+|---|---|---|---|
+| `npm run assembleDebugDelivery` | `android-debug.yml` | `assembleDeliveryDebug` | `debug` |
+| `npm run assembleProdDelivery` | `release-apk.yml` | `assembleDeliveryRelease` | `prod` |
+| `assembleDebugCustomer` / `assembleProdCustomer` | same workflows, `app=customer` | `assembleCustomer<Debug\|Release>` | `debug` / `prod` |
+| `assembleDebugSeller` / `assembleProdSeller` | same workflows, `app=seller` | `assembleSeller<Debug\|Release>` | `debug` / `prod` |
+
+```bash
+cd client/mobile
+npm run assembleDebugDelivery                      # debug APK artifact (Metro shell)
+npm run assembleProdDelivery -- --version=1.0.1 --include-aab   # signed release APK + Play AAB
+npm run ci:build -- --app=delivery --build=prod --dry-run        # print the gh command only
+npm run ci:build -- --app=delivery --build=debug --watch         # dispatch, then gh run watch
+```
+
+`BUILD_VARIANT` is the explicit debug-vs-prod switch read by `scripts/configure.js`: `debug` writes
+`transport=metro` and `BUILD_VARIANT='debug'` into `src/lib/config.ts`, `prod` writes
+`transport=embedded` and enforces the release gates (https gateway/portal, cert pins, real Firebase
+auth). Each workflow sets it to match the Gradle build type it runs, so the embedded config can never
+disagree with the shell being built. `CONFIGURE_RELEASE=1` is a deprecated alias for
+`BUILD_VARIANT=prod`; setting both with conflicting values fails configure. The two Gradle build types
+also carry `BuildConfig.BUILD_VARIANT` / `BuildConfig.DEBUG_BUILD` so a binary can assert its own type.
+
 ## 🍎 iOS release (customer only — Codemagic)
 
 Builds a release-signed `.ipa` for the **customer app** on Codemagic (macOS M2, Xcode 26.3) and

@@ -6830,6 +6830,7 @@
   margin-top: 28px;
 }
 
+
 @media (max-width: 900px) {
   .tour-guide {
     grid-template-columns: 1fr;
@@ -6849,7 +6850,392 @@
   }
 }
 
-/* ── Motion tokens (docs/UI_DESIGN_SYSTEM.md §3 Pass 9) ─────────────────── */
+/* ── Sell with us (/sell-with-us) ────────────────────────────────────────── */
+/* A counter conversation, not a signup funnel: three plain promises, then one
+   short enquiry and a pin on the shop. The map is the one rich surface; the
+   form stays on the paper ramp with hairline borders. */
+.benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0;
+  border-block: 1px solid var(--color-border);
+}
+
+.benefit {
+  padding: 28px 28px 28px 0;
+}
+
+.benefit + .benefit {
+  border-left: 1px solid var(--color-border);
+  padding-left: 28px;
+}
+
+.benefit-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--color-brand-soft);
+  color: var(--color-brand-ink);
+}
+
+.benefit-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.benefit h3 {
+  margin-top: 14px;
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+}
+
+.benefit p {
+  margin-top: 6px;
+  max-width: 34ch;
+  font-size: 0.9375rem;
+  line-height: 1.6;
+  color: var(--color-muted-foreground);
+}
+
+.sell-intro {
+  max-width: 60ch;
+}
+
+.sell-intro h2 {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.sell-intro p {
+  margin-top: 12px;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--color-muted-foreground);
+}
+
+.sell-inline-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--color-brand-ink);
+  font-weight: 500;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sell-inline-link svg {
+  width: 13px;
+  height: 13px;
+}
+
+.sell-form {
+  margin-top: 32px;
+}
+
+.sell-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 40px;
+  align-items: start;
+}
+
+.sell-grid-solo {
+  grid-template-columns: minmax(0, 1fr);
+  max-width: 640px;
+}
+
+.sell-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+}
+
+.field input,
+.field select,
+.field textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--color-input);
+  border-radius: 10px;
+  background: var(--color-card);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.4;
+  transition:
+    border-color var(--motion-press) var(--ease-entrance),
+    box-shadow var(--motion-press) var(--ease-entrance);
+}
+
+.field input::placeholder,
+.field textarea::placeholder {
+  color: var(--color-muted-foreground);
+}
+
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible {
+  outline: none;
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-soft);
+}
+
+.field input[aria-invalid="true"],
+.field textarea[aria-invalid="true"] {
+  border-color: var(--color-destructive);
+}
+
+.field textarea {
+  resize: vertical;
+  min-height: 84px;
+}
+
+.field-hint {
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: var(--color-muted-foreground);
+}
+
+.field-error {
+  font-size: 0.8125rem;
+  line-height: 1.5;
+  color: var(--color-destructive);
+}
+
+.sell-honeypot {
+  position: absolute;
+  left: -9999px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.sell-submit {
+  align-self: flex-start;
+  margin-top: 4px;
+}
+
+.sell-consent {
+  font-size: 0.75rem;
+  line-height: 1.6;
+  color: var(--color-muted-foreground);
+}
+
+.sell-consent a {
+  color: var(--color-brand-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.sell-done {
+  margin-top: 32px;
+  padding: 40px;
+  border: 1px solid var(--color-brand-line);
+  border-radius: var(--radius-lg);
+  background: var(--color-brand-soft);
+  text-align: left;
+}
+
+.sell-done-icon {
+  width: 32px;
+  height: 32px;
+  color: var(--color-brand-ink);
+}
+
+.sell-done h2 {
+  margin-top: 16px;
+  font-family: var(--font-display);
+  font-size: 1.75rem;
+  font-weight: 400;
+}
+
+.sell-done p {
+  margin-top: 10px;
+  max-width: 52ch;
+  font-size: 1rem;
+  line-height: 1.65;
+  color: var(--color-muted-foreground);
+}
+
+/* ── Map picker ──────────────────────────────────────────────────────────── */
+.map-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+}
+
+.map-picker-head {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.map-picker-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border: 1px solid var(--color-input);
+  border-radius: 10px;
+  background: var(--color-card);
+}
+
+.map-picker-field svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  color: var(--color-muted-foreground);
+}
+
+.map-picker-field input {
+  flex: 1;
+  min-width: 0;
+  padding-block: 10px;
+  border: 0;
+  background: transparent;
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+}
+
+.map-picker-field input:focus-visible {
+  outline: none;
+}
+
+.map-picker-field:focus-within {
+  border-color: var(--color-brand);
+  box-shadow: 0 0 0 3px var(--color-brand-soft);
+}
+
+.map-picker-canvas {
+  position: relative;
+  min-height: 320px;
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  background: var(--color-surface-sunken);
+}
+
+.map-picker-map {
+  width: 100%;
+  height: 320px;
+}
+
+.map-picker-note {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  text-align: center;
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--color-muted-foreground);
+}
+
+.map-picker > .map-picker-note {
+  position: static;
+  display: block;
+  padding: 12px 0 0;
+}
+
+.map-picker-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.map-picker-readout {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--color-border);
+  font-size: 0.875rem;
+  line-height: 1.5;
+  color: var(--color-foreground);
+}
+
+.map-picker-readout svg {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  color: var(--color-brand-ink);
+}
+
+.map-picker-district {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  font-size: 0.8125rem;
+  color: var(--color-muted-foreground);
+}
+
+.map-picker-district svg {
+  width: 14px;
+  height: 14px;
+}
+
+@media (max-width: 900px) {
+  .benefits-grid {
+    grid-template-columns: 1fr;
+  }
+  .benefit {
+    padding: 20px 0;
+  }
+  .benefit + .benefit {
+    border-left: 0;
+    border-top: 1px solid var(--color-border);
+    padding-left: 0;
+  }
+  .sell-grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
+  }
+}
+
+@media (max-width: 560px) {
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+  .sell-done {
+    padding: 24px;
+  }
+}
+
+
 /* Exits are 20% shorter than entrances; dropdowns sit in the 150–250ms band.
  * Springs are reserved for drag and never used for discrete UI. */
 :root {

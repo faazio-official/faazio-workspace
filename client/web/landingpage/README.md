@@ -2,8 +2,9 @@
 
 Marketing landing page for the Faazio Daily SuperApp (Mart · Food · Pharma),
 starting in Karaikal. An SEO-focused long-scrolling homepage at `/` plus
-content pages at `/about`, `/faq`, `/partners`, `/help-centre`, `/karaikal`, `/download`, and
-the legal pages `/terms`, `/seller-terms`, `/privacy`, `/refunds`, `/cookies`, and `/disclaimer`.
+content pages at `/about`, `/faq`, `/partners`, `/sell-with-us`, `/help-centre`, `/karaikal`,
+`/download`, and the legal pages `/terms`, `/seller-terms`, `/privacy`, `/refunds`, `/cookies`, and
+`/disclaimer`.
 
 Built with **TanStack Start** (file-based routing + SSR), **React 19**,
 **Tailwind CSS v4**, and **Nitro** for the deployment bundle.
@@ -115,6 +116,20 @@ to `client/web/landingpage`, and Vercel runs:
 
 `vercel.json` only adds security/caching response headers.
 
+## Environment
+
+`/sell-with-us` is the only route that needs configuration; every other page is static.
+
+| Variable | Where | Purpose |
+| --- | --- | --- |
+| `VITE_GOOGLE_MAPS_API_KEY` | Vercel build env | Public, HTTP-referrer-restricted Google Maps JS key (Maps JS + Places). Absent → the map panel is not rendered; the address + district fields carry the enquiry and it submits **no** pin. A key that fails to initialise (auth error / 10 s timeout) collapses the panel the same way. Coordinates are never fabricated. |
+| `GATEWAY_URL` | Vercel runtime env | Gateway origin the lead server function posts to (default `https://api.faazio.com`). Read on the server only, so the browser never learns it. |
+
+The enquiry is submitted through a TanStack Start server function (`src/lib/leads.ts`) rather than a
+browser `fetch`, because the gateway's CORS allow-list is the portal origin, not `faazio.com`. If
+`VITE_GOOGLE_MAPS_API_KEY` is set, `vercel.json` must keep `Permissions-Policy: geolocation=(self)`
+for the "use my current location" button.
+
 ## SEO
 
 - Every route sets a unique canonical URL, Open Graph/Twitter card, and JSON-LD
@@ -140,6 +155,7 @@ When the production domain changes, update `SITE_URL` in `src/lib/site.ts`,
 | `src/routes/about.tsx`        | Company story (`/about`)                                                        |
 | `src/routes/faq.tsx`          | FAQ page with `FAQPage` structured data (`/faq`)                                |
 | `src/routes/partners.tsx`     | Partner page for local businesses (`/partners`)                                 |
+| `src/routes/sell-with-us.tsx` | Public seller enquiry + shop-pin map (`/sell-with-us`)                          |
 | `src/routes/help-centre.tsx`  | Full seller-journey walkthrough with `HowTo` + `ItemList` data (`/help-centre`) |
 | `src/routes/karaikal.tsx`     | Karaikal location page (`/karaikal`)                                            |
 | `src/routes/download.tsx`     | App download page (`/download`)                                                 |

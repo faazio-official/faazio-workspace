@@ -169,6 +169,12 @@ func AdsPublishRate(sellerID, day string) string {
 	return fmt.Sprintf("faazio:v1:ads:publish:%s:%s", sellerID, day)
 }
 
+// SellerLeadRate is the per-IP public "Sell with us" enquiry counter for a UTC day. The key holds a
+// 64-bit IP hash, never the address; created with TTLSellerLeadRate on first INCR.
+func SellerLeadRate(ipHash, day string) string {
+	return fmt.Sprintf("faazio:v1:sellers:lead:%s:%s", ipHash, day)
+}
+
 // PromoActiveDiscount caches one product's active festival discount (LIVE campaign + APPROVED
 // opt-in, sector-capped). A cached `none` sentinel means "checked, no active discount" so a
 // catalog batch never re-queries absent products. Invalidated on opt-in/campaign status change
@@ -290,6 +296,9 @@ const (
 
 	// TTLAdsPublishRate bounds the per-seller self-serve publish rate counter (publishes/UTC day).
 	TTLAdsPublishRate = 24 * time.Hour
+
+	// TTLSellerLeadRate bounds the per-IP public "Sell with us" enquiry counter (leads/UTC day).
+	TTLSellerLeadRate = 24 * time.Hour
 
 	// TTLPromoActive bounds the anon-visible active festival discount projection per product
 	// (LIVE campaign + APPROVED opt-in, sector-capped); invalidated on opt-in/campaign change.

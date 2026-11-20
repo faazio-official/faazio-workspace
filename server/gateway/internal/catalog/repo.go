@@ -268,7 +268,8 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 			p.Image = cdnBase + "/" + *imageKey
 		}
 		// rating is stored as real (float4); round to the 1-decimal domain precision so the JSON
-		// number is exact (e.g. 4.9, not 4.900000095367432).
+		// number is exact (e.g. 4.9, not 4.900000095367432). Keep the raw value for the keyset cursor.
+		p.RatingRaw = rating
 		p.Rating = math.Round(rating*10) / 10
 		p.Price = toRupees(pricePaisa)
 		p.ReviewsCount = reviewsCount

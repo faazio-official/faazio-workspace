@@ -15,6 +15,53 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W104 — Rating precision: no raw decimals in any rating display
+
+**Status:** 🟢 Shipped. No DB migration (schema stays `float8`; precision is an application concern).
+
+- **Symptom:** ratings rendered as `4.9.54636344325` — a raw repeating `float64`/`number` printed
+  straight into the card. Source: `float64(sum) / float64(count)` with no rounding, `precision -1`
+  cursors, and 13 store/vendor components rendering `{store.rating}` directly.
+- **Server:** `directory.scanStores` and `catalog.scanProducts` round the public rating to 1 dp (the
+  seller-store projections already did); `reviews.Repo.VendorSummary` rounds the aggregate `average`.
+  Keyset cursors keep the **unrounded** column value via `Store.RatingRaw` / `Product.RatingRaw`
+  (`json:"-"`) — `rating` is `real`, so a 1-dp cursor would fail the `rating = $3` tie check and
+  silently drop rows. Covered by `TestStoreRatingRoundedButCursorExact` and the catalog keyset test.
+- **Client:** every rating render now goes through `formatRating()` (`src/components/shared/format.ts`)
+  — `StoreCardBase` (rail + card), `VendorDetailScreen`, `LocalVendorCard`, `LocalMedicalCard`,
+  `MedicalShopDetailsScreen`, `PharmaVendorCard`, `CommonProductDetailView`, `StoreProductSection`,
+  `VendorProfileView`, `VendorHighlights`, `PopularMedicineCard`, `MartDealCard`, and the
+  `RestaurantCard` accessibility label. `services/vendorRatings.ts` rounds its derived average to
+  1 dp so the offline path matches the server.
+- **Docs:** `docs/architecture/mobile-app.md` (Vendor ratings & reviews), store drill-in workflow.
+
+**Date:** 2026-11-20
+
+---
+
+## W103 — Debug/prod CI build entry point + foreground-service demo scripts
+
+**Status:** 🟡 Partial — build tooling shipped; the videos themselves are not recorded yet.
+
+- **Build tooling:** `scripts/ci-build.mjs` (`npm run ci:build`, plus `assembleDebug<App>` /
+  `assembleProd<App>` for all three products) dispatches `android-debug.yml` (debug) or
+  `release-apk.yml` (prod) — never local Gradle (systemd-oomd). `scripts/configure.js` now takes an
+  explicit `BUILD_VARIANT=debug|prod` (default `debug`, `CONFIGURE_RELEASE=1` kept as an alias for
+  `prod`; a conflicting pair is fatal) and emits `BUILD_VARIANT` + `IS_RELEASE_CONFIG`; both
+  workflows, Codemagic and `ios-release.yml` set it to match the Gradle build type.
+  `android/app/build.gradle` labels each build type with `BuildConfig.BUILD_VARIANT` /
+  `BuildConfig.DEBUG_BUILD`.
+- **Demo scripts:** `client/mobile/mocked-videos/` — shot lists, notification copy and reviewer
+  answers for `FOREGROUND_SERVICE_LOCATION` (location) and `FOREGROUND_SERVICE_MICROPHONE`
+  (microphone), an annotated manifest reference, and the reused-UI map. Console answers added to
+  `client/mobile/docs/PLAYSTORE_RELEASE_DELIVERY.md` §9.
+- **Outstanding:** screen-record both walkthroughs from a CI debug APK on a device, upload unlisted to
+  YouTube, and paste the two URLs into Play Console → App content → Foreground service permissions.
+
+**Date:** 2026-11-19
+
+---
+
 ## W102 — Seller app: no login-page flash on cold start (+ portal session-restore loading)
 
 **Status:** 🟢 Shipped (mobile seller shell + web portal). No server/DB change.

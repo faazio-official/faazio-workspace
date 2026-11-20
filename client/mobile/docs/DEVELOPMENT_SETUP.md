@@ -34,8 +34,16 @@ npm run check:boundaries  # dependency-cruiser
 - `npm run start` — Metro dev server
 - `npm run android` / `npm run ios` — build + run locally (do **not** run Android here: CI-only)
 - `npm run configure` — regenerate `src/lib/config.ts` from env
+- `BUILD_VARIANT=debug|prod` — build type for `configure` (default `debug`; `prod` is the release
+  config). Set by the CI workflows to match the Gradle build type.
+- `npm run assembleDebug<Customer|Delivery|Seller>` — dispatch the debug APK CI build
+- `npm run assembleProd<Customer|Delivery|Seller>` — dispatch the signed release APK CI build
+  (extra flags pass through: `-- --version=1.0.1 --include-aab`)
 - `npm run ts:check` — TypeScript typecheck
 - `npm run check:boundaries` — dependency-cruiser import rules
+
+Native builds are CI-only (never run Gradle locally). Full dispatch details:
+`docs/RUNBOOKS/CI_PIPELINE.md` → "Debug vs prod — one command per app, still CI-only".
 
 ## See also
 

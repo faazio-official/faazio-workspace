@@ -2806,3 +2806,68 @@ consistent with the super-admin orders board, which already returns real custome
 `GET /customers` gains an optional `q` filter matched server-side against name, phone and user id
 (ILIKE on the trigram indexes), so a zero-spend customer that sorts past the 200-row page is still
 findable. Addresses and email remain out of the projection. Idempotent and re-runnable.
+
+### 12.41 Public seller lead intake (migration `0111`)
+
+**Authority:** `monolith-breakdown.md` §1 (sellers row), `user-interaction-workflow/seller/onboarding/seller-web-intake.md`.
+
+The landing page `/sell-with-us` lets a visitor register interest before installing the app. That
+enquiry must never create a seller account — `sellers.sellers` is auth-gated and its create path
+collects PAN/bank/passbook/OTP — so `0111` adds a separate intake table:
+
+```sql
+create table if not exists sellers.seller_leads (
+  lead_id           text primary key,
+  business_name     text not null check (octet_length(business_name) between 1 and 160),
+  owner_name        text not null check (octet_length(owner_name) between 1 and 160),
+  category          app_brand not null,
+  contact_phone     text not null,
+  contact_email     text not null,
+  business_address  text not null default '' check (octet_length(business_address) <= 500),
+  state_code        char(2),
+  district_code     text references admins.district_master (district_code) on delete set null,
+  state_name        text not null default '',
+  district_name     text not null default '',
+  latitude          float8,
+  longitude         float8,
+  platform_fee_pct  smallint check (platform_fee_pct is null or platform_fee_pct between 1 and 100),
+  notes             text not null default '' check (octet_length(notes) <= 500),
+  status            text not null default 'NEW'
+                    check (status in ('NEW','CONTACTED','APPROVED','REJECTED')),
+  source            text not null default 'web',
+  ip_hash           text not null default '',
+  created_at        timestamptz not null default now(),
+  updated_at        timestamptz not null default now(),
+  check ((latitude is null and longitude is null)
+         or (latitude between -90 and 90 and longitude between -180 and 180))
+);
+create index seller_leads_status_created_idx on sellers.seller_leads (status, created_at desc);
+create index seller_leads_district_idx on sellers.seller_leads (district_code);
+```
+
+- **Why a separate table:** a lead carries no KYC identifiers and has no `user_id`, so it cannot
+  satisfy `sellers.sellers`' constraints (or its PII exposure rules). Keeping it apart means the
+  public, unauthenticated write can never touch the account table.
+- **Pin is all-or-nothing:** the coordinate CHECK rejects a half pin; the map picker degrades to a
+  pin-less lead (typed address + district) rather than inventing coordinates. The gateway requires a
+  shop address (≥5 chars) and a district (code or name) on every lead, so a follow-up is always
+  possible without a pin.
+- **District resolution:** the gateway resolves the submitted name against `geo.Districts` and
+  stores the canonical `state_code`/`district_code`; the raw `state_name`/`district_name` are kept
+  so a near-miss is still readable. An unknown explicit code is a `400 unknown_district`.
+- **Abuse:** `ip_hash` is a 64-bit hex prefix of the submitter IP (never plaintext). The per-IP
+  daily counter lives in Valkey (`faazio:v1:sellers:lead:{ipHash}:{yyyymmdd}`, 5/day, fail-open) —
+  no Postgres rate table.
+- **Access:** RLS is enabled and no `anon`/`authenticated` grant exists; the gateway's `service_role`
+  is the only reader/writer. The public `POST /seller-leads` is the only anonymous write; reads and
+  status moves go through the admin-only `GET /seller-leads` and `PATCH /seller-leads/{id}`
+  (district-scoped, `leads_admin.go`), so the `NEW → CONTACTED → APPROVED → REJECTED` lifecycle is
+  worked in the portal queue (`user-interaction-workflow/seller/onboarding/seller-lead-queue.md`).
+- **Review columns (0112):** `admin_note` (≤500 bytes), `reviewed_by`, `reviewed_at` let the queue
+  record who moved a lead and why. `(district_code, status, created_at desc)` indexes the queue's
+  default district+status read. Additive, idempotent and re-runnable.
+- **Ownership + link (0113):** `assigned_to` (admins.portal_users id, empty = unclaimed) and
+  `assigned_at` give each lead one call-back owner (`(assigned_to, status, created_at desc)` index);
+  `seller_id` (FK → `sellers.sellers`, `on delete set null`) is back-filled by `POST /sellers` when a
+  lead's contact phone or email matches the application, so an onboarded merchant leaves the queue.
+  Additive, idempotent and re-runnable.

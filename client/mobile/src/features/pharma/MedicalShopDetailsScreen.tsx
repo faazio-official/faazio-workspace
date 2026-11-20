@@ -32,6 +32,7 @@ import PharmaImage from './components/pharma-home/PharmaImage';
 import UploadPrescriptionFAB from './components/pharma-home/UploadPrescriptionFAB';
 import { brandRamp, neutral, semantic, semanticTint } from '@/theme/brandTokens';
 import { getStoreOpenStatus } from '@/utils/storeHours';
+import { formatRating } from '@/components/shared/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'MedicalShopDetails'>;
 
@@ -59,7 +60,7 @@ const StoreInfo = memo(function StoreInfo({ store }: { store: StoreProfile }) {
           <PharmaImage uri={store.coverImage} style={styles.logo} contentFit="cover" />
           <View style={styles.ratingBadge}>
             <Star size={ms(10)} color={neutral.card} fill={neutral.card} strokeWidth={1.5} />
-            <AppText style={styles.ratingText}>{store.rating}</AppText>
+            <AppText style={styles.ratingText}>{formatRating(store.rating)}</AppText>
           </View>
         </View>
         <View style={styles.identityBody}>

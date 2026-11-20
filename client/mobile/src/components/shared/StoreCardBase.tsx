@@ -4,6 +4,7 @@ import { Star, Clock, MapPin, ChevronRight } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { brandTokens, semantic } from '@/theme/brandTokens';
 import AdLabelBadge from './AdLabelBadge';
+import { formatRating } from './format';
 import type { StoreProfile } from '@data/types';
 import AppText from '@/components/AppText';
 import { localizedName } from '@/lib/localizedText';
@@ -38,7 +39,7 @@ const StoreCardBase = memo(function StoreCardBase({ store, variant = 'vendor', w
           <AppText style={styles.railStoreName} numberOfLines={1}>{storeName}</AppText>
           <View style={styles.ratingRow}>
             <Star size={ms(10)} color="#f59e0b" fill="#f59e0b" />
-            <AppText style={styles.ratingText}>{store.rating}</AppText>
+            <AppText style={styles.ratingText}>{formatRating(store.rating)}</AppText>
             {store.reviewsCount && <AppText style={styles.reviewText}>({store.reviewsCount.toLocaleString('en-IN')})</AppText>}
           </View>
           <View style={styles.infoRow}>
@@ -86,7 +87,7 @@ const StoreCardBase = memo(function StoreCardBase({ store, variant = 'vendor', w
       <View style={styles.meta}>
         <View style={styles.ratingRow}>
           <Star size={ms(10)} color="#f59e0b" fill="#f59e0b" />
-          <AppText style={styles.ratingText}>{store.rating}</AppText>
+          <AppText style={styles.ratingText}>{formatRating(store.rating)}</AppText>
           {store.reviewsCount && <AppText style={styles.reviewText}>({store.reviewsCount.toLocaleString('en-IN')})</AppText>}
         </View>
         <View style={styles.infoRow}>

@@ -4,6 +4,7 @@ import { Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import MartImage from './MartImage';
+import { formatRating } from '@/components/shared/format';
 
 interface MartDealCardProps {
   image: string;
@@ -49,7 +50,7 @@ const MartDealCard = memo(function MartDealCard({
         {rating !== undefined ? (
           <View style={styles.ratingChip}>
             <Star size={ms(11)} color="#111827" fill="#111827" strokeWidth={1.5} />
-            <AppText style={styles.ratingText}>{rating}</AppText>
+            <AppText style={styles.ratingText}>{formatRating(rating)}</AppText>
           </View>
         ) : null}
 

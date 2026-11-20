@@ -28,6 +28,7 @@ import type { RootStackParamList } from '@/navigation/types';
 import SearchMartProductCard from '@/features/ecommerce/components/SearchMartProductCard';
 import SearchPharmaProductCard from '@/features/pharma/components/SearchPharmaProductCard';
 import { neutral, parentRamp, semantic } from '@/theme/brandTokens';
+import { formatRating } from '@/components/shared/format';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'VendorDetails'>;
 
@@ -195,7 +196,7 @@ export function VendorDetailScreen({ navigation, route }: Props) {
                 <View style={styles.logoContainer}>
                   <AppImage source={{ uri: store.coverImage }} style={styles.logo} contentFit="cover" cachePolicy="memory-disk" />
                   <View style={styles.ratingBadge}>
-                    <AppText style={styles.ratingText}>{store.rating}</AppText>
+                    <AppText style={styles.ratingText}>{formatRating(store.rating)}</AppText>
                   </View>
                 </View>
                 <View style={styles.storeDetails}>

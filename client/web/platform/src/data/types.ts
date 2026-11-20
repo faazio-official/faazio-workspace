@@ -474,6 +474,37 @@ export interface FeeChangeRequest {
   reviewReason?: string | undefined;
 }
 
+/** sellers.seller_leads — landing-page "Sell with us" enquiries (0111 + 0112). */
+export interface SellerLead {
+  leadId: string;
+  businessName: string;
+  ownerName: string;
+  category: string;
+  contactPhone: string;
+  contactEmail: string;
+  businessAddress: string;
+  stateCode?: string | undefined;
+  districtCode?: string | undefined;
+  stateName?: string | undefined;
+  districtName?: string | undefined;
+  latitude?: number | null | undefined;
+  longitude?: number | null | undefined;
+  platformFeePct?: number | null | undefined;
+  notes?: string | undefined;
+  status: "NEW" | "CONTACTED" | "APPROVED" | "REJECTED" | string;
+  source?: string | undefined;
+  /** Operator's follow-up note / the reason a lead was rejected (0112). */
+  adminNote?: string | undefined;
+  reviewedBy?: string | undefined;
+  reviewedAt?: string | undefined;
+  /** The admin who claimed the call-back (0113); empty = unclaimed. */
+  assignedTo?: string | undefined;
+  assignedAt?: string | undefined;
+  /** The application this lead became, back-filled when the merchant applies (0113). */
+  sellerId?: string | undefined;
+  createdAt: string;
+}
+
 /** admins.audit_logs */
 export interface AuditLog {
   logId: string;

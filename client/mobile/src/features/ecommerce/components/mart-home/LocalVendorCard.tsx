@@ -8,6 +8,7 @@ import { hs, ms, vs } from '@/utils/responsive';
 import { brandRamp } from '@/theme/brandTokens';
 import type { StoreProfile } from '@data/types';
 import MartImage from './MartImage';
+import { formatRating } from '@/components/shared/format';
 
 const IMG_SIZE = 96;
 /** Mart anchor. `base` is a fill only — it cannot carry text or sit on white. */
@@ -49,7 +50,7 @@ const LocalVendorCard = memo(function LocalVendorCard({
         <View style={styles.metaRow}>
           <View style={styles.ratingBadge}>
             <Star size={ms(10)} color="#FFFFFF" fill="#FFFFFF" strokeWidth={1.5} />
-            <AppText style={styles.ratingText}>{store.rating}</AppText>
+            <AppText style={styles.ratingText}>{formatRating(store.rating)}</AppText>
           </View>
           <View style={styles.timeRow}>
             <Clock size={ms(10)} color="#666666" strokeWidth={1.8} />

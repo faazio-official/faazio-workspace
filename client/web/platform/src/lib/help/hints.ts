@@ -400,6 +400,14 @@ export const PAGE_HINTS: Record<string, PageHint> = {
     changesMade: "Read-only; rows are retained for 7 days then purged nightly.",
     app: ["portal"],
   },
+  "/admin/district/seller-leads": {
+    what: "Enquiries people sent from the public Sell with us page in your district.",
+    how: "Open a lead, call the number, then mark it contacted, approved or rejected.",
+    whyCreated: "So a landing-page enquiry becomes a tracked call-back instead of an unread email.",
+    boundedWorkflow: "Lead follow-up: open a lead → contact → approve or reject with a reason.",
+    changesMade: "Approving records intent only; the merchant still applies in the app.",
+    app: ["portal"],
+  },
   "/admin/district/fee-change-requests": {
     what: "Seller requests to change their platform-fee percentage, scoped to your district.",
     how: "Approve to apply the new fee, or reject with a reason the seller will read.",
@@ -505,6 +513,14 @@ export const PAGE_HINTS: Record<string, PageHint> = {
     boundedWorkflow: "Expansion planning: compare districts → decide open/hold.",
     changesMade: "Read-only; decisions lead to issuing district-admin logins.",
     app: ["portal", "consumer"],
+  },
+  "/admin/super/seller-leads": {
+    what: "Enquiries from the public Sell with us page across every district.",
+    how: "Filter by district or status, open a lead, call, then move it forward.",
+    whyCreated: "So platform-wide demand for selling on Faazio has one tracked queue.",
+    boundedWorkflow: "Lead follow-up: scan new leads → contact → approve or reject with a reason.",
+    changesMade: "Approving records intent only; the merchant still applies in the app.",
+    app: ["portal"],
   },
   "/admin/super/fee-change-requests": {
     what: "Seller platform-fee change requests across every district.",
@@ -1139,6 +1155,13 @@ const CORE_COMPONENT_HINTS: Record<string, ComponentHint> = {
     workflow: "Fee review — exception path.",
     changes: "Keeps the current fee and notifies the seller with your reason.",
     example: "Reject and explain the current rate already reflects the category.",
+    app: ["portal"],
+  },
+  "pattern:seller-lead-followup": {
+    what: "Moving a landing-page enquiry through contacted → approved or rejected.",
+    workflow: "Lead follow-up: open a lead → contact → approve or reject.",
+    changes: "Records who decided and your note; it does not create a seller account.",
+    example: "Approve after the call agrees the fee, and note when they will apply.",
     app: ["portal"],
   },
   "pattern:account-current-password": {

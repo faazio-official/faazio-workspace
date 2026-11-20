@@ -355,9 +355,10 @@ func scanStores(rows pgx.Rows, cdnBase string) ([]contracts.Store, error) {
 			coverKey *string
 			lat, lng *float64
 			distance *float64
+			rating   float64
 		)
 		if err := rows.Scan(
-			&s.ID, &s.App, &s.Name, &s.Categories, &s.Rating, &reviews,
+			&s.ID, &s.App, &s.Name, &s.Categories, &rating, &reviews,
 			&s.DeliveryTime, &s.Distance, &s.CoverImage, &coverKey, &s.Emoji, &s.Desc,
 			&offerTag, &isVeg, &address, &phone, &hours, &s.StateCode,
 			&lat, &lng, &distance, &s.NameTA, &s.DescTA,
@@ -367,6 +368,8 @@ func scanStores(rows pgx.Rows, cdnBase string) ([]contracts.Store, error) {
 		if coverKey != nil && *coverKey != "" && cdnBase != "" {
 			s.CoverImage = cdnBase + "/" + *coverKey
 		}
+		s.RatingRaw = rating
+		s.Rating = math.Round(rating*10) / 10
 		s.ReviewsCount = reviews
 		s.OfferTag = derefStr(offerTag)
 		s.IsVeg = isVeg

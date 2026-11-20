@@ -25,6 +25,7 @@ import VendorHighlights from './VendorHighlights';
 import VendorCategoryChips from './VendorCategoryChips';
 import { VENDOR_YELLOW, GREEN, TEXT_DARK, TEXT_LIGHT } from './theme';
 import { neutral, semantic, semanticTint } from '@/theme/brandTokens';
+import { formatRating } from '@/components/shared/format';
 
 const SCREEN_W = Dimensions.get('window').width;
 const CARD_GAP = hs(12);
@@ -157,7 +158,7 @@ export function VendorProfileView({
             <View style={styles.logoContainer}>
               <MartImage uri={vendor.coverImage} style={styles.storeLogo} />
               <View style={styles.ratingBadge}>
-                <AppText style={styles.ratingText}>{vendor.rating}</AppText>
+                <AppText style={styles.ratingText}>{formatRating(vendor.rating)}</AppText>
               </View>
             </View>
             <View style={styles.storeDetails}>

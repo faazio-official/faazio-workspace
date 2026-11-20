@@ -18,12 +18,20 @@ npm run start
 
 - `npm run start` runs Metro; the installed debug APK loads the bundle over `adb reverse`.
 - JS-only changes hot-reload. Native/dependency changes need a new CI APK.
+- Debug vs prod from one command (both dispatch CI, never Gradle locally):
+  `npm run assembleDebugDelivery` / `npm run assembleProdDelivery` (same for `Customer` / `Seller`),
+  or `npm run ci:build -- --app=delivery --build=prod --version=1.0.1 --include-aab`.
+  `BUILD_VARIANT=debug|prod` is the explicit build-type switch read by `scripts/configure.js`; each
+  workflow sets it to match the Gradle build type. Details: `docs/RUNBOOKS/CI_PIPELINE.md`.
 - Three Android products share this shell: `customer` (SuperApp, `index.js`), `delivery` (standalone
   Delivery Partner, `index.delivery.js`, `com.faazio.deliverypartner`) and `seller` (Seller Partner,
   `index.seller.js`, `com.faazio.sellerpartner`). Partner builds need `APP_VARIANT=delivery` /
   `APP_VARIANT=seller` + the partner Firebase config; see `docs/RUNBOOKS/RELEASE.md`. iOS ships only
   the customer app (single `Faazio` target).
 - Release builds: `gh workflow run "Release APK"` (see `docs/RUNBOOKS/RELEASE.md`).
+- Play Console foreground-service demonstration videos: scripts and reviewer answers live in
+  `mocked-videos/` (location + microphone), with the console answer sheet in
+  `docs/PLAYSTORE_RELEASE_DELIVERY.md` §9.
 - Configuration is generated into `src/lib/config.ts` by `scripts/configure.js`. Each Android app
   has its own complete env file (`.env.android.customer` / `.env.android.delivery` /
   `.env.android.seller`, selected by `APP_VARIANT`); iOS uses one `.env.ios`. All are standalone

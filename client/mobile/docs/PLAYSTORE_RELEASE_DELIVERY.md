@@ -255,10 +255,39 @@ defaults (also mirrored in §5) and must stay consistent with the customer listi
 | Advertising / ad ID | No ad SDK, no `AD_ID` permission |
 | Independent security review | No |
 
+---
+
+## 9. Foreground service declaration (App content → Foreground service permissions)
+
+The delivery app declares **two** foreground service types. Play requires an approved declaration
+and a **demonstration video** per type; the shot lists, the exact notification copy and the code path
+live in `client/mobile/mocked-videos/` — do not re-derive them here.
+
+| Service type | Native service | Started by | Stopped by | Video script |
+|---|---|---|---|---|
+| Location | `DeliveryTrackingService` (`foregroundServiceType="location"`) | rider goes **Online** (`DeliveryHeader` presence pill) | rider goes **Offline** | `mocked-videos/foreground-service-location.md` |
+| Microphone | `CallAudioService` (`foregroundServiceType="microphone"`) | a masked VOIP call becomes active | call ends (hangup / peer end / error) | `mocked-videos/foreground-service-microphone.md` |
+
+**Answers:**
+
+| Prompt | Answer |
+|---|---|
+| Foreground service types used | Location; Microphone |
+| Location used for navigation? | **No** — one coarse fix every 120 s while the rider is online (heartbeat) |
+| Service activity user-initiated? | **Yes** — location: rider taps Online; microphone: rider answers/starts a call |
+| Service stops when the triggering activity ends? | **Yes** — location: going offline stops it and removes the notification; microphone: call end stops it |
+| `ACCESS_BACKGROUND_LOCATION` requested? | **No** — foreground-only by design |
+| Call provider / phone account | No phone account; masked VOIP via the 100ms SDK, PSTN leg forced only by the secondary action |
+| Video URLs | one unlisted YouTube link per service type (see the scripts) |
+
+Both services are `START_NOT_STICKY`, so the OS does not resurrect them from the background — the
+notification and the service lifetime always match a visible user action.
+
 ## See also
 
 - `TEST_ACCOUNTS.md` — single source of truth for all test accounts and Firebase test numbers.
 - `PLAYSTORE_RELEASE_CUSTOMER.md` — shared build/signing/upload manual (Step 3b/3c, checklist).
 - `PLAYSTORE_RELEASE_SELLER.md` — seller listing answer sheet.
+- `../mocked-videos/` — foreground-service demo scripts (location + microphone) and console answers.
 - `docs/RUNBOOKS/FIREBASE_AUTH.md` — Firebase phone-OTP setup and test numbers.
 - `docs/user-interaction-workflow/delivery/` — delivery end-to-end flows.

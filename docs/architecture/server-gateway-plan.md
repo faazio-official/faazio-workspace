@@ -163,6 +163,12 @@ caller) and are event-purged on store live toggle and product edit/status change
   Seller settings: `GET|PUT /seller/notifications/preferences`, `GET|POST /seller/sub-users`,
   `POST /seller/sub-users/{id}/resend`, `DELETE /seller/sub-users/{id}` and public
   `POST /seller/sub-users/accept` (tables from `0097`/`0098`; scope from the JWT `seller_id`).
+  Public intake: `POST /seller-leads` (no auth — the landing page `/sell-with-us` enquiry; honeypot,
+  per-IP daily cap, writes `sellers.seller_leads` only, never `sellers.sellers`; migration `0111`).
+  Admin follow-up queue: `GET /seller-leads` + `PATCH /seller-leads/{id}` + `POST /seller-leads/{id}/assign`
+  (district/super admin only, district-scoped; `NEW → CONTACTED → APPROVED|REJECTED` with reviewer,
+  note and an audit row; claim/release ownership; review columns + queue index in `0112`, owner +
+  `seller_id` link in `0113`). `POST /sellers` back-fills `seller_id` onto a matching lead.
   The invite returns a one-time hashed accept token (7-day, single-use); accept mints a scoped
   `SELLER` credential with `sub_role` STAFF/VIEWER; revoke deactivates it. Owner-only routes use
   `auth.RequireSellerOwner`; a VIEWER is read-only via `auth.EnforceSubUserReadOnly`.

@@ -302,7 +302,7 @@ machine (systemd-oomd OOM-kills Gradle). Use `gh workflow run "Release APK"` (se
 `docs/RUNBOOKS/CI_PIPELINE.md`). The CI workflow runs the equivalent of:
 
 ```bash
-npm run configure                       # release env: CONFIGURE_RELEASE=1, GATEWAY_URL, USE_GATEWAY,
+npm run configure                       # release env: BUILD_VARIANT=prod, GATEWAY_URL, USE_GATEWAY,
                                         # CERT_PINS, USE_FIREBASE_AUTH, GOOGLE_MAPS_API_KEY_ANDROID,
                                         # GOOGLE_PLACES_API_KEY
 bash scripts/restore-keystore.sh customer

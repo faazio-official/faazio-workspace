@@ -6,6 +6,7 @@ package reviews
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
@@ -151,7 +152,7 @@ func (r *Repo) VendorSummary(ctx context.Context, vendorID string) (Summary, err
 		return Summary{}, err
 	}
 	if s.Count > 0 {
-		s.Average = float64(sum) / float64(s.Count)
+		s.Average = math.Round((float64(sum)/float64(s.Count))*10) / 10
 	}
 	return s, nil
 }

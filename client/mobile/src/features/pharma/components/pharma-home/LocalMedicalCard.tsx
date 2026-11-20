@@ -8,6 +8,7 @@ import { hs, ms, vs } from '@/utils/responsive';
 import type { StoreProfile } from '@data/types';
 import { PHARMA_TEAL } from '@/theme/pharmaTokens';
 import PharmaImage from './PharmaImage';
+import { formatRating } from '@/components/shared/format';
 
 const IMG_SIZE = 96;
 
@@ -41,7 +42,7 @@ const LocalMedicalCard = memo(function LocalMedicalCard({ store, onPress }: Loca
         <View style={styles.metaRow}>
           <View style={styles.ratingBadge}>
             <Star size={ms(10)} color="#FFFFFF" fill="#FFFFFF" strokeWidth={1.5} />
-            <AppText style={styles.ratingText}>{store.rating}</AppText>
+            <AppText style={styles.ratingText}>{formatRating(store.rating)}</AppText>
           </View>
           <View style={styles.timeRow}>
             <Clock size={ms(10)} color="#64748B" strokeWidth={1.8} />

@@ -13,6 +13,7 @@ import type {
   OrderRecord,
   OrderStatus,
   Role,
+  SellerLead,
   SellerStatus,
   SubUser,
 } from "@/data/types";
@@ -166,6 +167,46 @@ export function useStores(filter: { sellerId?: string | undefined; stateCode?: s
   const stores = usePortalStore((s) => s.stores);
   const key = JSON.stringify(filter);
   return useMemo(() => api.listStores(filter), [stores, key]);
+}
+
+/**
+ * Live seller-lead queue read (`GET /seller-leads`). Fetched on demand rather than hydrated into the
+ * store: leads are PII and change as admins work them, so a stale store copy would be worse than a
+ * request. `version` lets a caller force a refresh after a mutation.
+ */
+export function useSellerLeads(
+  filter: { status?: string | undefined; assigned?: "me" | "unassigned" | undefined } = {},
+  version = 0,
+): { leads: SellerLead[]; loading: boolean } {
+  const [leads, setLeads] = useState<SellerLead[]>([]);
+  const [loading, setLoading] = useState(false);
+  const key = JSON.stringify(filter);
+
+  useEffect(() => {
+    if (!remoteConfigured()) {
+      setLeads([]);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .listSellerLeads(JSON.parse(key) as Parameters<typeof api.listSellerLeads>[0])
+      .then((rows) => {
+        if (!cancelled) setLeads(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setLeads([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [key, version]);
+
+  return { leads, loading };
 }
 
 /**

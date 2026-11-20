@@ -43,6 +43,7 @@ import type {
   Role,
   Sector,
   SellerDetail,
+  SellerLead,
   SellerProfilePatch,
   SellerRecord,
   SellerStatus,
@@ -2461,6 +2462,73 @@ export async function approveFeeChangeRequest(requestId: string): Promise<void> 
 export async function rejectFeeChangeRequest(requestId: string, reason: string): Promise<void> {
   await remote.patch(`/seller/fee-change-requests/${encodeURIComponent(requestId)}/reject`, { reason });
   audit({ action: "FEE_CHANGE_REJECT", entity: "sellers.seller_fee_change_requests", entityId: requestId, after: { reason } });
+}
+
+/* ------------------------------ seller leads ----------------------------- */
+
+/**
+ * Landing-page "Sell with us" follow-up queue (`GET /seller-leads`). Admin-only; the gateway scopes a
+ * district admin to their own district and lets a super admin see every district, so the `district`
+ * filter here only narrows the super admin's view.
+ */
+export async function listSellerLeads(
+  filter: {
+    districtCode?: string | undefined;
+    status?: string | undefined;
+    query?: string | undefined;
+    /** "me" = claimed by the caller, "unassigned" = nobody has taken it. */
+    assigned?: "me" | "unassigned" | undefined;
+  } = {},
+): Promise<SellerLead[]> {
+  if (!remoteConfigured()) return [];
+  return remote.get<SellerLead[]>("/seller-leads", {
+    query: {
+      district: filter.districtCode,
+      status: filter.status,
+      q: filter.query,
+      assigned: filter.assigned,
+    },
+  });
+}
+
+/**
+ * Claim (`assigned: true`) or release the call-back on a lead. The owner is always the caller — the
+ * API cannot hand a lead to another admin. A 409 means someone else claimed it first.
+ */
+export async function assignSellerLead(leadId: string, assigned: boolean): Promise<SellerLead> {
+  const lead = await remote.post<SellerLead>(`/seller-leads/${encodeURIComponent(leadId)}/assign`, {
+    assigned: assigned ? "me" : "",
+  });
+  audit({
+    action: "SELLER_LEAD_ASSIGN",
+    entity: "sellers.seller_leads",
+    entityId: leadId,
+    after: { assignedTo: lead.assignedTo ?? "" },
+  });
+  return lead;
+}
+
+/**
+ * Move one lead through NEW → CONTACTED → (APPROVED | REJECTED). APPROVED means "we called and they
+ * are proceeding" — it does not create a seller account; the merchant still applies in the app.
+ * A 409 means another admin already moved the lead, so the caller must reload rather than retry.
+ */
+export async function updateSellerLeadStatus(
+  leadId: string,
+  status: SellerLead["status"],
+  note = "",
+): Promise<SellerLead> {
+  const lead = await remote.patch<SellerLead>(`/seller-leads/${encodeURIComponent(leadId)}`, {
+    status,
+    note: note.trim(),
+  });
+  audit({
+    action: "SELLER_LEAD_STATUS",
+    entity: "sellers.seller_leads",
+    entityId: leadId,
+    after: { status: lead.status },
+  });
+  return lead;
 }
 
 /* --------------------------------- reviews ------------------------------- */

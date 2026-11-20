@@ -30,6 +30,7 @@ import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import ProductCardBase from '@/components/shared/ProductCardBase';
+import { formatRating } from '@/components/shared/format';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import { gateway } from '@/services/api/GatewayClient';
 import type { Product, StoreProfile } from '@data/types';
@@ -266,7 +267,7 @@ export default function CommonProductDetailView({
               </View>
             )}
             <View style={styles.storeRatingBadge}>
-              <AppText style={styles.storeRatingText}>{store.rating}</AppText>
+              <AppText style={styles.storeRatingText}>{formatRating(store.rating)}</AppText>
             </View>
           </View>
           <View style={styles.storeDetails}>

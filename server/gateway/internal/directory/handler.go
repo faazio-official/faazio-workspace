@@ -85,7 +85,10 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 	if len(stores) > limit {
 		stores = stores[:limit]
 		last := stores[len(stores)-1]
-		httpx.SetNextCursor(w, httpx.EncodeCursor(strconv.FormatFloat(last.Rating, 'f', -1, 64), last.ID))
+		// The cursor carries the unrounded column value (RatingRaw): `rating` is `real`, so the
+		// scanned float64 is e.g. 4.900000095367432 and must round-trip exactly for the keyset
+		// tie check `rating = $3` to match. The JSON `rating` field is rounded separately.
+		httpx.SetNextCursor(w, httpx.EncodeCursor(strconv.FormatFloat(last.RatingRaw, 'f', -1, 64), last.ID))
 	}
 	if stores == nil {
 		stores = []contracts.Store{}

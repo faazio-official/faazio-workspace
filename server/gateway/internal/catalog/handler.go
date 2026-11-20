@@ -457,7 +457,9 @@ func (h *Handler) storeProducts(w http.ResponseWriter, r *http.Request) {
 	if len(products) > limit {
 		products = products[:limit]
 		last := products[len(products)-1]
-		httpx.SetNextCursor(w, httpx.EncodeCursor(strconv.FormatFloat(last.Rating, 'f', -1, 64), last.ID))
+		// Cursor carries the unrounded column value: `rating` is `real`, so the keyset tie check
+		// `rating = $3` only matches the exact stored float. The JSON rating is rounded separately.
+		httpx.SetNextCursor(w, httpx.EncodeCursor(strconv.FormatFloat(last.RatingRaw, 'f', -1, 64), last.ID))
 	}
 	if products == nil {
 		products = []contracts.Product{}

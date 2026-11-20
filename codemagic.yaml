@@ -102,7 +102,7 @@ workflows:
         # group; REQUIRE_CERT_PINS=1 makes a missing pin set fatal.
         script: |
           set -euo pipefail
-          export CONFIGURE_RELEASE=1
+          export BUILD_VARIANT=prod
           export REQUIRE_CERT_PINS=1
           npm run configure
 

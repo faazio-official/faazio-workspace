@@ -113,6 +113,9 @@ type Product struct {
 	Stock        *Stock         `json:"stock,omitempty"`
 	// DistanceKm is set only by GET /products/nearby (straight-line km from the caller).
 	DistanceKm *float64 `json:"distanceKm,omitempty"`
+	// RatingRaw is the unrounded column value (`catalog.products.rating` is `real`). Keyset
+	// pagination must compare against it exactly; the rounded Rating is display-only. Never serialized.
+	RatingRaw float64 `json:"-"`
 }
 
 // Store is a directory.stores row, JSON shaped for StoreRecord.
@@ -142,6 +145,10 @@ type Store struct {
 	Latitude   *float64 `json:"latitude,omitempty"`
 	Longitude  *float64 `json:"longitude,omitempty"`
 	DistanceKm *float64 `json:"distanceKm,omitempty"`
+	// RatingRaw is the unrounded column value. `directory.stores.rating` is `real`, so the scanned
+	// float64 is e.g. 4.900000095367432; keyset pagination must compare against that exact value
+	// (a 1-dp cursor would fail the `rating = $3` tie check and drop rows). Never serialized.
+	RatingRaw float64 `json:"-"`
 }
 
 // PickupPoint is a durable inventory.pickup_points row (a business location; no customer PII).

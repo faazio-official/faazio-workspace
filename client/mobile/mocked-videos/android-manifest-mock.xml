@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  ANNOTATED REFERENCE — NOT A BUILD INPUT.
+
+  This is a copy of what the Delivery Partner flavor's manifest merges to for the two foreground
+  services, with the parts the Play Console videos must demonstrate called out. It is a reading aid
+  for the reviewer notes; the real declarations live in:
+
+    android/app/src/main/AndroidManifest.xml           (shared: location/camera/notifications)
+    android/app/src/delivery/AndroidManifest.xml       (delivery-only FGS types + services)
+    android/app/src/customer/AndroidManifest.xml       (same CallAudioService for order calls)
+
+  Nothing in this folder is compiled. Never add it to a Gradle source set — the real manifests are
+  the single source of truth.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+  <!-- ===================== FOREGROUND_SERVICE_LOCATION ===================== -->
+  <!-- Started only when the rider toggles Online (DeliveryHeader presence pill ->
+       toggleDeliveryOnline -> useDeliveryShiftLifecycle -> startDeliveryTracking). -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+  <uses-permission android:name="android.permission.WAKE_LOCK"/>
+
+  <!-- Location is foreground-only by design: periodic coarse fixes while online. -->
+  <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+  <!-- Deliberately ABSENT — the app never requests background location:
+       <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/> -->
+
+  <!-- Ongoing-notification visibility (Android 13+). -->
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+  <!-- ===================== FOREGROUND_SERVICE_MICROPHONE ===================== -->
+  <!-- Started only when a masked VOIP call becomes active (call controller -> startCallAudio). -->
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE"/>
+  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+  <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+  <uses-permission android:name="android.permission.BLUETOOTH_CONNECT"/>
+  <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+  <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" android:maxSdkVersion="30"/>
+
+  <!-- This product never registers a phone account (no ConnectionService), so the telecom
+       permissions a call library merges in are stripped on purpose. -->
+  <uses-permission android:name="android.permission.CALL_PHONE" tools:node="remove"/>
+  <uses-permission android:name="android.permission.READ_PHONE_STATE" tools:node="remove"/>
+  <uses-permission android:name="android.permission.READ_PHONE_NUMBERS" tools:node="remove"/>
+  <uses-permission android:name="android.permission.MANAGE_OWN_CALLS" tools:node="remove"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" tools:node="remove"/>
+
+  <application>
+    <!-- LOCATION — ongoing notification:
+           title  "Faazio Delivery Partner is online"
+           text   "Sharing your location so nearby orders can reach you."
+           wakes DeliveryHeartbeatTaskService every 120 s (START_NOT_STICKY: no background restart). -->
+    <service
+        android:name=".DeliveryTrackingService"
+        android:exported="false"
+        android:foregroundServiceType="location"
+        android:stopWithTask="false"/>
+
+    <!-- Headless heartbeat the location service wakes; a no-op when signed out. -->
+    <service
+        android:name=".DeliveryHeartbeatTaskService"
+        android:exported="false"/>
+
+    <!-- MICROPHONE — ongoing notification:
+           title  "Call in progress"
+           text   "Faazio is using the microphone for your call."
+           started on call active, stopped on teardown (START_NOT_STICKY). -->
+    <service
+        android:name=".CallAudioService"
+        android:exported="false"
+        android:foregroundServiceType="microphone"
+        android:stopWithTask="false"/>
+  </application>
+</manifest>

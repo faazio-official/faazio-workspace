@@ -9,6 +9,7 @@ import { SPACE } from '@/theme/spacing';
 import type { Product, StoreProfile, AppBrand } from '@data/types';
 import type { VendorApp } from '@/services/categoryVendors';
 import ProductRowCard from './ProductRowCard';
+import { formatRating } from '@/components/shared/format';
 
 interface StoreProductSectionProps {
   app: VendorApp;
@@ -49,7 +50,7 @@ const StoreProductSection = memo(function StoreProductSection({
         <AppText style={styles.storeName} numberOfLines={1}>{storeName}</AppText>
         <View style={styles.metaRow}>
           <Star size={ms(11)} color="#F59E0B" fill="#F59E0B" />
-          <AppText style={styles.meta}>{store.rating} · {store.distance}</AppText>
+          <AppText style={styles.meta}>{formatRating(store.rating)} · {store.distance}</AppText>
         </View>
       </TouchableOpacity>
 

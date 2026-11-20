@@ -12,6 +12,7 @@ import type { FoodRestaurant } from '../types';
 import RemoteImage from './RemoteImage';
 import RatingBadge from './RatingBadge';
 import FavoriteButton from './FavoriteButton';
+import { formatRating } from '@/components/shared/format';
 
 interface RestaurantCardProps {
   restaurant: FoodRestaurant;
@@ -48,7 +49,7 @@ const RestaurantCard = memo(function RestaurantCard({ restaurant, onPress }: Res
         style={styles.card}
         accessibilityRole="button"
         accessibilityLabel={`${restaurantName}, ${restaurant.cuisine}${
-          restaurant.rating > 0 ? `, rated ${restaurant.rating}` : ''
+          restaurant.rating > 0 ? `, rated ${formatRating(restaurant.rating)}` : ''
         }${restaurant.distance > 0 ? `, ${restaurant.distance} km away` : ''}`}
       >
         <View style={styles.imageWrap}>

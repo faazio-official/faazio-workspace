@@ -6,7 +6,10 @@ On approval the seller's portal login is auto-provisioned from `contact_email` �
 scoped to `seller_id`, `must_change=true`; the seller app is a WebView over the portal.)
 Contract clickwrap, the server-owned rate card and the compliance status gate are **Partial**: the
 acceptance/IP/tier audit is live, but no government GSTIN/PAN/FSSAI/bank provider is linked yet.
-**Trigger:** "Sell with us" entry in the customer app.
+**Trigger:** "Sell with us" entry in the customer app. A visitor who has not installed the app yet
+can send a public enquiry on the landing page (`/sell-with-us` → `POST /seller-leads`) — that
+creates a lead only, never an account, and this application remains the way to apply
+([`seller-web-intake.md`](./seller-web-intake.md)).
 
 ## Steps
 

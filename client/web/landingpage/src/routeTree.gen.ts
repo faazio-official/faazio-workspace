@@ -21,6 +21,7 @@ import { Route as PartnerTermsRouteImport } from './routes/partner-terms'
 import { Route as PartnersRouteImport } from './routes/partners'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as RefundsRouteImport } from './routes/refunds'
+import { Route as SellWithUsRouteImport } from './routes/sell-with-us'
 import { Route as SellerTermsRouteImport } from './routes/seller-terms'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as TutorialRouteImport } from './routes/tutorial'
@@ -85,6 +86,11 @@ const RefundsRoute = RefundsRouteImport.update({
   path: '/refunds',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SellWithUsRoute = SellWithUsRouteImport.update({
+  id: '/sell-with-us',
+  path: '/sell-with-us',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SellerTermsRoute = SellerTermsRouteImport.update({
   id: '/seller-terms',
   path: '/seller-terms',
@@ -114,6 +120,7 @@ export interface FileRoutesByFullPath {
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
   '/refunds': typeof RefundsRoute
+  '/sell-with-us': typeof SellWithUsRoute
   '/seller-terms': typeof SellerTermsRoute
   '/terms': typeof TermsRoute
   '/tutorial': typeof TutorialRoute
@@ -131,6 +138,7 @@ export interface FileRoutesByTo {
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
   '/refunds': typeof RefundsRoute
+  '/sell-with-us': typeof SellWithUsRoute
   '/seller-terms': typeof SellerTermsRoute
   '/terms': typeof TermsRoute
   '/tutorial': typeof TutorialRoute
@@ -149,6 +157,7 @@ export interface FileRoutesById {
   '/partners': typeof PartnersRoute
   '/privacy': typeof PrivacyRoute
   '/refunds': typeof RefundsRoute
+  '/sell-with-us': typeof SellWithUsRoute
   '/seller-terms': typeof SellerTermsRoute
   '/terms': typeof TermsRoute
   '/tutorial': typeof TutorialRoute
@@ -168,6 +177,7 @@ export interface FileRouteTypes {
     | '/partners'
     | '/privacy'
     | '/refunds'
+    | '/sell-with-us'
     | '/seller-terms'
     | '/terms'
     | '/tutorial'
@@ -185,6 +195,7 @@ export interface FileRouteTypes {
     | '/partners'
     | '/privacy'
     | '/refunds'
+    | '/sell-with-us'
     | '/seller-terms'
     | '/terms'
     | '/tutorial'
@@ -202,6 +213,7 @@ export interface FileRouteTypes {
     | '/partners'
     | '/privacy'
     | '/refunds'
+    | '/sell-with-us'
     | '/seller-terms'
     | '/terms'
     | '/tutorial'
@@ -220,6 +232,7 @@ export interface RootRouteChildren {
   PartnersRoute: typeof PartnersRoute
   PrivacyRoute: typeof PrivacyRoute
   RefundsRoute: typeof RefundsRoute
+  SellWithUsRoute: typeof SellWithUsRoute
   SellerTermsRoute: typeof SellerTermsRoute
   TermsRoute: typeof TermsRoute
   TutorialRoute: typeof TutorialRoute
@@ -311,6 +324,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof RefundsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/sell-with-us': {
+      id: '/sell-with-us'
+      path: '/sell-with-us'
+      fullPath: '/sell-with-us'
+      preLoaderRoute: typeof SellWithUsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/seller-terms': {
       id: '/seller-terms'
       path: '/seller-terms'
@@ -348,6 +368,7 @@ const rootRouteChildren: RootRouteChildren = {
   PartnersRoute: PartnersRoute,
   PrivacyRoute: PrivacyRoute,
   RefundsRoute: RefundsRoute,
+  SellWithUsRoute: SellWithUsRoute,
   SellerTermsRoute: SellerTermsRoute,
   TermsRoute: TermsRoute,
   TutorialRoute: TutorialRoute,

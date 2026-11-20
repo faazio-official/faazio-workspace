@@ -223,6 +223,10 @@ android {
             } else {
                 signingConfig signingConfigs.debugCustomer
             }
+            // The two build types are explicitly labelled in the binary so the app (and a CI log)
+            // can tell a debug/Metro shell from a prod/embedded one without guessing from flags.
+            buildConfigField "String", "BUILD_VARIANT", '"debug"'
+            buildConfigField "boolean", "DEBUG_BUILD", "true"
         }
         release {
             // Each product signs with its own keystore. Assigning it on the build type (from the
@@ -241,6 +245,8 @@ android {
                 // debug keystore.
                 logger.info("[signing] no release product selected; release signingConfig left unset")
             }
+            buildConfigField "String", "BUILD_VARIANT", '"prod"'
+            buildConfigField "boolean", "DEBUG_BUILD", "false"
             shrinkResources enableShrinkResources
             minifyEnabled enableMinifyInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"

@@ -18,6 +18,8 @@
 3. Category tap → `CategoryDrillIn`; the hook `useCategoryVendors` groups server search results by
    `storeId` (`GET /search?q=&app=` + `GET /stores?app=`).
 4. Store tap → `VendorDetails`; `getStore` + `getStoreProducts` load the store profile and catalog.
+   Store rating renders through `formatRating(store.rating)` (1 dp) — the gateway already rounds the
+   value; no raw float is printed.
 5. Product tap → `ProductDetail`.
 6. Pull-to-refresh is available on the drill-in body (`AppRefreshControl`): one pull re-runs both
    `useCategoryTree` (taxonomy/chips) and `useCategoryVendors` (store-grouped body). Category chips

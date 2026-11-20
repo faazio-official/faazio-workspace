@@ -112,6 +112,20 @@ func (h *Handler) Register(r chi.Router) {
 	// the capability; the invitee sets their password here and the credential is minted.
 	r.Post("/seller/sub-users/accept", h.acceptSubUserInvite)
 
+	// Landing-page "Sell with us" enquiry. Public by design (the page is open to visitors) and NOT a
+	// seller account — it writes sellers.seller_leads only, never sellers.sellers (leads.go).
+	r.Post("/seller-leads", h.createLead)
+
+	// Admin follow-up queue for those leads (leads_admin.go). District admins see their district,
+	// super admins see every district; a seller is refused outright.
+	r.Group(func(g chi.Router) {
+		g.Use(auth.RequireRole(auth.RoleDistrictAdmin, auth.RoleSuperAdmin))
+		g.Get("/seller-leads", h.listLeads)
+		g.Patch("/seller-leads/{id}", h.updateLead)
+		// Claim / release the call-back (owner is always the caller).
+		g.Post("/seller-leads/{id}/assign", h.claimLead)
+	})
+
 	// Platform-fee change review queue: district admin sees their district, super admin sees all.
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleDistrictAdmin, auth.RoleSuperAdmin))
@@ -474,6 +488,13 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		}
 		httpx.Fail(w, http.StatusInternalServerError, "seller_create_failed", "could not create seller")
 		return
+	}
+
+	// Close the loop on the landing-page queue: an enquiry that mentioned this phone or email is now
+	// this application. Best-effort — a failed link must never fail the application itself, and a
+	// lead that matches nothing is the normal case (most enquiries never apply).
+	if _, err := h.repo.LinkLeadToSeller(r.Context(), s.ContactPhone, s.ContactEmail, s.SellerID); err != nil {
+		h.log(r, "SELLER_LEAD_LINK_FAILED", s.SellerID, nil, map[string]string{"error": "link_failed"})
 	}
 
 	h.log(r, "SELLER_CREATE", s.SellerID, nil, redactSeller(s))

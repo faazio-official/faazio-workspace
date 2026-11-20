@@ -5,6 +5,7 @@ import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import type { StoreProfile } from '@data/types';
 import { VENDOR_INK, TEXT_DARK, TEXT_LIGHT, BG_GRAY } from './theme';
+import { formatRating } from '@/components/shared/format';
 
 interface Highlight {
   icon: React.ReactNode;
@@ -39,7 +40,7 @@ const VendorHighlights = memo(function VendorHighlights({ vendor }: VendorHighli
       items.push({
         icon: <Star color={VENDOR_INK} size={ms(20)} strokeWidth={2.4} />,
         title: vendor.rating >= 4.5 ? 'Top Rated' : 'Rated',
-        sub: `${vendor.rating} Rating`,
+        sub: `${formatRating(vendor.rating)} Rating`,
       });
     }
     return items;

@@ -2048,6 +2048,16 @@ sheet.
 - **Order feedback (write):** `OrderDetails` shows a "Rate your order" card for a `Delivered` order;
   the root `OrderFeedback` route reads `GET /orders/{id}/feedback` (pre-fill) and posts
   `PUT /orders/{id}/feedback`. Stored one row per order in `reviews.order_feedback`.
+- **Rating precision (one decimal, no raw floats):** the server rounds at the source —
+  `directory.scanStores` and the seller-store projections round `stores.rating` to 1 dp,
+  `catalog.scanProducts` does the same for products, and `reviews.Repo.VendorSummary` rounds the
+  aggregate `average`. Keyset cursors keep the **unrounded** column value (`Store.RatingRaw` /
+  `Product.RatingRaw`, both `json:"-"`): `rating` is `real`, so a 1-dp cursor would fail the
+  `rating = $3` tie check and silently drop rows sharing the boundary rating. On the client every
+  rating render goes through `formatRating(rating, 1)` from `src/components/shared/format.ts` (store
+  cards, vendor/product detail headers, mart deal cards, pharma cards, Food a11y label), and the
+  device-local summary in `services/vendorRatings.ts` rounds its average the same way. No screen
+  prints a raw `float64`/`number` rating.
 
 ## Boundary enforcement
 
