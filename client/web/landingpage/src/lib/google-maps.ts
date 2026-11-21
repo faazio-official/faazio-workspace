@@ -2,6 +2,12 @@
  * Google Maps JS API loader — the browser key is a referrer-restricted public identifier (not a
  * secret), injected at build time via `VITE_GOOGLE_MAPS_API_KEY`.
  *
+ * **Places API (New) only.** The legacy `places.Autocomplete` widget and the `libraries=places`
+ * script parameter are retired for new Google Cloud projects, so this module loads the libraries
+ * through `importLibrary` and drives address search with `AutocompleteSuggestion`. That path returns
+ * plain suggestions, which lets the picker keep its own input and its own dropdown — Google's
+ * `PlaceAutocompleteElement` would replace the styled field with an unstylable web component.
+ *
  * The key is absent in local devs without a Google Cloud project. In that case the picker degrades
  * to a manual address + district entry: the enquiry is still submittable, but it carries **no**
  * pin — coordinates are never invented.
@@ -9,6 +15,8 @@
  * Types are declared locally (only what this page touches) so the landing page keeps no dependency
  * on `@types/google.maps`.
  */
+
+import { mapsKey as configMapsKey } from "@/lib/config";
 
 export type LatLng = { lat: number; lng: number };
 
@@ -19,7 +27,18 @@ export type AddressPart = {
   postcode: string;
 };
 
-type Component = { long_name: string; short_name: string; types: string[] };
+/**
+ * Address components arrive in two shapes: the Geocoder still uses the legacy
+ * `long_name`/`short_name` keys, while Places API (New) uses `longText`/`shortText`. Both are read
+ * here so one `parts()` serves both call sites.
+ */
+type Component = {
+  long_name?: string;
+  short_name?: string;
+  longText?: string;
+  shortText?: string;
+  types?: string[];
+};
 
 export type MapsLatLng = { lat(): number; lng(): number };
 
@@ -33,16 +52,42 @@ export type MapsMap = {
 
 export type MapsMarker = {
   setPosition(p: Point): void;
-  getPosition(): MapsLatLng;
+  getPosition(): MapsLatLng | null;
 };
 
-export type MapsAutocomplete = {
-  addListener(event: "place_changed", cb: () => void): void;
-  getPlace(): {
-    geometry?: { location?: MapsLatLng };
-    formatted_address?: string;
-    address_components?: Component[];
-  };
+/** One address suggestion from Places API (New), flattened for the picker's own listbox. */
+export type PlaceSuggestion = {
+  placeId: string;
+  mainText: string;
+  secondaryText: string;
+};
+
+type NewPlacePrediction = {
+  placeId?: string;
+  text?: { toString(): string };
+  mainText?: { toString(): string };
+  secondaryText?: { toString(): string };
+  toPlace(): NewPlace;
+};
+
+type NewPlace = {
+  location?: MapsLatLng | null;
+  formattedAddress?: string;
+  addressComponents?: Component[];
+  fetchFields(opts: { fields: string[] }): Promise<unknown>;
+};
+
+type AutocompleteSuggestionCtor = {
+  fetchAutocompleteSuggestions(request: {
+    input: string;
+    sessionToken?: unknown;
+    includedRegionCodes?: string[];
+  }): Promise<{ suggestions?: Array<{ placePrediction?: NewPlacePrediction }> }>;
+};
+
+type GoogleMapsNamespace = {
+  importLibrary(name: string): Promise<Record<string, unknown>>;
+  event?: { addListener(instance: unknown, event: string, cb: () => void): void };
 };
 
 export type MapsApi = {
@@ -61,45 +106,54 @@ export type MapsApi = {
       results: Array<{ formatted_address?: string; address_components?: Component[] }>;
     }>;
   };
-  places: {
-    Autocomplete: new (input: HTMLInputElement, opts: { fields: string[] }) => MapsAutocomplete;
-  };
+  AutocompleteSuggestion: AutocompleteSuggestionCtor;
+  /** Opaque per-search-session billing token; created fresh for each search session. */
+  AutocompleteSessionToken: new () => unknown;
+  /** Places API (New) `Place` — constructed by id, then `fetchFields` for the billed details. */
+  Place: new (opts: { id: string }) => NewPlace;
   event: { addListener(instance: unknown, event: string, cb: () => void): void };
 };
 
 declare global {
   interface Window {
-    google?: { maps?: MapsApi };
+    google?: { maps?: GoogleMapsNamespace };
     __faazioMapsReady?: () => void;
     gm_authFailure?: () => void;
   }
 }
 
 export function mapsKey(): string | undefined {
-  const key = (import.meta.env as Record<string, string | undefined>)["VITE_GOOGLE_MAPS_API_KEY"];
-  return key && key.trim() !== "" ? key.trim() : undefined;
+  return configMapsKey();
 }
 
 /** How long to wait for the Maps script before declaring the key unusable. */
 const READY_TIMEOUT_MS = 10_000;
 
+/** Address search is restricted to India — the only market the marketplace serves. */
+const REGION_CODES = ["in"];
+
+/** Shortest input worth a network round-trip; one letter matches half the country. */
+export const MIN_SUGGESTION_CHARS = 2;
+
 export function mapsApiReady(api: MapsApi | undefined): api is MapsApi {
-  return Boolean(api && api.Map && api.Marker && api.Geocoder && api.places && api.event);
+  return Boolean(
+    api &&
+    api.Map &&
+    api.Marker &&
+    api.Geocoder &&
+    api.AutocompleteSuggestion &&
+    api.AutocompleteSessionToken &&
+    api.Place &&
+    api.event,
+  );
 }
 
+let cached: MapsApi | undefined;
 let loading: Promise<MapsApi> | undefined;
 
-export function loadGoogleMaps(): Promise<MapsApi> {
-  if (typeof window === "undefined") {
-    return Promise.reject(new Error("Google Maps can only load in the browser"));
-  }
-  if (window.google?.maps) return Promise.resolve(window.google.maps);
-  if (loading) return loading;
-
-  const key = mapsKey();
-  if (!key) return Promise.reject(new Error("missing-maps-key"));
-
-  loading = new Promise<MapsApi>((resolve, reject) => {
+/** Injects the bootstrap script once. Resolves when `google.maps.importLibrary` exists. */
+function loadScript(key: string): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
     let settled = false;
     const finish = (fn: () => void) => {
       if (settled) return;
@@ -113,29 +167,137 @@ export function loadGoogleMaps(): Promise<MapsApi> {
       () => finish(() => reject(new Error("maps-timeout"))),
       READY_TIMEOUT_MS,
     );
-    window.gm_authFailure = () => {
-      loading = undefined;
-      finish(() => reject(new Error("maps-auth-failed")));
-    };
+    window.gm_authFailure = () => finish(() => reject(new Error("maps-auth-failed")));
     window.__faazioMapsReady = () => {
-      const api = window.google?.maps;
-      finish(() => (api && mapsApiReady(api) ? resolve(api) : reject(new Error("maps-not-ready"))));
+      const g = window.google?.maps;
+      finish(() =>
+        g && typeof g.importLibrary === "function"
+          ? resolve()
+          : reject(new Error("maps-not-ready")),
+      );
     };
     const script = document.createElement("script");
-    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&libraries=places&loading=async&callback=__faazioMapsReady`;
+    // No `libraries=` parameter: the new API loads libraries on demand via importLibrary.
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${encodeURIComponent(key)}&loading=async&callback=__faazioMapsReady`;
     script.async = true;
     script.defer = true;
-    script.onerror = () => {
-      loading = undefined;
-      finish(() => reject(new Error("maps-script-failed")));
-    };
+    script.onerror = () => finish(() => reject(new Error("maps-script-failed")));
     document.head.appendChild(script);
   });
+}
+
+/**
+ * Loads Maps + Geocoding + Places (New) and returns them as one facade.
+ *
+ * `importLibrary("maps")` gives `Map`/`Marker`; `"geocoding"` gives `Geocoder`; `"places"` gives
+ * `AutocompleteSuggestion` + `AutocompleteSessionToken`. `event` lives on the core namespace.
+ */
+export function loadGoogleMaps(): Promise<MapsApi> {
+  if (typeof window === "undefined") {
+    return Promise.reject(new Error("Google Maps can only load in the browser"));
+  }
+  if (cached && mapsApiReady(cached)) return Promise.resolve(cached);
+  if (loading) return loading;
+
+  const key = mapsKey();
+  if (!key) return Promise.reject(new Error("missing-maps-key"));
+
+  loading = loadScript(key)
+    .then(async () => {
+      const g = window.google?.maps;
+      if (!g || typeof g.importLibrary !== "function") throw new Error("maps-not-ready");
+      const [mapsLib, geocodingLib, placesLib] = await Promise.all([
+        g.importLibrary("maps"),
+        g.importLibrary("geocoding"),
+        g.importLibrary("places"),
+      ]);
+      const api = {
+        Map: mapsLib["Map"],
+        Marker: mapsLib["Marker"],
+        event: g.event,
+        Geocoder: geocodingLib["Geocoder"],
+        AutocompleteSuggestion: placesLib["AutocompleteSuggestion"],
+        AutocompleteSessionToken: placesLib["AutocompleteSessionToken"],
+        Place: placesLib["Place"],
+      } as unknown as MapsApi;
+      if (!mapsApiReady(api)) throw new Error("maps-not-ready");
+      cached = api;
+      return api;
+    })
+    .catch((err: unknown) => {
+      loading = undefined;
+      throw err;
+    });
   return loading;
 }
 
+/** A fresh billing session. Reuse it across keystrokes; discard it after a selection. */
+export function newSessionToken(api: MapsApi): unknown {
+  return new api.AutocompleteSessionToken();
+}
+
+/**
+ * Address suggestions for the typed query. Returns `[]` for a query shorter than
+ * `MIN_SUGGESTION_CHARS` or when Places returns nothing — never throws, so a failed lookup cannot
+ * break typing.
+ */
+export async function fetchSuggestions(
+  api: MapsApi,
+  input: string,
+  sessionToken?: unknown,
+): Promise<PlaceSuggestion[]> {
+  const query = input.trim();
+  if (query.length < MIN_SUGGESTION_CHARS) return [];
+  try {
+    const { suggestions } = await api.AutocompleteSuggestion.fetchAutocompleteSuggestions({
+      input: query,
+      sessionToken,
+      includedRegionCodes: REGION_CODES,
+    });
+    return (suggestions ?? []).flatMap((s) => {
+      const p = s.placePrediction;
+      if (!p?.placeId) return [];
+      return [
+        {
+          placeId: p.placeId,
+          mainText: (p.mainText ?? p.text)?.toString() ?? "",
+          secondaryText: p.secondaryText?.toString() ?? "",
+        },
+      ];
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Turns a chosen suggestion into coordinates plus a readable address.
+ *
+ * `fetchFields` is the billed call, so it happens on selection only — never while typing.
+ */
+export async function resolveSuggestion(
+  api: MapsApi,
+  placeId: string,
+): Promise<{ point: LatLng; address: AddressPart } | null> {
+  try {
+    const place = new api.Place({ id: placeId });
+    await place.fetchFields({ fields: ["location", "formattedAddress", "addressComponents"] });
+    const loc = place.location;
+    if (!loc) return null;
+    return {
+      point: { lat: loc.lat(), lng: loc.lng() },
+      address: describePlace(place.formattedAddress, place.addressComponents),
+    };
+  } catch {
+    return null;
+  }
+}
+
 function parts(components: Component[] = []) {
-  const pick = (type: string) => components.find((c) => c.types.includes(type))?.long_name ?? "";
+  const pick = (type: string) => {
+    const c = components.find((x) => x.types?.includes(type));
+    return c ? (c.longText ?? c.long_name ?? "") : "";
+  };
   return {
     stateName: pick("administrative_area_level_1"),
     districtName:

@@ -83,6 +83,12 @@ type createLeadRequest struct {
 	Longitude       *float64 `json:"longitude"`
 	PlatformFeePct  *int     `json:"platformFeePct"`
 	Notes           string   `json:"notes"`
+	// Source is accepted for wire-compatibility only. The landing page deliberately does NOT send it
+	// (client/web/landingpage/src/lib/leads.ts treats provenance as server-owned), but an older cached
+	// client bundle may still include it, and httpx.Decode rejects unknown fields — so declaring it
+	// keeps those requests from 400ing. The value is never read: createLead always stamps the
+	// server-owned provenance below, so a caller cannot forge where a lead came from.
+	Source string `json:"source"`
 	// Website is the honeypot: a real visitor never sees or fills it. A non-empty value is treated as
 	// a bot and accepted silently, so a scraper learns nothing.
 	Website string `json:"website"`

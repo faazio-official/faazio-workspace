@@ -63,6 +63,45 @@ func TestCreateLeadValidation(t *testing.T) {
 	}
 }
 
+// TestCreateLeadAcceptsLandingPageBody pins the exact wire body the landing page sends. The landing
+// page's server function (client/web/landingpage/src/lib/leads.ts) posts `{...payload, source:"web"}`
+// and httpx.Decode rejects unknown fields, so a field the client sends but createLeadRequest omits
+// 400s every real enquiry while every hand-written test body still passes. Both shapes must decode;
+// a genuinely unknown field must still be refused.
+func TestCreateLeadAcceptsLandingPageBody(t *testing.T) {
+	h, _ := leadRouter(t)
+
+	// Verbatim shape of the landing-page request: contact fields + optional pin + `source`.
+	landingPage := `{"businessName":"Karaikal Spice Mart","ownerName":"Ravi Kumar","category":"MART",` +
+		`"contactPhone":"9876543210","contactEmail":"ravi@example.com",` +
+		`"businessAddress":"12 Bharathiar Street, Karaikal","districtName":"Karaikal",` +
+		`"latitude":10.9254,"longitude":79.838,"notes":"","source":"web"}`
+
+	cases := []struct {
+		name string
+		body string
+		want int
+		code string
+	}{
+		// Decode succeeds, so the request reaches the repo; the nil pool is what fails it here.
+		{"landing page body with source", landingPage, http.StatusInternalServerError, "lead_unavailable"},
+		{"body without source", strings.Replace(landingPage, `,"source":"web"`, "", 1), http.StatusInternalServerError, "lead_unavailable"},
+		// The guard must stay: an unknown field is still a 400, not a silently ignored typo.
+		{"unknown field still rejected", strings.Replace(landingPage, `"source":"web"`, `"soruce":"web"`, 1), http.StatusBadRequest, "bad_request"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := do(t, h, http.MethodPost, "/seller-leads", tc.body, nil)
+			if rec.Code != tc.want {
+				t.Fatalf("status = %d, want %d (body %s)", rec.Code, tc.want, rec.Body.String())
+			}
+			if tc.code != "" && !strings.Contains(rec.Body.String(), `"code":"`+tc.code+`"`) {
+				t.Fatalf("body %s missing code %q", rec.Body.String(), tc.code)
+			}
+		})
+	}
+}
+
 func TestResolveLeadDistrict(t *testing.T) {
 	cases := []struct {
 		req        createLeadRequest

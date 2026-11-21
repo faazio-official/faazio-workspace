@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { gatewayUrl } from "@/lib/config";
 
 /**
  * Public "Sell with us" lead intake.
@@ -9,10 +10,9 @@ import { z } from "zod";
  * This server function proxies the enquiry from Nitro (same-origin) to `POST /seller-leads`, which
  * is public by design and stores a lead only (never a seller account — no KYC fields here).
  *
- * The gateway URL is read on the server: `GATEWAY_URL` (deploy) then `VITE_GATEWAY_URL` (local
- * override), defaulting to production.
+ * The gateway origin comes from `@/lib/config` (server `GATEWAY_URL`, then build `VITE_GATEWAY_URL`,
+ * then production). No credential is involved: the route is public.
  */
-const DEFAULT_GATEWAY_URL = "https://api.faazio.com";
 
 export const leadSchema = z.object({
   businessName: z.string().trim().min(2, "Enter your business name").max(160),
@@ -41,10 +41,29 @@ export type LeadInput = z.infer<typeof leadSchema>;
 
 export type LeadResult = { ok: true; leadId: string | null } | { ok: false; message: string };
 
-function gatewayUrl(): string {
-  const env = process.env as Record<string, string | undefined>;
-  const raw = env["GATEWAY_URL"] || env["VITE_GATEWAY_URL"] || DEFAULT_GATEWAY_URL;
-  return raw.replace(/\/+$/, "");
+/**
+ * The exact body posted to `POST /seller-leads`.
+ *
+ * The gateway decodes with `DisallowUnknownFields`, so a key here that `createLeadRequest`
+ * (`server/gateway/internal/sellers/leads.go`) does not declare makes every enquiry a 400. Provenance
+ * (`source`) is server-owned — the handler always stamps it — so it is deliberately not sent.
+ * `leads.test.ts` pins this key set against the Go contract.
+ */
+export function buildLeadPayload(data: LeadInput): Record<string, unknown> {
+  return {
+    businessName: data.businessName,
+    ownerName: data.ownerName,
+    category: data.category,
+    contactPhone: data.contactPhone,
+    contactEmail: data.contactEmail,
+    businessAddress: data.businessAddress,
+    districtName: data.districtName,
+    stateName: data.stateName,
+    latitude: data.latitude,
+    longitude: data.longitude,
+    platformFeePct: data.platformFeePct,
+    notes: data.notes,
+  };
 }
 
 function messageForStatus(status: number, code: string | undefined): string {
@@ -60,7 +79,7 @@ function messageForStatus(status: number, code: string | undefined): string {
 export const submitSellerLead = createServerFn({ method: "POST" })
   .validator((data: unknown) => leadSchema.parse(data))
   .handler(async ({ data }): Promise<LeadResult> => {
-    const { website, ...payload } = data;
+    const { website } = data;
     if (website && website.trim() !== "") {
       return { ok: true, leadId: null };
     }
@@ -68,7 +87,7 @@ export const submitSellerLead = createServerFn({ method: "POST" })
       const res = await fetch(`${gatewayUrl()}/seller-leads`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...payload, source: "web" }),
+        body: JSON.stringify(buildLeadPayload(data)),
       });
       if (!res.ok) {
         let code: string | undefined;

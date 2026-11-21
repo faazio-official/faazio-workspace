@@ -7099,6 +7099,52 @@
   gap: 10px;
 }
 
+.map-picker-search {
+  position: relative;
+}
+
+.map-picker-suggestions {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-popover);
+  box-shadow: 0 12px 28px -12px var(--color-overlay);
+}
+
+.map-picker-suggestion {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 10px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.map-picker-suggestion[aria-selected="true"] {
+  background: var(--color-brand-soft);
+}
+
+.map-picker-suggestion-main {
+  font-size: 0.9375rem;
+  line-height: 1.35;
+  color: var(--color-foreground);
+}
+
+.map-picker-suggestion-secondary {
+  font-size: 0.8125rem;
+  line-height: 1.4;
+  color: var(--color-muted-foreground);
+}
+
 .map-picker-field {
   display: flex;
   align-items: center;

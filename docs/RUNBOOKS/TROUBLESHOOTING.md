@@ -858,6 +858,28 @@ runtime, not build time.
   claim matching `contactPhone` (last 10 digits). Locally, without Firebase, mint legacy HS256 tokens
   with `SUPABASE_JWT_SECRET` and drive the flow with
   `server/gateway/scripts/simulate-seller-registration.sh` (see the seller-registration workflow doc).
+- **`POST /seller-leads` returns `400 bad_request` for a real landing-page enquiry** — the gateway
+  decodes with `DisallowUnknownFields`, so a body key that `createLeadRequest`
+  (`internal/sellers/leads.go`) does not declare fails the whole request. The client payload is built
+  by `buildLeadPayload` (`client/web/landingpage/src/lib/leads.ts`); `src/lib/leads.test.ts` pins its
+  keys against the Go struct. Run `./scripts/simulate-seller-lead.sh` for the full 201/400/429 matrix.
+- **`POST /seller-leads` returns `429 rate_limited` during local testing** — the public route is
+  capped at 5 enquiries per IP per UTC day (`faazio:v1:sellers:lead:{ipHash}:{yyyymmdd}` in Valkey).
+  Clear the day's counters:
+  `docker exec gateway-valkey-1 valkey-cli --scan --pattern 'faazio:v1:sellers:lead:*' | xargs -r -n1 docker exec gateway-valkey-1 valkey-cli DEL`.
+  `simulate-seller-lead.sh` does this itself before it starts.
+- **The `/sell-with-us` map panel never appears, or appears with no search suggestions** — the
+  landing page reads `VITE_GOOGLE_MAPS_API_KEY` at build time, so a missing value means no panel at
+  all and a value added after a build needs a redeploy. If the panel renders but typing yields no
+  suggestions, the key's project is missing **Places API (New)** (`places.googleapis.com`): the
+  legacy `places.Autocomplete` widget and the `libraries=places` parameter are retired for new
+  projects, and `src/lib/google-maps.ts` now loads `maps` / `geocoding` / `places` via
+  `importLibrary` and drives search with `AutocompleteSuggestion`. Enable
+  `maps-backend.googleapis.com`, `geocoding-backend.googleapis.com` and `places.googleapis.com`,
+  restrict the key by HTTP referrer, and rebuild. A `RefererNotAllowedMapError` in the console means
+  the referrer pattern does not cover the origin being tested (add `http://localhost:3000/*` locally
+  only). Both failures degrade to the manual address + district path with **no** pin — never a
+  fabricated coordinate.
 - **Seller <Select> on `/admin/super/credentials` is empty** — the portal store hydrates once at
   login (`hydrateFromGateway`); the page now re-fetches `GET /sellers` on mount as a best-effort
   refresh and keeps the hydrated/seed roster when the gateway is absent or the call fails. If it is

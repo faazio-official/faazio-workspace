@@ -118,17 +118,47 @@ to `client/web/landingpage`, and Vercel runs:
 
 ## Environment
 
-`/sell-with-us` is the only route that needs configuration; every other page is static.
+`/sell-with-us` is the only route that needs configuration; every other page is static. Copy
+`.env.example` → `.env.local` for local work (never commit it). There are **no credentials**: the
+enquiry route is public and the admin queue lives in the Partner Portal.
 
 | Variable | Where | Purpose |
 | --- | --- | --- |
-| `VITE_GOOGLE_MAPS_API_KEY` | Vercel build env | Public, HTTP-referrer-restricted Google Maps JS key (Maps JS + Places). Absent → the map panel is not rendered; the address + district fields carry the enquiry and it submits **no** pin. A key that fails to initialise (auth error / 10 s timeout) collapses the panel the same way. Coordinates are never fabricated. |
-| `GATEWAY_URL` | Vercel runtime env | Gateway origin the lead server function posts to (default `https://api.faazio.com`). Read on the server only, so the browser never learns it. |
+| `GATEWAY_URL` | Vercel **runtime** env | Gateway origin the lead server function posts to (default `https://api.faazio.com`). Read on the server only, so the browser never learns it. Takes precedence over `VITE_GATEWAY_URL`. |
+| `VITE_GATEWAY_URL` | Vercel build env | Build-time fallback for local dev (Vite inlines `VITE_*`). Leave empty in production. |
+| `VITE_GOOGLE_MAPS_API_KEY` | Vercel build env | Public, HTTP-referrer-restricted Google Maps JS key (**Maps JavaScript API + Geocoding API + Places API (New)**). Absent → the map panel is not rendered; the address + district fields carry the enquiry and it submits **no** pin. A key that fails to initialise (auth error / 10 s timeout) collapses the panel the same way. Coordinates are never fabricated. |
+
+Both gateway values are resolved by one module, `src/lib/config.ts` (the counterpart of the portal's
+`src/lib/config.ts`), so the precedence lives in one place and is pinned by `src/lib/config.test.ts`:
+`GATEWAY_URL` → `VITE_GATEWAY_URL` → production. A missing value never disables seller intake.
 
 The enquiry is submitted through a TanStack Start server function (`src/lib/leads.ts`) rather than a
 browser `fetch`, because the gateway's CORS allow-list is the portal origin, not `faazio.com`. If
 `VITE_GOOGLE_MAPS_API_KEY` is set, `vercel.json` must keep `Permissions-Policy: geolocation=(self)`
 for the "use my current location" button.
+
+### Google Cloud setup for the map key
+
+The picker needs three APIs enabled on the key's project and **not** the legacy Places API:
+
+| API | Console service id | Used by |
+| --- | --- | --- |
+| Maps JavaScript API | `maps-backend.googleapis.com` | map canvas, draggable marker |
+| Geocoding API | `geocoding-backend.googleapis.com` | pin → street address / state / district |
+| Places API (New) | `places.googleapis.com` | address suggestion list |
+
+```bash
+gcloud services enable \
+  maps-backend.googleapis.com \
+  geocoding-backend.googleapis.com \
+  places.googleapis.com
+```
+
+The retired legacy Places API (`places-backend.googleapis.com`) has no Enable option on new
+projects and is not needed: `src/lib/google-maps.ts` loads libraries through `importLibrary` and
+drives search with `AutocompleteSuggestion`, not `places.Autocomplete`. Restrict the key by HTTP
+referrer (`https://faazio.com/*`, `https://www.faazio.com/*`) and, for local dev only,
+`http://localhost:3000/*`. `VITE_*` is inlined at build time, so changing the key needs a redeploy.
 
 ## SEO
 
