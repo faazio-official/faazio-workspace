@@ -57,13 +57,25 @@ export function notifyAuthResolved(): void {
  * (`window.__faazio.vendorId`) in sync for the rest of this session, notify in-page listeners with
  * a `faazio:vendor-change` CustomEvent, and tell the native shell via the postMessage bridge. No-op
  * in a plain browser and for a null/empty id.
+ *
+ * This runs inside a Zustand `setState` (see `usePortalStore.setActiveStoreId`), i.e. during a React
+ * render. A throwing bridge or listener must never break the store update — that would surface as a
+ * blank "something went wrong" page instead of a shop switch — so every hop is isolated.
  */
 export function notifyVendorChange(storeId: string | null | undefined): void {
   if (typeof window === "undefined" || !storeId) return;
   window.__faazio = Object.assign({}, window.__faazio, { vendorId: storeId });
-  window.dispatchEvent(new CustomEvent(VENDOR_CHANGE_EVENT, { detail: { vendorId: storeId } }));
-  if (window.ReactNativeWebView) {
-    window.ReactNativeWebView.postMessage(JSON.stringify({ type: VENDOR_CHANGE_EVENT, storeId }));
+  try {
+    window.dispatchEvent(new CustomEvent(VENDOR_CHANGE_EVENT, { detail: { vendorId: storeId } }));
+  } catch {
+    // A listener throwing must not abort the switch.
+  }
+  try {
+    window.ReactNativeWebView?.postMessage(
+      JSON.stringify({ type: VENDOR_CHANGE_EVENT, storeId }),
+    );
+  } catch {
+    // Bridge unavailable/reloading — the portal keeps working with its own store.
   }
 }
 

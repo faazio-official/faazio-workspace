@@ -9,7 +9,9 @@
 1. `GET /seller/stores` lists the caller's vendors (the portal switcher's data source).
 2. Seller opens the create form from any of three entry points: `Add shop` in the `/seller/stores`
    header, the "Create a shop" empty state on `/seller/products/new`, or `/seller/onboarding`
-   directly.
+   directly. The header action is a single-line button (`shrink-0` + `whitespace-nowrap` in the
+   `PageHeader` `right` slot, whose title truncates first), so the label never wraps under the plus
+   icon on a narrow phone.
 3. Seller creates a vendor with `POST /seller/stores` (name, app, address, phone, hours, live flag;
    FSSAI/drug licence where applicable). The portal form does not send a platform fee. The form also
    asks for two optional Tamil fields — **Tamil shop name** and **Tamil description** (`0108`,

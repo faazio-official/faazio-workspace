@@ -1,6 +1,8 @@
-// Provenance: admins.district_master (migration 0046) — production coverage = Tamil Nadu (38) +
-// Puducherry (4). The gateway (internal/platform/geo) is the authority; this fixture mirrors it so
-// mobile/web pickers and offline screens stay consistent. Sorted by state, then name.
+// Provenance: admins.district_master (migrations 0046 + 0114) — the DB table is the single source of
+// truth: districts are created/edited/deactivated from the portal (`/admin/districts*`) and the
+// gateway (internal/platform/geo) is a read-through cache of it. This file is the offline/error shell
+// only; the live list is GET /geo/districts. Keep it in step with the DB for offline parity.
+// Sorted by state, then name.
 export interface DistrictInfo {
   districtCode: string;
   name: string;

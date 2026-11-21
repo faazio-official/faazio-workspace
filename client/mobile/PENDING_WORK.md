@@ -15,6 +15,36 @@ dependencies exist. Do not build the backend/seller flows until told to.
 
 ---
 
+## W105 — Seller approval hand-over: credential surfaced, portal switch hardened
+
+**Status:** 🟢 Shipped. No DB migration, no gateway change (the provisioner already existed).
+
+- **Credential hand-over (web portal).** `setSellerStatus` (`src/lib/api/index.ts`) was a
+  fire-and-forget `PATCH` that discarded the response, so the one-time password the gateway mints on
+  activation was thrown away — sellers were activated with a login nobody had seen. It now awaits the
+  `PATCH`, keeps the optimistic write with rollback, and returns
+  `SellerLoginCredential | null`. `/admin/super/sellers` awaits it and opens a sheet with the email +
+  temporary password and **Copy login** / **Share on WhatsApp** (`wa.me/<contact phone>`).
+  `/admin/district/sellers/[id]` renders the same shared `SellerCredentialCard` from `verify-kyc`.
+  `/admin/super/credentials` gains **Ready to share**: `SELLER` logins that are active, never signed
+  in and not sub-users, each with **Prepare password** → a freshly generated password applied via
+  `PUT /admin/portal-users/{id}/password` (`forceChange`) and shown once. No plaintext credential
+  table was added — the stored value is Argon2id only, so an unshared login is re-passworded, not
+  revealed. Workflow doc: `docs/user-interaction-workflow/seller/web-portal/credential-handover.md`.
+- **Shop switcher crash hardening (web portal).** `useActiveStore` now reconciles a persisted
+  `activeStoreId` that no longer names one of the seller's shops (vendor deleted, different seller in
+  the same browser) to the injected `vendorId` if owned, else the first shop — previously a stale id
+  left store-scoped pages filtered by a ghost vendor. `StoreSwitcher` drops rows without a `storeId`,
+  renders the trigger as plain text when there are no shops / while loading, refuses an out-of-list
+  target with a toast, and says "You have one shop" instead of opening a one-row menu.
+  `notifyVendorChange` (called inside the Zustand updater, i.e. during render) now guards its
+  CustomEvent dispatch and native `postMessage` hops, so a throwing bridge can no longer abort the
+  store update and drop the page to the route error boundary ("Something went wrong on our end").
+- **`Add shop` header action.** `PageHeader`'s `right` slot is a `shrink-0` single-line row and the
+  button is `whitespace-nowrap`, so the label no longer wraps under its plus icon on narrow phones.
+
+---
+
 ## W104 — Rating precision: no raw decimals in any rating display
 
 **Status:** 🟢 Shipped. No DB migration (schema stays `float8`; precision is an application concern).
@@ -86,6 +116,36 @@ dependencies exist. Do not build the backend/seller flows until told to.
   `docs/user-interaction-workflow/shared/auth-otp.md`.
 
 **Date:** 2026-11-19
+
+---
+
+## W106 — Category header labels: main app header shared across Mart + Pharma
+
+**Status:** 🟢 Shipped (DB + gateway + portal + mobile type). Migration `0115`.
+
+- **Why:** `taxonomy.categories.app` is a single enum, so a category could only belong to one app list
+  and Mart/Pharma categories could not be shared into a main app header. Header labels are now a
+  normalized many-to-many (`taxonomy.category_headers`), so one canonical category row can be listed
+  under several curated headers without duplicating rows.
+- **DB (`0115`, additive):** `taxonomy.category_headers (category_id, header)` with
+  `header in (MAIN_APP_HEADER, MART, FOOD, PHARMA)`, `ON DELETE CASCADE`, index on `(header,
+  category_id)`. Backfill adds the primary app label for every row and `MAIN_APP_HEADER` for every
+  existing `show_on_home_rail` row, so the Home rail is unchanged on deploy. A guard trigger refuses
+  `MAIN_APP_HEADER` on a FOOD row. Idempotent.
+- **Gateway (`internal/categories`):** `ListOptions.Header` + `?header=` on `GET /categories`,
+  `GET /categories/rail` and `GET /admin/categories`; `Category`/`Input` carry `headerLabels`
+  (create/update replace them in the same transaction as the row). The primary app label is always
+  kept, a row may only carry its own app label, and FOOD can never be tagged `MAIN_APP_HEADER`
+  (`400`). `show_on_home_rail` stays a mirror of the `MAIN_APP_HEADER` label, and the rail read uses
+  the label with the legacy column as a fallback.
+- **Portal (`/admin/super/categories`):** new **Main app header** section (`GET
+  /admin/categories?header=MAIN_APP_HEADER`) plus a **Header labels** column and a header-label pill
+  group in the create/edit sheet. The old Home rail switch is replaced by the **Main app header**
+  label pill (disabled for FOOD). The app tabs are unchanged.
+- **Mobile:** `Category` gains `headerLabels?: string[]` for type parity; no screen change — the rail
+  keeps reading `GET /categories/rail` (backfilled labels make it identical to before).
+
+**Date:** 2026-11-21
 
 ---
 

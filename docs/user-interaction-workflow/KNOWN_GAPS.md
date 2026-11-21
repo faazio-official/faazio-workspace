@@ -44,6 +44,7 @@ Recorded here so a future contributor does not "fix" something that is not broke
 | Local-only seller surfaces | `app/seller/support` (local tickets), `hub` checklist, `restaurant-status`, `rush-hour` (client-only store in `src/lib/sellerUi.ts`) | These screens are not persisted/DB-backed yet |
 | Toast-only admin actions | District `content` publish, `orders` escalate, `pricing-audit` contact, super `settings` save | UI reports success without a gateway write |
 | District-admins page is district-locked | `app/admin/super/district-admins/page.client.tsx:64` (`TTC_CODE = "TTC"`, used through `:124`) | Cannot provision admins outside Tiruchirappalli |
+| District fixtures are a manual mirror of the DB master | `data/districts.ts` (+ `client/web/platform/src/data/districts.ts`) vs `admins.district_master` (authoritative since `0114`) | A district created through **District coverage** is valid everywhere server-side immediately, but the offline fixtures do not know it until edited. Mobile pickers read the live `GET /geo/districts`; the fixture is only the offline shell — keep it in step until a generated snapshot lands |
 | Native seller auth is unused | `GatewayClient.portalLogin/portalRefresh/portalLogout` exist (`src/services/api/GatewayClient.ts:826-866`) but the seller app is a WebView shell (`SellerPartnerNavigator.tsx`); the portal owns the session | Intentional today; prune or wire if native seller auth is ever built |
 | Admin dispatch boards have no dedicated flow page | Manual allocation (`app/admin/district/delivery/manual-allocation/page.client.tsx`, `app/admin/super/delivery/manual-allocation/page.client.tsx`) and delivery-boy boards (`app/admin/*/delivery-boys/page.client.tsx`) write through `server/gateway/internal/delivery/handler.go:90-99` but are only mentioned in passing | Flow under-documented; add a delivery-admin page before changing it |
 | Hardcoded tax constants on new-product display | New-product page shows GST/TCS/TDS constants | Display-only; the server remains the money authority |
@@ -59,10 +60,13 @@ the customer app's `SellWithUs`). On approval (`POST /sellers/{id}/verify-kyc`, 
 `PATCH /sellers/{id}/status` → `ACTIVE`) the seller's portal login is auto-provisioned from
 `contact_email` as a `SELLER` row scoped to `seller_id` (`must_change=true`); the one-time temporary
 password is returned to the approving admin and never logged, and an existing login is reused
-idempotently. A superadmin can still issue or reset credentials at `/admin/super/credentials`
+idempotently. Every approving surface renders that one-time credential with copy + WhatsApp
+hand-over, and unused logins can be re-passworded and shared from **Ready to share** on
+`/admin/super/credentials`; a superadmin can also issue or reset credentials there at any time
 (HS256 JWT in HttpOnly cookies) — used when `contact_email` is already owned by another account.
 The seller app is a WebView shell over the same portal. This is the completed design, not a partial
-flow — see [`seller/onboarding/index.md`](./seller/onboarding/index.md) and
+flow — see [`seller/onboarding/index.md`](./seller/onboarding/index.md),
+[`seller/web-portal/credential-handover.md`](./seller/web-portal/credential-handover.md) and
 [`shared/auth-otp.md`](./shared/auth-otp.md). Native seller auth is likewise intentionally unused
 while the WebView owns the session.
 
@@ -147,7 +151,7 @@ here so the folder never claims full coverage it does not have. Add a page befor
 | Product list / edit | `/seller/products`, `/seller/products/[id]/edit` | Product list and edit surface; no dedicated page |
 | Local-only seller surfaces | `/seller/support`, `/seller/restaurant-status`, `/seller/rush-hour` | Client-local; see the seller gaps table above |
 | District admin | `/admin/district/*` | Documented only where a seller flow references it (KYC review, payouts) |
-| Super admin | `/admin/super/*` (categories + users + products documented) | Category taxonomy + home-rail curation ([web-portal/super-admin-categories.md](./seller/web-portal/super-admin-categories.md)), global catalog + seller product requests ([web-portal/super-admin-products.md](./seller/web-portal/super-admin-products.md)), all orders ([web-portal/super-admin-orders.md](./seller/web-portal/super-admin-orders.md)) and the customer directory ([web-portal/super-admin-users.md](./seller/web-portal/super-admin-users.md)) have dedicated pages; the rest are documented only where a seller flow references them |
+| Super admin | `/admin/super/*` (categories + users + products documented) | Category taxonomy + header labels / main app header ([web-portal/super-admin-categories.md](./seller/web-portal/super-admin-categories.md)), global catalog + seller product requests ([web-portal/super-admin-products.md](./seller/web-portal/super-admin-products.md)), all orders ([web-portal/super-admin-orders.md](./seller/web-portal/super-admin-orders.md)) and the customer directory ([web-portal/super-admin-users.md](./seller/web-portal/super-admin-users.md)) have dedicated pages; the rest are documented only where a seller flow references them |
 
 ## How to close a gap
 

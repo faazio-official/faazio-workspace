@@ -9,6 +9,7 @@ import { KpiStrip } from "@/components/patterns/KpiCard";
 import { EmptyState } from "@/components/patterns/DataState";
 import { SectorPill, StatusPill } from "@/components/patterns/Pills";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
+import { SellerCredentialCard } from "@/components/patterns/SellerCredentialCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -135,6 +136,19 @@ function SellerReview() {
       toast.success("KYC verified — seller activated");
     } catch {
       toast.error("Could not activate the seller");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const suspend = async (why: string) => {
+    setBusy(true);
+    try {
+      await setSellerStatus(seller.sellerId, "SUSPENDED", why);
+      toast.success("Seller suspended");
+      await loadDetail();
+    } catch {
+      toast.error("Could not suspend the seller");
     } finally {
       setBusy(false);
     }
@@ -302,10 +316,7 @@ function SellerReview() {
             variant="destructive"
             disabled={busy || reason.trim().length < 4}
             description="Listings go offline in the consumer app immediately."
-            onConfirm={() => {
-              setSellerStatus(seller.sellerId, "SUSPENDED", reason.trim());
-              toast.success("Seller suspended");
-            }}
+            onConfirm={() => void suspend(reason.trim())}
           />
         </div>
       </SectionCard>
@@ -315,48 +326,11 @@ function SellerReview() {
           title="Seller login"
           description="Provisioned automatically on approval. The password is shown once and never stored in the clear."
         >
-          {credential.created && credential.temporaryPassword ? (
-            <div className="space-y-2">
-              <p className="text-[13px]">
-                Share these credentials with the seller once. They must change the password at first
-                sign-in.
-              </p>
-              <div className="rounded-lg border border-border bg-muted/40 px-3 py-2">
-                <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Email</p>
-                <p className="num text-[13px]">{credential.email}</p>
-                <p className="mt-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-                  Temporary password
-                </p>
-                <p className="num select-all text-[13px]">{credential.temporaryPassword}</p>
-              </div>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  void navigator.clipboard
-                    .writeText(
-                      `${credential.email}\n${credential.temporaryPassword}`,
-                    )
-                    .then(() => toast.success("Login copied"))
-                    .catch(() => toast.error("Could not copy — select the text manually"));
-                }}
-              >
-                Copy login
-              </Button>
-            </div>
-          ) : credential.skipped ? (
-            <p className="text-[13px] text-muted-foreground">
-              No login was auto-created: {credential.reason ?? "provisioning skipped"}. Issue one from{" "}
-              <Link href="/admin/super/credentials" className="font-medium text-interactive">
-                Portal credentials
-              </Link>
-              .
-            </p>
-          ) : (
-            <p className="text-[13px] text-muted-foreground">
-              This seller already has a portal login ({credential.email}); it was reused.
-            </p>
-          )}
+          <SellerCredentialCard
+            credential={credential}
+            businessName={seller.businessName}
+            phone={seller.contactPhone}
+          />
         </SectionCard>
       ) : null}
     </div>

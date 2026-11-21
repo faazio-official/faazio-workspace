@@ -426,6 +426,8 @@ export interface PortalCredential {
   stateCode?: string | undefined;
   active: boolean;
   mustChange: boolean;
+  /** Set for a seller staff login (STAFF/VIEWER); empty for a seller owner and for admins. */
+  subRole?: string | undefined;
   lastLoginAt?: string | undefined;
   createdAt?: string | undefined;
 }

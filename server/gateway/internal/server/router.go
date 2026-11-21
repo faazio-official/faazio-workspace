@@ -34,6 +34,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/config"
 	"github.com/faazio/server/gateway/internal/platform/db"
+	"github.com/faazio/server/gateway/internal/platform/geo"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/faazio/server/gateway/internal/platform/r2"
 	"github.com/faazio/server/gateway/internal/platform/razorpaypay"
@@ -235,7 +236,9 @@ func NewRouter(d Deps) http.Handler {
 	tax.NewHandler(tax.NewRepo(d.Pool)).Register(r)
 	// Central superadmin category taxonomy (0067): read tree/rail for every app + CRUD for the portal.
 	categories.NewHandler(categories.NewRepo(d.Pool)).Register(r)
-	districts.NewHandler(districts.NewRepo(d.Pool)).Register(r)
+	districts.NewHandler(districts.NewRepo(d.Pool), adminsRepo, func() error {
+		return geo.Reload(context.Background(), d.Pool)
+	}).Register(r)
 	reference.NewHandler(reference.NewRepo(d.Pool)).Register(r)
 	analytics.NewHandler(analytics.NewRepo(d.Pool)).Register(r)
 	support.NewHandler(supportRepo, adminsRepo).Register(r)

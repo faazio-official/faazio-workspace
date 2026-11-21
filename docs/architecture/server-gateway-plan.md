@@ -241,10 +241,16 @@ caller) and are event-purged on store live toggle and product edit/status change
   owner (W71), so seeded `tr-*`/`dn-*` rows are not orphaned; `UpsertMenu`, promo opt-ins and blood
   moderation re-check scope at the write (`DELETE /blood-requests/{id}` is state-scoped for district
   admins). Product projections now include `storeId` for the PDP store link.
-- **District picker read (`internal/districts`, `0046`):** `GET /geo/districts?state=TN` serves the
+- **District master (`internal/districts`, `0046` + `0114`):** `GET /geo/districts?state=TN` serves the
   active `admins.district_master` rows as camelCase `{districtCode,name,stateCode}` to any signed-in
   account (the seller-onboarding picker); `?state=` is an optional 2-letter filter (400 on a longer
-  value). The DB is the read authority so seeding a new state/district is data-only; uncached.
+  value). The DB is the single source of truth, and since `0114` it is writable through the SUPER_ADMIN
+  API: `GET /admin/districts` (all rows incl. deactivated + timestamps), `POST /admin/districts`,
+  `PUT /admin/districts/{code}`, `PATCH /admin/districts/{code}/toggle`, `DELETE /admin/districts/{code}`
+  (audited `DISTRICT_*`; `409 conflict` on a duplicate code, `409 district_in_use` when sellers/admins/
+  payouts still reference it — deactivate instead). Every write calls `geo.Reload`, so the in-process
+  `internal/platform/geo` mirror (loaded at boot by `geo.Init`) accepts the new code immediately without
+  a restart; the picker read stays uncached.
 - **Platform-fee change requests:** sellers file `POST /sellers/{id}/platform-fee-request`
   (`{storeId, platformFeePct, reason}` — `storeId` and the whole percent are required, `reason` is an
   optional ≤ 500-character seller note stored as `seller_note` (`0106`); `httpx.Decode` rejects
@@ -278,18 +284,23 @@ caller) and are event-purged on store live toggle and product edit/status change
   stored secret; `is_public` + `value_secret` combined is rejected; key/category/variant are
   validated and values capped at 4 KiB. Only non-chicken-and-egg settings live here —
   `GATEWAY_URL`/`APP_VARIANT`/`TRANSPORT` stay build-time baked.
-- **Central category taxonomy (`internal/categories`, `0067` + `0096` + `0109`):** `GET /categories?app=&parent_id=`
-  (any signed-in account) and `GET /categories/rail` (only active rows with `show_on_home_rail = true`,
-  unbounded — Mart + Pharma share one horizontally scrolled strip, any tree level) serve
-  the superadmin-owned `taxonomy.categories` tree — the Home header rail and the Mart/Pharma drill-in
-  read it (no category fixture). Portal:
-  `GET /admin/categories` (includes deactivated rows + `showOnHomeRail`), `POST /categories`,
-  `PUT /categories/{id}`, `DELETE /categories/{id}` (soft delete — `is_active=false`, references
-  preserved; SUPER_ADMIN). `showOnHomeRail` is accepted on create/update for any tree level; FOOD is
-  rejected (`400`), and there is no slot cap (`0109` removed the former `409 rail_full`). Seller
-  onboarding selects a `categoryId` (validated app-scoped against the tree, optional) carried on
-  `POST /sellers` and `POST /sellers/{id}/edit`. Seller product creation accepts an optional
-  `taxonomyCategoryId`
+- **Central category taxonomy (`internal/categories`, `0067` + `0096` + `0109` + `0115`):**
+  `GET /categories?app=&parent_id=&top_level=&header=` (any signed-in account) and
+  `GET /categories/rail` (the shared main app header list — active rows tagged `MAIN_APP_HEADER`,
+  unbounded, Mart + Pharma combined, any tree level) serve the superadmin-owned
+  `taxonomy.categories` tree — the Home header rail and the Mart/Pharma drill-in read it (no category
+  fixture). `?header=` filters one curated header list (`MAIN_APP_HEADER | MART | FOOD | PHARMA`) from
+  `taxonomy.category_headers` (`0115`), so the portal can render separate tables per label while there
+  is still one canonical category row. Portal:
+  `GET /admin/categories` (includes deactivated rows + `showOnHomeRail` + `headerLabels`),
+  `POST /categories`, `PUT /categories/{id}`, `DELETE /categories/{id}` (soft delete —
+  `is_active=false`, references preserved; SUPER_ADMIN). `headerLabels` and the legacy
+  `showOnHomeRail` alias are accepted on create/update for any tree level; the primary app label is
+  always kept, a row may only carry its own app's label, and FOOD can never be tagged
+  `MAIN_APP_HEADER` (`400`, mirrored in the `0115` guard trigger). There is no slot cap (`0109`
+  removed the former `409 rail_full`). Seller onboarding selects a `categoryId` (validated app-scoped
+  against the tree, optional) carried on `POST /sellers` and `POST /sellers/{id}/edit`. Seller product
+  creation accepts an optional `taxonomyCategoryId`
   (active leaf for the store's app); the gateway validates it and folds the leaf `search_query` into
   `catalog.products.search_tokens` (`0096`).
 - **Rider payouts (`internal/delivery`, `0052` + `0054`):** `GET /delivery/payouts` (rider history)

@@ -221,7 +221,7 @@ func resolveLeadDistrict(req createLeadRequest) (stateCode, districtCode, stateN
 	}
 	if req.DistrictName != "" {
 		want := strings.ToLower(req.DistrictName)
-		for _, d := range geo.Districts {
+		for _, d := range geo.All() {
 			if strings.ToLower(d.Name) == want {
 				return d.StateCode, d.Code, req.StateName, d.Name
 			}

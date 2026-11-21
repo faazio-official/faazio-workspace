@@ -37,6 +37,7 @@ func (h *Handler) Register(r chi.Router) {
 	})
 }
 
+// validApp reports whether s is a known app brand.
 func validApp(s string) bool {
 	switch s {
 	case "MART", "FOOD", "PHARMA":
@@ -45,48 +46,60 @@ func validApp(s string) bool {
 	return false
 }
 
-// list returns active categories, optionally filtered by app and/or parent.
-func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
+// readListFilters applies the shared `?app=`, `?parent_id=`, `?top_level=` and `?header=` query
+// filters, writing a 400 and returning false when one is malformed.
+func readListFilters(w http.ResponseWriter, r *http.Request) (ListOptions, bool) {
+	q := r.URL.Query()
 	opts := ListOptions{
-		App:        strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("app"))),
-		ActiveOnly: true,
+		App:    strings.ToUpper(strings.TrimSpace(q.Get("app"))),
+		Header: strings.ToUpper(strings.TrimSpace(q.Get("header"))),
 	}
 	if opts.App != "" && !validApp(opts.App) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "unknown app")
-		return
+		return opts, false
 	}
-	if r.URL.Query().Has("parent_id") {
-		if pid := strings.TrimSpace(r.URL.Query().Get("parent_id")); pid != "" {
+	if opts.Header != "" && !ValidHeader(opts.Header) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "unknown header")
+		return opts, false
+	}
+	if q.Has("parent_id") {
+		if pid := strings.TrimSpace(q.Get("parent_id")); pid != "" {
 			opts.ParentID = &pid
 		}
 	}
-	if r.URL.Query().Get("top_level") == "true" {
+	if q.Get("top_level") == "true" {
 		opts.TopLevel = true
 	}
+	return opts, true
+}
+
+// list returns active categories, optionally filtered by app, header label and/or parent.
+func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
+	opts, ok := readListFilters(w, r)
+	if !ok {
+		return
+	}
+	opts.ActiveOnly = true
 	h.respond(w, r, opts)
 }
 
-// rail returns the curated active categories for the home header rail. Any tree level is eligible:
+// rail returns the curated categories for the shared main app header. Any tree level is eligible:
 // the customer drill-in resolves the tapped id and walks its subtree, so a child chip is a valid
 // entry point. FOOD never reaches here (rail writes reject it), so no app scope is applied.
 func (h *Handler) rail(w http.ResponseWriter, r *http.Request) {
-	opts := ListOptions{
-		App:          strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("app"))),
-		ActiveOnly:   true,
-		HomeRailOnly: true,
-	}
-	if opts.App != "" && !validApp(opts.App) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "unknown app")
+	opts, ok := readListFilters(w, r)
+	if !ok {
 		return
 	}
+	opts.ActiveOnly = true
+	opts.HomeRailOnly = true
 	h.respond(w, r, opts)
 }
 
 // adminList returns every category (including deactivated) for the portal.
 func (h *Handler) adminList(w http.ResponseWriter, r *http.Request) {
-	opts := ListOptions{App: strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("app")))}
-	if opts.App != "" && !validApp(opts.App) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "unknown app")
+	opts, ok := readListFilters(w, r)
+	if !ok {
 		return
 	}
 	h.respond(w, r, opts)
@@ -118,6 +131,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	req.ID = strings.TrimSpace(req.ID)
 	req.NameTA = strings.TrimSpace(req.NameTA)
 	req.DescriptionTA = strings.TrimSpace(req.DescriptionTA)
+	req.HeaderLabels = normalizeHeaderLabels(req.HeaderLabels)
 	if !validApp(req.App) || req.Name == "" || len(req.Name) > 120 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "app and name are required")
 		return
@@ -132,6 +146,10 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	if !h.validParent(r.Context(), req.App, req.ParentID) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "parent category is invalid")
+		return
+	}
+	if msg := headerLabelError(req.App, req.HeaderLabels); msg != "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", msg)
 		return
 	}
 	if msg := homeRailError(req.App, req.ShowOnHomeRail); msg != "" {
@@ -161,6 +179,7 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.NameTA = strings.TrimSpace(req.NameTA)
 	req.DescriptionTA = strings.TrimSpace(req.DescriptionTA)
+	req.HeaderLabels = normalizeHeaderLabels(req.HeaderLabels)
 	if !validApp(req.App) || req.Name == "" || len(req.Name) > 120 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "app and name are required")
 		return
@@ -175,6 +194,10 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	}
 	if !h.validParent(r.Context(), req.App, req.ParentID) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "parent category is invalid")
+		return
+	}
+	if msg := headerLabelError(req.App, req.HeaderLabels); msg != "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", msg)
 		return
 	}
 	if msg := homeRailError(req.App, req.ShowOnHomeRail); msg != "" {
@@ -205,6 +228,53 @@ func (h *Handler) remove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "deactivated": true, "id": id})
+}
+
+// normalizeHeaderLabels upper-cases, trims and de-duplicates an explicit header label list so the repo
+// can persist it verbatim. nil stays nil ("unchanged"); an empty array means "clear the extra labels".
+func normalizeHeaderLabels(in *[]string) *[]string {
+	if in == nil {
+		return nil
+	}
+	seen := map[string]bool{}
+	out := []string{}
+	for _, raw := range *in {
+		h := strings.ToUpper(strings.TrimSpace(raw))
+		if h == "" || seen[h] {
+			continue
+		}
+		seen[h] = true
+		out = append(out, h)
+	}
+	return &out
+}
+
+// headerLabelError validates the curated header labels on create/update. Every value must be a known
+// label, a row can only belong to its own app's list, and FOOD can never be shared into the shared
+// main app header (it has no consumer vendor pool).
+func headerLabelError(app string, labels *[]string) string {
+	if labels == nil {
+		return ""
+	}
+	for _, h := range *labels {
+		if !ValidHeader(h) {
+			return "unknown header label: " + h
+		}
+		switch h {
+		case HeaderMart, HeaderFood, HeaderPharma:
+			if h != app {
+				return "a category can only be listed under its own app: " + h
+			}
+		}
+	}
+	if app == HeaderFood {
+		for _, h := range *labels {
+			if h == HeaderMainApp {
+				return "FOOD categories cannot be tagged MAIN_APP_HEADER"
+			}
+		}
+	}
+	return ""
 }
 
 // homeRailError rejects rail selections the customer app cannot render: FOOD has no consumer vendor

@@ -50,8 +50,9 @@ data/
 
 The category rail (`HeaderCategoryRail` via `usePagedRail`) is now **server-backed**: it reads the
 superadmin-owned `taxonomy.categories` tree through `GatewayClient.fetchCategoryRail`
-(`GET /categories/rail`, only active rows curated with `show_on_home_rail` — unbounded,
-Mart + Pharma combined, any tree level, FOOD excluded)
+(`GET /categories/rail` — active rows tagged `MAIN_APP_HEADER` in `taxonomy.category_headers`
+(`0115`), unbounded, Mart + Pharma combined, any tree level, FOOD excluded; the legacy
+`show_on_home_rail` flag is retained as a fallback)
 and projects rows to chips in `services/categoryRail.ts`. The former
 `data/categories/railFeed.ts` + `masterCategories.ts` fixtures were removed — there is no category
 fixture. The Mart/Pharma drill-in (`useCategoryTree` → `fetchCategories`) reads the same tree, and

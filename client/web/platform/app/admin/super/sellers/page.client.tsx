@@ -18,10 +18,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import { SellerCredentialCard } from "@/components/patterns/SellerCredentialCard";
 import { formatDate } from "@/lib/format";
+import { ApiError } from "@/lib/api/http";
 import { setSellerStatus } from "@/lib/api";
 import { usePortalLoading, useSellers } from "@/lib/api/hooks";
-import type { SellerStatus } from "@/data/types";
+import type { SellerLoginCredential, SellerRecord, SellerStatus } from "@/data/types";
 
 
 const STATUSES: (SellerStatus | "ALL")[] = ["ALL", "PENDING_REVIEW", "ACTIVE", "SUSPENDED", "REJECTED"];
@@ -30,6 +39,15 @@ function SuperSellers() {
   const loading = usePortalLoading();
   const [status, setStatus] = useState<SellerStatus | "ALL">("ALL");
   const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  // The one-time login minted by an activation. It exists only in this response, so it is held here
+  // until the admin dismisses the sheet — closing it really does end the chance to share it.
+  const [issued, setIssued] = useState<{
+    sellerId: string;
+    businessName: string;
+    phone?: string | undefined;
+    credential: SellerLoginCredential;
+  } | null>(null);
   const sellers = useSellers({ status });
   const rows = sellers.filter((s) =>
     query
@@ -38,6 +56,47 @@ function SuperSellers() {
         s.stateCode.toLowerCase() === query.toLowerCase()
       : true,
   );
+
+  const activate = async (seller: SellerRecord) => {
+    setBusy(seller.sellerId);
+    try {
+      const credential = await setSellerStatus(
+        seller.sellerId,
+        "ACTIVE",
+        "Super admin override: activated",
+      );
+      if (credential) {
+        setIssued({
+          sellerId: seller.sellerId,
+          businessName: seller.businessName,
+          phone: seller.contactPhone,
+          credential,
+        });
+      } else if (credential === null) {
+        toast.success("Seller activated");
+      }
+    } catch (err) {
+      toast.error("Could not activate the seller", {
+        description: err instanceof ApiError ? err.message : err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const suspend = async (seller: SellerRecord) => {
+    setBusy(seller.sellerId);
+    try {
+      await setSellerStatus(seller.sellerId, "SUSPENDED", "Super admin override: suspended");
+      toast.success("Seller suspended");
+    } catch (err) {
+      toast.error("Could not suspend the seller", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setBusy(null);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -125,22 +184,16 @@ function SuperSellers() {
                     <div className="flex justify-end gap-2">
                       <Button
                         size="sm"
-                        disabled={seller.status === "ACTIVE"}
-                        onClick={() => {
-                          setSellerStatus(seller.sellerId, "ACTIVE", "Super admin override: activated");
-                          toast.success("Seller activated");
-                        }}
+                        disabled={seller.status === "ACTIVE" || busy === seller.sellerId}
+                        onClick={() => void activate(seller)}
                       >
-                        Activate
+                        {busy === seller.sellerId ? "Activating…" : "Activate"}
                       </Button>
                       <Button
                         size="sm"
                         variant="destructive"
-                        disabled={seller.status === "SUSPENDED"}
-                        onClick={() => {
-                          setSellerStatus(seller.sellerId, "SUSPENDED", "Super admin override: suspended");
-                          toast.success("Seller suspended");
-                        }}
+                        disabled={seller.status === "SUSPENDED" || busy === seller.sellerId}
+                        onClick={() => void suspend(seller)}
                       >
                         Suspend
                       </Button>
@@ -152,6 +205,27 @@ function SuperSellers() {
           </Table>
         </DataShell>
       </SectionCard>
+
+      <Sheet open={Boolean(issued)} onOpenChange={(next) => !next && setIssued(null)}>
+        <SheetContent className="w-full sm:max-w-md">
+          <SheetHeader>
+            <SheetTitle>Seller login for {issued?.businessName ?? "seller"}</SheetTitle>
+            <SheetDescription>
+              Provisioned automatically on approval. Share it once; the temporary password is never
+              stored in the clear.
+            </SheetDescription>
+          </SheetHeader>
+          {issued ? (
+            <div className="px-4 pb-6">
+              <SellerCredentialCard
+                credential={issued.credential}
+                businessName={issued.businessName}
+                phone={issued.phone}
+              />
+            </div>
+          ) : null}
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

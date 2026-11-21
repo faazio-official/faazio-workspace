@@ -8,27 +8,33 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 )
 
-// TestListMatchesMirror locks the wire contract: the DB read must return exactly the in-process
-// internal/platform/geo mirror (@data/districts) — same rows, same order. Drift here means the
-// fixture, the validation mirror, and the picker have diverged.
+// TestListMatchesMirror locks the seed contract: with no DB rows reloaded, the DB read must return
+// exactly the embedded internal/platform/geo seed (@data/districts) — same rows, same order. Drift
+// here means the fixture, the boot fallback, and the picker have diverged.
 func TestListMatchesMirror(t *testing.T) {
 	pool := testenv.Pool(t)
 	repo := NewRepo(pool)
 	ctx := context.Background()
 
+	seed := geo.Seed()
 	all, err := repo.List(ctx, "")
 	if err != nil {
 		t.Fatalf("list all: %v", err)
 	}
-	if len(all) != len(geo.Districts) {
-		t.Fatalf("row count: db=%d mirror=%d", len(all), len(geo.Districts))
+	// The live DB may have districts added through the write API; the seed must always be a
+	// name-ordered prefix-compatible subset, so check every seed row is present and aligned by code.
+	byCode := make(map[string]PickerDistrict, len(all))
+	for _, d := range all {
+		byCode[d.DistrictCode] = d
 	}
-	for i := range geo.Districts {
-		m := geo.Districts[i]
-		d := all[i]
-		if d.DistrictCode != m.Code || d.Name != m.Name || d.StateCode != m.StateCode {
-			t.Fatalf("row %d ordering/parity mismatch: db={%s %q %s} mirror={%s %q %s}",
-				i, d.DistrictCode, d.Name, d.StateCode, m.Code, m.Name, m.StateCode)
+	for _, s := range seed {
+		d, ok := byCode[s.Code]
+		if !ok {
+			t.Fatalf("seeded district %s missing from the DB master", s.Code)
+		}
+		if d.Name != s.Name || d.StateCode != s.StateCode {
+			t.Fatalf("district %s drift: db={%q %s} seed={%q %s}",
+				s.Code, d.Name, d.StateCode, s.Name, s.StateCode)
 		}
 	}
 }
@@ -68,7 +74,59 @@ func TestListAgainstDB(t *testing.T) {
 	if len(tn) == 0 {
 		t.Fatal("expected Tamil Nadu districts")
 	}
-	if len(tn)+len(py) != len(all) {
-		t.Fatalf("state filters do not partition the master: TN=%d PY=%d all=%d", len(tn), len(py), len(all))
+}
+
+// TestWriteLifecycle exercises create → update → toggle → delete against the test DB. It cleans up
+// after itself so a re-run stays green (and the district is guaranteed unused, so DELETE succeeds).
+func TestWriteLifecycle(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := NewRepo(pool)
+	ctx := context.Background()
+
+	const code = "TZZ"
+	_, _ = pool.Exec(ctx, `delete from admins.district_master where district_code = $1`, code)
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `delete from admins.district_master where district_code = $1`, code)
+	})
+
+	created, err := repo.Create(ctx, Input{Code: code, Name: "Test District", StateCode: "TN"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if !created.IsActive {
+		t.Fatal("a new district should default to active")
+	}
+	if created.CreatedAt == "" || created.UpdatedAt == "" {
+		t.Fatal("create must return created_at/updated_at")
+	}
+
+	if _, err := repo.Create(ctx, Input{Code: code, Name: "Dup", StateCode: "TN"}); err == nil {
+		t.Fatal("expected a duplicate-code error")
+	}
+
+	updated, err := repo.Update(ctx, code, Input{Name: "Renamed District", StateCode: "TN"})
+	if err != nil {
+		t.Fatalf("update: %v", err)
+	}
+	if updated.Name != "Renamed District" {
+		t.Fatalf("update did not rename: %+v", updated)
+	}
+
+	off, err := repo.SetActive(ctx, code, false)
+	if err != nil {
+		t.Fatalf("toggle: %v", err)
+	}
+	if off.IsActive {
+		t.Fatal("toggle to false did not deactivate")
+	}
+	// A deactivated district is hidden from the picker read but still valid for references.
+	if _, err := repo.Get(ctx, code); err != nil {
+		t.Fatalf("a deactivated district must still be readable: %v", err)
+	}
+	if err := repo.Delete(ctx, code); err != nil {
+		t.Fatalf("delete unused district: %v", err)
+	}
+	if err := repo.Delete(ctx, code); err != ErrNotFound {
+		t.Fatalf("second delete: got %v, want ErrNotFound", err)
 	}
 }

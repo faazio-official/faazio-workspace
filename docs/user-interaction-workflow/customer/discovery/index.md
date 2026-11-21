@@ -33,7 +33,8 @@
 ## Data path
 
 - Categories: `fetchCategories` / `fetchCategoryRail` → `GET /categories`, `/categories/rail` →
-  `taxonomy.categories` (both behind `auth.Require`). The Home/Mart header rail (`HeaderCategoryRail`
+  `taxonomy.categories` (+ the `MAIN_APP_HEADER` label in `taxonomy.category_headers`, `0115`) — both
+  behind `auth.Require`. The Home/Mart header rail (`HeaderCategoryRail`
   → `usePagedRail`) never blanks silently: a failed read keeps the chips already loaded for the
   current app scope and, when it has none, shows a **Retry** chip (dev logs the error, e.g.
   `GatewayHttpError status: 401`). Rail chips and drill-in titles render through

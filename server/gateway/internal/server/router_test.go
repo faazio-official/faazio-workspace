@@ -14,6 +14,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/authtest"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/config"
+	"github.com/faazio/server/gateway/internal/platform/geo"
 	"github.com/faazio/server/gateway/internal/platform/r2"
 	"github.com/faazio/server/gateway/internal/platform/testenv"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -373,5 +374,78 @@ func TestStoreProductsEndpoint(t *testing.T) {
 	rec = do(t, h, http.MethodGet, "/stores/does-not-exist/products", nil)
 	if rec.Code != http.StatusOK || rec.Body.String() != "[]\n" {
 		t.Fatalf("unknown store = %d %q, want 200 []", rec.Code, rec.Body.String())
+	}
+}
+
+// TestDistrictWriteAPI proves the SUPER_ADMIN write path end-to-end through the real router: create
+// → the geo mirror validates the new code → toggle → delete; a district admin is 403 on every write.
+func TestDistrictWriteAPI(t *testing.T) {
+	h, pool, _ := newTestServer(t)
+	ctx := context.Background()
+	code := "TZX"
+	_, _ = pool.Exec(ctx, `delete from admins.district_master where district_code = $1`, code)
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `delete from admins.district_master where district_code = $1`, code)
+	})
+
+	doAs := func(role, method, path string, body any) *httptest.ResponseRecorder {
+		var rdr *bytes.Reader
+		if body != nil {
+			b, err := json.Marshal(body)
+			if err != nil {
+				t.Fatal(err)
+			}
+			rdr = bytes.NewReader(b)
+		} else {
+			rdr = bytes.NewReader(nil)
+		}
+		req := httptest.NewRequest(method, path, rdr)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Dev-Role", role)
+		req.Header.Set("X-Dev-District", "TTC")
+		rec := httptest.NewRecorder()
+		h.ServeHTTP(rec, req)
+		return rec
+	}
+
+	// A district admin cannot write the platform master.
+	if rec := doAs("DISTRICT_ADMIN", http.MethodPost, "/admin/districts",
+		map[string]any{"districtCode": code, "name": "E2E District", "stateCode": "TN"}); rec.Code != http.StatusForbidden {
+		t.Fatalf("district admin create = %d, want 403", rec.Code)
+	}
+
+	rec := doAs("SUPER_ADMIN", http.MethodPost, "/admin/districts",
+		map[string]any{"districtCode": code, "name": "E2E District", "stateCode": "TN"})
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create = %d body=%s", rec.Code, rec.Body.String())
+	}
+	// The write reloads the in-process mirror, so the brand-new code is immediately valid.
+	if !geo.IsValid(code) {
+		t.Fatal("geo mirror was not reloaded after create")
+	}
+
+	if rec := doAs("SUPER_ADMIN", http.MethodPost, "/admin/districts",
+		map[string]any{"districtCode": code, "name": "Dup", "stateCode": "TN"}); rec.Code != http.StatusConflict {
+		t.Fatalf("duplicate create = %d, want 409", rec.Code)
+	}
+
+	if rec := doAs("SUPER_ADMIN", http.MethodPatch, "/admin/districts/"+code+"/toggle",
+		map[string]any{"isActive": false}); rec.Code != http.StatusOK {
+		t.Fatalf("toggle = %d body=%s", rec.Code, rec.Body.String())
+	}
+	// Deactivated: hidden from the picker read but still a valid code for existing references.
+	picker := doAs("SUPER_ADMIN", http.MethodGet, "/geo/districts?state=TN", nil)
+	if strings.Contains(picker.Body.String(), code) {
+		t.Fatal("a deactivated district must not appear in the picker read")
+	}
+	if !geo.IsValid(code) {
+		t.Fatal("a deactivated district must stay valid for references")
+	}
+
+	if rec := doAs("SUPER_ADMIN", http.MethodDelete, "/admin/districts/"+code, nil); rec.Code != http.StatusOK {
+		t.Fatalf("delete = %d body=%s", rec.Code, rec.Body.String())
+	}
+	if geo.IsValid(code) {
+		t.Fatal("geo mirror was not reloaded after delete")
 	}
 }

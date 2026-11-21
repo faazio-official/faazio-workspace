@@ -2402,7 +2402,7 @@ UPDATE directory.menus m SET seller_id = s.seller_id
 - Seller/app and admin RLS (`0050`) keeps its legacy state fallback; strict scoping is enforced in the
   gateway service layer. Media moderation and `admins` audit/customer reads are unchanged.
 
-### 12.30 Central category taxonomy — superadmin-owned tree (migrations `0067` + `0091` + `0096`)
+### 12.30 Central category taxonomy — superadmin-owned tree (migrations `0067` + `0091` + `0096` + `0115`)
 
 The single source of truth for every sub-app category (Mart, Food, Pharma): one parent/child tree
 owned by the superadmin (portal-only writes; the Go gateway, `service_role`, is the only writer).
@@ -2515,6 +2515,30 @@ CREATE TABLE taxonomy.categories (
   menus feed the Food menu and specials, add-ons feed the picker sheet).
 - **`DELETE /categories/{id}` is a soft delete** (`is_active = false`): hidden from the apps/rail,
   but existing sellers/products that reference it are never orphaned.
+- **Header labels (`0115`, additive):** `taxonomy.category_headers` is a many-to-many table so a
+  category keeps one primary classification (`taxonomy.categories.app`) but can be shared into more
+  than one curated header list:
+
+  ```sql
+  CREATE TABLE taxonomy.category_headers (
+    category_id TEXT NOT NULL REFERENCES taxonomy.categories(id) ON DELETE CASCADE,
+    header      TEXT NOT NULL,              -- MAIN_APP_HEADER | MART | FOOD | PHARMA
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (category_id, header)
+  );
+  CREATE INDEX category_headers_header_idx ON taxonomy.category_headers (header, category_id);
+  ```
+
+  `MAIN_APP_HEADER` is the shared main app header: Mart and Pharma categories can additionally be
+  listed there while keeping their own app label (a normalized join table instead of per-header
+  boolean columns, so a new header never needs a migration). The primary `app` label is always
+  present; the migration backfills it for every row plus `MAIN_APP_HEADER` for every existing
+  `show_on_home_rail` row, so the mobile rail is unchanged on deploy. A guard trigger
+  (`taxonomy.reject_food_main_header`) refuses `MAIN_APP_HEADER` on a FOOD row. The gateway keeps
+  `show_on_home_rail` equal to "has the MAIN_APP_HEADER label" on write, and
+  `GET /categories?header=` / the portal's Main App Header table read the join table. `GET
+  /categories/rail` serves the same shared list (with `show_on_home_rail` retained as a fallback for
+  any pre-backfill row).
 - **RLS (Supabase only):** `anon`/`authenticated` SELECT active rows; `service_role` writes.
 - **`sellers.sellers.seller_category_id`** (nullable FK) records the seller's chosen taxonomy
   category within its app brand (a Food restaurant's type). Onboarding / `edit` validate it against
@@ -2876,3 +2900,51 @@ create index seller_leads_district_idx on sellers.seller_leads (district_code);
   `seller_id` (FK → `sellers.sellers`, `on delete set null`) is back-filled by `POST /sellers` when a
   lead's contact phone or email matches the application, so an onboarded merchant leaves the queue.
   Additive, idempotent and re-runnable.
+
+### 12.42 District master is the single writable source of truth (migration `0114`)
+
+**Authority:** `monolith-breakdown.md` §1 (districts row), `user-interaction-workflow/seller/web-portal/super-admin-district-coverage.md`.
+
+`0046` seeded `admins.district_master` read-only, so adding a district needed a migration + a gateway
+deploy while `internal/platform/geo` carried a hardcoded copy. `0114` closes that loop: the table is
+now the one writable master, and the Go mirror is a read-through cache of it.
+
+```sql
+alter table admins.district_master
+  add column if not exists updated_at timestamptz;   -- backfilled to created_at, then not null
+create trigger touch_updated_at before update on admins.district_master
+  for each row execute function util.touch_updated_at();   -- the generic 0014 helper
+create index district_master_state_all_idx
+  on admins.district_master (state_code, district_name);   -- includes inactive rows
+
+-- RLS: SELECT stays open to authenticated (seller-onboarding picker reads it directly);
+-- INSERT/UPDATE/DELETE are SUPER_ADMIN only (district creation is platform governance,
+-- never district-scoped). The gateway service_role remains the production writer.
+create policy district_master_insert on admins.district_master for insert to authenticated
+  with check (coalesce(auth.jwt() ->> 'app_role', '') = 'SUPER_ADMIN');
+create policy district_master_update on admins.district_master for update to authenticated
+  using (coalesce(auth.jwt() ->> 'app_role', '') = 'SUPER_ADMIN')
+  with check (coalesce(auth.jwt() ->> 'app_role', '') = 'SUPER_ADMIN');
+create policy district_master_delete on admins.district_master for delete to authenticated
+  using (coalesce(auth.jwt() ->> 'app_role', '') = 'SUPER_ADMIN');
+```
+
+- **Write path (SUPER_ADMIN only):** `POST /admin/districts`, `PUT /admin/districts/{code}`,
+  `PATCH /admin/districts/{code}/toggle`, `DELETE /admin/districts/{code}` in `internal/districts`.
+  Shape checks mirror the table's `CHECK` constraints (`^[A-Z]{2}[A-Z0-9]$` code, name ≤80 chars,
+  `char(2)` state) and the state must exist in `admins.states` (or be a coverage state), so adding a
+  state stays data-only. A duplicate code is `409`; an invalid payload is `400`.
+- **Read path (unchanged):** `GET /geo/districts?state=` returns active rows for any signed-in
+  account (the seller picker). The new `GET /admin/districts` returns every row — including
+  deactivated — with `isActive`/`createdAt`/`updatedAt` for the SUPER_ADMIN coverage page.
+- **Delete is hard-blocked by reference:** `0047` (`sellers.sellers`), `0048`
+  (`admins.district_admins`, `admins.portal_users`) and `0055`
+  (`payments.delivery_manual_payouts`) FK the master `ON DELETE RESTRICT`, so a district with live
+  sellers/admins/payouts returns `409 district_in_use`. `0049`/`0111` use `ON DELETE SET NULL` and are
+  harmless. The correct retirement for a referenced district is `is_active = false`.
+- **In-process mirror:** `internal/platform/geo` boots from `Init(pool)` (the embedded seed is only the
+  no-database fallback) and every write calls `Reload`, so a new district validates for onboarding and
+  district scoping without a restart. A deactivated district stays a valid code (existing references
+  resolve) but is hidden from the picker read.
+- **Audit:** each write records `DISTRICT_CREATE|UPDATE|DELETE|TOGGLE` on `admins.district_master`
+  through `contracts.AuditWriter` (best-effort, same pattern as the category taxonomy).

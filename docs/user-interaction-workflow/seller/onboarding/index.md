@@ -86,7 +86,10 @@ web enquiry (/sell-with-us → POST /seller-leads → sellers.seller_leads, no a
   temporary password to the approving admin in the response (never logged). Provisioning is
   idempotent — an existing login is reused, and an email already owned by another account is
   reported as skipped, in which case a superadmin can still issue one at `/admin/super/credentials`
-  (HS256 JWT in HttpOnly cookies).
+  (HS256 JWT in HttpOnly cookies). Every approval surface **shows** that one-time credential with
+  copy + WhatsApp hand-over (super board sheet, district review card), and logins that were never
+  used appear under **Ready to share** on `/admin/super/credentials` where a fresh password can be
+  minted and shared — see [`web-portal/credential-handover.md`](../web-portal/credential-handover.md).
 - **Seller app is a WebView over the portal:** the seller partner app loads the portal, so there is
   no native seller auth or separate seller web app to build.
 

@@ -44,6 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { SellerCredentialCard } from "@/components/patterns/SellerCredentialCard";
 import { formatDateTime } from "@/lib/format";
 import { ApiError } from "@/lib/api/http";
 import { useSellers } from "@/lib/api/hooks";
@@ -57,7 +58,7 @@ import {
   type CreatePortalCredentialInput,
 } from "@/lib/api";
 import { useDistricts } from "@/lib/api/hooks";
-import type { PortalCredential, Role } from "@/data/types";
+import type { PortalCredential, Role, SellerLoginCredential } from "@/data/types";
 import { remoteConfigured } from "@/lib/config";
 import { usePortalStore } from "@/lib/api/store";
 
@@ -102,6 +103,17 @@ function CredentialsPage() {
   const [newPassword, setNewPassword] = useState("");
   const [resetForceChange, setResetForceChange] = useState(true);
   const [busy, setBusy] = useState(false);
+  // A password minted for a "ready to share" seller login: held in memory only, so the admin can
+  // copy / WhatsApp it once. Nothing here is read back from the server (only the Argon2id hash is
+  // stored), which is why an unshared login is re-passworded rather than revealed.
+  const [shared, setShared] = useState<{
+    id: string;
+    email: string;
+    businessName: string;
+    phone?: string | undefined;
+    credential: SellerLoginCredential;
+  } | null>(null);
+  const [minting, setMinting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -157,6 +169,13 @@ function CredentialsPage() {
     const clean = window.location.pathname;
     window.history.replaceState(null, "", clean);
   }, []);
+
+  // Seller owner logins that were minted on approval but never signed in: their one-time password
+  // was shown to whoever approved the application, so a super-admin may still need to hand it over.
+  // Sub-user rows (subRole) are excluded — those invitees set their own password.
+  const awaitingShare = creds.filter(
+    (c) => c.role === "SELLER" && c.active && !c.lastLoginAt && !c.subRole,
+  );
 
   const createValid =
     EMAIL_RE.test(form.email.trim()) &&
@@ -214,6 +233,35 @@ function CredentialsPage() {
     }
   }
 
+  /**
+   * Mint a fresh temporary password for an auto-provisioned seller login that has not been used yet,
+   * so the super-admin can hand it over (copy / WhatsApp) from the dashboard. This is a real password
+   * reset — the previous temporary password stops working immediately — because the stored value is
+   * only an Argon2id hash and can never be read back.
+   */
+  async function mintShareLogin(c: PortalCredential) {
+    const seller = sellers.find((s) => s.sellerId === c.sellerId);
+    setMinting(c.id);
+    try {
+      const password = generatePassword();
+      await resetPortalCredentialPassword(c.id, password, { forceChange: true });
+      setCreds((prev) => prev.map((x) => (x.id === c.id ? { ...x, mustChange: true } : x)));
+      setShared({
+        id: c.id,
+        email: c.email,
+        businessName: seller?.businessName ?? c.name,
+        phone: seller?.contactPhone,
+        credential: { email: c.email, temporaryPassword: password, created: true },
+      });
+    } catch (err) {
+      toast.error("Could not prepare a shareable password", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setMinting(null);
+    }
+  }
+
   async function submitReset() {
     if (!resetting) return;
     setBusy(true);
@@ -259,6 +307,80 @@ function CredentialsPage() {
           </div>
         }
       />
+
+      <SectionCard
+        title="Ready to share"
+        description="Seller logins auto-provisioned when an application was approved that nobody has signed in to yet. Prepare a password to copy or send over WhatsApp."
+        bodyClassName="p-0"
+      >
+        <DataShell
+          loading={loading}
+          error={error ?? undefined}
+          isEmpty={awaitingShare.length === 0}
+          empty={
+            <EmptyState
+              title="Nothing waiting"
+              description="Approving a seller mints their login automatically — it will appear here until their first sign-in."
+            />
+          }
+        >
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Seller</TableHead>
+                <TableHead>Email</TableHead>
+                <TableHead>Created</TableHead>
+                <TableHead className="text-right">Share</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {awaitingShare.map((c) => {
+                const seller = sellers.find((s) => s.sellerId === c.sellerId);
+                return (
+                  <TableRow key={c.id} className="h-12">
+                    <TableCell className="text-[13px] font-medium">
+                      {seller?.businessName ?? c.name ?? "—"}
+                    </TableCell>
+                    <TableCell className="num text-[12px]">{c.email}</TableCell>
+                    <TableCell className="num text-[12px] text-muted-foreground">
+                      {c.createdAt ? formatDateTime(c.createdAt) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="gap-1.5"
+                        disabled={minting === c.id || shared?.id === c.id}
+                        onClick={() => void mintShareLogin(c)}
+                      >
+                        <KeyRound className="size-3.5" />
+                        {shared?.id === c.id
+                          ? "Password ready"
+                          : minting === c.id
+                            ? "Preparing…"
+                            : "Prepare password"}
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+            </TableBody>
+          </Table>
+        </DataShell>
+      </SectionCard>
+
+      {shared ? (
+        <SectionCard
+          title={`Share login for ${shared.businessName}`}
+          description="This password is shown once and never stored in the clear."
+        >
+          <SellerCredentialCard
+            credential={shared.credential}
+            businessName={shared.businessName}
+            phone={shared.phone}
+          />
+        </SectionCard>
+      ) : null}
 
       <SectionCard title="Issued logins" bodyClassName="p-0">
         <DataShell

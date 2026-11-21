@@ -72,7 +72,11 @@ function normalise(pathname: string): string {
   const clean = pathname.replace(/\/+$/, "") || "/";
   return clean
     .split("/")
-    .map((part) => (/^[a-z]{2,3}-[a-z0-9-]+$/i.test(part) || /^\d+$/.test(part) ? ":id" : part))
+    .map((part) =>
+      /^[a-z]{2,3}-[a-z0-9-]+$/i.test(part) || /^\d+$/.test(part) || /^[A-Z]{3}$/.test(part)
+        ? ":id"
+        : part,
+    )
     .join("/");
 }
 
@@ -507,10 +511,20 @@ export const PAGE_HINTS: Record<string, PageHint> = {
     app: ["portal"],
   },
   "/admin/super/districts": {
-    what: "Each district's launch status, supply depth and performance side by side.",
-    how: "Use the matrix to decide where to open next and where to hold.",
-    whyCreated: "So a super admin can compare districts and prioritise expansion.",
-    boundedWorkflow: "Expansion planning: compare districts → decide open/hold.",
+    what: "The authoritative district master — every district the platform sells in, and whether it is available.",
+    how: "Create a district when you open a new one; deactivate it instead of deleting when sellers already operate there.",
+    whyCreated:
+      "So district coverage is managed in one place: the code here is the key sellers, district admins and payouts reference.",
+    boundedWorkflow: "Coverage governance: create district → assign a district admin → deactivate when winding down.",
+    changesMade:
+      "Saving changes the district master live — a new district is valid for seller onboarding immediately; deleting is refused while anything still references it.",
+    app: ["portal", "consumer"],
+  },
+  "/admin/super/districts/:id": {
+    what: "One district's supply, demand and governance side by side.",
+    how: "Read the GMV trend, then check the admin roster and seller base before deciding expansion.",
+    whyCreated: "So a super admin can inspect a single district without leaving the coverage page.",
+    boundedWorkflow: "Expansion planning: compare districts → inspect one → decide open/hold.",
     changesMade: "Read-only; decisions lead to issuing district-admin logins.",
     app: ["portal", "consumer"],
   },

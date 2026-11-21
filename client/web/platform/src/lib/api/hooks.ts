@@ -387,6 +387,40 @@ export function useDistricts(): api.DistrictInfo[] {
   return items;
 }
 
+/** Every district (including deactivated) for the SUPER_ADMIN coverage page. Unlike `useDistricts`
+ * this is a controllable fetch (reload after a write) and asks the admin API for all rows. */
+export function useAdminDistricts(stateCode?: string) {
+  const [items, setItems] = useState<api.AdminDistrictRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(() => {
+    if (!remoteConfigured()) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    api
+      .listAdminDistricts(stateCode)
+      .then((rows) => {
+        setItems(rows);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        setItems([]);
+        setError(err instanceof Error ? err.message : "Could not load the district master.");
+      })
+      .finally(() => setLoading(false));
+  }, [stateCode]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  return { items, loading, error, reload };
+}
+
 /** Ad placements from `ads.placements` via GET /ads/placements (the DB is the authority). */
 export function usePlacements(): api.PlacementSummary[] {
   const [items, setItems] = useState<api.PlacementSummary[]>([]);
@@ -502,6 +536,11 @@ export function useAnalyticsRanks(days = 30): api.AnalyticsRanks {
 /**
  * Resolves the active vendor for the console: the persisted `activeStoreId` when it still exists among
  * the caller's vendors, else the first vendor. Returns the vendor plus a setter.
+ *
+ * The persisted id can outlive its shop (a vendor was removed, or the seller signed in on another
+ * account in the same browser), and the native shell's injected `vendorId` can name a shop this
+ * seller does not own. Both cases are reconciled here — falling back to a real shop and persisting
+ * the choice — so no store-scoped page is ever left scoped to a vendor that is not in the list.
  */
 export function useActiveStore(): {
   stores: api.SellerStoreSummary[];
@@ -514,11 +553,14 @@ export function useActiveStore(): {
   const activeStoreId = usePortalStore((s) => s.activeStoreId);
   const storeScopeVersion = usePortalStore((s) => s.storeScopeVersion);
   const setActiveStoreId = usePortalStore((s) => s.setActiveStoreId);
-  // Restore the vendor the native seller shell had active (window.__faazio.vendorId) on first load.
   useEffect(() => {
-    if (activeStoreId || stores.length === 0) return;
+    if (stores.length === 0) return;
+    const owned = stores.some((s) => s.storeId === activeStoreId);
+    if (owned) return;
+    // Prefer the vendor the native seller shell had active, then the first shop the seller owns.
     const injected = typeof window !== "undefined" ? window.__faazio?.vendorId : undefined;
-    if (injected && stores.some((s) => s.storeId === injected)) setActiveStoreId(injected);
+    const next = injected && stores.some((s) => s.storeId === injected) ? injected : stores[0]!.storeId;
+    setActiveStoreId(next);
   }, [activeStoreId, stores, setActiveStoreId]);
   const activeStore =
     stores.find((s) => s.storeId === activeStoreId) ?? (stores.length > 0 ? stores[0]! : null);

@@ -363,8 +363,26 @@ export const SUPER_COMPONENT_HINTS: Record<string, ComponentHint> = {
     },
   }),
 
-  // ── Districts ──────────────────────────────────────────────────────────────
+  // ── District coverage (master CRUD) ────────────────────────────────────────
   ...pageHints("/admin/super/districts", {
+    "district-create": {
+      what: "Opens the form that adds a new district to the master.",
+      workflow: "Coverage governance — open a new district.",
+      changes: "Creates an admins.district_master row; it is valid for seller onboarding immediately.",
+      example: "Add a new district when operations expands outside the current 42.",
+      app: ["portal", "consumer"],
+    },
+    "district-toggle": {
+      what: "Switches a district between available and unavailable.",
+      workflow: "Coverage governance — pause or resume a district.",
+      changes: "Off hides it from the seller picker; existing sellers, admins and payouts keep working.",
+      example: "Turn a district off while a local issue is resolved.",
+      app: ["portal", "consumer"],
+    },
+  }),
+
+  // ── District drill-down ────────────────────────────────────────────────────
+  ...pageHints("/admin/super/districts/:id", {
     "district-search": {
       what: "Filters the district picker and lists by code or name.",
       workflow: "Expansion planning — find a district.",

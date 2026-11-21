@@ -42,8 +42,9 @@
   `directory.stores`.
 - Cache: `faazio:v1:gateway:sdui:{locale}:/home` (300 s), purged on SDUI publish.
 - Supporting: `getProductsByIds` (`POST /products/batch`), `getActiveDiscounts`
-  (`GET /promo/active-discounts`), `fetchCategoryRail` (`GET /categories/rail` — only active
-  rows curated with `show_on_home_rail`, unbounded Mart + Pharma combined, any tree level; FOOD is
+  (`GET /promo/active-discounts`), `fetchCategoryRail` (`GET /categories/rail` — active rows tagged
+  `MAIN_APP_HEADER` in `taxonomy.category_headers` (`0115`), with the legacy `show_on_home_rail`
+  column still honoured as a fallback; unbounded Mart + Pharma combined, any tree level; FOOD is
   not eligible). The rail endpoint sits behind the same `auth.Require` middleware as the rest of the
   app, so an unauthenticated/expired session gets a `401 authentication required` (surfaced by the
   Retry chip), not an empty server list.

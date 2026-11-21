@@ -425,8 +425,16 @@ export interface Category {
   /** Free-text vendor query for a leaf category (drill-in). Null on parent rows. */
   searchQuery?: string;
   isActive: boolean;
-  /** True when the superadmin curated this category onto the Home header rail. */
+  /**
+   * True when the superadmin shared this category into the main app header. Mirrors the
+   * MAIN_APP_HEADER header label (`0115`).
+   */
   showOnHomeRail: boolean;
+  /**
+   * Curated header lists this row belongs to (`taxonomy.category_headers`, `0115`):
+   * MAIN_APP_HEADER | MART | FOOD | PHARMA. Always includes the primary `app`.
+   */
+  headerLabels?: string[];
   sortOrder: number;
 }
 

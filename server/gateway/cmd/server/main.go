@@ -20,6 +20,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/cloudflare"
 	"github.com/faazio/server/gateway/internal/platform/config"
 	"github.com/faazio/server/gateway/internal/platform/db"
+	"github.com/faazio/server/gateway/internal/platform/geo"
 	"github.com/faazio/server/gateway/internal/platform/mongo"
 	"github.com/faazio/server/gateway/internal/platform/r2"
 	"github.com/faazio/server/gateway/internal/portal"
@@ -39,6 +40,15 @@ func main() {
 		defer pool.Close()
 	} else {
 		log.Print("DATABASE_URL unset — starting without Postgres (health-only)")
+	}
+
+	// Seed the in-process district mirror from admins.district_master (the DB is the authority; the
+	// embedded seed is only the no-database fallback). Later writes reload it through the districts
+	// handler, so a newly created district validates for onboarding without a restart.
+	if pool != nil {
+		if err := geo.Init(ctx, pool); err != nil {
+			log.Printf("geo: district mirror NOT loaded from DB (%v) — serving the embedded seed", err)
+		}
 	}
 
 	valkey, err := cache.Connect(ctx, cfg.ValkeyURL)

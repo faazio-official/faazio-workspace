@@ -616,6 +616,19 @@ ${TAXONOMY_CATEGORIES.map((r) => `  (${q(r.id)}, ${APP(r.app)}, ${q(r.name)}, ${
 on conflict (id) do nothing;`);
 sql.push('');
 
+// taxonomy.category_headers (0115) — the primary app label for every seeded row, plus the shared
+// MAIN_APP_HEADER label for the rows the rail curation flags. Mirrors the migration backfill so a
+// fresh deploy reads the same header lists as an upgraded one; idempotent.
+sql.push(`-- taxonomy.category_headers (header labels, 0115)
+insert into taxonomy.category_headers (category_id, header)
+select id, app::text from taxonomy.categories
+on conflict (category_id, header) do nothing;
+insert into taxonomy.category_headers (category_id, header)
+select id, 'MAIN_APP_HEADER' from taxonomy.categories
+ where show_on_home_rail and app <> 'FOOD'::app_brand
+on conflict (category_id, header) do nothing;`);
+sql.push('');
+
 sql.push('commit;');
 sql.push('');
 

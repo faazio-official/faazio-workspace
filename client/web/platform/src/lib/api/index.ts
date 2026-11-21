@@ -44,6 +44,7 @@ import type {
   Sector,
   SellerDetail,
   SellerLead,
+  SellerLoginCredential,
   SellerProfilePatch,
   SellerRecord,
   SellerStatus,
@@ -357,6 +358,15 @@ export async function getSellerPayoutInvoice(payoutId: string): Promise<PayoutIn
 
 /* ---------------------------- category taxonomy --------------------------- */
 
+/**
+ * Curated header lists a category can belong to (`taxonomy.category_headers`, `0115`). A category's
+ * primary `app` is always one of MART/FOOD/PHARMA; MAIN_APP_HEADER is the shared main app header that
+ * Mart and Pharma categories can additionally be listed under.
+ */
+export type CategoryHeader = "MAIN_APP_HEADER" | "MART" | "FOOD" | "PHARMA";
+
+export const CATEGORY_HEADERS: CategoryHeader[] = ["MAIN_APP_HEADER", "MART", "FOOD", "PHARMA"];
+
 /** One `taxonomy.categories` row (superadmin-owned parent/child tree shared by every sub-app). */
 export interface CategoryRow {
   id: string;
@@ -373,10 +383,12 @@ export interface CategoryRow {
   searchQuery?: string;
   isActive: boolean;
   /**
-   * Curated onto the mobile Home header rail. MART/PHARMA only, any tree level, unbounded count — the
-   * app scrolls the rail horizontally. FOOD is not eligible.
+   * Curated onto the shared main app header. MART/PHARMA only, any tree level, unbounded count — the
+   * app scrolls the rail horizontally. FOOD is not eligible. Mirrors the MAIN_APP_HEADER label.
    */
   showOnHomeRail: boolean;
+  /** Curated header lists this row belongs to (`0115`); always includes the primary `app`. */
+  headerLabels: CategoryHeader[];
   sortOrder: number;
   createdAt?: string;
   updatedAt?: string;
@@ -395,13 +407,21 @@ export interface CategoryInput {
   searchQuery?: string;
   sortOrder?: number;
   isActive?: boolean;
+  /** Legacy alias for the MAIN_APP_HEADER label (kept in sync by the gateway). */
   showOnHomeRail?: boolean;
+  /** Replaces the curated header lists; the primary `app` label is always added server-side. */
+  headerLabels?: CategoryHeader[];
 }
 
 /** Superadmin-only: every category (including deactivated) for the portal, optionally app-scoped. */
 export async function listCategories(app?: Sector | "ALL"): Promise<CategoryRow[]> {
   const q = app && app !== "ALL" ? `?app=${app}` : "";
   return remote.get<CategoryRow[]>(`/admin/categories${q}`);
+}
+
+/** Superadmin-only: one curated header list (`?header=`), e.g. the shared Main App Header table. */
+export async function listCategoriesByHeader(header: CategoryHeader): Promise<CategoryRow[]> {
+  return remote.get<CategoryRow[]>(`/admin/categories?header=${header}`);
 }
 
 /** Superadmin-only: create a category (audit-logged). */
@@ -1154,26 +1174,48 @@ export async function upsertBankAccount(sellerId: string, input: BankAccountInpu
   });
 }
 
-export function setSellerStatus(sellerId: string, status: SellerStatus, reason?: string): void {
+/**
+ * Change a seller's moderation status (`PATCH /sellers/{id}/status`). Optimistic with rollback.
+ *
+ * Activating a seller has a server side effect: the gateway auto-provisions the seller's portal
+ * login from the application's `contact_email` and returns it once as
+ * `credential.temporaryPassword` (never stored, never logged). The result is returned to the caller
+ * so the approving admin can actually share it — dropping it would leave the seller activated with
+ * a login nobody knows the password to. An existing login is reused (`created: false`), and a
+ * seller with no usable email is reported as `skipped` with a reason.
+ */
+export async function setSellerStatus(
+  sellerId: string,
+  status: SellerStatus,
+  reason?: string,
+): Promise<SellerLoginCredential | null> {
   const before = getSeller(sellerId);
   state().set((s) => ({
     sellers: s.sellers.map((seller) =>
       seller.sellerId === sellerId ? { ...seller, status } : seller,
     ),
   }));
-  pushWrite("Seller status", "patch", `/sellers/${encodeURIComponent(sellerId)}/status`, { status, reason }, () => {
-    if (!before) return;
-    state().set((s) => ({
-      sellers: s.sellers.map((seller) => (seller.sellerId === sellerId ? before : seller)),
-    }));
-  });
-  audit({
-    action: `SELLER_${status}`,
-    entity: "sellers.sellers",
-    entityId: sellerId,
-    before: before && { status: before.status },
-    after: { status, reason },
-  });
+  try {
+    if (!remoteConfigured()) return null;
+    const res = await remote.patch<SellerRecord & { credential?: SellerLoginCredential }>(
+      `/sellers/${encodeURIComponent(sellerId)}/status`,
+      { status, ...(reason ? { reason } : {}) },
+    );
+    // The gateway is the authority on the resulting status (it can refuse an activation).
+    patchSellerLocal(sellerId, { status: (res.status as SellerStatus | undefined) ?? status });
+    const credential = res.credential ? toCamel(res.credential) : null;
+    audit({
+      action: `SELLER_${status}`,
+      entity: "sellers.sellers",
+      entityId: sellerId,
+      before: before && { status: before.status },
+      after: { status, reason },
+    });
+    return credential;
+  } catch (err) {
+    if (before) patchSellerLocal(sellerId, { status: before.status });
+    throw err;
+  }
 }
 
 /** Live review projection. Returns null in seed mode (the page falls back to local fixtures). */
@@ -1717,6 +1759,55 @@ export interface DistrictInfo {
 export async function fetchDistricts(): Promise<DistrictInfo[]> {
   if (!remoteConfigured()) return [];
   return remote.get<DistrictInfo[]>("/geo/districts");
+}
+
+/** One district row from the SUPER_ADMIN coverage API (`GET /admin/districts`) — every row,
+ * including deactivated ones, with its lifecycle timestamps. */
+export interface AdminDistrictRow extends DistrictInfo {
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Create/update payload for the district coverage API. `districtCode` is read only on create —
+ * it is the primary key, so an edit addresses the row by code and never rewrites it. */
+export interface DistrictInput {
+  districtCode?: string;
+  name: string;
+  stateCode: string;
+  isActive?: boolean;
+}
+
+/** Superadmin-only: every district (including deactivated), optionally state-filtered. */
+export async function listAdminDistricts(stateCode?: string): Promise<AdminDistrictRow[]> {
+  const q = stateCode ? `?state=${encodeURIComponent(stateCode)}` : "";
+  return remote.get<AdminDistrictRow[]>(`/admin/districts${q}`);
+}
+
+/** Superadmin-only: create a district (audit-logged; the geo mirror reloads immediately). */
+export async function createDistrict(input: DistrictInput): Promise<AdminDistrictRow> {
+  return remote.post<AdminDistrictRow>("/admin/districts", input);
+}
+
+/** Superadmin-only: rename a district and/or move it to another state (code is immutable). */
+export async function updateDistrict(
+  code: string,
+  input: DistrictInput,
+): Promise<AdminDistrictRow> {
+  return remote.put<AdminDistrictRow>(`/admin/districts/${encodeURIComponent(code)}`, input);
+}
+
+/** Superadmin-only: flip is_active — hides the district from the seller picker without deleting it. */
+export async function toggleDistrict(code: string, isActive: boolean): Promise<AdminDistrictRow> {
+  return remote.patch<AdminDistrictRow>(`/admin/districts/${encodeURIComponent(code)}/toggle`, {
+    isActive,
+  });
+}
+
+/** Superadmin-only: delete a district. Blocked with `district_in_use` when sellers, admins or
+ * payouts still reference it — deactivate instead. */
+export async function deleteDistrict(code: string): Promise<void> {
+  await remote.delete(`/admin/districts/${encodeURIComponent(code)}`);
 }
 
 export async function fetchApps(): Promise<AppBrandSummary[]> {

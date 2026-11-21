@@ -140,7 +140,9 @@ export function PageHeader({
         )}
         <h1 className="truncate text-base font-bold">{title}</h1>
       </div>
-      {right}
+      {/* The actions sit on one line: they keep their natural width and the title truncates first,
+          so a long shop/page name never pushes a button onto a second row. */}
+      {right ? <div className="flex shrink-0 items-center gap-2 whitespace-nowrap">{right}</div> : null}
       {pathname === "/seller/explore" ? null : (
         <Link
           href="/seller/explore"

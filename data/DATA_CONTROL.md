@@ -381,9 +381,14 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `districtsForState` / `stateForDistrict` / `districtName` | helpers | seller onboarding, future district-scoped lists | `@mock` (not on the wire) |
 | `DistrictInfo` | type | mobile + web mirrors | `@server` (wire shape) |
 
-> **Contract:** Mirrors `admins.district_master` (migration `0046`); the gateway
-> (`internal/platform/geo`) is authoritative. `DISTRICTS` must stay in sync with `geo.go`; the web
-> portal reads the same rows live from `GET /geo/districts`.
+> **Contract:** `admins.district_master` is the single source of truth (migrations `0046` + `0114`).
+> `internal/platform/geo` is a **read-through cache** of that table (`Init` at boot, `Reload` after
+> every SUPER_ADMIN write through `/admin/districts*`); the embedded Go seed is only the no-database
+> fallback. `DISTRICTS` here is an **offline shell** only — the DB row set wins, and a district added
+> through the portal is valid for onboarding immediately without editing this file. Keep the fixture
+> in step for offline parity (tracked in `docs/user-interaction-workflow/KNOWN_GAPS.md`); the web
+> portal reads the live rows from `GET /geo/districts` (picker) and `GET /admin/districts` (coverage
+> CRUD).
 
 > **Contract:** Live source is `GET /geo/districts` via `GatewayClient.getDistricts` (any signed-in
 > account; `?state=` optional 2-letter filter); the wire row is camelCase

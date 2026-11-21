@@ -1657,4 +1657,13 @@ values
   ('sub_support_braces', 'PHARMA'::app_brand, 'Support & Braces', 'seed-support-and-braces', 'sg_elderly_essentials', null, 'Support Brace', 364)
 on conflict (id) do nothing;
 
+-- taxonomy.category_headers (header labels, 0115)
+insert into taxonomy.category_headers (category_id, header)
+select id, app::text from taxonomy.categories
+on conflict (category_id, header) do nothing;
+insert into taxonomy.category_headers (category_id, header)
+select id, 'MAIN_APP_HEADER' from taxonomy.categories
+ where show_on_home_rail and app <> 'FOOD'::app_brand
+on conflict (category_id, header) do nothing;
+
 commit;

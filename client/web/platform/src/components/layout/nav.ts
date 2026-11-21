@@ -128,7 +128,7 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "Credentials", to: "/admin/super/credentials", icon: KeyRound, group: "Governance" },
   { label: "App config", to: "/admin/super/app-config", icon: SlidersHorizontal, group: "Governance" },
   { label: "Users", to: "/admin/super/users", icon: Users, group: "Governance" },
-  { label: "Districts", to: "/admin/super/districts", icon: Grid2x2, group: "Governance" },
+  { label: "District coverage", to: "/admin/super/districts", icon: Grid2x2, group: "Governance" },
   { label: "Security", to: "/admin/super/security", icon: ShieldCheck, group: "Governance" },
   { label: "Sellers", to: "/admin/super/sellers", icon: Users, group: "Supply" },
   { label: "Seller leads", to: "/admin/super/seller-leads", icon: Inbox, group: "Supply" },

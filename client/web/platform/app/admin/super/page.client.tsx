@@ -116,7 +116,7 @@ function SuperDashboard() {
             return (
               <Link
                 key={info.districtCode}
-                href="/admin/super/districts"
+                href={`/admin/super/districts/${info.districtCode}`}
                 className="rounded-md border border-border p-3 transition-colors hover:border-primary/40"
               >
                 <div className="flex items-center justify-between">

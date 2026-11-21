@@ -447,8 +447,9 @@ The Home hub header (`features/home/HomeTabScreen.tsx` + `hubHeader.ts`) is a **
   freed area simply reveals already-laid-out content. It pins a compact **category rail**
   (`components/shared/HeaderCategoryRail.tsx`) below the search bar, fed by `usePagedRail` from the
    **server-backed** taxonomy (`GET /categories/rail`, superadmin-owned `taxonomy.categories` filtered
-   to active rows with `show_on_home_rail` — unbounded, Mart + Pharma combined, any tree level,
-   curated in the portal; `GatewayClient.fetchCategoryRail`, projected to chips by
+   to active rows tagged `MAIN_APP_HEADER` in `taxonomy.category_headers` (`0115`; the legacy
+   `show_on_home_rail` column is still honoured as a fallback) — unbounded, Mart + Pharma combined,
+   any tree level, curated in the portal; `GatewayClient.fetchCategoryRail`, projected to chips by
    `services/categoryRail.ts`; FOOD is not eligible and there is no fixture). Paging advances on scroll
    **and** whenever a page does not overflow the viewport, so every curated chip is reachable.
    The same rail is reused by the Mart sub-app header (pinned below its searchbar). Tapping a chip
