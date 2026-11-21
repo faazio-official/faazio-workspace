@@ -24,17 +24,30 @@ const STATUS_PILL: Record<ProductStatus, string> = {
 };
 
 function SellerProducts() {
-  const { sellerId, storeId } = useSellerScope();
+  const { sellerId, storeId, activeStore } = useSellerScope();
   const loading = usePortalLoading();
   const [query, setQuery] = useState("");
-  const [sector, setSector] = useState<Sector | "ALL">("ALL");
+  const [sector, setSector] = useState<Sector | "ALL">(activeStore?.sector ?? "ALL");
   const [status, setStatus] = useState<ProductStatus | "ALL">("ALL");
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [limit, setLimit] = useState(10);
 
+  // The page stays mounted across a StoreSwitcher change, so a Mart → Food switch would otherwise
+  // leave the dropdown stuck on the previous sector. Re-derive it from the newly active shop.
+  useEffect(() => {
+    setSector(activeStore?.sector ?? "ALL");
+  }, [activeStore?.storeId, activeStore?.sector]);
+
   const products = useProducts({ sellerId, storeId, query, sector, status });
   const rows = products.slice(0, limit);
-  const filtersActive = sector !== "ALL" || status !== "ALL";
+  // The active store's own sector is the default, not a user-applied filter.
+  const filtersActive =
+    (sector !== "ALL" && sector !== activeStore?.sector) || status !== "ALL";
+  // A single shop has exactly one sector, so the pills only offer that sector (plus "All" for the
+  // org-level view) instead of tempting a Mart owner to filter for Food rows that can never exist.
+  const sectorOptions: (Sector | "ALL")[] = activeStore
+    ? ["ALL", activeStore.sector]
+    : SECTORS;
 
   const [refreshing, setRefreshing] = useState(false);
   const refreshingRef = useRef(false);
@@ -124,7 +137,7 @@ function SellerProducts() {
         </div>
 
         <div className="no-scrollbar flex items-center gap-2 overflow-x-auto">
-          {SECTORS.map((option) => (
+          {sectorOptions.map((option) => (
             <button
               key={option}
               onClick={() => setSector(sector === option ? "ALL" : option)}
@@ -133,7 +146,7 @@ function SellerProducts() {
                 sector === option ? "border-foreground bg-foreground text-background" : "border-border bg-card",
               )}
             >
-{option === "ALL" ? "All" : sectorLabel(option)}
+              {option === "ALL" ? "All" : sectorLabel(option)}
               {sector === option && option !== "ALL" && <X className="h-3 w-3" />}
             </button>
           ))}

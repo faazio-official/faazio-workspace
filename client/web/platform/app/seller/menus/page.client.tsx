@@ -1,9 +1,10 @@
 "use client";
+import Link from "next/link";
 import { useState } from "react";
-import { Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
+import { BookOpen, Plus, Search, SlidersHorizontal, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { HubHeader } from "@/components/sellers/shells";
-import { Sheet, TextField, Toggle, VegMark, EmptyState } from "@/components/sellers/kit";
+import { Sheet, TextField, Toggle, VegMark, EmptyState, PageHeader } from "@/components/sellers/kit";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { tamilFieldError } from "@/lib/tamil";
 import { deleteMenu, setMenuStatus, upsertMenu, type MenuDto } from "@/lib/api";
@@ -138,6 +139,37 @@ function SellerMenus() {
     setMenuStatus(m.venueId, m.dishId, to);
     toast.success(message);
   };
+
+  // A menu is a FOOD-owned surface (the gateway enforces directory.stores.app = 'FOOD' on every menu
+  // and add-on write). A Mart/Pharmacy shop that reaches this URL directly — or switches away from a
+  // Food shop while standing here — gets a guard instead of a form whose writes the server rejects.
+  if (activeStore && !isFood) {
+    return (
+      <>
+        <PageHeader title="Menu" sub="Catalog" />
+        <div className="space-y-3 px-4 pt-3 pb-8">
+          <EmptyState
+            icon={<BookOpen className="h-12 w-12" strokeWidth={1.2} />}
+            text="Menus are only available for Food shops. Mart and Pharmacy shops manage listings from Products and Inventory."
+          />
+          <div className="flex gap-2">
+            <Link
+              href="/seller/products"
+              className="flex-1 rounded-xl bg-foreground px-4 py-2.5 text-center text-xs font-semibold text-background"
+            >
+              Products
+            </Link>
+            <Link
+              href="/seller/stores"
+              className="flex-1 rounded-xl bg-info-soft px-4 py-2.5 text-center text-xs font-semibold text-info"
+            >
+              Your stores
+            </Link>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>

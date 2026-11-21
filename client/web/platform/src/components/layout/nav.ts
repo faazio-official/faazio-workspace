@@ -77,7 +77,7 @@ export function sellerNavItems(sector?: Sector | null): NavItem[] {
     sector === "FOOD"
       ? { label: "Menu", to: "/seller/menus", icon: BookOpen, group: "Catalog" }
       : { label: "Offers", to: "/seller/offers", icon: BadgePercent, group: "Catalog" };
-  return [
+  const items: NavItem[] = [
     { label: "Business Hub", to: "/seller/hub", icon: LayoutGrid, group: "Overview", exact: true },
     { label: "Products", to: "/seller/products", icon: Package, group: "Catalog" },
     { label: "Pricing", to: "/seller/pricing", icon: Tags, group: "Catalog" },
@@ -85,7 +85,16 @@ export function sellerNavItems(sector?: Sector | null): NavItem[] {
     catalogMenu,
     { label: "Orders", to: "/seller/orders", icon: ShoppingCart, group: "Operations" },
     { label: "Returns", to: "/seller/returns", icon: RotateCcw, group: "Operations" },
-    { label: "Prescriptions", to: "/seller/prescriptions", icon: FileText, group: "Operations" },
+    ...(sector === "PHARMA"
+      ? [
+          {
+            label: "Prescriptions",
+            to: "/seller/prescriptions",
+            icon: FileText,
+            group: "Operations",
+          } satisfies NavItem,
+        ]
+      : []),
     { label: "Payments", to: "/seller/payments", icon: Receipt, group: "Operations" },
     { label: "Promotions", to: "/seller/promotions", icon: BadgePercent, group: "Growth" },
     { label: "Ads", to: "/seller/ads", icon: Megaphone, group: "Growth" },
@@ -96,6 +105,7 @@ export function sellerNavItems(sector?: Sector | null): NavItem[] {
     { label: "Settings", to: "/seller/settings", icon: Settings, group: "Account" },
     { label: "Support", to: "/seller/support", icon: LifeBuoy, group: "Account" },
   ];
+  return items;
 }
 
 export const DISTRICT_ADMIN_NAV: NavItem[] = [

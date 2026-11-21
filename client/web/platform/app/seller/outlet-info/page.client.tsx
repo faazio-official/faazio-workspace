@@ -66,20 +66,31 @@ function OutletInfo() {
           </div>
           <div className="mt-4 space-y-3 border-t border-border pt-3">
             {activeStore.address && (
-              <>
-                <p className="flex items-start gap-1.5 text-sm">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
-                  {activeStore.address}
-                </p>
-                <a
-                  href={`https://maps.google.com/?q=${encodeURIComponent(activeStore.address)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block text-xs font-semibold text-info"
-                >
-                  View on map
-                </a>
-              </>
+              <p className="flex items-start gap-1.5 text-sm">
+                <MapPin className="mt-0.5 h-4 w-4 shrink-0" />
+                {activeStore.address}
+              </p>
+            )}
+            <a
+              href={
+                activeStore.latitude !== undefined && activeStore.longitude !== undefined
+                  ? `https://www.openstreetmap.org/?mlat=${activeStore.latitude}&mlon=${activeStore.longitude}#map=17/${activeStore.latitude}/${activeStore.longitude}`
+                  : `https://maps.google.com/?q=${encodeURIComponent(activeStore.address ?? "")}`
+              }
+              target="_blank"
+              rel="noreferrer"
+              className="block text-xs font-semibold text-info"
+            >
+              View on map
+            </a>
+            {activeStore.latitude !== undefined && activeStore.longitude !== undefined ? (
+              <p className="num text-[11px] text-muted-foreground">
+                {activeStore.latitude.toFixed(6)}, {activeStore.longitude.toFixed(6)}
+              </p>
+            ) : (
+              <p className="text-[11px] font-semibold text-destructive">
+                No location pin — set it from Stores so riders can be dispatched.
+              </p>
             )}
             {rows.map((r) => (
               <p key={r.label} className="flex items-center gap-1.5 text-sm">

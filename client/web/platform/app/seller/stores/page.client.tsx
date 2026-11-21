@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Plus, Store, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { PageHeader, Card, TextField, Toggle, EmptyState, SectorBadge } from "@/components/sellers/kit";
+import { StorePinPicker, type PinValue } from "@/components/sellers/StorePinPicker";
 import { updateSellerStore } from "@/lib/api";
 import { useSellerStores } from "@/lib/api/hooks";
 import { uploadPrivateDocument } from "@/lib/media/kyc";
@@ -55,6 +56,8 @@ function SellerStores() {
       drugLicenseNumber?: string;
       drugLicenseFileKey?: string;
       drugLicenseAssetId?: string;
+      latitude?: number;
+      longitude?: number;
     },
   ) => {
     try {
@@ -152,6 +155,12 @@ function SellerStores() {
                     <p className="truncate text-[11px] text-muted-foreground">
                       {store.address || "Address not set"} · {store.platformFeePct}% platform fee
                     </p>
+                    {store.latitude === undefined || store.longitude === undefined ? (
+                      <p className="mt-1 text-[11px] font-semibold text-destructive">
+                        No location pin — this shop cannot be auto-assigned a rider and quotes the
+                        base delivery fee. Set it below.
+                      </p>
+                    ) : null}
                     <Link
                       href="/seller/fee-change-request"
                       className="mt-1 inline-block text-[11px] font-semibold text-info"
@@ -223,6 +232,24 @@ function SellerStores() {
                   >
                     Save profile
                   </button>
+                </div>
+                <div className="mt-3 border-t border-border pt-3">
+                  <StorePinPicker
+                    value={
+                      store.latitude !== undefined && store.longitude !== undefined
+                        ? { latitude: store.latitude, longitude: store.longitude }
+                        : {}
+                    }
+                    onChange={(next: PinValue) => {
+                      if (next.latitude === undefined || next.longitude === undefined) return;
+                      void save(store.storeId, {
+                        latitude: next.latitude,
+                        longitude: next.longitude,
+                      });
+                    }}
+                    hint="Riders navigate to this point. Update it if the shop moves."
+                    allowClear={false}
+                  />
                 </div>
                 {store.sector === "PHARMA" && (
                   <div className="mt-3 border-t border-border pt-3">

@@ -232,6 +232,7 @@ export function FestivalOptins({
                           upsertOptin({
                             campaignId: campaign.campaignId,
                             sellerId,
+                            storeId,
                             productId: product.productId,
                             discountPercent: requested,
                           });

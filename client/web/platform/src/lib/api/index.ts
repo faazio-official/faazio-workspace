@@ -1617,6 +1617,13 @@ export interface SellerStoreSummary {
   drugLicenseNumber?: string;
   drugLicenseCertKey?: string;
   drugLicenseCertAssetId?: string;
+  /**
+   * The shop's public geo pin (0041). Null when it was never pinned — delivery-fee quoting and
+   * auto-dispatch both require it, so the console surfaces a missing pin as an actionable warning
+   * rather than silently quoting the base fee.
+   */
+  latitude?: number;
+  longitude?: number;
 }
 
 /**
@@ -1647,6 +1654,8 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
       drugLicenseNumber?: string;
       drugLicenseCertKey?: string;
       drugLicenseCertAssetId?: string;
+      latitude?: number | null;
+      longitude?: number | null;
     }[]
   >("/seller/stores");
   return rows.map((row) => ({
@@ -1669,6 +1678,8 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
     ...(row.drugLicenseNumber ? { drugLicenseNumber: row.drugLicenseNumber } : {}),
     ...(row.drugLicenseCertKey ? { drugLicenseCertKey: row.drugLicenseCertKey } : {}),
     ...(row.drugLicenseCertAssetId ? { drugLicenseCertAssetId: row.drugLicenseCertAssetId } : {}),
+    ...(typeof row.latitude === "number" ? { latitude: row.latitude } : {}),
+    ...(typeof row.longitude === "number" ? { longitude: row.longitude } : {}),
   }));
 }
 
@@ -1742,6 +1753,9 @@ export interface CreateVendorInput {
   drugLicenseNumber?: string;
   drugLicenseFileKey?: string;
   drugLicenseAssetId?: string;
+  /** The shop's pin. Both or neither; absent leaves the vendor unpinned (base delivery fee). */
+  latitude?: number;
+  longitude?: number;
 }
 
 /** Create a vendor for the signed-in seller account. Commercial fields stay server-validated. */
@@ -1764,6 +1778,8 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     drugLicenseNumber?: string;
     drugLicenseCertKey?: string;
     drugLicenseCertAssetId?: string;
+    latitude?: number | null;
+    longitude?: number | null;
   }>("/seller/stores", {
     name: input.name,
     ...(input.nameTa ? { nameTa: input.nameTa } : {}),
@@ -1779,6 +1795,9 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     ...(input.drugLicenseNumber ? { drugLicenseNumber: input.drugLicenseNumber } : {}),
     ...(input.drugLicenseFileKey ? { drugLicenseFileKey: input.drugLicenseFileKey } : {}),
     ...(input.drugLicenseAssetId ? { drugLicenseAssetId: input.drugLicenseAssetId } : {}),
+    ...(typeof input.latitude === "number" && typeof input.longitude === "number"
+      ? { latitude: input.latitude, longitude: input.longitude }
+      : {}),
   });
   return {
     storeId: row.id,
@@ -1797,6 +1816,8 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     ...(row.drugLicenseNumber ? { drugLicenseNumber: row.drugLicenseNumber } : {}),
     ...(row.drugLicenseCertKey ? { drugLicenseCertKey: row.drugLicenseCertKey } : {}),
     ...(row.drugLicenseCertAssetId ? { drugLicenseCertAssetId: row.drugLicenseCertAssetId } : {}),
+    ...(typeof row.latitude === "number" ? { latitude: row.latitude } : {}),
+    ...(typeof row.longitude === "number" ? { longitude: row.longitude } : {}),
   };
 }
 
@@ -1819,10 +1840,20 @@ export async function updateSellerStore(
     drugLicenseNumber?: string;
     drugLicenseFileKey?: string;
     drugLicenseAssetId?: string;
+    /** The shop's pin. Both or neither; omitted keeps the current pin. */
+    latitude?: number;
+    longitude?: number;
   },
 ): Promise<void> {
   if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
-  await remote.put(`/seller/stores/${encodeURIComponent(storeId)}`, patch);
+  // Only a complete pin is sent: the gateway rejects a half pin, and a caller that never touched the
+  // map must not clear an existing one.
+  const { latitude, longitude, ...rest } = patch;
+  const body =
+    typeof latitude === "number" && typeof longitude === "number"
+      ? { ...rest, latitude, longitude }
+      : rest;
+  await remote.put(`/seller/stores/${encodeURIComponent(storeId)}`, body);
 }
 
 /* --------------------------- reference data ------------------------------ */
@@ -2090,12 +2121,15 @@ export function listOptins(filter: { sellerId?: string | undefined; campaignId?:
 export function upsertOptin(input: {
   campaignId: string;
   sellerId: string;
+  /** Active store the opt-in is made from; the gateway rejects products outside this store's sector. */
+  storeId?: string;
   productId: string;
   discountPercent: number;
 }): void {
   const existing = state().optins.find(
     (o) => o.campaignId === input.campaignId && o.productId === input.productId,
   );
+  const { storeId: _storeId, ...optinInput } = input;
   const before = state().optins;
   state().set((s) => ({
     optins: existing
@@ -2108,7 +2142,7 @@ export function upsertOptin(input: {
           {
             optinId: `opt-${Date.now()}`,
             status: "PENDING" as const,
-            ...input,
+            ...optinInput,
           },
           ...s.optins,
         ],

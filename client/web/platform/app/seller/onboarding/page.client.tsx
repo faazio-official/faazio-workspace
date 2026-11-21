@@ -4,6 +4,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { Upload } from "lucide-react";
 import { PageHeader, Card, TextField, Toggle, Sheet, RadioRow, EmptyState, FixedActionBar } from "@/components/sellers/kit";
+import { StorePinPicker, type PinValue } from "@/components/sellers/StorePinPicker";
 import { createSellerVendor } from "@/lib/api";
 import { useSellerScope, useStates } from "@/lib/api/hooks";
 import { tamilFieldError } from "@/lib/tamil";
@@ -34,6 +35,7 @@ function AddVendor() {
     drugLicenseAssetId: "",
     isLive: false,
   });
+  const [pin, setPin] = useState<PinValue>({});
   const [busy, setBusy] = useState(false);
   const [statePicker, setStatePicker] = useState(false);
 
@@ -66,10 +68,15 @@ function AddVendor() {
   }
 
   const hasFssai = form.fssaiNumber.trim() !== "" && form.fssaiFileKey !== "";
-  const valid = sellerId !== "" && form.name.trim().length > 2;
+  const hasPin = pin.latitude !== undefined && pin.longitude !== undefined;
+  const valid = sellerId !== "" && form.name.trim().length > 2 && hasPin;
 
   async function submit() {
     if (!valid || busy) return;
+    if (!hasPin) {
+      toast.error("Set the shop location so riders can find it.");
+      return;
+    }
     const nameTaError = tamilFieldError(form.nameTa, 160, "Tamil shop name");
     if (nameTaError) {
       toast.error(nameTaError);
@@ -91,6 +98,8 @@ function AddVendor() {
         phone: form.phone.trim(),
         hours: form.hours.trim(),
         isLive: form.isLive,
+        latitude: pin.latitude!,
+        longitude: pin.longitude!,
         ...(form.app === "FOOD" && hasFssai
           ? {
               fssaiNumber: form.fssaiNumber.trim(),
@@ -184,6 +193,8 @@ function AddVendor() {
             <Toggle label="Publish now" checked={form.isLive} onChange={(v) => field("isLive", v)} />
           </div>
         </Card>
+
+        <StorePinPicker value={pin} onChange={setPin} />
 
         {form.app === "FOOD" && (
           <Card>
