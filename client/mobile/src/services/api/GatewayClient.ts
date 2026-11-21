@@ -885,6 +885,10 @@ export interface BloodRequestRecord {
   neededWithin: string;
   verified: boolean;
   urgency: string;
+  /** Patient name; PII, absent on the public/anon board projection. */
+  patientName?: string;
+  /** Name of the person who receives a donor's call; PII, absent on the public projection. */
+  contactPerson?: string;
   contact?: string;
   address?: string;
   remarks?: string;

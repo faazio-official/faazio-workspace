@@ -42,8 +42,11 @@ function toBloodRequest(rec: BloodRequestRecord): BloodRequest {
     purposeDescription: '',
     patientAge: 0,
     patientGender: '',
-    // Contact/address are server-owned PII: an anon caller gets them redacted (absent) and must
-    // never be shown a fixture lookalike. The display-only extras are honest blanks.
+    // Patient name, contact person, contact and address are server-owned PII: an anon caller gets
+    // them redacted (absent) and must never be shown a fixture lookalike. The display-only extras
+    // are honest blanks.
+    patientName: rec.patientName ?? '',
+    contactPerson: rec.contactPerson ?? '',
     hospitalContact: rec.contact ?? '',
     hospitalAddress: rec.address ?? `${rec.city}, ${rec.state}`,
     remarks: rec.remarks ?? '',

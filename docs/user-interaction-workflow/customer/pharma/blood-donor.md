@@ -44,6 +44,10 @@
    per-donor loop. Payload is PII-free (kind only); the receiving device refetches the board rather
    than trusting a push payload. A `400`/`429` is reported as `rejected` and is **not** queued in the
    offline retry outbox, because replaying it can never succeed.
+7. The board detail screen (`BloodRequestDescriptionScreen`) shows **Patient** and **Ask for** (the
+   contact person) above age/gender/contact/location, and the share text names both. All three
+   identity fields are server-owned PII: a signed-in caller receives them, an anonymous caller gets
+   them redacted (blank), and they are never backfilled from a fixture.
 
 ## State
 

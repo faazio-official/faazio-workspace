@@ -41,7 +41,10 @@ func TestDonorDirectoryRequestsAndMatches(t *testing.T) {
 		t.Fatalf("donor not in directory: %+v", dir)
 	}
 
-	req, err := repo.CreateRequest(ctx, contracts.BloodRequest{Hospital: "Test Hospital", City: "Chennai", State: "TN", BloodGroup: "O+", UnitsRequired: 2, CreatedBy: uid})
+	req, err := repo.CreateRequest(ctx, contracts.BloodRequest{
+		Hospital: "Test Hospital", City: "Chennai", State: "TN", BloodGroup: "O+", UnitsRequired: 2, CreatedBy: uid,
+		PatientName: "Test Patient", ContactPerson: "Test Contact", Contact: "+919876543210",
+	})
 	if err != nil {
 		t.Fatalf("CreateRequest: %v", err)
 	}
@@ -51,6 +54,27 @@ func TestDonorDirectoryRequestsAndMatches(t *testing.T) {
 	}
 	if req.CreatedBy != uid {
 		t.Fatalf("request author not stamped: %+v", req)
+	}
+	if req.PatientName != "Test Patient" || req.ContactPerson != "Test Contact" {
+		t.Fatalf("patient/contact identity not persisted: %+v", req)
+	}
+	// The board read must round-trip the identity fields too, or a donor could never see who to ask for.
+	board, err := repo.Requests(ctx, "O+", "Chennai")
+	if err != nil {
+		t.Fatalf("Requests: %v", err)
+	}
+	var seen bool
+	for _, r := range board {
+		if r.ID != req.ID {
+			continue
+		}
+		seen = true
+		if r.PatientName != "Test Patient" || r.ContactPerson != "Test Contact" || r.Contact != "+919876543210" {
+			t.Fatalf("board row lost identity fields: %+v", r)
+		}
+	}
+	if !seen {
+		t.Fatalf("created request missing from board read")
 	}
 
 	if err := repo.SetInterest(ctx, req.ID, uid, "interested"); err != nil {

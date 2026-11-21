@@ -37,6 +37,16 @@ const POSTED_COPY: Record<BloodWriteStatus, { title: string; body: string }> = {
   rejected: { title: "Couldn't post to the board", body: 'Check the city and try again, or post again tomorrow — the daily limit is reached.' },
 };
 
+/**
+ * Mirrors the server's check so the button disables before a round-trip: a 10-digit Indian mobile,
+ * optionally prefixed with +91/0 and spaces. The server canonicalises whatever passes.
+ */
+function isValidIndianMobile(raw: string): boolean {
+  const digits = raw.replace(/\D/g, '');
+  const local = digits.length === 12 && digits.startsWith('91') ? digits.slice(2) : digits;
+  return local.length === 10 && local[0] >= '6' && local[0] <= '9';
+}
+
 /** Two-stage targeted donor discovery, plus a public-board post, in the shared bottom sheet. */
 const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }: AskBloodSheetProps) {
   const insets = useSafeAreaInsets();
@@ -46,6 +56,9 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
   const [mode, setMode] = useState<AskMode>('search');
   const [bloodGroup, setBloodGroup] = useState<BloodGroup | null>(null);
   const [city, setCity] = useState('');
+  const [patientName, setPatientName] = useState('');
+  const [contactPerson, setContactPerson] = useState('');
+  const [contact, setContact] = useState('');
   const [donors, setDonors] = useState<DonorProfile[]>([]);
   const [source, setSource] = useState<ReadSource>('live');
   const [searching, setSearching] = useState(false);
@@ -57,6 +70,9 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
     setMode('search');
     setBloodGroup(null);
     setCity('');
+    setPatientName('');
+    setContactPerson('');
+    setContact('');
     setDonors([]);
     setSource('live');
     setSearching(false);
@@ -64,7 +80,10 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
     setPostStatus(null);
   }, [visible]);
 
+  /** Donor discovery only needs city + group; a public post needs the actionable identity too. */
   const canContinue = bloodGroup !== null && city.trim().length >= 3;
+  const canPost = canContinue && patientName.trim().length >= 2
+    && contactPerson.trim().length >= 2 && isValidIndianMobile(contact);
 
   const handleContinue = async () => {
     if (!canContinue || !bloodGroup) return;
@@ -87,9 +106,15 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
   };
 
   const handlePost = async () => {
-    if (!canContinue || !bloodGroup || posting) return;
+    if (!canPost || !bloodGroup || posting) return;
     setPosting(true);
-    const result = await postBloodRequest(city.trim(), bloodGroup);
+    const result = await postBloodRequest({
+      city: city.trim(),
+      bloodGroup,
+      patientName: patientName.trim(),
+      contactPerson: contactPerson.trim(),
+      contact: contact.trim(),
+    });
     setPosting(false);
     setPostStatus(result.status);
     setMode('posted');
@@ -134,6 +159,25 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
               <AppText style={styles.label}>Blood Group <AppText style={styles.req}>*</AppText></AppText>
               <OptionChipGrid<BloodGroup> options={BLOOD_GROUPS} selected={bloodGroup} onSelect={setBloodGroup} />
             </View>
+            <View style={styles.block}>
+              <AppText style={styles.label}>Patient Name <AppText style={styles.req}>*</AppText></AppText>
+              <View style={styles.field}>
+                <AppTextInput style={styles.input} value={patientName} onChangeText={setPatientName} placeholder="Who needs the blood" placeholderTextColor={BLOOD_TEXT_MUTED} autoCapitalize="words" returnKeyType="next" maxLength={80} />
+              </View>
+            </View>
+            <View style={styles.block}>
+              <AppText style={styles.label}>Contact Person <AppText style={styles.req}>*</AppText></AppText>
+              <View style={styles.field}>
+                <AppTextInput style={styles.input} value={contactPerson} onChangeText={setContactPerson} placeholder="Who donors should ask for" placeholderTextColor={BLOOD_TEXT_MUTED} autoCapitalize="words" returnKeyType="next" maxLength={80} />
+              </View>
+            </View>
+            <View style={styles.block}>
+              <AppText style={styles.label}>Contact Number <AppText style={styles.req}>*</AppText></AppText>
+              <View style={styles.field}>
+                <AppTextInput style={styles.input} value={contact} onChangeText={setContact} placeholder="10-digit mobile number" placeholderTextColor={BLOOD_TEXT_MUTED} keyboardType="phone-pad" returnKeyType="done" maxLength={16} />
+              </View>
+              <AppText style={styles.helper}>Only shown to signed-in donors. Never posted publicly.</AppText>
+            </View>
           </ScrollView>
         ) : mode === 'results' ? (
           <ScrollView style={styles.scroll} contentContainerStyle={styles.resultsContent} showsVerticalScrollIndicator={false}>
@@ -173,18 +217,18 @@ const AskBloodSheet = memo(function AskBloodSheet({ visible, onClose, onPosted }
             <TouchableOpacity onPress={handleContinue} disabled={!canContinue || searching} style={[styles.continueBtn, (!canContinue || searching) && styles.disabledBtn]} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ disabled: !canContinue || searching }}>
               <AppText style={styles.continueText}>{searching ? 'Finding Donors…' : ASK_BLOOD_COPY.continueLabel}</AppText>
             </TouchableOpacity>
-            <TouchableOpacity onPress={handlePost} disabled={!canContinue || posting} style={[styles.postBtn, (!canContinue || posting) && styles.disabledBtn]} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ disabled: !canContinue || posting }}>
-              <UploadCloud size={ms(15)} color={canContinue && !posting ? BLOOD_RED_DARK : '#94A3B8'} strokeWidth={2.2} />
-              <AppText style={[styles.postText, (!canContinue || posting) && styles.postTextDisabled]}>{posting ? 'Posting…' : 'Post to the public board'}</AppText>
+            <TouchableOpacity onPress={handlePost} disabled={!canPost || posting} style={[styles.postBtn, (!canPost || posting) && styles.disabledBtn]} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ disabled: !canPost || posting }}>
+              <UploadCloud size={ms(15)} color={canPost && !posting ? BLOOD_RED_DARK : '#94A3B8'} strokeWidth={2.2} />
+              <AppText style={[styles.postText, (!canPost || posting) && styles.postTextDisabled]}>{posting ? 'Posting…' : 'Post to the public board'}</AppText>
             </TouchableOpacity>
           </View>
         ) : null}
 
         {mode === 'results' ? (
           <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, vs(8)) }]}>
-            <TouchableOpacity onPress={handlePost} disabled={posting} style={[styles.postBtn, posting && styles.disabledBtn]} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ disabled: posting }}>
-              <UploadCloud size={ms(15)} color={posting ? '#94A3B8' : BLOOD_RED_DARK} strokeWidth={2.2} />
-              <AppText style={[styles.postText, posting && styles.postTextDisabled]}>{posting ? 'Posting…' : 'Post to the public board instead'}</AppText>
+            <TouchableOpacity onPress={handlePost} disabled={!canPost || posting} style={[styles.postBtn, (!canPost || posting) && styles.disabledBtn]} activeOpacity={0.85} accessibilityRole="button" accessibilityState={{ disabled: !canPost || posting }}>
+              <UploadCloud size={ms(15)} color={canPost && !posting ? BLOOD_RED_DARK : '#94A3B8'} strokeWidth={2.2} />
+              <AppText style={[styles.postText, (!canPost || posting) && styles.postTextDisabled]}>{posting ? 'Posting…' : 'Post to the public board instead'}</AppText>
             </TouchableOpacity>
           </View>
         ) : null}
@@ -217,6 +261,7 @@ const styles = StyleSheet.create({
   req: { color: BLOOD_RED },
   field: { borderWidth: 1, borderColor: BLOOD_BORDER, borderRadius: BLOOD_RADII.chip, backgroundColor: '#ffffff' },
   input: { minHeight: ms(48), paddingHorizontal: hs(14), color: BLOOD_TEXT, fontSize: ms(13) },
+  helper: { color: BLOOD_TEXT_MUTED, fontSize: ms(11), lineHeight: vs(15) },
   footer: { width: '100%', paddingTop: SPACE.BLOCK, gap: SPACE.BLOCK },
   continueBtn: { minHeight: ms(48), borderRadius: BLOOD_RADII.pill, backgroundColor: BLOOD_RED, alignItems: 'center', justifyContent: 'center' },
   disabledBtn: { backgroundColor: '#CBD5E1' },

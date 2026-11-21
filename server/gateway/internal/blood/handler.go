@@ -18,6 +18,34 @@ import (
 // keeps a single account from using the board as a notification amplifier.
 const maxBloodPostsPerDay = 5
 
+// maxIdentityLen bounds the free-text identity fields on a post (patient name, contact person).
+// Long enough for a full Indian name, short enough that the row cannot be used as a text dump.
+const maxIdentityLen = 80
+
+// normalizePhone canonicalises an Indian mobile number to +91XXXXXXXXXX. Kept local rather than
+// shared with delivery.NormalizePhone: the two are allowed to diverge (a blood contact is not a
+// rider identity) and the contexts must not depend on each other.
+func normalizePhone(raw string) (string, bool) {
+	digits := make([]byte, 0, 12)
+	for i := 0; i < len(raw); i++ {
+		if raw[i] >= '0' && raw[i] <= '9' {
+			digits = append(digits, raw[i])
+		}
+	}
+	s := string(digits)
+	switch {
+	case len(s) == 12 && strings.HasPrefix(s, "91"):
+		s = s[2:]
+	case len(s) == 10:
+	default:
+		return "", false
+	}
+	if s[0] < '6' || s[0] > '9' {
+		return "", false
+	}
+	return "+91" + s, true
+}
+
 // Handler serves blood-donor endpoints. Health PII: the directory is auth-scoped; the requests board
 // is public but contact/address are redacted for anon (same pattern as directory.stores).
 type Handler struct {
@@ -121,9 +149,12 @@ func (h *Handler) listRequests(w http.ResponseWriter, r *http.Request) {
 		requests = []contracts.BloodRequest{}
 	}
 	if !authed {
-		// Public projection: contact/address/created_by are PII/internal ids and are dropped;
-		// cache the redacted view only.
+		// Public projection: patient name, contact person, contact/address/created_by are PII or
+		// internal ids and are dropped; cache the redacted view only. A donor reading the public
+		// board sees that a request exists — not who the patient is or who to call.
 		for i := range requests {
+			requests[i].PatientName = ""
+			requests[i].ContactPerson = ""
 			requests[i].Contact = ""
 			requests[i].Address = ""
 			requests[i].CreatedBy = ""
@@ -150,6 +181,29 @@ func (h *Handler) createRequest(w http.ResponseWriter, r *http.Request) {
 	if len(body.City) < 3 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "city is required")
 		return
+	}
+	// Patient and contact identity are what make a board post actionable — without them a donor
+	// sees "someone needs O+" and cannot act. Optional at the wire level for older clients (the
+	// columns default to ''), but trimmed so whitespace never passes as a name.
+	body.PatientName = strings.TrimSpace(body.PatientName)
+	body.ContactPerson = strings.TrimSpace(body.ContactPerson)
+	body.Contact = strings.TrimSpace(body.Contact)
+	if body.PatientName != "" && len(body.PatientName) > maxIdentityLen {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "patient name is too long")
+		return
+	}
+	if body.ContactPerson != "" && len(body.ContactPerson) > maxIdentityLen {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "contact person name is too long")
+		return
+	}
+	if body.Contact != "" {
+		normalized, ok := normalizePhone(body.Contact)
+		if !ok {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "contact must be a 10-digit Indian mobile number")
+			return
+		}
+		// Store the canonical form so the tel: link and any future SMS path agree.
+		body.Contact = normalized
 	}
 	// Per-user daily cap: every post fans out a push to matching donors, so an unthrottled poster
 	// is a notification-spam vector even though the board read is public.

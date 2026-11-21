@@ -132,8 +132,11 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
       `Blood donation request — ${request.hospital}`,
       `Blood group ${request.bloodGroup}, ${request.unitsRequired} unit(s) required.`,
       `${request.patientContext} · ${request.neededWithin}`,
+      request.patientName ? `Patient: ${request.patientName}` : '',
       request.hospitalAddress ? request.hospitalAddress : '',
-      request.hospitalContact ? `Contact ${request.hospitalContact}` : '',
+      request.hospitalContact
+        ? `Contact ${request.contactPerson ? `${request.contactPerson} on ` : ''}${request.hospitalContact}`
+        : '',
     ].filter(Boolean);
     Share.share({ message: lines.join('\n') }).catch(() => {
       // Share sheet cancellation/failure — nothing to surface.
@@ -187,15 +190,19 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
   ];
 
   // The first row rendered gets no top border (server-redacted rows may be absent).
-  const firstInfoKey = request.patientAge > 0
-    ? 'age'
-    : request.patientGender
-      ? 'gender'
-      : request.hospitalContact
-        ? 'contact'
-        : request.hospitalAddress
-          ? 'location'
-          : 'remarks';
+  const firstInfoKey = request.patientName
+    ? 'patient'
+    : request.patientAge > 0
+      ? 'age'
+      : request.patientGender
+        ? 'gender'
+        : request.contactPerson
+          ? 'contactPerson'
+          : request.hospitalContact
+            ? 'contact'
+            : request.hospitalAddress
+              ? 'location'
+              : 'remarks';
   const firstInfo = (key: string) => (firstInfoKey === key ? styles.infoRowFirst : undefined);
 
   return (
@@ -304,6 +311,13 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
         <View style={styles.sectionCard}>
           <AppText style={styles.sectionLabel}>Additional Information</AppText>
 
+          {request.patientName ? (
+            <View style={[styles.infoRow, firstInfo('patient')]}>
+              <AppText style={styles.infoLabel}>Patient</AppText>
+              <AppText style={styles.infoValue}>{request.patientName}</AppText>
+            </View>
+          ) : null}
+
           {request.patientAge > 0 ? (
             <View style={[styles.infoRow, firstInfo('age')]}>
               <AppText style={styles.infoLabel}>Age</AppText>
@@ -315,6 +329,13 @@ export function BloodRequestDescriptionScreen({ navigation, route }: Props) {
             <View style={[styles.infoRow, firstInfo('gender')]}>
               <AppText style={styles.infoLabel}>Gender</AppText>
               <AppText style={styles.infoValue}>{request.patientGender}</AppText>
+            </View>
+          ) : null}
+
+          {request.contactPerson ? (
+            <View style={[styles.infoRow, firstInfo('contactPerson')]}>
+              <AppText style={styles.infoLabel}>Ask for</AppText>
+              <AppText style={styles.infoValue}>{request.contactPerson}</AppText>
             </View>
           ) : null}
 

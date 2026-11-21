@@ -32,6 +32,10 @@ export interface BloodRequest {
   unitsRequired: number;
   /** Short patient context shown as the "For: …" line / Purpose heading. */
   patientContext: string;
+  /** Patient name. Server-owned PII: blank on the public (anon) board projection. */
+  patientName: string;
+  /** Name of the person who receives a donor's call. Server-owned PII: blank for anon. */
+  contactPerson: string;
   /** Hours elapsed since the request was posted (relative label is computed). */
   postedHoursAgo: number;
   /** Deadline chip copy (e.g. "Needed within 6 hours"). */
@@ -71,6 +75,8 @@ export const BLOOD_REQUESTS: BloodRequest[] = [
     bloodGroup: 'O+',
     unitsRequired: 3,
     patientContext: 'Accident Patient (Emergency)',
+    patientName: 'R. Kumar',
+    contactPerson: 'S. Kumar',
     postedHoursAgo: 2,
     neededWithin: 'Needed within 24 hours',
     verified: true,
@@ -93,6 +99,8 @@ export const BLOOD_REQUESTS: BloodRequest[] = [
     bloodGroup: 'A-',
     unitsRequired: 2,
     patientContext: 'Thalassemia patient — regular transfusion',
+    patientName: 'A. Banu',
+    contactPerson: 'M. Banu',
     postedHoursAgo: 5,
     neededWithin: 'Needed within 48 hours',
     verified: true,
@@ -115,6 +123,8 @@ export const BLOOD_REQUESTS: BloodRequest[] = [
     bloodGroup: 'B+',
     unitsRequired: 1,
     patientContext: 'Cancer patient — platelet transfusion',
+    patientName: 'V. Ravi',
+    contactPerson: 'L. Ravi',
     postedHoursAgo: 8,
     neededWithin: 'Flexible date',
     verified: true,
@@ -137,6 +147,8 @@ export const BLOOD_REQUESTS: BloodRequest[] = [
     bloodGroup: 'AB+',
     unitsRequired: 4,
     patientContext: 'Emergency surgery patient',
+    patientName: 'K. Prakash',
+    contactPerson: 'D. Prakash',
     postedHoursAgo: 1,
     neededWithin: 'Needed within 6 hours',
     verified: true,
@@ -159,6 +171,8 @@ export const BLOOD_REQUESTS: BloodRequest[] = [
     bloodGroup: 'O-',
     unitsRequired: 1,
     patientContext: 'Postpartum complication patient',
+    patientName: 'S. Meena',
+    contactPerson: 'R. Meena',
     postedHoursAgo: 24,
     neededWithin: 'Needed within 72 hours',
     verified: true,

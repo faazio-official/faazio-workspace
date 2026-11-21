@@ -52,6 +52,12 @@ interface PendingDonorOp {
   donorUserId?: string;
   bloodGroup?: string;
   city?: string;
+  /** Patient name for a `request` op (PII; needed so a queued post replays complete). */
+  patientName?: string;
+  /** Who receives a donor's call for a `request` op (PII). */
+  contactPerson?: string;
+  /** Contact number for a `request` op (PII). */
+  contact?: string;
   /** Recipient response for a `match-status` op. */
   status?: 'accepted' | 'declined';
   createdAt: string;
@@ -217,10 +223,22 @@ interface BloodDonorState {
   /** Recipient accepts/declines one incoming targeted request. */
   respondToMatch: (matchId: string, status: 'accepted' | 'declined') => Promise<BloodWriteResult>;
   /** Posts a public request to the hospital/donor board (board reloads from the server). */
-  postBloodRequest: (city: string, bloodGroup: BloodGroup) => Promise<BloodWriteResult>;
+  postBloodRequest: (input: PublicBloodRequestInput) => Promise<BloodWriteResult>;
   /** Re-reads the recipient's incoming requests from the server (called when the dashboard mounts). */
   refreshIncoming: () => Promise<void>;
   reset: () => void;
+}
+
+/** A public board post. The identity fields are PII and stay out of any log. */
+export interface PublicBloodRequestInput {
+  city: string;
+  bloodGroup: BloodGroup;
+  /** Patient the request is for. */
+  patientName: string;
+  /** Who receives a donor's call. */
+  contactPerson: string;
+  /** Contact number (10-digit Indian mobile; the server canonicalises to +91…). */
+  contact: string;
 }
 
 /** The persisted slice, read back at write time so a later local edit wins over a stale replay payload. */
@@ -453,17 +471,23 @@ export const useBloodDonorStore = create<BloodDonorState>()((set, get) => ({
     const outcome = await gateway.setDonorMatchStatus(matchId, status);
     return applyOutcome(op, outcome);
   },
-  postBloodRequest: async (city, bloodGroup) => {
-    const normalizedCity = city.trim();
+  postBloodRequest: async (input) => {
+    const city = input.city.trim();
+    const patientName = input.patientName.trim();
+    const contactPerson = input.contactPerson.trim();
+    const contact = input.contact.trim();
     // No durable board home in mock mode — never pretend a public post landed.
     if (!gateway.remoteEnabled) return { ok: false, status: 'offline' };
     const id = opId();
     const op: PendingDonorOp = {
-      id, kind: 'request', targetId: id, bloodGroup, city: normalizedCity, createdAt: nowIso(), attempts: 0,
+      id, kind: 'request', targetId: id, bloodGroup: input.bloodGroup, city,
+      patientName, contactPerson, contact, createdAt: nowIso(), attempts: 0,
     };
     set((s) => ({ pendingOps: enqueueOp(s.pendingOps, op), lastWriteStatus: 'queued' }));
     persistAll();
-    const outcome = await gateway.createBloodRequest({ bloodGroup, city: normalizedCity });
+    const outcome = await gateway.createBloodRequest({
+      bloodGroup: input.bloodGroup, city, patientName, contactPerson, contact,
+    });
     return applyOutcome(op, outcome);
   },
   refreshIncoming: async () => {
@@ -528,7 +552,13 @@ async function flushPendingOps(): Promise<void> {
       } else if (op.kind === 'match-status') {
         outcome = await gateway.setDonorMatchStatus(op.targetId ?? '', op.status ?? 'accepted');
       } else {
-        outcome = await gateway.createBloodRequest({ bloodGroup: op.bloodGroup ?? 'O+', city: op.city ?? '' });
+        outcome = await gateway.createBloodRequest({
+          bloodGroup: op.bloodGroup ?? 'O+',
+          city: op.city ?? '',
+          patientName: op.patientName ?? '',
+          contactPerson: op.contactPerson ?? '',
+          contact: op.contact ?? '',
+        });
       }
       applyOutcome(op, outcome);
     } catch {

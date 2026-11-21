@@ -115,7 +115,8 @@ func (r *Repo) Requests(ctx context.Context, bloodGroup, city string) ([]contrac
 	rows, err := r.pool.Query(ctx, `
 		select id, hospital, city, state, blood_group, units, patient_context, needed_within,
 		       verified, urgency, coalesce(contact,''), coalesce(address,''), coalesce(remarks,''),
-		       coalesce(created_by,''), posted_at, expires_at
+		       coalesce(created_by,''), coalesce(patient_name,''), coalesce(contact_person,''),
+		       posted_at, expires_at
 		  from blood.requests
 		 where ($1 = '' or blood_group = $1) and ($2 = '' or city = $2)
 		 order by posted_at desc`, bloodGroup, city)
@@ -133,7 +134,7 @@ func (r *Repo) Requests(ctx context.Context, bloodGroup, city string) ([]contrac
 		)
 		if err := rows.Scan(&req.ID, &req.Hospital, &req.City, &req.State, &req.BloodGroup, &req.UnitsRequired,
 			&req.PatientContext, &req.NeededWithin, &req.Verified, &req.Urgency, &req.Contact, &req.Address, &req.Remarks,
-			&req.CreatedBy, &postedAt, &expiresAt); err != nil {
+			&req.CreatedBy, &req.PatientName, &req.ContactPerson, &postedAt, &expiresAt); err != nil {
 			return nil, err
 		}
 		req.PostedAt = postedAt.UTC().Format(time.RFC3339)
@@ -167,11 +168,12 @@ func (r *Repo) CreateRequest(ctx context.Context, req contracts.BloodRequest) (c
 	)
 	err := r.pool.QueryRow(ctx, `
 		insert into blood.requests
-		  (id, hospital, city, state, blood_group, units, patient_context, needed_within, urgency, contact, address, remarks, created_by, expires_at)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13, now() + interval '14 days')
+		  (id, hospital, city, state, blood_group, units, patient_context, needed_within, urgency, contact, address, remarks, created_by, patient_name, contact_person, expires_at)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15, now() + interval '14 days')
 		returning posted_at, expires_at`,
 		req.ID, req.Hospital, req.City, req.State, req.BloodGroup, req.UnitsRequired, req.PatientContext,
-		req.NeededWithin, req.Urgency, nullIfEmpty(req.Contact), nullIfEmpty(req.Address), nullIfEmpty(req.Remarks), req.CreatedBy).
+		req.NeededWithin, req.Urgency, nullIfEmpty(req.Contact), nullIfEmpty(req.Address), nullIfEmpty(req.Remarks), req.CreatedBy,
+		req.PatientName, req.ContactPerson).
 		Scan(&postedAt, &expiresAt)
 	if err != nil {
 		return contracts.BloodRequest{}, err
@@ -183,6 +185,11 @@ func (r *Repo) CreateRequest(ctx context.Context, req contracts.BloodRequest) (c
 	return req, nil
 }
 
+// maxAlertRecipients bounds one board broadcast at the source. Notifier.EnqueueMany caps again, but
+// the limit belongs here too: the ordering below decides *which* donors win, so the database should
+// rank and cut rather than shipping every match to Go only to slice it arbitrarily.
+const maxAlertRecipients = 500
+
 // AlertableDonorIDs returns the user ids of consented, available donors who could serve this
 // request (matching blood group, same city, emergency alerts enabled, and — importantly — reachable
 // by push). Used to fan a `BLOOD_REQUEST_NEW` nudge out to the donors a new public request actually
@@ -193,6 +200,13 @@ func (r *Repo) CreateRequest(ctx context.Context, req contracts.BloodRequest) (c
 // scan for every later notification (calls included). Filtering at the source keeps the shared FIFO
 // clean. City is matched exactly (case-insensitively) and an empty city matches nothing — an empty
 // filter must never become a nationwide broadcast.
+//
+// Ordering is deterministic and deliberate: the caller caps how many ids it will enqueue
+// (maxEnqueueMany), so "which donors" must not be whatever order the planner happened to return.
+// Donors are ranked by how recently their push token was refreshed — the closest thing to "this
+// device is still in use" that the gateway holds — with user_id as a total tie-break so the same
+// post always nudges the same set. Without this, a city larger than the cap would nudge an
+// arbitrary, non-reproducible subset.
 func (r *Repo) AlertableDonorIDs(ctx context.Context, bloodGroup, city string) ([]string, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("blood: database not configured")
@@ -202,16 +216,22 @@ func (r *Repo) AlertableDonorIDs(ctx context.Context, bloodGroup, city string) (
 		return nil, nil
 	}
 	rows, err := r.pool.Query(ctx, `
-		select d.user_id from blood.donors d
+		select d.user_id
+		  from blood.donors d
+		  join lateral (
+		    select pt.updated_at
+		      from notifications.push_tokens pt
+		     where pt.user_id = d.user_id and pt.token_kind = 'push'
+		     order by pt.updated_at desc
+		     limit 1
+		  ) t on true
 		 where d.consent and d.available
 		   and d.blood_group = $1
 		   and lower(d.city) = lower($2)
 		   and (d.notif is null or d.notif ->> 'emergencyAlerts' is null or d.notif ->> 'emergencyAlerts' = 'true')
-		   and exists (
-		         select 1 from notifications.push_tokens pt
-		          where pt.user_id = d.user_id and pt.token_kind = 'push'
-		       )`,
-		bloodGroup, city)
+		 order by t.updated_at desc, d.user_id
+		 limit $3`,
+		bloodGroup, city, maxAlertRecipients)
 	if err != nil {
 		return nil, err
 	}

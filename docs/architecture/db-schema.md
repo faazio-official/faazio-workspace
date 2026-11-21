@@ -1168,6 +1168,8 @@ CREATE TABLE blood.requests (
   units SMALLINT NOT NULL DEFAULT 1, patient_context TEXT, needed_within TEXT,
   verified BOOL NOT NULL DEFAULT false, urgency TEXT NOT NULL DEFAULT 'normal',
   contact TEXT, address TEXT, remarks TEXT,          -- PII: redacted for anon by the gateway
+  patient_name TEXT NOT NULL DEFAULT '',             -- (0121) PII: redacted for anon
+  contact_person TEXT NOT NULL DEFAULT '',           -- (0121) who receives a donor's call; PII, redacted for anon
   created_by TEXT NOT NULL DEFAULT '',               -- (0061) author checkout.users id; erased on account deletion
   posted_at TIMESTAMPTZ NOT NULL DEFAULT now(), expires_at TIMESTAMPTZ
 );
@@ -1194,9 +1196,19 @@ undrainable row would sit `PENDING` forever and widen every later outbox scan. `
 also requires a city (3+ chars; exact-city match, so an empty city never broadcasts nationwide) and
 is capped per user per UTC day (`cache.BloodPostRate`).
 **Author stamp (0061):** `POST /blood-requests` writes the caller's `checkout.users.user_id` into
-`blood.requests.created_by` from the bearer token (client payload stays `{bloodGroup, city}`);
-`DELETE /users/me` deletes the author's rows (their `contact`/`address` PII) — interests on them
-cascade. Seed rows are hospital-posted so they keep `created_by = ''`.
+`blood.requests.created_by` from the bearer token (the client payload carries `{bloodGroup, city,
+patientName, contactPerson, contact}` and never an author id);
+`DELETE /users/me` deletes the author's rows (their `contact`/`address`/identity PII) — interests on
+them cascade. Seed rows are hospital-posted so they keep `created_by = ''`.
+**Request identity (0121):** `patient_name` and `contact_person` join `contact` as PII stripped from
+the public/anon board projection (and from the 60 s cache, which only ever holds the redacted view).
+They default to `''` so pre-0121 rows and older clients stay valid; the server trims them, bounds
+them at 80 chars, and canonicalises `contact` to `+91XXXXXXXXXX` via a local `normalizePhone`
+(deliberately not shared with `delivery.NormalizePhone` — the contexts must not depend on each
+other). `contact_person` is what makes a post actionable: a donor now knows who to ask for.
+**Alert ordering (0121):** `push_tokens_user_kind_updated_idx` backs the recipient query's
+`order by t.updated_at desc, d.user_id`, so the capped fan-out picks the most-recently-refreshed
+device tokens deterministically instead of an arbitrary planner-ordered slice.
 **Un-interest (no schema change):** the `blood.interests` primary key `(request_id, donor_user_id, kind)`
 already keys a single mark, so an un-tap is a plain `DELETE` (`DELETE /blood-requests/{id}/interest`,
 idempotent) — no new table, column, or index. It touches no cache: the public `blood.requests`

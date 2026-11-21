@@ -29,8 +29,12 @@ existing hospital donation-request feed.
   recipient-only, pending-only, outcome-returning). The server enqueues a PII-free
   `MATCH_ACCEPTED`/`MATCH_DECLINED` notification to the requester; the requester's outgoing row
   shows the live status. **Contact is not disclosed on acceptance** (reveal-gated future).
-- `AskBloodSheet` also offers **Post to the public board**: it writes city + blood group to
-  `POST /blood-requests` (outcome-returning, never a fabricated local row) and reloads the board.
+- `AskBloodSheet` also offers **Post to the public board**: it collects city, blood group, **patient
+  name, contact person and contact number** (the post button stays disabled until the names are 2+
+  chars and the number is a valid 10-digit Indian mobile), writes them to `POST /blood-requests`
+  (outcome-returning, never a fabricated local row) and reloads the board. Identity fields are PII:
+  the server strips them from the public/anon projection, so only signed-in donors see who the
+  patient is and who to call.
 - Board freshness is explicit, not incidental: `useBloodRequests` refetches on the caller-local
   `reloadKey`, on the store's `requestsReloadKey` (bumped in `applyOutcome` only once a `request` op
   is `synced`, never on the optimistic enqueue), on a foreground `BLOOD_REQUEST_NEW` push

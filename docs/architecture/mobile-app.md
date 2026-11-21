@@ -333,8 +333,11 @@ notification to the requester; the requester's outgoing row
 (`getDonorMatches`) carries the real status, so `BloodDonorDetails` shows "Donor Accepted" / allows a
 re-request after a decline. Contact is still not disclosed on acceptance (reveal-gated sharing remains
 future). `AskBloodSheet` gains a **Post to the public board** action (search + results stages) that
+collects patient name, contact person and contact number alongside city + group (the post button
+stays disabled until the names are 2+ chars and the number is a valid 10-digit Indian mobile),
 writes `POST /blood-requests` via the outcome-returning `createBloodRequest` and reloads the board;
-it never fabricates a local row. The dashboard bell is now a non-interactive, **honest** indicator
+it never fabricates a local row. The queued `request` op carries the identity fields so an offline
+replay posts a complete, actionable request. The dashboard bell is now a non-interactive, **honest** indicator
 (live server notification count + pending incoming — no seed, no dead tap) and the funnel opens a
 `FilterSheet` (blood group / urgency / city) over the existing board filters.
 

@@ -45,6 +45,10 @@ type BloodRequest struct {
 	NeededWithin   string `json:"neededWithin"`
 	Verified       bool   `json:"verified"`
 	Urgency        string `json:"urgency"`
+	// PatientName is the patient the request is for; ContactPerson is who receives a donor's call.
+	// Both are PII and are stripped from the public (anon) board projection, like Contact/Address.
+	PatientName    string `json:"patientName,omitempty"`
+	ContactPerson  string `json:"contactPerson,omitempty"`
 	Contact        string `json:"contact,omitempty"`
 	Address        string `json:"address,omitempty"`
 	Remarks        string `json:"remarks,omitempty"`
