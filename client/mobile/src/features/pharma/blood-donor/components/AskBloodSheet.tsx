@@ -34,6 +34,7 @@ const POSTED_COPY: Record<BloodWriteStatus, { title: string; body: string }> = {
   queued: { title: 'Saved — will post shortly', body: "We'll post it automatically when you're back online." },
   offline: { title: "Couldn't post to the board", body: 'Check your connection and try again.' },
   'signed-out': { title: 'Sign in to post', body: 'Sign in to publish a request to the public board.' },
+  rejected: { title: "Couldn't post to the board", body: 'Check the city and try again, or post again tomorrow — the daily limit is reached.' },
 };
 
 /** Two-stage targeted donor discovery, plus a public-board post, in the shared bottom sheet. */

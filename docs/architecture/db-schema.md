@@ -1187,7 +1187,12 @@ Donor directory is uncached; the request board is cached 60 s
 the whole `faazio:v1:blood:requests:` namespace by prefix so filtered boards drop immediately. A
 post also enqueues `BLOOD_REQUEST_NEW` in `notifications.outbox` for consented, available donors
 matching the request's blood group + city (`notif ->> 'emergencyAlerts'` honoured; PII-free payload),
-which refreshes an open board on another device without polling.
+which refreshes an open board on another device without polling. The fan-out is one capped bulk
+insert (`Notifier.EnqueueMany`, `maxEnqueueMany`) rather than a per-donor loop, and it excludes
+donors with no `push` token in `notifications.push_tokens` — `Pending()` joins that table, so an
+undrainable row would sit `PENDING` forever and widen every later outbox scan. `POST /blood-requests`
+also requires a city (3+ chars; exact-city match, so an empty city never broadcasts nationwide) and
+is capped per user per UTC day (`cache.BloodPostRate`).
 **Author stamp (0061):** `POST /blood-requests` writes the caller's `checkout.users.user_id` into
 `blood.requests.created_by` from the bearer token (client payload stays `{bloodGroup, city}`);
 `DELETE /users/me` deletes the author's rows (their `contact`/`address` PII) — interests on them

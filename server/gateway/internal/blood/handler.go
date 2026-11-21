@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
@@ -11,6 +12,11 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/go-chi/chi/v5"
 )
+
+// maxBloodPostsPerDay caps one account's public board posts per UTC day. A real donor posts a
+// handful of times at most; every post also fans out a push to matching donors, so the cap is what
+// keeps a single account from using the board as a notification amplifier.
+const maxBloodPostsPerDay = 5
 
 // Handler serves blood-donor endpoints. Health PII: the directory is auth-scoped; the requests board
 // is public but contact/address are redacted for anon (same pattern as directory.stores).
@@ -137,6 +143,21 @@ func (h *Handler) createRequest(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid blood group")
 		return
 	}
+	// City is required: it is the recipient filter for the board nudge, and an empty city would
+	// otherwise broadcast to every consented donor of that group nationwide. The app enforces a
+	// 3-character minimum, but the server cannot rely on that.
+	body.City = strings.TrimSpace(body.City)
+	if len(body.City) < 3 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "city is required")
+		return
+	}
+	// Per-user daily cap: every post fans out a push to matching donors, so an unthrottled poster
+	// is a notification-spam vector even though the board read is public.
+	day := time.Now().UTC().Format("20060102")
+	if n, err := h.cache.Incr(r.Context(), cache.BloodPostRate(auth.UserID(r.Context()), day), cache.TTLBloodPostRate); err == nil && n > maxBloodPostsPerDay {
+		httpx.Fail(w, http.StatusTooManyRequests, "rate_limited", "too many blood requests posted today")
+		return
+	}
 	// Right-to-erasure (account deletion): stamp the author from the bearer token so
 	// DeleteAccount can erase this request (and its contact/address) when the account goes.
 	body.CreatedBy = auth.UserID(r.Context())
@@ -160,15 +181,14 @@ func (h *Handler) notifyNewRequest(r *http.Request, req contracts.BloodRequest) 
 		return
 	}
 	donors, err := h.repo.AlertableDonorIDs(r.Context(), req.BloodGroup, req.City)
-	if err != nil {
+	if err != nil || len(donors) == 0 {
 		return // an unmatched board is still correct; the next board read picks the row up
 	}
-	for _, donorID := range donors {
-		_ = h.notifier.Enqueue(r.Context(), donorID, "BLOOD_REQUEST_NEW",
-			"A new blood request needs donors",
-			"Open the blood board to see if you can help.",
-			map[string]any{"kind": "BLOOD_REQUEST_NEW"})
-	}
+	// One bulk insert, capped, token-filtered — never a per-donor loop in the POST path.
+	_ = h.notifier.EnqueueMany(r.Context(), donors, "BLOOD_REQUEST_NEW",
+		"A new blood request needs donors",
+		"Open the blood board to see if you can help.",
+		map[string]any{"kind": "BLOOD_REQUEST_NEW"})
 }
 
 func (h *Handler) interest(w http.ResponseWriter, r *http.Request) {

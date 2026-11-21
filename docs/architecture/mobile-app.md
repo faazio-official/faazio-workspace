@@ -340,7 +340,10 @@ it never fabricates a local row. The dashboard bell is now a non-interactive, **
 
 The dashboard hospital-request feed is **server-backed** (`hooks/useBloodRequests` →
 `GatewayClient.fetchBloodRequests()` → `blood.requests`, a no-fallback read that throws
-`GatewayOfflineError` instead of fabricating rows). Server rows are mapped onto the app's
+`GatewayOfflineError` instead of fabricating rows). The board refetches on five event-driven
+triggers — caller `reloadKey`, the store's `requestsReloadKey` (bumped only when a posted request
+becomes durable), a foreground `BLOOD_REQUEST_NEW` push (`services/pushRefresh.ts`), screen refocus,
+and app foreground via `AppState` — never on a timer, so an idle board costs nothing. Server rows are mapped onto the app's
 `BloodRequest` card/detail shape; display-only extras the server does not carry
 (`imageUrl`, `purposeDescription`, patient age/gender, `distanceKm`) are borrowed from the
 `@data/pharma/bloodRequests.ts` fixture when the id matches and otherwise rendered as graceful

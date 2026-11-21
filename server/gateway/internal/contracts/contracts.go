@@ -462,6 +462,11 @@ type AuditWriter interface {
 // (push/polling) is drained by the notifications context. data must stay PII-free.
 type Notifier interface {
 	Enqueue(ctx context.Context, userID, kind, title, body string, data map[string]any) error
+	// EnqueueMany enqueues one notification to many users in a single write. Implementations must
+	// skip recipients that have no deliverable push token: such a row would stay PENDING forever
+	// (the drain only claims token-backed rows) and would bloat the shared outbox scan. Used for
+	// board-broadcast nudges where the board itself remains the source of truth.
+	EnqueueMany(ctx context.Context, userIDs []string, kind, title, body string, data map[string]any) error
 	// EnqueueSeller fans a notification out to every active portal login that owns one of the
 	// given stores. Used for the seller app's new-order ping (no customer PII in data).
 	EnqueueSeller(ctx context.Context, storeIDs []string, kind, title, body string, data map[string]any) error

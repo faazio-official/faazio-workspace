@@ -29,7 +29,7 @@ const STORAGE_KEY = 'faazio/bloodDonor/v1';
  *  - `queued`     — remote enabled but unreachable; the write is in `pendingOps` and will retry.
  *  - `signed-out` — the server rejected the bearer (401); sign in to sync.
  */
-export type BloodWriteStatus = 'synced' | 'offline' | 'queued' | 'signed-out';
+export type BloodWriteStatus = 'synced' | 'offline' | 'queued' | 'signed-out' | 'rejected';
 
 export interface BloodWriteResult {
   /** True when the local optimistic commit is acceptable (durable or safely device-local). */
@@ -274,6 +274,17 @@ function applyOutcome(op: PendingDonorOp, outcome: BloodWriteOutcome): BloodWrit
     }));
     persistAll();
     return { ok: false, status: 'signed-out' };
+  }
+
+  // rejected: the server refused this write on its merits (validation or a daily cap). Drop the op
+  // instead of queuing it — an offline retry would replay a request that can never succeed.
+  if (outcome === 'rejected') {
+    store.setState((s) => ({
+      pendingOps: s.pendingOps.filter((o) => o.id !== op.id),
+      lastWriteStatus: 'rejected',
+    }));
+    persistAll();
+    return { ok: false, status: 'rejected' };
   }
 
   // offline: keep the op queued only when there is a server to sync to (mock mode is final).

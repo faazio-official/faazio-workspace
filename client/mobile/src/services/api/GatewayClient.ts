@@ -243,8 +243,10 @@ export type VendorRatingOutcome = 'synced' | 'offline' | 'signed-out' | 'not-ver
  * turns this into a device-local status (`queued` when an offline write is in the retry outbox) so a
  * screen can explain a non-durable write instead of pretending success. Nothing health-related is
  * ever fabricated here — a failed write returns `offline`/`signed-out`, never a synthetic row.
+ * `rejected` is a deliberate server refusal (validation or a daily rate limit): retrying it
+ * unchanged can never succeed, so it must not enter the offline retry outbox.
  */
-export type BloodWriteOutcome = 'synced' | 'offline' | 'signed-out';
+export type BloodWriteOutcome = 'synced' | 'offline' | 'signed-out' | 'rejected';
 
 /**
  * Provenance of a read so a screen can distinguish a live server response (including an honest
@@ -1144,7 +1146,12 @@ export class GatewayClient {
 
   /** Classify a blood-write failure: a 401 means the caller must sign in; anything else is offline. */
   private bloodWriteOutcome(err: unknown): BloodWriteOutcome {
-    if (err instanceof GatewayHttpError && err.status === 401) return 'signed-out';
+    if (err instanceof GatewayHttpError) {
+      if (err.status === 401) return 'signed-out';
+      // 400/422 (validation) and 429 (daily cap) are refusals, not connectivity: queuing them for
+      // an offline retry would replay a request the server will keep rejecting.
+      if (err.status === 400 || err.status === 422 || err.status === 429) return 'rejected';
+    }
     return 'offline';
   }
 

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import type {
   BloodGroup,
@@ -80,13 +81,16 @@ let cacheSettled = false;
  *
  * No fixture rows are ever shown; the initial board is an honest empty.
  *
- * Refetch triggers (no polling — a create is pushed, never guessed):
+ * Refetch triggers — event-driven only, never a poll. A push is a hint that the board moved, the
+ * fetch is the source of truth, and every path below costs nothing while idle:
  *  - `reloadKey` — a caller-local bump (dashboard after `onPosted`);
  *  - `requestsReloadKey` — the store's counter, bumped when a posted request is durably persisted,
  *    so every mounted board refetches rather than keeping the row-less feed it fetched pre-post;
  *  - `subscribeBoardRefresh()` — the foreground push handler for the `BLOOD_REQUEST_NEW` broadcast
  *    the gateway enqueues on `POST /blood-requests`, which is how *another* device learns about it;
- *  - refocus — a board revisited after a push arrived while unmounted.
+ *  - refocus — a board revisited after a push arrived while unmounted;
+ *  - app foreground — returning to an already-focused board, which neither refocus nor a missed
+ *    push covers. This is the no-push fallback: one fetch per foreground, not per interval.
  */
 export function useBloodRequests(reloadKey = 0): BloodRequestsFeed {
   const storeReloadKey = useBloodDonorStore((s) => s.requestsReloadKey);
@@ -141,6 +145,16 @@ export function useBloodRequests(reloadKey = 0): BloodRequestsFeed {
 
   // A pushed board change (foreground message) refetches immediately; refocus catches the rest.
   useEffect(() => subscribeBoardRefresh(load), [load]);
+
+  // Backgrounded → foreground on an already-focused board. Neither a push (which may be denied or
+  // unconfigured) nor a focus event covers this, so it is the honest fallback that still costs
+  // nothing while the app sits idle.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') load();
+    });
+    return () => sub.remove();
+  }, [load]);
 
   useFocusEffect(
     useCallback(() => {

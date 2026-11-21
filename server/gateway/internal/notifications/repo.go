@@ -79,6 +79,62 @@ func (r *Repo) Enqueue(ctx context.Context, userID, kind, title, body string, da
 	return nil
 }
 
+// maxEnqueueMany bounds one bulk broadcast. The outbox is a single FIFO drained 100 rows per tick
+// (DefaultDrainInterval) and shares that queue with incoming_call ring pushes, so a board broadcast
+// must never be able to queue an unbounded number of rows ahead of a call. A capped batch still
+// reaches a capped number of donors immediately; the rest of the board is served by the normal read.
+const maxEnqueueMany = 500
+
+// EnqueueMany inserts one PENDING outbox row per recipient in a single statement. It is the bulk
+// counterpart of Enqueue for board broadcasts (a new public blood request concerns every matching
+// donor at once), and differs from it in three ways that all exist to protect the shared outbox:
+//
+//   - Recipients without a `push` token are dropped. Pending() joins push_tokens, so a tokenless
+//     row can never be drained — it would sit PENDING forever and widen every subsequent scan.
+//   - The insert is one round-trip, not one per recipient. EnqueueSeller loops Enqueue per user;
+//     at board-broadcast scale that is thousands of sequential statements inside a POST.
+//   - maxEnqueueMany caps the batch. The outbox is a single FIFO drained 100 rows per tick that
+//     also carries incoming_call ring pushes, so an unbounded fan-out would delay calls behind it.
+//
+// Delivery stays best-effort: the board read is the source of truth, the push is only a nudge.
+func (r *Repo) EnqueueMany(ctx context.Context, userIDs []string, kind, title, body string, data map[string]any) error {
+	if r.pool == nil || len(userIDs) == 0 {
+		return nil
+	}
+	recipients := userIDs
+	if len(recipients) > maxEnqueueMany {
+		recipients = recipients[:maxEnqueueMany]
+	}
+	var raw []byte
+	if len(data) > 0 {
+		b, err := json.Marshal(data)
+		if err != nil {
+			return err
+		}
+		raw = b
+	}
+	_, err := r.pool.Exec(ctx, `
+		insert into notifications.outbox (id, user_id, kind, title, body, data)
+		select 'ntf-' || substr(md5(random()::text || u.user_id), 1, 10), u.user_id, $2, $3, $4, $5
+		  from unnest($1::text[]) as u(user_id)
+		 where exists (
+		         select 1 from notifications.push_tokens pt
+		          where pt.user_id = u.user_id and pt.token_kind = 'push'
+		       )`, recipients, kind, title, body, nullJSON(raw))
+	if err != nil {
+		return err
+	}
+	// Every recipient's cached inbox is now stale (TTLNotifications); drop them in one call.
+	if r.cache != nil {
+		keys := make([]string, 0, len(recipients))
+		for _, userID := range recipients {
+			keys = append(keys, cache.Notifications(userID))
+		}
+		r.cache.Del(ctx, keys...)
+	}
+	return nil
+}
+
 // EnqueueSeller fans a PENDING row out to the active owner login(s) of the sellers owning the given
 // stores, gated by that seller's alert preferences. Store ids only — the outbox row never carries
 // customer PII. Sub-user staff logins do not receive account alerts (the owner is the account).

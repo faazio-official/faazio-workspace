@@ -43,6 +43,12 @@ func Favourites(userID string) string { return fmt.Sprintf("faazio:v1:favourites
 func Rewards(userID string) string    { return fmt.Sprintf("faazio:v1:rewards:view:%s", userID) }
 func BloodRequests(key string) string { return fmt.Sprintf("faazio:v1:blood:requests:%s", key) }
 
+// BloodPostRate is the per-user daily counter for public blood-request posts. A post fans out a
+// push to matching donors, so this cap is what stops one account amplifying notifications.
+func BloodPostRate(userID, day string) string {
+	return fmt.Sprintf("faazio:v1:blood:post:%s:%s", userID, day)
+}
+
 // BloodRequestsPrefix is the purge prefix for every cached board variant (see Cache.DelPrefix).
 // A create/remove must drop filtered keys too — purging only `group=;city=` would leave a
 // `group=O%2B;city=Chennai` reader on a stale board for its full 60 s TTL.
@@ -274,6 +280,9 @@ const (
 
 	// TTLBloodRequests bounds the public (redacted) blood-requests board; auth callers bypass it.
 	TTLBloodRequests = 60 * time.Second
+
+	// TTLBloodPostRate bounds the per-user daily public blood-request post counter (posts/UTC day).
+	TTLBloodPostRate = 24 * time.Hour
 
 	// TTLReco bounds the per-userHash recommendation projection (caching doc §5).
 	TTLReco = 3600 * time.Second

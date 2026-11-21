@@ -9,6 +9,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
@@ -183,19 +184,33 @@ func (r *Repo) CreateRequest(ctx context.Context, req contracts.BloodRequest) (c
 }
 
 // AlertableDonorIDs returns the user ids of consented, available donors who could serve this
-// request (matching blood group, same city, emergency alerts enabled). Used to fan a
-// `BLOOD_REQUEST_NEW` push out to the donors a new public request actually concerns — never the
-// whole user base, and never with contact/clinical detail in the payload.
+// request (matching blood group, same city, emergency alerts enabled, and — importantly — reachable
+// by push). Used to fan a `BLOOD_REQUEST_NEW` nudge out to the donors a new public request actually
+// concerns — never the whole user base, and never with contact/clinical detail in the payload.
+//
+// A donor with no registered `push` token is excluded here rather than at the outbox: Pending()
+// joins push_tokens, so such a row could never drain and would sit PENDING forever, widening the
+// scan for every later notification (calls included). Filtering at the source keeps the shared FIFO
+// clean. City is matched exactly (case-insensitively) and an empty city matches nothing — an empty
+// filter must never become a nationwide broadcast.
 func (r *Repo) AlertableDonorIDs(ctx context.Context, bloodGroup, city string) ([]string, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("blood: database not configured")
 	}
+	city = strings.TrimSpace(city)
+	if city == "" {
+		return nil, nil
+	}
 	rows, err := r.pool.Query(ctx, `
-		select user_id from blood.donors
-		 where consent and available
-		   and blood_group = $1
-		   and ($2 = '' or lower(city) = lower($2))
-		   and (notif is null or notif ->> 'emergencyAlerts' is null or notif ->> 'emergencyAlerts' = 'true')`,
+		select d.user_id from blood.donors d
+		 where d.consent and d.available
+		   and d.blood_group = $1
+		   and lower(d.city) = lower($2)
+		   and (d.notif is null or d.notif ->> 'emergencyAlerts' is null or d.notif ->> 'emergencyAlerts' = 'true')
+		   and exists (
+		         select 1 from notifications.push_tokens pt
+		          where pt.user_id = d.user_id and pt.token_kind = 'push'
+		       )`,
 		bloodGroup, city)
 	if err != nil {
 		return nil, err
