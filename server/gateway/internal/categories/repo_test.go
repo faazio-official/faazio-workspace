@@ -42,6 +42,13 @@ func TestCategoryLifecycle(t *testing.T) {
 		t.Fatalf("update: name=%q err=%v", updated.Name, err)
 	}
 
+	// A nil ParentID means "unchanged": a plain name/GST edit must never detach an existing child.
+	if kept, err := repo.Update(ctx, child.ID, Input{App: "MART", Name: "ZZ Test Child 3", SortOrder: 9001, GSTRateCategoryID: "gst-mart-packaged"}, "test"); err != nil {
+		t.Fatalf("update without parent: %v", err)
+	} else if kept.ParentID == nil || *kept.ParentID != parent.ID {
+		t.Fatalf("update without parent detached the child: parent = %v, want %s", kept.ParentID, parent.ID)
+	}
+
 	if ok, err := repo.Deactivate(ctx, child.ID, "test"); err != nil || !ok {
 		t.Fatalf("deactivate child: ok=%v err=%v", ok, err)
 	}

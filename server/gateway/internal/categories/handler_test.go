@@ -96,7 +96,9 @@ func TestCreateValidation(t *testing.T) {
 		{"body not json", `{`},
 		{"food rail", `{"app":"FOOD","name":"X","showOnHomeRail":true}`},
 		{"missing gst", `{"app":"MART","name":"X"}`},
-		{"missing sub gst", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","subCategories":[{"name":"Y"}]}`},
+		{"missing sub gst", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","subCategories":[{"name":"Y","nameTa":"ஒய்","descriptionTa":"ஒய் விளக்கம்"}]}`},
+		{"missing sub tamil name", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","subCategories":[{"name":"Y","descriptionTa":"ஒய் விளக்கம்","gstRateCategoryId":"gst-mart-packaged"}]}`},
+		{"missing sub tamil description", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","subCategories":[{"name":"Y","nameTa":"ஒய்","gstRateCategoryId":"gst-mart-packaged"}]}`},
 		{"tamil name latin", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","nameTa":"Milk"}`},
 		{"tamil desc mixed", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","descriptionTa":"பால் Milk"}`},
 		{"tamil name too long", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","nameTa":"` + strings.Repeat("ண", 121) + `"}`},
@@ -181,10 +183,13 @@ func TestGSTValidation(t *testing.T) {
 }
 
 // TestSubCategoryValidation pins Option B: every inline sub-category carries its own mandatory GST
-// rate pick (FOOD children are exempt).
+// rate pick (FOOD children are exempt) and mandatory Tamil name + description copy.
 func TestSubCategoryValidation(t *testing.T) {
 	withRate := func(name, app, rate string) SubCategoryInput {
-		return SubCategoryInput{Name: name, App: app, GSTRateCategoryID: rate}
+		return SubCategoryInput{
+			Name: name, App: app, GSTRateCategoryID: rate,
+			NameTA: "ஆண்ட்ராய்டு", DescriptionTA: "ஆண்ட்ராய்டு தொலைபேசிகள்",
+		}
 	}
 	for _, tt := range []struct {
 		name string
@@ -197,6 +202,38 @@ func TestSubCategoryValidation(t *testing.T) {
 			"missing name", "MART",
 			&[]SubCategoryInput{withRate("", "MART", "gst-mart-packaged")},
 			"every sub-category needs a name",
+		},
+		{
+			"missing tamil name", "MART",
+			&[]SubCategoryInput{{
+				Name: "Android", App: "MART", GSTRateCategoryID: "gst-mart-packaged",
+				DescriptionTA: "ஆண்ட்ராய்டு தொலைபேசிகள்",
+			}},
+			"every sub-category needs a Tamil name",
+		},
+		{
+			"missing tamil description", "MART",
+			&[]SubCategoryInput{{
+				Name: "Android", App: "MART", GSTRateCategoryID: "gst-mart-packaged",
+				NameTA: "ஆண்ட்ராய்டு",
+			}},
+			"every sub-category needs a Tamil description",
+		},
+		{
+			"latin tamil name", "MART",
+			&[]SubCategoryInput{{
+				Name: "Android", App: "MART", GSTRateCategoryID: "gst-mart-packaged",
+				NameTA: "Android", DescriptionTA: "ஆண்ட்ராய்டு தொலைபேசிகள்",
+			}},
+			"sub-category Tamil fields accept Tamil letters only",
+		},
+		{
+			"tamil name too long", "MART",
+			&[]SubCategoryInput{{
+				Name: "Android", App: "MART", GSTRateCategoryID: "gst-mart-packaged",
+				NameTA: strings.Repeat("ண", 121), DescriptionTA: "ஆண்ட்ராய்டு தொலைபேசிகள்",
+			}},
+			"sub-category Tamil fields accept Tamil letters only",
 		},
 		{
 			"missing rate", "MART",

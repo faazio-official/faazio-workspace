@@ -303,7 +303,10 @@ caller) and are event-purged on store live toggle and product edit/status change
   `showOnHomeRail` alias are accepted on create/update for any tree level; the primary app label is
   always kept, a row may only carry its own app's label, and FOOD can never be tagged
   `MAIN_APP_HEADER` (`400`, mirrored in the `0115` guard trigger). There is no slot cap (`0109`
-  removed the former `409 rail_full`). Seller onboarding selects a `categoryId` (validated app-scoped
+  removed the former `409 rail_full`). Inline `subCategories` rows require a name, a Tamil name, a
+  Tamil description (Tamil-only, 120/2000 rune budgets) and, outside FOOD, a GST pick. A nil
+  `parentId` on update means "unchanged" — a name/GST edit never re-parents or detaches a row.
+  Seller onboarding selects a `categoryId` (validated app-scoped
   against the tree, optional) carried on `POST /sellers` and `POST /sellers/{id}/edit`. Seller product
   creation accepts an optional `taxonomyCategoryId`
   (active leaf for the store's app); the gateway validates it and folds the leaf `search_query` into

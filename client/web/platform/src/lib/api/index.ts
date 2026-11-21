@@ -418,8 +418,10 @@ export interface SubCategoryInput {
   /** Defaults to the parent's app server-side when omitted. */
   app?: CategoryApp;
   name: string;
-  nameTa?: string;
-  descriptionTa?: string;
+  /** Mandatory Tamil name (0107) — every child is a customer-facing drill-in label. */
+  nameTa: string;
+  /** Mandatory Tamil description (0107). */
+  descriptionTa: string;
   searchQuery?: string;
   iconUrl?: string;
   sortOrder?: number;

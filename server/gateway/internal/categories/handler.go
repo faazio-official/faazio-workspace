@@ -319,8 +319,9 @@ func gstError(app, rateCategoryID string) string {
 	return ""
 }
 
-// subCategoryError validates the inline child rows: each needs a name and (outside FOOD) its own GST
-// rate pick — Option B, every sub-category carries its own mandatory rate.
+// subCategoryError validates the inline child rows: each needs a name, a Tamil name, a Tamil
+// description and (outside FOOD) its own GST rate pick — Option B, every sub-category carries its own
+// mandatory rate. Tamil copy is mandatory because every child is a customer-facing drill-in label.
 func subCategoryError(app string, subs *[]SubCategoryInput) string {
 	if subs == nil {
 		return ""
@@ -328,6 +329,15 @@ func subCategoryError(app string, subs *[]SubCategoryInput) string {
 	for _, sub := range *subs {
 		if strings.TrimSpace(sub.Name) == "" {
 			return "every sub-category needs a name"
+		}
+		if strings.TrimSpace(sub.NameTA) == "" {
+			return "every sub-category needs a Tamil name"
+		}
+		if strings.TrimSpace(sub.DescriptionTA) == "" {
+			return "every sub-category needs a Tamil description"
+		}
+		if !validTamil(sub.NameTA, 120) || !validTamil(sub.DescriptionTA, 2000) {
+			return "sub-category Tamil fields accept Tamil letters only"
 		}
 		childApp := strings.ToUpper(strings.TrimSpace(sub.App))
 		if childApp == "" {

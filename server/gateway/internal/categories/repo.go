@@ -53,16 +53,16 @@ type SubCategoryInput struct {
 	// ID links an existing child on update. Empty on create mints a new `cat-<shortid>`.
 	ID string `json:"id"`
 	// App defaults to the parent's app when empty (a header-only parent carries header-only children).
-	App                  string `json:"app"`
-	Name                 string `json:"name"`
-	NameTA               string `json:"nameTa"`
-	DescriptionTA        string `json:"descriptionTa"`
-	SearchQuery          string `json:"searchQuery"`
-	IconURL              string `json:"iconUrl"`
-	SortOrder            int64  `json:"sortOrder"`
-	IsActive             *bool  `json:"isActive"`
-	GSTRateCategoryID    string `json:"gstRateCategoryId"`
-	GSTRatePct           int    `json:"gstRatePct"`
+	App               string `json:"app"`
+	Name              string `json:"name"`
+	NameTA            string `json:"nameTa"`
+	DescriptionTA     string `json:"descriptionTa"`
+	SearchQuery       string `json:"searchQuery"`
+	IconURL           string `json:"iconUrl"`
+	SortOrder         int64  `json:"sortOrder"`
+	IsActive          *bool  `json:"isActive"`
+	GSTRateCategoryID string `json:"gstRateCategoryId"`
+	GSTRatePct        int    `json:"gstRatePct"`
 }
 
 // Input is a create/update payload.
@@ -321,6 +321,12 @@ func (r *Repo) Update(ctx context.Context, id string, in Input, actor string) (C
 	if err != nil {
 		return Category{}, err
 	}
+	// A nil ParentID on update means "unchanged" — the portal no longer edits the parent, so a plain
+	// name/GST edit must never detach an existing child into a top-level row.
+	parentID := in.ParentID
+	if parentID == nil {
+		parentID = existing.ParentID
+	}
 	// An explicit HeaderLabels list wins; the legacy rail flag only participates when the caller set
 	// it explicitly, or when neither field was sent ("unchanged").
 	var rail *bool
@@ -350,7 +356,7 @@ func (r *Repo) Update(ctx context.Context, id string, in Input, actor string) (C
 		       updated_at = now()
 		 where id = $1`,
 		id, in.App, in.Name, slug, nullStr(in.Description), nullStr(in.IconURL),
-		in.ParentID, nullStr(in.SearchQuery), in.IsActive, showOnRail, in.SortOrder, actor,
+		parentID, nullStr(in.SearchQuery), in.IsActive, showOnRail, in.SortOrder, actor,
 		strings.TrimSpace(in.NameTA), strings.TrimSpace(in.DescriptionTA))
 	if err != nil {
 		return Category{}, err

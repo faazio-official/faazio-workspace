@@ -21,32 +21,44 @@ links to a slab from that master.
    plus the Mart/Pharma categories shared into the mobile main header. A shared Mart/Pharma row stays
    in its own app table too (one canonical `taxonomy.categories` row, several header labels).
 3. **Create:** *New category* opens the sheet — App (Mart / Food / Pharma / **Main app header**),
-   **GST rate** (mandatory select from the slab master, filtered to the chosen app's sector),
-   **Header labels**, Name, **Name (Tamil)**, **Description (Tamil)**, Parent id, Icon URL, Vendor
+   **GST rate** (mandatory select from the slab master, filtered to the chosen app's sector; for
+   **Main app header** the pick-list combines the active Mart **and** Pharma slabs, since that pool
+   carries both), **Header labels**, Name, **Name (Tamil)**, **Description (Tamil)**, Icon URL, Vendor
    search query, Sort order, Active, and **Sub-categories**. Save calls `POST /categories` with
    `headerLabels`, `gstRateCategoryId`, `gstRatePct` and `subCategories`. The two Tamil fields
    validate with `tamilFieldError` (`src/lib/tamil.ts`) — Tamil letters, digits and light punctuation
    only, blank = untranslated — and a filled value is sent as `nameTa`/`descriptionTa`; a non-Tamil
    character blocks Save with a toast before any request is made. The gateway re-validates
    (`internal/platform/locale.IsTamilText`) and returns `400` if bypassed.
+   There is **no parent-id input**: the sheet omits `parentId`, so a new category is top-level
+   (`parent_id = null`), and its children are the inline sub-category rows, which the gateway binds
+   with `parent_id = <this category>`. On edit the sheet likewise omits `parentId`, and the repo keeps
+   the stored parent — a name/GST edit never re-parents or detaches an existing category.
 4. **GST pick (mandatory, Option B):** the parent picks one slab, and **every inline sub-category row
-   picks its own slab in the same sheet**. A save is blocked while any row is unpicked. FOOD is
+   picks its own slab in the same sheet**. A save is blocked while any row is unpicked. A **Main app
+   header** pool shows the combined active Mart + Pharma slab list for the parent and for each
+   sub-category row (no Food slabs; `MAIN_APP_HEADER`-sector slabs are not offered). FOOD is
    pinned: the select is a read-only 5% display and the server rejects any other slab for a FOOD row.
    The stored `gst_rate_pct` is copied from the slab, never sent from the client — so a later slab
    re-rate does not silently re-price an existing category.
-5. **Inline sub-categories:** each row in the Sub-categories editor is a name + its own GST pick +
-   remove. Saving writes the child rows in the same transaction, with `show_on_home_rail = false` and
-   only the parent's own app label — a sub-category is reached through the parent's drill-in, never as
-   its own rail chip. On update, a `subCategories` array replaces the parent's child set; omitting it
-   leaves the children untouched.
+5. **Inline sub-categories:** the sheet is wide (`sm:max-w-2xl lg:max-w-3xl`) and each sub-category is
+   a stacked card, one field per row so nothing is cramped: **Name** (+ remove button), **Name
+   (Tamil)**, **Description (Tamil)**, and its own **GST pick** (read-only 5% for FOOD). The two Tamil
+   fields are **mandatory** — save is blocked with a toast while any child has an empty or non-Tamil
+   Tamil name/description. Saving writes the child rows in the same transaction, with
+   `show_on_home_rail = false` and only the parent's own app label — a sub-category is reached through
+   the parent's drill-in, never as its own rail chip. On update, a `subCategories` array replaces the
+   parent's child set; omitting it leaves the children untouched. Editing a category hydrates each
+   child row with its stored `nameTa`/`descriptionTa`.
 6. **Header labels:** the pill group shows all four labels. The primary app label is always on and
    cannot be toggled off; the other app labels are inert. **Main app header** is the toggle that
    shares the row into the main header list — disabled for FOOD. A `MAIN_APP_HEADER` row is its own
    primary label and cannot be tagged with a vendor app label.
 7. **Edit:** *Edit* prefills the sheet (stored Tamil copy, the GST pick, the `MAIN_APP_HEADER` pill and
-   the existing sub-categories) and calls `PUT /categories/{id}`. A nil `isActive` /
-   `showOnHomeRail` / `headerLabels` / `subCategories` leaves the stored value unchanged; the primary
-   app label always follows a changed App.
+   the existing sub-categories, each with its stored `nameTa`/`descriptionTa`) and calls
+   `PUT /categories/{id}`. A nil `isActive` / `showOnHomeRail` / `headerLabels` / `subCategories` /
+   `parentId` leaves the stored value unchanged — the sheet never sends `parentId`, so an edit can
+   never re-parent or detach the row; the primary app label always follows a changed App.
 8. **Deactivate:** the trash button (or the sheet's Active toggle) soft-deletes via
    `DELETE /categories/{id}` (`is_active = false`); references from sellers/products are preserved.
 9. **Share into the main app header:** toggle **Main app header** on a Mart or Pharma category (any
@@ -67,8 +79,9 @@ links to a slab from that master.
   `gstRateCategoryId`, `gstRateCategoryName`, `showOnHomeRail`, `headerLabels`).
 - `mainRows` — the shared main app header list (`GET /admin/categories?header=MAIN_APP_HEADER`).
 - `rateCategories` — the slab pick-list (`useGSTRateCategories`, shared with the GST rates page).
-- Sheet form state — App, GST pick, header-label pills, name, Tamil name, Tamil description, parent,
-  icon, search query, sort, Active, and the `subCategories` rows (name + GST pick each).
+- Sheet form state — App, GST pick, header-label pills, name, Tamil name, Tamil description, icon,
+  search query, sort, Active, and the `subCategories` rows (name + Tamil name + Tamil description +
+  GST pick each). No parent-id state: new categories are top-level.
 - No client-side category cache; each save refetches both tables.
 
 ## Data path
@@ -95,7 +108,9 @@ links to a slab from that master.
   (no taxonomy cache).
 - **GST errors:** `400` when the pick is missing, the slab is inactive/unknown, or a FOOD row is given
   a non-5% slab. The portal blocks an unpicked row before sending.
-- **Sub-category errors:** `400` for a blank child name or a child with no GST pick.
+- **Sub-category errors:** `400` for a blank child name, a child with no Tamil name or Tamil
+  description, non-Tamil (or over-length) Tamil copy, or a child with no GST pick. The portal blocks
+  an empty/non-Tamil Tamil field and an unpicked GST row before sending.
 - **Header label errors:** `400` for an unknown label, a label from another app, or
   `MAIN_APP_HEADER` on a FOOD row. The portal blocks the FOOD case before sending and shows a toast;
   the `0115` guard trigger also refuses it at the DB level.
@@ -105,7 +120,8 @@ links to a slab from that master.
 
 ## Known gaps
 
-- Category ids, slugs and parents are entered as free text in the portal (no tree picker widget).
+- Category ids and slugs are entered as free text in the portal; there is no parent picker — the sheet
+  only creates top-level rows, and children come from the inline sub-category editor.
 - Inline sub-category rows are created but cannot be reordered independently of the parent's sort.
 - `GET /admin/categories` has no pagination; the tree is small today.
 

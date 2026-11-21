@@ -139,13 +139,23 @@ interface SubRow {
   key: string;
   id?: string;
   name: string;
+  /** Mandatory Tamil name (0107) — every child is a customer-facing drill-in label. */
+  nameTa: string;
+  /** Mandatory Tamil description (0107). */
+  descriptionTa: string;
   gstRateCategoryId: string;
 }
 
 let subRowSeq = 0;
 function newSubRow(name = "", gstRateCategoryId = ""): SubRow {
   subRowSeq += 1;
-  return { key: `sub-${subRowSeq}`, name, gstRateCategoryId };
+  return { key: `sub-${subRowSeq}`, name, nameTa: "", descriptionTa: "", gstRateCategoryId };
+}
+
+/** Required Tamil copy: blank is blocked here (tamilFieldError only checks script + length). */
+function requiredTamilError(value: string, maxLength: number, label: string): string | null {
+  if (!value.trim()) return `${label} is required.`;
+  return tamilFieldError(value, maxLength, label);
 }
 
 export function CategoriesPage() {
@@ -169,7 +179,6 @@ export function CategoriesPage() {
   // Optional Tamil translations (0107). Tamil letters only; blank = not translated.
   const [formNameTa, setFormNameTa] = useState("");
   const [formDescriptionTa, setFormDescriptionTa] = useState("");
-  const [formParentId, setFormParentId] = useState("");
   const [formIconUrl, setFormIconUrl] = useState("");
   const [formSearchQuery, setFormSearchQuery] = useState("");
   const [formSortOrder, setFormSortOrder] = useState("0");
@@ -189,9 +198,10 @@ export function CategoriesPage() {
 
   const gstForApp = useCallback(
     (app: CategoryApp) =>
-      gstRates.filter(
-        (g) => g.isActive && (g.sector === app || (app === "MAIN_APP_HEADER" && g.sector === "MART")),
-      ),
+      app === "MAIN_APP_HEADER"
+        ? // Main app header pools Mart + Pharma products, so its GST pick-list combines both sectors' active slabs.
+          gstRates.filter((g) => g.isActive && (g.sector === "MART" || g.sector === "PHARMA"))
+        : gstRates.filter((g) => g.isActive && g.sector === app),
     [gstRates],
   );
 
@@ -250,7 +260,6 @@ export function CategoriesPage() {
     setFormName("");
     setFormNameTa("");
     setFormDescriptionTa("");
-    setFormParentId("");
     setFormIconUrl("");
     setFormSearchQuery("");
     setFormSortOrder("0");
@@ -272,7 +281,6 @@ export function CategoriesPage() {
     setFormName(row.name);
     setFormNameTa(row.nameTa ?? "");
     setFormDescriptionTa(row.descriptionTa ?? "");
-    setFormParentId(row.parentId ?? "");
     setFormIconUrl(row.iconUrl ?? "");
     setFormSearchQuery(row.searchQuery ?? "");
     setFormSortOrder(String(row.sortOrder));
@@ -292,6 +300,8 @@ export function CategoriesPage() {
           key: `edit-${r.id}`,
           id: r.id,
           name: r.name,
+          nameTa: r.nameTa ?? "",
+          descriptionTa: r.descriptionTa ?? "",
           gstRateCategoryId: r.gstRateCategoryId ?? "",
         })),
     );
@@ -350,6 +360,24 @@ export function CategoriesPage() {
       toast.error("Every sub-category needs a name.");
       return;
     }
+    const missingTaName = formSubs.find((s) => requiredTamilError(s.nameTa, 120, "Tamil name"));
+    if (missingTaName) {
+      toast.error("Every sub-category needs a Tamil name.", {
+        description: requiredTamilError(missingTaName.nameTa, 120, "Tamil name") ?? undefined,
+      });
+      return;
+    }
+    const missingTaDescription = formSubs.find((s) =>
+      requiredTamilError(s.descriptionTa, 2000, "Tamil description"),
+    );
+    if (missingTaDescription) {
+      toast.error("Every sub-category needs a Tamil description.", {
+        description:
+          requiredTamilError(missingTaDescription.descriptionTa, 2000, "Tamil description") ??
+          undefined,
+      });
+      return;
+    }
     if (formApp !== "FOOD" && formSubs.some((s) => !s.gstRateCategoryId)) {
       toast.error("Every sub-category needs a GST rate.");
       return;
@@ -366,6 +394,8 @@ export function CategoriesPage() {
       ...(s.id ? { id: s.id } : {}),
       app: formApp,
       name: s.name.trim(),
+      nameTa: s.nameTa.trim(),
+      descriptionTa: s.descriptionTa.trim(),
       gstRateCategoryId: s.gstRateCategoryId,
       sortOrder: index,
       isActive: true,
@@ -375,7 +405,6 @@ export function CategoriesPage() {
       name: formName.trim(),
       ...(formNameTa.trim() ? { nameTa: formNameTa.trim() } : {}),
       ...(formDescriptionTa.trim() ? { descriptionTa: formDescriptionTa.trim() } : {}),
-      parentId: formParentId.trim() ? formParentId.trim() : null,
       sortOrder: Number.isFinite(Number(formSortOrder)) ? Number(formSortOrder) : 0,
       isActive: formActive,
       headerLabels,
@@ -611,11 +640,13 @@ export function CategoriesPage() {
           if (!next) closeSheet();
         }}
       >
-        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-2xl lg:max-w-3xl">
           <SheetHeader>
             <SheetTitle>{editing ? `Edit ${editing.name}` : "New category"}</SheetTitle>
             <SheetDescription>
-              One primary pool, one GST rate, and optional sub-categories (each with its own GST).
+              One primary pool, one GST rate, and optional sub-categories (each with its own GST, plus a
+              mandatory Tamil name and description). New categories are top-level — add children inline
+              below.
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4 px-4 pb-6">
@@ -712,6 +743,11 @@ export function CategoriesPage() {
                       ? `GST ${gstById.get(formGstId)?.gstRatePct}%`
                       : "Mandatory — pick the slab that applies."}
                   </p>
+                  {formApp === "MAIN_APP_HEADER" ? (
+                    <p className="text-[11px] text-muted-foreground">
+                      Main app header combines Mart + Pharma GST slabs.
+                    </p>
+                  ) : null}
                 </>
               )}
             </div>
@@ -757,17 +793,6 @@ export function CategoriesPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="category-parent">Parent category id</Label>
-              <Input
-                id="category-parent"
-                value={formParentId}
-                onChange={(e) => setFormParentId(e.target.value)}
-                placeholder="blank = top level (e.g. cat_electronics)"
-                disabled={Boolean(editing) && formParentId === editing?.id}
-              />
-            </div>
-
-            <div className="space-y-1.5">
               <Label htmlFor="category-icon">Icon URL</Label>
               <Input
                 id="category-icon"
@@ -802,7 +827,11 @@ export function CategoriesPage() {
                 <div>
                   <p className="text-[13px] font-medium">Sub-categories</p>
                   <p className="text-[11px] text-muted-foreground">
-                    Each one appears inside this category&apos;s drill-in and needs its own GST rate.
+                    Each one appears inside this category&apos;s drill-in. Name, Tamil name, Tamil
+                    description and GST rate are all mandatory.
+                    {formApp === "MAIN_APP_HEADER"
+                      ? " Main app header combines Mart + Pharma GST slabs."
+                      : ""}
                   </p>
                 </div>
                 <Button size="sm" variant="outline" className="gap-1.5" onClick={addSub}>
@@ -812,47 +841,87 @@ export function CategoriesPage() {
               {formSubs.length === 0 ? (
                 <p className="text-[12px] text-muted-foreground">No sub-categories yet.</p>
               ) : (
-                <div className="space-y-2">
-                  {formSubs.map((sub) => (
-                    <div key={sub.key} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                      <Input
-                        value={sub.name}
-                        onChange={(e) => updateSub(sub.key, { name: e.target.value })}
-                        placeholder="Sub-category name (e.g. Android)"
-                        aria-label="Sub-category name"
-                      />
-                      {formApp === "FOOD" ? (
-                        <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-[12px]">
-                          <span className="num font-medium">{FOOD_GST_PCT}%</span> (fixed)
+                <div className="space-y-3">
+                  {formSubs.map((sub) => {
+                    const nameTaError = tamilFieldError(sub.nameTa, 120);
+                    const descriptionTaError = tamilFieldError(sub.descriptionTa, 2000);
+                    return (
+                      <div key={sub.key} className="space-y-2 rounded-lg border border-border p-3">
+                        <div className="flex items-end gap-2">
+                          <div className="flex-1 space-y-1.5">
+                            <Label htmlFor={`${sub.key}-name`}>Name</Label>
+                            <Input
+                              id={`${sub.key}-name`}
+                              value={sub.name}
+                              onChange={(e) => updateSub(sub.key, { name: e.target.value })}
+                              placeholder="Sub-category name (e.g. Android)"
+                            />
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-destructive"
+                            onClick={() => removeSub(sub.key)}
+                            aria-label={`Remove ${sub.name || "sub-category"}`}
+                          >
+                            <Trash2 className="size-3.5" />
+                          </Button>
                         </div>
-                      ) : (
-                        <Select
-                          value={sub.gstRateCategoryId}
-                          onValueChange={(v) => updateSub(sub.key, { gstRateCategoryId: v })}
-                        >
-                          <SelectTrigger aria-label="Sub-category GST rate">
-                            <SelectValue placeholder="GST rate" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {gstForApp(formApp).map((g) => (
-                              <SelectItem key={g.id} value={g.id}>
-                                {g.name} — {g.gstRatePct}%
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-destructive"
-                        onClick={() => removeSub(sub.key)}
-                        aria-label={`Remove ${sub.name || "sub-category"}`}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    </div>
-                  ))}
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`${sub.key}-name-ta`}>Name (Tamil)</Label>
+                          <Input
+                            id={`${sub.key}-name-ta`}
+                            lang="ta"
+                            value={sub.nameTa}
+                            onChange={(e) => updateSub(sub.key, { nameTa: e.target.value })}
+                            placeholder="தமிழில் மட்டும்"
+                          />
+                          {nameTaError ? (
+                            <p className="text-[11px] text-destructive">{nameTaError}</p>
+                          ) : null}
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor={`${sub.key}-description-ta`}>Description (Tamil)</Label>
+                          <Input
+                            id={`${sub.key}-description-ta`}
+                            lang="ta"
+                            value={sub.descriptionTa}
+                            onChange={(e) => updateSub(sub.key, { descriptionTa: e.target.value })}
+                            placeholder="தமிழில் மட்டும்"
+                          />
+                          {descriptionTaError ? (
+                            <p className="text-[11px] text-destructive">{descriptionTaError}</p>
+                          ) : null}
+                        </div>
+                        <div className="space-y-1.5">
+                          <Label htmlFor={formApp === "FOOD" ? undefined : `${sub.key}-gst`}>
+                            GST rate
+                          </Label>
+                          {formApp === "FOOD" ? (
+                            <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-[12px]">
+                              <span className="num font-medium">{FOOD_GST_PCT}%</span> (fixed)
+                            </div>
+                          ) : (
+                            <Select
+                              value={sub.gstRateCategoryId}
+                              onValueChange={(v) => updateSub(sub.key, { gstRateCategoryId: v })}
+                            >
+                              <SelectTrigger id={`${sub.key}-gst`}>
+                                <SelectValue placeholder="GST rate" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {gstForApp(formApp).map((g) => (
+                                  <SelectItem key={g.id} value={g.id}>
+                                    {g.name} — {g.gstRatePct}%
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
