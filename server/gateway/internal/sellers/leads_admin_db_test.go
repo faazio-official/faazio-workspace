@@ -340,3 +340,82 @@ func TestLeadLinksToSellerApplication(t *testing.T) {
 		t.Fatalf("re-link n=%d err=%v, want 0", n, err)
 	}
 }
+
+// The portal's super-admin board has a district picker that sends ?district=. The handler used to
+// ignore it, so choosing a district changed nothing (every query returned every district). This pins
+// the narrowing — and, more importantly, that a scoped admin cannot use the same parameter to widen
+// their view past their own claim.
+func TestLeadQueueDistrictQueryParam(t *testing.T) {
+	h := handlerRouter(t, testenv.Pool(t))
+
+	py1 := leadFixture(t, "PY1", "PY")
+	ttc := leadFixture(t, "TTC", "TN")
+
+	super := map[string]string{"X-Dev-Role": auth.RoleSuperAdmin}
+
+	// No filter: a super admin sees both.
+	rec := do(t, h, http.MethodGet, "/seller-leads", "", super)
+	var all []Lead
+	if err := json.Unmarshal(rec.Body.Bytes(), &all); err != nil {
+		t.Fatal(err)
+	}
+	if !leadInRows(all, py1) || !leadInRows(all, ttc) {
+		t.Fatalf("super admin should see both leads, got %d rows", len(all))
+	}
+
+	// ?district=PY1 narrows to PY1 only.
+	rec = do(t, h, http.MethodGet, "/seller-leads?district=PY1", "", super)
+	var only []Lead
+	if err := json.Unmarshal(rec.Body.Bytes(), &only); err != nil {
+		t.Fatal(err)
+	}
+	if !leadInRows(only, py1) {
+		t.Fatalf("PY1 lead missing from ?district=PY1")
+	}
+	if leadInRows(only, ttc) {
+		t.Fatalf("?district=PY1 leaked a TTC lead")
+	}
+	for _, r := range only {
+		if r.DistrictCode != "PY1" {
+			t.Fatalf("?district=PY1 returned district %q", r.DistrictCode)
+		}
+	}
+
+	// ?district=TTC narrows the other way (proves it is not just "first match wins").
+	rec = do(t, h, http.MethodGet, "/seller-leads?district=TTC", "", super)
+	var ttcOnly []Lead
+	if err := json.Unmarshal(rec.Body.Bytes(), &ttcOnly); err != nil {
+		t.Fatal(err)
+	}
+	if !leadInRows(ttcOnly, ttc) || leadInRows(ttcOnly, py1) {
+		t.Fatalf("?district=TTC returned the wrong set")
+	}
+
+	// A district admin asking for another district is ignored, never widened.
+	inScope := map[string]string{"X-Dev-Role": auth.RoleDistrictAdmin, "X-Dev-District": "PY1"}
+	rec = do(t, h, http.MethodGet, "/seller-leads?district=TTC", "", inScope)
+	var scoped []Lead
+	if err := json.Unmarshal(rec.Body.Bytes(), &scoped); err != nil {
+		t.Fatal(err)
+	}
+	if leadInRows(scoped, ttc) {
+		t.Fatalf("a PY1 district admin widened the queue to TTC via ?district=")
+	}
+	if !leadInRows(scoped, py1) {
+		t.Fatalf("a PY1 district admin lost their own lead")
+	}
+
+	// An unknown/garbage district code is normalised away, not a 500.
+	if rec := do(t, h, http.MethodGet, "/seller-leads?district=!!", "", super); rec.Code != http.StatusOK {
+		t.Fatalf("garbage district: status = %d, want 200", rec.Code)
+	}
+}
+
+func leadInRows(rows []Lead, id string) bool {
+	for _, r := range rows {
+		if r.LeadID == id {
+			return true
+		}
+	}
+	return false
+}

@@ -24,7 +24,10 @@ interface Props {
   onPick: (selection: { coordinates: Coordinates; address: string }) => void;
 }
 
-const FALLBACK = { latitude: 17.44, longitude: 78.38 };
+// Map centre when neither a saved pin nor a live fix exists. Karaikal town — the service area's
+// home, and the same centre the landing-page lead picker uses, so both intake paths open on the
+// right place. This is a viewport default only: it is never submitted as a shop pin.
+const FALLBACK = { latitude: 10.9254, longitude: 79.838 };
 
 /**
  * Foreground shop-pin picker for seller onboarding. The map is native
@@ -49,13 +52,20 @@ export default function SellerLocationPicker({
   const [address, setAddress] = useState('');
   const [resolving, setResolving] = useState(false);
   const [locating, setLocating] = useState(false);
+  // A pin only counts once it is real: a saved shop pin, a live device fix, or a deliberate
+  // tap/drag on the map. The fallback is a viewport centre for orientation, never a selection —
+  // confirming it would invent a shop location, which every downstream distance/fee calculation
+  // would then trust.
+  const [picked, setPicked] = useState(initial != null || Boolean(stored.latitude));
 
   useEffect(() => {
     if (!visible) return;
+    const real = initial != null || Boolean(stored.latitude);
     const start = initial ?? (stored.latitude ? stored : FALLBACK);
     setPin(start);
+    setPicked(real);
     setAddress('');
-    void resolve(start);
+    if (real) void resolve(start);
     // Only re-run when the modal opens; dragging updates the pin deliberately.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible]);
@@ -73,6 +83,7 @@ export default function SellerLocationPicker({
 
   const moveTo = (point: Coordinates) => {
     setPin(point);
+    setPicked(true);
     void resolve(point);
   };
 
@@ -121,7 +132,11 @@ export default function SellerLocationPicker({
             <View style={{ flex: 1 }}>
               <AppText style={styles.pinLabel}>Selected point</AppText>
               <AppText style={styles.pinValue} numberOfLines={2}>
-                {resolving ? 'Resolving address…' : address}
+                {!picked
+                  ? 'Tap the map to drop your shop pin'
+                  : resolving
+                    ? 'Resolving address…'
+                    : address}
               </AppText>
             </View>
           </View>
@@ -140,9 +155,13 @@ export default function SellerLocationPicker({
               <AppText style={styles.locateText}>Use my location</AppText>
             </Pressable>
             <Pressable
-              style={({ pressed }) => [styles.confirmBtn, pressed && { opacity: 0.9 }]}
+              style={({ pressed }) => [
+                styles.confirmBtn,
+                pressed && { opacity: 0.9 },
+                !picked && styles.confirmBtnDisabled,
+              ]}
               onPress={() => onPick({ coordinates: pin, address })}
-              disabled={resolving}
+              disabled={resolving || !picked}
             >
               <AppText style={styles.confirmText}>Confirm pin</AppText>
             </Pressable>
@@ -198,4 +217,5 @@ const styles = StyleSheet.create({
     backgroundColor: parentRamp.base,
   },
   confirmText: { fontSize: ms(11), fontWeight: '800', color: neutral.card },
+  confirmBtnDisabled: { opacity: 0.4 },
 });

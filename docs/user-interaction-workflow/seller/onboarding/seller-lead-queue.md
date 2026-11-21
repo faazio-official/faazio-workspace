@@ -55,7 +55,9 @@ only path into `sellers.sellers`.
 ## Data path
 
 - `listSellerLeads` → `GET /seller-leads?status&district&q` → `sellers.seller_leads`
-  (200-row cap, newest first, `ilike` search over business/owner/phone/email).
+  (200-row cap, newest first, `ilike` search over business/owner/phone/email). The `district`
+  parameter narrows a super admin's view; for a scoped admin the identity scope always wins, so it
+  can never widen the queue past their claim (`TestLeadQueueDistrictQueryParam`).
 - `updateSellerLeadStatus` → `PATCH /seller-leads/{id}` → conditional
   `update … where lead_id=$1 and status=$2 returning …` writing `status`, `admin_note`,
   `reviewed_by`, `reviewed_at`, `updated_at`.
@@ -82,6 +84,24 @@ only path into `sellers.sellers`.
 - **`400 bad_request`** — unknown status, a note over 500 chars, or a rejection without a reason.
 - **`403`** — a seller or role-less token; only `DISTRICT_ADMIN` / `SUPER_ADMIN` may open the queue.
 - **Empty:** "No new leads" when the `NEW` filter is empty — a truthful empty state, not an error.
+
+## Testing the queue
+
+```bash
+# Unit + DB integration (district scope, lifecycle, claim, search, back-fill)
+cd server/gateway && go test ./internal/sellers/ -run 'TestLead'
+TEST_DATABASE_URL='postgres://postgres:faazio@localhost:5432/faazio?sslmode=disable' \
+TEST_VALKEY_URL='redis://localhost:6379/0' \
+  go test -count=1 ./internal/sellers/
+
+# Full lifecycle against a running gateway, as a real SUPER_ADMIN
+PORTAL_EMAIL=... PORTAL_PASSWORD=... \
+  ./scripts/simulate-seller-lead-queue.sh http://localhost:8080
+```
+
+The script covers submit → appear in NEW → claim → note/edit → reject gates → re-open → approve,
+plus the 400/404/409 paths and the `?district=` narrowing. It asserts the approve creates **no**
+seller account.
 
 ## Known gaps
 

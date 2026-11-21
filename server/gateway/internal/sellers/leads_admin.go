@@ -10,6 +10,7 @@ import (
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
+	"github.com/faazio/server/gateway/internal/platform/geo"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/go-chi/chi/v5"
 	"github.com/jackc/pgx/v5"
@@ -205,6 +206,14 @@ func (h *Handler) listLeads(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	f.DistrictCode, f.StateCode = leadScope(r)
+	// A super admin may narrow the queue to one district (the portal's district picker). The scope
+	// from leadScope always wins for a scoped admin: a district admin asking for another district is
+	// ignored rather than widened, so this cannot be used to escape their claim.
+	if f.DistrictCode == "" {
+		if d := geo.Normalise(r.URL.Query().Get("district")); d != "" {
+			f.DistrictCode = d
+		}
+	}
 	items, err := h.repo.ListLeads(r.Context(), f)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "leads_unavailable", "seller leads unavailable")
