@@ -427,6 +427,7 @@ func (h *Handler) listOptins(w http.ResponseWriter, r *http.Request) {
 type optinRequest struct {
 	CampaignID      string `json:"campaignId"`
 	SellerID        string `json:"sellerId"`
+	StoreID         string `json:"storeId"`
 	ProductID       string `json:"productId"`
 	DiscountPercent int    `json:"discountPercent"`
 }
@@ -448,15 +449,17 @@ func (h *Handler) upsertOptin(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid opt-in")
 		return
 	}
-	// Scope the write before touching the row: the product must belong to the seller, and an admin
-	// may only act for a seller inside their own campaign scope.
-	owned, err := h.repo.ProductOwnedBy(r.Context(), productID, sellerID)
+	// Scope the write before touching the row: the product must belong to the seller (and to the
+	// store the seller has active, when one is named), and its sector must match that store's sector
+	// so a tab-switch or direct API call can never opt a Food product into a Mart campaign (or the
+	// reverse). An admin may only act for a seller inside their own campaign scope.
+	owned, err := h.repo.ProductInSellerStore(r.Context(), productID, sellerID, strings.TrimSpace(req.StoreID))
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
 		return
 	}
 	if !owned {
-		httpx.Fail(w, http.StatusForbidden, "forbidden", "product does not belong to this seller")
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "product does not belong to this seller's store sector")
 		return
 	}
 	if role != auth.RoleSeller {

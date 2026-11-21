@@ -316,8 +316,8 @@ func (h *Handler) sellerStores(w http.ResponseWriter, r *http.Request) {
 
 type vendorRequest struct {
 	Name               string   `json:"name"`
-	NameTA             string   `json:"nameTa"`
-	DescTA             string   `json:"descTa"`
+	NameTA             *string  `json:"nameTa"`
+	DescTA             *string  `json:"descTa"`
 	App                string   `json:"app"`
 	StateCode          string   `json:"stateCode"`
 	SellerID           string   `json:"sellerId"`
@@ -334,7 +334,11 @@ type vendorRequest struct {
 	DrugLicenseNumber  string   `json:"drugLicenseNumber"`
 	DrugLicenseFileKey string   `json:"drugLicenseFileKey"`
 	DrugLicenseAssetID string   `json:"drugLicenseAssetId"`
-	IsLive             *bool    `json:"isLive"`
+	// Pure-vegetarian flag for the shop. Optional: nil keeps the current value on update and
+	// defaults to false on create. Without it the portal's "Pure vegetarian" toggle is a 400,
+	// because httpx.Decode rejects any field this struct does not declare.
+	IsVeg  *bool `json:"isVeg"`
+	IsLive *bool `json:"isLive"`
 }
 
 // createStore creates a vendor owned by the calling seller (or a super admin naming sellerId). The
@@ -357,7 +361,7 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
 		return
 	}
-	if !validTamil(req.NameTA, 160) || !validTamil(req.DescTA, 2000) {
+	if !validTamilOpt(req.NameTA, 160) || !validTamilOpt(req.DescTA, 2000) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
 		return
 	}
@@ -405,13 +409,14 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	store, err := h.repo.CreateStore(r.Context(), sellerID, stateCode, VendorInput{
-		Name: req.Name, NameTA: strings.TrimSpace(req.NameTA), DescTA: strings.TrimSpace(req.DescTA),
+		Name: req.Name, NameTA: trimOpt(req.NameTA), DescTA: trimOpt(req.DescTA),
 		App: req.App, Address: req.Address, Phone: req.Phone, Hours: req.Hours,
 		Latitude: req.Latitude, Longitude: req.Longitude, PlatformFeePct: req.PlatformFeePct,
 		SellerCategoryID: strings.TrimSpace(req.SellerCategoryID), FSSAINumber: req.FSSAINumber,
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
 		DrugLicenseNumber: req.DrugLicenseNumber, DrugLicenseCertKey: strings.TrimSpace(req.DrugLicenseFileKey),
 		DrugLicenseCertAssetID: strings.TrimSpace(req.DrugLicenseAssetID),
+		IsVeg:                  req.IsVeg,
 		IsLive:                 req.IsLive,
 	})
 	if err != nil {
@@ -419,7 +424,23 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.log(r, "directory.stores", "STORE_CREATE", store.ID)
+	h.cache.Del(r.Context(), cache.Store(store.ID))
+	h.flushGeo(r.Context(), store.Latitude, store.Longitude)
 	httpx.JSON(w, http.StatusCreated, store)
+}
+
+// flushGeo drops the geo:nearby store+product tiles covering a pin, so a shop appearing, moving or
+// going offline is reflected immediately for nearby shoppers instead of waiting out TTLNearby.
+// A nil pin (never pinned, or cleared) has no tile to flush.
+func (h *Handler) flushGeo(ctx context.Context, lat, lng *float64) {
+	if lat == nil || lng == nil {
+		return
+	}
+	prefixes := append(cache.NearbyStoresTilePrefixes(*lat, *lng),
+		cache.NearbyProductsTilePrefixes(*lat, *lng)...)
+	for _, p := range prefixes {
+		h.cache.DelPrefix(ctx, p)
+	}
 }
 
 // updateStore edits a vendor's profile/commercial fields, scoped to the owner (or an admin).
@@ -433,7 +454,7 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
 		return
 	}
-	if !validTamil(req.NameTA, 160) || !validTamil(req.DescTA, 2000) {
+	if !validTamilOpt(req.NameTA, 160) || !validTamilOpt(req.DescTA, 2000) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
 		return
 	}
@@ -488,14 +509,22 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	// Capture the current pin before the write so a move flushes the tile the shop is leaving, not
+	// only the one it lands in.
+	prevLat, prevLng, _, pinErr := h.repo.StorePin(r.Context(), id, sellerID, district)
+	if pinErr != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
 	store, ok, err := h.repo.UpdateStore(r.Context(), id, sellerID, district, VendorInput{
-		Name: req.Name, NameTA: strings.TrimSpace(req.NameTA), DescTA: strings.TrimSpace(req.DescTA),
+		Name: req.Name, NameTA: trimOpt(req.NameTA), DescTA: trimOpt(req.DescTA),
 		Address: req.Address, Phone: req.Phone, Hours: req.Hours,
 		Latitude: req.Latitude, Longitude: req.Longitude, PlatformFeePct: req.PlatformFeePct,
 		SellerCategoryID: strings.TrimSpace(req.SellerCategoryID), FSSAINumber: strings.TrimSpace(req.FSSAINumber),
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
 		DrugLicenseNumber: req.DrugLicenseNumber, DrugLicenseCertKey: strings.TrimSpace(req.DrugLicenseFileKey),
 		DrugLicenseCertAssetID: strings.TrimSpace(req.DrugLicenseAssetID),
+		IsVeg:                  req.IsVeg,
 		IsLive:                 req.IsLive,
 	})
 	if err != nil {
@@ -507,6 +536,10 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.cache.Del(r.Context(), cache.Store(id))
+	// A pin set or moved here must be visible to nearby shoppers at once, and the tile it left must
+	// stop serving the shop. prevPin was read before the write (the store now holds the new pin).
+	h.flushGeo(r.Context(), prevLat, prevLng)
+	h.flushGeo(r.Context(), store.Latitude, store.Longitude)
 	h.log(r, "directory.stores", "STORE_UPDATE", id)
 	httpx.JSON(w, http.StatusOK, store)
 }
@@ -566,6 +599,22 @@ func validTamil(value string, maxRunes int) bool {
 	return locale.IsTamilText(value) && len([]rune(value)) <= maxRunes
 }
 
+// validTamilOpt is the optional-field form: absent (nil) is always valid, so a partial patch that
+// omits the Tamil copy never clears it.
+func validTamilOpt(value *string, maxRunes int) bool {
+	return value == nil || validTamil(*value, maxRunes)
+}
+
+// trimOpt normalizes an optional string: absent stays nil (the DB keeps the current value), while a
+// present value is trimmed so an all-space edit reads as an explicit empty string.
+func trimOpt(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*value)
+	return &trimmed
+}
+
 // validVendorFee enforces the product rule: 1–100, floor 5 for FOOD.
 func validVendorFee(app string, pct int) bool {
 	if pct < 1 || pct > 100 {
@@ -614,13 +663,8 @@ func (h *Handler) setStoreLive(w http.ResponseWriter, r *http.Request) {
 	h.cache.Del(r.Context(), cache.Store(id))
 	// Flush the geo:nearby tiles around the store so shoppers co-located with it see the
 	// online/offline flip immediately; readers farther away stay bounded by TTLNearby + SWR.
-	if store.Latitude != 0 || store.Longitude != 0 {
-		prefixes := append(cache.NearbyStoresTilePrefixes(store.Latitude, store.Longitude),
-			cache.NearbyProductsTilePrefixes(store.Latitude, store.Longitude)...)
-		for _, p := range prefixes {
-			h.cache.DelPrefix(r.Context(), p)
-		}
-	}
+	// A store that was never pinned has no tile to flush.
+	h.flushGeo(r.Context(), store.Latitude, store.Longitude)
 	// An offline store's anon product page must stop serving its catalog right away.
 	h.cache.Del(r.Context(), cache.StoreProducts(id))
 	h.log(r, "directory.stores", "STORE_LIVE_"+boolToken(*body.Live), id)

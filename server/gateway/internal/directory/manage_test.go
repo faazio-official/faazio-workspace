@@ -275,3 +275,48 @@ func TestMenuInsertRequiresVenueOwnership(t *testing.T) {
 		t.Fatalf("owner insert: ok=%v err=%v", ok, err)
 	}
 }
+
+// TestMenuWritesRequireFoodSector locks the sector guard on the FOOD-owned menu tables: a Mart or
+// Pharmacy store that owns a venue id must still be unable to insert, re-status or delete a dish.
+func TestMenuWritesRequireFoodSector(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	sellerID := "sel-sector-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
+		values ($1,'Sector Guard','O','TN','TCH')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
+
+	martID := "store-mart-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, state_code, is_live)
+		values ($1,'MART','Sector Mart',$2,'TN', true)`, martID, sellerID); err != nil {
+		t.Fatalf("seed mart store: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from directory.menus where venue_id=$1`, martID)
+		_, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, martID)
+	})
+
+	dishID := "dish-mart-" + manageID("")
+	if _, ok, err := repo.UpsertMenu(ctx, SellerMenu{VenueID: martID, DishID: dishID, Name: "Rogue Dish", Price: 10}, sellerID, false); err != nil || ok {
+		t.Fatalf("MART store insert must be denied: ok=%v err=%v", ok, err)
+	}
+
+	// Seed a row the store does not own sector-wise, then prove status/delete cannot touch it either.
+	if _, err := pool.Exec(ctx, `
+		insert into directory.menus (venue_id, dish_id, name, price_paisa, status)
+		values ($1,$2,'Seeded',10000,'DRAFT')`, martID, dishID); err != nil {
+		t.Fatalf("seed menu row: %v", err)
+	}
+	if _, ok, err := repo.SetMenuStatus(ctx, martID, dishID, sellerID, "ACTIVE", false); err != nil || ok {
+		t.Fatalf("MART store status write must be denied: ok=%v err=%v", ok, err)
+	}
+	if ok, err := repo.DeleteMenu(ctx, martID, dishID, sellerID, false); err != nil || ok {
+		t.Fatalf("MART store delete must be denied: ok=%v err=%v", ok, err)
+	}
+}

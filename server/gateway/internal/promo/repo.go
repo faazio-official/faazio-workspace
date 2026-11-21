@@ -309,6 +309,26 @@ func (r *Repo) ProductOwnedBy(ctx context.Context, productID, sellerID string) (
 	return ok, err
 }
 
+// ProductInSellerStore is the store-aware ownership + sector guard for opt-ins. It requires the
+// product to be listed under a store owned by the seller, optionally the exact store the seller has
+// active, AND the product's sector to match that store's sector. The last clause closes the
+// cross-sector hole: a FOOD row somehow attached to a MART store (or a direct API call naming a
+// foreign product id) can never be opted into a campaign for the wrong vertical.
+func (r *Repo) ProductInSellerStore(ctx context.Context, productID, sellerID, storeID string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("promo: database not configured")
+	}
+	var ok bool
+	err := r.pool.QueryRow(ctx, `
+		select exists (
+			select 1 from catalog.products p
+			  join directory.stores st on st.id = p.store_id
+			 where p.id = $1 and st.seller_id = $2
+			   and ($3 = '' or st.id = $3)
+			   and p.app = st.app)`, productID, sellerID, storeID).Scan(&ok)
+	return ok, err
+}
+
 // SellerScope returns a seller's district and parent state (for admin scope checks).
 func (r *Repo) SellerScope(ctx context.Context, sellerID string) (districtCode, stateCode string, ok bool, err error) {
 	if r.pool == nil {

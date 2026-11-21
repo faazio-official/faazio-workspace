@@ -71,6 +71,11 @@ const addonScopePredicate = `(
   ($2 <> '' and se.district_code = $2) or
   ($1 = '' and $2 = ''))`
 
+// foodVenuePredicate is addonScopePredicate plus the sector guard: directory.addons and
+// directory.menu_addon_links are FOOD-owned tables, so a Mart/Pharmacy store that somehow names a
+// venue id here must never be able to write an add-on or a dish link.
+const foodVenuePredicate = `(` + addonScopePredicate + ` and st.app::text = 'FOOD')`
+
 func scanAddon(row pgx.Row) (Addon, time.Time, error) {
 	var (
 		a         Addon
@@ -136,7 +141,7 @@ func (r *Repo) CreateAddon(ctx context.Context, venueID, name, group, nameTA, gr
 	if r.pool == nil {
 		return Addon{}, false, fmt.Errorf("catalog: database not configured")
 	}
-	owned, err := r.venueInScope(ctx, venueID, sellerID, district)
+	owned, err := r.foodVenueInScope(ctx, venueID, sellerID, district)
 	if err != nil {
 		return Addon{}, false, err
 	}
@@ -165,7 +170,7 @@ func (r *Repo) UpdateAddon(ctx context.Context, addonID, name, group, nameTA, gr
 		       name_ta = $8, group_name_ta = $9, updated_at = now()
 		 from directory.stores st
 		 left join sellers.sellers se on se.seller_id = st.seller_id
-		 where a.addon_id = $7 and st.id = a.venue_id and `+addonScopePredicate+`
+		 where a.addon_id = $7 and st.id = a.venue_id and `+foodVenuePredicate+`
 		 returning a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
 		           a.status::text, coalesce(a.review_reason, ''), a.updated_at,
 		           coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')`,
@@ -190,7 +195,7 @@ func (r *Repo) SubmitAddonForReview(ctx context.Context, addonID, sellerID, dist
 		 left join sellers.sellers se on se.seller_id = st.seller_id
 		 where a.addon_id = $3 and st.id = a.venue_id
 		   and a.status in ('DRAFT'::product_status, 'DELISTED'::product_status)
-		   and `+addonScopePredicate+`
+		   and `+foodVenuePredicate+`
 		 returning a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
 		           a.status::text, coalesce(a.review_reason, ''), a.updated_at,
 		           coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')`,
@@ -216,7 +221,7 @@ func (r *Repo) SetAddonStatus(ctx context.Context, addonID, status, reason, sell
 		       updated_at = now()
 		 from directory.stores st
 		 left join sellers.sellers se on se.seller_id = st.seller_id
-		 where a.addon_id = $5 and st.id = a.venue_id and `+addonScopePredicate+`
+		 where a.addon_id = $5 and st.id = a.venue_id and `+foodVenuePredicate+`
 		 returning a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
 		           a.status::text, coalesce(a.review_reason, ''), a.updated_at,
 		           coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')`,
@@ -230,8 +235,9 @@ func (r *Repo) SetAddonStatus(ctx context.Context, addonID, status, reason, sell
 	return a, true, nil
 }
 
-// venueInScope reports whether the venue store belongs to the caller's seller/district scope.
-func (r *Repo) venueInScope(ctx context.Context, venueID, sellerID, district string) (bool, error) {
+// foodVenueInScope reports whether the venue store belongs to the caller's seller/district scope and
+// is a FOOD shop (add-ons are a food-only capability).
+func (r *Repo) foodVenueInScope(ctx context.Context, venueID, sellerID, district string) (bool, error) {
 	if r.pool == nil {
 		return false, fmt.Errorf("catalog: database not configured")
 	}
@@ -240,7 +246,7 @@ func (r *Repo) venueInScope(ctx context.Context, venueID, sellerID, district str
 		select exists (
 			select 1 from directory.stores st
 			left join sellers.sellers se on se.seller_id = st.seller_id
-			 where st.id = $3 and `+addonScopePredicate+`)`,
+			 where st.id = $3 and `+foodVenuePredicate+`)`,
 		sellerID, district, venueID).Scan(&ok)
 	return ok, err
 }
@@ -296,7 +302,7 @@ func (r *Repo) LinkAddon(ctx context.Context, venueID, dishID, addonID, sellerID
 		  left join sellers.sellers se on se.seller_id = st.seller_id
 		 where a.addon_id = $5 and a.venue_id = $3
 		   and a.status <> 'DELISTED'::product_status
-		   and `+addonScopePredicate+`
+		   and `+foodVenuePredicate+`
 		on conflict (venue_id, dish_id, addon_id) do update set is_enabled = true`,
 		sellerID, district, venueID, dishID, addonID)
 	if err != nil {
@@ -315,7 +321,7 @@ func (r *Repo) UnlinkAddon(ctx context.Context, venueID, dishID, addonID, seller
 		 using directory.stores st
 		 left join sellers.sellers se on se.seller_id = st.seller_id
 		 where l.venue_id = $3 and l.dish_id = $4 and l.addon_id = $5 and st.id = l.venue_id
-		   and `+addonScopePredicate, sellerID, district, venueID, dishID, addonID)
+		   and `+foodVenuePredicate, sellerID, district, venueID, dishID, addonID)
 	if err != nil {
 		return false, err
 	}

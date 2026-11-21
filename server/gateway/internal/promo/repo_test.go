@@ -335,3 +335,68 @@ func TestDecideCoupon(t *testing.T) {
 		t.Fatalf("min_order: %+v", v)
 	}
 }
+
+// TestProductInSellerStoreSectorGuard locks the store/sector clause the opt-in handler relies on: a
+// product is only opt-in-able from the store it is listed under, and its app must match that store's
+// app (so a FOOD row can never ride a MART shop's opt-in, or vice versa).
+func TestProductInSellerStoreSectorGuard(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	sellerID := "sel-optin-" + shortID()
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		values ($1,'Optin Guard','O','TN')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
+
+	martID := "store-mart-" + shortID()
+	foodID := "store-food-" + shortID()
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, state_code)
+		values ($1,'MART','Guard Mart',$3,'TN'), ($2,'FOOD','Guard Food',$3,'TN')`,
+		martID, foodID, sellerID); err != nil {
+		t.Fatalf("seed stores: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from catalog.products where store_id = any($1)`, []string{martID, foodID})
+		_, _ = pool.Exec(ctx, `delete from directory.stores where id = any($1)`, []string{martID, foodID})
+	})
+
+	martProduct := "pd-mart-" + shortID()
+	foodProduct := "pd-food-" + shortID()
+	if _, err := pool.Exec(ctx, `
+		insert into catalog.products (id, app, category, name, price_paisa, store_id)
+		values ($1,'MART','Snacks','Guard Mart SKU',10000,$2),
+		       ($3,'FOOD','Mains','Guard Food Dish',15000,$4)`,
+		martProduct, martID, foodProduct, foodID); err != nil {
+		t.Fatalf("seed products: %v", err)
+	}
+
+	cases := []struct {
+		name      string
+		productID string
+		storeID   string
+		want      bool
+	}{
+		{"same store, matching sector", martProduct, martID, true},
+		{"no store named, matching sector", martProduct, "", true},
+		{"cross-sector product on mart store", foodProduct, martID, false},
+		{"cross-sector product on food store", martProduct, foodID, false},
+		{"product from the other store", foodProduct, martID, false},
+	}
+	for _, tc := range cases {
+		got, err := repo.ProductInSellerStore(ctx, tc.productID, sellerID, tc.storeID)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.name, err)
+		}
+		if got != tc.want {
+			t.Fatalf("%s: got %v want %v", tc.name, got, tc.want)
+		}
+	}
+	if got, err := repo.ProductInSellerStore(ctx, martProduct, "sel-other", ""); err != nil || got {
+		t.Fatalf("foreign seller must be rejected: got=%v err=%v", got, err)
+	}
+}
