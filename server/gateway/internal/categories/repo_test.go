@@ -13,7 +13,7 @@ func TestCategoryLifecycle(t *testing.T) {
 	repo := NewRepo(pool)
 	ctx := context.Background()
 
-	parent, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Test Parent", SortOrder: 9000}, "test")
+	parent, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Test Parent", SortOrder: 9000, GSTRateCategoryID: "gst-mart-packaged"}, "test")
 	if err != nil {
 		t.Fatalf("create parent: %v", err)
 	}
@@ -22,7 +22,7 @@ func TestCategoryLifecycle(t *testing.T) {
 		_, _ = pool.Exec(ctx, `delete from taxonomy.categories where id = $1`, parent.ID)
 	})
 
-	child, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Test Child", ParentID: &parent.ID, SortOrder: 9001}, "test")
+	child, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Test Child", ParentID: &parent.ID, SortOrder: 9001, GSTRateCategoryID: "gst-mart-packaged"}, "test")
 	if err != nil {
 		t.Fatalf("create child: %v", err)
 	}
@@ -38,7 +38,7 @@ func TestCategoryLifecycle(t *testing.T) {
 		t.Fatalf("children = %+v, want the single child", children)
 	}
 
-	if updated, err := repo.Update(ctx, child.ID, Input{App: "MART", Name: "ZZ Test Child 2", ParentID: &parent.ID, SortOrder: 9001}, "test"); err != nil || updated.Name != "ZZ Test Child 2" {
+	if updated, err := repo.Update(ctx, child.ID, Input{App: "MART", Name: "ZZ Test Child 2", ParentID: &parent.ID, SortOrder: 9001, GSTRateCategoryID: "gst-mart-packaged"}, "test"); err != nil || updated.Name != "ZZ Test Child 2" {
 		t.Fatalf("update: name=%q err=%v", updated.Name, err)
 	}
 
@@ -68,7 +68,7 @@ func TestHomeRailList(t *testing.T) {
 	ctx := context.Background()
 	yes := true
 
-	root, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Rail Root", SortOrder: 9100, ShowOnHomeRail: &yes}, "test")
+	root, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Rail Root", SortOrder: 9100, ShowOnHomeRail: &yes, GSTRateCategoryID: "gst-mart-packaged"}, "test")
 	if err != nil {
 		t.Fatalf("create root: %v", err)
 	}
@@ -76,7 +76,7 @@ func TestHomeRailList(t *testing.T) {
 		_, _ = pool.Exec(ctx, `delete from taxonomy.categories where id = $1`, root.ID)
 	})
 
-	child, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Rail Child", ParentID: &root.ID, SortOrder: 9101, ShowOnHomeRail: &yes}, "test")
+	child, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Rail Child", ParentID: &root.ID, SortOrder: 9101, ShowOnHomeRail: &yes, GSTRateCategoryID: "gst-mart-packaged"}, "test")
 	if err != nil {
 		t.Fatalf("create child: %v", err)
 	}
@@ -120,7 +120,7 @@ func TestHeaderLabels(t *testing.T) {
 	ctx := context.Background()
 
 	shared := []string{"MART", "MAIN_APP_HEADER"}
-	mart, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Header Mart", SortOrder: 9200, HeaderLabels: &shared}, "test")
+	mart, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Header Mart", SortOrder: 9200, HeaderLabels: &shared, GSTRateCategoryID: "gst-mart-packaged"}, "test")
 	if err != nil {
 		t.Fatalf("create mart: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestHeaderLabels(t *testing.T) {
 		t.Fatalf("created row = rail %v labels %v, want shared MART row", mart.ShowOnHomeRail, mart.HeaderLabels)
 	}
 
-	plain, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Header Plain", SortOrder: 9201}, "test")
+	plain, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Header Plain", SortOrder: 9201, GSTRateCategoryID: "gst-mart-packaged"}, "test")
 	if err != nil {
 		t.Fatalf("create plain: %v", err)
 	}
@@ -164,6 +164,7 @@ func TestHeaderLabels(t *testing.T) {
 	martOnly := []string{"MART"}
 	updated, err := repo.Update(ctx, mart.ID, Input{
 		App: "MART", Name: "ZZ Header Mart", SortOrder: 9200, HeaderLabels: &martOnly,
+		GSTRateCategoryID: "gst-mart-packaged",
 	}, "test")
 	if err != nil {
 		t.Fatalf("update labels: %v", err)
