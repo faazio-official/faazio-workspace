@@ -259,8 +259,10 @@ caller) and are event-purged on store live toggle and product edit/status change
   `PATCH /seller/fee-change-requests/{id}/approve|reject`. Only approval mutates the named vendor
   store's `directory.stores.platform_fee_pct`; one `PENDING` row per **store**
   (`0049` + `0072`). Portal pages: `/seller/fee-change-request`, `/seller/fee-history`.
-- **Tax + invoicing (`internal/tax` + `internal/platform/taxmath`, `0051` + `0053`):** every order is priced server-side from
-  `tax.tax_rates` + `tax.platform_settings` (GST-inclusive split, TCS 1% / TDS 0.1% withheld).
+- **Tax + invoicing (`internal/tax` + `internal/platform/taxmath`, `0051` + `0053` + `0117`–`0120`):** every order is priced server-side from
+  `tax.category_gst_rates` + `tax.platform_settings` (GST-inclusive split, TCS 1% / TDS 0.1% withheld).
+  A line's rate is resolved by `catalog.products.taxonomy_category_id` (FOOD is pinned to 5%, an
+  unmapped product falls back to the default slab) — the old `tax.tax_rates` name match is gone.
   **Platform commission is charged** per line at each store's `directory.stores.platform_fee_pct`
   (`taxmath.Compute` sums per-line `percentOf(gross, fee)`; GST on the commission is recorded as the
   platform's liability, not withheld from the seller), so `SellerNet = gross − commission − TCS − TDS`
@@ -273,8 +275,11 @@ caller) and are event-purged on store live toggle and product edit/status change
   `free_delivery` coupon zeroes the customer's delivery line (platform-funded) while the rider payout
   still reuses the stored distance/surge. The immutable invoice is readable at
   `GET /orders/{orderId}/invoice` (owner-scoped; presigned R2 URL only when a PDF exists). Portal:
-  `GET /tax/categories`, `GET|PUT /admin/tax/categories`, `DELETE /admin/tax/categories/{id}`,
-  `GET|PUT /admin/tax/settings` (SUPER_ADMIN writes). Settlement ledger carries the same
+  public `GET /tax/categories` (one row per taxonomy category + its mandatory GST, read by the seller
+  product picker) and SUPER_ADMIN `GET|POST /admin/tax/gst-rate-categories`,
+  `PUT|DELETE /admin/tax/gst-rate-categories/{id}`, `GET /admin/tax/category-gst-rates`,
+  `PUT /admin/tax/category-gst-rates/{id}` (slab delete is a soft deactivate, `409` while linked).
+  Settlement ledger carries the same
   TDS/product-GST/platform-GST figures plus the per-store commission.
 - **Central remote config (`internal/appconfig`, `0059`):** public `GET /app-config?variant=customer|delivery|seller`
   serves the `admins.app_config` **public** rows (no auth — the app fetches it on cold boot, before

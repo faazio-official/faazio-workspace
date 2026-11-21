@@ -60,7 +60,12 @@ export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE, app?: VendorApp):
         setAll(
           categories
             .map((c) => categoryToRailItem(c, language))
-            .filter((c): c is CategoryRailItem => c !== null && (!app || c.app === app)),
+            // A sub-app-scoped rail shows only that sub-app's own taxonomy — a MAIN_APP_HEADER
+            // category belongs to the Home hub rail, never inside Mart or Pharma.
+            .filter(
+              (c): c is CategoryRailItem =>
+                c !== null && (!app || (c.app === app && c.treeApp !== 'MAIN_APP_HEADER')),
+            ),
         );
       })
       .catch((err) => {

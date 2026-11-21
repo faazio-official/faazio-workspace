@@ -202,6 +202,7 @@ export default function SubAppWrapper({
         tabId: item.id,
         title: item.name,
         app: item.app,
+        treeApp: item.treeApp,
       });
     },
     [navigation],

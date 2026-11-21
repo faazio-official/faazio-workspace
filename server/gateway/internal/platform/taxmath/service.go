@@ -22,13 +22,17 @@ import (
 	"strings"
 )
 
-// Default rate-card values. The live values come from tax.platform_settings / tax.tax_rates.
+// Default rate-card values. The live values come from tax.platform_settings and the per-category GST
+// in tax.category_gst_rates.
 const (
 	DefaultPlatformGSTPct   = 18.0
 	DefaultTCSPct           = 1.0
 	DefaultTDSPct           = 0.1
 	DefaultDeliveryFeePaisa = 5000
-	DefaultProductGSTRate   = 5
+	// DefaultProductGSTRate is the statutory default when a product has no taxonomy category link.
+	DefaultProductGSTRate = 5
+	// FoodGSTRate is the fixed rate for every FOOD category (policy: all food is 5%).
+	FoodGSTRate = 5
 )
 
 // Rates is the configurable rate card loaded from tax.platform_settings.

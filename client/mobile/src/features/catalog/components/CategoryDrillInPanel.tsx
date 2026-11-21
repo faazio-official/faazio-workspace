@@ -15,7 +15,7 @@ import AppTextInput from '@/components/AppTextInput';
 import CampaignHero from '@/components/shared/CampaignHero';
 import AppRefreshControl from '@/components/shared/AppRefreshControl';
 import { ReportIssueButton } from '@/components/shared/ReportIssueButton';
-import type { Product } from '@data/types';
+import type { CategoryApp, Product } from '@data/types';
 import { localizedName } from '@/lib/localizedText';
 import { useLanguageStore } from '@/state/languageStore';
 import { openHeroTarget } from '@/services/adsTarget';
@@ -33,6 +33,8 @@ interface CategoryDrillInPanelProps {
   tabId: string;
   title: string;
   app: VendorApp;
+  /** Taxonomy pool to walk. Defaults to `app`'s own pool; a MAIN_APP_HEADER chip passes its own. */
+  treeApp?: CategoryApp;
   onBack: () => void;
   onVendorPress: (storeId: string, initialQuery: string) => void;
   onProductPress: (product: Product) => void;
@@ -51,6 +53,7 @@ export function CategoryDrillInPanel({
   tabId,
   title,
   app,
+  treeApp,
   onBack,
   onVendorPress,
   onProductPress,
@@ -60,13 +63,13 @@ export function CategoryDrillInPanel({
   const language = useLanguageStore((s) => s.language);
   const bodyRef = useRef<FlatList<VendorProducts>>(null);
 
-  // Server-backed taxonomy for this sub-app (superadmin-owned; no fixture fallback).
+  // Server-backed taxonomy for this pool (superadmin-owned; no fixture fallback).
   const {
     categories,
     loading: treeLoading,
     refreshing: treeRefreshing,
     refresh: refreshTree,
-  } = useCategoryTree(app);
+  } = useCategoryTree(app, treeApp);
 
   // Parent id → children map, built from the flat `GET /categories?app=` list.
   const byParent = useMemo(() => {
@@ -104,6 +107,15 @@ export function CategoryDrillInPanel({
       for (const k of kids) walk(k.id);
     };
     walk(activeTab.id);
+    // A childless category is its own single title (e.g. a header-only category with no
+    // sub-categories yet) rather than an empty rail over an unscoped body.
+    if (out.length === 0) {
+      out.push({
+        id: activeTab.id,
+        name: localizedName(activeTab, language),
+        searchQuery: activeTab.searchQuery || activeTab.name,
+      });
+    }
     return out;
   }, [activeTab, byParent, categories, language]);
 

@@ -1039,6 +1039,9 @@ type ProductSnapshot struct {
 	PricePaisa int64
 	SellerID   string
 	StoreID    *string
+	// TaxonomyCategoryID is the product's `taxonomy.categories` link. GST resolves from it
+	// (`tax.category_gst_rates`); empty means unresolved and the app default applies.
+	TaxonomyCategoryID string
 	// VenueID is the ordering venue used to resolve add-on links. For catalog products it is the
 	// store id; for a `directory.menus` dish it is the menu venue id.
 	VenueID string
@@ -1057,7 +1060,7 @@ func (r *Repo) ProductSnapshots(ctx context.Context, ids []string) (map[string]P
 	}
 	rows, err := r.pool.Query(ctx, `
 		select p.id, p.name, p.app::text, p.category, p.price_paisa,
-		       coalesce(s.seller_id, ''), p.store_id
+		       coalesce(s.seller_id, ''), p.store_id, coalesce(p.taxonomy_category_id, '')
 		  from catalog.products p
 		  left join directory.stores s on s.id = p.store_id
 		 where p.id = any($1)`, ids)
@@ -1067,7 +1070,8 @@ func (r *Repo) ProductSnapshots(ctx context.Context, ids []string) (map[string]P
 	defer rows.Close()
 	for rows.Next() {
 		var s ProductSnapshot
-		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.Category, &s.PricePaisa, &s.SellerID, &s.StoreID); err != nil {
+		if err := rows.Scan(&s.ID, &s.Name, &s.App, &s.Category, &s.PricePaisa, &s.SellerID,
+			&s.StoreID, &s.TaxonomyCategoryID); err != nil {
 			return nil, err
 		}
 		s.VenueID = derefStr(s.StoreID)
@@ -1175,26 +1179,28 @@ type SellerTaxProfile struct {
 	GSTIN        string
 }
 
-// TaxRates returns the active category GST rates keyed by "SECTOR|lower(category)".
+// TaxRates returns the mandatory GST rate of each taxonomy category, keyed by category id. A product
+// resolves its rate through its `taxonomy_category_id`, so a rename or a new category cannot silently
+// change the tax a listing pays.
 func (r *Repo) TaxRates(ctx context.Context) (map[string]int, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("checkout: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select sector::text, lower(category), gst_rate_pct
-		  from tax.tax_rates where is_active`)
+		select category_id, gst_rate_pct
+		  from tax.category_gst_rates where is_active`)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	out := map[string]int{}
 	for rows.Next() {
-		var sector, category string
+		var categoryID string
 		var rate int
-		if err := rows.Scan(&sector, &category, &rate); err != nil {
+		if err := rows.Scan(&categoryID, &rate); err != nil {
 			return nil, err
 		}
-		out[sector+"|"+category] = rate
+		out[categoryID] = rate
 	}
 	return out, rows.Err()
 }

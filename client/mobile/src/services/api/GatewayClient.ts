@@ -14,7 +14,7 @@
  * See data/DATA_CONTROL.md, docs/architecture/data-layer-sdui.md,
  * docs/architecture/mvp-backend.md §3, docs/architecture/monolith-breakdown.md.
  */
-import type { AccountNavGroup, AppBrand, PickupPoint, SavedAddress, UserDetailsData } from '@data/types';
+import type { AccountNavGroup, AppBrand, CategoryApp, PickupPoint, SavedAddress, UserDetailsData } from '@data/types';
 import type { CatalogEntry } from '@data/catalog/products';
 import type { StoreRecord } from '@data/directory/stores';
 import type { ReviewRow } from '@data/reviews/reviews';
@@ -412,7 +412,11 @@ export interface Venue {
  */
 export interface Category {
   id: string;
-  app: AppBrand;
+  /**
+   * The row's primary pool. `MAIN_APP_HEADER` is a header-only category (no vendor sub-app) that
+   * drills into its own sub-categories; every other value is a product pool.
+   */
+  app: CategoryApp;
   name: string;
   slug: string;
   description?: string;
@@ -435,6 +439,12 @@ export interface Category {
    * MAIN_APP_HEADER | MART | FOOD | PHARMA. Always includes the primary `app`.
    */
   headerLabels?: string[];
+  /** Mandatory GST of this category (`tax.category_gst_rates`, `0119`). */
+  gstRatePct?: number;
+  /** The `tax.gst_rate_categories` row the superadmin picked (`0118`). */
+  gstRateCategoryId?: string;
+  /** Display name of the picked GST slab. */
+  gstRateCategoryName?: string;
   sortOrder: number;
 }
 
@@ -1276,7 +1286,7 @@ export class GatewayClient {
    * returns the flat active top-level rows for the Home header rail. Throws `GatewayOfflineError`
    * when remote is disabled and rethrows HTTP errors, so callers render an honest empty state.
    */
-  async fetchCategories(app?: AppBrand, parentId?: string): Promise<Category[]> {
+  async fetchCategories(app?: CategoryApp, parentId?: string): Promise<Category[]> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     return this.http<Category[]>(
       `/categories${queryString({ app, parent_id: parentId })}`,

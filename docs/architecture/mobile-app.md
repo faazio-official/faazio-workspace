@@ -411,8 +411,9 @@ commit immediately so they skip suggestions and show results as before.
 
 **Category drill-in + vendor details** (`features/catalog/`): a rail chip (Home hub or Mart
 sub-app header) opens `CategoryDrillInScreen` (route `CategoryDrillIn`, params `tabId`/`title`/
-`app`). `CategoryDrillInPanel` resolves the tab from the server taxonomy (`GET /categories` via
-`useCategoryTree`; falling back to the first returned tab) and flattens `subgroups → items` into a
+`app`, plus an optional `treeApp`). `CategoryDrillInPanel` resolves the tab from the server taxonomy
+(`GET /categories` via `useCategoryTree`, scoped to `treeApp ?? app`'s brand; falling back to the
+first returned tab) and flattens `subgroups → items` into a
 **flat, unbounded pill rail** of every sub-category title (`CategoryTitleRail` — first auto-selected;
 inactive chips transparent with dark text, the active one filled with the **Faazio-blue** page
 accent; no grouping). The page is a brand
@@ -450,7 +451,11 @@ The Home hub header (`features/home/HomeTabScreen.tsx` + `hubHeader.ts`) is a **
    to active rows tagged `MAIN_APP_HEADER` in `taxonomy.category_headers` (`0115`; the legacy
    `show_on_home_rail` column is still honoured as a fallback) — unbounded, Mart + Pharma combined,
    any tree level, curated in the portal; `GatewayClient.fetchCategoryRail`, projected to chips by
-   `services/categoryRail.ts`; FOOD is not eligible and there is no fixture). Paging advances on scroll
+   `services/categoryRail.ts`; FOOD is not eligible and there is no fixture). A chip whose row is a
+   standalone `MAIN_APP_HEADER` category (e.g. "Electronics") carries `treeApp: 'MAIN_APP_HEADER'`:
+   the drill-in walks that header's own sub-categories while the vendor body searches the Mart pool.
+   Header-only sub-categories (`app = MAIN_APP_HEADER` with a `parent_id`) are excluded server-side
+   and reached only through the parent's drill-in. Paging advances on scroll
    **and** whenever a page does not overflow the viewport, so every curated chip is reachable.
    The same rail is reused by the Mart sub-app header (pinned below its searchbar). Tapping a chip
    opens the **category drill-in page** (`features/catalog/CategoryDrillInScreen.tsx`, route

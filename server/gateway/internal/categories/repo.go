@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/faazio/server/gateway/internal/platform/db"
+	"github.com/faazio/server/gateway/internal/platform/taxmath"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -40,6 +41,28 @@ type Category struct {
 	// HeaderLabels are the curated header lists this row belongs to (0115):
 	// MAIN_APP_HEADER | MART | FOOD | PHARMA. `App` is always one of them.
 	HeaderLabels []string `json:"headerLabels"`
+	// GST is the mandatory per-category tax (0118–0120). Nil only for a legacy row the backfill has
+	// not reached — the write path always sets it.
+	GSTRatePct          int    `json:"gstRatePct"`
+	GSTRateCategoryID   string `json:"gstRateCategoryId,omitempty"`
+	GSTRateCategoryName string `json:"gstRateCategoryName,omitempty"`
+}
+
+// SubCategoryInput is one inline sub-category created/updated with its parent in the portal sheet.
+type SubCategoryInput struct {
+	// ID links an existing child on update. Empty on create mints a new `cat-<shortid>`.
+	ID string `json:"id"`
+	// App defaults to the parent's app when empty (a header-only parent carries header-only children).
+	App                  string `json:"app"`
+	Name                 string `json:"name"`
+	NameTA               string `json:"nameTa"`
+	DescriptionTA        string `json:"descriptionTa"`
+	SearchQuery          string `json:"searchQuery"`
+	IconURL              string `json:"iconUrl"`
+	SortOrder            int64  `json:"sortOrder"`
+	IsActive             *bool  `json:"isActive"`
+	GSTRateCategoryID    string `json:"gstRateCategoryId"`
+	GSTRatePct           int    `json:"gstRatePct"`
 }
 
 // Input is a create/update payload.
@@ -60,6 +83,13 @@ type Input struct {
 	// HeaderLabels replaces the curated header lists when non-nil (0115). nil on update = unchanged.
 	// MAIN_APP_HEADER is also mirrored onto taxonomy.categories.show_on_home_rail.
 	HeaderLabels *[]string `json:"headerLabels"`
+	// GSTRateCategoryID is the mandatory GST rate pick (0118). The slab's own percentage is copied,
+	// never the caller's number. GSTRatePct is accepted for FOOD/display only and is ignored on write.
+	GSTRateCategoryID string `json:"gstRateCategoryId"`
+	GSTRatePct        int    `json:"gstRatePct"`
+	// SubCategories are the inline child rows (Option B: each child has its own mandatory GST pick).
+	// nil on update = children unchanged; an array = replace the parent's child set.
+	SubCategories *[]SubCategoryInput `json:"subCategories"`
 }
 
 // ListOptions filters a category listing.
@@ -93,10 +123,11 @@ func ValidHeader(s string) bool {
 	return false
 }
 
-// primaryHeader maps a category's app onto its primary header label.
+// primaryHeader maps a category's app onto its primary header label. MAIN_APP_HEADER is its own
+// primary label (a header-only category belongs to no vendor sub-app).
 func primaryHeader(app string) string {
 	switch app {
-	case HeaderMart, HeaderFood, HeaderPharma:
+	case HeaderMart, HeaderFood, HeaderPharma, HeaderMainApp:
 		return app
 	}
 	return ""
@@ -120,17 +151,26 @@ const headerLabelsSelect = `coalesce((select array_agg(h.header order by h.heade
 	from taxonomy.category_headers h
    where h.category_id = taxonomy.categories.id), '{}'::text[])`
 
+// gstSelect pulls the mandatory per-category GST link (0119) without a join fan-out.
+const gstSelect = `coalesce((select g.gst_rate_pct from tax.category_gst_rates g
+   where g.category_id = taxonomy.categories.id), 5),
+ coalesce((select g.gst_rate_category_id from tax.category_gst_rates g
+   where g.category_id = taxonomy.categories.id), ''),
+ coalesce((select r.name from tax.category_gst_rates g
+   join tax.gst_rate_categories r on r.id = g.gst_rate_category_id
+   where g.category_id = taxonomy.categories.id), '')`
+
 const rowSelect = `select id, app::text, name, slug, coalesce(description, ''), coalesce(icon_url, ''),
 	parent_id, coalesce(search_query, ''), is_active, show_on_home_rail, sort_order,
 	created_at::text, updated_at::text, created_by, coalesce(updated_by, ''),
-	coalesce(name_ta, ''), coalesce(description_ta, ''), ` + headerLabelsSelect
+	coalesce(name_ta, ''), coalesce(description_ta, ''), ` + headerLabelsSelect + `, ` + gstSelect
 
 func scanCategory(row pgx.Row) (Category, error) {
 	var c Category
 	err := row.Scan(&c.ID, &c.App, &c.Name, &c.Slug, &c.Description, &c.IconURL,
 		&c.ParentID, &c.SearchQuery, &c.IsActive, &c.ShowOnHomeRail, &c.SortOrder,
 		&c.CreatedAt, &c.UpdatedAt, &c.CreatedBy, &c.UpdatedBy, &c.NameTA, &c.DescriptionTA,
-		&c.HeaderLabels)
+		&c.HeaderLabels, &c.GSTRatePct, &c.GSTRateCategoryID, &c.GSTRateCategoryName)
 	if c.HeaderLabels == nil {
 		c.HeaderLabels = []string{}
 	}
@@ -154,7 +194,11 @@ func (r *Repo) List(ctx context.Context, opts ListOptions) ([]Category, error) {
 		   and (not $6 or ((show_on_home_rail or exists (
 		         select 1 from taxonomy.category_headers h
 		          where h.category_id = taxonomy.categories.id
-		            and h.header = 'MAIN_APP_HEADER')) and app::text <> 'FOOD'))
+		            and h.header = 'MAIN_APP_HEADER'))
+		         and app::text <> 'FOOD'
+		         -- A header-only sub-category is reached through its parent's drill-in, never as a
+		         -- sibling chip on the rail.
+		         and not (app::text = 'MAIN_APP_HEADER' and parent_id is not null)))
 		 order by app, sort_order, lower(name)`,
 		opts.App, opts.ParentID, opts.TopLevel, opts.ActiveOnly, opts.Header, opts.HomeRailOnly)
 	if err != nil {
@@ -238,6 +282,14 @@ func (r *Repo) Create(ctx context.Context, in Input, actor string) (Category, er
 	if err := replaceHeaderLabels(ctx, tx, id, labels); err != nil {
 		return Category{}, err
 	}
+	if err := setCategoryGST(ctx, tx, id, in.GSTRateCategoryID, in.App, actor); err != nil {
+		return Category{}, err
+	}
+	if in.SubCategories != nil {
+		if err := replaceSubCategories(ctx, tx, id, in.App, *in.SubCategories, actor); err != nil {
+			return Category{}, err
+		}
+	}
 	c, err := getCategory(ctx, tx, id)
 	if err != nil {
 		return Category{}, err
@@ -309,6 +361,18 @@ func (r *Repo) Update(ctx context.Context, id string, in Input, actor string) (C
 	if err := replaceHeaderLabels(ctx, tx, id, labels); err != nil {
 		return Category{}, err
 	}
+	// A nil GSTRateCategoryID on update leaves the existing rate (a partial patch); the handler makes
+	// it mandatory on the portal path by always sending one.
+	if strings.TrimSpace(in.GSTRateCategoryID) != "" {
+		if err := setCategoryGST(ctx, tx, id, in.GSTRateCategoryID, in.App, actor); err != nil {
+			return Category{}, err
+		}
+	}
+	if in.SubCategories != nil {
+		if err := replaceSubCategories(ctx, tx, id, in.App, *in.SubCategories, actor); err != nil {
+			return Category{}, err
+		}
+	}
 	c, err := getCategory(ctx, tx, id)
 	if err != nil {
 		return Category{}, err
@@ -317,6 +381,116 @@ func (r *Repo) Update(ctx context.Context, id string, in Input, actor string) (C
 		return Category{}, err
 	}
 	return c, nil
+}
+
+// setCategoryGST links a category to the picked slab. The slab's own percentage is copied, never a
+// caller-supplied number, so checkout and the portal can never disagree. A FOOD category is always
+// pinned to a 5% food slab (policy: all food is 5%), whatever slab the caller names.
+func setCategoryGST(ctx context.Context, tx pgx.Tx, id, rateCategoryID, app, actor string) error {
+	slab := strings.TrimSpace(rateCategoryID)
+	var (
+		pct    int
+		slabID string
+		err    error
+	)
+	if app == HeaderFood {
+		err = tx.QueryRow(ctx, `
+			select id, gst_rate_pct from tax.gst_rate_categories
+			 where sector = 'FOOD'::app_brand and gst_rate_pct = $1 and is_active
+			 order by (id = 'gst-food-standard') desc, id
+			 limit 1`, taxmath.FoodGSTRate).Scan(&slabID, &pct)
+		if err != nil {
+			return fmt.Errorf("categories: no %d%% FOOD GST slab configured: %w", taxmath.FoodGSTRate, err)
+		}
+	} else {
+		if slab == "" {
+			return fmt.Errorf("categories: a GST rate category is required")
+		}
+		err = tx.QueryRow(ctx, `
+			select id, gst_rate_pct from tax.gst_rate_categories
+			 where id = $1 and is_active`, slab).Scan(&slabID, &pct)
+		if err != nil {
+			return fmt.Errorf("categories: unknown GST rate category %q: %w", slab, err)
+		}
+	}
+	_, err = tx.Exec(ctx, `
+		insert into tax.category_gst_rates (category_id, gst_rate_pct, gst_rate_category_id, updated_by)
+		values ($1, $2, $3, $4)
+		on conflict (category_id) do update
+		  set gst_rate_pct = excluded.gst_rate_pct,
+		      gst_rate_category_id = excluded.gst_rate_category_id,
+		      is_active = true,
+		      updated_by = excluded.updated_by,
+		      updated_at = now()`,
+		id, pct, slabID, actor)
+	return err
+}
+
+// replaceSubCategories rewrites a parent's inline child set (Option B: every child carries its own
+// mandatory GST pick). Children the payload omits are deactivated, never deleted, so products and
+// sellers that reference them keep a valid taxonomy row. Each child inherits the parent's app.
+func replaceSubCategories(ctx context.Context, tx pgx.Tx, parentID, app string, subs []SubCategoryInput, actor string) error {
+	kept := make([]string, 0, len(subs))
+	for i, sub := range subs {
+		name := strings.TrimSpace(sub.Name)
+		if name == "" {
+			return fmt.Errorf("categories: sub-category name is required")
+		}
+		childApp := strings.ToUpper(strings.TrimSpace(sub.App))
+		if childApp == "" {
+			childApp = app
+		}
+		id := strings.TrimSpace(sub.ID)
+		if id == "" {
+			id = "cat-" + shortID()
+		}
+		slug := slugify(name)
+		active := true
+		if sub.IsActive != nil {
+			active = *sub.IsActive
+		}
+		// An inline child is reached through its parent's drill-in, not as its own rail chip, so it
+		// carries only its primary app label and never mirrors onto show_on_home_rail.
+		labels := []string{childApp}
+		if _, err := tx.Exec(ctx, `
+			insert into taxonomy.categories
+			  (id, app, name, slug, description, icon_url, parent_id, search_query, is_active,
+			   show_on_home_rail, sort_order, created_by, updated_by, name_ta, description_ta)
+			values ($1, $2::app_brand, $3, $4, null, $5, $6, $7, $8,
+			        false, $9, $10, $10, $11, $12)
+			on conflict (id) do update
+			  set app = excluded.app,
+			      name = excluded.name,
+			      slug = excluded.slug,
+			      icon_url = excluded.icon_url,
+			      parent_id = excluded.parent_id,
+			      search_query = excluded.search_query,
+			      is_active = excluded.is_active,
+			      sort_order = excluded.sort_order,
+			      updated_by = excluded.updated_by,
+			      name_ta = excluded.name_ta,
+			      description_ta = excluded.description_ta,
+			      updated_at = now()`,
+			id, childApp, name, slug, nullStr(strings.TrimSpace(sub.IconURL)), parentID,
+			nullStr(strings.TrimSpace(sub.SearchQuery)), active,
+			int64(i), actor, strings.TrimSpace(sub.NameTA), strings.TrimSpace(sub.DescriptionTA)); err != nil {
+			return err
+		}
+		if err := replaceHeaderLabels(ctx, tx, id, labels); err != nil {
+			return err
+		}
+		if err := setCategoryGST(ctx, tx, id, sub.GSTRateCategoryID, childApp, actor); err != nil {
+			return err
+		}
+		kept = append(kept, id)
+	}
+	// `kept` is a non-nil slice, so an explicit empty list (`subCategories: []`) deactivates the whole
+	// previous child set — the rows stay for reference resolution.
+	_, err := tx.Exec(ctx, `
+		update taxonomy.categories
+		   set is_active = false, updated_by = $2, updated_at = now()
+		 where parent_id = $1 and is_active and not (id = any($3))`, parentID, actor, kept)
+	return err
 }
 
 // Deactivate soft-deletes a category (is_active = false) so existing sellers/products that reference
@@ -353,10 +527,12 @@ func replaceHeaderLabels(ctx context.Context, tx pgx.Tx, id string, labels []str
 
 // resolveHeaderLabels computes the label set to persist plus the mirrored show_on_home_rail flag.
 //
-// Rules: the primary app label is always present; a category can only carry one primary app label;
-// MAIN_APP_HEADER (the shared main app header) is never allowed on a FOOD row. An explicit
-// HeaderLabels list fully determines the set; otherwise the existing set is kept (create: just the
-// app label) with the legacy ShowOnHomeRail flag applied as an alias for the MAIN_APP_HEADER label.
+// Rules: the primary app label is always present; a category can only carry one primary app label.
+// MAIN_APP_HEADER is both a standalone primary app (header-only categories belong to no vendor
+// sub-app) and the shared label a MART/PHARMA row can additionally carry; it is never allowed on a
+// FOOD row. An explicit HeaderLabels list fully determines the set; otherwise the existing set is
+// kept (create: just the app label) with the legacy ShowOnHomeRail flag applied as an alias for the
+// MAIN_APP_HEADER label.
 func resolveHeaderLabels(app string, explicit *[]string, legacyRail *bool, existing []string) ([]string, bool) {
 	set := map[string]bool{}
 	if explicit != nil {
@@ -382,6 +558,9 @@ func resolveHeaderLabels(app string, explicit *[]string, legacyRail *bool, exist
 
 	primary := primaryHeader(app)
 	if primary != "" {
+		// A vendor-sub-app row keeps its own label but may also be shared into the header (kept by
+		// the explicit list or the legacy rail alias); a header-only row keeps exactly the header
+		// label. Either way the primary label is always present and the other app labels are dropped.
 		for _, h := range []string{HeaderMart, HeaderFood, HeaderPharma} {
 			if h != primary {
 				delete(set, h)

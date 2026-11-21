@@ -37,10 +37,11 @@ func (h *Handler) Register(r chi.Router) {
 	})
 }
 
-// validApp reports whether s is a known app brand.
+// validApp reports whether s is a known app brand. MAIN_APP_HEADER is the standalone header-only pool
+// (a category that belongs to no vendor sub-app and drills into its own sub-categories).
 func validApp(s string) bool {
 	switch s {
-	case "MART", "FOOD", "PHARMA":
+	case "MART", "FOOD", "PHARMA", HeaderMainApp:
 		return true
 	}
 	return false
@@ -156,6 +157,14 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", msg)
 		return
 	}
+	if msg := gstError(req.App, req.GSTRateCategoryID); msg != "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", msg)
+		return
+	}
+	if msg := subCategoryError(req.App, req.SubCategories); msg != "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", msg)
+		return
+	}
 	item, err := h.repo.Create(r.Context(), req, auth.UserID(r.Context()))
 	if err != nil {
 		if errors.Is(err, ErrDuplicate) {
@@ -201,6 +210,12 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if msg := homeRailError(req.App, req.ShowOnHomeRail); msg != "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", msg)
+		return
+	}
+	// On update a blank GST pick means "unchanged" (the repo keeps the existing link); no validation
+	// error. A present pick must nevertheless be a real slab, which the repo enforces.
+	if msg := subCategoryError(req.App, req.SubCategories); msg != "" {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", msg)
 		return
 	}
@@ -250,8 +265,9 @@ func normalizeHeaderLabels(in *[]string) *[]string {
 }
 
 // headerLabelError validates the curated header labels on create/update. Every value must be a known
-// label, a row can only belong to its own app's list, and FOOD can never be shared into the shared
-// main app header (it has no consumer vendor pool).
+// label, a vendor-sub-app row can only belong to its own app's list, and FOOD can never be shared into
+// the main app header (it has no consumer vendor pool). A header-only row (app = MAIN_APP_HEADER)
+// therefore cannot take a vendor label either — the per-label rule below already rejects it.
 func headerLabelError(app string, labels *[]string) string {
 	if labels == nil {
 		return ""
@@ -278,16 +294,51 @@ func headerLabelError(app string, labels *[]string) string {
 }
 
 // homeRailError rejects rail selections the customer app cannot render: FOOD has no consumer vendor
-// pool. Any tree level is allowed — the drill-in resolves the tapped id and walks its subtree, so a
-// child chip opens that subtree (there is deliberately no parent check here). The rail itself is
-// unbounded — MART and PHARMA share it and the app scrolls horizontally, so there is no slot cap to
-// enforce here either.
+// pool. A header-only row (MAIN_APP_HEADER) is a header chip by definition and a MART/PHARMA row at any
+// tree level is a valid chip — the drill-in resolves the tapped id and walks its subtree. The rail
+// itself is unbounded — the app scrolls horizontally — so there is no slot cap to enforce here.
 func homeRailError(app string, show *bool) string {
 	if show == nil || !*show {
 		return ""
 	}
 	if app == "FOOD" {
 		return "FOOD categories cannot appear on the home rail"
+	}
+	return ""
+}
+
+// gstError validates the mandatory GST pick on create/update. A header-only or vendor-sub-app category
+// needs a real slab; FOOD is exempt because the gateway pins every FOOD row to the 5% food slab.
+func gstError(app, rateCategoryID string) string {
+	if app == "FOOD" {
+		return ""
+	}
+	if strings.TrimSpace(rateCategoryID) == "" {
+		return "a GST rate category is required"
+	}
+	return ""
+}
+
+// subCategoryError validates the inline child rows: each needs a name and (outside FOOD) its own GST
+// rate pick — Option B, every sub-category carries its own mandatory rate.
+func subCategoryError(app string, subs *[]SubCategoryInput) string {
+	if subs == nil {
+		return ""
+	}
+	for _, sub := range *subs {
+		if strings.TrimSpace(sub.Name) == "" {
+			return "every sub-category needs a name"
+		}
+		childApp := strings.ToUpper(strings.TrimSpace(sub.App))
+		if childApp == "" {
+			childApp = app
+		}
+		if childApp == "FOOD" {
+			continue
+		}
+		if strings.TrimSpace(sub.GSTRateCategoryID) == "" {
+			return "every sub-category needs a GST rate category"
+		}
 	}
 	return ""
 }

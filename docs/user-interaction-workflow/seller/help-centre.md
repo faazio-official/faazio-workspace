@@ -113,7 +113,7 @@ carries `Step n of 5`; the fixed bar reads `Continue` until the last step, then 
 | Open Products and tap Add | tap | `GET /seller/products` (search + `ALL/MART/FOOD/PHARMA` filters) |
 | Step 1 · choose the store | tap | store selector — a listing belongs to one store |
 | Pick the category leaf | tap | `GET /categories?app=` (`taxonomy.categories`) |
-| Confirm the GST category | tap | `GET /tax/categories` (`tax.tax_rates`), pre-matched from the leaf |
+| GST rate (automatic) | — | the leaf's own `tax.category_gst_rates` rate; shown as `GST n%` on the picker, never picked separately |
 | Step 2 · name, description and unit | type | create form |
 | Add a photo | tap | `POST /media/upload-url` → `PUT` → `POST /media/confirm` |
 | Step 3 · set the selling price | type | GST-inclusive price; card previews GST, commission, TCS 1%, TDS 0.1% |

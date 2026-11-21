@@ -7,10 +7,10 @@
 ## Steps
 
 1. Seller picks the store, then a **Category** — the active taxonomy **leaf** for that store's app
-   (`GET /categories?app=`, `taxonomy.categories`) — and a **GST category** from the platform rate
-   master (`GET /tax/categories`, `tax.tax_rates`). Picking a leaf pre-selects the matching GST
-   bucket when the names align; the seller can change it. GST stays a separate bucket because
-   checkout resolves the rate from `catalog.products.category`.
+   (`GET /categories?app=`, `taxonomy.categories`). The charged GST is not picked separately: the
+   leaf's own mandatory rate (`tax.category_gst_rates`, `0119`) applies, and the product picker shows
+   that same rate from `GET /tax/categories`. Checkout resolves the rate from
+   `catalog.products.taxonomy_category_id`, never from the free-text `catalog.products.category` label.
 2. Seller fills name, price, unit, description, image, and stock. Two optional Tamil fields —
    **Name (Tamil)** and **Description (Tamil)** — accept the Tamil display copy. They validate
    locally with `tamilFieldError` (`src/lib/tamil.ts`): Tamil letters, digits and light punctuation

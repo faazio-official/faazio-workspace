@@ -478,12 +478,12 @@ export const PAGE_HINTS: Record<string, PageHint> = {
     changesMade: "Moderation reaches the seller's ability to sell in the app.",
     app: ["portal", "consumer"],
   },
-  "/admin/super/sectors": {
-    what: "Sectors, their category trees and the GST rates that govern pricing.",
-    how: "Add, rename or remove categories here; every listing under them follows.",
-    whyCreated: "So there is one authoritative category and GST master for the whole platform.",
-    boundedWorkflow: "Taxonomy authority: edit the category tree and GST rates.",
-    changesMade: "Changes reach the category picker sellers use and the checkout tax split.",
+  "/admin/super/gst-rates": {
+    what: "The GST rate pick-list — one named slab per sector that every category links to.",
+    how: "Add, rename or re-rate a slab here; then assign it to categories on the Categories page.",
+    whyCreated: "So there is one authoritative GST rate master a category can never override.",
+    boundedWorkflow: "GST authority: maintain the slab pick-list that categories link to.",
+    changesMade: "Changes reach the category GST picker and the checkout tax split.",
     app: ["consumer", "portal"],
   },
   "/admin/super/coverage": {

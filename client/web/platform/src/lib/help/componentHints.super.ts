@@ -612,41 +612,27 @@ export const SUPER_COMPONENT_HINTS: Record<string, ComponentHint> = {
     },
   }),
 
-  // ── Sectors & categories ───────────────────────────────────────────────────
-  ...pageHints("/admin/super/sectors", {
-    "rename-category": {
-      what: "Renames a category on every listing filed under it.",
-      workflow: "Taxonomy authority — fix a category name.",
-      changes: "Updates the category on all its listings; shoppers see the new name.",
-      example: "Rename 'Cold Drinks' to 'Beverages'.",
-      app: ["consumer", "portal"],
-    },
-    "merge-categories": {
-      what: "Moves every listing from one category into another.",
-      workflow: "Taxonomy authority — consolidate categories.",
-      changes: "Reassigns all source listings to the target; the source disappears.",
-      example: "Merge 'Snacks' into 'Packaged Food'.",
-      app: ["consumer", "portal"],
-    },
+  // ── GST rates ──────────────────────────────────────────────────────────────
+  ...pageHints("/admin/super/gst-rates", {
     "gst-add": {
-      what: "Adds a category with its sector and GST rate to the master.",
-      workflow: "Taxonomy authority — define a category's tax.",
-      changes: "Makes the category selectable by sellers and sets its checkout tax.",
-      example: "Add 'Audio' under MART at 18%.",
+      what: "Adds a named GST slab to the rate pick-list.",
+      workflow: "GST authority — define a rate a category can pick.",
+      changes: "Makes the slab selectable on the Categories page.",
+      example: "Add 'Household Cleaning & General Goods' at 18%.",
       app: ["consumer", "portal"],
     },
     "gst-rate": {
-      what: "The GST rate applied to this category at checkout.",
-      workflow: "Taxonomy authority — adjust tax.",
-      changes: "Changes the tax split for every listing in the category.",
-      example: "Change 'Thali' from 5% to 12%.",
+      what: "The GST percentage this slab charges.",
+      workflow: "GST authority — adjust a rate.",
+      changes: "New category links copy the new rate; existing links keep theirs until re-rated.",
+      example: "Move a packaged-food slab from 12% to 5%.",
       app: ["consumer", "portal"],
     },
     "gst-delete": {
-      what: "Removes a category from the GST master.",
-      workflow: "Taxonomy authority — retire a category.",
-      changes: "Deletes the row; sellers can no longer pick it.",
-      example: "Delete a category you created by mistake.",
+      what: "Deactivates a GST slab so it is hidden from the picker.",
+      workflow: "GST authority — retire a slab.",
+      changes: "Refused while a category still links to it; deactivates otherwise.",
+      example: "Retire an unused slab you created by mistake.",
       app: ["consumer", "portal"],
     },
   }),

@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { PageHeader, Card, Sheet, RadioRow, TextField, Toggle, EmptyState, FixedActionBar } from "@/components/sellers/kit";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { createProduct, updateStock } from "@/lib/api";
-import { useCategoryTree, useSellerScope, useTaxCategories } from "@/lib/api/hooks";
+import { useCategoryTree, useSellerScope } from "@/lib/api/hooks";
 import { sectorLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
@@ -29,7 +29,6 @@ function NewProduct() {
     if (!storeId && activeStore) setStoreId(activeStore.storeId);
   }, [storeId, activeStore]);
   const [step, setStep] = useState(0);
-  const [category, setCategory] = useState("");
   const [taxonomyCategoryId, setTaxonomyCategoryId] = useState("");
   const [taxonomyName, setTaxonomyName] = useState("");
 
@@ -37,7 +36,6 @@ function NewProduct() {
   // must carry the picked store's sector (productId prefix, category list, veg/Rx toggles).
   const pickedStore = storeId ? stores.find((s) => s.storeId === storeId) : undefined;
   const sector: Sector = pickedStore?.sector ?? activeStore?.sector ?? "MART";
-  const categories = useTaxCategories(sector);
   // Discovery category: the active taxonomy leaf the home rail / drill-in reads. App-scoped.
   const tree = useCategoryTree(sector);
   const leaves = useMemo(() => {
@@ -47,11 +45,10 @@ function NewProduct() {
   const taxonomyParentName = (id: string | null) =>
     id ? tree.find((c) => c.id === id)?.name ?? "" : "";
 
-  // If the chosen store belongs to another sector, the previously picked categories no longer exist.
+  // If the chosen store belongs to another sector, the previously picked category no longer exists.
   const [sectorForCategory, setSectorForCategory] = useState("");
   useEffect(() => {
     if (sectorForCategory && sectorForCategory !== sector) {
-      setCategory("");
       setTaxonomyCategoryId("");
       setTaxonomyName("");
     }
@@ -74,11 +71,11 @@ function NewProduct() {
 
   const [storePicker, setStorePicker] = useState(false);
   const [taxPicker, setTaxPicker] = useState(false);
-  const [gstPicker, setGstPicker] = useState(false);
 
   const pricePaisa = parseRupeesToPaisa(price);
-  const selected = categories.find((c) => c.category === category);
-  const taxRatePct = selected?.gstRatePct ?? 5;
+  // The leaf's own mandatory GST (`tax.category_gst_rates`) — the seller never picks a rate, and the
+  // server resolves checkout from `taxonomyCategoryId`.
+  const taxRatePct = leaves.find((c) => c.id === taxonomyCategoryId)?.gstRatePct ?? 5;
   const feePct = pickedStore?.platformFeePct ?? 0;
 
   // Transparency preview of what the payout withholds. Same integer rounding as the gateway:
@@ -93,7 +90,7 @@ function NewProduct() {
   const sellerNetPaisa = pricePaisa - commissionPaisa - tcsPaisa - tdsPaisa;
 
   const stepValid = [
-    Boolean(sector && storeId && taxonomyCategoryId && category.trim()),
+    Boolean(sector && storeId && taxonomyCategoryId),
     name.trim().length > 2 &&
       description.trim().length > 5 &&
       images.length > 0 &&
@@ -116,7 +113,7 @@ function NewProduct() {
         nameTa: nameTa.trim(),
         descriptionTa: descriptionTa.trim(),
         sector,
-        category: category.trim(),
+        category: taxonomyName.trim(),
         taxonomyCategoryId,
         emoji: "",
         imageUrl: images[0] ?? "",
@@ -216,13 +213,7 @@ function NewProduct() {
                 {taxonomyName || "Pick an approved category"}
               </p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
-                The app-scoped taxonomy used by the home rail and category drill-in.
-              </p>
-            </Card>
-            <Card onClick={() => setGstPicker(true)} className="cursor-pointer">
-              <p className="text-xs font-medium text-muted-foreground">GST category</p>
-              <p className="mt-1 text-sm font-semibold">
-                {category ? `${category} · GST ${taxRatePct}%` : "Pick the GST category"}
+                Sets the home rail / drill-in leaf and its mandatory GST ({taxRatePct}%).
               </p>
             </Card>
           </>
@@ -335,7 +326,6 @@ function NewProduct() {
             </div>
             <dl className="divide-y divide-border text-sm">
               <Row label="Sector / category" value={`${sectorLabel(sector)} · ${taxonomyName}`} />
-              <Row label="GST category" value={category} />
               <Row label="Name" value={name} />
               {nameTa.trim() ? <Row label="Name (Tamil)" value={nameTa.trim()} /> : null}
               <Row label="Unit" value={unit} />
@@ -416,37 +406,16 @@ function NewProduct() {
             <RadioRow
               key={c.id}
               label={c.name}
-              sub={taxonomyParentName(c.parentId) || "Top level"}
+              sub={`${taxonomyParentName(c.parentId) || "Top level"} · GST ${c.gstRatePct ?? 5}%`}
               checked={taxonomyCategoryId === c.id}
               onClick={() => {
                 setTaxonomyCategoryId(c.id);
                 setTaxonomyName(c.name);
-                // Pre-select the matching GST bucket when the names line up; the seller can still
-                // change it in the GST category picker.
-                const match = categories.find(
-                  (t) => t.category.toLowerCase() === c.name.toLowerCase(),
-                );
-                if (match) setCategory(match.category);
                 setTaxPicker(false);
               }}
             />
           ))
         )}
-      </Sheet>
-
-      <Sheet open={gstPicker} onClose={() => setGstPicker(false)} title="GST category">
-        {categories.map((c) => (
-          <RadioRow
-            key={c.taxRateId}
-            label={c.category}
-            sub={`GST ${c.gstRatePct}%`}
-            checked={category === c.category}
-            onClick={() => {
-              setCategory(c.category);
-              setGstPicker(false);
-            }}
-          />
-        ))}
       </Sheet>
     </>
   );

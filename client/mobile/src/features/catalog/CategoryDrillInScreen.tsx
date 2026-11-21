@@ -15,7 +15,7 @@ type Props = NativeStackScreenProps<RootStackParamList, 'CategoryDrillIn'>;
  * with that title's search pre-applied; tapping a product opens product detail.
  */
 export function CategoryDrillInScreen({ navigation, route }: Props) {
-  const { tabId, title, app } = route.params;
+  const { tabId, title, app, treeApp } = route.params;
 
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
 
@@ -46,6 +46,7 @@ export function CategoryDrillInScreen({ navigation, route }: Props) {
         tabId={tabId}
         title={title}
         app={app}
+        treeApp={treeApp}
         onBack={handleBack}
         onVendorPress={handleVendorPress}
         onProductPress={handleProductPress}

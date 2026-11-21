@@ -40,7 +40,11 @@
   `GatewayHttpError status: 401`). Rail chips and drill-in titles render through
   `src/lib/localizedText.ts`: a Tamil session shows `taxonomy.categories.name_ta` when the
   super admin translated the category and the English `name` otherwise; the chip's `searchQuery`
-  (the vendor/FTS query) always stays English.
+  (the vendor/FTS query) always stays English. A chip whose row is a standalone `MAIN_APP_HEADER`
+  category (e.g. "Electronics") carries `treeApp = MAIN_APP_HEADER`: the drill-in walks that
+  header's own sub-categories while the vendor body still searches the Mart pool. Header-only
+  sub-categories are excluded from the rail (`0119` rule) and are reached only through the parent's
+  drill-in.
 - Stores: `getStores`, `getStoresNearby`, `getStore` → `directory.stores`.
 - Products: `searchProducts`, `getStoreProducts`, `getProductsByIds`, `getProduct` →
   `catalog.products` / `inventory.stock`.

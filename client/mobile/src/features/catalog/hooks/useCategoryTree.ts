@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { gateway, type Category } from '@/services/api/GatewayClient';
 import type { VendorApp } from '@/services/categoryVendors';
+import type { CategoryApp } from '@data/types';
 
 const APP_BRAND: Record<VendorApp, 'MART' | 'PHARMA'> = {
   FA_MART: 'MART',
@@ -16,19 +17,20 @@ export interface CategoryTree {
 }
 
 /**
- * Server-backed category tree for one sub-app. Reads the superadmin-owned `taxonomy.categories`
- * list (`GET /categories?app=`) — no fixture fallback. The flat list is turned into a parent/child
- * tree by the caller.
+ * Server-backed category tree for one sub-app — or for the standalone `MAIN_APP_HEADER` pool, whose
+ * header-only categories drill into their own sub-categories while the body still searches the Mart
+ * pool. Reads the superadmin-owned `taxonomy.categories` list (`GET /categories?app=`) — no fixture
+ * fallback. The flat list is turned into a parent/child tree by the caller.
  *
  * A failed refresh keeps the previously loaded categories (never blanks the chips) — the drill-in
- * `app` is fixed for the panel's lifetime, so stale rows can never leak another sub-app's taxonomy.
+ * `treeApp` is fixed for the panel's lifetime, so stale rows can never leak another pool's taxonomy.
  */
-export function useCategoryTree(app: VendorApp): CategoryTree {
+export function useCategoryTree(app: VendorApp, treeApp?: CategoryApp): CategoryTree {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [nonce, setNonce] = useState(0);
-  const brand = APP_BRAND[app];
+  const brand: CategoryApp = treeApp ?? APP_BRAND[app];
   // A pull keeps the loaded tree on failure; an app change must not keep another app's taxonomy.
   const isRefresh = useRef(false);
 

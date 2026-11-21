@@ -2,7 +2,7 @@ import type { NavigatorScreenParams } from '@react-navigation/native';
 import type { SubAppId } from '@/state/uiStore';
 import type { DietFilter } from '@/state/foodFilterStore';
 import type { FoodRestaurant, SpecialDish } from '@/features/food/types';
-import type { MyOrdersStatusFilter } from '@data/types';
+import type { MyOrdersStatusFilter, CategoryApp } from '@data/types';
 
 export type MainTabParamList = {
   Home: undefined;
@@ -27,8 +27,14 @@ export type RootStackParamList = {
     tabId: string;
     /** Header title — the tapped rail name (never "All Categories"). */
     title: string;
-    /** Sub-app whose category tree + product pool backs this page. */
+    /** Sub-app whose product pool backs this page. */
     app: 'FA_MART' | 'PHARMA';
+    /**
+     * The taxonomy pool the sub-category walk reads. Omitted → the same pool as `app`'s brand.
+     * A `MAIN_APP_HEADER` chip (e.g. "Electronics") walks its own tree while still searching the
+     * Mart product pool.
+     */
+    treeApp?: CategoryApp;
   };
   /** Vendor details page — a single store's products with a live searchbar. */
   VendorDetails: {

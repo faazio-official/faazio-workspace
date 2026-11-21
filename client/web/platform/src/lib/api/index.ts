@@ -360,12 +360,21 @@ export async function getSellerPayoutInvoice(payoutId: string): Promise<PayoutIn
 
 /**
  * Curated header lists a category can belong to (`taxonomy.category_headers`, `0115`). A category's
- * primary `app` is always one of MART/FOOD/PHARMA; MAIN_APP_HEADER is the shared main app header that
- * Mart and Pharma categories can additionally be listed under.
+ * primary `app` is one of MART/FOOD/PHARMA, or MAIN_APP_HEADER for a header-only category that
+ * belongs to no vendor sub-app.
  */
 export type CategoryHeader = "MAIN_APP_HEADER" | "MART" | "FOOD" | "PHARMA";
 
 export const CATEGORY_HEADERS: CategoryHeader[] = ["MAIN_APP_HEADER", "MART", "FOOD", "PHARMA"];
+
+/**
+ * Pools a category can be created in. MAIN_APP_HEADER is the standalone header pool: a header-only
+ * category (e.g. "Electronics") appears in the main app header and drills into its own sub-categories
+ * (e.g. "Android", "iPhone") instead of belonging to Mart/Food/Pharma.
+ */
+export type CategoryApp = "MART" | "FOOD" | "PHARMA" | "MAIN_APP_HEADER";
+
+export const CATEGORY_APPS: CategoryApp[] = ["MART", "FOOD", "PHARMA", "MAIN_APP_HEADER"];
 
 /** One `taxonomy.categories` row (superadmin-owned parent/child tree shared by every sub-app). */
 export interface CategoryRow {
@@ -383,20 +392,44 @@ export interface CategoryRow {
   searchQuery?: string;
   isActive: boolean;
   /**
-   * Curated onto the shared main app header. MART/PHARMA only, any tree level, unbounded count — the
-   * app scrolls the rail horizontally. FOOD is not eligible. Mirrors the MAIN_APP_HEADER label.
+   * Curated onto the shared main app header. MART/PHARMA (and header-only) rows, any tree level,
+   * unbounded count — the app scrolls the rail horizontally. FOOD is not eligible. Mirrors the
+   * MAIN_APP_HEADER label.
    */
   showOnHomeRail: boolean;
   /** Curated header lists this row belongs to (`0115`); always includes the primary `app`. */
   headerLabels: CategoryHeader[];
+  /** Mandatory GST of this category (`tax.category_gst_rates`, `0119`). */
+  gstRatePct?: number;
+  /** The `tax.gst_rate_categories` row the superadmin picked (`0118`). */
+  gstRateCategoryId?: string;
+  /** Display name of the picked GST slab (e.g. "Fresh & Unbranded Staples"). */
+  gstRateCategoryName?: string;
   sortOrder: number;
   createdAt?: string;
   updatedAt?: string;
   createdBy?: string;
 }
 
+/** One inline sub-category row in the create/edit sheet (Option B: its own mandatory GST pick). */
+export interface SubCategoryInput {
+  /** Existing child id on edit; omit to create a new child. */
+  id?: string;
+  /** Defaults to the parent's app server-side when omitted. */
+  app?: CategoryApp;
+  name: string;
+  nameTa?: string;
+  descriptionTa?: string;
+  searchQuery?: string;
+  iconUrl?: string;
+  sortOrder?: number;
+  isActive?: boolean;
+  /** Mandatory GST slab pick (except FOOD, which is pinned to 5%). */
+  gstRateCategoryId: string;
+}
+
 export interface CategoryInput {
-  app: Sector;
+  app: CategoryApp;
   name: string;
   slug?: string;
   description?: string;
@@ -411,10 +444,44 @@ export interface CategoryInput {
   showOnHomeRail?: boolean;
   /** Replaces the curated header lists; the primary `app` label is always added server-side. */
   headerLabels?: CategoryHeader[];
+  /** Mandatory GST slab pick (except FOOD, which the gateway pins to 5%). */
+  gstRateCategoryId?: string;
+  /** Display-only; the gateway always copies the slab's own percentage. */
+  gstRatePct?: number;
+  /** Inline child rows. Omit on update to leave the child set unchanged. */
+  subCategories?: SubCategoryInput[];
+}
+
+/** One `tax.gst_rate_categories` row — a named GST slab the superadmin picks from (`0118`). */
+export interface GSTRateCategory {
+  id: string;
+  name: string;
+  sector: CategoryApp;
+  gstRatePct: number;
+  isActive: boolean;
+}
+
+export type GSTRateCategoryInput = {
+  id?: string;
+  name: string;
+  sector: CategoryApp;
+  gstRatePct: number;
+  isActive?: boolean;
+};
+
+/** One `tax.category_gst_rates` row — the mandatory GST link of a taxonomy category (`0119`). */
+export interface CategoryGSTRate {
+  categoryId: string;
+  gstRatePct: number;
+  gstRateCategoryId: string;
+  gstRateCategoryName?: string;
+  isActive: boolean;
+  updatedAt?: string;
+  updatedBy?: string;
 }
 
 /** Superadmin-only: every category (including deactivated) for the portal, optionally app-scoped. */
-export async function listCategories(app?: Sector | "ALL"): Promise<CategoryRow[]> {
+export async function listCategories(app?: CategoryApp | "ALL"): Promise<CategoryRow[]> {
   const q = app && app !== "ALL" ? `?app=${app}` : "";
   return remote.get<CategoryRow[]>(`/admin/categories${q}`);
 }
@@ -437,6 +504,42 @@ export async function updateCategory(id: string, input: CategoryInput): Promise<
 /** Superadmin-only: deactivate a category (soft delete — hidden in the app, references preserved). */
 export async function deleteCategory(id: string): Promise<void> {
   await remote.delete(`/categories/${encodeURIComponent(id)}`);
+}
+
+/* --------------------------------- GST rates ------------------------------- */
+
+/** Superadmin-only: every GST rate slab, active and deactivated (`GET /admin/tax/gst-rate-categories`). */
+export async function listGSTRateCategories(): Promise<GSTRateCategory[]> {
+  return remote.get<GSTRateCategory[]>("/admin/tax/gst-rate-categories");
+}
+
+/** Superadmin-only: create or update one GST rate slab. */
+export async function upsertGSTRateCategory(
+  input: GSTRateCategoryInput,
+): Promise<GSTRateCategory> {
+  return remote.post<GSTRateCategory>("/admin/tax/gst-rate-categories", input);
+}
+
+/** Superadmin-only: deactivate a GST rate slab (refused while a category still links to it). */
+export async function deleteGSTRateCategory(id: string): Promise<void> {
+  await remote.delete(`/admin/tax/gst-rate-categories/${encodeURIComponent(id)}`);
+}
+
+/** Superadmin-only: the GST links of every category, or one (`?category_id=`). */
+export async function listCategoryGSTRates(categoryId?: string): Promise<CategoryGSTRate[]> {
+  const q = categoryId ? `?category_id=${encodeURIComponent(categoryId)}` : "";
+  return remote.get<CategoryGSTRate[]>(`/admin/tax/category-gst-rates${q}`);
+}
+
+/** Superadmin-only: link one category to a GST rate slab (the slab's own percentage is copied). */
+export async function upsertCategoryGSTRate(
+  categoryId: string,
+  gstRateCategoryId: string,
+): Promise<CategoryGSTRate> {
+  return remote.put<CategoryGSTRate>(
+    `/admin/tax/category-gst-rates/${encodeURIComponent(categoryId)}`,
+    { gstRateCategoryId },
+  );
 }
 
 /* -------------------------------- products ------------------------------- */

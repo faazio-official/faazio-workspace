@@ -51,7 +51,8 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Web portal | Notifications inbox | `/seller/notifications` | [web-portal/notifications.md](./web-portal/notifications.md) |
 | Web portal | Settings (profile, bank, notifications, sub-users, security) | portal `/seller/settings` | [web-portal/settings.md](./web-portal/settings.md) |
 | Web portal | Team invite acceptance | portal `/accept-invite?token=…` | [web-portal/accept-invite.md](./web-portal/accept-invite.md) |
-| Web portal | Super admin categories + main app header | `/admin/super/categories` | [web-portal/super-admin-categories.md](./web-portal/super-admin-categories.md) |
+| Web portal | Super admin categories + mandatory GST + main app header | `/admin/super/categories` | [web-portal/super-admin-categories.md](./web-portal/super-admin-categories.md) |
+| Web portal | Super admin GST rate slab master | `/admin/super/gst-rates` | [web-portal/super-admin-gst-rates.md](./web-portal/super-admin-gst-rates.md) |
 | Web portal | Super admin global catalog + seller product requests | `/admin/super/products` | [web-portal/super-admin-products.md](./web-portal/super-admin-products.md) |
 | Web portal | Super admin seller credential hand-over (approve → share login) | `/admin/super/sellers`, `/admin/super/credentials` | [web-portal/credential-handover.md](./web-portal/credential-handover.md) |
 | Help centre | Full seller-journey walkthrough (22 chapters, every seller action) | landing page `/help-centre` | [help-centre.md](./help-centre.md) |

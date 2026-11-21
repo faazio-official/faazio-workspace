@@ -11,7 +11,7 @@ import (
 )
 
 func TestValidApp(t *testing.T) {
-	for _, a := range []string{"MART", "FOOD", "PHARMA"} {
+	for _, a := range []string{"MART", "FOOD", "PHARMA", "MAIN_APP_HEADER"} {
 		if !validApp(a) {
 			t.Errorf("validApp(%q) = false, want true", a)
 		}
@@ -89,17 +89,19 @@ func TestHomeRailIsUnbounded(t *testing.T) {
 func TestCreateValidation(t *testing.T) {
 	h := NewHandler(NewRepo(nil))
 	for _, tt := range []struct{ name, body string }{
-		{"unknown app", `{"app":"GROCERY","name":"X"}`},
-		{"empty name", `{"app":"MART","name":"   "}`},
-		{"name too long", `{"app":"MART","name":"` + strings.Repeat("a", 121) + `"}`},
-		{"bad id", `{"app":"MART","name":"X","id":"bad id!"}`},
+		{"unknown app", `{"app":"GROCERY","name":"X","gstRateCategoryId":"gst-mart-packaged"}`},
+		{"empty name", `{"app":"MART","name":"   ","gstRateCategoryId":"gst-mart-packaged"}`},
+		{"name too long", `{"app":"MART","name":"` + strings.Repeat("a", 121) + `","gstRateCategoryId":"gst-mart-packaged"}`},
+		{"bad id", `{"app":"MART","name":"X","id":"bad id!","gstRateCategoryId":"gst-mart-packaged"}`},
 		{"body not json", `{`},
 		{"food rail", `{"app":"FOOD","name":"X","showOnHomeRail":true}`},
-		{"tamil name latin", `{"app":"MART","name":"X","nameTa":"Milk"}`},
-		{"tamil desc mixed", `{"app":"MART","name":"X","descriptionTa":"பால் Milk"}`},
-		{"tamil name too long", `{"app":"MART","name":"X","nameTa":"` + strings.Repeat("ண", 121) + `"}`},
-		{"unknown header", `{"app":"MART","name":"X","headerLabels":["BANNER"]}`},
-		{"foreign app header", `{"app":"MART","name":"X","headerLabels":["PHARMA"]}`},
+		{"missing gst", `{"app":"MART","name":"X"}`},
+		{"missing sub gst", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","subCategories":[{"name":"Y"}]}`},
+		{"tamil name latin", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","nameTa":"Milk"}`},
+		{"tamil desc mixed", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","descriptionTa":"பால் Milk"}`},
+		{"tamil name too long", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","nameTa":"` + strings.Repeat("ண", 121) + `"}`},
+		{"unknown header", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","headerLabels":["BANNER"]}`},
+		{"foreign app header", `{"app":"MART","name":"X","gstRateCategoryId":"gst-mart-packaged","headerLabels":["PHARMA"]}`},
 		{"food main header", `{"app":"FOOD","name":"X","headerLabels":["MAIN_APP_HEADER"]}`},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
@@ -139,6 +141,9 @@ func TestHeaderLabelError(t *testing.T) {
 		{"unchanged", "MART", nil, ""},
 		{"mart shared", "MART", &yes, ""},
 		{"pharma shared", "PHARMA", &yes, ""},
+		{"header only", "MAIN_APP_HEADER", &yes, ""},
+		{"header only with vendor label", "MAIN_APP_HEADER", &[]string{"MAIN_APP_HEADER", "MART"},
+			"a category can only be listed under its own app: MART"},
 		{"food shared", "FOOD", &yes, "FOOD categories cannot be tagged MAIN_APP_HEADER"},
 		{"own app", "MART", &[]string{"MART"}, ""},
 		{"foreign app", "MART", &[]string{"FOOD"}, "a category can only be listed under its own app: FOOD"},
@@ -147,6 +152,76 @@ func TestHeaderLabelError(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := headerLabelError(tt.app, tt.labels); got != tt.want {
 				t.Fatalf("headerLabelError(%q, %v) = %q, want %q", tt.app, tt.labels, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestGSTValidation pins the mandatory GST pick: a vendor-sub-app or header-only row must name a slab,
+// while FOOD is exempt (the gateway pins every FOOD row to the 5% food slab).
+func TestGSTValidation(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		app  string
+		rate string
+		want string
+	}{
+		{"mart missing", "MART", "", "a GST rate category is required"},
+		{"mart present", "MART", "gst-mart-packaged", ""},
+		{"header only missing", "MAIN_APP_HEADER", " ", "a GST rate category is required"},
+		{"header only present", "MAIN_APP_HEADER", "gst-mart-household", ""},
+		{"food exempt", "FOOD", "", ""},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := gstError(tt.app, tt.rate); got != tt.want {
+				t.Fatalf("gstError(%q, %q) = %q, want %q", tt.app, tt.rate, got, tt.want)
+			}
+		})
+	}
+}
+
+// TestSubCategoryValidation pins Option B: every inline sub-category carries its own mandatory GST
+// rate pick (FOOD children are exempt).
+func TestSubCategoryValidation(t *testing.T) {
+	withRate := func(name, app, rate string) SubCategoryInput {
+		return SubCategoryInput{Name: name, App: app, GSTRateCategoryID: rate}
+	}
+	for _, tt := range []struct {
+		name string
+		app  string
+		subs *[]SubCategoryInput
+		want string
+	}{
+		{"nil unchanged", "MART", nil, ""},
+		{
+			"missing name", "MART",
+			&[]SubCategoryInput{withRate("", "MART", "gst-mart-packaged")},
+			"every sub-category needs a name",
+		},
+		{
+			"missing rate", "MART",
+			&[]SubCategoryInput{withRate("Android", "MART", "")},
+			"every sub-category needs a GST rate category",
+		},
+		{
+			"inherits parent app for rate check", "MAIN_APP_HEADER",
+			&[]SubCategoryInput{withRate("iPhone", "", "")},
+			"every sub-category needs a GST rate category",
+		},
+		{
+			"food child exempt", "FOOD",
+			&[]SubCategoryInput{withRate("Biryani", "FOOD", "")},
+			"",
+		},
+		{
+			"valid", "MAIN_APP_HEADER",
+			&[]SubCategoryInput{withRate("Android", "MAIN_APP_HEADER", "gst-mart-household")},
+			"",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := subCategoryError(tt.app, tt.subs); got != tt.want {
+				t.Fatalf("subCategoryError(%q, %v) = %q, want %q", tt.app, tt.subs, got, tt.want)
 			}
 		})
 	}
@@ -191,6 +266,12 @@ func TestResolveHeaderLabels(t *testing.T) {
 	labels, rail = resolveHeaderLabels("PHARMA", nil, nil, []string{"MART", "MAIN_APP_HEADER"})
 	if !containsLabel(labels, "PHARMA") || containsLabel(labels, "MART") || !rail {
 		t.Fatalf("app switch = %v rail=%v", labels, rail)
+	}
+
+	// A header-only row is its own primary: the MAIN_APP_HEADER label stands alone, no vendor label.
+	labels, rail = resolveHeaderLabels("MAIN_APP_HEADER", nil, nil, nil)
+	if !rail || len(labels) != 1 || labels[0] != "MAIN_APP_HEADER" {
+		t.Fatalf("header only = %v rail=%v, want [MAIN_APP_HEADER]", labels, rail)
 	}
 }
 

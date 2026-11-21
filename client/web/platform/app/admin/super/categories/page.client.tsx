@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Pencil, Plus, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
@@ -45,27 +45,38 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import {
+  CATEGORY_APPS,
   createCategory,
   deleteCategory,
   listCategories,
   listCategoriesByHeader,
   updateCategory,
 } from "@/lib/api";
-import type { CategoryHeader, CategoryInput, CategoryRow } from "@/lib/api";
+import type {
+  CategoryApp,
+  CategoryHeader,
+  CategoryInput,
+  CategoryRow,
+  GSTRateCategory,
+  SubCategoryInput,
+} from "@/lib/api";
+import { useGSTRateCategories } from "@/lib/api/hooks";
 import { tamilFieldError } from "@/lib/tamil";
 import { cn } from "@/lib/utils";
-import type { Sector } from "@/data/types";
 
-const SECTORS: Sector[] = ["MART", "FOOD", "PHARMA"];
-const TABS = ["ALL", ...SECTORS] as const;
+const FOOD_GST_PCT = 5;
+
+const TABS = ["ALL", ...CATEGORY_APPS] as const;
 type Tab = (typeof TABS)[number];
 
-const TAB_LABEL: Record<Tab, string> = {
-  ALL: "All",
+const APP_LABEL: Record<CategoryApp, string> = {
   MART: "Mart",
   FOOD: "Food",
   PHARMA: "Pharma",
+  MAIN_APP_HEADER: "Main app header",
 };
+
+const TAB_LABEL: Record<Tab, string> = { ALL: "All", ...APP_LABEL };
 
 const HEADER_LABEL: Record<CategoryHeader, string> = {
   MAIN_APP_HEADER: "Main app header",
@@ -73,6 +84,10 @@ const HEADER_LABEL: Record<CategoryHeader, string> = {
   FOOD: "Food",
   PHARMA: "Pharma",
 };
+
+function isCategoryApp(value: string): value is CategoryApp {
+  return (CATEGORY_APPS as string[]).includes(value);
+}
 
 /** Quiet header-label chip — meta stays text, never a glowing pill. */
 function HeaderTag({ header }: { header: CategoryHeader }) {
@@ -103,6 +118,36 @@ function HeaderTags({ labels }: { labels?: CategoryHeader[] }) {
   );
 }
 
+/** GST cell: the percentage plus the slab name, so a rate is never shown without its basis. */
+function GstCell({ row }: { row: CategoryRow }) {
+  if (row.gstRatePct === undefined) {
+    return <span className="text-[12px] text-muted-foreground">—</span>;
+  }
+  return (
+    <span className="text-[12px]">
+      <span className="num font-medium">{row.gstRatePct}%</span>
+      {row.gstRateCategoryName ? (
+        <span className="block text-[11px] text-muted-foreground">{row.gstRateCategoryName}</span>
+      ) : null}
+    </span>
+  );
+}
+
+/** One inline sub-category row being edited in the sheet. */
+interface SubRow {
+  /** Stable local key (not the server id). */
+  key: string;
+  id?: string;
+  name: string;
+  gstRateCategoryId: string;
+}
+
+let subRowSeq = 0;
+function newSubRow(name = "", gstRateCategoryId = ""): SubRow {
+  subRowSeq += 1;
+  return { key: `sub-${subRowSeq}`, name, gstRateCategoryId };
+}
+
 export function CategoriesPage() {
   const [tab, setTab] = useState<Tab>("ALL");
   const [rows, setRows] = useState<CategoryRow[]>([]);
@@ -117,7 +162,9 @@ export function CategoriesPage() {
   const [editing, setEditing] = useState<CategoryRow | null>(null);
   const [deleting, setDeleting] = useState<CategoryRow | null>(null);
 
-  const [formApp, setFormApp] = useState<Sector>("MART");
+  const { items: gstRates, loading: gstLoading, error: gstError } = useGSTRateCategories();
+
+  const [formApp, setFormApp] = useState<CategoryApp>("MART");
   const [formName, setFormName] = useState("");
   // Optional Tamil translations (0107). Tamil letters only; blank = not translated.
   const [formNameTa, setFormNameTa] = useState("");
@@ -129,6 +176,29 @@ export function CategoriesPage() {
   const [formActive, setFormActive] = useState(true);
   // MAIN_APP_HEADER label — the shared main app header list (0115). FOOD is not eligible.
   const [formMainHeader, setFormMainHeader] = useState(false);
+  // Mandatory GST pick (0118). FOOD is pinned to 5% and the picker is disabled.
+  const [formGstId, setFormGstId] = useState("");
+  // Inline sub-categories, each with its own mandatory GST pick (Option B).
+  const [formSubs, setFormSubs] = useState<SubRow[]>([]);
+
+  const gstById = useMemo(() => {
+    const map = new Map<string, GSTRateCategory>();
+    for (const g of gstRates) map.set(g.id, g);
+    return map;
+  }, [gstRates]);
+
+  const gstForApp = useCallback(
+    (app: CategoryApp) =>
+      gstRates.filter(
+        (g) => g.isActive && (g.sector === app || (app === "MAIN_APP_HEADER" && g.sector === "MART")),
+      ),
+    [gstRates],
+  );
+
+  const foodSlab = useMemo(
+    () => gstRates.find((g) => g.isActive && g.sector === "FOOD" && g.gstRatePct === FOOD_GST_PCT),
+    [gstRates],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -164,6 +234,17 @@ export function CategoriesPage() {
     void loadMain();
   }, [loadMain]);
 
+  /** Keep the GST pick valid for the chosen app (a slab from another sector is never submittable). */
+  const gstFor = useCallback(
+    (app: CategoryApp, current: string) => {
+      const options = gstForApp(app);
+      if (options.some((g) => g.id === current)) return current;
+      if (app === "FOOD") return foodSlab?.id ?? "";
+      return options[0]?.id ?? "";
+    },
+    [gstForApp, foodSlab],
+  );
+
   function resetForm() {
     setFormApp("MART");
     setFormName("");
@@ -175,6 +256,8 @@ export function CategoriesPage() {
     setFormSortOrder("0");
     setFormActive(true);
     setFormMainHeader(false);
+    setFormGstId("");
+    setFormSubs([]);
   }
 
   function openCreate() {
@@ -184,7 +267,8 @@ export function CategoriesPage() {
   }
 
   function openEdit(row: CategoryRow) {
-    setFormApp((SECTORS.includes(row.app as Sector) ? row.app : "MART") as Sector);
+    const app: CategoryApp = isCategoryApp(row.app) ? row.app : "MART";
+    setFormApp(app);
     setFormName(row.name);
     setFormNameTa(row.nameTa ?? "");
     setFormDescriptionTa(row.descriptionTa ?? "");
@@ -197,7 +281,19 @@ export function CategoriesPage() {
     // switch as checked, which would post a value the gateway would 400.
     setFormMainHeader(
       row.app !== "FOOD" &&
+        row.app !== "MAIN_APP_HEADER" &&
         (row.headerLabels?.includes("MAIN_APP_HEADER") ?? row.showOnHomeRail),
+    );
+    setFormGstId(row.gstRateCategoryId ?? "");
+    setFormSubs(
+      rows
+        .filter((r) => r.parentId === row.id)
+        .map((r) => ({
+          key: `edit-${r.id}`,
+          id: r.id,
+          name: r.name,
+          gstRateCategoryId: r.gstRateCategoryId ?? "",
+        })),
     );
     setEditing(row);
     setCreating(false);
@@ -206,6 +302,27 @@ export function CategoriesPage() {
   function closeSheet() {
     setCreating(false);
     setEditing(null);
+  }
+
+  function changeApp(next: CategoryApp) {
+    setFormApp(next);
+    if (next === "FOOD") setFormMainHeader(false);
+    if (next === "MAIN_APP_HEADER") setFormMainHeader(false);
+    setFormGstId((current) => gstFor(next, current));
+    // Every child follows the parent's pool so a header-only parent cannot carry a Mart child.
+    setFormSubs((subs) => subs.map((s) => ({ ...s, gstRateCategoryId: gstFor(next, s.gstRateCategoryId) })));
+  }
+
+  function addSub() {
+    setFormSubs((subs) => [...subs, newSubRow("", gstFor(formApp, ""))]);
+  }
+
+  function updateSub(key: string, patch: Partial<SubRow>) {
+    setFormSubs((subs) => subs.map((s) => (s.key === key ? { ...s, ...patch } : s)));
+  }
+
+  function removeSub(key: string) {
+    setFormSubs((subs) => subs.filter((s) => s.key !== key));
   }
 
   async function save() {
@@ -225,10 +342,34 @@ export function CategoriesPage() {
       toast.error("Food categories cannot be in the main app header.");
       return;
     }
+    if (formApp !== "FOOD" && !formGstId) {
+      toast.error("Pick a GST rate for this category.");
+      return;
+    }
+    if (formSubs.some((s) => !s.name.trim())) {
+      toast.error("Every sub-category needs a name.");
+      return;
+    }
+    if (formApp !== "FOOD" && formSubs.some((s) => !s.gstRateCategoryId)) {
+      toast.error("Every sub-category needs a GST rate.");
+      return;
+    }
     // The primary app label is always present; MAIN_APP_HEADER is the shared main app header list.
-    const headerLabels: CategoryHeader[] = formMainHeader
-      ? [formApp, "MAIN_APP_HEADER"]
-      : [formApp];
+    // A header-only row is its own primary label, so it never carries an extra shared label.
+    const headerLabels: CategoryHeader[] =
+      formApp === "MAIN_APP_HEADER"
+        ? ["MAIN_APP_HEADER"]
+        : formMainHeader
+          ? [formApp, "MAIN_APP_HEADER"]
+          : [formApp];
+    const subCategories: SubCategoryInput[] = formSubs.map((s, index) => ({
+      ...(s.id ? { id: s.id } : {}),
+      app: formApp,
+      name: s.name.trim(),
+      gstRateCategoryId: s.gstRateCategoryId,
+      sortOrder: index,
+      isActive: true,
+    }));
     const input: CategoryInput = {
       app: formApp,
       name: formName.trim(),
@@ -238,7 +379,9 @@ export function CategoriesPage() {
       sortOrder: Number.isFinite(Number(formSortOrder)) ? Number(formSortOrder) : 0,
       isActive: formActive,
       headerLabels,
-      showOnHomeRail: formMainHeader,
+      showOnHomeRail: formApp === "MAIN_APP_HEADER" || formMainHeader,
+      ...(formApp !== "FOOD" ? { gstRateCategoryId: formGstId } : {}),
+      subCategories,
       ...(formIconUrl.trim() ? { iconUrl: formIconUrl.trim() } : {}),
       ...(formSearchQuery.trim() ? { searchQuery: formSearchQuery.trim() } : {}),
     };
@@ -314,7 +457,7 @@ export function CategoriesPage() {
     <div className="space-y-4">
       <PageHeader
         title="Categories"
-        description="The central category taxonomy (Mart, Food, Pharma). Each category has one primary app; Mart and Pharma categories can also be shared into the main app header. Every app and seller picks from this list — delete hides a category without breaking existing references."
+        description="The central category taxonomy. Every category has one primary pool — Mart, Food, Pharma, or the main app header (a header-only pool such as Electronics that drills into Android / iPhone). Each category and sub-category carries a mandatory GST rate. Sellers and apps pick from this list; delete hides a category without breaking existing references."
         actions={
           <Button size="sm" className="gap-2" onClick={openCreate}>
             <Plus className="size-4" /> New category
@@ -322,10 +465,17 @@ export function CategoriesPage() {
         }
       />
 
+      {gstError ? (
+        <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-[12px] text-muted-foreground">
+          GST rates could not be loaded ({gstError}). Saving a category will be blocked until they load.
+        </p>
+      ) : null}
+
       <SectionCard title="Main app header" bodyClassName="p-0">
         <p className="border-b border-border px-3 py-2 text-[12px] text-muted-foreground">
-          Categories shared into the mobile main app header. Mart and Pharma rows keep their own app
-          list and also appear here. Food is not eligible.
+          Top-level main app header chips, including header-only categories (app = Main app header)
+          and Mart / Pharma categories shared into the header. Food is not eligible. Each chip opens
+          its own sub-category drill-in.
         </p>
         <DataShell
           loading={mainLoading}
@@ -333,8 +483,8 @@ export function CategoriesPage() {
           isEmpty={mainRows.length === 0}
           empty={
             <EmptyState
-              title="Nothing shared yet"
-              description="Tag a Mart or Pharma category with the main app header label to list it here."
+              title="Nothing in the main header yet"
+              description="Create a Main app header category, or share a Mart / Pharma category into the header."
             />
           }
         >
@@ -343,6 +493,7 @@ export function CategoriesPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>App</TableHead>
+                <TableHead>GST</TableHead>
                 <TableHead>Parent</TableHead>
                 <TableHead>Active</TableHead>
                 <TableHead>Sort</TableHead>
@@ -360,6 +511,9 @@ export function CategoriesPage() {
                     <span className="num block text-[11px] text-muted-foreground">{row.id}</span>
                   </TableCell>
                   <TableCell className="text-[12px] text-muted-foreground">{row.app}</TableCell>
+                  <TableCell>
+                    <GstCell row={row} />
+                  </TableCell>
                   <TableCell className="text-[12px] text-muted-foreground">
                     {parentName(row.parentId)}
                   </TableCell>
@@ -396,7 +550,7 @@ export function CategoriesPage() {
           empty={
             <EmptyState
               title="No categories yet"
-              description="Create a top-level category, then add its children."
+              description="Create a top-level category, then add its sub-categories."
             />
           }
         >
@@ -405,6 +559,7 @@ export function CategoriesPage() {
               <TableRow>
                 <TableHead>Name</TableHead>
                 <TableHead>App</TableHead>
+                <TableHead>GST</TableHead>
                 <TableHead>Header labels</TableHead>
                 <TableHead>Parent</TableHead>
                 <TableHead>Active</TableHead>
@@ -424,6 +579,9 @@ export function CategoriesPage() {
                     <span className="num block text-[11px] text-muted-foreground">{row.id}</span>
                   </TableCell>
                   <TableCell className="text-[12px] text-muted-foreground">{row.app}</TableCell>
+                  <TableCell>
+                    <GstCell row={row} />
+                  </TableCell>
                   <TableCell>
                     <HeaderTags labels={row.headerLabels} />
                   </TableCell>
@@ -453,35 +611,32 @@ export function CategoriesPage() {
           if (!next) closeSheet();
         }}
       >
-        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader>
             <SheetTitle>{editing ? `Edit ${editing.name}` : "New category"}</SheetTitle>
             <SheetDescription>
-              One primary app and parent/child. Leave parent blank for a top-level category.
+              One primary pool, one GST rate, and optional sub-categories (each with its own GST).
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4 px-4 pb-6">
             <div className="space-y-1.5">
               <Label>App</Label>
-              <Select
-                value={formApp}
-                onValueChange={(v) => {
-                  const next = v as Sector;
-                  setFormApp(next);
-                  if (next === "FOOD") setFormMainHeader(false);
-                }}
-              >
+              <Select value={formApp} onValueChange={(v) => changeApp(v as CategoryApp)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {SECTORS.map((s) => (
+                  {CATEGORY_APPS.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {TAB_LABEL[s]}
+                      {APP_LABEL[s]}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
+              <p className="text-[11px] text-muted-foreground">
+                Main app header is its own pool — a header-only category appears in the app header and
+                drills into the sub-categories below.
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -490,8 +645,15 @@ export function CategoriesPage() {
                 {(["MAIN_APP_HEADER", "MART", "FOOD", "PHARMA"] as CategoryHeader[]).map((h) => {
                   const isPrimary = h === formApp;
                   const isShared = h === "MAIN_APP_HEADER";
-                  const active = isPrimary || (isShared && formMainHeader);
-                  const disabled = isPrimary || (isShared && formApp === "FOOD");
+                  const active =
+                    isPrimary ||
+                    (isShared && formMainHeader) ||
+                    (formApp === "MAIN_APP_HEADER" && isShared);
+                  const disabled =
+                    isPrimary ||
+                    !isShared ||
+                    formApp === "FOOD" ||
+                    formApp === "MAIN_APP_HEADER";
                   return (
                     <button
                       key={h}
@@ -513,9 +675,45 @@ export function CategoriesPage() {
                 })}
               </div>
               <p className="text-[11px] text-muted-foreground">
-                The app label is always present. Main app header shares this category into the
-                mobile main header (Mart and Pharma only).
+                The app label is always present. Main app header shares a Mart or Pharma category into
+                the mobile header; a header-only category is in the header by definition.
               </p>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>GST rate</Label>
+              {formApp === "FOOD" ? (
+                <div className="rounded-lg border border-border bg-muted/40 px-3 py-2 text-[12px]">
+                  <span className="num font-medium">{FOOD_GST_PCT}%</span> — every food category is
+                  5% (fixed).
+                </div>
+              ) : (
+                <>
+                  <Select
+                    value={formGstId}
+                    onValueChange={setFormGstId}
+                    disabled={gstLoading || gstRates.length === 0}
+                  >
+                    <SelectTrigger>
+                      <SelectValue
+                        placeholder={gstLoading ? "Loading GST rates…" : "Pick a GST rate"}
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {gstForApp(formApp).map((g) => (
+                        <SelectItem key={g.id} value={g.id}>
+                          {g.name} — {g.gstRatePct}%
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="num text-[11px] text-muted-foreground">
+                    {formGstId && gstById.get(formGstId)
+                      ? `GST ${gstById.get(formGstId)?.gstRatePct}%`
+                      : "Mandatory — pick the slab that applies."}
+                  </p>
+                </>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -524,7 +722,7 @@ export function CategoriesPage() {
                 id="category-name"
                 value={formName}
                 onChange={(e) => setFormName(e.target.value)}
-                placeholder="e.g. North Indian"
+                placeholder="e.g. Electronics"
               />
             </div>
 
@@ -564,7 +762,7 @@ export function CategoriesPage() {
                 id="category-parent"
                 value={formParentId}
                 onChange={(e) => setFormParentId(e.target.value)}
-                placeholder="blank = top level (e.g. cat_north_indian)"
+                placeholder="blank = top level (e.g. cat_electronics)"
                 disabled={Boolean(editing) && formParentId === editing?.id}
               />
             </div>
@@ -597,6 +795,66 @@ export function CategoriesPage() {
                 onChange={(e) => setFormSortOrder(e.target.value)}
                 inputMode="numeric"
               />
+            </div>
+
+            <div className="space-y-2 rounded-lg border border-border p-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-[13px] font-medium">Sub-categories</p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Each one appears inside this category&apos;s drill-in and needs its own GST rate.
+                  </p>
+                </div>
+                <Button size="sm" variant="outline" className="gap-1.5" onClick={addSub}>
+                  <Plus className="size-3.5" /> Add
+                </Button>
+              </div>
+              {formSubs.length === 0 ? (
+                <p className="text-[12px] text-muted-foreground">No sub-categories yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {formSubs.map((sub) => (
+                    <div key={sub.key} className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                      <Input
+                        value={sub.name}
+                        onChange={(e) => updateSub(sub.key, { name: e.target.value })}
+                        placeholder="Sub-category name (e.g. Android)"
+                        aria-label="Sub-category name"
+                      />
+                      {formApp === "FOOD" ? (
+                        <div className="rounded-md border border-border bg-muted/40 px-3 py-2 text-[12px]">
+                          <span className="num font-medium">{FOOD_GST_PCT}%</span> (fixed)
+                        </div>
+                      ) : (
+                        <Select
+                          value={sub.gstRateCategoryId}
+                          onValueChange={(v) => updateSub(sub.key, { gstRateCategoryId: v })}
+                        >
+                          <SelectTrigger aria-label="Sub-category GST rate">
+                            <SelectValue placeholder="GST rate" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {gstForApp(formApp).map((g) => (
+                              <SelectItem key={g.id} value={g.id}>
+                                {g.name} — {g.gstRatePct}%
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      )}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-destructive"
+                        onClick={() => removeSub(sub.key)}
+                        aria-label={`Remove ${sub.name || "sub-category"}`}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             <div className="flex items-center justify-between rounded-lg border border-border bg-muted/40 px-3 py-2.5">

@@ -135,7 +135,7 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "Fee change requests", to: "/admin/super/fee-change-requests", icon: Receipt, group: "Supply" },
   { label: "Delivery partners", to: "/admin/super/delivery-boys", icon: Truck, group: "Supply" },
   { label: "Products", to: "/admin/super/products", icon: Package, group: "Supply" },
-  { label: "Sectors", to: "/admin/super/sectors", icon: Tags, group: "Supply" },
+  { label: "GST rates", to: "/admin/super/gst-rates", icon: Tags, group: "Supply" },
   { label: "Categories", to: "/admin/super/categories", icon: Tags, group: "Supply" },
   { label: "Festival", to: "/admin/super/festival", icon: PartyPopper, group: "Growth" },
   { label: "Coupons", to: "/admin/super/coupons", icon: Ticket, group: "Growth" },

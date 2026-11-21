@@ -17,7 +17,10 @@
    Pharma chip (unbounded, any tree level, FOOD excluded) in a horizontal ScrollView. It pages in more
    chips as the strip nears its right edge **and** whenever a page does not fill the viewport width,
    so nothing past page 1 is stranded. Tapping a chip pushes `CategoryDrillIn` for that category's
-   app; a child chip opens that node's subtree.
+   app; a child chip opens that node's subtree. A standalone `MAIN_APP_HEADER` chip (e.g.
+   "Electronics") carries `treeApp: 'MAIN_APP_HEADER'`: the drill-in walks that header's own
+   sub-categories while the vendor body searches the Mart pool. Header-only sub-categories are never
+   chips themselves — they are reached through the parent's drill-in.
 7. Pull-to-refresh (`AppRefreshControl`) on the body re-fetches the feed and bumps the shared
    `refreshStore` `home` counter, which also re-fetches the sibling header category rail
    (`HeaderCategoryRail` → `usePagedRail`). Stale rows stay visible while the spinner runs; a failed

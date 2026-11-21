@@ -1,5 +1,12 @@
 export type AppBrand = 'FOOD' | 'MART' | 'PHARMA';
 
+/**
+ * Pool a `taxonomy.categories` row belongs to. `MAIN_APP_HEADER` is the standalone main app header
+ * pool: a header-only category (e.g. "Electronics") belongs to no vendor sub-app and drills into its
+ * own sub-categories (e.g. "Android", "iPhone"). No product or seller carries this value.
+ */
+export type CategoryApp = AppBrand | 'MAIN_APP_HEADER';
+
 export interface Product {
   id: string;
   name: string;

@@ -484,6 +484,43 @@ export function useCategoryTree(app: import("@/data/types").Sector): api.Categor
   return items;
 }
 
+/**
+ * GST rate pick-list (`GET /admin/tax/gst-rate-categories`). `reload` re-fetches after a portal write
+ * so the categories sheet and the GST rates page never show a stale slab.
+ */
+export function useGSTRateCategories() {
+  const [items, setItems] = useState<api.GSTRateCategory[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [nonce, setNonce] = useState(0);
+  useEffect(() => {
+    if (!remoteConfigured()) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    api
+      .listGSTRateCategories()
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) setError(err instanceof Error ? err.message : "Could not load GST rates.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [nonce]);
+  const reload = useCallback(() => setNonce((n) => n + 1), []);
+  return { items, loading, error, reload };
+}
+
 /** One IST-day analytics bucket (from checkout.orders via GET /analytics/series). */
 type AnalyticsDailyPoint = import("@/data/types").DailyPoint;
 
@@ -611,76 +648,6 @@ export function useCampaigns(filter: { stateCode?: string | undefined } = {}) {
 
 export function useSectorCaps() {
   return usePortalStore((s) => s.sectorCaps);
-}
-
-/** One SUPER_ADMIN-managed category → GST rate row (`GET /tax/categories`). */
-export interface TaxCategory {
-  taxRateId: string;
-  sector: string;
-  category: string;
-  gstRatePct: number;
-  isActive: boolean;
-}
-
-/**
- * Approved category master. Sellers may only list inside these categories; the GST rate shown comes
- * from the same source the gateway uses at checkout. Falls back to the categories already present in
- * the local catalog when the gateway is not configured (seed/demo mode).
- */
-export function useTaxCategories(sector?: string) {
-  const products = usePortalStore((s) => s.products);
-  const [remoteItems, setRemoteItems] = useState<TaxCategory[]>([]);
-  useEffect(() => {
-    if (!remoteConfigured()) {
-      setRemoteItems([]);
-      return;
-    }
-    let cancelled = false;
-    remote
-      .get<Record<string, unknown>[]>("/tax/categories")
-      .then((rows) => {
-        if (cancelled) return;
-        setRemoteItems(
-          rows.map((r) => ({
-            taxRateId: String(r["taxRateId"] ?? ""),
-            sector: String(r["sector"] ?? ""),
-            category: String(r["category"] ?? ""),
-            gstRatePct: Number(r["gstRatePct"] ?? 5),
-            isActive: Boolean(r["isActive"] ?? true),
-          })),
-        );
-      })
-      .catch(() => {
-        if (!cancelled) setRemoteItems([]);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const fallback = useMemo(() => {
-    const seen = new Map<string, TaxCategory>();
-    for (const p of products) {
-      if (!p.category) continue;
-      const key = `${p.sector}|${p.category.toLowerCase()}`;
-      if (!seen.has(key)) {
-        seen.set(key, {
-          taxRateId: `local-${key}`,
-          sector: p.sector,
-          category: p.category,
-          gstRatePct: 5,
-          isActive: true,
-        });
-      }
-    }
-    return [...seen.values()].sort((a, b) => a.category.localeCompare(b.category));
-  }, [products]);
-
-  const source = remoteItems.length > 0 ? remoteItems : fallback;
-  return useMemo(
-    () => (sector ? source.filter((c) => c.sector === sector) : source),
-    [source, sector],
-  );
 }
 
 export function useOptins(filter: { sellerId?: string | undefined; campaignId?: string | undefined } = {}) {

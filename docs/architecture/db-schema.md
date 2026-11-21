@@ -166,7 +166,7 @@ CREATE TYPE app_brand AS ENUM ('MART','FOOD','PHARMA');
 CREATE TABLE catalog.products (
   id            TEXT PRIMARY KEY,            -- stable slug, e.g. 'md-1'
   app           app_brand NOT NULL,
-  category      TEXT NOT NULL,               -- GST/tax label, resolved against tax.tax_rates
+  category      TEXT NOT NULL,               -- human GST/tax label (display only; the rate comes from taxonomy_category_id → tax.category_gst_rates, 0119)
   taxonomy_category_id TEXT REFERENCES taxonomy.categories(id), -- discovery leaf (0096)
   name          TEXT NOT NULL,
   name_ta       TEXT NOT NULL DEFAULT '',    -- Tamil display name (0107); '' = untranslated
@@ -196,7 +196,7 @@ CREATE TABLE catalog.products (
 |---|---|---|---|---|
 | `id` | TEXT PK | ~4–8 | stable slug public key | PK, hash index |
 | `app` | ENUM | 1–4 | validation + filtering | partial index `(app)` |
-| `category` | TEXT | ~12 | GST/tax grouping (matched against `tax.tax_rates`) | btree |
+| `category` | TEXT | ~12 | human GST/tax label (display/search grouping only) — the charged rate comes from `taxonomy_category_id` → `tax.category_gst_rates` (`0119`) | btree |
 | `taxonomy_category_id` | TEXT | ~12 | active leaf of the app's `taxonomy.categories` tree (nullable, `0096`); the server folds the leaf `search_query` into `search_tokens` so the product is discoverable in the category drill-in | partial (`taxonomy_category_id IS NOT NULL`) |
 | `name` | TEXT | ~24 | display (canonical, English) | — |
 | `name_ta` | TEXT | ~24 | Tamil display name (`0107`); `''` when untranslated — the app falls back to `name`. Display only, never used for identity; folded into `search_vec` at weight A (`0108`) so Tamil queries match | — |
@@ -2112,11 +2112,7 @@ No new cache keys; invoices are immutable origin rows and are never edge-cached.
 
 ```sql
 -- 0051: tax rate card + platform invoice settings
-CREATE TABLE tax.tax_rates (            -- category GST master (seller picks on listing)
-  tax_rate_id TEXT PRIMARY KEY, sector app_brand NOT NULL, category TEXT NOT NULL,
-  gst_rate_pct SMALLINT NOT NULL DEFAULT 5 CHECK (gst_rate_pct IN (0,5,12,18,28)),
-  is_active BOOLEAN NOT NULL DEFAULT true, updated_by TEXT NOT NULL DEFAULT '',
-  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(), UNIQUE (sector, category));
+-- (tax.tax_rates was REPLACED in 0117/0118/0119 by the per-category GST link — see §12.43)
 CREATE TABLE tax.platform_settings (    -- singleton row id = 1
   id SMALLINT PRIMARY KEY CHECK (id = 1),
   platform_gst_pct SMALLINT NOT NULL DEFAULT 18,
@@ -2491,8 +2487,8 @@ CREATE TABLE taxonomy.categories (
   at an **active leaf** of the store's app brand. Seller product creation sends the id; the gateway
   validates the leaf and folds its `search_query` + name into `catalog.products.search_tokens`, so a
   seller listing is discoverable through the same leaf query the category drill-in runs. The
-  human/GST-facing `catalog.products.category` column is unchanged (checkout still matches it against
-  `tax.tax_rates`).
+  human/GST-facing `catalog.products.category` column stays a display label only — since `0119` the
+  charged rate is resolved from the product's `taxonomy_category_id` → `tax.category_gst_rates`.
 - **Tamil translations (`0107`, additive):** `taxonomy.categories.name_ta` / `description_ta` and
   `catalog.products.name_ta` / `desc_text_ta` are display-only translations, `text not null default ''`.
   An empty string means "not translated" and the app falls back to the English canonical column —
@@ -2948,3 +2944,79 @@ create policy district_master_delete on admins.district_master for delete to aut
   resolve) but is hidden from the picker read.
 - **Audit:** each write records `DISTRICT_CREATE|UPDATE|DELETE|TOGGLE` on `admins.district_master`
   through `contracts.AuditWriter` (best-effort, same pattern as the category taxonomy).
+
+### 12.43 GST rate master + mandatory per-category GST (migrations `0116`–`0120`)
+
+**Authority:** `monolith-breakdown.md` §1 (`tax` row), `web-portal.md` (GST rates + Categories pages),
+`user-interaction-workflow/seller/web-portal/super-admin-gst-rates.md`,
+`user-interaction-workflow/seller/web-portal/super-admin-categories.md`.
+
+`0051`'s `tax.tax_rates` was a free-form `(sector, category)` name match: a listing's charged rate
+depended on a string agreeing between the product row and the master, and the master allowed only
+`0/5/12/18/28`. It is **dropped** (`0117`) and replaced by two tables: a named GST slab pick-list per
+sector, and one mandatory link row per taxonomy category.
+
+```sql
+-- 0116: standalone (no transaction — `alter type ... add value` cannot run inside one)
+alter type app_brand add value if not exists 'MAIN_APP_HEADER';
+
+-- 0117
+drop table if exists tax.tax_rates;
+
+-- 0118: the GST slab pick-list. `name` is the human slab label; `gst_rate_pct` is the number.
+CREATE TABLE tax.gst_rate_categories (
+  id          TEXT PRIMARY KEY,              -- 'gst-pharma-general' / 'gst-mart-fresh'
+  name        TEXT NOT NULL,                 -- e.g. 'Pharma — General Medicines'
+  sector      app_brand NOT NULL,            -- FOOD | MART | PHARMA | MAIN_APP_HEADER
+  gst_rate_pct SMALLINT NOT NULL CHECK (gst_rate_pct IN (0,5,12,18,28,40)),
+  is_active   BOOLEAN NOT NULL DEFAULT true,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by  TEXT NOT NULL DEFAULT '',
+  UNIQUE (sector, name));
+CREATE INDEX gst_rate_categories_sector_idx ON tax.gst_rate_categories (sector, is_active);
+
+-- 0119: exactly one GST link per taxonomy category (PK = category_id).
+CREATE TABLE tax.category_gst_rates (
+  category_id         TEXT PRIMARY KEY
+                      REFERENCES taxonomy.categories(id) ON DELETE CASCADE,
+  gst_rate_pct        SMALLINT NOT NULL CHECK (gst_rate_pct IN (0,5,12,18,28,40)),
+  gst_rate_category_id TEXT NOT NULL
+                      REFERENCES tax.gst_rate_categories(id) ON DELETE RESTRICT,
+  is_active           BOOLEAN NOT NULL DEFAULT true,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_by          TEXT NOT NULL DEFAULT '');
+CREATE INDEX category_gst_rates_rate_idx ON tax.category_gst_rates (gst_rate_category_id);
+```
+
+- **Why the rate is copied onto the link:** `gst_rate_pct` is denormalised from the slab so a later
+  slab re-rate never silently re-prices historical categories; the superadmin re-rates a category
+  explicitly. `ON DELETE RESTRICT` on `gst_rate_category_id` makes "delete a slab still in use" a
+  `409`, never an orphan.
+- **`MAIN_APP_HEADER` (`0116`):** the new `app_brand` value is the standalone main-app header pool —
+  a header-only category (e.g. "Electronics") belongs to no vendor sub-app and drills into its own
+  sub-categories. It is never written on a product or a seller; `primaryHeader` maps it to its own
+  curated header label and the rail query excludes header-only children (`parent_id is not null`) so
+  they are reached only through the parent's drill-in.
+- **FOOD is pinned:** every FOOD category resolves to `gst-food-standard` (5%) and the write path
+  rejects any other slab for a FOOD row, so a food listing can never be charged a non-5% slab.
+- **Backfill (`0120`):** one link row per existing category, keyword→slab lateral mapping
+  (priority-ordered), defaults MART / `MAIN_APP_HEADER` → `gst-mart-packaged`, PHARMA →
+  `gst-pharma-general`, FOOD → `gst-food-standard`; `on conflict do nothing`, and a `raise notice`
+  lists the rows that fell through to a default so they can be re-rated deliberately. Seeded slabs:
+  `gst-food-standard`, `gst-pharma-{general,devices,lifesaving,otc,cosmetics}`,
+  `gst-mart-{fresh,packaged,household,aerated}`.
+- **Seed (`0001_seed.sql`):** migrations run before the seed on a fresh deploy, so the seed appends
+  the same default link rows (`on conflict do nothing`) after inserting the taxonomy.
+- **Checkout resolution:** `internal/checkout` selects the active `tax.category_gst_rates` map and
+  resolves a line by `catalog.products.taxonomy_category_id` — FOOD → `taxmath.FoodGSTRate` (5%),
+  a mapped category → its copied rate, an unmapped product → `taxmath.DefaultProductGSTRate`. No name
+  matching, no `tax.tax_rates` read.
+- **Read/write API:** public `GET /tax/categories` now returns one row per taxonomy category with its
+  GST (`taxRateId` = the category id, `sector`, `category`, `gstRatePct`, `isActive`) so the seller
+  product picker reads the same value checkout charges. SUPER_ADMIN: `GET|POST
+  /admin/tax/gst-rate-categories`, `PUT|DELETE /admin/tax/gst-rate-categories/{id}`, `GET
+  /admin/tax/category-gst-rates`, `PUT /admin/tax/category-gst-rates/{id}` (delete is a soft
+  deactivate, refused with `409` while any category still links the slab). The `0115`
+  `GET|PUT /admin/tax/settings` route is gone; `tax.platform_settings` is read directly by checkout.

@@ -354,7 +354,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 		totalRupees += qty*unit + addonTotalPaisa/100
 		priced = append(priced, pricedLine{
 			grossPaisa: grossPaisa,
-			ratePct:    taxRateFor(categoryRates, snap.App, snap.Category),
+			ratePct:    taxRateFor(categoryRates, snap.App, snap.TaxonomyCategoryID),
 			productID:  it.ProductID,
 			sellerID:   snap.SellerID,
 			storeID:    storeID,
@@ -766,9 +766,14 @@ func (s *Service) priceDelivery(ctx context.Context, distanceKm float64, setting
 	return b, nil
 }
 
-// taxRateFor resolves a product's GST rate from tax.tax_rates, defaulting conservatively to 5%.
-func taxRateFor(rates map[string]int, app, category string) int {
-	if rate, ok := rates[app+"|"+strings.ToLower(category)]; ok {
+// taxRateFor resolves a product's GST from tax.category_gst_rates through its taxonomy category id.
+// FOOD is always 5% (policy, and a menu dish has no taxonomy link); anything unresolved falls back to
+// the conservative default rather than a made-up rate.
+func taxRateFor(rates map[string]int, app, taxonomyCategoryID string) int {
+	if app == "FOOD" {
+		return taxmath.FoodGSTRate
+	}
+	if rate, ok := rates[taxonomyCategoryID]; ok && taxonomyCategoryID != "" {
 		return rate
 	}
 	return taxmath.DefaultProductGSTRate

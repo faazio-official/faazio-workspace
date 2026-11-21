@@ -1666,4 +1666,25 @@ select id, 'MAIN_APP_HEADER' from taxonomy.categories
  where show_on_home_rail and app <> 'FOOD'::app_brand
 on conflict (category_id, header) do nothing;
 
+-- tax.category_gst_rates (0120). A fresh deploy runs the migrations before this seed, so the 0120
+-- backfill sees no taxonomy rows yet. Every seeded row therefore takes its sector default slab (FOOD
+-- is always 5%); the superadmin re-rates individual categories from the portal.
+insert into tax.category_gst_rates (category_id, gst_rate_pct, gst_rate_category_id, updated_by)
+select c.id,
+       g.gst_rate_pct,
+       case
+         when c.app = 'FOOD'::app_brand then 'gst-food-standard'
+         when c.app = 'PHARMA'::app_brand then 'gst-pharma-general'
+         else 'gst-mart-packaged'
+       end,
+       'seed'
+  from taxonomy.categories c
+  join tax.gst_rate_categories g
+    on g.id = case
+         when c.app = 'FOOD'::app_brand then 'gst-food-standard'
+         when c.app = 'PHARMA'::app_brand then 'gst-pharma-general'
+         else 'gst-mart-packaged'
+       end
+on conflict (category_id) do nothing;
+
 commit;

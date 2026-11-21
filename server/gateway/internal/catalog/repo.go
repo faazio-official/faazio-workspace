@@ -550,8 +550,8 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 		}
 		taxonomyPtr = &taxonomyID
 		if category == "" {
-			// The GST label was omitted: fall back to the leaf name (GST resolves to the 5% default
-			// until a matching tax.tax_rates row exists). Discovery still uses the leaf query below.
+			// The GST label was omitted: fall back to the leaf name. It is a display label only —
+			// checkout resolves the rate from `taxonomy_category_id` → `tax.category_gst_rates`.
 			category = taxonomyName
 		}
 	}
