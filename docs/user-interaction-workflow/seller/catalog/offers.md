@@ -1,10 +1,12 @@
 # Product-first festival offers
 
-**App / route:** portal `/seller/offers` (`app/seller/offers/page.client.tsx`), shared surface
+**App / route:** portal `/seller/offers` (`app/seller/offers/page.client.tsx`) and
+`/seller/promotions` (`app/seller/promotions/page.client.tsx`), shared surface
 `src/components/sellers/FestivalOptins.tsx`
 **Status:** Shipped
-**Trigger:** Mart/Pharmacy seller taps **Offers** in the bottom nav, desktop sidebar, or the
-Explore grid. Food shops keep **Menu** in that slot instead.
+**Trigger:** Mart/Pharmacy seller taps **Offers** in the bottom nav, desktop sidebar, or the Explore
+grid; or opens **Promotions** under the sidebar Growth group. Both routes render the same
+sector-scoped surface — Food shops keep **Menu** in the Offers slot instead.
 
 ## Steps
 
@@ -12,7 +14,9 @@ Explore grid. Food shops keep **Menu** in that slot instead.
    Menu (`/seller/menus`); Mart/Pharmacy → Offers (`/seller/offers`). The same rule drives the
    desktop sidebar (`sellerNavItems`) and the Explore catalog tiles.
 2. The page scopes products to the signed-in seller and the active store
-   (`useProducts({ sellerId, storeId })`), then keeps only rows matching the active store's sector.
+   (`useProducts({ sellerId, storeId })`), then keeps only rows matching the active store's sector
+   (`sectorScoped`). `/seller/offers` and `/seller/promotions` both pass `sectorScoped`, so the
+   product list and the sector-cap card match the shop the seller is standing in.
 3. Live and scheduled campaigns are listed (`GET /promo/campaigns`; the seeded store slice is
    hydrated by the sync pass). The first campaign is selected; the header button opens a sheet to
    switch campaign.
@@ -40,9 +44,12 @@ Explore grid. Food shops keep **Menu** in that slot instead.
   `promo.festival_optins` (seller-scoped); `GET /promo/sector-caps` → `promo.sector_caps`;
   `GET /seller/pricing` → `catalog.products` (+ `inventory.stock`).
 - Write: `POST /seller/promotions/optin` → `promo.festival_optins` (`status = PENDING`), then the
-  promo cache keys for the product are invalidated.
+  promo cache keys for the product are invalidated. The request carries the active `storeId`.
 - Server ownership: the gateway verifies the product belongs to the seller (`catalog.products` →
-  `directory.stores.seller_id`) and rejects cross-seller overwrites with `409 optin_owned`.
+  `directory.stores.seller_id`), that it is listed under the named active store when one is sent, and
+  that **the product's `app` matches that store's `app`** — so a Food product can never be opted into
+  a Mart/Pharmacy campaign by a tab switch or a direct API call. Cross-seller overwrites are rejected
+  with `409 optin_owned`; a cross-store or cross-sector product is `403 forbidden`.
 - Cap enforcement: the client validates against the selected campaign's state override (else the
   global cap). `ActiveDiscounts` applies the same cap at read time, so an over-cap opt-in can never
   leak an uncapped shopper price.

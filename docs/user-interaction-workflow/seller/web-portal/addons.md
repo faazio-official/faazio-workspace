@@ -35,14 +35,20 @@
 
 ## State
 
-- Page-local React state in `app/seller/inventory/page.client.tsx` holds `addons`, `links`, loading
-  and the sheet selections. No client-side catalogue copy: every row comes from the gateway.
+- Page-local React state in the FOOD inventory view
+  (`src/components/sellers/inventory/food-view.tsx`; `/seller/inventory` is only a sector router)
+  holds `addons`, `links`, loading and the sheet selections. No client-side catalogue copy: every row
+  comes from the gateway.
 - Admin queue page holds the pending list in page-local state and refetches after each decision.
 
 ## Data path
 
 - `listAddons` → `GET /seller/addons` → `directory.addons` (seller/district scope via
   `directory.stores.seller_id` + `sellers.sellers.district_code`).
+- Every add-on write (create/update/submit/status/link/unlink) additionally requires
+  `directory.stores.app = 'FOOD'` in the SQL predicate (`foodVenuePredicate` in
+  `internal/catalog/addons.go`), so a Mart/Pharmacy store cannot write the FOOD-owned tables even by
+  naming a venue id.
 - `createAddon` → `POST /seller/addons` → `directory.addons` (DRAFT, price stored as paisa).
 - `updateAddon` → `PUT /seller/addons/{addonId}`.
 - `submitAddonForReview` → `POST /seller/addons/{addonId}/submit-for-review` → `PENDING_REVIEW`.

@@ -9,9 +9,16 @@
 1. The page reads `useProducts({ sellerId, storeId, query, sector, status })`
    (`src/lib/api/hooks.ts`) — a `useMemo` over the hydrated `products` slice, scoped to the
    signed-in seller and active vendor. Rows are filtered by seller / store / query / sector / status.
-2. **Search** (name or product id), **sector** chips (`ALL` / MART / FOOD / PHARMA) and the
-   **status** filter `Sheet` (ALL / ACTIVE / PENDING_REVIEW / DELISTED) all filter client-side over
-   the same slice — no extra endpoint.
+2. **Search** (name or product id), **sector** chips and the **status** filter `Sheet`
+   (ALL / ACTIVE / PENDING_REVIEW / DELISTED) all filter client-side over the same slice — no extra
+   endpoint.
+   - The sector chips are **derived from the active store**: a single shop has one sector, so the row
+     offers `All` + that sector only, and the default selection is the store's own sector (not
+     `ALL`). Switching shops via the `StoreSwitcher` re-derives the selection through a
+     `useEffect` keyed on `activeStore.storeId` / `activeStore.sector`, so a Mart → Food switch never
+     leaves the page stuck on the previous sector.
+   - The active store's own sector is the baseline, not a user filter: the filter dot only lights up
+     when the seller narrows away from it (`filtersActive`).
 3. **Load more** paginates client-side: `products.slice(0, limit)` with `limit += 10`.
 4. **Mobile row contract.** Each row is a flex card clamped to the viewport so right-side content
    never clips: the image and the `ChevronRight` are `shrink-0`; the middle column is

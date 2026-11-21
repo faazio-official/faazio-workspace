@@ -67,6 +67,12 @@
   round switch reads Home / Orders. `/seller/offers` deliberately stays out of `HUB_MODE_PATHS`, so
   opening it keeps the Orders-mode bar and the Offers tab highlighted. Spacing follows the
   4px grid and derives from `--seller-nav-h` / `--seller-nav-gap`.
+- The desktop sidebar is **capability-based**, not just relabelled: `sellerNavItems(sector)` shows
+  **Menu** (`/seller/menus`) only for `FOOD` and **Offers** (`/seller/offers`) for the other sectors,
+  and **Prescriptions** (`/seller/prescriptions`) is rendered only for `PHARMA`. Hiding the entry is
+  paired with a route guard: `/seller/prescriptions` itself shows an "only available for Pharmacy
+  shops" empty state + a link to `/seller/stores` when the active shop is not a Pharmacy, so a seller
+  who switches from Pharma to Food while on that page is never stranded on a broken screen.
 - Mobile headers (`OrdersTopBar`, `HubHeader`, `OutletHeader`) share one hairline bottom border,
   `px-4` padding and the `env(safe-area-inset-top)` offset; action clusters are `shrink-0` so the
   shop name truncates instead of crowding the icons. In `OrdersTopBar` the shop-name bar (name +
@@ -103,6 +109,24 @@
   login page; 401 bounces to login. If auth never resolves, the splash releases after the 5 s
   fallback and the sign-in page shows.
 - **Empty:** honest empty states.
+
+## Sector isolation (client + server)
+
+Every operational `/seller/*` route derives its query from `(activeStore.id, activeStore.sector)`,
+and every mutating gateway path validates the store's sector in SQL before writing a sector-owned
+table:
+
+- `directory.menus` / `directory.addons` / `directory.menu_addon_links` (FOOD-owned) — `UpsertMenu`,
+  `SetMenuStatus`, `DeleteMenu`, `CreateAddon`/`UpdateAddon`/`SubmitAddonForReview`/`SetAddonStatus`,
+  `LinkAddon`/`UnlinkAddon` all require `directory.stores.app = 'FOOD'` inside the write statement, so
+  a Mart/Pharmacy shop cannot write the Food catalog even by guessing a venue id.
+- `promo.festival_optins` — the opt-in handler requires the product to be listed under the seller's
+  named active store **and** `catalog.products.app = directory.stores.app`.
+- `/seller/inventory` renders separate Food and Retail components (see
+  [`../catalog/inventory.md`](../catalog/inventory.md)); `/seller/products` defaults its sector filter
+  to the active shop (see [products.md](./products.md)).
+
+`/seller/stores` and the org-level analytics views stay deliberately cross-store.
 
 ## Known gaps
 

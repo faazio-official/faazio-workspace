@@ -13,8 +13,11 @@
 3. The gateway purges product/stock/store-products/geo cache keys.
 
 ### Inventory
-1. `/seller/inventory` lists rows with `GET /seller/inventory` (joins `inventory.stock`).
+1. `/seller/inventory` is sector-split (see [inventory.md](./inventory.md)). Retail (Mart/Pharmacy)
+   lists rows with `GET /seller/inventory` (joins `inventory.stock`).
 2. Save calls `PUT /seller/inventory/{productId}` with qty/ETA.
+3. Food shops never call the stock write from this page — their inventory surface is dish
+   availability + add-ons over `directory.menus` / `directory.addons`.
 
 ### Menus (Food)
 1. `/seller/menus` lists dishes with `GET /seller/menus`.
@@ -45,7 +48,6 @@
 
 - `/seller/inventory` uses local restock defaults (`RESTOCK_QTY=10`, `RESTOCK_ETA=30`) as form
   prefills, not data. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
-
 ## Linked docs
 
 - `docs/architecture/monolith-breakdown.md` (catalog/directory rows)

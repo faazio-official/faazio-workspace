@@ -133,8 +133,13 @@ vocabulary (`src/lib/sector.ts` — `sectorLabel` / `sectorIcon` / `sectorChip` 
 the `SectorBadge` kit primitive render "Mart / Food / Pharmacy" instead of raw enum strings. Food-only
 surfaces are gated to FOOD shops (hub rush link + the "Kitchen" tab label, `/seller/rush-hour`, the
 restaurant-status title, kitchen reject reasons, the vegeterian/`isVeg` toggles, dish/cuisine menus
-fields); the prescriptions queue is gated to PHARMA shops; the bottom nav, desktop sidebar and
-Explore catalog grid swap **Menu** for **Offers** (`/seller/offers`) on Mart/Pharmacy shops; rest of
+fields); the prescriptions queue is gated to PHARMA shops (nav entry hidden **and** the page itself
+guarded, so switching away from a Pharmacy shop while on `/seller/prescriptions` shows a "Pharmacy
+shops only" empty state instead of a broken screen); the bottom nav, desktop sidebar and
+Explore catalog grid swap **Menu** for **Offers** (`/seller/offers`) on Mart/Pharmacy shops;
+`/seller/inventory` renders two separate sector views (Food dish availability + add-ons vs retail
+stock qty/ETA — see `src/components/sellers/inventory/`), and `/seller/products` defaults its sector
+chips to the active shop and re-derives them on a `StoreSwitcher` change; rest of
 the chrome uses neutral copy
 ("New"/"Packed" vs "Preparing"/"Ready", "Pending orders", "Store status", `BookOpen` for the Menu
 nav/tiles instead of `UtensilsCrossed`).
@@ -269,14 +274,14 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `seller/products/new` | create listing — sector fixed from registration, store picked from the seller's own `GET /seller/stores`, category from the **approved GST category master**, no MRP/ETA inputs, live seller "What you keep" deduction preview (platform fee, platform GST, TCS, TDS); submit persists through `POST /seller/products` (seed mode keeps the local demo path) | all |
 | `seller/products/[id]/edit` | listing editor — name/desc/category persisted via `PUT /seller/products/{id}`, photos via the media link, `upsertPrice` for money; delete soft-deletes into the trash; no MRP field, GST note | all |
 | `seller/products/trash` | deleted listings (`GET /seller/products/trash`) with a days-left countdown; `POST /seller/products/{id}/restore` within the 7-day window, then auto-purged | all |
-| `seller/inventory` | stock — hydrated from `GET /seller/inventory`; qty/ETA writes `PUT /seller/inventory/{productId}` | all |
+| `seller/inventory` | sector router — FOOD renders `FoodInventoryView` (dish listed/delisted + add-on linking over `directory.menus`/`directory.addons`), MART/PHARMA render `RetailStockInventoryView` (hydrated from `GET /seller/inventory`; qty/ETA writes `PUT /seller/inventory/{productId}`, plus a read-only Rx badge on prescription rows) | all |
 | `seller/pricing` | price — hydrated from `GET /seller/pricing`; edits `PUT /seller/pricing/{productId}` (MRP retired by `0079`) | all |
-| `seller/promotions` | festival opt-ins + live price — hydrated `GET /seller/promotions` (campaigns + own opt-ins); opt-in `POST /seller/promotions/optin` | all |
+| `seller/promotions` | festival opt-ins + live price — hydrated `GET /seller/promotions` (campaigns + own opt-ins), `sectorScoped` to the active shop; opt-in `POST /seller/promotions/optin` (server re-checks product↔store↔sector) | all |
 | `seller/offers` | product-first festival offers — same campaigns/opt-ins, scoped to the active non-food store; validates the discount against the seller-readable `GET /promo/sector-caps` before `POST /seller/promotions/optin` | MART · PHARMA |
 | `seller/stores` | store profile | all |
 | `seller/fee-change-request` | seller-initiated platform-fee change for ONE vendor — vendor chips read `GET /seller/stores` (per-shop `platformFeePct` + app floor), an optional "why" (≤ 500 chars) accompanies the submit that posts only `{storeId, platformFeePct, reason}` to `POST /sellers/{id}/platform-fee-request`, and the page shows the last four own requests | all |
 | `seller/fee-history` | the seller's own fee-change history (`GET /sellers/{id}/platform-fee-requests`, server-scoped) with `old% → requested%`, requested-at, the seller's own note and status; empty state "No fee change requests found" | all |
-| `seller/menus` | dish menus (+ authoritative MRP strike) | FOOD |
+| `seller/menus` | dish menus (+ authoritative MRP strike); non-FOOD shops that reach the URL directly get an "only available for Food shops" guard instead of a form the server rejects | FOOD |
 | `seller/orders` · `seller/orders/[id]` | order queue + detail (hydrated `GET /seller/orders`; NEW cards use the explicit accept/reject endpoints) | all |
 | `seller/order-history` | past-orders search (order id + date range sheet) over the same `/seller/orders` data | all |
 | `seller/restaurant-status` · `seller/rush-hour` · `seller/explore` | online/offline + delivery settings, rush-mode timer, and the grouped "all tools" grid that opens from the hamburger (mirrors the sector-aware seller nav) | all |

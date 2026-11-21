@@ -54,6 +54,8 @@ Recorded here so a future contributor does not "fix" something that is not broke
 | Compliance `PENDING` still allows activation | `setStatus` / `verifyKYC` only block `FAILED` | A district admin's manual review remains the verification authority until a provider is wired |
 | Rejected applicant cannot resubmit via the edit endpoint | `POST /sellers/{id}/edit` requires the `SELLER` role + matching `seller_id` (`internal/sellers/handler.go`); a rejected shopper still has no seller role, so the customer app falls back to `POST /sellers` and hits `409 email_taken` | Rejected applicants cannot cleanly resubmit from the customer app |
 | Contract tiers are seed-only | `sellers.contract_tiers` is populated by migration 0100; no portal admin surface edits commission/settlement | A rate-card change needs a migration/DB change until an admin screen exists |
+| Pharmacy inventory has no batch/expiry metadata | `catalog.products` carries `is_prescription` only (no batch or expiry columns), so `/seller/inventory` shows a read-only **Rx** badge but no expiry column | Regulated stock cannot be expired-out from the console; needs schema + a stock write contract change |
+| Inventory restock qty/ETA are client defaults | `RESTOCK_QTY=10` / `RESTOCK_ETA=30` in `src/components/sellers/inventory/retail-view.tsx` | Turning a listing back on writes those constants, not a per-shop preference |
 
 **By design — not gaps:** seller registration is intentionally mobile-only (`POST /sellers` from
 the customer app's `SellWithUs`). On approval (`POST /sellers/{id}/verify-kyc`, or

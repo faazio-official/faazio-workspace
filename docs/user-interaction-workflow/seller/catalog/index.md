@@ -11,14 +11,17 @@
 |---|---|
 | Add product | [add-product.md](./add-product.md) |
 | Price / inventory / menu update | [price-update.md](./price-update.md) |
+| Inventory (sector-aware food vs retail) | [inventory.md](./inventory.md) |
 | Edit / delete / restore (trash) | [product-trash.md](./product-trash.md) |
 | Product-first festival offers | [offers.md](./offers.md) |
 
 ## Surfaces
 
 - **Products:** list/create/edit, image upload, status, soft delete → trash with restore.
-- **Inventory:** stock qty + ETA per product (`GET /seller/inventory`,
-  `PUT /seller/inventory/{productId}`).
+- **Inventory:** sector-split. Food shops get dish availability + add-on linking (no unit counts);
+  Mart/Pharmacy shops get stock qty + ETA per product (`GET /seller/inventory`,
+  `PUT /seller/inventory/{productId}`), with an **Rx** badge on prescription-only rows. See
+  [inventory.md](./inventory.md).
 - **Pricing:** price-only updates (`GET /seller/pricing`, `PUT /seller/pricing/{productId}`).
 - **Menus:** Food dishes per venue (`GET/POST /seller/menus`, `PUT/DELETE
   /seller/menus/{venueId}/{dishId}`). Food-only; Mart/Pharmacy shops see **Offers** instead. The dish
