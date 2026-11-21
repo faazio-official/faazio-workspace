@@ -19,7 +19,7 @@
 begin;
 
 insert into tax.category_gst_rates (category_id, gst_rate_pct, gst_rate_category_id, updated_by)
-select resolved.category_id, g.rate_pct, resolved.slab_id, 'migration-0120'
+select resolved.category_id, g.gst_rate_pct, resolved.slab_id, 'migration-0120'
   from (
     select c.id as category_id,
            case
