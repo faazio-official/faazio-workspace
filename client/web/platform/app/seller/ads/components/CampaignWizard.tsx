@@ -102,7 +102,7 @@ export function CampaignWizard({ sellerId, stateCode }: { sellerId: string; stat
           label: m.name,
           app: "FOOD" as Sector,
           storeId: m.venueId,
-          imageUrl: m.image,
+          imageUrl: m.imageKey,
         }));
     }
     return stores

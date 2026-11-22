@@ -131,7 +131,7 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 		           sin(radians($1)) * sin(radians(latitude)) +
 		           cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2))
 		       )))) as distance_km,
-		       coalesce(name_ta, ''), coalesce(desc_text_ta, '')
+		       coalesce(name_ta, ''), coalesce(desc_text_ta, ''), true as is_live
 		from directory.stores
 		where is_live
 		  and latitude is not null and longitude is not null
@@ -218,14 +218,19 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 		return nil, fmt.Errorf("directory: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, description, emoji, delivery_time,
-		       coalesce(name_ta, ''), coalesce(description_ta, '')
-		  from directory.menus
-		 where venue_id = $1 and status = 'ACTIVE'::product_status
+		select m.dish_id, m.name, m.price_paisa, m.mrp_paisa, m.is_veg, m.cuisine, m.rating, m.image, m.image_key,
+		       m.description, m.emoji, m.delivery_time,
+		       coalesce(m.name_ta, ''), coalesce(m.description_ta, ''),
+		       coalesce(m.section_id, ''), coalesce(m.sub_category_id, ''),
+		       coalesce(sec.name, ''), coalesce(sub.name, ''), coalesce(m.dietary_type, '')
+		  from directory.menus m
+		  left join taxonomy.categories sub on sub.id = m.sub_category_id
+		  left join taxonomy.categories sec on sec.id = coalesce(m.section_id, sub.parent_id)
+		 where m.venue_id = $1 and m.status = 'ACTIVE'::product_status
 		   and not exists (
 		         select 1 from directory.stores st
 		          where st.id = $1 and not st.is_live)
-		 order by rating desc nulls last, name asc`, venueID)
+		 order by coalesce(sec.sort_order, 0) asc, coalesce(sub.sort_order, 0) asc, m.rating desc nulls last, m.name asc`, venueID)
 	if err != nil {
 		return nil, err
 	}
@@ -244,7 +249,8 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 			imageKey *string
 		)
 		if err := rows.Scan(&d.ID, &d.Name, &d.Price, &mrp, &isVeg, &cuisine, &rating, &d.Image, &imageKey, &desc, &emoji, &delivery,
-			&d.NameTA, &d.DescriptionTA); err != nil {
+			&d.NameTA, &d.DescriptionTA,
+			&d.SectionID, &d.SubCategoryID, &d.SectionName, &d.SubCategoryName, &d.DietaryType); err != nil {
 			return nil, err
 		}
 		if imageKey != nil && *imageKey != "" && r.cdnBase != "" {
@@ -847,12 +853,18 @@ func storeID() string {
 
 // SellerMenu is the portal-facing menu-management projection (includes seller scope + status).
 type SellerMenu struct {
-	VenueID string `json:"venueId"`
-	DishID  string `json:"dishId"`
-	Name    string `json:"name"`
-	// Tamil display copy (0108); the portal authors it, the customer app falls back to `Name`.
+	VenueID       string   `json:"venueId"`
+	DishID        string   `json:"dishId"`
+	Name          string   `json:"name"`
 	NameTA        string   `json:"nameTa,omitempty"`
 	DescriptionTA string   `json:"descriptionTa,omitempty"`
+	Description   string   `json:"description,omitempty"`
+	SectionID     string   `json:"sectionId,omitempty"`
+	SubCategoryID string   `json:"subCategoryId,omitempty"`
+	DietaryType   string   `json:"dietaryType,omitempty"`
+	// Display names resolved from the taxonomy tree, so the portal groups the list without a 2nd read.
+	SectionName     string `json:"sectionName,omitempty"`
+	SubCategoryName string `json:"subCategoryName,omitempty"`
 	Price         int64    `json:"price"`         // rupees
 	MRP           *int64   `json:"mrp,omitempty"` // rupees; list price (strike), never below price
 	IsVeg         *bool    `json:"isVeg,omitempty"`
@@ -860,19 +872,71 @@ type SellerMenu struct {
 	Rating        *float64 `json:"rating,omitempty"`
 	Image         string   `json:"image,omitempty"`
 	ImageAssetID  string   `json:"imageAssetId,omitempty"`
-	ImageKey      string   `json:"-"`
+	ImageKey      string   `json:"imageKey,omitempty"`
 	SellerID      string   `json:"sellerId,omitempty"`
 	Status        string   `json:"status"`
 }
 
-// sellerMenuSelect projects a menu row with its owner derived through the vendor store. A dining
-// venue has no directory.stores row, so its dishes carry no owner (empty seller id).
+// sellerMenuSelect projects a menu row with its owner derived through the vendor store, plus the
+// taxonomy names so the portal can group the list by section → sub-category without a second read.
+// A dining venue has no directory.stores row, so its dishes carry no owner (empty seller id).
 const sellerMenuSelect = `
-select m.venue_id, m.dish_id, m.name, m.price_paisa, m.mrp_paisa, m.is_veg, m.cuisine, m.rating,
+select m.venue_id, m.dish_id, m.name, coalesce(m.description, ''), coalesce(m.section_id, ''),
+       coalesce(m.sub_category_id, ''), coalesce(m.dietary_type, ''),
+       coalesce(sec.name, ''), coalesce(sub.name, ''),
+       m.price_paisa, m.mrp_paisa, m.is_veg, m.cuisine, m.rating,
        m.image, m.image_key, coalesce(st.seller_id,''), m.status::text,
        coalesce(m.name_ta, ''), coalesce(m.description_ta, '')
 from directory.menus m
-left join directory.stores st on st.id = m.venue_id`
+left join directory.stores st on st.id = m.venue_id
+left join taxonomy.categories sub on sub.id = m.sub_category_id
+left join taxonomy.categories sec on sec.id = coalesce(m.section_id, sub.parent_id)`
+
+// TaxonomyLeafCategory reports whether a taxonomy.categories id is a selectable leaf for a dish:
+// an active FOOD-app row that has a parent (a parent category is a section header, never selectable).
+// The superadmin taxonomy is the single source of truth for menu sections/sub-categories.
+func (r *Repo) TaxonomyLeafCategory(ctx context.Context, id string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("directory: database not configured")
+	}
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return false, nil
+	}
+	var leaf bool
+	err := r.pool.QueryRow(ctx, `
+		select coalesce(parent_id is not null and is_active and app::text = 'FOOD', false)
+		  from taxonomy.categories
+		 where id = $1`, id).Scan(&leaf)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+	return leaf, nil
+}
+
+// SellerOwnsVenue reports whether a venue (directory.stores id) belongs to the given seller. Used to
+// reject a seller writing a dish to a shop that is not theirs (the seller never types a venue id).
+func (r *Repo) SellerOwnsVenue(ctx context.Context, sellerID, venueID string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("directory: database not configured")
+	}
+	if strings.TrimSpace(sellerID) == "" || strings.TrimSpace(venueID) == "" {
+		return false, nil
+	}
+	var ok bool
+	err := r.pool.QueryRow(ctx, `
+		select exists (
+			select 1 from directory.stores
+			 where id = $1 and seller_id = $2 and app::text = 'FOOD')`,
+		venueID, sellerID).Scan(&ok)
+	if err != nil {
+		return false, err
+	}
+	return ok, nil
+}
 
 // SellerMenus lists menus scoped by seller, district and/or venue. A district admin passes
 // district (strict); a seller passes sellerID; a super admin passes neither and sees all.
@@ -886,7 +950,7 @@ func (r *Repo) SellerMenus(ctx context.Context, sellerID, district, venueID stri
 		         select 1 from sellers.sellers se
 		          where se.seller_id = st.seller_id and se.district_code = $2))
 		  and ($3 = '' or m.venue_id = $3)
-		order by m.venue_id asc, m.name asc`, sellerID, district, venueID)
+		order by m.venue_id asc, coalesce(sec.sort_order, 0) asc, coalesce(sub.sort_order, 0) asc, m.name asc`, sellerID, district, venueID)
 	if err != nil {
 		return nil, err
 	}
@@ -901,7 +965,9 @@ func (r *Repo) SellerMenus(ctx context.Context, sellerID, district, venueID stri
 			rating   *float64
 			imageKey *string
 		)
-		if err := rows.Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &mrp, &isVeg, &cuisine, &rating, &m.Image, &imageKey, &m.SellerID, &m.Status,
+		if err := rows.Scan(&m.VenueID, &m.DishID, &m.Name, &m.Description, &m.SectionID, &m.SubCategoryID,
+			&m.DietaryType, &m.SectionName, &m.SubCategoryName,
+			&m.Price, &mrp, &isVeg, &cuisine, &rating, &m.Image, &imageKey, &m.SellerID, &m.Status,
 			&m.NameTA, &m.DescriptionTA); err != nil {
 			return nil, err
 		}
@@ -955,29 +1021,47 @@ func (r *Repo) UpsertMenu(ctx context.Context, m SellerMenu, sellerID string, al
 		rating   *float64
 		imageKey *string
 	)
+	// The `leaf` CTE resolves the picked sub-category once and the insert/update guards require it to
+	// be an active FOOD-app category that has a parent. A dish can never be written onto a parent
+	// category (a section header) — enforced here at the DB boundary, not only in the handler.
 	err := r.pool.QueryRow(ctx, `
-		insert into directory.menus (venue_id, dish_id, name, name_ta, description_ta, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, image_asset_id, status)
-		select $1,$2,$3,$14,$15,$4,$5,$6,$7,$8,$9,$10,$11,'DRAFT'
-		 where $12 or exists (
+			with leaf as (
+				select c.id from taxonomy.categories c
+				 where c.id = $18 and c.parent_id is not null and c.is_active and c.app::text = 'FOOD')
+			insert into directory.menus (venue_id, dish_id, name, name_ta, description_ta, description, section_id, sub_category_id, dietary_type, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, image_asset_id, status)
+			select $1,$2,$3,$14,$15,$16,
+			       nullif($17,''),
+			       (select id from leaf),
+			       nullif($19,''),
+			       $4,$5,$6,$7,$8,$9,$10,$11,'DRAFT'
+
+		 where (select count(*) from leaf) = 1
+		   and ($12 or exists (
 		         select 1 from directory.stores st
-		          where st.id = $1 and st.seller_id = $13 and st.app::text = 'FOOD')
-		on conflict (venue_id, dish_id) do update
-		   set name = excluded.name, name_ta = excluded.name_ta, description_ta = excluded.description_ta,
-		       price_paisa = excluded.price_paisa, mrp_paisa = excluded.mrp_paisa,
-		       is_veg = excluded.is_veg, cuisine = excluded.cuisine, rating = excluded.rating,
-		       image = excluded.image, image_key = excluded.image_key, image_asset_id = excluded.image_asset_id
+		          where st.id = $1 and st.seller_id = $13 and st.app::text = 'FOOD'))
+on conflict (venue_id, dish_id) do update
+   set name = excluded.name, name_ta = excluded.name_ta, description_ta = excluded.description_ta,
+       description = excluded.description, section_id = excluded.section_id, sub_category_id = excluded.sub_category_id,
+       dietary_type = excluded.dietary_type, price_paisa = excluded.price_paisa, mrp_paisa = excluded.mrp_paisa,
+       is_veg = excluded.is_veg, cuisine = excluded.cuisine, rating = excluded.rating,
+       image = excluded.image, image_key = excluded.image_key, image_asset_id = excluded.image_asset_id
 		 where $12 or exists (
 		         select 1 from directory.stores st
 		          where st.id = directory.menus.venue_id and st.seller_id = $13
 		            and st.app::text = 'FOOD')
-		returning venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key,
+		returning venue_id, dish_id, name, coalesce(description, ''), coalesce(section_id, ''),
+		          coalesce(sub_category_id, ''), coalesce(dietary_type, ''),
+		          price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key,
 		          coalesce((select st.seller_id from directory.stores st where st.id = directory.menus.venue_id), ''),
 		          status::text, coalesce(name_ta, ''), coalesce(description_ta, '')`,
 		m.VenueID, m.DishID, m.Name, m.Price*100, paisaPtr(m.MRP), m.IsVeg, nullIfEmpty(m.Cuisine), m.Rating, m.Image,
 		nullIfEmpty(m.ImageKey), nullIfEmpty(m.ImageAssetID), all, sellerID,
-		strings.TrimSpace(m.NameTA), strings.TrimSpace(m.DescriptionTA)).
-		Scan(&out.VenueID, &out.DishID, &out.Name, &out.Price, &mrp, &isVeg, &cuisine, &rating, &out.Image, &imageKey, &out.SellerID, &out.Status,
-			&out.NameTA, &out.DescriptionTA)
+		strings.TrimSpace(m.NameTA), strings.TrimSpace(m.DescriptionTA),
+		strings.TrimSpace(m.Description), strings.TrimSpace(m.SectionID),
+		strings.TrimSpace(m.SubCategoryID), strings.TrimSpace(m.DietaryType)).
+		Scan(&out.VenueID, &out.DishID, &out.Name, &out.Description, &out.SectionID, &out.SubCategoryID,
+			&out.DietaryType, &out.Price, &mrp, &isVeg, &cuisine, &rating, &out.Image, &imageKey,
+			&out.SellerID, &out.Status, &out.NameTA, &out.DescriptionTA)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerMenu{}, false, nil
@@ -1003,11 +1087,12 @@ func (r *Repo) SetMenuStatus(ctx context.Context, venueID, dishID, sellerID, sta
 		return SellerMenu{}, false, fmt.Errorf("directory: database not configured")
 	}
 	var (
-		m       SellerMenu
-		mrp     *int64
-		isVeg   *bool
-		cuisine *string
-		rating  *float64
+		m        SellerMenu
+		mrp      *int64
+		isVeg    *bool
+		cuisine  *string
+		rating   *float64
+		imageKey *string
 	)
 	err := r.pool.QueryRow(ctx, `
 		update directory.menus set status = $4::product_status
@@ -1016,16 +1101,23 @@ func (r *Repo) SetMenuStatus(ctx context.Context, venueID, dishID, sellerID, sta
 		          select 1 from directory.stores st
 		           where st.id = directory.menus.venue_id and st.seller_id = $3
 		             and st.app::text = 'FOOD'))
-		 returning venue_id, dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image,
+		 returning venue_id, dish_id, name, coalesce(description, ''), coalesce(section_id, ''),
+		           coalesce(sub_category_id, ''), coalesce(dietary_type, ''),
+		           price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key,
 		           coalesce((select st.seller_id from directory.stores st where st.id = directory.menus.venue_id), ''),
-		           status::text`,
+		           status::text, coalesce(name_ta, ''), coalesce(description_ta, '')`,
 		venueID, dishID, sellerID, status, all).
-		Scan(&m.VenueID, &m.DishID, &m.Name, &m.Price, &mrp, &isVeg, &cuisine, &rating, &m.Image, &m.SellerID, &m.Status)
+		Scan(&m.VenueID, &m.DishID, &m.Name, &m.Description, &m.SectionID, &m.SubCategoryID, &m.DietaryType,
+			&m.Price, &mrp, &isVeg, &cuisine, &rating, &m.Image, &imageKey, &m.SellerID, &m.Status,
+			&m.NameTA, &m.DescriptionTA)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerMenu{}, false, nil
 		}
 		return SellerMenu{}, false, err
+	}
+	if imageKey != nil {
+		m.ImageKey = *imageKey
 	}
 	m.Price = m.Price / 100
 	m.MRP = rupeesPtr(mrp)

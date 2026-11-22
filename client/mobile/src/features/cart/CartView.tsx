@@ -432,7 +432,7 @@ export default function CartView({
   const [pickupReloadNonce, setPickupReloadNonce] = useState(0);
 
   useEffect(() => {
-    if (fulfillment !== 'PICKUP' || (step !== 'FULFILLMENT' && step !== 'PAYMENT')) {
+    if (fulfillment !== 'PICKUP') {
       setPickupPoints([]);
       setPickupPointsError(null);
       setPickupPointsLoading(false);
@@ -482,7 +482,7 @@ export default function CartView({
       setDeliveryQuoteMissing(false);
       return;
     }
-    if (step !== 'FULFILLMENT' && step !== 'PAYMENT') return;
+    if (step !== 'PAYMENT') return;
     if (!hasLiveFix || storeIdsForQuote.length === 0) {
       setDeliveryFeeQuote(null);
       setDeliveryQuoteMissing(true);
@@ -1014,7 +1014,7 @@ export default function CartView({
 
             <TouchableOpacity
               style={[styles.proceedBtn, selectedItems.length === 0 && styles.proceedBtnDisabled]}
-              onPress={() => setStep('FULFILLMENT')}
+              onPress={() => setStep('PAYMENT')}
               activeOpacity={0.88}
               disabled={selectedItems.length === 0}
             >
@@ -1097,7 +1097,7 @@ export default function CartView({
     );
   }
 
-  if (step === 'FULFILLMENT') {
+
     return (
       <View style={styles.fulfillmentRoot}>
         <View style={[styles.bagTopBar, { paddingTop: insets.top + vs(12) }]}>
@@ -1273,6 +1273,32 @@ export default function CartView({
     const primaryPickup = pickupPoints[0];
     return (
       <View style={styles.paymentRoot}>
+        {/* Fulfillment choice */}
+        <View style={styles.fulfilmentCard}>
+          <AppText style={styles.fulfilmentTitle}>How do you want your order?</AppText>
+          <View style={styles.fulfillmentToggle}>
+            <TouchableOpacity
+              onPress={() => setFulfillment('DELIVERY')}
+              style={[styles.fulfillmentToggleOption, fulfillment === 'DELIVERY' && styles.fulfillmentToggleOptionActive]}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: fulfillment === 'DELIVERY' }}
+            >
+              <Send size={ms(14)} color={fulfillment === 'DELIVERY' ? neutral.card : neutral.inkMuted} strokeWidth={2.2} />
+              <AppText style={[styles.fulfillmentToggleText, fulfillment === 'DELIVERY' && styles.fulfillmentToggleTextActive]}>Delivery</AppText>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setFulfillment('PICKUP')}
+              style={[styles.fulfillmentToggleOption, fulfillment === 'PICKUP' && styles.fulfillmentToggleOptionActive]}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityState={{ selected: fulfillment === 'PICKUP' }}
+            >
+              <Store size={ms(14)} color={fulfillment === 'PICKUP' ? neutral.card : neutral.inkMuted} strokeWidth={2.2} />
+              <AppText style={[styles.fulfillmentToggleText, fulfillment === 'PICKUP' && styles.fulfillmentToggleTextActive]}>Self Pickup</AppText>
+            </TouchableOpacity>
+          </View>
+        </View>
         <PaymentOptionsScreen
           itemCount={itemCount}
           total={finalTotal}
@@ -1290,7 +1316,7 @@ export default function CartView({
           contactPhone={accountPhone || savedAddress?.phone}
           processing={paymentProcessing}
           error={paymentError}
-          onBack={() => setStep('FULFILLMENT')}
+          onBack={() => setStep('BAG')}
           onPlaceOrder={handlePlaceOrder}
         />
       </View>

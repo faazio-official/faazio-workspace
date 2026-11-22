@@ -7,7 +7,10 @@
 ## Steps
 
 1. Seller opens **Inventory → Add-ons**. The page loads the venue's add-ons (`GET /seller/addons?venueId=`)
-   and every dish link (`GET /seller/menu-addons?venueId=`).
+   and every dish link (`GET /seller/menu-addons?venueId=`). Add-ons are also created and attached
+   inline from a dish drawer on `/seller/menus` (see [menu-creation.md](./menu-creation.md)): the
+   drawer's **Add-ons** section lists existing add-ons to tick and offers a compact inline
+   create (name, group, price, veg), which then goes live for the owner immediately.
 2. **Create add-on** → a sheet collects name, optional group, **Tamil name**, **Tamil group**
    (`0108`, both optional), price (₹) and veg flag. The two Tamil fields validate with
    `tamilFieldError` (`src/lib/tamil.ts`) — Tamil letters, digits and light punctuation only, blank =
@@ -22,15 +25,19 @@
    (`DELETE /seller/menu-addons/{venueId}/{dishId}/{addonId}`). The on/off toggle on a linked row
    disables/enables that link only; it never changes the add-on's own status.
 4. **Submit for review** (visible on DRAFT/DELISTED rows) calls `submitAddonForReview`
-   (`POST /seller/addons/{addonId}/submit-for-review`) → **PENDING_REVIEW**. The seller is told admin
-   approval is required before customers see it.
-5. Admin opens **Add-on queue** (`/admin/district/addons/queue`), which lists PENDING_REVIEW add-ons
+   (`POST /seller/addons/{addonId}/submit-for-review`) → **PENDING_REVIEW**, the path for an add-on the
+   owner wants an admin to sign off on.
+5. **Publish (owner self-serve)** — the seller can also put their own add-on live directly:
+   `POST /seller/addons/{addonId}/approve` is permitted for the owning seller (the write is still
+   scoped by `addonScopePredicate`, so a foreign venue's add-on is unreachable), matching dish
+   publishing where a restaurant owner controls their own live menu.
+6. Admin opens **Add-on queue** (`/admin/district/addons/queue`), which lists PENDING_REVIEW add-ons
    in district scope (`GET /seller/addons?status=PENDING_REVIEW`).
    - **Approve** → `POST /seller/addons/{addonId}/approve` → **ACTIVE**; the add-on becomes orderable
      on every enabled dish link. The seller is notified (`ADDON_APPROVED`).
    - **Reject** (reason required) → `POST /seller/addons/{addonId}/reject` → **DRAFT** +
      `review_reason`; the seller sees the note on the add-on and is notified (`ADDON_REJECTED`).
-6. **Delist** calls `DELETE /seller/addons/{addonId}` → **DELISTED**. Customers stop seeing it;
+7. **Delist** calls `DELETE /seller/addons/{addonId}` → **DELISTED**. Customers stop seeing it;
    the seller can resubmit later.
 
 ## State
@@ -52,8 +59,9 @@
 - `createAddon` → `POST /seller/addons` → `directory.addons` (DRAFT, price stored as paisa).
 - `updateAddon` → `PUT /seller/addons/{addonId}`.
 - `submitAddonForReview` → `POST /seller/addons/{addonId}/submit-for-review` → `PENDING_REVIEW`.
-- `approveAddon` / `rejectAddon` → `POST /seller/addons/{addonId}/approve|reject` (admin only) →
-  `ACTIVE` / `DRAFT` + `review_reason`.
+- `approveAddon` / `rejectAddon` → `POST /seller/addons/{addonId}/approve|reject` → `ACTIVE` /
+  `DRAFT` + `review_reason`. Approve is open to the owning seller **and** admins (district/super);
+  reject is admin-only.
 - `delistAddon` → `DELETE /seller/addons/{addonId}` → `DELISTED`.
 - `listMenuAddons` → `GET /seller/menu-addons` → `directory.menu_addon_links` joined to
   `directory.addons`.
@@ -76,6 +84,9 @@
   email/push to admins yet.
 - Editing an ACTIVE add-on keeps it ACTIVE (same behaviour as menu/product edits); only the
   submit→approve lifecycle gates a new add-on.
+- An add-on created inline from a dish drawer (menu-creation.md) is auto-approved to **ACTIVE** for its
+  owner so it matches the dish's instant publish; the standalone Add-ons tab keeps the DRAFT →
+  submit → admin-approve path.
 
 ## Linked docs
 

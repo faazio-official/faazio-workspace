@@ -3146,101 +3146,197 @@ export async function fetchCustomers(filter: CustomersFilter = {}): Promise<Cust
 /* ---------------------------------- menus -------------------------------- */
 
 export function listMenus(
-  filter: { sellerId?: string | undefined; venueId?: string | undefined; status?: ProductStatus | "ALL" | undefined } = {},
+  filter: {
+    sellerId?: string | undefined;
+    venueId?: string | undefined;
+    status?: ProductStatus | "ALL" | undefined;
+    sectionId?: string | undefined;
+    subCategoryId?: string | undefined;
+  } = {},
 ): MenuItemRecord[] {
   return state().menus.filter((m) => {
     if (filter.sellerId && m.sellerId !== filter.sellerId) return false;
     if (filter.venueId && m.venueId !== filter.venueId) return false;
     if (filter.status && filter.status !== "ALL" && m.status !== filter.status) return false;
+    if (filter.sectionId && m.sectionId !== filter.sectionId) return false;
+    if (filter.subCategoryId && m.subCategoryId !== filter.subCategoryId) return false;
     return true;
   });
 }
 
+/**
+ * The corrected dish form's payload. The seller never types a venue or dish id: the venue comes from
+ * the active shop scope and the gateway derives the dish id from the name. Money is whole rupees.
+ */
 export interface MenuDto {
+  /** The shop the dish belongs to (from `useSellerScope().storeId`, never typed). */
   venueId: string;
-  dishId: string;
+  /** Present only when editing an existing dish; omitted on create so the gateway generates one. */
+  dishId?: string | undefined;
   name: string;
   /** Tamil display copy (0108). Empty/absent → the customer app falls back to the English copy. */
   nameTa?: string | undefined;
+  /** English description */
+  description?: string | undefined;
   descriptionTa?: string | undefined;
-  pricePaisa: number;
-  /** List price (MRP) for the strike-through; must be ≥ pricePaisa. Omit for no offer. */
-  mrpPaisa?: number | undefined;
+  /** Section header (parent category) — resolved from the leaf's parent when omitted. */
+  sectionId?: string | undefined;
+  /** Leaf sub-category identifier — mandatory; the only selectable taxonomy level. */
+  subCategoryId: string;
+  /** Dietary classification */
+  dietaryType?: "VEG" | "NON_VEG" | "EGG" | undefined;
+  /** Price in rupees */
+  price: number;
+  /** List price (MRP) for the strike-through; must be ≥ price. Omit for no offer. */
+  mrp?: number | undefined;
   isVeg?: boolean | undefined;
   cuisine?: string | undefined;
   rating?: number | undefined;
-  image?: string | undefined;
+  /** An already-uploaded `r2:<key>` image reference (kept when editing without re-picking a photo). */
+  imageKey?: string | undefined;
+  /** A freshly picked photo; uploaded via the media registry before the write. */
+  imageFile?: File | undefined;
+  /** Explicit publish intent: ACTIVE publishes the dish, DRAFT saves it unpublished. */
+  status?: Extract<ProductStatus, "ACTIVE" | "DRAFT"> | undefined;
   sellerId?: string | undefined;
 }
 
-export function upsertMenu(dto: MenuDto): void {
-  const existing = state().menus.find((m) => m.venueId === dto.venueId && m.dishId === dto.dishId);
+/**
+ * Creates or updates a dish through the gateway. The dish id is server-owned on create; on edit the
+ * existing `dishId` is reused. A freshly picked photo is uploaded to the media registry first, so the
+ * write only ever carries an `r2:<key>` reference — never a raw URL or a data URL.
+ *
+ * Awaited so the caller can show success only once the server has accepted the write; the optimistic
+ * row is rolled back and the promise rejects when the gateway refuses it.
+ */
+export async function upsertMenu(dto: MenuDto): Promise<MenuItemRecord> {
+  const venueId = dto.venueId.trim();
+  if (!venueId) throw new Error("No active shop selected.");
+  const existing = dto.dishId
+    ? state().menus.find((m) => m.venueId === venueId && m.dishId === dto.dishId)
+    : undefined;
+
+  // Upload a picked photo first (r2:<key> → bare key for the gateway's imageKey field).
+  let imageKey = dto.imageKey?.startsWith("r2:") ? dto.imageKey.slice(3) : dto.imageKey;
+  if (dto.imageFile) {
+    const stored = await uploadMenuImage(dto.imageFile);
+    imageKey = stored.startsWith("r2:") ? stored.slice(3) : stored;
+  }
+
+  const body = {
+    venueId,
+    ...(dto.dishId ? { dishId: dto.dishId } : {}),
+    name: dto.name.trim(),
+    ...(dto.nameTa?.trim() ? { nameTa: dto.nameTa.trim() } : {}),
+    ...(dto.description?.trim() ? { description: dto.description.trim() } : {}),
+    ...(dto.descriptionTa?.trim() ? { descriptionTa: dto.descriptionTa.trim() } : {}),
+    ...(dto.sectionId ? { sectionId: dto.sectionId } : {}),
+    subCategoryId: dto.subCategoryId,
+    ...(dto.dietaryType ? { dietaryType: dto.dietaryType } : {}),
+    price: dto.price,
+    ...(dto.mrp != null ? { mrp: dto.mrp } : {}),
+    ...(dto.isVeg !== undefined ? { isVeg: dto.isVeg } : {}),
+    ...(dto.cuisine?.trim() ? { cuisine: dto.cuisine.trim() } : {}),
+    ...(dto.rating != null ? { rating: dto.rating } : {}),
+    ...(imageKey ? { imageKey } : {}),
+  };
+
+  const saved = remoteConfigured()
+    ? toCamel(
+        await remote.post<Record<string, unknown>>(
+          dto.dishId
+            ? `/seller/menus/${encodeURIComponent(venueId)}/${encodeURIComponent(dto.dishId)}`
+            : "/seller/menus",
+          body,
+        ),
+      )
+    : undefined;
+
+  // Reconcile the local store with the server-owned identity + derived display names.
+  const serverId = (saved?.["dishId"] as string | undefined) ?? dto.dishId ?? "";
   const record: MenuItemRecord = {
-    ...dto,
+    venueId,
+    dishId: serverId,
+    name: dto.name.trim(),
+    ...(dto.nameTa?.trim() ? { nameTa: dto.nameTa.trim() } : {}),
+    ...(dto.description?.trim() ? { description: dto.description.trim() } : {}),
+    ...(dto.descriptionTa?.trim() ? { descriptionTa: dto.descriptionTa.trim() } : {}),
+    ...(dto.sectionId ? { sectionId: dto.sectionId } : {}),
+    subCategoryId: dto.subCategoryId,
+    ...(dto.dietaryType ? { dietaryType: dto.dietaryType } : {}),
+    pricePaisa: Math.round(dto.price * 100),
+    ...(dto.mrp != null ? { mrpPaisa: Math.round(dto.mrp * 100) } : {}),
+    ...(dto.isVeg !== undefined ? { isVeg: dto.isVeg } : {}),
+    ...(dto.cuisine?.trim() ? { cuisine: dto.cuisine.trim() } : {}),
+    ...(dto.rating != null ? { rating: dto.rating } : {}),
+    ...(imageKey ? { imageKey } : {}),
     sellerId: dto.sellerId ?? existing?.sellerId,
-    status: existing?.status ?? "DRAFT",
+    status: (saved?.["status"] as ProductStatus | undefined) ?? existing?.status ?? dto.status ?? "DRAFT",
   };
   state().set((s) => ({
     menus: existing
-      ? s.menus.map((m) => (m.venueId === dto.venueId && m.dishId === dto.dishId ? { ...m, ...record } : m))
+      ? s.menus.map((m) => (m.venueId === venueId && m.dishId === serverId ? record : m))
       : [record, ...s.menus],
   }));
-  pushWrite(
-    existing ? "Menu update" : "Menu create",
-    "put",
-    `/seller/menus/${encodeURIComponent(dto.venueId)}/${encodeURIComponent(dto.dishId)}`,
-    {
-      name: dto.name,
-      ...(dto.nameTa ? { nameTa: dto.nameTa } : {}),
-      ...(dto.descriptionTa ? { descriptionTa: dto.descriptionTa } : {}),
-      price: toRupees(dto.pricePaisa),
-      ...(dto.mrpPaisa != null ? { mrp: toRupees(dto.mrpPaisa) } : {}),
-      isVeg: dto.isVeg,
-      cuisine: dto.cuisine ?? "",
-      rating: dto.rating,
-      image: dto.image ?? "",
-      ...(dto.image?.startsWith("r2:") ? { imageKey: dto.image.slice(3) } : {}),
-    },
-    () => {
-      state().set((s) => ({
-        menus: existing
-          ? s.menus.map((m) => (m.venueId === dto.venueId && m.dishId === dto.dishId ? existing : m))
-          : s.menus.filter((m) => !(m.venueId === dto.venueId && m.dishId === dto.dishId)),
-      }));
-    },
-  );
   audit({
     action: existing ? "MENU_UPDATE" : "MENU_CREATE",
     entity: "directory.menus",
-    entityId: `${dto.venueId}:${dto.dishId}`,
+    entityId: `${venueId}:${serverId}`,
     before: existing,
     after: record,
   });
+  return record;
 }
 
-export function setMenuStatus(venueId: string, dishId: string, status: ProductStatus): void {
+/**
+ * Uploads a dish photo through the media registry (compressed JPEG → `r2:<key>`), reusing the shared
+ * product-image pipeline so the owner type is `MENU` and local dev still falls back to a data URL.
+ */
+export async function uploadMenuImage(file: File): Promise<string> {
+  const { uploadProductImage } = await import("@/lib/media/productImages");
+  return uploadProductImage(file, "MENU");
+}
+
+
+export async function setMenuStatus(
+  venueId: string,
+  dishId: string,
+  status: ProductStatus,
+): Promise<void> {
   const before = state().menus.find((m) => m.venueId === venueId && m.dishId === dishId);
   state().set((s) => ({
     menus: s.menus.map((m) =>
       m.venueId === venueId && m.dishId === dishId ? { ...m, status } : m,
     ),
   }));
-  pushWrite(`Menu ${status}`, "put", `/seller/menus/${encodeURIComponent(venueId)}/${encodeURIComponent(dishId)}/status`, { status }, () => {
-    if (!before) return;
-    state().set((s) => ({
-      menus: s.menus.map((m) => (m.venueId === venueId && m.dishId === dishId ? before : m)),
-    }));
-  });
+  try {
+    if (remoteConfigured()) {
+      await writeAwaited("put", `/seller/menus/${encodeURIComponent(venueId)}/${encodeURIComponent(dishId)}/status`, { status });
+    }
+  } catch (err) {
+    if (before) {
+      state().set((s) => ({
+        menus: s.menus.map((m) => (m.venueId === venueId && m.dishId === dishId ? before : m)),
+      }));
+    }
+    throw err;
+  }
   audit({ action: `MENU_${status}`, entity: "directory.menus", entityId: `${venueId}:${dishId}`, after: { status } });
 }
 
-export function deleteMenu(venueId: string, dishId: string): void {
+export async function deleteMenu(venueId: string, dishId: string): Promise<void> {
   const before = state().menus.find((m) => m.venueId === venueId && m.dishId === dishId);
   state().set((s) => ({ menus: s.menus.filter((m) => !(m.venueId === venueId && m.dishId === dishId)) }));
-  pushWrite("Menu delete", "delete", `/seller/menus/${encodeURIComponent(venueId)}/${encodeURIComponent(dishId)}`, undefined, () => {
-    if (!before) return;
-    state().set((s) => ({ menus: [before, ...s.menus] }));
-  });
+  try {
+    if (remoteConfigured()) {
+      await writeAwaited("delete", `/seller/menus/${encodeURIComponent(venueId)}/${encodeURIComponent(dishId)}`);
+    }
+  } catch (err) {
+    if (before) {
+      state().set((s) => ({ menus: [before, ...s.menus] }));
+    }
+    throw err;
+  }
   audit({ action: "MENU_DELETE", entity: "directory.menus", entityId: `${venueId}:${dishId}`, before });
 }
 

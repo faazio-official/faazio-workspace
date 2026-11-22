@@ -142,17 +142,37 @@ func TestSingleVenueNotFound(t *testing.T) {
 
 func TestMenuIncludesDisplayFields(t *testing.T) {
 	pool := testenv.Pool(t)
-	// Pick a dish that actually carries both display fields. `limit 1` was arbitrary and other
-	// packages insert menu rows concurrently against the shared test DB, so the test could inspect a
-	// row that legitimately has no description/delivery_time and fail for the wrong reason.
-	var venueID string
-	err := pool.QueryRow(context.Background(), `
-		select venue_id from directory.menus
-		 where coalesce(description,'') <> '' and coalesce(delivery_time,'') <> ''
-		 order by venue_id limit 1`).Scan(&venueID)
-	if err != nil {
-		t.Skipf("no seeded menu rows with display fields: %v", err)
+	ctx := context.Background()
+
+	// Seed a self-contained ACTIVE dish on a live FOOD store instead of scavenging a seeded row:
+	// other packages insert menu rows concurrently against the shared test DB, and a seeded venue may
+	// hold only DRAFT rows (the public read serves ACTIVE only), which made the old probe flaky.
+	venueID := "venue-display-" + manageID("")
+	sellerID := "sel-display-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
+		values ($1,'Display Seller','O','TN','TCH')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
 	}
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, state_code, is_live)
+		values ($1,'FOOD','Display Venue',$2,'TN', true)`, venueID, sellerID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `delete from directory.menus where venue_id=$1`, venueID)
+		_, _ = pool.Exec(context.Background(), `delete from directory.stores where id=$1`, venueID)
+		_, _ = pool.Exec(context.Background(), `delete from sellers.sellers where seller_id=$1`, sellerID)
+	})
+	sectionID, leafID := seedLeafCategory(t, pool, "Display")
+	if _, err := pool.Exec(ctx, `
+		insert into directory.menus (venue_id, dish_id, name, price_paisa, description, delivery_time,
+		                             section_id, sub_category_id, dietary_type, status)
+		values ($1,$2,'Display Dish',24000,'Rich and slow-cooked.','25 min',$3,$4,'NON_VEG','ACTIVE')`,
+		venueID, "dish-display-"+manageID(""), sectionID, leafID); err != nil {
+		t.Fatalf("seed menu: %v", err)
+	}
+
 	rec := httptest.NewRecorder()
 	testRouter(t, pool, false).ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/venues/"+venueID+"/menu", nil))
 	if rec.Code != http.StatusOK {
@@ -166,6 +186,13 @@ func TestMenuIncludesDisplayFields(t *testing.T) {
 	for _, d := range dishes {
 		if d.Description != "" && d.DeliveryTime != "" {
 			found = true
+			// The taxonomy placement rides the same projection so the app can group the menu.
+			if d.SubCategoryID != leafID || d.SectionID != sectionID || d.DietaryType != "NON_VEG" {
+				t.Fatalf("menu projection dropped taxonomy: %+v", d)
+			}
+			if d.SectionName == "" || d.SubCategoryName == "" {
+				t.Fatalf("menu projection dropped taxonomy names: %+v", d)
+			}
 			break
 		}
 	}

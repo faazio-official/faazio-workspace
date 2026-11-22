@@ -12,6 +12,7 @@
 | Portal auth + seller console shell | [seller-console.md](./seller-console.md) |
 | Seller products list (+ scroll-to-reload) | [products.md](./products.md) |
 | Product-first festival offers (Mart/Pharmacy) | [../catalog/offers.md](../catalog/offers.md) |
+| Restaurant dish creation + publish (section → leaf sub-category, photo, Publish/Draft) | [menu-creation.md](./menu-creation.md) |
 | Dish add-ons (create, link, review) | [addons.md](./addons.md) |
 | Seller notifications inbox | [notifications.md](./notifications.md) |
 | Seller settings (profile, bank, notifications, sub-users, security) | [settings.md](./settings.md) |

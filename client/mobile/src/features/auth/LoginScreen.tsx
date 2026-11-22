@@ -143,6 +143,8 @@ export function LoginScreen({ navigation }: Props) {
     void openTrustedUrl(PRIVACY_URL);
   }, []);
   const [phone, setPhone] = useState('');
+  const [name, setName] = useState('');
+  const [nameError, setNameError] = useState('');
   const [phoneError, setPhoneError] = useState('');
   const [otpState, setOtpState] = useState(false);
   const [otpCode, setOtpCode] = useState('');
@@ -395,7 +397,8 @@ export function LoginScreen({ navigation }: Props) {
   const requestOtp = useCallback(
     async (digits: string) => {
       if (isSending) return;
-      if (!isValidPhone(digits)) {
+      if (!name.trim()) { setNameError('Enter your name'); return; }
+        if (!isValidPhone(digits)) {
         setPhoneError('Enter a valid Indian mobile number.');
         return;
       }
@@ -562,6 +565,21 @@ export function LoginScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.formContainer}>
+          <View>
+            <View style={[styles.phoneInputRow, isPhoneFocused && styles.phoneInputRowFocused]}>
+              <AppTextInput
+                value={name}
+                onChangeText={setName}
+                placeholder="Enter your name"
+                placeholderTextColor={neutral.border}
+                style={styles.textInput}
+                onFocus={() => setIsPhoneFocused(true)}
+                onBlur={() => setIsPhoneFocused(false)}
+                accessibilityLabel="Name"
+              />
+            </View>
+            {nameError ? <AppText style={styles.phoneErrorText}>{nameError}</AppText> : null}
+          </View>
               <View>
                 <View style={[styles.phoneInputRow, isPhoneFocused && styles.phoneInputRowFocused]}>
                   <AppText style={styles.countryCode}>{COUNTRY_DIAL}</AppText>

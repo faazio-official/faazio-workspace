@@ -15,6 +15,8 @@
 
 ## Pharmacy discovery
 
+- All product cards (e.g., in `PharmaScreen` and `MedicalShopDetailsScreen`) hide the price, displaying a "Price on prescription" placeholder. The underlying price is still used for cart/checkout logic.
+
 - `PharmaScreen` loads `fetchPharmaSections` (`GET /sdui/pharma`), `fetchStores('PHARMA')`,
   coupons (`GET /coupons?app=PHARMA`), and server discounts (`GET /promo/active-discounts`).
 - Pull-to-refresh on the Pharma home feed (`AppRefreshControl`) re-runs `usePharmaFeed`

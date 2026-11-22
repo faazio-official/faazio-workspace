@@ -20,7 +20,7 @@ interface Props {
   originalPrice?: number;
   width?: number;
   imageAspect?: number;
-  showPrice?: boolean;
+  showPrice?: boolean; // default hidden
   showAddButton?: boolean;
   showRating?: boolean;
   showBadge?: boolean;
@@ -37,17 +37,18 @@ const PharmaProductCard = memo(function PharmaProductCard({
   ...props
 }: Props) {
   return (
-    <ProductCardBase
-      {...props}
-      product={props.product}
-      appBrand="PHARMA"
-      variant={variant}
-      showHeart={showHeart}
-      roundedImageBottom={roundedImageBottom}
-      showAdLabel={showAdLabel}
-      showDescription={showDescription}
-      imageAspect={imageAspect}
-    />
+<ProductCardBase
+       {...props}
+       product={props.product}
+       appBrand="PHARMA"
+       variant={variant}
+       showHeart={showHeart}
+       roundedImageBottom={roundedImageBottom}
+       showAdLabel={showAdLabel}
+       showDescription={showDescription}
+       imageAspect={imageAspect}
+       showPrice={false}
+     />
   );
 });
 

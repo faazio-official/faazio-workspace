@@ -684,6 +684,7 @@ export interface CustomerRecord {
   createdAt: string;
 }
 
+
 /** directory.menus — seller-scoped, state-moderated vendor menu item. */
 export interface MenuItemRecord {
   venueId: string;
@@ -692,15 +693,40 @@ export interface MenuItemRecord {
   /** Tamil display copy (0108). Empty → the app falls back to `name`. */
   nameTa?: string | undefined;
   descriptionTa?: string | undefined;
+  /** English description for the dish. */
+  description?: string | undefined;
   pricePaisa: number;
   /** List price (MRP) in paisa for the strike-through. Absent = no offer; never below pricePaisa. */
   mrpPaisa?: number | undefined;
   isVeg?: boolean | undefined;
   cuisine?: string | undefined;
   rating?: number | undefined;
-  image?: string | undefined;
+  /** Image key stored in media service (e.g., "r2:abc123"). */
+  imageKey?: string | undefined;
+  /** Section (parent category) identifier. */
+  sectionId?: string | undefined;
+  /** Leaf sub-category identifier. */
+  subCategoryId?: string | undefined;
+  /** Section display name resolved from the taxonomy tree (read-only, for grouping). */
+  sectionName?: string | undefined;
+  /** Sub-category display name resolved from the taxonomy tree (read-only, for grouping). */
+  subCategoryName?: string | undefined;
+  /** Dietary classification. */
+  dietaryType?: "VEG" | "NON_VEG" | "EGG" | undefined;
   sellerId?: string | undefined;
   status: ProductStatus;
+}
+
+export interface MenuSection {
+  id: string;
+  name: string;
+  subCategories: SubCategory[];
+}
+
+export interface SubCategory {
+  id: string;
+  name: string;
+  parentId: string;
 }
 
 /** directory.addons — venue-scoped paid extras with the same moderation lifecycle as menus. */

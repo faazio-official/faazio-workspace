@@ -19,4 +19,8 @@ export const SPACE = {
   ITEM: vs(8),
   /** Scroll tail at the bottom of a list. */
   LIST_BOTTOM: vs(24),
+  /** Bottom offset for floating menu pill. */
+  FLOATING_PILL_BOTTOM: vs(12),
+  /** Right offset for floating menu pill. */
+  FLOATING_PILL_RIGHT: hs(16),
 } as const;

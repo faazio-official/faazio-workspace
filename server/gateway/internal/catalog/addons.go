@@ -661,12 +661,11 @@ func (h *Handler) submitAddon(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, a)
 }
 
-// approveAddon serves POST /seller/addons/{addonId}/approve (admin only).
+// approveAddon serves POST /seller/addons/{addonId}/approve. A seller may publish an add-on on their
+// own venue (add-ons are the owner's day-to-day menu content, matching dish publishing); a district
+// admin may approve any add-on in their district, and a super admin any add-on. The write itself is
+// scoped by `addonScopePredicate`, so a seller can never touch a foreign venue's add-on.
 func (h *Handler) approveAddon(w http.ResponseWriter, r *http.Request) {
-	if !auth.IsAdmin(r.Context()) {
-		httpx.Fail(w, http.StatusForbidden, "forbidden", "admin role required")
-		return
-	}
 	sellerID, district, ok := managementScope(r)
 	if !ok {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "no add-on scope on this account")

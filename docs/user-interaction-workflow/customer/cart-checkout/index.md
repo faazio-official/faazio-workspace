@@ -1,9 +1,9 @@
 # Cart & checkout — domain index
 
-**Status:** Shipped (self-pickup points are server-derived)
+**Status:** Shipped (self-pickup points are server-derived; fulfilment choice moved to PAYMENT step)
 **Routes:** `Cart` (`features/cart/CartScreen.tsx`), Cart tab (`CartTabScreen.tsx`),
 `PaymentCallback` (`features/cart/payment/PaymentCallbackScreen.tsx`)
-**Shared view:** `CartView.tsx` (wizard `BAG → FULFILLMENT → PAYMENT → RECEIPT`)
+**Shared view:** `CartView.tsx` (wizard `BAG → PAYMENT → RECEIPT`)
 **Trigger:** Tapping the Cart tab, a product "Add" action, or a cart deep link.
 
 ## Flows
@@ -18,9 +18,8 @@
 
 | Step | What the user does | Primary data |
 |---|---|---|
-| `BAG` | Review lines, quantity, select items, choose coupon or streak card | `useCartStore`, `getCart`, `validateCoupon` |
-| `FULFILLMENT` | Choose Delivery or Self-Pickup, address/pickup point | `getAddresses`, `getPickupPoints` (self-pickup), `fetchDeliveryFee` |
-| `PAYMENT` | Choose COD/UPI, redeem coins, place order | `placeOrder`, `createRazorpayOrder`, `payForOrder` |
+| `BAG` | Review items, quantity, select items, choose coupon or streak card | `useCartStore`, `getCart`, `validateCoupon` |
+| `PAYMENT` | Delivery/self-pickup choice, payment method, coupons, place order | `fulfillment` set in payment, coupon code, delivery quote, `placeOrder` |
 | `PAYMENT_STATUS` | UPI return/poll | `fetchPaymentStatus` |
 | `RECEIPT` | Order confirmation + track action | `useOrdersStore`; "Track My Order" navigates to `MyOrders` |
 

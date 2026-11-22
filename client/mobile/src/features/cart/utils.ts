@@ -35,7 +35,6 @@ export interface AppliedDiscount {
 
 export type CheckoutStep =
   | 'BAG'
-  | 'FULFILLMENT'
   | 'PAYMENT'
   | 'PAYMENT_STATUS'
   | 'PAYMENT_FAILED'

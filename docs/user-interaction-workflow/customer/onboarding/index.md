@@ -29,10 +29,10 @@
 
 ## Language selection
 
-1. `LanguageSelectionScreen` offers exactly two languages — **English (default, pre-selected)** and
-   **Tamil**. There is no search bar and no "suggested" section; both options render as one flat list.
-2. `handleContinue` writes `useLanguageStore.setLanguage(id)` and navigates to `Location`.
-3. Back returns to `Login` when there is no history.
+1. **Tamil has been removed.** `LanguageSelectionScreen` now offers only **English (default, pre-selected)**.
+2. Removed Tamil option from languages.ts (font + native registration issue prevented proper rendering).
+3. `handleContinue` writes `useLanguageStore.setLanguage(id)` and navigates to `Location`.
+4. Back returns to `Login` when there is no history.
 
 **State:** `useLanguageStore` (`src/state/languageStore.ts`), persisted in AsyncStorage; the value is
 read app-wide (fonts via `AppText`/`AppTextInput`, nav theme, catalog labels via

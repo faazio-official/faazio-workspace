@@ -24,7 +24,7 @@ export const OTHER_LANGUAGES: AppLanguage[] = [
   { id: 'ta', native: 'தமிழ்', english: 'Tamil', avatar: 'தமி' },
 ];
 
-export const LANGUAGES: AppLanguage[] = [DEFAULT_LANGUAGE, ...OTHER_LANGUAGES];
+export const LANGUAGES: AppLanguage[] = [DEFAULT_LANGUAGE];
 
 /** Display label for the selected language, e.g. "தமிழ் (Tamil)" or "English". */
 export function languageLabel(id: string): string {

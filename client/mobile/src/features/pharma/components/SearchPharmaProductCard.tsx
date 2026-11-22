@@ -27,19 +27,20 @@ const SearchPharmaProductCard = memo(function SearchPharmaProductCard({
   const isFavorite = useFavoriteStore((s) => s.favorites.includes(product.id));
   const toggleFavorite = useFavoriteStore((s) => s.toggleFavorite);
   return (
-    <SearchProductRowCard
-      product={product}
-      appBrand="PHARMA"
-      showFavorite
-      isFavorite={isFavorite}
-      onFavorite={() => void toggleFavorite(product.id)}
-      quantity={cart.quantity}
-      onAdd={cart.onAdd}
-      onIncrement={cart.onIncrement}
-      onDecrement={cart.onDecrement}
-      onPress={onPress ? () => onPress(product) : undefined}
-      showStoreHeader={showStoreHeader}
-    />
+<SearchProductRowCard
+       product={product}
+       appBrand="PHARMA"
+       showFavorite
+       isFavorite={isFavorite}
+       onFavorite={() => void toggleFavorite(product.id)}
+       quantity={cart.quantity}
+       onAdd={cart.onAdd}
+       onIncrement={cart.onIncrement}
+       onDecrement={cart.onDecrement}
+       onPress={onPress ? () => onPress(product) : undefined}
+       showStoreHeader={showStoreHeader}
+       showPrice={false}
+     />
   );
 });
 

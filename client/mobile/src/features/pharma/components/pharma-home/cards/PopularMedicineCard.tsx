@@ -44,12 +44,9 @@ const PopularMedicineCard = memo(function PopularMedicineCard({
           <AppText style={styles.rating}>{formatRating(item.rating)}</AppText>
         </View>
         <View style={styles.footerRow}>
-          <View style={styles.priceWrap}>
-            <AppText style={styles.price}>₹{item.price}</AppText>
-            {item.mrp && item.mrp > item.price ? (
-              <AppText style={styles.mrp}>₹{item.mrp}</AppText>
-            ) : null}
-          </View>
+<View style={styles.priceWrap}>
+              <AppText style={styles.price}>Price on prescription</AppText>
+            </View>
           <TouchableOpacity
             onPress={onAdd}
             style={[styles.addBtn, added && styles.addBtnAdded]}

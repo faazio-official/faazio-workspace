@@ -189,6 +189,13 @@ type MenuDish struct {
 	Description   string   `json:"description,omitempty"`
 	Emoji         string   `json:"emoji,omitempty"`
 	DeliveryTime  string   `json:"deliveryTime,omitempty"`
+	// Menu taxonomy placement (0124): the section header + leaf sub-category the dish is filed under,
+	// with their resolved names, so the customer app can group the menu by section → sub-category.
+	SectionID       string `json:"sectionId,omitempty"`
+	SubCategoryID   string `json:"subCategoryId,omitempty"`
+	SectionName     string `json:"sectionName,omitempty"`
+	SubCategoryName string `json:"subCategoryName,omitempty"`
+	DietaryType     string `json:"dietaryType,omitempty"`
 	// Tamil display copy (0108). Empty means "not translated" → the app falls back to English.
 	NameTA        string `json:"nameTa,omitempty"`
 	DescriptionTA string `json:"descTa,omitempty"`

@@ -425,7 +425,7 @@ export function FoodInventoryView({ sellerId, storeId }: { sellerId: string; sto
                 label={m.name}
                 checked={m.status === "ACTIVE"}
                 onChange={(v) => {
-                  setMenuStatus(m.venueId, m.dishId, v ? "ACTIVE" : "DELISTED");
+                  void setMenuStatus(m.venueId, m.dishId, v ? "ACTIVE" : "DELISTED");
                   toast.success(`${m.name} ${v ? "listed" : "delisted"}`);
                 }}
               />

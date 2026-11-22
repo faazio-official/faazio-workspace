@@ -6,9 +6,7 @@
 
 ## Steps
 
-1. `LoginScreen` renders a fixed `+91` (India) dial code + phone field — the country is not
-   user-selectable. `toE164`/`isValidPhone` validate locally. The field auto-focuses and shows
-   device-local **recent numbers** (tappable suggestions) when empty.
+1. `LoginScreen` renders a name field (placeholder: "Enter your name") and a fixed `+91` (India) dial code + phone field — the country is not user-selectable. Name is mandatory; validation blocks OTP send if empty. `toE164`/`isValidPhone` validate phone locally. The phone field auto-focuses and shows device-local **recent numbers** (tappable suggestions) when empty.
 2. An OTP is requested **only** when the user taps "Send code" — there is no auto-send while
    typing, so a half-typed number can never burn an SMS. The button is disabled until the number
    passes `isValidPhone`. Firebase `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode

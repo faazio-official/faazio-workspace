@@ -37,7 +37,7 @@ const QuickReorderCard = memo(function QuickReorderCard({
       </AppText>
       <View style={styles.bottomRow}>
         <View style={styles.priceWrap}>
-          <AppText style={styles.price}>₹{item.price}</AppText>
+          <AppText style={styles.price}>Price on prescription</AppText>
           {item.mrp && item.mrp > item.price ? (
             <AppText style={styles.mrp}>₹{item.mrp}</AppText>
           ) : null}

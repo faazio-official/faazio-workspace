@@ -43,6 +43,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Catalog | Products list (+ scroll-to-reload) | portal `/seller/products` | [web-portal/products.md](./web-portal/products.md) |
 | Catalog | Price update | portal `/seller/pricing` | [price-update.md](./catalog/price-update.md) |
 | Catalog | Sector-aware inventory (Food dish availability + add-ons · Mart/Pharmacy stock qty/ETA) | portal `/seller/inventory` | [catalog/inventory.md](./catalog/inventory.md) |
+| Catalog | Dish creation + publish (section → leaf sub-category, photo, Publish/Draft) | portal `/seller/menus` (FOOD only) | [web-portal/menu-creation.md](./web-portal/menu-creation.md) |
 | Catalog | Dish add-ons (create, link, review) | portal `/seller/inventory` (Add-ons tab, FOOD only), admin `/admin/district/addons/queue` | [web-portal/addons.md](./web-portal/addons.md) |
 | Catalog | Edit / delete / restore (trash) | portal `/seller/products/[id]/edit`, `/seller/products/trash` | [product-trash.md](./catalog/product-trash.md) |
 | Catalog | Product-first festival offers | portal `/seller/offers` (Mart/Pharmacy) | [offers.md](./catalog/offers.md) |

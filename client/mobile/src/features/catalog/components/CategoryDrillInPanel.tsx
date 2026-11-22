@@ -2,9 +2,10 @@ import React, { memo, useCallback, useMemo, useRef, useState } from 'react';
 import {
   View,
   StyleSheet,
-  FlatList,
+  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { ChevronLeft, Search, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -19,11 +20,10 @@ import type { CategoryApp, Product } from '@data/types';
 import { localizedName } from '@/lib/localizedText';
 import { useLanguageStore } from '@/state/languageStore';
 import { openHeroTarget } from '@/services/adsTarget';
-import { useCategoryVendors } from '@/features/catalog/hooks/useCategoryVendors';
+
 import { useCategoryTree } from '@/features/catalog/hooks/useCategoryTree';
-import type { VendorApp, VendorProducts } from '@/services/categoryVendors';
-import CategoryTitleRail from './CategoryTitleRail';
-import StoreProductSection from './StoreProductSection';
+import type { VendorApp } from '@/services/categoryVendors';
+import SubCategorySection from './SubCategorySection';
 import { neutral, parentRamp } from '@/theme/brandTokens';
 
 /** Faazio brand blue — the category drill-in page is a brand surface. */
@@ -61,7 +61,7 @@ export function CategoryDrillInPanel({
   const insets = useSafeAreaInsets();
   const accent = FAAZIO_BLUE;
   const language = useLanguageStore((s) => s.language);
-  const bodyRef = useRef<FlatList<VendorProducts>>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
 
   // Server-backed taxonomy for this pool (superadmin-owned; no fixture fallback).
   const {
@@ -119,51 +119,27 @@ export function CategoryDrillInPanel({
     return out;
   }, [activeTab, byParent, categories, language]);
 
-  const [activeItemId, setActiveItemId] = useState<string | null>(null);
-  const activeItem = items.find((i) => i.id === activeItemId) ?? items[0];
-
   const [searchQuery, setSearchQuery] = useState('');
 
-  const handleSelectItem = useCallback((id: string) => {
-    setActiveItemId(id);
-    setSearchQuery('');
-    bodyRef.current?.scrollToOffset({ offset: 0, animated: false });
+  const [sectionOffsets, setSectionOffsets] = useState<Record<string, number>>({});
+  const handleSectionLayout = useCallback((id: string, y: number) => {
+    setSectionOffsets((prev) => ({ ...prev, [id]: y }));
   }, []);
+
+  const [menuVisible, setMenuVisible] = useState(false);
 
   /** Public `AppBrand` for the paid CATEGORY_TOP hero (drill-in app is Mart/Pharma). */
   const heroApp: 'MART' | 'PHARMA' = app === 'FA_MART' ? 'MART' : 'PHARMA';
 
-  // Store-grouped body for the selected title: server products (FTS), grouped by store and joined
-  // to the directory, with approved festival discounts overlaid — the local pool is the offline
-  // fallback. Then filtered by the inline vendor search.
-  const { vendors: categoryVendors, loading, failed, refreshing: vendorsRefreshing, refresh: refreshVendors } = useCategoryVendors(
-    app,
-    activeItem?.searchQuery ?? '',
-  );
-
-  // One pull refreshes both the taxonomy chips (instant, not server-cached) and the vendor body.
-  const handleRefresh = useCallback(() => {
-    refreshTree();
-    refreshVendors();
-  }, [refreshTree, refreshVendors]);
-
-  const vendors = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return categoryVendors;
-    return categoryVendors.filter(({ store }) => {
-      const haystack = `${store.name} ${store.address ?? ''} ${store.distance}`.toLowerCase();
-      return haystack.includes(q);
-    });
-  }, [categoryVendors, searchQuery]);
 
   const handleHeroPress = useCallback(
     (ad: Parameters<typeof openHeroTarget>[0]) => {
       void openHeroTarget(ad, {
         onProduct: (product) => onProductPress(product as Product),
-        onStore: (store) => onVendorPress(store.id, activeItem?.searchQuery ?? ''),
+        onStore: (store) => onVendorPress(store.id, ''),
       });
     },
-    [activeItem, onVendorPress, onProductPress],
+    [onVendorPress, onProductPress],
   );
 
   if (!activeTab) {
@@ -230,68 +206,78 @@ export function CategoryDrillInPanel({
         </View>
       </View>
 
-      {/* Flat pill rail — every sub-category title, no grouping. */}
-      <View style={styles.railWrap}>
-        <CategoryTitleRail
-          options={items.map((i) => ({ id: i.id, title: i.name }))}
-          activeId={activeItem?.id ?? ''}
-          accent={accent}
-          onSelect={handleSelectItem}
-        />
-      </View>
-
-      {/* Store-grouped body: title ad, then a per-store heading → product list. */}
-      <FlatList
-        ref={bodyRef}
-        data={vendors}
-        keyExtractor={(item) => item.store.id}
-        style={styles.body}
-        contentContainerStyle={styles.bodyContent}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-        refreshControl={
-          <AppRefreshControl
-            refreshing={treeRefreshing || vendorsRefreshing}
-            onRefresh={handleRefresh}
-          />
-        }
-        ListHeaderComponent={
-          <CampaignHero
-            placement="CATEGORY_TOP"
-            app={heroApp}
-            category={tabId}
-            onPress={handleHeroPress}
-            style={styles.topAd}
-          />
-        }
-        renderItem={({ item }) => (
-          <StoreProductSection
-            app={app}
-            store={item.store}
-            products={item.products}
-            onStorePress={() => onVendorPress(item.store.id, activeItem?.searchQuery ?? '')}
-            onProductPress={onProductPress}
-          />
-        )}
-        ListEmptyComponent={
-          loading ? (
-            <View style={styles.emptyWrap}>
-              <ActivityIndicator color={accent} />
-            </View>
-          ) : (
-            <View style={styles.emptyWrap}>
-              <AppText style={styles.emptyText}>
-                {failed
-                  ? "Couldn't load this category. Check your connection and try again."
-                  : 'No vendors in this category yet.'}
-              </AppText>
-              {failed ? (
-                <ReportIssueButton context={`category "${activeItem?.searchQuery ?? ''}"`} />
-              ) : null}
-            </View>
-          )
-        }
+  {/* Stacked sub-category sections */}
+  <ScrollView
+    ref={scrollViewRef}
+    style={styles.body}
+    contentContainerStyle={styles.bodyContent}
+    showsVerticalScrollIndicator={false}
+    keyboardShouldPersistTaps="handled"
+    refreshControl={
+      <AppRefreshControl
+        refreshing={treeRefreshing}
+        onRefresh={handleRefresh}
       />
+    }
+    >
+    <CampaignHero
+      placement="CATEGORY_TOP"
+      app={heroApp}
+      category={tabId}
+      onPress={handleHeroPress}
+      style={styles.topAd}
+    />
+    {items.map((item) => (
+      <SubCategorySection
+        key={item.id}
+        item={item}
+        app={app}
+        searchQuery={searchQuery}
+        onVendorPress={onVendorPress}
+        onProductPress={onProductPress}
+        onLayout={handleSectionLayout}
+      />
+    ))}
+    {/* Empty state handling */}
+{items.length === 0 && (
+          <View style={styles.emptyWrap}>
+            <AppText style={styles.emptyText}>No vendors in this category yet.</AppText>
+          </View>
+        )}
+  </ScrollView>
+
+  {/* Floating menu pill */}
+  <TouchableOpacity
+    style={styles.floatingPill}
+    onPress={() => setMenuVisible(true)}
+    accessibilityLabel="Sub categories"
+    accessibilityRole="button"
+  >
+    <AppText style={styles.floatingPillText}>menu</AppText>
+  </TouchableOpacity>
+
+  {/* Sub-category selector modal */}
+  <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
+    <View style={styles.modalBackdrop}>
+      <View style={styles.modalContent}>
+        {items.map((it) => (
+          <TouchableOpacity
+            key={it.id}
+            onPress={() => {
+              setMenuVisible(false);
+              const y = sectionOffsets[it.id];
+              if (y !== undefined) {
+                scrollViewRef.current?.scrollTo({ y, animated: true });
+              }
+            }}
+            style={styles.modalItem}
+          >
+            <AppText>{it.name}</AppText>
+          </TouchableOpacity>
+        ))}
+      </View>
+    </View>
+  </Modal>
     </View>
   );
 }
@@ -299,6 +285,40 @@ export function CategoryDrillInPanel({
 export default CategoryDrillInPanel;
 
 const styles = StyleSheet.create({
+  floatingPill: {
+    position: 'absolute',
+    right: SPACE.FLOATING_PILL_RIGHT,
+    bottom: SPACE.FLOATING_PILL_BOTTOM,
+    backgroundColor: '#000',
+    borderRadius: hs(20),
+    paddingHorizontal: hs(12),
+    paddingVertical: vs(6),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  floatingPillText: {
+    color: '#fff',
+    fontSize: ms(14),
+    fontWeight: '600',
+  },
+  modalBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    backgroundColor: '#fff',
+    borderRadius: hs(8),
+    width: '80%',
+    maxHeight: '70%',
+    padding: hs(16),
+  },
+  modalItem: {
+    paddingVertical: vs(10),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#ccc',
+  },
   container: {
     flex: 1,
     backgroundColor: neutral.card,

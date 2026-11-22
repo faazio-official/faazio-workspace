@@ -2,6 +2,8 @@ package directory
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/hex"
 	"encoding/json"
 	"math"
 	"net/http"
@@ -843,19 +845,23 @@ func (h *Handler) sellerMenus(w http.ResponseWriter, r *http.Request) {
 }
 
 type menuRequest struct {
-	VenueID      string   `json:"venueId"`
-	DishID       string   `json:"dishId"`
-	Name         string   `json:"name"`
-	NameTA       string   `json:"nameTa"`
-	DescTA       string   `json:"descriptionTa"`
-	Price        int64    `json:"price"`
-	MRP          *int64   `json:"mrp"`
-	IsVeg        *bool    `json:"isVeg"`
-	Cuisine      string   `json:"cuisine"`
-	Rating       *float64 `json:"rating"`
-	Image        string   `json:"image"`
-	ImageAssetID string   `json:"imageAssetId"`
-	ImageKey     string   `json:"imageKey"`
+	VenueID       string   `json:"venueId"`
+	DishID        string   `json:"dishId"`
+	Name          string   `json:"name"`
+	NameTA        string   `json:"nameTa"`
+	DescTA        string   `json:"descriptionTa"`
+	Description   string   `json:"description"`
+	SectionID     string   `json:"sectionId"`
+	SubCategoryID string   `json:"subCategoryId"`
+	DietaryType   string   `json:"dietaryType"`
+	Price         int64    `json:"price"`
+	MRP           *int64   `json:"mrp"`
+	IsVeg         *bool    `json:"isVeg"`
+	Cuisine       string   `json:"cuisine"`
+	Rating        *float64 `json:"rating"`
+	Image         string   `json:"image"`
+	ImageAssetID  string   `json:"imageAssetId"`
+	ImageKey      string   `json:"imageKey"`
 }
 
 func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
@@ -873,8 +879,11 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 	req.VenueID = strings.TrimSpace(req.VenueID)
 	req.DishID = strings.TrimSpace(req.DishID)
 	req.Name = strings.TrimSpace(req.Name)
-	if req.VenueID == "" || req.DishID == "" || req.Name == "" || req.Price < 0 {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "venueId, dishId, name and a non-negative price are required")
+	req.SectionID = strings.TrimSpace(req.SectionID)
+	req.SubCategoryID = strings.TrimSpace(req.SubCategoryID)
+	req.DietaryType = strings.ToUpper(strings.TrimSpace(req.DietaryType))
+	if req.Name == "" || req.Price < 0 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "name and a non-negative price are required")
 		return
 	}
 	// MRP is the list price (strike). It may equal, but never fall below, the selling price — the
@@ -884,11 +893,55 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be present, non-negative and not below the selling price")
 		return
 	}
-	if !validTamil(req.NameTA, 200) || !validTamil(req.DescTA, 2000) {
+	if !validTamil(req.NameTA, 200) || !validTamilOpt(&req.DescTA, 2000) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
 		return
 	}
-	sellerID, all, ok, err := h.menuOwner(r, req.VenueID, req.DishID)
+	if req.DietaryType != "" && req.DietaryType != "VEG" && req.DietaryType != "NON_VEG" && req.DietaryType != "EGG" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "dietaryType must be VEG, NON_VEG or EGG")
+		return
+	}
+	// A dish belongs to a leaf sub-category only (never a parent/section header). The superadmin
+	// taxonomy is the single source of truth: the picked id must be an active FOOD-app category that
+	// has a parent (a leaf). This is the API-boundary half of the rule; UpsertMenu also guards it in SQL.
+	if req.SubCategoryID == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "subCategoryId is required — pick a leaf sub-category")
+		return
+	}
+	leaf, err := h.repo.TaxonomyLeafCategory(r.Context(), req.SubCategoryID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	}
+	if !leaf {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "subCategoryId must be a leaf sub-category (a parent category is a section header, not selectable)")
+		return
+	}
+	// The seller never types a venue id: it is the shop they are currently scoped to. Admins may
+	// still pass one explicitly (moderation of another seller's menu).
+	if auth.Role(r.Context()) == auth.RoleSeller {
+		if scoped := strings.TrimSpace(auth.SellerID(r.Context())); scoped != "" {
+			own, err := h.repo.SellerOwnsVenue(r.Context(), scoped, req.VenueID)
+			if err != nil {
+				httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+				return
+			}
+			if !own {
+				httpx.Fail(w, http.StatusForbidden, "forbidden", "venue does not belong to this seller")
+				return
+			}
+		}
+	}
+	if req.VenueID == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "venueId is required — no active shop on this session")
+		return
+	}
+	// The seller never types a dish id either: derive a stable, readable slug plus a short hash so two
+	// dishes with the same name in one venue never collide.
+	if req.DishID == "" {
+		req.DishID = slugDishID(req.Name)
+	}
+	sellerID, all, ok, err := h.menuOwner(r, req.VenueID, "")
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
@@ -908,6 +961,8 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 	m, found, err := h.repo.UpsertMenu(r.Context(), SellerMenu{
 		VenueID: req.VenueID, DishID: req.DishID, Name: req.Name,
 		NameTA: strings.TrimSpace(req.NameTA), DescriptionTA: strings.TrimSpace(req.DescTA),
+		Description: strings.TrimSpace(req.Description),
+		SectionID:   req.SectionID, SubCategoryID: req.SubCategoryID, DietaryType: req.DietaryType,
 		Price: req.Price, MRP: req.MRP,
 		IsVeg: req.IsVeg, Cuisine: req.Cuisine, Rating: req.Rating, Image: req.Image,
 		ImageKey: imageKey, ImageAssetID: imageAssetID,
@@ -923,6 +978,34 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 	h.cache.Del(r.Context(), cache.Menu(req.VenueID))
 	h.log(r, "directory.menus", "MENU_UPSERT", req.VenueID+":"+req.DishID)
 	httpx.JSON(w, http.StatusOK, m)
+}
+
+// slugDishID derives a readable, URL-safe dish id from the dish name, suffixed with a short hash so
+// two same-named dishes in one venue never collide. The seller never types this.
+func slugDishID(name string) string {
+	var b strings.Builder
+	lastDash := false
+	for _, r := range strings.ToLower(strings.TrimSpace(name)) {
+		switch {
+		case r >= 'a' && r <= 'z', r >= '0' && r <= '9':
+			b.WriteRune(r)
+			lastDash = false
+		case r == ' ' || r == '-' || r == '_' || r == '/':
+			if !lastDash && b.Len() > 0 {
+				b.WriteByte('-')
+				lastDash = true
+			}
+		}
+	}
+	slug := strings.Trim(b.String(), "-")
+	if slug == "" {
+		slug = "dish"
+	}
+	if len(slug) > 40 {
+		slug = strings.Trim(slug[:40], "-")
+	}
+	sum := sha1.Sum([]byte(strings.TrimSpace(name)))
+	return slug + "-" + hex.EncodeToString(sum[:])[:6]
 }
 
 func (h *Handler) setMenuStatus(w http.ResponseWriter, r *http.Request) {
@@ -1035,8 +1118,11 @@ func (h *Handler) menuOwner(r *http.Request, venueID, dishID string) (sellerID s
 	return owner, false, owner == scopedSeller, nil
 }
 
-// allowedMenuStatus mirrors catalog's product-status gate: sellers self-serve DRAFT/PENDING/DELISTED,
-// admins moderate ACTIVE/REJECTED/DELISTED.
+// allowedMenuStatus gates who may write which dish status. A restaurant owner self-serves their own
+// menu — including publishing (ACTIVE) and pulling (DELISTED) — because a menu is the seller's own
+// live, day-to-day content (specials, availability) and its placement is already constrained to a
+// superadmin leaf sub-category. Admins keep the moderation transitions (REJECTED) and can write any
+// status. This deliberately differs from catalog.products, where a new listing queues for review.
 func allowedMenuStatus(status string, admin bool) bool {
 	if admin {
 		switch status {
@@ -1046,7 +1132,7 @@ func allowedMenuStatus(status string, admin bool) bool {
 		return false
 	}
 	switch status {
-	case "DRAFT", "PENDING_REVIEW", "DELISTED":
+	case "ACTIVE", "DRAFT", "PENDING_REVIEW", "DELISTED":
 		return true
 	}
 	return false

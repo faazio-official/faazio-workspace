@@ -13,7 +13,9 @@
    - **Menu dishes** tab: each dish row carries a veg mark, cuisine, price and a listed/delisted
      toggle → `setMenuStatus(venueId, dishId, "ACTIVE" | "DELISTED")`. A delisted-only filter and a
      name search narrow the list. There is no unit count: a kitchen sets availability, it does not
-     decrement plates.
+     decrement plates. Creating/editing a dish (section → leaf sub-category, photo dropzone,
+     Publish/Save-as-Draft) lives on `/seller/menus` — see
+     [`../web-portal/menu-creation.md`](../web-portal/menu-creation.md).
    - **Add-ons** tab: `listAddons({ venueId })` + `listMenuAddons(storeId)` drive the create sheet
      (`createAddon` → DRAFT), submit-for-review (`submitAddonForReview`), delist (`delistAddon`) and
      per-dish link toggles (`linkAddonToDish` / `unlinkAddonFromDish`). See
@@ -76,6 +78,7 @@
 
 ## Linked docs
 
+- [`../web-portal/menu-creation.md`](../web-portal/menu-creation.md) — dish creation + publish
 - [`price-update.md`](./price-update.md) — pricing and the stock write contract
 - [`index.md`](./index.md) — catalog domain index
 - `docs/architecture/monolith-breakdown.md` (catalog/directory rows)

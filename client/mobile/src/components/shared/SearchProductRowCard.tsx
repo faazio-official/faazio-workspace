@@ -12,6 +12,8 @@ const TEXT_MUTED = '#6B7280';
 const GREEN = '#16A34A';
 
 interface SearchProductRowCardProps {
+  /** Show price row; default true */
+  showPrice?: boolean;
   product: Product;
   appBrand: AppBrand;
   showFavorite?: boolean;
@@ -64,6 +66,7 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
   onDecrement,
   onFavorite,
   showStoreHeader = true,
+  showPrice = true,
 }: SearchProductRowCardProps) {
   const language = useLanguageStore((s) => s.language);
   const displayName = localizedName(product, language);
@@ -71,6 +74,7 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
   const originalPrice = product.originalPrice;
   const discountPct = getDiscountPct(product.price, originalPrice);
   const storeName = resolveStoreName(product);
+
 
   return (
     <TouchableOpacity
@@ -104,14 +108,18 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
           </AppText>
 
           <View style={styles.priceRow}>
-            <AppText style={styles.price}>
-              ₹{product.price.toLocaleString('en-IN')}
-            </AppText>
-            {originalPrice !== undefined && originalPrice > product.price && (
-              <AppText style={styles.originalPrice}>₹{originalPrice.toLocaleString('en-IN')}</AppText>
-            )}
-            {discountPct !== null && (
-              <AppText style={styles.discount}>{discountPct}% off</AppText>
+            {showPrice && (
+              <>
+                <AppText style={styles.price}>
+                  ₹{product.price.toLocaleString('en-IN')}
+                </AppText>
+                {originalPrice !== undefined && originalPrice > product.price && (
+                  <AppText style={styles.originalPrice}>₹{originalPrice.toLocaleString('en-IN')}</AppText>
+                )}
+                {discountPct !== null && (
+                  <AppText style={styles.discount}>{discountPct}% off</AppText>
+                )}
+              </>
             )}
             <View style={{ flex: 1 }} />
             {quantity > 0 ? (
