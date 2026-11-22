@@ -41,13 +41,17 @@ func (r *Repo) StockByProductID(ctx context.Context, productID string) (contract
 		return contracts.Stock{}, false, fmt.Errorf("cartstock: database not configured")
 	}
 	var (
-		s  contracts.Stock
-		rx *bool
+		s      contracts.Stock
+		rx     *bool
+		expiry *time.Time
 	)
 	err := r.pool.QueryRow(ctx, `
-		select product_id, available, in_stock_qty, price_paisa, eta, is_prescription
+		select product_id,
+		       available and (expiry_date is null or expiry_date >= current_date),
+		       in_stock_qty, price_paisa, eta, is_prescription,
+		       coalesce(batch_no, ''), expiry_date
 		from inventory.stock where product_id = $1`, productID).
-		Scan(&s.ProductID, &s.Available, &s.InStockQty, &s.Price, &s.ETA, &rx)
+		Scan(&s.ProductID, &s.Available, &s.InStockQty, &s.Price, &s.ETA, &rx, &s.BatchNo, &expiry)
 	if err != nil {
 		if isNoRows(err) {
 			return contracts.Stock{}, false, nil
@@ -56,6 +60,9 @@ func (r *Repo) StockByProductID(ctx context.Context, productID string) (contract
 	}
 	s.Price = s.Price / 100
 	s.IsPrescription = rx != nil && *rx
+	if expiry != nil {
+		s.ExpiryDate = expiry.Format("2006-01-02")
+	}
 	return s, true, nil
 }
 
@@ -66,7 +73,10 @@ func (r *Repo) StockByProductIDs(ctx context.Context, ids []string) (map[string]
 		return out, nil
 	}
 	rows, err := r.pool.Query(ctx, `
-		select product_id, available, in_stock_qty, price_paisa, eta, is_prescription
+		select product_id,
+		       available and (expiry_date is null or expiry_date >= current_date),
+		       in_stock_qty, price_paisa, eta, is_prescription,
+		       coalesce(batch_no, ''), expiry_date
 		from inventory.stock where product_id = any($1)`, ids)
 	if err != nil {
 		return nil, err
@@ -74,14 +84,19 @@ func (r *Repo) StockByProductIDs(ctx context.Context, ids []string) (map[string]
 	defer rows.Close()
 	for rows.Next() {
 		var (
-			s  contracts.Stock
-			rx *bool
+			s      contracts.Stock
+			rx     *bool
+			expiry *time.Time
 		)
-		if err := rows.Scan(&s.ProductID, &s.Available, &s.InStockQty, &s.Price, &s.ETA, &rx); err != nil {
+		if err := rows.Scan(&s.ProductID, &s.Available, &s.InStockQty, &s.Price, &s.ETA, &rx,
+			&s.BatchNo, &expiry); err != nil {
 			return nil, err
 		}
 		s.Price = s.Price / 100
 		s.IsPrescription = rx != nil && *rx
+		if expiry != nil {
+			s.ExpiryDate = expiry.Format("2006-01-02")
+		}
 		out[s.ProductID] = s
 	}
 	return out, rows.Err()
@@ -105,6 +120,7 @@ func (r *Repo) Decrement(ctx context.Context, q contracts.Querier, productID str
 		 where product_id = (
 		       select product_id from inventory.stock
 		        where product_id = $1 and in_stock_qty >= $2 and available
+		          and (expiry_date is null or expiry_date >= current_date)
 		        for update skip locked
 		     )
 		 returning in_stock_qty`, productID, qty).Scan(&remaining)

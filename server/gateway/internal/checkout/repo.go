@@ -1141,8 +1141,11 @@ type AddonSnapshot struct {
 	PricePaisa int64
 }
 
-// AddonSnapshots reads the ACTIVE, enabled add-ons linked to one dish. An unknown/removed id is
-// simply absent from the map, which the caller treats as an invalid selection.
+// AddonSnapshots reads the ACTIVE, enabled add-ons linked to one orderable line. The line is a dish
+// (`menu_addon_links.dish_id`) for Food menus and a product (`product_addon_links.product_id`) for
+// Mart/Pharmacy and Food packaged SKUs — dish and product ids live in separate namespaces, so one
+// query matches either link table on the same id without ambiguity. An unknown/removed id is simply
+// absent from the map, which the caller treats as an invalid selection.
 func (r *Repo) AddonSnapshots(ctx context.Context, venueID, dishID string, ids []string) (map[string]AddonSnapshot, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("checkout: database not configured")
@@ -1156,6 +1159,13 @@ func (r *Repo) AddonSnapshots(ctx context.Context, venueID, dishID string, ids [
 		  from directory.menu_addon_links l
 		  join directory.addons a on a.addon_id = l.addon_id and a.venue_id = l.venue_id
 		 where l.venue_id = $1 and l.dish_id = $2 and l.is_enabled
+		   and a.status = 'ACTIVE'::product_status
+		   and a.addon_id = any($3)
+		union
+		select a.addon_id, a.name, a.price_paisa
+		  from directory.product_addon_links l
+		  join directory.addons a on a.addon_id = l.addon_id and a.venue_id = l.venue_id
+		 where l.venue_id = $1 and l.product_id = $2 and l.is_enabled
 		   and a.status = 'ACTIVE'::product_status
 		   and a.addon_id = any($3)`, venueID, dishID, ids)
 	if err != nil {

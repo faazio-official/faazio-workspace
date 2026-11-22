@@ -38,7 +38,7 @@ const storeSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
        cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, address, phone, hours,
        coalesce(state_code,''), latitude, longitude, null::float8 as distance_km,
-       coalesce(name_ta, ''), coalesce(desc_text_ta, '')
+       coalesce(name_ta, ''), coalesce(desc_text_ta, ''), is_live
 from directory.stores`
 
 // storeListSelect is the public list projection: it never fetches the PII columns (address/phone),
@@ -47,7 +47,7 @@ const storeListSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
        cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, null::text as address, null::text as phone, hours,
        coalesce(state_code,''), latitude, longitude, null::float8 as distance_km,
-       coalesce(name_ta, ''), coalesce(desc_text_ta, '')
+       coalesce(name_ta, ''), coalesce(desc_text_ta, ''), is_live
 from directory.stores`
 
 // ByApp returns stores for one app (empty app = all).
@@ -83,7 +83,8 @@ func (r *Repo) ByAppPage(ctx context.Context, app string, limit int, cursorRatin
 	return scanStores(rows, r.cdnBase)
 }
 
-// ByID returns one store.
+// ByID returns one store. Callers decide liveness: the public handler rejects an offline shop, while
+// the dispatch path still resolves a store that closed after an order was placed.
 func (r *Repo) ByID(ctx context.Context, id string) (contracts.Store, bool, error) {
 	if r.pool == nil {
 		return contracts.Store{}, false, fmt.Errorf("directory: database not configured")
@@ -147,8 +148,9 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 	return scanStores(rows, r.cdnBase)
 }
 
-// ByIDs returns stores for the given ids using the PII-free list projection (public reads only),
-// preserving the requested id order. Used by the SDUI compiler to join Home store rails.
+// ByIDs returns live stores for the given ids using the PII-free list projection (public reads only),
+// preserving the requested id order. Used by the SDUI compiler to join Home store rails; an offline
+// store is dropped so a deactivated shop never reappears in a compiled feed.
 func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Store, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("directory: database not configured")
@@ -156,7 +158,7 @@ func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Store, erro
 	if len(ids) == 0 {
 		return []contracts.Store{}, nil
 	}
-	rows, err := r.pool.Query(ctx, storeListSelect+` where id = any($1)`, ids)
+	rows, err := r.pool.Query(ctx, storeListSelect+` where id = any($1) and is_live`, ids)
 	if err != nil {
 		return nil, err
 	}
@@ -208,7 +210,9 @@ func (r *Repo) PickupPoints(ctx context.Context, storeIDs []string) ([]contracts
 	return out, rows.Err()
 }
 
-// Menu returns a venue's menu rows (public catalog data), ordered by rating then name.
+// Menu returns a venue's menu rows (public catalog data), ordered by rating then name. When the
+// venue is a store, an offline (is_live=false) shop serves no menu; a dining venue has no store row
+// and is unaffected.
 func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("directory: database not configured")
@@ -216,7 +220,11 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 	rows, err := r.pool.Query(ctx, `
 		select dish_id, name, price_paisa, mrp_paisa, is_veg, cuisine, rating, image, image_key, description, emoji, delivery_time,
 		       coalesce(name_ta, ''), coalesce(description_ta, '')
-		  from directory.menus where venue_id = $1 and status = 'ACTIVE'::product_status
+		  from directory.menus
+		 where venue_id = $1 and status = 'ACTIVE'::product_status
+		   and not exists (
+		         select 1 from directory.stores st
+		          where st.id = $1 and not st.is_live)
 		 order by rating desc nulls last, name asc`, venueID)
 	if err != nil {
 		return nil, err
@@ -361,7 +369,7 @@ func scanStores(rows pgx.Rows, cdnBase string) ([]contracts.Store, error) {
 			&s.ID, &s.App, &s.Name, &s.Categories, &rating, &reviews,
 			&s.DeliveryTime, &s.Distance, &s.CoverImage, &coverKey, &s.Emoji, &s.Desc,
 			&offerTag, &isVeg, &address, &phone, &hours, &s.StateCode,
-			&lat, &lng, &distance, &s.NameTA, &s.DescTA,
+			&lat, &lng, &distance, &s.NameTA, &s.DescTA, &s.IsLive,
 		); err != nil {
 			return nil, err
 		}

@@ -60,6 +60,10 @@ type Config struct {
 	// (content expires via its Cache Rule instead) — never a broken call.
 	CFZoneID   string
 	CFAPIToken string
+	// AI gateway configuration
+	AIBaseURL    string
+	AIAPIKey     string
+	AIModelID    string
 	// Razorpay: secrets are env-only and never committed. Customer payments (UPI order creation +
 	// webhook reconciliation) only — Razorpay Route/settlement was removed (manual payouts).
 	// Empty keys mean the customer payment rail is unavailable (checkout returns 503); the gateway
@@ -171,6 +175,9 @@ func Load() Config {
 		PSTNTimeOutSeconds:          envInt("PSTN_TIMEOUT_SECONDS", 30),
 		AllowedOrigins:              splitCSV(env("ALLOWED_ORIGINS", "")),
 		OTelEnabled:                 envBool("OTEL_ENABLED", false),
+	AIBaseURL:                 env("AI_BASE_URL", ""),
+	AIAPIKey:                  env("AI_API_KEY", ""),
+	AIModelID:                 env("AI_MODEL_ID", ""),
 	}
 }
 

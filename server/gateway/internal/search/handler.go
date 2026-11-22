@@ -52,11 +52,10 @@ func (h *Handler) search(w http.ResponseWriter, r *http.Request) {
 		app = ""
 	}
 
-	// Cache key: faazio:v1:search:q:{query}, app-scoped variant includes the app.
-	key := cache.SearchQuery(q)
-	if app != "" {
-		key = cache.SearchQuery(app + ":" + q)
-	}
+	// Cache key: faazio:v1:search:q:{app}:{limit}:{query}. The app and limit are fixed leading
+	// segments so neither the query string nor a small-limit request can collide with or poison
+	// another variant (see cache.SearchQuery).
+	key := cache.SearchQuery(app, q, limit)
 	var cached []contracts.Product
 	if h.cache.GetJSON(r.Context(), key, &cached) {
 		httpx.JSON(w, http.StatusOK, cached)

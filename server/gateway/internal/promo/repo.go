@@ -33,6 +33,9 @@ type Campaign struct {
 	Name       string `json:"name"`
 	Scope      string `json:"scope"`
 	StateCode  string `json:"stateCode,omitempty"`
+	// Sector is the vertical a campaign is limited to (0123); empty = every vertical. Mirrors
+	// promo.coupons.sector. An opt-in must match it (see ProductInCampaignSector).
+	Sector     string `json:"sector,omitempty"`
 	StartsAt   string `json:"startsAt"`
 	EndsAt     string `json:"endsAt"`
 	BannerURL  string `json:"bannerUrl"`
@@ -158,8 +161,8 @@ func (r *Repo) Campaigns(ctx context.Context, stateCode, scope string) ([]Campai
 		return nil, fmt.Errorf("promo: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select campaign_id, name, scope::text, coalesce(state_code,''), starts_at, ends_at,
-		       banner_url, status::text, created_by
+		select campaign_id, name, scope::text, coalesce(state_code,''), coalesce(sector::text,''),
+		       starts_at, ends_at, banner_url, status::text, created_by
 		  from promo.festival_campaigns
 		 where ($1 = '' or scope::text = $1)
 		   and ($2 = '' or state_code = $2 or scope = 'GLOBAL')
@@ -177,8 +180,8 @@ func (r *Repo) Campaign(ctx context.Context, id string) (Campaign, bool, error) 
 		return Campaign{}, false, fmt.Errorf("promo: database not configured")
 	}
 	c, err := scanCampaign(r.pool.QueryRow(ctx, `
-		select campaign_id, name, scope::text, coalesce(state_code,''), starts_at, ends_at,
-		       banner_url, status::text, created_by
+		select campaign_id, name, scope::text, coalesce(state_code,''), coalesce(sector::text,''),
+		       starts_at, ends_at, banner_url, status::text, created_by
 		  from promo.festival_campaigns where campaign_id = $1`, id))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -198,13 +201,13 @@ func (r *Repo) CreateCampaign(ctx context.Context, c Campaign) (Campaign, error)
 	var startsAt, endsAt time.Time
 	err := r.pool.QueryRow(ctx, `
 		insert into promo.festival_campaigns
-		  (campaign_id, name, scope, state_code, starts_at, ends_at, banner_url, status, created_by)
-		values ($1,$2,$3::campaign_scope,$4,$5::timestamptz,$6::timestamptz,$7,$8::campaign_status,$9)
-		returning campaign_id, name, scope::text, coalesce(state_code,''), starts_at, ends_at,
-		          banner_url, status::text, created_by`,
-		c.CampaignID, c.Name, c.Scope, nullIfEmpty(c.StateCode), c.StartsAt, c.EndsAt,
+		  (campaign_id, name, scope, state_code, sector, starts_at, ends_at, banner_url, status, created_by)
+		values ($1,$2,$3::campaign_scope,$4,$5::app_brand,$6::timestamptz,$7::timestamptz,$8,$9::campaign_status,$10)
+		returning campaign_id, name, scope::text, coalesce(state_code,''), coalesce(sector::text,''),
+		          starts_at, ends_at, banner_url, status::text, created_by`,
+		c.CampaignID, c.Name, c.Scope, nullIfEmpty(c.StateCode), nullIfEmpty(c.Sector), c.StartsAt, c.EndsAt,
 		c.BannerURL, c.Status, c.CreatedBy).
-		Scan(&c.CampaignID, &c.Name, &c.Scope, &c.StateCode, &startsAt, &endsAt,
+		Scan(&c.CampaignID, &c.Name, &c.Scope, &c.StateCode, &c.Sector, &startsAt, &endsAt,
 			&c.BannerURL, &c.Status, &c.CreatedBy)
 	if err != nil {
 		return Campaign{}, err
@@ -222,8 +225,8 @@ func (r *Repo) SetCampaignStatus(ctx context.Context, id, status string) (Campai
 	c, err := scanCampaign(r.pool.QueryRow(ctx, `
 		update promo.festival_campaigns set status = $2::campaign_status
 		 where campaign_id = $1
-		 returning campaign_id, name, scope::text, coalesce(state_code,''), starts_at, ends_at,
-		           banner_url, status::text, created_by`, id, status))
+		 returning campaign_id, name, scope::text, coalesce(state_code,''), coalesce(sector::text,''),
+		           starts_at, ends_at, banner_url, status::text, created_by`, id, status))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Campaign{}, false, nil
@@ -327,6 +330,38 @@ func (r *Repo) ProductInSellerStore(ctx context.Context, productID, sellerID, st
 			   and ($3 = '' or st.id = $3)
 			   and p.app = st.app)`, productID, sellerID, storeID).Scan(&ok)
 	return ok, err
+}
+
+// ProductInCampaignSector reports whether a product may be opted into a campaign, given the
+// campaign's optional vertical (0123). A campaign with no sector accepts every product; a
+// sector-scoped campaign accepts only a product whose app matches. ok=false means either id is
+// unknown, so the handler can answer 404 rather than silently allowing the write.
+func (r *Repo) ProductInCampaignSector(ctx context.Context, productID, campaignID string) (allowed, found bool, err error) {
+	if r.pool == nil {
+		return false, false, fmt.Errorf("promo: database not configured")
+	}
+	var sector *string
+	err = r.pool.QueryRow(ctx, `
+		select sector::text from promo.festival_campaigns where campaign_id = $1`, campaignID).Scan(&sector)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, false, nil
+		}
+		return false, false, err
+	}
+	var app string
+	err = r.pool.QueryRow(ctx, `
+		select app::text from catalog.products where id = $1`, productID).Scan(&app)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, false, nil
+		}
+		return false, false, err
+	}
+	if sector == nil || *sector == "" {
+		return true, true, nil
+	}
+	return app == *sector, true, nil
 }
 
 // SellerScope returns a seller's district and parent state (for admin scope checks).
@@ -703,7 +738,7 @@ func scanCampaign(row campaignScanner) (Campaign, error) {
 		startsAt time.Time
 		endsAt   time.Time
 	)
-	if err := row.Scan(&c.CampaignID, &c.Name, &c.Scope, &c.StateCode, &startsAt, &endsAt,
+	if err := row.Scan(&c.CampaignID, &c.Name, &c.Scope, &c.StateCode, &c.Sector, &startsAt, &endsAt,
 		&c.BannerURL, &c.Status, &c.CreatedBy); err != nil {
 		return Campaign{}, err
 	}

@@ -282,7 +282,9 @@ type campaignRequest struct {
 	Name      string `json:"name"`
 	Scope     string `json:"scope"`
 	StateCode string `json:"stateCode"`
-	StartsAt  string `json:"startsAt"`
+	// Sector optionally limits the campaign to one vertical (0123). Empty = every vertical.
+	Sector   string `json:"sector"`
+	StartsAt string `json:"startsAt"`
 	EndsAt    string `json:"endsAt"`
 	BannerURL string `json:"bannerUrl"`
 	Status    string `json:"status"`
@@ -296,6 +298,7 @@ func (h *Handler) createCampaign(w http.ResponseWriter, r *http.Request) {
 	}
 	req.Scope = strings.ToUpper(strings.TrimSpace(req.Scope))
 	req.StateCode = strings.ToUpper(strings.TrimSpace(req.StateCode))
+	req.Sector = strings.ToUpper(strings.TrimSpace(req.Sector))
 	req.Status = strings.ToUpper(strings.TrimSpace(req.Status))
 	if req.Status == "" {
 		req.Status = "DRAFT"
@@ -305,7 +308,7 @@ func (h *Handler) createCampaign(w http.ResponseWriter, r *http.Request) {
 		req.StateCode = auth.StateCode(r.Context())
 	}
 	if strings.TrimSpace(req.Name) == "" || !validScope(req.Scope) || !validCampaignStatus(req.Status) ||
-		(req.Scope == "STATE") != (req.StateCode != "") {
+		(req.Scope == "STATE") != (req.StateCode != "") || !validCampaignSector(req.Sector) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid campaign")
 		return
 	}
@@ -320,8 +323,9 @@ func (h *Handler) createCampaign(w http.ResponseWriter, r *http.Request) {
 		actor = auth.StateCode(r.Context())
 	}
 	c, err := h.repo.CreateCampaign(r.Context(), Campaign{
-		Name: req.Name, Scope: req.Scope, StateCode: req.StateCode, StartsAt: req.StartsAt,
-		EndsAt: req.EndsAt, BannerURL: req.BannerURL, Status: req.Status, CreatedBy: actor,
+		Name: req.Name, Scope: req.Scope, StateCode: req.StateCode, Sector: req.Sector,
+		StartsAt: req.StartsAt, EndsAt: req.EndsAt, BannerURL: req.BannerURL, Status: req.Status,
+		CreatedBy: actor,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "campaign_create_failed", "could not create campaign")
@@ -460,6 +464,21 @@ func (h *Handler) upsertOptin(w http.ResponseWriter, r *http.Request) {
 	}
 	if !owned {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "product does not belong to this seller's store sector")
+		return
+	}
+	// A sector-scoped campaign (0123) accepts only products of that vertical, so a Mart SKU can never
+	// join a Pharmacy campaign even when the product↔store check above passed.
+	sectorOK, campaignFound, err := h.repo.ProductInCampaignSector(r.Context(), productID, req.CampaignID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
+		return
+	}
+	if !campaignFound {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "campaign or product not found")
+		return
+	}
+	if !sectorOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "campaign is limited to another sector")
 		return
 	}
 	if role != auth.RoleSeller {
@@ -689,6 +708,16 @@ func marshal(v any) json.RawMessage {
 func validSector(s string) bool { return s == "MART" || s == "FOOD" || s == "PHARMA" }
 
 func validScope(s string) bool { return s == "GLOBAL" || s == "STATE" }
+
+// validCampaignSector accepts an empty sector (every vertical) or one of the app brands.
+func validCampaignSector(s string) bool {
+	switch s {
+	case "", "MART", "FOOD", "PHARMA":
+		return true
+	default:
+		return false
+	}
+}
 
 func validCampaignStatus(s string) bool {
 	switch s {

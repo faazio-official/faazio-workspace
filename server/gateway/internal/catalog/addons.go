@@ -71,9 +71,11 @@ const addonScopePredicate = `(
   ($2 <> '' and se.district_code = $2) or
   ($1 = '' and $2 = ''))`
 
-// foodVenuePredicate is addonScopePredicate plus the sector guard: directory.addons and
-// directory.menu_addon_links are FOOD-owned tables, so a Mart/Pharmacy store that somehow names a
-// venue id here must never be able to write an add-on or a dish link.
+// foodVenuePredicate is addonScopePredicate plus a FOOD guard. `directory.menus` and
+// `directory.menu_addon_links` are FOOD-owned tables, so a Mart/Pharmacy store that somehow names a
+// venue id must never be able to write a dish link. Add-ons themselves are sector-agnostic (0122);
+// only the dish-link path is FOOD-only. The product-link path (productAddonPredicate) carries its
+// own same-store + same-sector guard.
 const foodVenuePredicate = `(` + addonScopePredicate + ` and st.app::text = 'FOOD')`
 
 func scanAddon(row pgx.Row) (Addon, time.Time, error) {
@@ -136,12 +138,14 @@ func (r *Repo) AddonByID(ctx context.Context, addonID, sellerID, district string
 	return a, true, nil
 }
 
-// CreateAddon inserts a DRAFT add-on owned by a venue store in the caller's scope.
+// CreateAddon inserts a DRAFT add-on owned by a venue store in the caller's scope. Add-ons serve
+// every sector (0122); the row records the store's sector in `sector_app` so a read can filter
+// without a join.
 func (r *Repo) CreateAddon(ctx context.Context, venueID, name, group, nameTA, groupTA string, pricePaisa int64, isVeg bool, sellerID, district string) (Addon, bool, error) {
 	if r.pool == nil {
 		return Addon{}, false, fmt.Errorf("catalog: database not configured")
 	}
-	owned, err := r.foodVenueInScope(ctx, venueID, sellerID, district)
+	owned, err := r.venueInScope(ctx, venueID, sellerID, district)
 	if err != nil {
 		return Addon{}, false, err
 	}
@@ -149,8 +153,10 @@ func (r *Repo) CreateAddon(ctx context.Context, venueID, name, group, nameTA, gr
 		return Addon{}, false, nil
 	}
 	a, _, err := scanAddon(r.pool.QueryRow(ctx, `
-		insert into directory.addons (addon_id, venue_id, name, group_name, name_ta, group_name_ta, price_paisa, is_veg, status)
-		values ($1, $2, $3, $4, $5, $6, $7, $8, 'DRAFT')
+		insert into directory.addons (addon_id, venue_id, sector_app, name, group_name, name_ta, group_name_ta, price_paisa, is_veg, status)
+		select $1, $2, st.app::text, $3, $4, $5, $6, $7, $8, 'DRAFT'
+		  from directory.stores st
+		 where st.id = $2
 		returning addon_id, venue_id, name, group_name, price_paisa, is_veg, status::text,
 		          coalesce(review_reason, ''), updated_at, coalesce(name_ta, ''), coalesce(group_name_ta, '')`,
 		newAddonID(), venueID, name, group, strings.TrimSpace(nameTA), strings.TrimSpace(groupTA), pricePaisa, isVeg))
@@ -160,7 +166,7 @@ func (r *Repo) CreateAddon(ctx context.Context, venueID, name, group, nameTA, gr
 	return a, true, nil
 }
 
-// UpdateAddon patches the editable fields, scoped to the caller.
+// UpdateAddon patches the editable fields, scoped to the caller. Any sector's add-on is editable.
 func (r *Repo) UpdateAddon(ctx context.Context, addonID, name, group, nameTA, groupTA string, pricePaisa int64, isVeg bool, sellerID, district string) (Addon, bool, error) {
 	if r.pool == nil {
 		return Addon{}, false, fmt.Errorf("catalog: database not configured")
@@ -170,7 +176,7 @@ func (r *Repo) UpdateAddon(ctx context.Context, addonID, name, group, nameTA, gr
 		       name_ta = $8, group_name_ta = $9, updated_at = now()
 		 from directory.stores st
 		 left join sellers.sellers se on se.seller_id = st.seller_id
-		 where a.addon_id = $7 and st.id = a.venue_id and `+foodVenuePredicate+`
+		 where a.addon_id = $7 and st.id = a.venue_id and `+addonScopePredicate+`
 		 returning a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
 		           a.status::text, coalesce(a.review_reason, ''), a.updated_at,
 		           coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')`,
@@ -184,18 +190,20 @@ func (r *Repo) UpdateAddon(ctx context.Context, addonID, name, group, nameTA, gr
 	return a, true, nil
 }
 
-// SubmitAddonForReview moves a seller-owned DRAFT/DELISTED add-on to PENDING_REVIEW.
+// SubmitAddonForReview moves a seller-owned DRAFT/DELISTED/CHANGES_REQUESTED add-on to
+// PENDING_REVIEW and clears any prior review note, so a resubmit starts from a clean slate.
 func (r *Repo) SubmitAddonForReview(ctx context.Context, addonID, sellerID, district string) (Addon, bool, error) {
 	if r.pool == nil {
 		return Addon{}, false, fmt.Errorf("catalog: database not configured")
 	}
 	a, _, err := scanAddon(r.pool.QueryRow(ctx, `
-		update directory.addons a set status = 'PENDING_REVIEW'::product_status, updated_at = now()
+		update directory.addons a set status = 'PENDING_REVIEW'::product_status,
+		       review_reason = null, updated_at = now()
 		 from directory.stores st
 		 left join sellers.sellers se on se.seller_id = st.seller_id
 		 where a.addon_id = $3 and st.id = a.venue_id
-		   and a.status in ('DRAFT'::product_status, 'DELISTED'::product_status)
-		   and `+foodVenuePredicate+`
+		   and a.status in ('DRAFT'::product_status, 'DELISTED'::product_status, 'CHANGES_REQUESTED'::product_status)
+		   and `+addonScopePredicate+`
 		 returning a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
 		           a.status::text, coalesce(a.review_reason, ''), a.updated_at,
 		           coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')`,
@@ -209,19 +217,20 @@ func (r *Repo) SubmitAddonForReview(ctx context.Context, addonID, sellerID, dist
 	return a, true, nil
 }
 
-// SetAddonStatus performs an admin moderation transition (ACTIVE / DRAFT-with-reason / DELISTED).
-// reason is stored only on a DRAFT rejection and cleared on every other transition.
+// SetAddonStatus performs an admin moderation transition. `reason` is stored on the states that
+// tell the seller what to fix — DRAFT (legacy reject) and CHANGES_REQUESTED — and cleared on
+// ACTIVE/DELISTED. Add-ons are sector-agnostic, so any sector's add-on is moderatable here.
 func (r *Repo) SetAddonStatus(ctx context.Context, addonID, status, reason, sellerID, district string) (Addon, bool, error) {
 	if r.pool == nil {
 		return Addon{}, false, fmt.Errorf("catalog: database not configured")
 	}
 	a, _, err := scanAddon(r.pool.QueryRow(ctx, `
 		update directory.addons a set status = $3::product_status,
-		       review_reason = case when $3 = 'DRAFT' then nullif($4, '') else null end,
+		       review_reason = case when $3 in ('DRAFT','CHANGES_REQUESTED') then nullif($4, '') else null end,
 		       updated_at = now()
 		 from directory.stores st
 		 left join sellers.sellers se on se.seller_id = st.seller_id
-		 where a.addon_id = $5 and st.id = a.venue_id and `+foodVenuePredicate+`
+		 where a.addon_id = $5 and st.id = a.venue_id and `+addonScopePredicate+`
 		 returning a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
 		           a.status::text, coalesce(a.review_reason, ''), a.updated_at,
 		           coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')`,
@@ -235,9 +244,9 @@ func (r *Repo) SetAddonStatus(ctx context.Context, addonID, status, reason, sell
 	return a, true, nil
 }
 
-// foodVenueInScope reports whether the venue store belongs to the caller's seller/district scope and
-// is a FOOD shop (add-ons are a food-only capability).
-func (r *Repo) foodVenueInScope(ctx context.Context, venueID, sellerID, district string) (bool, error) {
+// venueInScope reports whether the venue store belongs to the caller's seller/district scope,
+// regardless of sector. Add-ons serve MART/FOOD/PHARMA (0122).
+func (r *Repo) venueInScope(ctx context.Context, venueID, sellerID, district string) (bool, error) {
 	if r.pool == nil {
 		return false, fmt.Errorf("catalog: database not configured")
 	}
@@ -246,7 +255,7 @@ func (r *Repo) foodVenueInScope(ctx context.Context, venueID, sellerID, district
 		select exists (
 			select 1 from directory.stores st
 			left join sellers.sellers se on se.seller_id = st.seller_id
-			 where st.id = $3 and `+foodVenuePredicate+`)`,
+			 where st.id = $3 and `+addonScopePredicate+`)`,
 		sellerID, district, venueID).Scan(&ok)
 	return ok, err
 }
@@ -328,7 +337,128 @@ func (r *Repo) UnlinkAddon(ctx context.Context, venueID, dishID, addonID, seller
 	return tag.RowsAffected() > 0, nil
 }
 
-// ListDishAddons is the public customer read: ACTIVE add-ons linked + enabled for one dish.
+// ProductAddon is one (product, add-on) link with the add-on fields the retail add-ons tab renders.
+type ProductAddon struct {
+	Addon
+	ProductID string `json:"productId"`
+	Enabled   bool   `json:"enabled"`
+}
+
+// ListProductAddons returns the add-on links for one product (productID "") or a whole store.
+// Seller scope. Serves every sector (Mart/Pharmacy products and Food packaged SKUs).
+func (r *Repo) ListProductAddons(ctx context.Context, sellerID, district, venueID, productID string) ([]ProductAddon, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("catalog: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select a.addon_id, a.venue_id, a.name, a.group_name, a.price_paisa, a.is_veg,
+		       a.status::text, coalesce(a.review_reason, ''), a.updated_at, l.product_id, l.is_enabled,
+		       coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')
+		  from directory.product_addon_links l
+		  join directory.addons a on a.addon_id = l.addon_id and a.venue_id = l.venue_id
+		  join directory.stores st on st.id = a.venue_id
+		  left join sellers.sellers se on se.seller_id = st.seller_id
+		 where l.venue_id = $3
+		   and ($4 = '' or l.product_id = $4)
+		   and `+addonScopePredicate+`
+		 order by l.product_id asc, a.group_name asc, a.name asc`, sellerID, district, venueID, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []ProductAddon{}
+	for rows.Next() {
+		var (
+			m         ProductAddon
+			updatedAt time.Time
+		)
+		if err := rows.Scan(&m.AddonID, &m.VenueID, &m.Name, &m.GroupName, &m.PricePaisa, &m.IsVeg,
+			&m.Status, &m.ReviewReason, &updatedAt, &m.ProductID, &m.Enabled, &m.NameTA, &m.GroupNameTA); err != nil {
+			return nil, err
+		}
+		m.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)
+		out = append(out, m)
+	}
+	return out, rows.Err()
+}
+
+// LinkProductAddon attaches an add-on to a product. The add-on and the product must belong to the
+// SAME store (so a store can never bind another store's extra), the add-on must not be DELISTED, and
+// the caller must own that store. The product↔store check is inside the statement so it is atomic.
+func (r *Repo) LinkProductAddon(ctx context.Context, venueID, productID, addonID, sellerID, district string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("catalog: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		insert into directory.product_addon_links (venue_id, product_id, addon_id, is_enabled)
+		select $3, p.id, a.addon_id, true
+		  from directory.addons a
+		  join directory.stores st on st.id = a.venue_id
+		  left join sellers.sellers se on se.seller_id = st.seller_id
+		  join catalog.products p on p.id = $4 and p.store_id = a.venue_id
+		 where a.addon_id = $5 and a.venue_id = $3
+		   and a.status <> 'DELISTED'::product_status
+		   and `+addonScopePredicate+`
+		on conflict (venue_id, product_id, addon_id) do update set is_enabled = true`,
+		sellerID, district, venueID, productID, addonID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// UnlinkProductAddon removes a product → add-on link, scoped to the caller.
+func (r *Repo) UnlinkProductAddon(ctx context.Context, venueID, productID, addonID, sellerID, district string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("catalog: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		delete from directory.product_addon_links l
+		 using directory.stores st
+		 left join sellers.sellers se on se.seller_id = st.seller_id
+		 where l.venue_id = $3 and l.product_id = $4 and l.addon_id = $5 and st.id = l.venue_id
+		   and `+addonScopePredicate, sellerID, district, venueID, productID, addonID)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// ListProductAddonsPublic is the customer read: ACTIVE, enabled add-ons bound to one product, for a
+// live store. Whole rupees, matching the dish add-on projection.
+func (r *Repo) ListProductAddonsPublic(ctx context.Context, productID string) ([]PublicAddon, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("catalog: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select a.addon_id, a.name, a.group_name, a.price_paisa, a.is_veg,
+		       coalesce(a.name_ta, ''), coalesce(a.group_name_ta, '')
+		  from directory.product_addon_links l
+		  join directory.addons a on a.addon_id = l.addon_id and a.venue_id = l.venue_id
+		 where l.product_id = $1 and l.is_enabled
+		   and a.status = 'ACTIVE'::product_status
+		   and not exists (
+		         select 1 from directory.stores st
+		          where st.id = l.venue_id and not st.is_live)
+		 order by a.group_name asc, a.name asc`, productID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []PublicAddon{}
+	for rows.Next() {
+		var a PublicAddon
+		if err := rows.Scan(&a.ID, &a.Name, &a.GroupName, &a.Price, &a.IsVeg, &a.NameTA, &a.GroupNameTA); err != nil {
+			return nil, err
+		}
+		a.Price = a.Price / 100
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
+// ListDishAddons is the public customer read: ACTIVE add-ons linked + enabled for one dish. An
+// offline (is_live=false) shop offers no add-ons, matching its hidden menu.
 func (r *Repo) ListDishAddons(ctx context.Context, venueID, dishID string) ([]PublicAddon, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("catalog: database not configured")
@@ -340,6 +470,9 @@ func (r *Repo) ListDishAddons(ctx context.Context, venueID, dishID string) ([]Pu
 		  join directory.addons a on a.addon_id = l.addon_id and a.venue_id = l.venue_id
 		 where l.venue_id = $1 and l.dish_id = $2 and l.is_enabled
 		   and a.status = 'ACTIVE'::product_status
+		   and not exists (
+		         select 1 from directory.stores st
+		          where st.id = l.venue_id and not st.is_live)
 		 order by a.group_name asc, a.name asc`, venueID, dishID)
 	if err != nil {
 		return nil, err
@@ -597,6 +730,50 @@ func (h *Handler) rejectAddon(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, a)
 }
 
+// requestAddonChanges serves POST /seller/addons/{addonId}/request-changes with {reason} (admin
+// only). The add-on moves to CHANGES_REQUESTED with the note attached, so the seller edits and
+// resubmits instead of starting over from DRAFT.
+func (h *Handler) requestAddonChanges(w http.ResponseWriter, r *http.Request) {
+	if !auth.IsAdmin(r.Context()) {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "admin role required")
+		return
+	}
+	var body struct {
+		Reason string `json:"reason"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	reason := strings.TrimSpace(body.Reason)
+	if reason == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a reason is required")
+		return
+	}
+	if len(reason) > 500 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "review reason is too long")
+		return
+	}
+	sellerID, district, ok := managementScope(r)
+	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no add-on scope on this account")
+		return
+	}
+	id := chi.URLParam(r, "addonId")
+	a, found, err := h.repo.SetAddonStatus(r.Context(), id, "CHANGES_REQUESTED", reason, sellerID, district)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "add-on not found")
+		return
+	}
+	h.logEntity(r, "ADDON_CHANGES_REQUESTED", "directory.addons", id, map[string]any{"status": a.Status, "reason": reason})
+	h.notifyAddonModeration(r, a, "CHANGES_REQUESTED", reason)
+	httpx.JSON(w, http.StatusOK, a)
+}
+
 // deleteAddon serves DELETE /seller/addons/{addonId} as a soft delist.
 func (h *Handler) deleteAddon(w http.ResponseWriter, r *http.Request) {
 	sellerID, district, ok := managementScope(r)
@@ -707,6 +884,96 @@ func (h *Handler) dishAddons(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, items)
 }
 
+// listProductAddons serves GET /seller/product-addons?venueId=&productId=.
+func (h *Handler) listProductAddons(w http.ResponseWriter, r *http.Request) {
+	sellerID, district, ok := managementScope(r)
+	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no add-on scope on this account")
+		return
+	}
+	venueID := strings.TrimSpace(r.URL.Query().Get("venueId"))
+	if venueID == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "venueId is required")
+		return
+	}
+	items, err := h.repo.ListProductAddons(r.Context(), sellerID, district, venueID, strings.TrimSpace(r.URL.Query().Get("productId")))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+// linkProductAddon serves POST /seller/product-addons with {venueId, productId, addonId}.
+func (h *Handler) linkProductAddon(w http.ResponseWriter, r *http.Request) {
+	var body struct {
+		VenueID   string `json:"venueId"`
+		ProductID string `json:"productId"`
+		AddonID   string `json:"addonId"`
+	}
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	venueID := strings.TrimSpace(body.VenueID)
+	productID := strings.TrimSpace(body.ProductID)
+	addonID := strings.TrimSpace(body.AddonID)
+	if venueID == "" || productID == "" || addonID == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "venueId, productId and addonId are required")
+		return
+	}
+	sellerID, district, ok := managementScope(r)
+	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no add-on scope on this account")
+		return
+	}
+	linked, err := h.repo.LinkProductAddon(r.Context(), venueID, productID, addonID, sellerID, district)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	if !linked {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "add-on or product not found, not owned, or not in the same store")
+		return
+	}
+	h.logEntity(r, "ADDON_PRODUCT_LINK", "directory.product_addon_links", venueID+":"+productID+":"+addonID, nil)
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// unlinkProductAddon serves DELETE /seller/product-addons/{venueId}/{productId}/{addonId}.
+func (h *Handler) unlinkProductAddon(w http.ResponseWriter, r *http.Request) {
+	sellerID, district, ok := managementScope(r)
+	if !ok {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no add-on scope on this account")
+		return
+	}
+	venueID := chi.URLParam(r, "venueId")
+	productID := chi.URLParam(r, "productId")
+	addonID := chi.URLParam(r, "addonId")
+	removed, err := h.repo.UnlinkProductAddon(r.Context(), venueID, productID, addonID, sellerID, district)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	if !removed {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "link not found")
+		return
+	}
+	h.logEntity(r, "ADDON_PRODUCT_UNLINK", "directory.product_addon_links", venueID+":"+productID+":"+addonID, nil)
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
+}
+
+// productAddons serves GET /venues/{venueId}/products/{productId}/addons (public, ACTIVE only).
+// `venueId` is in the path for a cacheable, store-scoped URL; the repo keys the read on the product.
+func (h *Handler) productAddons(w http.ResponseWriter, r *http.Request) {
+	items, err := h.repo.ListProductAddonsPublic(r.Context(), chi.URLParam(r, "productId"))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
 // notifyAddonModeration tells the seller about an admin decision. Best-effort, after the write.
 func (h *Handler) notifyAddonModeration(r *http.Request, a Addon, decision, reason string) {
 	if h.notifier == nil {
@@ -716,6 +983,8 @@ func (h *Handler) notifyAddonModeration(r *http.Request, a Addon, decision, reas
 	switch decision {
 	case "ACTIVE":
 		kind, title, body = "ADDON_APPROVED", "Add-on approved", a.Name+" is now live on your menu."
+	case "CHANGES_REQUESTED":
+		kind, title, body = "ADDON_CHANGES_REQUESTED", "Add-on needs changes", a.Name+" needs an update: "+reason
 	case "REJECTED":
 		kind, title, body = "ADDON_REJECTED", "Add-on needs changes", a.Name+" was returned for changes: "+reason
 	default:
@@ -723,7 +992,7 @@ func (h *Handler) notifyAddonModeration(r *http.Request, a Addon, decision, reas
 	}
 	_ = h.notifier.EnqueueSeller(r.Context(), []string{a.VenueID}, kind, title, body, map[string]any{
 		"addonId": a.AddonID, "venueId": a.VenueID, "status": decision,
-		"deepLink": "/seller/inventory",
+		"deepLink": "/seller/inventory?tab=addons",
 	})
 }
 

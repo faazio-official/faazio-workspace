@@ -15,7 +15,8 @@ func TestKeyBuildersFreeze(t *testing.T) {
 	cases := []struct {
 		got, want string
 	}{
-		{SearchQuery("coffee"), "faazio:v1:search:q:coffee"},
+		{SearchQuery("", "coffee", 20), "faazio:v1:search:q:all:20:coffee"},
+		{SearchQuery("MART", "coffee", 20), "faazio:v1:search:q:MART:20:coffee"},
 		{Product("md-1"), "faazio:v1:catalog:product:md-1"},
 		{Store("store-m3"), "faazio:v1:directory:store:store-m3"},
 		{Venues("FOOD"), "faazio:v1:directory:venues:FOOD"},

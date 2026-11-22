@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"math"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -19,7 +20,25 @@ import (
 const (
 	defaultStoreLimit = 100
 	maxStoreLimit     = 200
+	// maxPickupStoreIDs caps the `?storeIds=` set so the derived cache key stays bounded.
+	maxPickupStoreIDs = 50
 )
+
+// pickupCacheKey normalises a caller-supplied store-id set into a stable, de-duplicated, sorted key
+// fragment. Reordering the same ids must reuse one cached entry, not mint a new 24 h key.
+func pickupCacheKey(ids []string) string {
+	seen := make(map[string]struct{}, len(ids))
+	unique := make([]string, 0, len(ids))
+	for _, id := range ids {
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		unique = append(unique, id)
+	}
+	sort.Strings(unique)
+	return strings.Join(unique, ",")
+}
 
 // Handler serves store directory endpoints.
 type Handler struct {
@@ -173,7 +192,9 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
 	}
-	if !ok {
+	// An offline shop is not a public page: hide it exactly like an unknown id, so a deactivated
+	// vendor never gets a plausible storefront (or a 24 h cache entry) for shoppers.
+	if !ok || !store.IsLive {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "store not found")
 		return
 	}
@@ -200,11 +221,19 @@ func (h *Handler) pickupPoints(w http.ResponseWriter, r *http.Request) {
 			if id = strings.TrimSpace(id); id != "" {
 				storeIDs = append(storeIDs, id)
 			}
+			// Cap the id set so the cache key below cannot be driven to arbitrary length. A cart
+			// realistically touches a handful of stores; anything larger falls back to "all".
+			if len(storeIDs) > maxPickupStoreIDs {
+				storeIDs = nil
+				break
+			}
 		}
 	}
+	// The key is built from caller input, so normalise it: sorted and de-duplicated (b,a ≡ a,b)
+	// so reordered ids reuse one entry instead of minting a new 24 h key each time.
 	cacheKey := "all"
 	if len(storeIDs) > 0 {
-		cacheKey = strings.Join(storeIDs, ",")
+		cacheKey = pickupCacheKey(storeIDs)
 	}
 	var cached []contracts.PickupPoint
 	if h.cache.GetJSON(r.Context(), cache.PickupPoints(cacheKey), &cached) {

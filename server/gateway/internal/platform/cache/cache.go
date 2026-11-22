@@ -19,7 +19,17 @@ import (
 
 // Key builders — the frozen taxonomy (contract-freeze §4). AuthUser hashes the Supabase
 // auth subject so no raw identifier is used as a key.
-func SearchQuery(q string) string    { return fmt.Sprintf("faazio:v1:search:q:%s", q) }
+// SearchQuery builds the search cache key. The app is a fixed leading segment ("all" when unscoped)
+// so a query string can never forge the app namespace: without the separator a `?q=MART:coffee`
+// request would write the same key a legitimate `?q=coffee&app=MART` reads, letting an unscoped
+// search poison the app-scoped result. limit is part of the key because the cached value is the
+// limited slice — a `?limit=1` request must not shorten every later caller's result.
+func SearchQuery(app, q string, limit int) string {
+	if app == "" {
+		app = "all"
+	}
+	return fmt.Sprintf("faazio:v1:search:q:%s:%d:%s", app, limit, q)
+}
 func Product(id string) string       { return fmt.Sprintf("faazio:v1:catalog:product:%s", id) }
 func Store(id string) string         { return fmt.Sprintf("faazio:v1:directory:store:%s", id) }
 func PickupPoints(key string) string { return fmt.Sprintf("faazio:v1:directory:pickup:%s", key) }

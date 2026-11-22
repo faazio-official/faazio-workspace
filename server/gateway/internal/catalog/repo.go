@@ -40,7 +40,8 @@ select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.price_paisa, p.rating, p.reviews_count,
        p.emoji, p.image_url, p.image_key, p.desc_text, p.badge, p.shop, coalesce(p.store_id,''),
        p.unit, p.attributes,
-       s.available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
+       (s.available and (s.expiry_date is null or s.expiry_date >= current_date)) as available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
+       coalesce(s.batch_no, ''), s.expiry_date,
        null::float8 as distance_km, coalesce(p.name_ta, ''), coalesce(p.desc_text_ta, '')
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
@@ -55,17 +56,21 @@ select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.price_paisa, p.rating, p.reviews_count,
        p.emoji, p.image_url, p.image_key, ''::text as desc_text, p.badge, null::text as shop,
        coalesce(p.store_id,''), p.unit, null::jsonb as attributes,
-       s.available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
+       (s.available and (s.expiry_date is null or s.expiry_date >= current_date)) as available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
+       coalesce(s.batch_no, ''), s.expiry_date,
        null::float8 as distance_km, coalesce(p.name_ta, ''), ''::text as desc_text_ta
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
 
-// ByID returns one product with stock.
+// ByID returns one ACTIVE product with stock. This is the public detail read (GET /product/{id}, and
+// the ProductReader the SDUI/reco feeds compile through), so it must not surface a DRAFT,
+// PENDING_REVIEW, REJECTED or DELISTED row: ids are low-entropy and guessable, and the result is
+// cached for TTLProduct. An unapproved listing has to be invisible until an admin approves it.
 func (r *Repo) ByID(ctx context.Context, id string) (contracts.Product, bool, error) {
 	if r.pool == nil {
 		return contracts.Product{}, false, fmt.Errorf("catalog: database not configured")
 	}
-	rows, err := r.pool.Query(ctx, productSelect+" where p.id = $1 and p.deleted_at is null", id)
+	rows, err := r.pool.Query(ctx, productSelect+" where p.id = $1 and p.status = 'ACTIVE' and p.deleted_at is null", id)
 	if err != nil {
 		return contracts.Product{}, false, err
 	}
@@ -103,7 +108,8 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 		       p.price_paisa, p.rating, p.reviews_count,
 		       p.emoji, p.image_url, p.image_key, ''::text as desc_text, p.badge,
 		       null::text as shop, coalesce(p.store_id,''), p.unit, null::jsonb as attributes,
-		       s.available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
+		       (s.available and (s.expiry_date is null or s.expiry_date >= current_date)) as available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
+		       coalesce(s.batch_no, ''), s.expiry_date,
 		       (6371.0088 * acos(least(1, greatest(-1,
 		           sin(radians($1)) * sin(radians(d.latitude)) +
 		           cos(radians($1)) * cos(radians(d.latitude)) * cos(radians(d.longitude) - radians($2))
@@ -144,7 +150,9 @@ func (r *Repo) StorePin(ctx context.Context, storeID string) (float64, float64, 
 	return lat, lng, nil
 }
 
-// ByIDs returns products for the given ids (stable input order preserved by app).
+// ByIDs returns ACTIVE products for the given ids (stable input order preserved by app). Mirrors
+// ByID: this backs the public POST /products/batch (favourites, Pharma grid, SDUI campaigns, reco),
+// so a non-ACTIVE or deleted row must be dropped rather than served.
 func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Product, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("catalog: database not configured")
@@ -152,7 +160,7 @@ func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Product, er
 	if len(ids) == 0 {
 		return []contracts.Product{}, nil
 	}
-	rows, err := r.pool.Query(ctx, productListSelect+" where p.id = any($1) and p.deleted_at is null", ids)
+	rows, err := r.pool.Query(ctx, productListSelect+" where p.id = any($1) and p.status = 'ACTIVE' and p.deleted_at is null", ids)
 	if err != nil {
 		return nil, err
 	}
@@ -177,7 +185,8 @@ func (r *Repo) ByIDs(ctx context.Context, ids []string) ([]contracts.Product, er
 
 // ByStorePage returns a store's ACTIVE products (vendor drill-in), ordered by (rating desc, id asc)
 // using keyset pagination. The query fetches limit+1 rows so the caller can tell whether another page
-// exists. Only ACTIVE rows surface, so a delisted/pending product never reaches a shopper.
+// exists. Only ACTIVE rows of a live store surface, so a delisted/pending product — or the catalog of
+// a shop that has gone offline — never reaches a shopper.
 func (r *Repo) ByStorePage(ctx context.Context, storeID string, limit int, cursorRating float64, cursorID string, hasCursor bool) ([]contracts.Product, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("catalog: database not configured")
@@ -186,6 +195,7 @@ func (r *Repo) ByStorePage(ctx context.Context, storeID string, limit int, curso
 		where p.store_id = $1
 		  and p.status = 'ACTIVE'
 		  and p.deleted_at is null
+		  and exists (select 1 from directory.stores d where d.id = p.store_id and d.is_live)
 		  and (not $2::bool or p.rating < $3::float8 or (p.rating = $3::float8 and p.id > $4))
 		order by p.rating desc, p.id asc
 		limit $5`, storeID, hasCursor, cursorRating, cursorID, limit)
@@ -252,13 +262,15 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 			sQty                   *int64
 			sETA                   *string
 			sRx                    *bool
+			sBatch                 *string
+			sExpiry                *time.Time
 			distance               *float64
 		)
 		if err := rows.Scan(
 			&p.ID, &p.App, &p.Category, &p.Name, &p.SearchTokens,
 			&pricePaisa, &rating, &reviewsCount,
 			&p.Emoji, &p.Image, &imageKey, &p.Desc, &badge, &shop, &p.StoreID, &unit, &attrsRaw,
-			&sAvail, &sQty, &stockPrice, &sETA, &sRx,
+			&sAvail, &sQty, &stockPrice, &sETA, &sRx, &sBatch, &sExpiry,
 			&distance, &p.NameTA, &p.DescTA,
 		); err != nil {
 			return nil, err
@@ -287,9 +299,13 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 				InStockQty:     derefInt(sQty),
 				Price:          toRupees(stockPrice),
 				IsPrescription: sRx != nil && *sRx,
+				BatchNo:        deref(sBatch),
 			}
 			if sETA != nil {
 				st.ETA = *sETA
+			}
+			if sExpiry != nil {
+				st.ExpiryDate = sExpiry.Format("2006-01-02")
 			}
 			p.Stock = st
 		}
@@ -343,6 +359,10 @@ type SellerProduct struct {
 	InStockQty     int64  `json:"inStockQty"`
 	Available      bool   `json:"available"`
 	Eta            string `json:"eta,omitempty"` // free-text ETA carried from inventory.stock
+	// BatchNo/ExpiryDate are the regulated/perishable lot (0123). Empty when the SKU carries none;
+	// a past expiry makes Available false on every read.
+	BatchNo    string `json:"batchNo,omitempty"`
+	ExpiryDate string `json:"expiryDate,omitempty"` // YYYY-MM-DD
 	// ReviewReason is the admin's moderation note on a REJECTED listing (empty otherwise).
 	ReviewReason string `json:"reviewReason,omitempty"`
 	UpdatedAt    string `json:"updatedAt"`
@@ -361,7 +381,9 @@ select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(st.seller
        coalesce(p.store_id,''), p.price_paisa,
        coalesce(p.desc_text,''), coalesce(p.unit,''), coalesce(p.emoji,''),
        coalesce(p.image_url,''), coalesce(p.image_key,''), p.is_veg, p.is_prescription,
-       coalesce(s.in_stock_qty, 0), coalesce(s.available, true), coalesce(s.eta, ''),
+       coalesce(s.in_stock_qty, 0),
+       coalesce(s.available, true) and (s.expiry_date is null or s.expiry_date >= current_date),
+       coalesce(s.eta, ''), coalesce(s.batch_no, ''), s.expiry_date,
        coalesce(p.review_reason, ''), p.updated_at, p.deleted_at, coalesce(p.delete_reason, ''),
        coalesce(p.name_ta, ''), coalesce(p.desc_text_ta, '')
 from catalog.products p
@@ -634,6 +656,10 @@ type ProductEdit struct {
 	TaxonomyCategoryID *string
 	IsVeg              *bool
 	IsPrescription     *bool
+	// BatchNo/ExpiryDate are the lot metadata (0123). nil keeps the current value; a pointer to an
+	// empty string clears the column. ExpiryDate is a YYYY-MM-DD string ("" clears it).
+	BatchNo    *string
+	ExpiryDate *string
 }
 
 // UpdateProduct edits price/stock for a seller's product. The row must belong to sellerID, or
@@ -746,7 +772,10 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 			return SellerProduct{}, false, err
 		}
 	}
-	if e.InStockQty != nil || e.Available != nil || e.Price != nil || e.Eta != nil || e.IsPrescription != nil {
+	if e.InStockQty != nil || e.Available != nil || e.Price != nil || e.Eta != nil || e.IsPrescription != nil ||
+		e.BatchNo != nil || e.ExpiryDate != nil {
+		// Batch/expiry clear on an explicit empty string rather than keeping the old value, so a
+		// seller can retire a lot. A null pointer still means "leave it alone".
 		if _, err := tx.Exec(ctx, `
 			update inventory.stock
 			   set price_paisa     = coalesce($2, price_paisa),
@@ -754,9 +783,13 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 			       available       = coalesce($4, available),
 			       eta             = coalesce($5, eta),
 			       is_prescription = coalesce($6, is_prescription),
+			       batch_no        = case when $7::bool then nullif($8,'') else batch_no end,
+			       expiry_date     = case when $9::bool then nullif($10,'')::date else expiry_date end,
 			       updated_at      = now()
 			 where product_id = $1`, id,
-			mul100(e.Price), e.InStockQty, e.Available, e.Eta, e.IsPrescription); err != nil {
+			mul100(e.Price), e.InStockQty, e.Available, e.Eta, e.IsPrescription,
+			e.BatchNo != nil, trimPtr(e.BatchNo),
+			e.ExpiryDate != nil, trimPtr(e.ExpiryDate)); err != nil {
 			return SellerProduct{}, false, err
 		}
 	}
@@ -915,13 +948,17 @@ func scanSellerProduct(row sellerProductScanner) (SellerProduct, error) {
 		p         SellerProduct
 		updatedAt time.Time
 		deletedAt *time.Time
+		expiry    *time.Time
 	)
 	if err := row.Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID,
 		&p.Price, &p.Description, &p.Unit, &p.Emoji, &p.ImageURL, &p.ImageKey,
-		&p.IsVeg, &p.IsPrescription, &p.InStockQty, &p.Available, &p.Eta,
-		&p.ReviewReason, &updatedAt, &deletedAt, &p.DeleteReason,
+		&p.IsVeg, &p.IsPrescription, &p.InStockQty, &p.Available, &p.Eta, &p.BatchNo,
+		&expiry, &p.ReviewReason, &updatedAt, &deletedAt, &p.DeleteReason,
 		&p.NameTA, &p.DescriptionTA); err != nil {
 		return SellerProduct{}, err
+	}
+	if expiry != nil {
+		p.ExpiryDate = expiry.Format("2006-01-02")
 	}
 	p.Price /= 100
 	p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)

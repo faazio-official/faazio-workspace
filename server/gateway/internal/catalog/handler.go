@@ -46,6 +46,8 @@ func (h *Handler) Register(r chi.Router) {
 	r.Get("/stores/{id}/products", h.storeProducts)
 	// Dish add-ons (extras) are published only once an admin approves the add-on (ACTIVE).
 	r.Get("/venues/{venueId}/menu/{dishId}/addons", h.dishAddons)
+	// Product add-ons (Mart/Pharmacy, and Food packaged SKUs) — same ACTIVE-only rule.
+	r.Get("/venues/{venueId}/products/{productId}/addons", h.productAddons)
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSeller, auth.RoleStateAdmin, auth.RoleSuperAdmin))
 		g.Post("/seller/products", h.createProduct)
@@ -69,9 +71,14 @@ func (h *Handler) Register(r chi.Router) {
 		g.Post("/seller/addons/{addonId}/submit-for-review", h.submitAddon)
 		g.Post("/seller/addons/{addonId}/approve", h.approveAddon)
 		g.Post("/seller/addons/{addonId}/reject", h.rejectAddon)
+		g.Post("/seller/addons/{addonId}/request-changes", h.requestAddonChanges)
 		g.Get("/seller/menu-addons", h.listMenuAddons)
 		g.Post("/seller/menu-addons", h.linkAddon)
 		g.Delete("/seller/menu-addons/{venueId}/{dishId}/{addonId}", h.unlinkAddon)
+		// Product add-on links (every sector) — the retail add-ons tab and the product editor.
+		g.Get("/seller/product-addons", h.listProductAddons)
+		g.Post("/seller/product-addons", h.linkProductAddon)
+		g.Delete("/seller/product-addons/{venueId}/{productId}/{addonId}", h.unlinkProductAddon)
 	})
 }
 

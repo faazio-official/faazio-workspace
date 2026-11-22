@@ -91,6 +91,10 @@ type Stock struct {
 	Price          int64  `json:"price"` // rupees
 	ETA            string `json:"eta"`
 	IsPrescription bool   `json:"isPrescription,omitempty"`
+	// BatchNo/ExpiryDate are the regulated/perishable lot (0123). Empty when the SKU carries none.
+	// A past ExpiryDate makes the row unavailable on every read (see catalog/cartstock SQL).
+	BatchNo    string `json:"batchNo,omitempty"`
+	ExpiryDate string `json:"expiryDate,omitempty"` // YYYY-MM-DD
 }
 
 // Product is a catalog row joined with its live stock (CatalogEntry + ProductView).
@@ -153,6 +157,9 @@ type Store struct {
 	// float64 is e.g. 4.900000095367432; keyset pagination must compare against that exact value
 	// (a 1-dp cursor would fail the `rating = $3` tie check and drop rows). Never serialized.
 	RatingRaw float64 `json:"-"`
+	// IsLive is the shop's online flag. Internal only: the public store handler rejects an offline
+	// shop, while the dispatch path still resolves one that closed after an order was placed.
+	IsLive bool `json:"-"`
 }
 
 // PickupPoint is a durable inventory.pickup_points row (a business location; no customer PII).
