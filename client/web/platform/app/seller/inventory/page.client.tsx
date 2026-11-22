@@ -17,6 +17,8 @@ function SellerInventory() {
       sellerId={sellerId}
       storeId={storeId}
       sector={activeStore?.sector ?? "MART"}
+      restockQty={activeStore?.restockQty}
+      restockEtaMinutes={activeStore?.restockEtaMinutes}
     />
   );
 }

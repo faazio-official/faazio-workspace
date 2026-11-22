@@ -238,6 +238,10 @@ export interface StockRecord {
   lowStockThreshold: number;
   etaMinutes: number;
   updatedAt: string;
+  /** Regulated/perishable lot (0123). Absent when the SKU carries none. */
+  batchNo?: string | undefined;
+  /** `YYYY-MM-DD`. A past date makes the row unavailable on every server read. */
+  expiryDate?: string | undefined;
 }
 
 /** checkout.orders */
@@ -311,6 +315,8 @@ export interface FestivalCampaign {
   name: string;
   scope: CampaignScope;
   stateCode?: string | undefined;
+  /** Vertical the campaign is limited to (0123). Absent = every vertical. */
+  sector?: Sector | undefined;
   startsAt: string;
   endsAt: string;
   bannerUrl: string;

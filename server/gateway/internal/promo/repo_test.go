@@ -400,3 +400,93 @@ func TestProductInSellerStoreSectorGuard(t *testing.T) {
 		t.Fatalf("foreign seller must be rejected: got=%v err=%v", got, err)
 	}
 }
+
+// TestCampaignSectorGuard locks the 0123 campaign vertical: a sector-less campaign accepts every
+// product, a sector-scoped campaign accepts only that vertical, and an unknown campaign/product is
+// reported as not-found rather than silently allowed.
+func TestCampaignSectorGuard(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	sellerID := "sel-cmp-" + shortID()
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		values ($1,'Campaign Sector','O','TN')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	storeID := "store-cmp-" + shortID()
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, state_code)
+		values ($1,'MART','Campaign Mart',$2,'TN')`, storeID, sellerID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	productID := "pd-cmp-" + shortID()
+	if _, err := pool.Exec(ctx, `
+		insert into catalog.products (id, app, category, name, price_paisa, store_id)
+		values ($1,'MART','Snacks','Campaign SKU',10000,$2)`, productID, storeID); err != nil {
+		t.Fatalf("seed product: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from promo.festival_campaigns where campaign_id like $1`, "cmp-test-%")
+		_, _ = pool.Exec(ctx, `delete from catalog.products where id=$1`, productID)
+		_, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID)
+	})
+
+	window := func() (string, string) {
+		start := time.Now().UTC().Add(-time.Hour).Format(time.RFC3339)
+		end := time.Now().UTC().Add(24 * time.Hour).Format(time.RFC3339)
+		return start, end
+	}
+
+	// Sector-less campaign: every product is acceptable.
+	openStart, openEnd := window()
+	openCampaign, err := repo.CreateCampaign(ctx, Campaign{
+		Name: "Open", Scope: "GLOBAL", StartsAt: openStart, EndsAt: openEnd, Status: "LIVE",
+	})
+	if err != nil {
+		t.Fatalf("CreateCampaign(open): %v", err)
+	}
+	if allowed, found, err := repo.ProductInCampaignSector(ctx, productID, openCampaign.CampaignID); err != nil || !found || !allowed {
+		t.Fatalf("sector-less campaign must accept any product: allowed=%v found=%v err=%v", allowed, found, err)
+	}
+
+	// FOOD-scoped campaign: a MART product must be refused.
+	foodStart, foodEnd := window()
+	foodCampaign, err := repo.CreateCampaign(ctx, Campaign{
+		Name: "Food Only", Scope: "GLOBAL", Sector: "FOOD",
+		StartsAt: foodStart, EndsAt: foodEnd, Status: "LIVE",
+	})
+	if err != nil {
+		t.Fatalf("CreateCampaign(food): %v", err)
+	}
+	if allowed, found, err := repo.ProductInCampaignSector(ctx, productID, foodCampaign.CampaignID); err != nil || !found || allowed {
+		t.Fatalf("FOOD campaign must refuse a MART product: allowed=%v found=%v err=%v", allowed, found, err)
+	}
+
+	// MART-scoped campaign: the same product is acceptable, and the sector round-trips on read.
+	martStart, martEnd := window()
+	martCampaign, err := repo.CreateCampaign(ctx, Campaign{
+		Name: "Mart Only", Scope: "GLOBAL", Sector: "MART",
+		StartsAt: martStart, EndsAt: martEnd, Status: "LIVE",
+	})
+	if err != nil {
+		t.Fatalf("CreateCampaign(mart): %v", err)
+	}
+	if allowed, found, err := repo.ProductInCampaignSector(ctx, productID, martCampaign.CampaignID); err != nil || !found || !allowed {
+		t.Fatalf("MART campaign must accept a MART product: allowed=%v found=%v err=%v", allowed, found, err)
+	}
+	got, ok, err := repo.Campaign(ctx, martCampaign.CampaignID)
+	if err != nil || !ok || got.Sector != "MART" {
+		t.Fatalf("campaign sector did not round-trip: ok=%v err=%v sector=%q", ok, err, got.Sector)
+	}
+
+	// Unknown ids are reported as not-found, never as an allowed write.
+	if _, found, err := repo.ProductInCampaignSector(ctx, productID, "cmp-missing"); err != nil || found {
+		t.Fatalf("unknown campaign must be not-found: found=%v err=%v", found, err)
+	}
+	if _, found, err := repo.ProductInCampaignSector(ctx, "pd-missing", openCampaign.CampaignID); err != nil || found {
+		t.Fatalf("unknown product must be not-found: found=%v err=%v", found, err)
+	}
+}

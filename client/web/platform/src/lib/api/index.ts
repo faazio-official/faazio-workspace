@@ -805,21 +805,46 @@ export function listStock(sellerId?: string, storeId?: string) {
     }));
 }
 
-export function updateStock(productId: string, quantity: number, etaMinutes: number): void {
+/**
+ * Writes one stock row. `lot` carries the regulated/perishable metadata (0123): omit a key to leave
+ * that column alone, pass an empty string to clear it.
+ */
+export function updateStock(
+  productId: string,
+  quantity: number,
+  etaMinutes: number,
+  lot: { batchNo?: string | undefined; expiryDate?: string | undefined } = {},
+): void {
   const before = state().stock.find((r) => r.productId === productId);
   // The gateway clamps ETA to 0..600 minutes; clamp here so the optimistic row matches what persists.
   const eta = Math.max(0, Math.min(600, Math.round(etaMinutes)));
+  const hasBatch = lot.batchNo !== undefined;
+  const hasExpiry = lot.expiryDate !== undefined;
   state().set((s) => ({
     stock: s.stock.map((row) =>
-      row.productId === productId ? { ...row, quantity, etaMinutes: eta, updatedAt: nowIso() } : row,
+      row.productId === productId
+        ? {
+            ...row,
+            quantity,
+            etaMinutes: eta,
+            ...(hasBatch ? { batchNo: lot.batchNo || undefined } : {}),
+            ...(hasExpiry ? { expiryDate: lot.expiryDate || undefined } : {}),
+            updatedAt: nowIso(),
+          }
+        : row,
     ),
   }));
-  // The seller inventory endpoint writes inventory.stock (qty + ETA) in one scoped call.
+  // The seller inventory endpoint writes inventory.stock (qty + ETA + lot) in one scoped call.
   pushWrite(
     "Stock update",
     "put",
     `/seller/inventory/${encodeURIComponent(productId)}`,
-    { inStockQty: quantity, etaMinutes: eta },
+    {
+      inStockQty: quantity,
+      etaMinutes: eta,
+      ...(hasBatch ? { batchNo: lot.batchNo ?? "" } : {}),
+      ...(hasExpiry ? { expiryDate: lot.expiryDate ?? "" } : {}),
+    },
     () => {
       if (!before) return;
       state().set((s) => ({
@@ -827,7 +852,7 @@ export function updateStock(productId: string, quantity: number, etaMinutes: num
       }));
     },
   );
-  audit({ action: "STOCK_UPDATE", entity: "inventory.stock", entityId: productId, after: { quantity, etaMinutes: eta } });
+  audit({ action: "STOCK_UPDATE", entity: "inventory.stock", entityId: productId, after: { quantity, etaMinutes: eta, ...lot } });
 }
 
 /* ------------------- seller console (live gateway reads) ------------------ */
@@ -859,6 +884,9 @@ export interface SellerConsoleRow {
   inStockQty: number;
   available: boolean;
   eta?: string;
+  /** Regulated/perishable lot (0123). Absent when the SKU carries none. */
+  batchNo?: string;
+  expiryDate?: string;
   reviewReason?: string;
   updatedAt: string;
 }
@@ -1624,6 +1652,9 @@ export interface SellerStoreSummary {
    */
   latitude?: number;
   longitude?: number;
+  /** Per-shop restock defaults (0123) applied when a retail SKU is turned back on. */
+  restockQty: number;
+  restockEtaMinutes: number;
 }
 
 /**
@@ -1656,6 +1687,8 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
       drugLicenseCertAssetId?: string;
       latitude?: number | null;
       longitude?: number | null;
+      restockQty?: number;
+      restockEtaMinutes?: number;
     }[]
   >("/seller/stores");
   return rows.map((row) => ({
@@ -1680,6 +1713,8 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
     ...(row.drugLicenseCertAssetId ? { drugLicenseCertAssetId: row.drugLicenseCertAssetId } : {}),
     ...(typeof row.latitude === "number" ? { latitude: row.latitude } : {}),
     ...(typeof row.longitude === "number" ? { longitude: row.longitude } : {}),
+    restockQty: row.restockQty ?? 10,
+    restockEtaMinutes: row.restockEtaMinutes ?? 30,
   }));
 }
 
@@ -1780,6 +1815,8 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     drugLicenseCertAssetId?: string;
     latitude?: number | null;
     longitude?: number | null;
+    restockQty?: number;
+    restockEtaMinutes?: number;
   }>("/seller/stores", {
     name: input.name,
     ...(input.nameTa ? { nameTa: input.nameTa } : {}),
@@ -1818,6 +1855,8 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     ...(row.drugLicenseCertAssetId ? { drugLicenseCertAssetId: row.drugLicenseCertAssetId } : {}),
     ...(typeof row.latitude === "number" ? { latitude: row.latitude } : {}),
     ...(typeof row.longitude === "number" ? { longitude: row.longitude } : {}),
+    restockQty: row.restockQty ?? 10,
+    restockEtaMinutes: row.restockEtaMinutes ?? 30,
   };
 }
 
@@ -1843,6 +1882,9 @@ export async function updateSellerStore(
     /** The shop's pin. Both or neither; omitted keeps the current pin. */
     latitude?: number;
     longitude?: number;
+    /** Per-shop restock defaults (0123). Omitted keeps the current values. */
+    restockQty?: number;
+    restockEtaMinutes?: number;
   },
 ): Promise<void> {
   if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
@@ -2040,10 +2082,18 @@ export function setSectorCap(sector: Sector, maxDiscountPercent: number, stateCo
   });
 }
 
-export function listCampaigns(filter: { stateCode?: string | undefined; scope?: CampaignScope | undefined } = {}) {
+export function listCampaigns(
+  filter: {
+    stateCode?: string | undefined;
+    scope?: CampaignScope | undefined;
+    /** Keep only campaigns open to this vertical (sector-less campaigns always pass). */
+    sector?: Sector | undefined;
+  } = {},
+) {
   return state().campaigns.filter((c) => {
     if (filter.scope && c.scope !== filter.scope) return false;
     if (filter.stateCode && c.scope === "STATE" && c.stateCode !== filter.stateCode) return false;
+    if (filter.sector && c.sector && c.sector !== filter.sector) return false;
     return true;
   });
 }
@@ -2052,6 +2102,8 @@ export interface CampaignDto {
   name: string;
   scope: CampaignScope;
   stateCode?: string | undefined;
+  /** Vertical the campaign is limited to (0123). Omitted = every vertical. */
+  sector?: Sector | undefined;
   startsAt: string;
   endsAt: string;
   bannerUrl: string;
@@ -2073,6 +2125,7 @@ export function createFestivalCampaign(dto: CampaignDto): FestivalCampaign {
       name: dto.name,
       scope: dto.scope,
       stateCode: dto.stateCode ?? "",
+      sector: dto.sector ?? "",
       startsAt: dto.startsAt,
       endsAt: dto.endsAt,
       bannerUrl: dto.bannerUrl,

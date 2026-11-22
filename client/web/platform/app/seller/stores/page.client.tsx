@@ -17,7 +17,32 @@ type VendorDraft = {
   drugLicenseNumber: string;
   drugLicenseFileKey: string;
   drugLicenseAssetId: string;
+  /** Restock defaults (0123) — retail only; kept as strings so a half-typed field is not a 0. */
+  restockQty: string;
+  restockEtaMinutes: string;
 };
+
+function draftFor(store: {
+  hours?: string | undefined;
+  nameTa?: string | undefined;
+  descTa?: string | undefined;
+  drugLicenseNumber?: string | undefined;
+  drugLicenseCertKey?: string | undefined;
+  drugLicenseCertAssetId?: string | undefined;
+  restockQty: number;
+  restockEtaMinutes: number;
+}): VendorDraft {
+  return {
+    hours: store.hours ?? "",
+    nameTa: store.nameTa ?? "",
+    descTa: store.descTa ?? "",
+    drugLicenseNumber: store.drugLicenseNumber ?? "",
+    drugLicenseFileKey: store.drugLicenseCertKey ?? "",
+    drugLicenseAssetId: store.drugLicenseCertAssetId ?? "",
+    restockQty: String(store.restockQty),
+    restockEtaMinutes: String(store.restockEtaMinutes),
+  };
+}
 
 function SellerStores() {
   const { stores, loading, reload } = useSellerStores();
@@ -28,14 +53,7 @@ function SellerStores() {
       const next = { ...current };
       for (const store of stores) {
         if (!next[store.storeId]) {
-          next[store.storeId] = {
-            hours: store.hours ?? "",
-            nameTa: store.nameTa ?? "",
-            descTa: store.descTa ?? "",
-            drugLicenseNumber: store.drugLicenseNumber ?? "",
-            drugLicenseFileKey: store.drugLicenseCertKey ?? "",
-            drugLicenseAssetId: store.drugLicenseCertAssetId ?? "",
-          };
+          next[store.storeId] = draftFor(store);
         }
       }
       return next;
@@ -58,6 +76,8 @@ function SellerStores() {
       drugLicenseAssetId?: string;
       latitude?: number;
       longitude?: number;
+      restockQty?: number;
+      restockEtaMinutes?: number;
     },
   ) => {
     try {
@@ -134,14 +154,7 @@ function SellerStores() {
           </Card>
         ) : (
           stores.map((store) => {
-            const draft = drafts[store.storeId] ?? {
-              hours: store.hours ?? "",
-              nameTa: store.nameTa ?? "",
-              descTa: store.descTa ?? "",
-              drugLicenseNumber: store.drugLicenseNumber ?? "",
-              drugLicenseFileKey: store.drugLicenseCertKey ?? "",
-              drugLicenseAssetId: store.drugLicenseCertAssetId ?? "",
-            };
+            const draft = drafts[store.storeId] ?? draftFor(store);
             return (
               <Card key={store.storeId}>
                 <div className="flex items-start justify-between gap-2">
@@ -210,6 +223,50 @@ function SellerStores() {
                       onChange={(v) => updateDraft(store.storeId, { descTa: v })}
                     />
                   </div>
+                  {store.sector !== "FOOD" && (
+                    <div className="border-t border-border pt-3">
+                      <p className="text-[11px] font-semibold">Restock defaults</p>
+                      <p className="mb-2 text-[11px] text-muted-foreground">
+                        What Inventory applies when you turn a SKU back on.
+                      </p>
+                      <div className="flex gap-2">
+                        <TextField
+                          label="Units"
+                          value={draft.restockQty}
+                          onChange={(v) =>
+                            updateDraft(store.storeId, { restockQty: v.replace(/[^0-9]/g, "") })
+                          }
+                        />
+                        <TextField
+                          label="ETA (min)"
+                          value={draft.restockEtaMinutes}
+                          onChange={(v) =>
+                            updateDraft(store.storeId, {
+                              restockEtaMinutes: v.replace(/[^0-9]/g, ""),
+                            })
+                          }
+                        />
+                      </div>
+                      <button
+                        onClick={() => {
+                          const qty = Number(draft.restockQty);
+                          const eta = Number(draft.restockEtaMinutes);
+                          if (!Number.isInteger(qty) || qty < 1 || qty > 100000) {
+                            toast.error("Units must be between 1 and 100000");
+                            return;
+                          }
+                          if (!Number.isInteger(eta) || eta < 0 || eta > 600) {
+                            toast.error("ETA must be between 0 and 600 minutes");
+                            return;
+                          }
+                          void save(store.storeId, { restockQty: qty, restockEtaMinutes: eta });
+                        }}
+                        className="mt-1 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold"
+                      >
+                        Save restock defaults
+                      </button>
+                    </div>
+                  )}
                   <button
                     onClick={() => {
                       const nameTaError = tamilFieldError(draft.nameTa, 160, "Tamil shop name");

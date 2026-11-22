@@ -368,6 +368,29 @@ type vendorRequest struct {
 	// because httpx.Decode rejects any field this struct does not declare.
 	IsVeg  *bool `json:"isVeg"`
 	IsLive *bool `json:"isLive"`
+	// Per-shop restock defaults (0123). Omitted → -1 (keep existing / schema default); the inventory
+	// console applies these when a retail SKU is turned back on.
+	RestockQty        *int `json:"restockQty"`
+	RestockEtaMinutes *int `json:"restockEtaMinutes"`
+}
+
+// restockInput normalises the optional restock defaults into the VendorInput sentinels: qty 0 means
+// "keep/default" and a negative ETA means "keep/default" (0 is a real ETA).
+func restockInput(qty, eta *int) (int, int, bool) {
+	q, e := 0, -1
+	if qty != nil {
+		if *qty < 1 || *qty > 100000 {
+			return 0, 0, false
+		}
+		q = *qty
+	}
+	if eta != nil {
+		if *eta < 0 || *eta > 600 {
+			return 0, 0, false
+		}
+		e = *eta
+	}
+	return q, e, true
 }
 
 // createStore creates a vendor owned by the calling seller (or a super admin naming sellerId). The
@@ -388,6 +411,11 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.PlatformFeePct != 0 && !validVendorFee(req.App, req.PlatformFeePct) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
+		return
+	}
+	restockQty, restockEta, restockOK := restockInput(req.RestockQty, req.RestockEtaMinutes)
+	if !restockOK {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "restock defaults are out of range")
 		return
 	}
 	if !validTamilOpt(req.NameTA, 160) || !validTamilOpt(req.DescTA, 2000) {
@@ -447,6 +475,8 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 		DrugLicenseCertAssetID: strings.TrimSpace(req.DrugLicenseAssetID),
 		IsVeg:                  req.IsVeg,
 		IsLive:                 req.IsLive,
+		RestockQty:             restockQty,
+		RestockEtaMinutes:      restockEta,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "vendor_create_failed", "could not create vendor")
@@ -527,6 +557,11 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	restockQty, restockEta, restockOK := restockInput(req.RestockQty, req.RestockEtaMinutes)
+	if !restockOK {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "restock defaults are out of range")
+		return
+	}
 	// Licences are optional and may be attached later; if supplied they must be paired (checked above).
 	// Sellers cannot edit the fee directly; they file a fee-change request. Admins may set it, but
 	// validation is keyed on the store's actual app (never a client-supplied one).
@@ -555,6 +590,8 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		DrugLicenseCertAssetID: strings.TrimSpace(req.DrugLicenseAssetID),
 		IsVeg:                  req.IsVeg,
 		IsLive:                 req.IsLive,
+		RestockQty:             restockQty,
+		RestockEtaMinutes:      restockEta,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "vendor_update_failed", "could not update vendor")

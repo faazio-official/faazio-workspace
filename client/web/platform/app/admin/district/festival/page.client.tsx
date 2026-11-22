@@ -50,6 +50,8 @@ function StateFestival() {
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
+  // Empty = the campaign covers every vertical; a value limits it to that sector's products (0123).
+  const [sector, setSector] = useState<Sector | "ALL">("ALL");
 
   const canCreate = name.trim().length > 2 && startsAt !== "" && endsAt !== "" && startsAt < endsAt;
 
@@ -113,6 +115,22 @@ function StateFestival() {
               onChange={(e) => setEndsAt(e.target.value)}
             />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="cmp-sector">Sector</Label>
+            <Select value={sector} onValueChange={(v) => setSector(v as Sector | "ALL")}>
+              <SelectTrigger id="cmp-sector">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All sectors</SelectItem>
+                {SECTORS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         {startsAt && endsAt && startsAt >= endsAt ? (
           <p className="mt-2 text-[12px] text-destructive">The end date must be after the start date.</p>
@@ -126,6 +144,7 @@ function StateFestival() {
                 name: name.trim(),
                 scope: "STATE",
                 stateCode,
+                ...(sector === "ALL" ? {} : { sector }),
                 startsAt: new Date(startsAt).toISOString(),
                 endsAt: new Date(endsAt).toISOString(),
                 bannerUrl: bannerUrl.trim() || "https://cdn.faazio.dev/banners/state-festival.png",
@@ -135,6 +154,7 @@ function StateFestival() {
               setStartsAt("");
               setEndsAt("");
               setBannerUrl("");
+              setSector("ALL");
               toast.success("Campaign created as DRAFT");
             }}
           >

@@ -41,8 +41,13 @@ export function FestivalOptins({
   const { sellerId, storeId, activeStore } = useSellerScope();
   const loading = usePortalLoading();
   const products = useProducts({ sellerId, storeId });
+  const activeSector = activeStore?.sector;
+  // A sector-scoped campaign (0123) only accepts products of its own vertical, so offering it to a
+  // shop of another sector would guarantee a server 403. Sector-less campaigns stay visible to all.
   const campaigns = useCampaigns().filter(
-    (c) => c.status === "LIVE" || c.status === "SCHEDULED",
+    (c) =>
+      (c.status === "LIVE" || c.status === "SCHEDULED") &&
+      !(sectorScoped && activeSector && c.sector && c.sector !== activeSector),
   );
   const caps = useSectorCaps();
   const optins = useOptins({ sellerId });
@@ -87,6 +92,7 @@ export function FestivalOptins({
                 <span className="block text-[10px] text-muted-foreground">
                   {formatDate(campaign.startsAt)} → {formatDate(campaign.endsAt)} ·{" "}
                   {campaign.scope === "STATE" ? campaign.stateCode : "All states"}
+                  {campaign.sector ? ` · ${campaign.sector} only` : ""}
                 </span>
               </span>
               <span
@@ -261,7 +267,7 @@ export function FestivalOptins({
           <RadioRow
             key={c.campaignId}
             label={c.name}
-            sub={`${formatDate(c.startsAt)} → ${formatDate(c.endsAt)}`}
+            sub={`${formatDate(c.startsAt)} → ${formatDate(c.endsAt)}${c.sector ? ` · ${c.sector} only` : ""}`}
             checked={campaign?.campaignId === c.campaignId}
             onClick={() => {
               setCampaignId(c.campaignId);

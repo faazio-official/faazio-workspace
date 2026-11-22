@@ -24,11 +24,17 @@
      image, name, an **In stock / Low stock / Out of stock** pill, `qty in stock • ETA` and price.
    - Turning a row **off** opens the ETA sheet (2h / 4h / next business day / custom date+time /
      manual) and writes `updateStock(productId, 0, etaMinutes)`; turning it **on** restocks to the
-     local defaults `RESTOCK_QTY=10` / `RESTOCK_ETA=30` via `updateStock(productId, 10, 30)`.
+     **shop's own** defaults — `directory.stores.restock_qty` / `restock_eta_minutes` (0123, set on
+     `/seller/stores`), falling back to 10 units / 30 min only when the shop has none.
+   - **Batch & expiry** (0123): a **Lot** button on each row opens a sheet for `batchNo` +
+     `expiryDate`, written through the same `PUT /seller/inventory/{productId}`. The lot renders under
+     the row; an expiry in the past turns the row's pill to **Out of stock** and greys the toggle,
+     because the gateway treats a past `expiry_date` as unavailable on every read.
    - A **low-stock-only** filter and a name search narrow the list; a **Jump** sheet scrolls to a
      category.
    - **Pharmacy nuance:** a row whose product is prescription-only carries a read-only **Rx** badge
-     so regulated stock is visually distinct. No veg mark, cuisine or add-on linking is rendered.
+     so regulated stock is visually distinct, and its batch/expiry is the regulated lot. No veg mark,
+     cuisine or add-on linking is rendered.
 4. Both views show the same "Want to edit your catalog or items?" shortcut to `/seller/products`.
 
 ## State
@@ -44,7 +50,11 @@
   + `DELETE /seller/menu-addons/{venueId}/{dishId}/{addonId}` → `directory.addons` +
   `directory.menu_addon_links`.
 - Retail: `GET /seller/inventory` → `inventory.stock` (+ `catalog.products`);
-  `PUT /seller/inventory/{productId}` writes qty + ETA (gateway clamps ETA to 0..600 min).
+  `PUT /seller/inventory/{productId}` writes qty + ETA (gateway clamps ETA to 0..600 min) and,
+  optionally, `batchNo` / `expiryDate` (`YYYY-MM-DD`; an explicit empty string clears the column).
+- Availability is *effective* availability: every product/stock read computes
+  `available and (expiry_date is null or expiry_date >= current_date)`, and the checkout
+  `Decrement` adds the same expiry clause, so an expired lot can never be sold.
 - Ownership/sector: the gateway scopes every menu/add-on write to the seller's store **and** requires
   the store's `app` to be `FOOD`, so a Mart/Pharmacy shop cannot write the Food tables even by id.
 
@@ -59,10 +69,10 @@
 
 ## Known gaps
 
-- Restock qty/ETA are local defaults (`RESTOCK_QTY`/`RESTOCK_ETA`), not per-shop settings. See
-  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
-- Batch/expiry metadata is not modelled on `catalog.products`, so Pharmacy rows show only the **Rx**
-  badge (no expiry column yet).
+- Batch/expiry is **single-lot per product row** (`inventory.stock.batch_no` / `expiry_date`): two
+  batches of the same SKU on the shelf at once cannot both be represented.
+- The low-stock threshold is still the client constant `12` (`src/lib/api/sync.ts`); restock qty/ETA
+  are per-shop. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

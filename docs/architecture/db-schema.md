@@ -1298,6 +1298,7 @@ CREATE TABLE sellers.bank_accounts (bank_account_id PK, seller_id FK,
 CREATE TABLE promo.sector_caps        (cap_id PK, sector app_brand, state_code CHAR(2),
   max_discount SMALLINT CHECK 0–90, updated_at);
 CREATE TABLE promo.festival_campaigns (campaign_id PK, name, scope campaign_scope, state_code,
+  sector app_brand /* 0123; NULL = every vertical */,
   starts_at/ends_at TIMESTAMPTZ CHECK ends_at>starts_at, status campaign_status, created_by);
 CREATE TABLE promo.festival_optins    (optin_id PK, campaign_id FK, seller_id FK, product_id,
   discount SMALLINT 0–90, status optin_status, UNIQUE(campaign_id,product_id));
@@ -2963,6 +2964,29 @@ create policy district_master_delete on admins.district_master for delete to aut
   through `contracts.AuditWriter` (best-effort, same pattern as the category taxonomy).
 
 ### 12.43 GST rate master + mandatory per-category GST (migrations `0116`–`0120`)
+
+### 12.44 Inventory lot metadata (0123)
+
+**Authority:** `monolith-breakdown.md` §1 (`inventory` row), `web-portal.md` (stock UI), `user-interaction-workflow/seller/catalog/inventory.md`.
+
+The `inventory.stock` table now carries two optional columns for regulated products:
+
+```sql
+ALTER TABLE inventory.stock
+  ADD COLUMN batch_no TEXT,
+  ADD COLUMN expiry_date DATE;
+```
+
+* `batch_no` – free‑form identifier for the lot (e.g. `B‑001`).
+* `expiry_date` – ISO‑8601 date; rows with a past date are considered **unavailable** on every read (public product view, seller console, checkout decrement). The gateway treats an empty string as `NULL`, preserving existing rows.
+
+All reads (`GET /seller/inventory`, `GET /seller/pricing`, public product read) compute `available && (expiry_date IS NULL OR expiry_date >= CURRENT_DATE)`. The seller UI shows the batch and expiry in the inventory sheet; clearing `expiry_date` restores availability without touching `available`.
+
+*Server‑side enforcement:* `inventory.stock` RLS policy (`stock_rls`) already restricts reads to the owning seller; the new columns are part of the same policy.
+
+*Client‑side:* the retail view (`src/components/sellers/inventory/retail-view.tsx`) renders a **Lot** button for each row, opening a sheet to edit `batch_no` and `expiry_date`. The write API (`PUT /seller/inventory/{productId}`) accepts these fields as optional strings.
+
+*Cache:* stock rows are cached under `faazio:v1:catalog:product:{id}`; changes to `batch_no` or `expiry_date` purge the same cache keys as quantity updates.
 
 **Authority:** `monolith-breakdown.md` §1 (`tax` row), `web-portal.md` (GST rates + Categories pages),
 `user-interaction-workflow/seller/web-portal/super-admin-gst-rates.md`,

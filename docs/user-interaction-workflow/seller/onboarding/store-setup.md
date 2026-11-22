@@ -31,6 +31,10 @@
    zeroed. Sellers file `POST /sellers/{id}/platform-fee-request` from the portal page
    `/seller/fee-change-request` instead — see
    [`../web-portal/fee-change-requests.md`](../web-portal/fee-change-requests.md).
+   A Mart/Pharmacy shop also carries **restock defaults** (0123) — `restockQty` (1..100000) and
+   `restockEtaMinutes` (0..600) on `directory.stores`, edited from `/seller/stores` and applied by
+   `/seller/inventory` when a SKU is turned back on. Omitted fields keep the current values; a new
+   shop defaults to 10 units / 30 min.
 5. Seller toggles live/offline with `PUT /seller/stores/{id}/live`. `PUT /seller/stores/{id}/cover`
    exists on the gateway but no client calls it yet.
 6. A vendor is a `directory.stores` row with a NOT NULL `seller_id`; products/menus derive ownership

@@ -14,11 +14,23 @@ import { formatINR } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { Sector } from "@/data/types";
 
-/** Back-in-stock qty + ETA the seller console writes when a product is turned on. */
-const RESTOCK_QTY = 10;
-const RESTOCK_ETA = 30;
+/**
+ * Fallbacks used only when the active shop has no restock defaults on the wire (an older gateway, or
+ * a shop created before 0123). The real values come from `directory.stores.restock_qty` /
+ * `restock_eta_minutes`, because a mart restocking a sack and a pharmacy restocking a strip do not
+ * share a unit count.
+ */
+const FALLBACK_RESTOCK_QTY = 10;
+const FALLBACK_RESTOCK_ETA = 30;
 
 type OosItem = { productId: string; name: string } | null;
+type LotItem = { productId: string; name: string; batchNo: string; expiryDate: string } | null;
+
+/** True when the lot is past its expiry date (the server also treats it as unavailable). */
+function isExpired(expiryDate?: string): boolean {
+  if (!expiryDate) return false;
+  return expiryDate < new Date().toISOString().slice(0, 10);
+}
 
 function stockLabel(quantity: number, etaMinutes: number): string {
   if (quantity <= 0) return "Out of stock";
@@ -43,7 +55,15 @@ function StockPill({ quantity, lowStockThreshold }: { quantity: number; lowStock
   );
 }
 
-function OosSheet({ item, onClose }: { item: OosItem; onClose: () => void }) {
+function OosSheet({
+  item,
+  restockEta,
+  onClose,
+}: {
+  item: OosItem;
+  restockEta: number;
+  onClose: () => void;
+}) {
   const [opt, setOpt] = useState("2h");
   const [date, setDate] = useState(new Date(Date.now() + 864e5).toISOString().slice(0, 10));
   const [time, setTime] = useState("10:00");
@@ -63,7 +83,7 @@ function OosSheet({ item, onClose }: { item: OosItem; onClose: () => void }) {
         0,
         Math.round((new Date(`${date}T${time || "00:00"}`).getTime() - Date.now()) / 60000),
       );
-    return RESTOCK_ETA;
+    return restockEta;
   };
   return (
     <Sheet
@@ -125,21 +145,103 @@ function OosSheet({ item, onClose }: { item: OosItem; onClose: () => void }) {
   );
 }
 
+/** Batch + expiry editor for one SKU (0123). A pharmacy/pharma row records the lot it is selling. */
+function LotSheet({
+  item,
+  onSave,
+  onClose,
+}: {
+  item: LotItem;
+  onSave: (productId: string, batchNo: string, expiryDate: string) => void;
+  onClose: () => void;
+}) {
+  const [batch, setBatch] = useState(item?.batchNo ?? "");
+  const [expiry, setExpiry] = useState(item?.expiryDate ?? "");
+  return (
+    <Sheet
+      open={item !== null}
+      onClose={onClose}
+      title="Batch & expiry"
+      footer={
+        <div className="flex gap-2">
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold"
+          >
+            Back
+          </button>
+          <button
+            onClick={() => {
+              if (!item) return;
+              onSave(item.productId, batch.trim(), expiry);
+              onClose();
+            }}
+            className="flex-1 rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background"
+          >
+            Save
+          </button>
+        </div>
+      }
+    >
+      <p className="mb-3 text-xs text-muted-foreground">
+        {item?.name} — leave both blank for a SKU that carries no lot or expiry.
+      </p>
+      <label className="mb-1 block text-[11px] font-semibold" htmlFor="lot-batch">
+        Batch / lot number
+      </label>
+      <input
+        id="lot-batch"
+        value={batch}
+        maxLength={40}
+        onChange={(e) => setBatch(e.target.value)}
+        placeholder="e.g. B-2291"
+        className="mb-3 w-full rounded-lg border border-border px-3 py-2 text-sm"
+      />
+      <label className="mb-1 block text-[11px] font-semibold" htmlFor="lot-expiry">
+        Expiry date
+      </label>
+      <input
+        id="lot-expiry"
+        type="date"
+        value={expiry}
+        onChange={(e) => setExpiry(e.target.value)}
+        className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+      />
+      {expiry && isExpired(expiry) && (
+        <p className="mt-2 text-[11px] font-semibold text-brand">
+          This date is in the past — the SKU stops being sellable.
+        </p>
+      )}
+    </Sheet>
+  );
+}
+
 export function RetailStockInventoryView({
   sellerId,
   storeId,
   sector,
+  restockQty,
+  restockEtaMinutes,
 }: {
   sellerId: string;
   storeId: string;
   sector: Sector;
+  /** Per-shop restock defaults (0123); falls back to 10 units / 30 min when the shop has none. */
+  restockQty?: number | undefined;
+  restockEtaMinutes?: number | undefined;
 }) {
   const rows = useStock(sellerId, storeId);
   const [q, setQ] = useState("");
   const [onlyLow, setOnlyLow] = useState(false);
   const [oos, setOos] = useState<OosItem>(null);
+  const [lot, setLot] = useState<LotItem>(null);
   const [jump, setJump] = useState(false);
   const ql = q.toLowerCase();
+  const restockQtyValue = restockQty && restockQty > 0 ? restockQty : FALLBACK_RESTOCK_QTY;
+  const restockEtaValue =
+    typeof restockEtaMinutes === "number" && restockEtaMinutes >= 0
+      ? restockEtaMinutes
+      : FALLBACK_RESTOCK_ETA;
 
   const lowCount = rows.filter((r) => r.quantity <= r.lowStockThreshold).length;
 
@@ -245,7 +347,10 @@ export function RetailStockInventoryView({
                   <div className="min-w-0 flex-1">
                     <div className="flex min-w-0 items-center gap-1.5">
                       <p className="min-w-0 truncate text-sm">{r.product.name}</p>
-                      <StockPill quantity={r.quantity} lowStockThreshold={r.lowStockThreshold} />
+                      <StockPill
+                        quantity={isExpired(r.expiryDate) ? 0 : r.quantity}
+                        lowStockThreshold={r.lowStockThreshold}
+                      />
                       {sector === "PHARMA" && r.product.isPrescription && (
                         <span className="shrink-0 rounded bg-info-soft px-1.5 py-0.5 text-[9px] font-bold uppercase text-info">
                           Rx
@@ -255,13 +360,39 @@ export function RetailStockInventoryView({
                     <p className={cn("text-[10px]", r.quantity <= 0 ? "text-brand" : "text-muted-foreground")}>
                       {stockLabel(r.quantity, r.etaMinutes)} · {formatINR(r.product.pricePaisa)}
                     </p>
+                    {(r.batchNo || r.expiryDate) && (
+                      <p
+                        className={cn(
+                          "text-[10px]",
+                          isExpired(r.expiryDate) ? "font-semibold text-brand" : "text-muted-foreground",
+                        )}
+                      >
+                        {r.batchNo ? `Batch ${r.batchNo}` : "No batch"}
+                        {r.expiryDate ? ` · Exp ${r.expiryDate}` : ""}
+                        {isExpired(r.expiryDate) ? " · expired" : ""}
+                      </p>
+                    )}
                   </div>
+                  <button
+                    aria-label={`Batch and expiry for ${r.product.name}`}
+                    onClick={() =>
+                      setLot({
+                        productId: r.productId,
+                        name: r.product.name,
+                        batchNo: r.batchNo ?? "",
+                        expiryDate: r.expiryDate ?? "",
+                      })
+                    }
+                    className="shrink-0 rounded-lg border border-border px-2 py-1 text-[10px] font-semibold text-muted-foreground hover:bg-muted"
+                  >
+                    Lot
+                  </button>
                   <Toggle
                     label={r.product.name}
-                    checked={r.quantity > 0}
+                    checked={r.quantity > 0 && !isExpired(r.expiryDate)}
                     onChange={(v) => {
                       if (v) {
-                        updateStock(r.productId, RESTOCK_QTY, RESTOCK_ETA);
+                        updateStock(r.productId, restockQtyValue, restockEtaValue);
                         toast.success(`${r.product.name} is back in stock`);
                       } else {
                         setOos({ productId: r.productId, name: r.product.name });
@@ -305,7 +436,19 @@ export function RetailStockInventoryView({
         ))}
       </Sheet>
 
-      <OosSheet item={oos} onClose={() => setOos(null)} />
+      <OosSheet item={oos} restockEta={restockEtaValue} onClose={() => setOos(null)} />
+      <LotSheet
+        item={lot}
+        onClose={() => setLot(null)}
+        onSave={(productId, batchNo, expiryDate) => {
+          const row = rows.find((r) => r.productId === productId);
+          updateStock(productId, row?.quantity ?? 0, row?.etaMinutes ?? restockEtaValue, {
+            batchNo,
+            expiryDate,
+          });
+          toast.success("Batch details saved");
+        }}
+      />
     </>
   );
 }

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
@@ -622,14 +623,34 @@ func (h *Handler) setSellerInventory(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		InStockQty *int64 `json:"inStockQty"`
 		EtaMinutes *int64 `json:"etaMinutes"`
+		// Batch/expiry (0123). A present empty string clears the lot; an absent field leaves it.
+		BatchNo    *string `json:"batchNo"`
+		ExpiryDate *string `json:"expiryDate"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
 		return
 	}
-	if body.InStockQty == nil && body.EtaMinutes == nil {
+	if body.InStockQty == nil && body.EtaMinutes == nil && body.BatchNo == nil && body.ExpiryDate == nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "nothing to update")
 		return
+	}
+	if body.BatchNo != nil && len(strings.TrimSpace(*body.BatchNo)) > 40 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid batch number")
+		return
+	}
+	if body.ExpiryDate != nil {
+		v := strings.TrimSpace(*body.ExpiryDate)
+		if v != "" {
+			// YYYY-MM-DD only; a parsed date is normalised so "2027-1-5" cannot reach the column.
+			d, perr := time.Parse("2006-01-02", v)
+			if perr != nil {
+				httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid expiry date")
+				return
+			}
+			v = d.Format("2006-01-02")
+		}
+		body.ExpiryDate = &v
 	}
 	if body.InStockQty != nil && (*body.InStockQty < 0 || *body.InStockQty > 1_000_000) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid stock quantity")
@@ -644,8 +665,11 @@ func (h *Handler) setSellerInventory(w http.ResponseWriter, r *http.Request) {
 		v := strconv.FormatInt(*body.EtaMinutes, 10)
 		eta = &v
 	}
-	h.applyProductEdit(w, r, id, ProductEdit{InStockQty: body.InStockQty, Eta: eta}, "INVENTORY_UPDATE",
-		map[string]any{"inStockQty": body.InStockQty, "etaMinutes": body.EtaMinutes})
+	h.applyProductEdit(w, r, id, ProductEdit{
+		InStockQty: body.InStockQty, Eta: eta, BatchNo: body.BatchNo, ExpiryDate: body.ExpiryDate,
+	}, "INVENTORY_UPDATE",
+		map[string]any{"inStockQty": body.InStockQty, "etaMinutes": body.EtaMinutes,
+			"batchNo": body.BatchNo, "expiryDate": body.ExpiryDate})
 }
 
 // sellerPricing lists the caller's price rows (GET /seller/pricing). Same projection as inventory;

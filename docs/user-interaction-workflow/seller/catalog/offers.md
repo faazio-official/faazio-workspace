@@ -18,8 +18,10 @@ sector-scoped surface — Food shops keep **Menu** in the Offers slot instead.
    (`sectorScoped`). `/seller/offers` and `/seller/promotions` both pass `sectorScoped`, so the
    product list and the sector-cap card match the shop the seller is standing in.
 3. Live and scheduled campaigns are listed (`GET /promo/campaigns`; the seeded store slice is
-   hydrated by the sync pass). The first campaign is selected; the header button opens a sheet to
-   switch campaign.
+   hydrated by the sync pass). A **sector-scoped** campaign (`festival_campaigns.sector`, 0123) is
+   hidden when it belongs to another vertical, because the gateway would reject the opt-in; a
+   sector-less campaign stays visible to every shop. The first campaign is selected; the header
+   button opens a sheet to switch campaign.
 4. The page reads the seller's own opt-ins (`GET /promo/optins`) and the sector caps
    (`GET /promo/sector-caps`, now seller-readable) so the discount bound matches the cap the
    gateway applies at price time.
@@ -50,6 +52,10 @@ sector-scoped surface — Food shops keep **Menu** in the Offers slot instead.
   that **the product's `app` matches that store's `app`** — so a Food product can never be opted into
   a Mart/Pharmacy campaign by a tab switch or a direct API call. Cross-seller overwrites are rejected
   with `409 optin_owned`; a cross-store or cross-sector product is `403 forbidden`.
+- Campaign vertical (0123): `ProductInCampaignSector` also checks the campaign's own `sector`. A
+  sector-less campaign accepts any product; a `FOOD` campaign refuses a `MART` SKU with
+  `403 forbidden` ("campaign is limited to another sector"); an unknown campaign or product is
+  `404 not_found` rather than an allowed write.
 - Cap enforcement: the client validates against the selected campaign's state override (else the
   global cap). `ActiveDiscounts` applies the same cap at read time, so an over-cap opt-in can never
   leak an uncapped shopper price.
@@ -71,8 +77,8 @@ sector-scoped surface — Food shops keep **Menu** in the Offers slot instead.
   the campaign scope against the seller's store state; a seller could submit a campaign id from
   another state. The client only lists `LIVE`/`SCHEDULED` campaigns and shows the campaign scope,
   but the server-side scope guard should be added before relying on state isolation.
-- `/seller/menus` is still reachable by direct URL for Mart/Pharmacy sellers; the nav and Explore
-  no longer link it, but the page itself is not role-gated.
+- A campaign's `sector` is set at creation only: the admin console has no edit path, so re-scoping an
+  existing campaign means a new campaign.
 
 ## Linked docs
 

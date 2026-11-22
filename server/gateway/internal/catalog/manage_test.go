@@ -333,3 +333,76 @@ func TestProductEditAndTrash(t *testing.T) {
 		t.Fatalf("stock survived purge")
 	}
 }
+
+// TestStockExpiryHidesProduct locks the 0123 expiry rule: a stock row past its expiry_date reads as
+// unavailable on both the public product read and the seller console projection, without anyone
+// flipping `available`. Clearing the expiry (an empty string on the edit) restores it.
+func TestStockExpiryHidesProduct(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	sellerID := "sel-exp-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
+		values ($1,'Expiry Test','O','TN','TCH')`, sellerID); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	storeID := "store-exp-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into directory.stores (id, app, name, seller_id, state_code)
+		values ($1,'PHARMA','Expiry Pharmacy',$2,'TN')`, storeID, sellerID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+	productID := "pd-exp-" + manageID("")
+	if _, err := pool.Exec(ctx, `
+		insert into catalog.products (id, app, category, name, price_paisa, store_id, status)
+		values ($1,'PHARMA','Tablets','Expiry SKU',10000,$2,'ACTIVE')`, productID, storeID); err != nil {
+		t.Fatalf("seed product: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `
+		insert into inventory.stock (product_id, available, in_stock_qty, price_paisa, eta, batch_no, expiry_date)
+		values ($1, true, 25, 10000, '30', 'B-1', current_date - 1)`, productID); err != nil {
+		t.Fatalf("seed stock: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from inventory.stock where product_id=$1`, productID)
+		_, _ = pool.Exec(ctx, `delete from catalog.products where id=$1`, productID)
+		_, _ = pool.Exec(ctx, `delete from directory.stores where id=$1`, storeID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID)
+	})
+
+	// Public read: the row exists but reports unavailable while expired.
+	p, found, err := repo.ByID(ctx, productID)
+	if err != nil || !found {
+		t.Fatalf("ByID: found=%v err=%v", found, err)
+	}
+	if p.Stock == nil || p.Stock.Available {
+		t.Fatalf("expired stock must read unavailable, got %+v", p.Stock)
+	}
+	if p.Stock.ExpiryDate == "" || p.Stock.BatchNo != "B-1" {
+		t.Fatalf("lot metadata missing from public read: %+v", p.Stock)
+	}
+
+	// Seller console: same effective availability, and the lot is visible for editing.
+	row, found, err := repo.UpdateProduct(ctx, productID, sellerID, "", ProductEdit{})
+	if err != nil || !found {
+		t.Fatalf("UpdateProduct(noop): found=%v err=%v", found, err)
+	}
+	if row.Available {
+		t.Fatalf("expired stock must read unavailable on the seller projection: %+v", row)
+	}
+	if row.BatchNo != "B-1" || row.ExpiryDate == "" {
+		t.Fatalf("seller projection dropped the lot: batch=%q expiry=%q", row.BatchNo, row.ExpiryDate)
+	}
+
+	// Clearing the expiry restores sellability without touching `available`.
+	empty := ""
+	cleared, found, err := repo.UpdateProduct(ctx, productID, sellerID, "", ProductEdit{ExpiryDate: &empty})
+	if err != nil || !found {
+		t.Fatalf("UpdateProduct(clear expiry): found=%v err=%v", found, err)
+	}
+	if !cleared.Available || cleared.ExpiryDate != "" {
+		t.Fatalf("cleared expiry must restore availability: %+v", cleared)
+	}
+}

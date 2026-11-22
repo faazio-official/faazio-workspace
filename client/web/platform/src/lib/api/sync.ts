@@ -376,6 +376,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
         ...c,
         scope: c.scope as CampaignScope,
         status: c.status as CampaignStatus,
+        sector: (c.sector as Sector | undefined) ?? undefined,
       }),
     );
     touched = true;
@@ -636,6 +637,8 @@ export async function hydrateFromGateway(): Promise<boolean> {
         quantity: raw.inStockQty,
         lowStockThreshold: 12,
         etaMinutes: parseEtaMinutes(raw.eta),
+        ...(raw.batchNo ? { batchNo: raw.batchNo } : {}),
+        ...(raw.expiryDate ? { expiryDate: raw.expiryDate } : {}),
         updatedAt: raw.updatedAt,
       }),
     );

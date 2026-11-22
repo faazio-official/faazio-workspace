@@ -63,6 +63,8 @@ function SuperFestival() {
   const [name, setName] = useState("");
   const [startsAt, setStartsAt] = useState("");
   const [endsAt, setEndsAt] = useState("");
+  // Empty/ALL = the campaign covers every vertical; a value limits it to that sector (0123).
+  const [sector, setSector] = useState<Sector | "ALL">("ALL");
 
   const optinGmv = optins.reduce(
     (total, optin) => total + (productTotal.get(optin.productId)?.gmvPaisa ?? 0),
@@ -231,6 +233,22 @@ function SuperFestival() {
               onChange={(e) => setEndsAt(e.target.value)}
             />
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="g-sector">Sector</Label>
+            <Select value={sector} onValueChange={(v) => setSector(v as Sector | "ALL")}>
+              <SelectTrigger id="g-sector">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All sectors</SelectItem>
+                {SECTORS.map((s) => (
+                  <SelectItem key={s} value={s}>
+                    {s}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </div>
         <div className="mt-4 flex items-center justify-end gap-1.5">
           <ComponentHelp id="create-campaign-button" label="About creating a campaign" />
@@ -241,6 +259,7 @@ function SuperFestival() {
               createFestivalCampaign({
                 name: name.trim(),
                 scope: "GLOBAL",
+                ...(sector === "ALL" ? {} : { sector }),
                 startsAt: new Date(startsAt).toISOString(),
                 endsAt: new Date(endsAt).toISOString(),
                 bannerUrl: "https://cdn.faazio.dev/banners/faazio-utsav.png",
@@ -249,6 +268,7 @@ function SuperFestival() {
               setName("");
               setStartsAt("");
               setEndsAt("");
+              setSector("ALL");
               toast.success("Global campaign created as DRAFT");
             }}
           >

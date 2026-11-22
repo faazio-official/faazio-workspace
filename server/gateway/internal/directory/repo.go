@@ -433,6 +433,11 @@ type SellerStore struct {
 	// portal reads it back to show whether the shop is actually routable.
 	Latitude  *float64 `json:"latitude,omitempty"`
 	Longitude *float64 `json:"longitude,omitempty"`
+	// Per-shop restock defaults (0123): the quantity and ETA the inventory console applies when a
+	// retail SKU is turned back on. A mart restocking a sack and a pharmacy restocking a strip do not
+	// share a unit count, so these belong to the shop rather than the client bundle.
+	RestockQty        int `json:"restockQty"`
+	RestockEtaMinutes int `json:"restockEtaMinutes"`
 }
 
 // MenuOrVenueSeller resolves the seller that owns a menu row's venue. Ownership derives through the
@@ -500,7 +505,8 @@ func (r *Repo) SellerStores(ctx context.Context, sellerID, district string) ([]S
 			&s.IsVeg, &s.IsLive, &s.Rating, &updatedAt, &s.PlatformFeePct, &s.SellerCategoryID,
 			&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID,
 			&s.DrugLicenseNumber, &s.DrugLicenseCertKey, &s.DrugLicenseCertAssetID,
-			&s.NameTA, &s.DescTA, &s.Latitude, &s.Longitude); err != nil {
+			&s.NameTA, &s.DescTA, &s.Latitude, &s.Longitude,
+			&s.RestockQty, &s.RestockEtaMinutes); err != nil {
 			return nil, err
 		}
 		s.Rating = math.Round(s.Rating*10) / 10
@@ -584,7 +590,8 @@ const sellerStoreColumns = `s.id, s.name, s.app::text, coalesce(s.seller_id,''),
 	coalesce(s.is_veg,false), s.is_live, s.rating, s.updated_at, s.platform_fee_pct, coalesce(s.seller_category_id,''),
 	coalesce(s.fssai_number,''), coalesce(s.fssai_cert_key,''), coalesce(s.fssai_cert_asset_id,''),
 	coalesce(s.drug_license_number,''), coalesce(s.drug_license_cert_key,''), coalesce(s.drug_license_cert_asset_id,''),
-	coalesce(s.name_ta,''), coalesce(s.desc_text_ta,''), s.latitude, s.longitude`
+	coalesce(s.name_ta,''), coalesce(s.desc_text_ta,''), s.latitude, s.longitude,
+	s.restock_qty, s.restock_eta_minutes`
 
 func scanSellerStore(row pgx.Row) (SellerStore, error) {
 	var (
@@ -595,7 +602,8 @@ func scanSellerStore(row pgx.Row) (SellerStore, error) {
 		&s.IsVeg, &s.IsLive, &s.Rating, &updatedAt, &s.PlatformFeePct, &s.SellerCategoryID,
 		&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID,
 		&s.DrugLicenseNumber, &s.DrugLicenseCertKey, &s.DrugLicenseCertAssetID,
-		&s.NameTA, &s.DescTA, &s.Latitude, &s.Longitude); err != nil {
+		&s.NameTA, &s.DescTA, &s.Latitude, &s.Longitude,
+		&s.RestockQty, &s.RestockEtaMinutes); err != nil {
 		return SellerStore{}, err
 	}
 	s.Rating = math.Round(s.Rating*10) / 10
@@ -632,6 +640,11 @@ type VendorInput struct {
 	// to false on create.
 	IsVeg  *bool
 	IsLive *bool
+	// Restock defaults (0123). RestockQty 0 keeps the current value on update and falls back to 10 on
+	// create (a restock quantity of 0 is meaningless). RestockEtaMinutes is negative when unset — 0 is
+	// a real value ("ready now"), so it cannot double as the "keep" sentinel.
+	RestockQty        int
+	RestockEtaMinutes int
 }
 
 // CreateStore inserts a vendor owned by sellerID under the caller's scope. stateCode is the owning
@@ -657,14 +670,15 @@ func (r *Repo) CreateStore(ctx context.Context, sellerID, stateCode string, in V
 		  (id, app, name, seller_id, state_code, address, phone, hours, latitude, longitude,
 		   platform_fee_pct, seller_category_id, fssai_number, fssai_cert_key, fssai_cert_asset_id,
 		   drug_license_number, drug_license_cert_key, drug_license_cert_asset_id, is_veg, is_live,
-		   name_ta, desc_text_ta)
+		   name_ta, desc_text_ta, restock_qty, restock_eta_minutes)
 		values ($1, $2::app_brand, $3, $4, nullif($5,''), nullif($6,''), nullif($7,''), nullif($8,''),
-		        $9, $10, $11, nullif($12,''), $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+		        $9, $10, $11, nullif($12,''), $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
+		        coalesce(nullif($23,0), 10), case when $24 <= 0 then 30 else $24 end)
 		returning `+sellerStoreColumns,
 		"store-"+storeID(), in.App, in.Name, sellerID, stateCode, in.Address, in.Phone, in.Hours,
 		in.Latitude, in.Longitude, fee, in.SellerCategoryID, in.FSSAINumber, in.FSSAICertKey,
 		in.FSSAICertAssetID, in.DrugLicenseNumber, in.DrugLicenseCertKey, in.DrugLicenseCertAssetID,
-		veg, live, in.NameTA, in.DescTA))
+		veg, live, in.NameTA, in.DescTA, in.RestockQty, in.RestockEtaMinutes))
 }
 
 // UpdateStore edits a vendor, scoped to the caller's seller_id or district (strict) exactly like
@@ -694,6 +708,8 @@ func (r *Repo) UpdateStore(ctx context.Context, id, sellerID, district string, i
 		  is_veg = coalesce($21, s.is_veg),
 		  name_ta = coalesce($19, s.name_ta),
 		  desc_text_ta = coalesce($20, s.desc_text_ta),
+		  restock_qty = case when $23 = 0 then s.restock_qty else $23 end,
+		  restock_eta_minutes = case when $24 < 0 then s.restock_eta_minutes else $24 end,
 		  updated_at = now()
 		 where s.id = $1 and (
 		       ($2 <> '' and s.seller_id = $2) or
@@ -705,7 +721,7 @@ func (r *Repo) UpdateStore(ctx context.Context, id, sellerID, district string, i
 		id, sellerID, in.Name, in.Address, in.Phone, in.Hours, in.Latitude, in.Longitude,
 		in.PlatformFeePct, in.SellerCategoryID, in.FSSAINumber, in.FSSAICertKey, in.FSSAICertAssetID,
 		in.DrugLicenseNumber, in.DrugLicenseCertKey, in.DrugLicenseCertAssetID, in.IsLive, district,
-		in.NameTA, in.DescTA, in.IsVeg))
+		in.NameTA, in.DescTA, in.IsVeg, in.RestockQty, in.RestockEtaMinutes))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerStore{}, false, nil
