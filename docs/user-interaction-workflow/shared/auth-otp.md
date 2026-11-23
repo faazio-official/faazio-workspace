@@ -90,6 +90,8 @@ phone number.
 
 1. `client/web/platform/middleware.ts` checks the refresh cookie (`faazio_prt` /
    `__Host-faazio_prt`) on `/seller/*` and `/admin/*`; absent → redirect to `/login?next=…`.
+   `next` is validated as an internal path, and a target that resolves back to `/login` is
+   discarded — otherwise a signed-in user would be navigated to the form again.
 2. `/login` calls `signIn` → `POST /api/auth/portal/login` → gateway `POST /auth/portal/login`.
 3. The gateway verifies against `admins.portal_users`, then mints an HS256 access JWT
    (`iss=faazio-portal`, `aud=portal`, 15 min) and a rotating opaque refresh family (30 d idle,
@@ -101,7 +103,9 @@ phone number.
    While the restore is in flight (`sessionStatus === "unknown"`), `/login` renders a branded
    loading state and `RoleGate` its loading shell, so a signed-in refresh never flashes the form or
    "Sign in to continue".
-6. `RoleGate` + `homeFor()` route to `/seller`, `/admin/district`, or `/admin/super`.
+6. `RoleGate` + `homeFor()` route to `/seller`, `/admin/district`, or `/admin/super`. The login page
+   navigates with `router.replace` (never `push`) and holds its branded loading state whenever a
+   session exists, so a just-authenticated user is never left on the form and Back cannot return to it.
 7. Logout calls `POST /api/auth/portal/logout`, revokes the refresh family, and clears cookies.
 8. The seller partner app is a WebView over the same portal (`SellerPartnerNavigator.tsx` →
    `src/features/seller-partner/screens/SellerWebViewScreen.tsx`); the portal owns the session, so

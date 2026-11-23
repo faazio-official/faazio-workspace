@@ -12,6 +12,7 @@ export type SellerStatus =
 export type ProductStatus =
   | "DRAFT"
   | "PENDING_REVIEW"
+  | "CHANGES_REQUESTED"
   | "ACTIVE"
   | "REJECTED"
   | "DELISTED";
@@ -256,7 +257,11 @@ export interface OrderRecord {
   customerPhone?: string | undefined;
   /** Vendor business name, server-provided on the admin boards only. */
   sellerName?: string | undefined;
-  city: string;
+  /**
+   * Vendor revenue district name (admin boards). Orders carry no city column, so this is the
+   * district — never label it "City".
+   */
+  districtName?: string | undefined;
   stateCode: string;
   /** Operational district of the vendor (admin boards). */
   districtCode?: string | undefined;

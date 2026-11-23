@@ -210,7 +210,9 @@ None import `@/components/patterns/*` or recharts
 any more (patterns remain for admin consoles; seller pages that keep a pattern import use
 `ImageUploader` only). Order rows resolve their store from the order's own `storeId`/`vendorStoreIds`
 and — when a seller owns one shop — that shop (`src/lib/api/sync.ts`), and the seller's directory
-stores are hydrated from `GET /seller/stores` so scoped lists resolve sector/city.
+stores are hydrated from `GET /seller/stores` so scoped lists resolve their sector. The store wire
+carries no city column, so `StoreRecord.city` stays empty and the order boards show the vendor's
+**district** (`OrderRecord.districtName`, admin boards) instead of labelling a district as a city.
 
 **Seller app is seller-only (defense in depth).** The native seller app never accepts an admin
 session. At sign-in, `/login` checks `isBlockedInNativeSellerApp(role)` (every role except `SELLER`)
@@ -813,9 +815,12 @@ browser                        Next.js route handlers                 Go gateway
   echoed by the `login`/`refresh`/`me` routes; nothing is persisted — the timer is in-memory only.
 - **Auth guard + deep links (P3.3)** — `middleware.ts` (edge) redirects `/seller/*` and `/admin/*`
   with no `faazio_prt` (or future `__Host-faazio_prt`) cookie to `/login?next=<path>`. The login
-  page validates `next` (internal path only, no open redirect), "Stay signed in" maps to
+  page validates `next` (internal path only, no open redirect; a target that resolves back to
+  `/login` is rejected so signing in can never navigate to the form again), "Stay signed in" maps to
   `faazio_remember`/`remember`, and a forced password rotation stashes `next` in `sessionStorage`
-  (`faazio.next`) so the deep link survives the `/security` round-trip. On a genuinely dead session
+  (`faazio.next`) so the deep link survives the `/security` round-trip. A live session never renders
+  the form: the page holds its branded loading state and `router.replace`s to `next || homeFor(role)`
+  (never `push`, so Back cannot return to the submitted form). On a genuinely dead session
   (`invalid_refresh`, `session_expired_*`, `invalid_refresh_reuse` from `/api/gateway`) `http.ts`
   redirects once to `/login?next=…` — authorization denials (wrong role, now `403`) never do.
 - **First-login confinement** — the access token carries `must_change`. Until the password is

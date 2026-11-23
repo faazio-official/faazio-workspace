@@ -13,7 +13,7 @@ the super admin must find the order across all districts/states and read its sta
 2. **Find the order.** Type into the search box (matches `q` against customer name, phone, order
    number and order id), pick a status chip (`ALL / NEW / PACKED / SHIPPED / DELIVERED / CANCELLED /
    RETURNED`), a state, or a seller id. Every filter is applied server-side — no district lock.
-3. Read the row: order, customer, phone, city, state, seller, sector, items, value, placed,
+3. Read the row: order, customer, phone, district, state, seller, sector, items, value, placed,
    **SLA due**, status. The KPI strip shows total / open / out-for-delivery / delivered-today.
 4. **Drill in** (tap the order number) → `/admin/super/orders/[id]` loads `GET /admin/orders/{id}`:
    customer + address context, line items, and the latest delivery job (rider name/phone, delivery
@@ -36,8 +36,9 @@ the super admin must find the order across all districts/states and read its sta
 
 - `fetchAdminOrders()` → `GET /admin/orders` → `checkout.orders` left-joined to
   `checkout.addresses` + `checkout.users` (customer name/phone), `directory.stores` +
-  `sellers.sellers` (seller/state/district) and `admins.district_master` (district name as the city
-  label). `AdminOrderRow` always returns real customer identity — never a `"Customer"` placeholder.
+  `sellers.sellers` (seller/state/district) and `admins.district_master` (the vendor's district
+  name, returned as `districtName`). `AdminOrderRow` always returns real customer identity — never a
+  `"Customer"` placeholder.
 - `getAdminOrder()` → `GET /admin/orders/{id}` → the same join + `checkout.order_items`
   (`checkout.order_item_addons`) + the latest `delivery.delivery_orders` row joined to
   `delivery.delivery_boys` (rider).
@@ -63,8 +64,9 @@ the super admin must find the order across all districts/states and read its sta
   `promised_at` column yet), not a per-seller promise.
 - The super board is read + status override only — no rider assignment (that is the delivery
   manual-allocation board).
-- `city` is the vendor's district name (`admins.district_master`); the checkout address has no
-  structured city column.
+- The board shows the vendor's **district**, not a city: `checkout.addresses` has no structured
+  city column, so `AdminOrderRow.districtName` (`admins.district_master`) is the location field and
+  the analytics charts group by district.
 
 ## Linked docs
 

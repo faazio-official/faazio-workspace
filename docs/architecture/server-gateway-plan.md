@@ -298,8 +298,13 @@ caller) and are event-purged on store live toggle and product edit/status change
   `taxonomy.category_headers` (`0115`), so the portal can render separate tables per label while there
   is still one canonical category row. Portal:
   `GET /admin/categories` (includes deactivated rows + `showOnHomeRail` + `headerLabels`),
-  `POST /categories`, `PUT /categories/{id}`, `DELETE /categories/{id}` (soft delete —
-  `is_active=false`, references preserved; SUPER_ADMIN). `headerLabels` and the legacy
+  `POST /categories`, `PUT /categories/{id}`, `DELETE /categories/{id}?moveTo=` (subtree soft delete —
+  `is_active=false` for the node and every descendant; when live listings link to any node in the
+  subtree the delete requires `moveTo`, a live category at the same tree level in the same app, and
+  every affected listing is re-linked to that destination's active leaf in one transaction; a delete
+  that would orphan listings with no target is `409 move_required`, a bad target `400
+  invalid_move_target`; SUPER_ADMIN). `GET /admin/categories` rows carry `productCount`.
+  `headerLabels` and the legacy
   `showOnHomeRail` alias are accepted on create/update for any tree level; the primary app label is
   always kept, a row may only carry its own app's label, and FOOD can never be tagged
   `MAIN_APP_HEADER` (`400`, mirrored in the `0115` guard trigger). There is no slot cap (`0109`

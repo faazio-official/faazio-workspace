@@ -20,8 +20,12 @@ per-district drill-down `/admin/super/districts/[code]`
    `district_code` is the primary key that sellers, district admins and payouts reference. Save calls
    `PUT /admin/districts/{code}`.
 4. **Toggle availability:** the row switch calls `PATCH /admin/districts/{code}/toggle` `{isActive}`.
-   Off hides the district from the seller picker (`GET /geo/districts` filters `is_active`) while
-   existing references keep resolving — the correct retirement for a district still in use.
+   Off hides the district from the seller picker **and from the customer app's coverage gate**
+   (`GET /geo/districts` filters `is_active`) while existing references keep resolving — the correct
+   retirement for a district still in use. A customer whose origin matches a disabled district is
+   sent to the app-level coverage page on the next check/foreground; re-enabling it lifts the gate
+   after that check. See
+   [`../../customer/onboarding/service-area-gate.md`](../../customer/onboarding/service-area-gate.md).
 5. **Delete:** the trash button opens a confirmation. `DELETE /admin/districts/{code}` succeeds only
    when nothing references the district; FKs in `0047`/`0048`/`0055` are `ON DELETE RESTRICT`, so a
    district with sellers, admins or payouts returns `409 district_in_use` and the toast says to
@@ -48,7 +52,9 @@ per-district drill-down `/admin/super/districts/[code]`
 - `toggleDistrict()` → `PATCH /admin/districts/{code}/toggle` → `is_active`.
 - `deleteDistrict()` → `DELETE /admin/districts/{code}` → row delete, or `409 district_in_use`.
 - The customer / seller-facing picker still reads `GET /geo/districts` (`is_active` only), so an
-  edit reaches the apps on their next picker fetch — no cache to purge.
+  edit reaches the apps on their next picker fetch — no cache to purge. The customer app's coverage
+  check keeps a 60 s in-memory copy and forces a refresh on every foreground / the gate's
+  "Check again".
 
 ## Success / error / empty
 

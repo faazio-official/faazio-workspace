@@ -59,8 +59,16 @@ links to a slab from that master.
    `PUT /categories/{id}`. A nil `isActive` / `showOnHomeRail` / `headerLabels` / `subCategories` /
    `parentId` leaves the stored value unchanged — the sheet never sends `parentId`, so an edit can
    never re-parent or detach the row; the primary app label always follows a changed App.
-8. **Deactivate:** the trash button (or the sheet's Active toggle) soft-deletes via
-   `DELETE /categories/{id}` (`is_active = false`); references from sellers/products are preserved.
+8. **Delete:** the trash button opens a delete dialog. Deleting hides the category **and its whole
+   subtree** (`DELETE /categories/{id}?moveTo=`). Listings are never orphaned: when the subtree owns
+   any live listing, the dialog shows how many and requires a **move target** — a live category at
+   the same tree level (top-level→top-level, child→child) in the same app, never the node itself or
+   anything inside its subtree. The selected target's active leaf receives every affected listing
+   (`taxonomy_category_id` + `category` updated in the same transaction) and the toast reports
+   `N listings moved to <name>`. A subtree with no listings deletes without a prompt. The gateway
+   refuses a listing-owning delete that names no target (`409 move_required`) or a bad/absent/
+   cross-level/descendant target (`400 invalid_move_target`). The **Active** toggle in the sheet
+   remains a plain hide (`is_active = false`) that does not touch descendants or listings.
 9. **Share into the main app header:** toggle **Main app header** on a Mart or Pharma category (any
    tree level). The header is **unbounded** — Mart and Pharma share one horizontally scrolled strip,
    so any number of active rows can be shared. A child row is a valid chip: the customer drill-in
@@ -76,7 +84,12 @@ links to a slab from that master.
 
 - `tab` — which app filter is loaded (`ALL`/`MART`/`FOOD`/`PHARMA`/`MAIN_APP_HEADER`).
 - `rows` — the current `GET /admin/categories` projection (includes `gstRatePct`,
-  `gstRateCategoryId`, `gstRateCategoryName`, `showOnHomeRail`, `headerLabels`).
+  `gstRateCategoryId`, `gstRateCategoryName`, `showOnHomeRail`, `headerLabels`, and `productCount` —
+  the live listings linked directly to the node, summed over the subtree to decide whether a delete
+  needs a move target).
+- `deleting` / `deleteTarget` — the row being deleted and the same-level category chosen to receive
+  its listings. `deleteImpact(row)` sums `productCount` over `subtreeOf(row)`; `moveTargets(row)`
+  offers only live, same-app, same-level rows outside that subtree.
 - `mainRows` — the shared main app header list (`GET /admin/categories?header=MAIN_APP_HEADER`).
 - `rateCategories` — the slab pick-list (`useGSTRateCategories`, shared with the GST rates page).
 - Sheet form state — App, GST pick, header-label pills, name, Tamil name, Tamil description, icon,
@@ -94,7 +107,11 @@ links to a slab from that master.
   `taxonomy.categories` + `taxonomy.category_headers` + `tax.category_gst_rates` (+ child rows) in one
   transaction (SUPER_ADMIN; audit-logged). `gst_rate_pct` is copied from the picked slab; the handler
   rejects a missing pick, an inactive slab, an unknown slab and any non-5% slab on FOOD.
-- `deleteCategory()` → `DELETE /categories/{id}` → `taxonomy.categories.is_active = false`.
+- `deleteCategory(id, moveTo?)` → `DELETE /categories/{id}?moveTo=` → one transaction: the subtree's
+  listings are re-linked to the destination's active leaf (`catalog.products.taxonomy_category_id` +
+  `category`), then `taxonomy.categories.is_active = false` for the node and every descendant. Returns
+  `{hidden, movedProducts, targetId, targetName}`. The destination leaf is the target itself when
+  childless, else its first active descendant leaf by `(sort_order, id)`.
 - Home rail read → `GET /categories/rail` → active rows tagged `MAIN_APP_HEADER` (unbounded, Mart +
   Pharma combined, any tree level; header-only children excluded).
 - Product link → `catalog.products.taxonomy_category_id` → `taxonomy.categories(id)`; the gateway

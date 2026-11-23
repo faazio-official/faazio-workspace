@@ -459,19 +459,29 @@ CREATE TABLE checkout.addresses (
   name       TEXT,                   -- PII
   phone      TEXT,                   -- PII
   address    TEXT NOT NULL,          -- PII (full street)
-  is_default BOOLEAN NOT NULL DEFAULT false
+  is_default BOOLEAN NOT NULL DEFAULT false,
+  latitude   FLOAT8,                 -- 0125: exact delivery point (PII, paired)
+  longitude  FLOAT8                  -- 0125: null = text-only row / never pinned
 );
 ```
 
+`latitude`/`longitude` are **both-or-neither** and range-checked by `0125`'s CHECK constraints
+(`addresses_coordinates_both_or_neither`, `addresses_latitude_range`, `addresses_longitude_range`).
+A stored point is authoritative: proximity auto-select matches against it, and checkout submits it as
+the order's `deliveryLocation` so fee/surge/auto-dispatch follow the chosen address rather than the
+phone. A NULL pair means the row predates `0125` (or was never pinned) — the app then falls back to
+forward-geocoding the text address.
+
 **Sample rows** (`data/account/addresses.ts:8-29`):
 
-| address_id | user_id | label | name | phone | is_default |
-|---|---|---|---|---|---|
-| `addr_1` | user-1 | HOME | Rohit Sharma | +91 98765 43210 | true |
-| `addr_2` | user-1 | WORK | Rohit Sharma | +91 98765 43210 | false |
-| `addr_3` | user-1 | OTHER | Rohit Sharma | +91 98765 43210 | false |
+| address_id | user_id | label | name | phone | is_default | latitude | longitude |
+|---|---|---|---|---|---|---|---|
+| `addr_1` | user-1 | HOME | Rohit Sharma | +91 98765 43210 | true | 12.8956 | 77.6456 |
+| `addr_2` | user-1 | WORK | Rohit Sharma | +91 98765 43210 | false | 12.9121 | 77.6446 |
+| `addr_3` | user-1 | OTHER | Rohit Sharma | +91 98765 43210 | false | 17.4046 | 78.4199 |
 
-**Admin notes:** **PII** — never log full address; keyset paginate by `address_id`; redact phone.
+**Admin notes:** **PII** — never log full address or coordinates; keyset paginate by `address_id`;
+redact phone.
 
 ### 7.3 `checkout.coupons` — **legacy, unseeded** (superseded by `promo.coupons`, §12.13)
 
@@ -2501,12 +2511,20 @@ CREATE TABLE taxonomy.categories (
   id and walks its subtree, so a child chip is a valid entry point. `0096` seeds the previous first
   three MART roots (`cat_smart_gadgets`, `cat_mobiles`, `cat_electronics`), and `0109` only rewrites
   the column comment (no new column, no data migration, index `categories_home_rail_idx` reused).
-- **Product ↔ taxonomy link (`0096`):** `catalog.products.taxonomy_category_id` (nullable FK) points
-  at an **active leaf** of the store's app brand. Seller product creation sends the id; the gateway
-  validates the leaf and folds its `search_query` + name into `catalog.products.search_tokens`, so a
-  seller listing is discoverable through the same leaf query the category drill-in runs. The
-  human/GST-facing `catalog.products.category` column stays a display label only — since `0119` the
-  charged rate is resolved from the product's `taxonomy_category_id` → `tax.category_gst_rates`.
+- **Product ↔ taxonomy link (`0096`, backfilled `0126`):** `catalog.products.taxonomy_category_id`
+  (nullable FK) points at an **active leaf** of the store's app brand. Seller product creation sends
+  the id; the gateway validates the leaf and folds its `search_query` + name into
+  `catalog.products.search_tokens`, so a seller listing is discoverable through the same leaf query
+  the category drill-in runs. The human/GST-facing `catalog.products.category` column stays a display
+  label only — since `0119` the charged rate is resolved from the product's `taxonomy_category_id` →
+  `tax.category_gst_rates`. `0096` added the column without a backfill, so all pre-existing rows were
+  unlinked; **`0126`** links every row whose `category` label is an active leaf name (and the six
+  coarse `Groceries` seed rows, mapped one-by-one), then adds one representative listing
+  (`taxseed-<leaf id>`) under the lowest-id live MART store for each active MART leaf that still had
+  no ACTIVE product matching its `search_query` — previously 36 of 179 MART leaves rendered an empty
+  drill-in. Editorial rail buckets (`🌧️ Monsoon Home Essentials`, `mart-foot`, …) are heterogeneous
+  groups, so they deliberately stay unlinked with a null FK; checkout falls back to
+  `taxmath.DefaultProductGSTRate` for an unlinked row.
 - **Tamil translations (`0107`, additive):** `taxonomy.categories.name_ta` / `description_ta` and
   `catalog.products.name_ta` / `desc_text_ta` are display-only translations, `text not null default ''`.
   An empty string means "not translated" and the app falls back to the English canonical column —
@@ -2527,8 +2545,19 @@ CREATE TABLE taxonomy.categories (
   all `text not null default ''` and all validated by `locale.IsTamilText` on write. Menu, add-on,
   store and venue reads project the columns (stores/venues feed the store card and restaurant row,
   menus feed the Food menu and specials, add-ons feed the picker sheet).
-- **`DELETE /categories/{id}` is a soft delete** (`is_active = false`): hidden from the apps/rail,
-  but existing sellers/products that reference it are never orphaned.
+- **`DELETE /categories/{id}?moveTo=` is a subtree soft delete with a mandatory listing move.** One
+  transaction: (1) resolve the node and its whole descendant subtree, (2) count the live
+  `catalog.products` rows linked to any node in it, (3) when that count is non-zero, require
+  `moveTo` — a live category of the **same app and same tree level** (top-level→top-level,
+  child→child), never the node itself or a descendant — reduce it to its active leaf (itself when
+  childless, else its first active descendant leaf by `(sort_order, id)`) and re-link every affected
+  row's `taxonomy_category_id` **and** display `category`, then (4) set `is_active = false` on the
+  node and all descendants. A listing-owning delete with no target fails `409 move_required`; an
+  absent/inactive/other-app/cross-level/descendant target fails `400 invalid_move_target`. The
+  response reports `{hidden, movedProducts, targetId, targetName}`. `GET /admin/categories` rows
+  carry `productCount` (live listings linked directly to the node) so the portal can tell when the
+  prompt is required. The sheet's **Active** toggle remains a plain single-row hide that does not
+  cascade and does not touch listings.
 - **Header labels (`0115`, additive):** `taxonomy.category_headers` is a many-to-many table so a
   category keeps one primary classification (`taxonomy.categories.app`) but can be shared into more
   than one curated header list:

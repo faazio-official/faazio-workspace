@@ -170,8 +170,9 @@ function parseEtaMinutes(v: unknown): number {
 /**
  * Maps a gateway seller-product row (`GET /seller/inventory` | `/seller/pricing`) to the portal
  * ProductRecord. Body/identity fields are shared by both endpoints; money arrives in whole rupees.
+ * Exported so a live read (not the hydrated slice) keeps the exact same shape.
  */
-function mapSellerProductRow(raw: SellerConsoleRow): ProductRecord {
+export function mapSellerProductRow(raw: SellerConsoleRow): ProductRecord {
   return {
     productId: raw.id,
     sellerId: raw.sellerId ?? "",
@@ -318,8 +319,9 @@ export async function hydrateFromGateway(): Promise<boolean> {
           : Promise.resolve<SellerConsoleRow[] | undefined>(undefined),
       ),
       // The seller's own directory store rows (`accounts.stores` via GET /seller/stores). Hydrating
-      // them lets seller order/product rows resolve city/sector and keeps the console scoped the
-      // same way the gateway scopes it. Admins are unaffected (their stores stay seed-empty, as today).
+      // them lets seller order/product rows resolve sector and keeps the console scoped the same way
+      // the gateway scopes it. Admins are unaffected (their stores stay seed-empty, as today).
+      // `StoreRecord.city` stays empty: the store wire carries no city column.
       safe(() =>
         role === "SELLER"
           ? fetchSellerStores().then((rows) =>
@@ -617,7 +619,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
           sellerId,
           storeId,
           customerName: str(raw["customerName"]) || "Customer",
-          city: store?.city ?? "",
+          // The seller order wire carries no city/district; leave it absent rather than inventing one.
           stateCode: store?.stateCode ?? cur.session?.stateCode ?? seller?.stateCode ?? "",
           sector: store?.sector ?? "MART",
           itemsCount,

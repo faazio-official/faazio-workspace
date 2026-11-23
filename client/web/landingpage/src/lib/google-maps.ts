@@ -300,10 +300,10 @@ function parts(components: Component[] = []) {
   };
   return {
     stateName: pick("administrative_area_level_1"),
-    districtName:
-      pick("administrative_area_level_2") ||
-      pick("locality") ||
-      pick("administrative_area_level_3"),
+    // District is the revenue/admin district only. `locality` is the CITY (e.g. Tiruchirappalli),
+    // so falling back to it put the city in the district field. When Google returns no
+    // administrative district the field stays empty and the visitor types it.
+    districtName: pick("administrative_area_level_2") || pick("administrative_area_level_3"),
     postcode: pick("postal_code"),
   };
 }

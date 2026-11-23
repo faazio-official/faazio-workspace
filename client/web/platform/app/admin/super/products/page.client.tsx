@@ -1,6 +1,7 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { RefreshCw } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -41,8 +42,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDate, formatINR, formatNumber } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import { deleteProduct, setProductStatus } from "@/lib/api";
-import { usePortalLoading, useProduct, useProducts, useSeller } from "@/lib/api/hooks";
+import { useLiveProducts, useProduct, useSeller } from "@/lib/api/hooks";
 import type { ProductRecord, Sector } from "@/data/types";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
 
@@ -193,7 +195,6 @@ function ProductDetailsDialog({
 }
 
 function SuperProducts() {
-  const loading = usePortalLoading();
   const [sector, setSector] = useState<Sector | "ALL">("ALL");
   const [query, setQuery] = useState("");
   const [viewMode, setViewMode] = useState<ViewMode>("LISTED");
@@ -203,15 +204,18 @@ function SuperProducts() {
   const [rejecting, setRejecting] = useState<ProductRecord | null>(null);
   const [reason, setReason] = useState("");
 
-  const all = useProducts({ sector, query });
-  const products = useProducts({
-    sector,
-    query,
-    status: viewMode === "LISTED" ? "ACTIVE" : "PENDING_REVIEW",
-  });
-
-  const activeCount = all.filter((p) => p.status === "ACTIVE").length;
-  const pendingCount = all.filter((p) => p.status === "PENDING_REVIEW").length;
+  // Authoritative read: the hydration slice is written once per login and persisted, so a newly
+  // submitted request (or another admin's decision) would never show here without a fresh fetch.
+  const all = useLiveProducts({ sector, query });
+  const loading = all.loading && all.data.length === 0;
+  const activeCount = all.data.filter((p) => p.status === "ACTIVE").length;
+  const pendingCount = all.data.filter((p) => p.status === "PENDING_REVIEW").length;
+  const needsChangesCount = all.data.filter((p) => p.status === "CHANGES_REQUESTED").length;
+  const products = useMemo(
+    () =>
+      all.data.filter((p) => p.status === (viewMode === "LISTED" ? "ACTIVE" : "PENDING_REVIEW")),
+    [all.data, viewMode],
+  );
 
   function toggle(id: string) {
     setSelected((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
@@ -219,10 +223,13 @@ function SuperProducts() {
 
   function confirmApprove() {
     if (!approving) return;
-    setProductStatus(approving.productId, "ACTIVE");
+    const id = approving.productId;
+    setProductStatus(id, "ACTIVE");
     toast.success("Listing approved", { description: "It is visible to shoppers immediately." });
     setApproving(null);
-    setSelected((list) => list.filter((id) => id !== approving.productId));
+    setSelected((list) => list.filter((x) => x !== id));
+    // Re-read the server so the board and the KPIs reflect the decision (and any other admin's).
+    all.refresh();
   }
 
   function confirmReject() {
@@ -232,11 +239,19 @@ function SuperProducts() {
       toast.error("Add a reason so the seller knows what to fix");
       return;
     }
-    setProductStatus(rejecting.productId, "REJECTED", message);
+    const id = rejecting.productId;
+    setProductStatus(id, "REJECTED", message);
     toast.success("Listing rejected", { description: "The seller will see your note." });
     setRejecting(null);
     setReason("");
-    setSelected((list) => list.filter((id) => id !== rejecting.productId));
+    setSelected((list) => list.filter((x) => x !== id));
+    all.refresh();
+  }
+
+  function deleteMany(ids: string[]) {
+    ids.forEach((id) => deleteProduct(id, "Bulk removal by super admin"));
+    setSelected([]);
+    all.refresh();
   }
 
   return (
@@ -250,6 +265,7 @@ function SuperProducts() {
         items={[
           { label: "Active listings", value: formatNumber(activeCount) },
           { label: "Pending review", value: formatNumber(pendingCount) },
+          { label: "Needs changes", value: formatNumber(needsChangesCount) },
           { label: "Showing", value: formatNumber(products.length) },
           { label: "Selected", value: formatNumber(selected.length) },
         ]}
@@ -285,6 +301,15 @@ function SuperProducts() {
             />
             <ComponentHelp id="product-search" label="About searching the catalog" />
           </div>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={all.loading}
+            onClick={() => all.refresh()}
+          >
+            <RefreshCw className={cn("size-3.5", all.loading && "animate-spin")} />
+            {all.loading ? "Refreshing" : "Refresh"}
+          </Button>
           {SECTORS.map((option) => (
             <FilterChip
               key={option}
@@ -300,9 +325,11 @@ function SuperProducts() {
               <Button
                 size="sm"
                 onClick={() => {
-                  selected.forEach((id) => setProductStatus(id, "ACTIVE", "Bulk approved"));
-                  toast.success(`${selected.length} listings approved`);
+                  const ids = [...selected];
+                  ids.forEach((id) => setProductStatus(id, "ACTIVE", "Bulk approved"));
+                  toast.success(`${ids.length} listings approved`);
                   setSelected([]);
+                  all.refresh();
                 }}
               >
                 Approve selected
@@ -325,9 +352,9 @@ function SuperProducts() {
                     <AlertDialogCancel>Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={() => {
-                        selected.forEach((id) => deleteProduct(id, "Bulk removal by super admin"));
-                        toast.success(`${selected.length} listings removed`);
-                        setSelected([]);
+                        const ids = [...selected];
+                        deleteMany(ids);
+                        toast.success(`${ids.length} listings removed`);
                       }}
                     >
                       Delete listings

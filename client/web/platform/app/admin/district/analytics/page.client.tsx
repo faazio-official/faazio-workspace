@@ -44,9 +44,9 @@ function StateAnalytics() {
     })
     .sort((a, b) => b.gmv - a.gmv);
 
-  const byCity = Object.entries(
+  const byDistrict = Object.entries(
     orders.reduce<Record<string, number>>((acc, o) => {
-      acc[o.city] = (acc[o.city] ?? 0) + o.amountPaisa;
+      acc[o.districtName || "—"] = (acc[o.districtName || "—"] ?? 0) + o.amountPaisa;
       return acc;
     }, {}),
   )
@@ -164,8 +164,8 @@ function StateAnalytics() {
         </SectionCard>
       </div>
 
-      <SectionCard title="GMV by city">
-        <CategoryBars data={byCity.slice(0, 8)} />
+      <SectionCard title="GMV by district">
+        <CategoryBars data={byDistrict.slice(0, 8)} />
       </SectionCard>
 
       <SectionCard

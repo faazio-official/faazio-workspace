@@ -5,6 +5,7 @@ import { usePortalStore } from "@/lib/api/store";
 import { remote } from "@/lib/api/http";
 import { remoteConfigured } from "@/lib/config";
 import * as api from "@/lib/api";
+import { mapSellerProductRow } from "@/lib/api/sync";
 import type {
   BankAccount,
   CustomerRecord,
@@ -12,6 +13,7 @@ import type {
   NotificationPreferences,
   OrderRecord,
   OrderStatus,
+  ProductRecord,
   Role,
   SellerLead,
   SellerStatus,
@@ -77,6 +79,60 @@ export function useProducts(filter: api.ProductFilter = {}) {
   const stores = usePortalStore((s) => s.stores);
   const key = JSON.stringify(filter);
   return useMemo(() => api.listProducts(filter), [products, stores, key]);
+}
+
+export interface LiveProductsState {
+  data: ProductRecord[];
+  loading: boolean;
+  error: string | null;
+  refresh: () => void;
+}
+
+/**
+ * Authoritative moderation board read (`GET /seller/pricing`, scoped by the gateway: a super admin
+ * sees every district, a district admin their own). The hydration slice is written once per login and
+ * persisted in localStorage, so a newly submitted seller request — or a status change another admin
+ * just made — never appears until re-login. This hook fetches on mount and exposes `refresh`, so the
+ * products board reflects the server after every moderation action instead of filtering a stale copy.
+ */
+export function useLiveProducts(filter: api.ProductFilter = {}): LiveProductsState {
+  const key = JSON.stringify(filter);
+  const [rows, setRows] = useState<ProductRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [version, setVersion] = useState(0);
+  const refresh = useCallback(() => setVersion((v) => v + 1), []);
+
+  useEffect(() => {
+    if (!remoteConfigured()) {
+      setRows([]);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .fetchSellerPricing()
+      .then((raw) => {
+        if (cancelled) return;
+        const all = raw.map(mapSellerProductRow);
+        const f = JSON.parse(key) as api.ProductFilter;
+        setRows(api.filterProducts(all, f));
+        setError(null);
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setRows([]);
+        setError("Could not load the catalog");
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [key, version]);
+
+  return { data: rows, loading, error, refresh };
 }
 
 export function useStock(sellerId?: string, storeId?: string) {
@@ -533,6 +589,10 @@ export function useAnalyticsSeries(
   const [items, setItems] = useState<AnalyticsDailyPoint[]>([]);
   useEffect(() => {
     if (!remoteConfigured()) return;
+    if (scope !== "global" && id === "") {
+      setItems([]);
+      return;
+    }
     let cancelled = false;
     api
       .fetchAnalyticsSeries(scope, id, days)

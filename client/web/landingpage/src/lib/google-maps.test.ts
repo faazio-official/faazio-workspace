@@ -145,10 +145,26 @@ describe("describePlace", () => {
   it("still reads legacy Geocoder long_name components", () => {
     const part = describePlace("12 Main St", [
       { long_name: "Puducherry", short_name: "PY", types: ["administrative_area_level_1"] },
-      { long_name: "Karaikal", short_name: "K", types: ["locality"] },
+      { long_name: "Karaikal", short_name: "K", types: ["administrative_area_level_2"] },
     ]);
     expect(part.stateName).toBe("Puducherry");
     expect(part.districtName).toBe("Karaikal");
+  });
+
+  it("never uses the city (locality) as the district", () => {
+    const part = describePlace("12 Main St", [
+      { longText: "Tiruchirappalli", types: ["locality"] },
+      { longText: "Tamil Nadu", types: ["administrative_area_level_1"] },
+    ]);
+    expect(part.districtName).toBe("");
+  });
+
+  it("keeps the sub-district (administrative_area_level_3) when there is no level 2", () => {
+    const part = describePlace("12 Main St", [
+      { longText: "Lalgudi", types: ["administrative_area_level_3"] },
+      { longText: "Tiruchirappalli", types: ["locality"] },
+    ]);
+    expect(part.districtName).toBe("Lalgudi");
   });
 });
 

@@ -18,7 +18,10 @@ mobile application (`seller-registration.md`). Admins work the enquiry in the po
    - With `VITE_GOOGLE_MAPS_API_KEY` set, the Google Maps JS API loads. The visitor types in the
      search field and picks from the suggestion list (`AutocompleteSuggestion`, Places API (New)),
      drags the marker onto the shop door, or presses "Use my current location"; each action
-     reverse-geocodes to a street address, state and district readout.
+     reverse-geocodes to a street address, state and district readout. The district comes from
+     `administrative_area_level_2` (falling back to level 3) **only** — never from `locality`, so the
+     city cannot be filled into the district field; when Google returns no admin district the field
+     stays empty for the visitor to type.
    - The picker uses Places API (New) only. The legacy `places.Autocomplete` widget and the
      `libraries=places` script parameter are retired for new Google Cloud projects, so the loader
      pulls `maps` / `geocoding` / `places` through `importLibrary` and renders suggestions into its

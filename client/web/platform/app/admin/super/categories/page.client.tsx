@@ -52,6 +52,7 @@ import {
   listCategoriesByHeader,
   updateCategory,
 } from "@/lib/api";
+import { ApiError } from "@/lib/api/http";
 import type {
   CategoryApp,
   CategoryHeader,
@@ -171,6 +172,9 @@ export function CategoriesPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<CategoryRow | null>(null);
   const [deleting, setDeleting] = useState<CategoryRow | null>(null);
+  // Where a delete moves the listings that live in the deleted subtree. Mandatory as soon as the
+  // subtree owns any listing, and always at the same tree level as the category being deleted.
+  const [deleteTarget, setDeleteTarget] = useState("");
 
   const { items: gstRates, loading: gstLoading, error: gstError } = useGSTRateCategories();
 
@@ -437,19 +441,39 @@ export function CategoriesPage() {
 
   async function confirmDelete() {
     if (!deleting) return;
+    const impact = deleteImpact(deleting);
+    if (impact.products > 0 && !deleteTarget) {
+      toast.error("Pick a category to move the listings to");
+      return;
+    }
     setBusy(true);
     try {
-      await deleteCategory(deleting.id);
-      toast.success("Category deactivated", {
-        description: "It is hidden in the apps; existing sellers keep their reference.",
+      const result = await deleteCategory(deleting.id, deleteTarget || undefined);
+      toast.success(`Deleted ${deleting.name}`, {
+        description:
+          result.movedProducts > 0
+            ? `${result.movedProducts} listing${result.movedProducts === 1 ? "" : "s"} moved to ${result.targetName ?? "the chosen category"}.`
+            : "It is hidden in the apps.",
       });
       setDeleting(null);
+      setDeleteTarget("");
       void load();
       void loadMain();
     } catch (err) {
-      toast.error("Could not deactivate the category", {
-        description: err instanceof Error ? err.message : undefined,
-      });
+      const code = err instanceof ApiError ? err.code : "";
+      if (code === "move_required") {
+        toast.error("Move the listings first", {
+          description: "Pick another category to receive them, then delete.",
+        });
+      } else if (code === "invalid_move_target") {
+        toast.error("That category can't receive them", {
+          description: "Pick a live category at the same level in this app.",
+        });
+      } else {
+        toast.error("Could not delete the category", {
+          description: err instanceof Error ? err.message : undefined,
+        });
+      }
     } finally {
       setBusy(false);
     }
@@ -463,6 +487,69 @@ export function CategoriesPage() {
       : "—";
   const sheetOpen = creating || Boolean(editing);
 
+  /** Every node under `rootId`, inclusive — the same subtree the gateway hides on delete. */
+  const subtreeOf = useCallback(
+    (rootId: string): CategoryRow[] => {
+      const byParent = new Map<string, CategoryRow[]>();
+      for (const r of rows) {
+        if (!r.parentId) continue;
+        const bucket = byParent.get(r.parentId);
+        if (bucket) bucket.push(r);
+        else byParent.set(r.parentId, [r]);
+      }
+      const out: CategoryRow[] = [];
+      const walk = (id: string) => {
+        const self = rows.find((r) => r.id === id);
+        if (self) out.push(self);
+        for (const child of byParent.get(id) ?? []) walk(child.id);
+      };
+      walk(rootId);
+      return out;
+    },
+    [rows],
+  );
+
+  /**
+   * How much a delete would touch. Listings are counted over the whole subtree because hiding a
+   * parent hides its children too, so their listings must move with it.
+   */
+  const deleteImpact = useCallback(
+    (row: CategoryRow) => {
+      const sub = subtreeOf(row.id);
+      const products = sub.reduce((sum, r) => sum + (r.productCount ?? 0), 0);
+      return { products, categories: sub.length };
+    },
+    [subtreeOf],
+  );
+
+  /**
+   * Valid move targets: live categories of the same app at the same tree level (top-level→top-level,
+   * child→child), never the node being deleted or anything inside its subtree. Cross-level targets
+   * are excluded here so the picker can't offer something the gateway would reject.
+   */
+  const moveTargets = useCallback(
+    (row: CategoryRow): CategoryRow[] => {
+      const excluded = new Set(subtreeOf(row.id).map((r) => r.id));
+      const isTop = row.parentId === null;
+      return rows
+        .filter(
+          (r) =>
+            r.id !== row.id &&
+            !excluded.has(r.id) &&
+            r.isActive &&
+            r.app === row.app &&
+            (r.parentId === null) === isTop,
+        )
+        .sort((a, b) => a.name.localeCompare(b.name));
+    },
+    [rows, subtreeOf],
+  );
+
+  function askDelete(row: CategoryRow) {
+    setDeleting(row);
+    setDeleteTarget("");
+  }
+
   function rowActions(row: CategoryRow) {
     return (
       <div className="flex justify-end gap-2">
@@ -474,7 +561,7 @@ export function CategoriesPage() {
           variant="outline"
           className="text-destructive"
           disabled={!row.isActive}
-          onClick={() => setDeleting(row)}
+          onClick={() => askDelete(row)}
         >
           <Trash2 className="size-3.5" />
         </Button>
@@ -948,19 +1035,70 @@ export function CategoriesPage() {
         </SheetContent>
       </Sheet>
 
-      <AlertDialog open={Boolean(deleting)} onOpenChange={(next) => !next && setDeleting(null)}>
+      <AlertDialog
+        open={Boolean(deleting)}
+        onOpenChange={(next) => {
+          if (!next) {
+            setDeleting(null);
+            setDeleteTarget("");
+          }
+        }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Deactivate {deleting?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>Delete {deleting?.name}?</AlertDialogTitle>
             <AlertDialogDescription>
-              The category is hidden in the apps immediately. Existing sellers and products that
-              reference it are preserved, and you can reactivate it later.
+              {deleting ? (
+                <>
+                  The category and everything under it
+                  {deleteImpact(deleting).categories > 1
+                    ? ` (${deleteImpact(deleting).categories} categories)`
+                    : ""}{" "}
+                  are hidden in the apps immediately.
+                  {deleteImpact(deleting).products > 0
+                    ? ` ${deleteImpact(deleting).products} listing${deleteImpact(deleting).products === 1 ? "" : "s"} must move to another ${deleting.parentId === null ? "category" : "sub-category"} first.`
+                    : " No listings are attached, so nothing needs to move."}
+                </>
+              ) : null}
             </AlertDialogDescription>
           </AlertDialogHeader>
+
+          {deleting && deleteImpact(deleting).products > 0 ? (
+            <div className="space-y-2">
+              <Label htmlFor="delete-move-target">
+                Move {deleteImpact(deleting).products} listing
+                {deleteImpact(deleting).products === 1 ? "" : "s"} to
+              </Label>
+              <select
+                id="delete-move-target"
+                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                value={deleteTarget}
+                onChange={(e) => setDeleteTarget(e.target.value)}
+              >
+                <option value="">
+                  {moveTargets(deleting).length === 0
+                    ? `No other ${deleting.parentId === null ? "category" : "sub-category"} is available`
+                    : `Select a ${deleting.parentId === null ? "category" : "sub-category"}`}
+                </option>
+                {moveTargets(deleting).map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+              <p className="text-xs text-muted-foreground">
+                Only {deleting.parentId === null ? "top-level categories" : "sub-categories of the same parent level"} in {deleting.app} can receive them, so listings never change level.
+              </p>
+            </div>
+          ) : null}
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction disabled={busy} onClick={() => void confirmDelete()}>
-              {busy ? "Deactivating..." : "Deactivate"}
+            <AlertDialogAction
+              disabled={busy || (deleting !== null && deleteImpact(deleting).products > 0 && !deleteTarget)}
+              onClick={() => void confirmDelete()}
+            >
+              {busy ? "Deleting..." : "Delete"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -65,15 +65,16 @@ function SellerAnalytics() {
     .sort((a, b) => b.value - a.value);
   const maxStatus = Math.max(1, ...statusMix.map((s) => s.value));
 
-  const cityMix = Object.entries(
+  const districtMix = Object.entries(
     orders.reduce<Record<string, number>>((acc, o) => {
-      acc[o.city] = (acc[o.city] ?? 0) + o.amountPaisa;
+      const label = o.districtName || "—";
+      acc[label] = (acc[label] ?? 0) + o.amountPaisa;
       return acc;
     }, {}),
   )
     .map(([label, value]) => ({ label, value }))
     .sort((a, b) => b.value - a.value);
-  const maxCity = Math.max(1, ...cityMix.map((c) => c.value));
+  const maxDistrict = Math.max(1, ...districtMix.map((d) => d.value));
 
   const sortedProducts = [...perProduct].sort((a, b) => b.gmv - a.gmv).slice(0, 8);
 
@@ -175,21 +176,21 @@ function SellerAnalytics() {
                 )}
               </Card>
               <Card>
-                <p className="text-sm font-bold">Top cities</p>
-                <p className="text-[10px] text-muted-foreground">GMV by delivery city</p>
-                {cityMix.length === 0 ? (
-                  <EmptyState text="No city data yet" />
+                <p className="text-sm font-bold">Top districts</p>
+                <p className="text-[10px] text-muted-foreground">GMV by delivery district</p>
+                {districtMix.length === 0 ? (
+                  <EmptyState text="No district data yet" />
                 ) : (
-                  cityMix.slice(0, 6).map((c) => (
-                    <div key={c.label} className="mt-3">
+                  districtMix.slice(0, 6).map((d) => (
+                    <div key={d.label} className="mt-3">
                       <div className="flex justify-between text-xs">
-                        <span className="min-w-0 truncate">{c.label}</span>
-                        <b className="shrink-0 pl-3">{formatINR(c.value, { compact: true })}</b>
+                        <span className="min-w-0 truncate">{d.label}</span>
+                        <b className="shrink-0 pl-3">{formatINR(d.value, { compact: true })}</b>
                       </div>
                       <div className="mt-1 h-1.5 rounded-full bg-muted">
                         <div
                           className="h-1.5 rounded-full bg-brand"
-                          style={{ width: `${Math.max(4, (c.value / maxCity) * 100)}%` }}
+                          style={{ width: `${Math.max(4, (d.value / maxDistrict) * 100)}%` }}
                         />
                       </div>
                     </div>

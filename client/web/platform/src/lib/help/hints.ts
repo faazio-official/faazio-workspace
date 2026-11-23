@@ -381,10 +381,10 @@ export const PAGE_HINTS: Record<string, PageHint> = {
     app: ["delivery"],
   },
   "/admin/district/analytics": {
-    what: "State-level GMV, orders, category mix and city split.",
-    how: "Compare cities to spot where supply, not demand, is the limit.",
+    what: "State-level GMV, orders, category mix and district split.",
+    how: "Compare districts to spot where supply, not demand, is the limit.",
     whyCreated: "So a district admin can measure their state and find where to focus.",
-    boundedWorkflow: "Reporting: pick a window → read GMV/category/city split → plan actions.",
+    boundedWorkflow: "Reporting: pick a window → read GMV/category/district split → plan actions.",
     changesMade: "Read-only; insights lead to action on sellers, catalog or campaigns.",
     app: ["portal"],
   },
@@ -671,7 +671,7 @@ export const SECTION_HINTS: Record<string, string> = {
   "Festival governance": "Which states and sectors take part, and the ceilings they must respect.",
   "Festival overview": "Campaign reach, opt-ins and the sales they moved.",
   "Flagged listings": "Prices that break a rule or sit far from the state median.",
-  "GMV by city": "Gross sales split by city.",
+  "GMV by district": "Gross sales split by the vendor's district.",
   "GMV by day": "Gross sales per day over the chosen window.",
   "GMV by state": "Gross sales split by state.",
   "GMV trend": "Gross sales over time. Watch the shape, not one day.",
@@ -750,7 +750,7 @@ export const SECTION_HINTS: Record<string, string> = {
   "Surface to data mapping": "Which app screen reads which data source.",
   "System alerts": "Platform-level problems needing attention.",
   Timeline: "Every step this record has been through, with timestamps.",
-  "Top cities": "Where the orders come from.",
+  "Top districts": "Where the orders come from.",
   "Top products": "Your best sellers in the chosen window.",
 };
 

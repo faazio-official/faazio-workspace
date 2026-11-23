@@ -53,10 +53,16 @@ const NEXT_KEY = "faazio.next";
  *  never reveals that the credentials were valid-but-admin. */
 const INVALID_CREDENTIALS = "Invalid email or password.";
 
-/** Only allow an internal absolute path (guards /login?next= against open redirects). */
+/** Only allow an internal absolute path (guards /login?next= against open redirects).
+ *  A target that resolves back to /login is rejected too: signing in would otherwise navigate the
+ *  just-authenticated user straight back to the form (cookies set, toast shown, still "logged out"
+ *  until a manual reload), which is the classic `/login?next=/login` trap. */
 function safeNext(raw: string | null): string {
   if (!raw) return "";
-  return raw.startsWith("/") && !raw.startsWith("//") ? raw : "";
+  if (!raw.startsWith("/") || raw.startsWith("//")) return "";
+  const path = raw.split(/[?#]/)[0] ?? "";
+  if (path === "/login" || path.startsWith("/login/")) return "";
+  return raw;
 }
 
 /** The deep link a seller/admin attempted before being bounced to /login (query param, else a
@@ -146,7 +152,8 @@ function LoginPage() {
       }
       await hydrateFromGateway();
       toast.success(`Signed in as ${ROLE_LABEL[user.role]}`);
-      router.push(next || homeFor(user.role));
+      // `replace` (not `push`) so Back cannot land the freshly-signed-in user on the form again.
+      router.replace(next || homeFor(user.role));
     } catch (err) {
       submittedRef.current = false;
       setError(portalErrorMessage(err));
@@ -172,7 +179,11 @@ function LoginPage() {
   // genuine "signed-out" (or "reconnecting", which the RemoteStatus banner/offline state covers)
   // shows the form so a truly logged-out user is never stuck behind a skeleton.
   const restoringSession = !hydrated || (session === null && sessionStatus === "unknown");
-  const redirecting = session !== null && !submittedRef.current;
+  // A live session must never see the form. `submit()` sets the session and the redirect effect then
+  // navigates away; if that navigation is ever a no-op (e.g. `next` resolved back to /login) the user
+  // would sit on a form they already submitted — signed in, toast shown, still "logged out" on screen
+  // until a manual reload. Hold the branded state instead.
+  const redirecting = session !== null;
   if (restoringSession || redirecting) {
     return (
       <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background px-4 py-10">

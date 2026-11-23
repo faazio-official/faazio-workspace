@@ -50,6 +50,7 @@ import type {
   SellerStatus,
   SellerOptin,
   SduiSection,
+  StoreRecord,
   DistrictAdmin,
   SubUser,
   SubUserInvite,
@@ -405,6 +406,11 @@ export interface CategoryRow {
   gstRateCategoryId?: string;
   /** Display name of the picked GST slab (e.g. "Fresh & Unbranded Staples"). */
   gstRateCategoryName?: string;
+  /**
+   * Live listings linked directly to this node. A delete needs a move target as soon as this node
+   * or any descendant reports a non-zero count.
+   */
+  productCount?: number;
   sortOrder: number;
   createdAt?: string;
   updatedAt?: string;
@@ -503,9 +509,29 @@ export async function updateCategory(id: string, input: CategoryInput): Promise<
   return remote.put<CategoryRow>(`/categories/${encodeURIComponent(id)}`, input);
 }
 
-/** Superadmin-only: deactivate a category (soft delete — hidden in the app, references preserved). */
-export async function deleteCategory(id: string): Promise<void> {
-  await remote.delete(`/categories/${encodeURIComponent(id)}`);
+/** What one category delete hid and how many listings it re-linked to the destination leaf. */
+export interface CategoryDeleteResult {
+  ok: boolean;
+  id: string;
+  /** Number of taxonomy rows hidden (the category plus its descendants). */
+  hidden: number;
+  /** Number of listings re-linked onto the destination's drill-in leaf. */
+  movedProducts: number;
+  targetId?: string;
+  targetName?: string;
+}
+
+/**
+ * Superadmin-only: delete a category and its subtree (soft delete — hidden in the app).
+ *
+ * Listings inside the subtree are never orphaned: pass `moveTo` — a live category at the same tree
+ * level (top-level→top-level, child→child) in the same app — and they are re-linked to that
+ * destination's drill-in leaf. A delete that would orphan listings and names no target fails with
+ * code `move_required`, which the caller should surface as "pick a category to move them to".
+ */
+export async function deleteCategory(id: string, moveTo?: string): Promise<CategoryDeleteResult> {
+  const query = moveTo ? `?moveTo=${encodeURIComponent(moveTo)}` : "";
+  return remote.delete<CategoryDeleteResult>(`/categories/${encodeURIComponent(id)}${query}`);
 }
 
 /* --------------------------------- GST rates ------------------------------- */
@@ -555,10 +581,18 @@ export interface ProductFilter {
   query?: string | undefined;
 }
 
-export function listProducts(filter: ProductFilter = {}): ProductRecord[] {
-  const s = state();
-  const storeByProduct = new Map(s.stores.map((st) => [st.storeId, st]));
-  return s.products.filter((p) => {
+/**
+ * Applies a ProductFilter to a product list. Pure, so a live read can filter server rows without
+ * touching the persisted store slice (`listProducts` is the store-backed convenience wrapper).
+ * `stateCode` needs the store lookup; pass `stores` when filtering by state.
+ */
+export function filterProducts(
+  products: ProductRecord[],
+  filter: ProductFilter = {},
+  stores: StoreRecord[] = [],
+): ProductRecord[] {
+  const storeByProduct = new Map(stores.map((st) => [st.storeId, st]));
+  return products.filter((p) => {
     if (filter.sellerId && p.sellerId !== filter.sellerId) return false;
     if (filter.storeId && p.storeId !== filter.storeId) return false;
     if (filter.stateCode && storeByProduct.get(p.storeId)?.stateCode !== filter.stateCode)
@@ -571,6 +605,11 @@ export function listProducts(filter: ProductFilter = {}): ProductRecord[] {
     }
     return true;
   });
+}
+
+export function listProducts(filter: ProductFilter = {}): ProductRecord[] {
+  const s = state();
+  return filterProducts(s.products, filter, s.stores);
 }
 
 export function getProduct(productId: string): ProductRecord | undefined {
@@ -1096,7 +1135,9 @@ export function mapAdminOrderRow(raw: Raw): OrderRecord {
     customerName: toStr(raw["customerName"]) || "Customer",
     customerPhone: optStr(raw["customerPhone"]),
     sellerName: optStr(raw["sellerName"]),
-    city: toStr(raw["city"]),
+    // `districtName` is the revenue district (never a city). Older gateway builds emitted the same
+    // value under `city`, so fall back to it until every environment runs the renamed field.
+    districtName: optStr(raw["districtName"]) ?? optStr(raw["city"]),
     stateCode: toStr(raw["stateCode"]),
     districtCode: optStr(raw["districtCode"]),
     sector: (toStr(raw["sector"]) || "MART") as Sector,

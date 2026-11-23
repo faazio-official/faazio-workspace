@@ -92,7 +92,7 @@ function OrderDetail() {
             <div className="min-w-0">
               <p className="truncate font-bold">{order.customerName}</p>
               <p className="text-xs text-muted-foreground">
-                {order.city ? `${order.city}, ${order.stateCode}` : order.sector}
+                {order.districtName ? `${order.districtName}, ${order.stateCode}` : order.sector}
               </p>
             </div>
             <span className="shrink-0">

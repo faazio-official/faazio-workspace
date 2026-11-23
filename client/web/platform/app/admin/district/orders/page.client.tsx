@@ -73,7 +73,7 @@ function StateOrders() {
                 <TableHead>Order</TableHead>
                 <TableHead>Seller</TableHead>
                 <TableHead>Sector</TableHead>
-                <TableHead>City</TableHead>
+                <TableHead>District</TableHead>
                 <TableHead className="text-right">Value</TableHead>
                 <TableHead>SLA due</TableHead>
                 <TableHead>Status</TableHead>
@@ -95,7 +95,7 @@ function StateOrders() {
                     <TableCell>
                       <SectorPill sector={order.sector} />
                     </TableCell>
-                    <TableCell className="text-[13px]">{order.city}</TableCell>
+                    <TableCell className="text-[13px]">{order.districtName || "—"}</TableCell>
                     <TableCell className="num text-right">{formatINR(order.amountPaisa)}</TableCell>
                     <TableCell className="num text-[12px] text-destructive">
                       {formatDateTime(order.slaDueAt)}
@@ -131,7 +131,7 @@ function StateOrders() {
               <TableRow>
                 <TableHead>Order</TableHead>
                 <TableHead>Customer</TableHead>
-                <TableHead>City</TableHead>
+                <TableHead>District</TableHead>
                 <TableHead className="text-right">Items</TableHead>
                 <TableHead className="text-right">Value</TableHead>
                 <TableHead>Placed</TableHead>
@@ -143,7 +143,7 @@ function StateOrders() {
                 <TableRow key={order.orderId} className="h-12">
                   <TableCell className="num text-[13px] font-medium">{order.orderId}</TableCell>
                   <TableCell className="text-[13px]">{order.customerName}</TableCell>
-                  <TableCell className="text-[13px]">{order.city}</TableCell>
+                  <TableCell className="text-[13px]">{order.districtName || "—"}</TableCell>
                   <TableCell className="num text-right">{order.itemsCount}</TableCell>
                   <TableCell className="num text-right">{formatINR(order.amountPaisa)}</TableCell>
                   <TableCell className="num text-[12px]">{formatDateTime(order.placedAt)}</TableCell>

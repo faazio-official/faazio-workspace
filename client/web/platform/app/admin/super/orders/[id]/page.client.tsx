@@ -112,8 +112,8 @@ function AdminOrderDetail() {
             <Row label="Phone">
               <span className="num">{order.customerPhone || "—"}</span>
             </Row>
-            <Row label="City / State">
-              {[order.city, order.stateCode].filter(Boolean).join(", ") || "—"}
+            <Row label="District / State">
+              {[order.districtName, order.stateCode].filter(Boolean).join(", ") || "—"}
             </Row>
             <Row label="Seller">{order.sellerName || order.sellerId || "—"}</Row>
             <Row label="Sector">

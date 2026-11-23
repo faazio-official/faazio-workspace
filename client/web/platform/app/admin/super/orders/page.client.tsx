@@ -150,7 +150,7 @@ function SuperOrders() {
                 <TableHead>Order</TableHead>
                 <TableHead>Customer</TableHead>
                 <TableHead>Phone</TableHead>
-                <TableHead>City</TableHead>
+                <TableHead>District</TableHead>
                 <TableHead>State</TableHead>
                 <TableHead>Seller</TableHead>
                 <TableHead>Sector</TableHead>
@@ -174,7 +174,7 @@ function SuperOrders() {
                   </TableCell>
                   <TableCell className="text-[13px]">{order.customerName}</TableCell>
                   <TableCell className="num text-[13px]">{order.customerPhone || "—"}</TableCell>
-                  <TableCell className="text-[13px]">{order.city || "—"}</TableCell>
+                  <TableCell className="text-[13px]">{order.districtName || "—"}</TableCell>
                   <TableCell className="num text-[13px]">{order.stateCode || "—"}</TableCell>
                   <TableCell className="text-[13px]">{order.sellerName || order.sellerId || "—"}</TableCell>
                   <TableCell>

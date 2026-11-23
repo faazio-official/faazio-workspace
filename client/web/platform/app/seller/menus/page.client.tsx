@@ -54,6 +54,7 @@ const STATUS_PILL: Record<ProductStatus, string> = {
   DRAFT: "bg-muted text-muted-foreground",
   PENDING_REVIEW: "bg-warning-soft text-warning",
   ACTIVE: "bg-success-soft text-success",
+  CHANGES_REQUESTED: "bg-warning-soft text-warning",
   REJECTED: "bg-brand-soft text-brand",
   DELISTED: "bg-muted text-muted-foreground",
 };
