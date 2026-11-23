@@ -106,10 +106,11 @@ func TestAddonRejectAndRequestChanges(t *testing.T) {
 	}
 }
 
-// TestAddonWritesRequireFoodSector locks the sector guard: a MART/PHARMA store that owns the venue id
-// must not be able to create, edit, submit, status or link an add-on, because the add-on catalogue
-// rows are FOOD-owned even though 0122 gave every sector a product binding.
-func TestAddonWritesRequireFoodSector(t *testing.T) {
+// TestAddonSectorsAndFoodDishLink locks the contract 0122 shipped: add-ons are sector-agnostic, so a
+// MART store can create, edit, submit and activate them — but `directory.menus` /
+// `directory.menu_addon_links` are FOOD-owned, so the FOOD-only dish link must still be refused for a
+// non-FOOD venue.
+func TestAddonSectorsAndFoodDishLink(t *testing.T) {
 	pool := testenv.Pool(t)
 	repo := New(pool)
 	ctx := context.Background()
@@ -132,24 +133,34 @@ func TestAddonWritesRequireFoodSector(t *testing.T) {
 		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID)
 	})
 
-	if _, ok, err := repo.CreateAddon(ctx, storeID, "Gift Wrap", "", "", "", 5000, false, sellerID, ""); err != nil || ok {
-		t.Fatalf("MART add-on create must be denied: ok=%v err=%v", ok, err)
+	// A MART store owns its add-ons (0122): the write succeeds and is tagged MART, not FOOD.
+	addon, ok, err := repo.CreateAddon(ctx, storeID, "Gift Wrap", "", "", "", 5000, false, sellerID, "")
+	if err != nil || !ok {
+		t.Fatalf("MART add-on create must be allowed: ok=%v err=%v", ok, err)
+	}
+	var sector string
+	if err := pool.QueryRow(ctx, `select sector_app from directory.addons where addon_id=$1`, addon.AddonID).Scan(&sector); err != nil {
+		t.Fatalf("read sector_app: %v", err)
+	}
+	if sector != "MART" {
+		t.Fatalf("sector_app must mirror the owning store, got %q", sector)
+	}
+	if _, ok, err := repo.UpdateAddon(ctx, addon.AddonID, "Renamed", "", "", "", 6000, false, sellerID, ""); err != nil || !ok {
+		t.Fatalf("MART add-on update must be allowed: ok=%v err=%v", ok, err)
+	}
+	if _, ok, err := repo.SubmitAddonForReview(ctx, addon.AddonID, sellerID, ""); err != nil || !ok {
+		t.Fatalf("MART add-on submit must be allowed: ok=%v err=%v", ok, err)
 	}
 
-	// Seed a row directly, then prove the FOOD-gated writes cannot touch it either.
-	addonID := "addon-mart-" + shortTestID()
+	// The dish-link path stays FOOD-only: menu tables belong to the food vertical.
+	dishID := "addon-dish-mart-" + shortTestID()
 	if _, err := pool.Exec(ctx, `
-		insert into directory.addons (addon_id, venue_id, name, price_paisa, status, sector_app)
-		values ($1,$2,'Seeded',5000,'DRAFT','FOOD')`, addonID, storeID); err != nil {
-		t.Fatalf("seed addon: %v", err)
+		insert into catalog.products (id, store_id, name, app, category, price_paisa, status)
+		values ($1,$2,'Mart Item','MART','GENERAL',500,'ACTIVE')`, dishID, storeID); err != nil {
+		t.Fatalf("seed product: %v", err)
 	}
-	if _, ok, err := repo.UpdateAddon(ctx, addonID, "Renamed", "", "", "", 6000, false, sellerID, ""); err != nil || ok {
-		t.Fatalf("MART add-on update must be denied: ok=%v err=%v", ok, err)
-	}
-	if _, ok, err := repo.SubmitAddonForReview(ctx, addonID, sellerID, ""); err != nil || ok {
-		t.Fatalf("MART add-on submit must be denied: ok=%v err=%v", ok, err)
-	}
-	if _, ok, err := repo.SetAddonStatus(ctx, addonID, "ACTIVE", "", sellerID, ""); err != nil || ok {
-		t.Fatalf("MART add-on status must be denied: ok=%v err=%v", ok, err)
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from catalog.products where id=$1`, dishID) })
+	if ok, err := repo.LinkAddon(ctx, storeID, dishID, addon.AddonID, sellerID, ""); err != nil || ok {
+		t.Fatalf("MART dish link must be denied: ok=%v err=%v", ok, err)
 	}
 }
