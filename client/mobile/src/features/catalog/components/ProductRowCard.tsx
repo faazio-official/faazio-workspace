@@ -1,11 +1,9 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppImage } from '@/components/shared/AppImage';
-import { Plus, Minus, Check } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { brandTokens } from '@/theme/brandTokens';
-import { useCartProductActions } from '@/components/shared/hooks';
 import type { Product, AppBrand } from '@data/types';
 import { localizedDesc, localizedName } from '@/lib/localizedText';
 import { useLanguageStore } from '@/state/languageStore';
@@ -27,16 +25,15 @@ function getDiscountPct(price: number, originalPrice?: number): number | null {
 /**
  * One-per-row horizontal product card for the category drill-in body, modeled on
  * the Mart vendor card: 96px square image on the left, name + description + price
- * line and the add / quantity stepper on the right. Cart wiring is local via
- * `useCartProductActions`, so add / increment / decrement behave exactly like the
- * other catalog cards. Tapping the row (outside the stepper) opens product detail.
+ * line on the right. The row is browse-only — there is no inline add/stepper, so
+ * the price line owns the full remaining width and the only action is opening
+ * product detail, where the item is added to the cart.
  */
 const ProductRowCard = memo(function ProductRowCard({
   product,
   appBrand,
   onPress,
 }: ProductRowCardProps) {
-  const cart = useCartProductActions(product);
   const tokens = brandTokens[appBrand];
   const language = useLanguageStore((s) => s.language);
   const displayName = localizedName(product, language);
@@ -78,34 +75,6 @@ const ProductRowCard = memo(function ProductRowCard({
           )}
           {discountPct !== null && (
             <AppText style={styles.discount}>{discountPct}% off</AppText>
-          )}
-
-          <View style={styles.spacer} />
-
-          {cart.quantity > 0 ? (
-            <View style={[styles.stepper, { backgroundColor: tokens.btnAdded }]}>
-              <TouchableOpacity onPress={cart.onDecrement} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                <Minus size={ms(12)} color="#ffffff" strokeWidth={3} />
-              </TouchableOpacity>
-              <AppText style={styles.stepperQty}>{cart.quantity}</AppText>
-              <TouchableOpacity onPress={cart.onIncrement} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}>
-                <Plus size={ms(12)} color="#ffffff" strokeWidth={3} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity
-              style={[styles.addBtn, { backgroundColor: tokens.btnBg }]}
-              onPress={cart.onAdd}
-              activeOpacity={0.8}
-              hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-              accessibilityLabel={`Add ${displayName} to cart`}
-            >
-              {cart.isAdded ? (
-                <Check size={ms(13)} color="#ffffff" strokeWidth={3} />
-              ) : (
-                <Plus size={ms(13)} color="#ffffff" strokeWidth={3} />
-              )}
-            </TouchableOpacity>
           )}
         </View>
       </View>
@@ -154,6 +123,7 @@ const styles = StyleSheet.create({
   priceRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: hs(6),
     marginTop: vs(2),
   },
@@ -171,30 +141,5 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     fontWeight: '700',
     color: GREEN,
-  },
-  spacer: {
-    flex: 1,
-  },
-  addBtn: {
-    width: ms(30),
-    height: ms(30),
-    borderRadius: ms(15),
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: ms(15),
-    paddingHorizontal: hs(6),
-    height: ms(30),
-  },
-  stepperQty: {
-    fontSize: ms(12),
-    fontWeight: '900',
-    color: '#ffffff',
-    marginHorizontal: hs(8),
-    minWidth: ms(14),
-    textAlign: 'center',
   },
 });

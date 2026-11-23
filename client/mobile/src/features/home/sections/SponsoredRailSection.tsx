@@ -8,28 +8,25 @@ interface SponsoredRailSectionProps {
   /** The placement this rail reads (`GET /ads/live?slot=…`). Defaults to the Home rail. */
   placement?: string;
   onProductClick?: (product: any) => void;
-  addToCart?: (id: string, name: string, price: number, emoji: string) => void;
 }
 
 /**
  * Home's paid shelf. The ad-server fill, impression/click events, last-click attribution and the
  * "Why sponsored?" disclosure all live in the shared `SponsoredRail`; Home only supplies its card.
  */
-function SponsoredRailSection({ placement = 'HOME_TOP', onProductClick, addToCart }: SponsoredRailSectionProps) {
+function SponsoredRailSection({ placement = 'HOME_TOP', onProductClick }: SponsoredRailSectionProps) {
   return (
     <SponsoredRail
       placement={placement}
       onProductClick={onProductClick}
-      addToCart={addToCart}
       renderCard={(product: SponsoredProduct, h) => (
         <UniversalFeedCard
           key={product.id}
           product={product as unknown as Product}
           variant="rail"
           showAdLabel
-          isAdded={h.isAdded}
+          showAddButton={false}
           onPress={h.onPress}
-          onAdd={h.onAdd}
         />
       )}
     />

@@ -98,7 +98,7 @@ This folder documents the rule enforced by `AGENTS.md`:
 
 ### Customer
 - [Customer overview](./customer/README.md)
-- [Onboarding](./customer/onboarding/index.md) · [Phone OTP login](./customer/onboarding/phone-otp-login.md) · [Location picker](./customer/onboarding/location-picker.md)
+- [Onboarding](./customer/onboarding/index.md) · [Phone OTP login](./customer/onboarding/phone-otp-login.md) · [Location picker](./customer/onboarding/location-picker.md) · [Service-area gate](./customer/onboarding/service-area-gate.md)
 - [Home](./customer/home/index.md) · [Home feed](./customer/home/home-feed.md) · [Sponsored rail](./customer/home/sponsored-rail.md)
 - [Discovery](./customer/discovery/index.md) · [Store drill-in](./customer/discovery/store-drillin.md) · [Product detail](./customer/discovery/product-detail.md) · [Product review](./customer/discovery/product-review.md)
 - [Cart & checkout](./customer/cart-checkout/index.md) · [Add to cart](./customer/cart-checkout/add-to-cart.md) · [Delivery-fee quote](./customer/cart-checkout/delivery-fee-quote.md) · [Place order](./customer/cart-checkout/place-order.md)

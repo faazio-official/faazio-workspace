@@ -27,6 +27,8 @@ import {
   RefreshCw,
 } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
+const CARD_GAP = hs(12);
+const CARD_WIDTH = (SCREEN_W - hs(32) - CARD_GAP) / 2;
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
 import ProductCardBase from '@/components/shared/ProductCardBase';
@@ -247,7 +249,7 @@ export default function CommonProductDetailView({
     );
   }
 
-  const cardWidth = (SCREEN_W - hs(32) - hs(12)) / 2;
+
 
   const storeSection = store ? (
     <View style={styles.padded}>
@@ -301,9 +303,9 @@ export default function CommonProductDetailView({
                     key={p.id}
                     product={p}
                     appBrand={product.app === 'PHARMA' ? 'PHARMA' : 'MART'}
-                    variant="grid2"
-                    width={cardWidth}
-                    showDescription
+variant="grid2"
+                     width={CARD_WIDTH}
+                     showDescription
                     originalPrice={p.originalPrice}
                     quantity={qty}
                     isAdded={qty > 0}

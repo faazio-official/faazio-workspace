@@ -441,8 +441,13 @@ sql.push(inserts(
 ));
 sql.push(inserts(
   'checkout.addresses',
-  ['address_id', 'user_id', 'label', 'name', 'phone', 'address', 'is_default'],
-  d.addressesTable.map((a) => [q(a.id), q(a.userId), q(a.label ?? a.tag ?? ''), q(a.name), q(a.phone), q(a.address), a.isDefault ? 'true' : 'false']),
+  ['address_id', 'user_id', 'label', 'name', 'phone', 'address', 'is_default', 'latitude', 'longitude'],
+  d.addressesTable.map((a) => [
+    q(a.id), q(a.userId), q(a.label ?? a.tag ?? ''), q(a.name), q(a.phone), q(a.address),
+    a.isDefault ? 'true' : 'false',
+    a.latitude == null ? 'null' : n(a.latitude),
+    a.longitude == null ? 'null' : n(a.longitude),
+  ]),
 ));
 // Coupons live in `promo.coupons` (0015, extended by 0021) — the anon `GET /coupons` projection the
 // app reads. `checkout.coupons` (0001) is legacy and no longer seeded: no repo reads it. `sector` /

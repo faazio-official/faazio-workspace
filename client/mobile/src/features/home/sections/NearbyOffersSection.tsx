@@ -9,7 +9,7 @@ import { useLiveOrigin } from '@/hooks/useLiveLocation';
 import type { Coordinates } from '@/services/location';
 import { formatDistanceKm } from '@/utils/distance';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
-import { SectionHeader, useAddToCartFeedback, usePricedProducts } from './common';
+import { SectionHeader, usePricedProducts } from './common';
 import type { SectionProps } from './common';
 
 interface NearbyOffersSectionProps extends SectionProps {
@@ -48,9 +48,7 @@ function NearbyOffersSection({
   products = nearbyOffers,
   origin,
   onProductClick,
-  addToCart,
 }: NearbyOffersSectionProps) {
-  const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
   const liveOrigin = useLiveOrigin();
   const activeOrigin = origin ?? liveOrigin;
   const latitude = activeOrigin?.latitude;
@@ -94,9 +92,8 @@ function NearbyOffersSection({
             product={product}
             variant="rail"
             showDescription
-            isAdded={addedId === product.id}
+            showAddButton={false}
             onPress={() => onProductClick?.(product)}
-            onAdd={() => handleAdd(product.id, product.name, product.price, product.emoji)}
           />
         ))}
       </ScrollView>

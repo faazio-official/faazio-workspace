@@ -96,7 +96,12 @@ class FaazioGeocoderModule(reactContext: ReactApplicationContext) :
 
         val result = Arguments.createMap().apply {
           putString("street", address.thoroughfare ?: address.subThoroughfare)
-          putString("district", address.subLocality ?: address.locality)
+          // Sub-locality only. Falling back to `locality` put the CITY in the district field
+          // (e.g. district "Tiruchirappalli", city "Tiruchirappalli"); the city has its own key below.
+          putString("district", address.subLocality)
+          // The revenue/administrative district coverage is keyed on. `district` above is the
+          // sub-locality, which for a taluk town (e.g. Lalgudi) is not the district name.
+          putString("adminDistrict", address.subAdminArea)
           putString("city", address.locality)
           putString("region", address.adminArea)
           putString("postalCode", address.postalCode)

@@ -292,8 +292,8 @@ func TestAdminOrderRowsExposeDistrictNotCity(t *testing.T) {
 	t.Cleanup(cleanup)
 
 	if _, err := pool.Exec(ctx,
-		`insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
-		 values ($1, 'Test Seller', 'Test Owner', 'MART', 'PY', $2)`, sellerID, districtCode); err != nil {
+		`insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
+		 values ($1, 'Test Seller', 'Test Owner', 'PY', $2)`, sellerID, districtCode); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	if _, err := pool.Exec(ctx,

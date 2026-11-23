@@ -9,7 +9,16 @@
 
 1. `handlePlaceOrder` validates the delivery address (Delivery only) and builds a stable
    idempotency key.
-2. `gateway.placeOrder(input)` → `POST /orders`. The gateway re-prices from `catalog.products` (with
+2. **Far-from-origin guardrail.** With both a device fix and an active origin known, it compares them
+   (Haversine). More than 1 km apart shows a confirmation naming the device area and the delivery
+   address ("You're currently in Lalgudi, but this order is going to Chennai…"). Ordering for another
+   city is legitimate, so this confirms rather than blocks; the fee/ETA/dispatch follow the delivery
+   address, never the phone. "Change address" dismisses; "Continue" re-enters with the guard skipped.
+3. The order's origin and `addressId` come from the **active location**, not the default address:
+   `deliveryLocation` is `activeLocation`'s point, and `addressId` is the active saved row's id
+   (absent for a GPS or pinned origin). Submitting the default's id with a different point would
+   charge for one place and deliver to another.
+4. `gateway.placeOrder(input)` → `POST /orders`. The gateway re-prices from `catalog.products` (with
    a `directory.menus` fallback for Food dish ids). Each line may carry `addonIds`; the server
    re-validates that every one is ACTIVE + linked to the ordered dish, re-prices it from
    `directory.addons`, adds the add-on total to the line/invoice gross, and snapshots the selection
@@ -20,29 +29,31 @@
    percent from `rewards.balances`, applies the same whole-rupee discount the client showed, and
    clears the card after the order commits. An absent/expired card fails with
    `invalid_discount_card` rather than charging an undiscounted total.
-3. `useOrdersStore.recordServerOrder(placed)` adopts the durable server id; `useRewardsStore.reconcile()`
+5. `useOrdersStore.recordServerOrder(placed)` adopts the durable server id; `useRewardsStore.reconcile()`
    refreshes the ledger (coins are earned server-side, never client-written).
-4. Purchased lines are removed from the server cart (`DELETE /cart/items/{id}`); a failed removal
+6. Purchased lines are removed from the server cart (`DELETE /cart/items/{id}`); a failed removal
    triggers `cartStore.hydrate()` so the device never hides a line the server still holds.
-5. `trackEvent(id, 'order')` records ID-only analytics.
-6. **COD:** `payForOrder(orderId, 'COD', coinsRedeemed)` (`POST /orders/{id}/payments`) → RECEIPT.
-7. **UPI:** `createRazorpayOrder(orderId)` (`POST /razorpay/customer/orders`) returns a Razorpay
+7. `trackEvent(id, 'order')` records ID-only analytics.
+8. **COD:** `payForOrder(orderId, 'COD', coinsRedeemed)` (`POST /orders/{id}/payments`) → RECEIPT.
+9. **UPI:** `createRazorpayOrder(orderId)` (`POST /razorpay/customer/orders`) returns a Razorpay
    order; the app launches the UPI intent and shows `PAYMENT_STATUS`.
-8. `PAYMENT_STATUS` polls `fetchPaymentStatus` (`GET /orders/{id}/payment-status`). The Razorpay
-   webhook (`POST /webhooks/razorpay/payments`, HMAC) is the authority for PAID/FAILED.
-9. `PaymentCallback` reconciles a return deep link by polling the same status endpoint.
-10. Failure offers retry with the same order (never a second order) or switch to COD.
+10. `PAYMENT_STATUS` polls `fetchPaymentStatus` (`GET /orders/{id}/payment-status`). The Razorpay
+    webhook (`POST /webhooks/razorpay/payments`, HMAC) is the authority for PAID/FAILED.
+11. `PaymentCallback` reconciles a return deep link by polling the same status endpoint.
+12. Failure offers retry with the same order (never a second order) or switch to COD.
 
 ## State
 
 - `useCartStore` — lines removed after placement.
 - `useOrdersStore` — server order adopted.
 - `useRewardsStore` — balance/ledger reconciled.
-- Local `paymentAttempt`, `paymentProcessing`, `paymentError`.
+- `useLocationStore` — `activeLocation` (the origin submitted) and `deviceFix` (guardrail only).
+- Local `paymentAttempt`, `paymentProcessing`, `paymentError`, `distanceConfirm`.
 
 ## Data path
 
-- `gateway.placeOrder` → `POST /orders` → `checkout.orders`, `checkout.order_items`,
+- `gateway.placeOrder` → `POST /orders` → `checkout.orders` (incl. `delivery_latitude`/
+  `delivery_longitude`, `0044`), `checkout.order_items`,
   `checkout.order_item_addons`, `checkout.payments`, `checkout.idempotency_keys`, `tax.tax_invoices`.
 - `gateway.validateCoupon` → `POST /checkout/validate-coupon` → `promo.coupons`.
 - Streak discount card: `rewards.balances.card` (read at settlement, cleared after commit).
@@ -56,6 +67,7 @@
 - **Success:** RECEIPT with server order id/status.
 - **Error:** inline message; 409 → "already being processed, check My Orders". Offline → retry
   message. No local PAID state is fabricated.
+- **Far away:** confirmation modal before charging (see step 2); dismissing it places no order.
 - **Payment pending:** status screen polls; timeout → failure screen with retry/COD.
 - **Empty:** cart cannot place with zero selected items.
 

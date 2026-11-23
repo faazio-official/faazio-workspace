@@ -184,7 +184,6 @@ function BrandCampaignsSection({ onProductClick, onOpenDeals, campaigns }: Secti
 
   return (
     <View style={styles.container}>
-      <AppText style={styles.containerTitle}>Deals of the day</AppText>
       {loading ? (
         <AppText style={styles.stateText}>Loading deals…</AppText>
       ) : !offline && error ? (
@@ -222,13 +221,6 @@ const styles = StyleSheet.create({
     padding: hs(10),
     marginTop: SPACE.SECTION,
     marginBottom: SPACE.BLOCK,
-  },
-  containerTitle: {
-    fontSize: ms(18),
-    fontWeight: '600',
-    color: '#0f172a',
-    marginBottom: SPACE.BLOCK,
-    marginLeft: hs(2),
   },
   stateText: {
     fontSize: ms(12),

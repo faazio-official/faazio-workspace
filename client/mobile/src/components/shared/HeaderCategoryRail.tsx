@@ -107,15 +107,16 @@ const HeaderCategoryRail = memo(function HeaderCategoryRail({
   }
 
   return (
-    <ScrollView
-      horizontal
-      showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.content}
-      onScroll={onScroll}
-      onLayout={onLayout}
-      onContentSizeChange={onContentSizeChange}
-      scrollEventThrottle={16}
-    >
+<ScrollView
+       horizontal
+       showsHorizontalScrollIndicator={false}
+       style={styles.scroll}
+       contentContainerStyle={styles.content}
+       onScroll={onScroll}
+       onLayout={onLayout}
+       onContentSizeChange={onContentSizeChange}
+       scrollEventThrottle={16}
+     >
       {items.map((item) => (
         <TouchableOpacity
           key={item.id}
@@ -145,13 +146,16 @@ const HeaderCategoryRail = memo(function HeaderCategoryRail({
 export default HeaderCategoryRail;
 
 const styles = StyleSheet.create({
+  scroll: {
+    minHeight: vs(30),
+  },
   content: {
     paddingHorizontal: hs(2),
     gap: hs(8),
     alignItems: 'center',
   },
   chip: {
-    height: vs(30),
+    minHeight: vs(30),
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(5),

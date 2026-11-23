@@ -21,6 +21,11 @@ interface SlideUpSheetProps {
   onRequestClose: () => void;
   /** Optional fixed content rendered above the sheet children (e.g. a grab bar). */
   sheetTop?: ReactNode;
+  /**
+   * Drop the sheet's horizontal padding and stretch the body edge-to-edge, so
+   * full-width list rows can own their own insets. Defaults to `true`.
+   */
+  padded?: boolean;
   children: ReactNode;
 }
 
@@ -35,6 +40,7 @@ const SlideUpSheet = memo(function SlideUpSheet({
   visible,
   onRequestClose,
   sheetTop,
+  padded = true,
   children,
 }: SlideUpSheetProps) {
   const insets = useSafeAreaInsets();
@@ -117,6 +123,7 @@ const SlideUpSheet = memo(function SlideUpSheet({
         <Animated.View
           style={[
             styles.sheet,
+            padded ? null : styles.sheetFlush,
             {
               transform: [{ translateY: Animated.add(cardTranslateY, panY) }],
               paddingBottom: Math.max(insets.bottom, vs(16)),
@@ -130,7 +137,7 @@ const SlideUpSheet = memo(function SlideUpSheet({
           {sheetTop}
           <ScrollView
             style={styles.body}
-            contentContainerStyle={styles.bodyContent}
+            contentContainerStyle={padded ? styles.bodyContent : styles.bodyContentFlush}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
           >
@@ -168,6 +175,10 @@ const styles = StyleSheet.create({
     shadowRadius: 24,
     elevation: 8,
   },
+  /** Edge-to-edge variant: rows own their horizontal inset. */
+  sheetFlush: {
+    paddingHorizontal: 0,
+  },
   handleArea: {
     alignSelf: 'stretch',
     alignItems: 'center',
@@ -185,6 +196,10 @@ const styles = StyleSheet.create({
   },
   bodyContent: {
     alignItems: 'center',
+    paddingBottom: vs(8),
+  },
+  bodyContentFlush: {
+    alignItems: 'stretch',
     paddingBottom: vs(8),
   },
 });

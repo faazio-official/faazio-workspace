@@ -34,6 +34,9 @@ export interface AddressRow {
   phone?: string;
   address: string;
   isDefault?: boolean;
+  /** Exact delivery point (migration 0125); absent on a text-only row. */
+  latitude?: number;
+  longitude?: number;
 }
 
 function fromCartAddress(a: Address, userId: string): AddressRow {
@@ -50,6 +53,8 @@ function fromSavedAddress(a: SavedAddress, userId: string): AddressRow {
     phone: a.phone,
     address: a.address,
     isDefault: a.isDefault,
+    latitude: a.latitude,
+    longitude: a.longitude,
   };
 }
 

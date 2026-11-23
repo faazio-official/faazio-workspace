@@ -175,6 +175,13 @@ export interface SavedAddress {
   name: string;
   phone: string;
   address: string;
+  /**
+   * Exact delivery point, paired. Absent on a row saved before coordinates were stored or on one
+   * that was never pinned — callers must fall back to forward-geocoding `address`, never invent a
+   * point. A stored point is what proximity auto-select and delivery pricing use.
+   */
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface Coupon {

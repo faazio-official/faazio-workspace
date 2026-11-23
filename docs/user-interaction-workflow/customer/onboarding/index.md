@@ -12,6 +12,7 @@
 | Phone OTP login | No session, or `Login` route | [phone-otp-login.md](./phone-otp-login.md) |
 | Language selection | After successful login | This page |
 | Location picker | After language selection | [location-picker.md](./location-picker.md) |
+| Service-area gate | Origin outside an enabled coverage district | [service-area-gate.md](./service-area-gate.md) |
 
 ## First-run carousel
 
@@ -47,13 +48,16 @@ a translation is empty.
 | Condition | Initial route |
 |---|---|
 | Authenticated, `useLocationStore.status === 'idle'` (no usable origin yet) | `Location` (primer step) |
-| Authenticated, origin known (`ready` / `denied` / `blocked`) | `MainTabs` (denied/blocked show the Home nudge banner) |
+| Authenticated, origin known (`ready` / `denied` / `blocked`) **and** coverage serviceable | `MainTabs` (denied/blocked show the Home nudge banner) |
+| Authenticated, origin known but outside enabled district coverage | App-level `ServiceAreaBlockedPage` (no navigator mounted) |
 | Onboarding seen, no session | `Login` |
 | First launch | `Onboarding` |
 
 The authenticated branch waits for the persisted location to hydrate (3 s bound) before choosing, so
-a returning user with no origin is not stranded on an empty Home tab. See
-[location-picker.md](./location-picker.md).
+a returning user with no origin is not stranded on an empty Home tab. On a cold start it also holds
+the splash for the first coverage decision (3 s bound) so a returning user outside coverage never
+flashes `MainTabs`. See [location-picker.md](./location-picker.md) and
+[service-area-gate.md](./service-area-gate.md).
 
 ## Known gaps
 
@@ -64,6 +68,7 @@ a returning user with no origin is not stranded on an empty Home tab. See
 
 ## Linked docs
 
+- [`service-area-gate.md`](./service-area-gate.md) (enabled-district hard gate)
 - `docs/architecture/mobile-app.md` (auth flow)
 - `docs/RUNBOOKS/FIREBASE_AUTH.md`
 - `data/DATA_CONTROL.md`

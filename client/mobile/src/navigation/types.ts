@@ -165,6 +165,7 @@ export type RootStackParamList = {
 };
 
 export type FoodStackParamList = {
+  FoodCategoryDrillIn: { categoryId: string; title: string; };
   FoodHome: undefined;
   Search: { initialQuery?: string; initialMode?: string } | undefined;
   /** Full restaurant profile drill-in (hero, menu, floating cart footer). */

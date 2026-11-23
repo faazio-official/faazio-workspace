@@ -1,10 +1,10 @@
-import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
+import React, { useMemo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { neutral, parentRamp } from '@/theme/brandTokens';
-import { ICON, TOUCH } from '@/theme/tokens';
+import { ICON } from '@/theme/tokens';
 import type { SubAppId } from '@/state/uiStore';
 import type { AppBrand, Product, StoreProfile } from '@data/types';
 import type { SduiCampaign } from '@data/home/sdui';
@@ -16,7 +16,6 @@ export interface SectionProps {
   onProductClick?: (product: any) => void;
   /** Resolve a paid hero's store target to the right vendor / medical-shop page. */
   onStoreClick?: (store: StoreProfile) => void;
-  addToCart?: (id: string, name: string, price: number, emoji: string) => void;
   /** Open the Deals landing page for a campaign or vendor discounts. */
   onOpenDeals?: (params: { mode: 'campaign' | 'discounts'; campaignId?: string; storeId?: string }) => void;
   /** Server-owned campaign definitions for this section (Home "Deals of the day"); fixture fallback. */
@@ -26,30 +25,6 @@ export interface SectionProps {
 // Maps the data-layer AppBrand to the navigable SubAppId.
 export function subAppIdFor(app: AppBrand): SubAppId {
   return app === 'MART' ? 'FA_MART' : app;
-}
-
-export interface AddToCartFeedback {
-  addedId: string | null;
-  handleAdd: (id: string, name: string, price: number, emoji: string) => void;
-}
-
-// Shared "add to cart + temporary added feedback" handler for card sections.
-export function useAddToCartFeedback(addToCart?: (id: string, name: string, price: number, emoji: string) => void): AddToCartFeedback {
-  const [addedId, setAddedId] = useState<string | null>(null);
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-  }, []);
-
-  const handleAdd = useCallback((id: string, name: string, price: number, emoji: string) => {
-    addToCart?.(id, name, price, emoji);
-    setAddedId(id);
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setAddedId(null), 1500);
-  }, [addToCart]);
-
-  return { addedId, handleAdd };
 }
 
 /**
@@ -96,6 +71,7 @@ export function SectionHeader({
             onPress={onAction}
             style={styles.action}
             activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 8, right: 8 }}
             accessibilityRole="button"
             accessibilityLabel={actionLabel}
           >
@@ -132,7 +108,7 @@ const styles = StyleSheet.create({
     marginTop: vs(1),
   },
   action: {
-    minHeight: TOUCH.min,
+    minHeight: 32,
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(2),

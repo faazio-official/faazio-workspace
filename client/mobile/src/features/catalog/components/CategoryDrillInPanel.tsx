@@ -5,7 +5,6 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Modal,
 } from 'react-native';
 import { ChevronLeft, Search, X } from 'lucide-react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -15,6 +14,7 @@ import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
 import CampaignHero from '@/components/shared/CampaignHero';
 import AppRefreshControl from '@/components/shared/AppRefreshControl';
+import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import { ReportIssueButton } from '@/components/shared/ReportIssueButton';
 import type { CategoryApp, Product } from '@data/types';
 import { localizedName } from '@/lib/localizedText';
@@ -127,6 +127,10 @@ export function CategoryDrillInPanel({
   }, []);
 
   const [menuVisible, setMenuVisible] = useState(false);
+
+  const handleRefresh = useCallback(() => {
+    refreshTree();
+  }, [refreshTree]);
 
   /** Public `AppBrand` for the paid CATEGORY_TOP hero (drill-in app is Mart/Pharma). */
   const heroApp: 'MART' | 'PHARMA' = app === 'FA_MART' ? 'MART' : 'PHARMA';
@@ -246,38 +250,44 @@ export function CategoryDrillInPanel({
         )}
   </ScrollView>
 
-  {/* Floating menu pill */}
+  {/* Floating menu button — a true circle, not a tube. */}
   <TouchableOpacity
     style={styles.floatingPill}
     onPress={() => setMenuVisible(true)}
-    accessibilityLabel="Sub categories"
+    accessibilityLabel="Browse sub categories"
     accessibilityRole="button"
+    activeOpacity={0.88}
   >
-    <AppText style={styles.floatingPillText}>menu</AppText>
+    <AppText style={styles.floatingPillText}>Menu</AppText>
   </TouchableOpacity>
 
-  {/* Sub-category selector modal */}
-  <Modal visible={menuVisible} transparent animationType="fade" onRequestClose={() => setMenuVisible(false)}>
-    <View style={styles.modalBackdrop}>
-      <View style={styles.modalContent}>
-        {items.map((it) => (
-          <TouchableOpacity
-            key={it.id}
-            onPress={() => {
-              setMenuVisible(false);
-              const y = sectionOffsets[it.id];
-              if (y !== undefined) {
-                scrollViewRef.current?.scrollTo({ y, animated: true });
-              }
-            }}
-            style={styles.modalItem}
-          >
-            <AppText>{it.name}</AppText>
-          </TouchableOpacity>
-        ))}
-      </View>
+  {/* Sub-category selector — the shared bottom sheet: it slides up from the bottom
+      edge, spans the full width (no side margins, no X button), and dismisses by
+      swiping down or tapping the scrim. A row jumps to its section. */}
+  <SlideUpSheet visible={menuVisible} onRequestClose={() => setMenuVisible(false)} padded={false}>
+    <View style={styles.sheetHeader}>
+      <AppText style={styles.sheetTitle} numberOfLines={1}>Browse {title}</AppText>
+      <AppText style={styles.sheetCount}>{items.length} sub-categories</AppText>
     </View>
-  </Modal>
+    {items.map((it, idx) => (
+      <TouchableOpacity
+        key={it.id}
+        onPress={() => {
+          setMenuVisible(false);
+          const y = sectionOffsets[it.id];
+          if (y !== undefined) {
+            scrollViewRef.current?.scrollTo({ y, animated: true });
+          }
+        }}
+        style={[styles.sheetRow, idx === items.length - 1 && styles.sheetRowLast]}
+        activeOpacity={0.7}
+        accessibilityRole="button"
+        accessibilityLabel={it.name}
+      >
+        <AppText style={styles.sheetRowText} numberOfLines={1}>{it.name}</AppText>
+      </TouchableOpacity>
+    ))}
+  </SlideUpSheet>
     </View>
   );
 }
@@ -289,35 +299,58 @@ const styles = StyleSheet.create({
     position: 'absolute',
     right: SPACE.FLOATING_PILL_RIGHT,
     bottom: SPACE.FLOATING_PILL_BOTTOM,
+    width: ms(64),
+    height: ms(64),
+    borderRadius: ms(32),
     backgroundColor: '#000',
-    borderRadius: hs(20),
-    paddingHorizontal: hs(12),
-    paddingVertical: vs(6),
     alignItems: 'center',
     justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.22,
+    shadowRadius: 12,
+    elevation: 12,
   },
   floatingPillText: {
     color: '#fff',
-    fontSize: ms(14),
+    fontSize: ms(13),
     fontWeight: '600',
+    letterSpacing: 0.2,
   },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: hs(8),
-    width: '80%',
-    maxHeight: '70%',
-    padding: hs(16),
-  },
-  modalItem: {
-    paddingVertical: vs(10),
+  sheetHeader: {
+    paddingHorizontal: hs(20),
+    paddingBottom: vs(10),
     borderBottomWidth: StyleSheet.hairlineWidth,
-    borderBottomColor: '#ccc',
+    borderBottomColor: neutral.border,
+  },
+  sheetTitle: {
+    fontSize: ms(16),
+    fontWeight: '600',
+    color: neutral.ink,
+  },
+  sheetCount: {
+    marginTop: vs(2),
+    fontSize: ms(11),
+    fontWeight: '500',
+    color: neutral.inkMuted,
+  },
+  sheetList: {
+    flexGrow: 0,
+  },
+  sheetRow: {
+    minHeight: Math.max(52, vs(52)),
+    justifyContent: 'center',
+    paddingHorizontal: hs(20),
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: neutral.border,
+  },
+  sheetRowLast: {
+    borderBottomWidth: 0,
+  },
+  sheetRowText: {
+    fontSize: ms(15),
+    fontWeight: '600',
+    color: neutral.ink,
   },
   container: {
     flex: 1,
@@ -374,7 +407,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   bodyContent: {
-    paddingBottom: SPACE.LIST_BOTTOM,
+    paddingBottom: SPACE.LIST_BOTTOM + ms(64),
   },
   topAd: {
     marginHorizontal: hs(16),

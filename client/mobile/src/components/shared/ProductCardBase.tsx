@@ -2,7 +2,7 @@ import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppImage } from './AppImage';
 import { Star, Plus, Minus, Check, Heart, Zap } from 'lucide-react-native';
-import { hs, vs, ms } from '@/utils/responsive';
+import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { brandTokens } from '@/theme/brandTokens';
 import { resolveBadgeBg, formatRating } from './format';
 import AdLabelBadge from './AdLabelBadge';
@@ -57,12 +57,12 @@ const ProductCardBase = memo(function ProductCardBase({
   const isGrid2 = variant === 'grid2';
 
   const cardStyle = {
-    width: width || (isRail ? hs(150) : '48%' as any),
+    width: width || (isRail ? hs(150) : ((SCREEN_W - hs(32) - hs(12)) / 2) as any),
     borderRadius: ms(16),
     backgroundColor: '#ffffff',
     borderWidth: 1,
     borderColor: '#ffffff',
-    marginBottom: vs(12),
+    marginBottom: isRail ? 0 : vs(12),
     ...(isRail ? { marginRight: hs(8) } : null),
     overflow: 'hidden' as const,
   };

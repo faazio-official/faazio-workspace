@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Banknote, Smartphone } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { useTabBarClearance } from '@/hooks/useTabBarClearance';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/cartStore';
 import { useRewardsStore } from '@/state/rewardsStore';
@@ -89,6 +90,8 @@ export default function PaymentOptionsScreen({
   onPlaceOrder,
 }: PaymentOptionsScreenProps) {
   const insets = useSafeAreaInsets();
+  // In tab mode the floating hub dock overlays the pay bar; reserve its height.
+  const tabBarClearance = useTabBarClearance();
   // The pickup contact is the signed-in shopper's verified phone, never a @data fixture. A caller
   // may pass an explicit override (saved address phone); otherwise fall back to the auth session.
   const accountPhone = useAuthStore((s) => s.user?.phone);
@@ -147,7 +150,10 @@ export default function PaymentOptionsScreen({
 
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={[styles.scrollContent, selected && styles.scrollContentWithPayBar]}
+        contentContainerStyle={[
+          styles.scrollContent,
+          selected && [styles.scrollContentWithPayBar, { paddingBottom: vs(90) + tabBarClearance }],
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <BreakdownCard

@@ -10,7 +10,7 @@ import type { Product } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import FilterChipsRail from '@/features/home/cards/FilterChipsRail';
-import { SectionHeader, useAddToCartFeedback, usePricedProducts } from './common';
+import { SectionHeader, usePricedProducts } from './common';
 import type { SectionProps } from './common';
 import { useBatchedFeed } from '@/hooks/useBatchedFeed';
 import AppText from '@/components/AppText';
@@ -42,7 +42,6 @@ interface FilterFeedSectionProps extends SectionProps {
 function FilterFeedSection({
   chipProducts,
   onProductClick,
-  addToCart,
   scrollY,
   viewportH,
 }: FilterFeedSectionProps) {
@@ -84,7 +83,6 @@ function FilterFeedSection({
   const pool = offline ? filterFeedPools[activeChip] ?? [] : feedPool ?? [];
   const pricedPool = usePricedProducts(pool);
   const { visibleItems, hasMore, loadMore, total, visibleCount } = useBatchedFeed(pricedPool, BATCH_SIZE);
-  const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
 
   const sectionTop = useSharedValue(0);
   const sectionH = useSharedValue(0);
@@ -129,10 +127,6 @@ function FilterFeedSection({
     (product: Product) => onProductClick?.(product),
     [onProductClick],
   );
-  const handleAddStable = useCallback(
-    (product: Product) => handleAdd(product.id, product.name, product.price, product.emoji),
-    [handleAdd],
-  );
 
   return (
     <View onLayout={onSectionLayout}>
@@ -156,9 +150,8 @@ function FilterFeedSection({
               <UniversalFeedCard
                 key={product.id}
                 product={product}
-                isAdded={addedId === product.id}
+                showAddButton={false}
                 onPress={handlePress}
-                onAdd={handleAddStable}
               />
             ))}
           </View>

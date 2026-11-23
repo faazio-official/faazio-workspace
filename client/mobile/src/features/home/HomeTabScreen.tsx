@@ -21,7 +21,6 @@ import type { StoreProfile } from '@data/types';
 import ExploreSectorsSection from '@/features/home/sections/ExploreSectorsSection';
 import HomeView from '@/features/home/HomeView';
 import AppText from '@/components/AppText';
-import { useCartStore } from '@/state/cartStore';
 import { HubGradient } from '@/features/home/HubGradient';
 import {
   HEADER_ROW_GAP,
@@ -52,20 +51,19 @@ const launchSubApp = (navigation: Props['navigation'], id: SubAppId) => {
 };
 
 export function HomeTabScreen({ navigation }: Props) {
-  const addToCart = useCartStore((s) => s.addToCart);
   const insets = useSafeAreaInsets();
-  const savedAddress = useLocationStore((s) => s.address);
+  const savedAddress = useLocationStore((s) => s.activeLocation?.address ?? '');
   const locationStatus = useLocationStore((s) => s.status);
-  const locationSource = useLocationStore((s) => s.source);
+  const locationSource = useLocationStore((s) => s.activeLocation?.source ?? null);
   const permissionGranted = useLocationStore((s) => s.permissionGranted);
   const addressLabel = savedAddress || 'Set your location';
   const [nudgeDismissed, setNudgeDismissed] = useState(false);
 
-  // A GPS origin is missing while the user may still want nearby sorting. A manual origin is a
-  // deliberate choice and never gets nagged; `idle` is handled upstream by the navigator.
+  // A GPS origin is missing while the user may still want nearby sorting. A chosen origin (saved
+  // address / pin) is a deliberate choice and never gets nagged; `idle` is handled upstream.
   const showLocationNudge =
     !nudgeDismissed &&
-    locationSource !== 'manual' &&
+    locationSource === 'gps' &&
     (locationStatus === 'denied' ||
       locationStatus === 'blocked' ||
       (!permissionGranted && locationStatus !== 'ready'));
@@ -255,7 +253,6 @@ export function HomeTabScreen({ navigation }: Props) {
       <View style={styles.viewport}>
         <HomeView
           onLaunchSubApp={handleLaunchSubApp}
-          addToCart={addToCart}
           onProductClick={handleProductClick}
           onStoreClick={handleStoreClick}
           onOpenDeals={handleOpenDeals}
@@ -325,17 +322,17 @@ const styles = StyleSheet.create({
     paddingVertical: vs(10),
   },
   nudgeCopy: { flex: 1 },
-  nudgeTitle: {
-    fontSize: ms(11),
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.98)',
-  },
-  nudgeBody: {
-    fontSize: ms(10),
-    lineHeight: ms(14),
-    color: 'rgba(255,255,255,0.85)',
-    marginTop: vs(2),
-  },
+nudgeTitle: {
+      fontSize: ms(11),
+      fontWeight: '600',
+      color: neutral.ink,
+    },
+nudgeBody: {
+      fontSize: ms(10),
+      lineHeight: ms(14),
+      color: neutral.inkSubtle,
+      marginTop: vs(2),
+    },
   nudgeActions: {
     flexDirection: 'row',
     alignItems: 'center',

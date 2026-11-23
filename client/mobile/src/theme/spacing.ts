@@ -1,4 +1,4 @@
-import { vs } from '@/utils/responsive';
+import { hs, vs } from '@/utils/responsive';
 
 /**
  * Canonical vertical-rhythm scale. Single source of truth for the gap that
@@ -23,4 +23,17 @@ export const SPACE = {
   FLOATING_PILL_BOTTOM: vs(12),
   /** Right offset for floating menu pill. */
   FLOATING_PILL_RIGHT: hs(16),
+} as const;
+
+/**
+ * Floating bottom-navigation dock. Every customer bottom navbar is a detached
+ * capsule: inset from both screen edges by `MARGIN` and lifted `GAP` above the
+ * bottom edge, so the bar never touches the screen sides or bottom. Consumers
+ * must add `GAP` to the content clearance they reserve for the bar.
+ */
+export const FLOATING_NAV = {
+  /** Screen-edge inset of the capsule (left and right). */
+  MARGIN: hs(14),
+  /** Clear space between the capsule and the bottom edge of the screen. */
+  GAP: vs(10),
 } as const;

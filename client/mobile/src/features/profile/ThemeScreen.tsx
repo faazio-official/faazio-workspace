@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Check, ChevronLeft, Moon, Smartphone, Sun } from 'lucide-react-native';
+import { Check, ChevronLeft, Sun, Moon, Smartphone } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/navigation/types';
 import AppText from '@/components/AppText';
@@ -75,14 +75,6 @@ export default function ThemeScreen({ navigation }: Props) {
                 accessibilityState={{ selected }}
                 accessibilityLabel={`${option.title}. ${option.subtitle}`}
               >
-                <View
-                  style={[
-                    styles.iconBox,
-                    { backgroundColor: selected ? palette.card : palette.accentSoft },
-                  ]}
-                >
-                  <option.Icon size={ms(18)} color={palette.accent} strokeWidth={2.2} />
-                </View>
                 <View style={styles.text}>
                   <AppText style={[styles.title, { color: palette.text }]}>{option.title}</AppText>
                   <AppText style={[styles.subtitle, { color: palette.textMuted }]}>

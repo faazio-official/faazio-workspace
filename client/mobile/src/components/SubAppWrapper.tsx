@@ -17,7 +17,7 @@ import {
 } from 'lucide-react-native';
 import type { LucideIcon } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
-import { SPACE } from '@/theme/spacing';
+import { FLOATING_NAV, SPACE } from '@/theme/spacing';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { CartItem } from '@/state/cartStore';
@@ -187,10 +187,11 @@ export default function SubAppWrapper({
   const config = SUB_APP_PRESETS[subAppId as SubAppKey] ?? FALLBACK_SUB_APP_PRESET;
 
   // With >4 tabs the fixed 56px items overflow narrow (320dp) screens, so widen
-  // them to share the available bar width evenly when the count increases.
+  // them to share the floating capsule's inner width evenly when the count grows.
   const tabs = config.tabs;
   const tabCount = tabs.length;
-  const adaptiveTabWidth = tabCount > 0 ? (SCREEN_W - hs(48)) / tabCount : 0;
+  const capsuleInnerW = SCREEN_W - 2 * FLOATING_NAV.MARGIN - hs(48);
+  const adaptiveTabWidth = tabCount > 0 ? capsuleInnerW / tabCount : 0;
 
   const compactHeader = subAppId === 'FA_MART' || subAppId === 'PHARMA';
 
@@ -217,6 +218,10 @@ export default function SubAppWrapper({
   // absolute bar itself, the viewport clearance and the Home shortcut — uses this
   // bare vs(72), never vs(72) + inset.
   const navBarH = vs(72);
+  // The bar is a floating capsule: `FLOATING_NAV.MARGIN` off each side and
+  // `FLOATING_NAV.GAP` above the bottom edge, so content clearance must include
+  // the gap as well as the bar itself.
+  const navBarClearance = navBarH + FLOATING_NAV.GAP;
 
   // Registered-donor dashboard (Pharma Donor tab) renders in-wrapper WITH the
   // pharma bottom navbar but its own "Hi, …" header — so header hiding is
@@ -371,7 +376,7 @@ export default function SubAppWrapper({
             paddingTop: hideAppHeader
               ? 0
               : subAppHeaderH(insets.top, compactHeader, subAppId === 'FA_MART'),
-            paddingBottom: isChromeHidden ? 0 : navBarH,
+            paddingBottom: isChromeHidden ? 0 : navBarClearance,
           },
         ]}
       >
@@ -379,50 +384,53 @@ export default function SubAppWrapper({
       </View>
 
       {!isChromeHidden && (
-        <View style={[styles.tabBar, { height: navBarH }]}>
-        {tabs.map((tab, idx) => {
-          const isCurrent = activeTab === tab.name;
-          const Icon = tab.icon;
-          const activeColor = tokens.tabActiveColor;
+        <View style={styles.tabBarDock} pointerEvents="box-none">
+          <View style={[styles.tabBar, { height: navBarH }]}>
+            {tabs.map((tab, idx) => {
+              const isCurrent = activeTab === tab.name;
+              const Icon = tab.icon;
+              const activeColor = tokens.tabActiveColor;
 
-          return (
-            <TouchableOpacity
-              key={idx}
-              onPress={() => {
-                const lower = tab.name.toLowerCase();
-                if (lower.includes('cart')) onCartPress?.();
-                else if (tab.name === 'Search') onSearchPress?.();
-                else if (tab.name === 'You') navigation.navigate('You');
-                else if (tab.name === 'Donor') {
-                  // Registered → dashboard inside the Pharma wrapper (navbar
-                  // stays); not registered → push the wizard route.
-                  if (useBloodDonorStore.getState().registration !== null) {
-                    setActiveTab('Donor');
-                  } else {
-                    navigation.navigate('BloodDonor');
-                  }
-                }
-                else setActiveTab(tab.name);              }}
-              style={[styles.tabItem, tabCount > 4 && { width: adaptiveTabWidth }]}
-              activeOpacity={0.8}
-              accessibilityRole="tab"
-              accessibilityState={{ selected: isCurrent }}
-              accessibilityLabel={tab.name}
-            >
-              <View style={styles.iconContainer}>
-                <Icon size={ms(18)} color={isCurrent ? activeColor : '#64748B'} strokeWidth={isCurrent ? 2.25 : 1.75} fill={isCurrent ? activeColor : 'transparent'} />
-              </View>
-              <AppText style={[styles.tabLabel, isCurrent && { color: activeColor }]}>
-                {tab.name}
-              </AppText>
-            </TouchableOpacity>
-          );
-        })}
-        <NavbarHomeShortcut
-          centerX={hs(24) + (tabCount > 4 ? adaptiveTabWidth : ms(56)) / 2}
-          barHeight={navBarH}
-          onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
-        />
+              return (
+                <TouchableOpacity
+                  key={idx}
+                  onPress={() => {
+                    const lower = tab.name.toLowerCase();
+                    if (lower.includes('cart')) onCartPress?.();
+                    else if (tab.name === 'Search') onSearchPress?.();
+                    else if (tab.name === 'You') navigation.navigate('You');
+                    else if (tab.name === 'Donor') {
+                      // Registered → dashboard inside the Pharma wrapper (navbar
+                      // stays); not registered → push the wizard route.
+                      if (useBloodDonorStore.getState().registration !== null) {
+                        setActiveTab('Donor');
+                      } else {
+                        navigation.navigate('BloodDonor');
+                      }
+                    }
+                    else setActiveTab(tab.name);
+                  }}
+                  style={[styles.tabItem, tabCount > 4 && { width: adaptiveTabWidth }]}
+                  activeOpacity={0.8}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: isCurrent }}
+                  accessibilityLabel={tab.name}
+                >
+                  <View style={styles.iconContainer}>
+                    <Icon size={ms(18)} color={isCurrent ? activeColor : '#64748B'} strokeWidth={isCurrent ? 2.25 : 1.75} fill={isCurrent ? activeColor : 'transparent'} />
+                  </View>
+                  <AppText style={[styles.tabLabel, isCurrent && { color: activeColor }]}>
+                    {tab.name}
+                  </AppText>
+                </TouchableOpacity>
+              );
+            })}
+            <NavbarHomeShortcut
+              centerX={hs(24) + (tabCount > 4 ? adaptiveTabWidth : ms(56)) / 2}
+              barHeight={navBarH}
+              onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
+            />
+          </View>
         </View>
       )}
     </View>
@@ -526,26 +534,29 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: '900',
   },
-  tabBar: {
+  tabBarDock: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
     zIndex: 30,
+    paddingHorizontal: FLOATING_NAV.MARGIN,
+    paddingBottom: FLOATING_NAV.GAP,
+  },
+  tabBar: {
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderColor: 'rgba(226,232,240,0.4)',
+    borderWidth: 1,
+    borderColor: 'rgba(226,232,240,0.9)',
     flexDirection: 'row',
     justifyContent: 'space-between',
     paddingHorizontal: hs(24),
     alignItems: 'center',
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    elevation: 8,
-    borderTopLeftRadius: ms(28),
-    borderTopRightRadius: ms(28),
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
+    elevation: 10,
+    borderRadius: ms(28),
   },
   tabItem: {
     width: 56,

@@ -11,10 +11,19 @@ import {
 import { SplashFallback } from './src/components/SplashFallback';
 import { OfflinePage } from './src/components/shared/OfflinePage';
 import { OfflineToast } from './src/components/shared/OfflineToast';
+import { ServiceAreaBlockedPage } from './src/components/shared/ServiceAreaBlockedPage';
 import { useConnectivityStore } from './src/state/connectivityStore';
 import { useAuthStore } from './src/state/authStore';
+import { useLocationStore } from './src/state/locationStore';
+import { useAddressesStore } from './src/state/addressesStore';
 import { useRemoteConfigStore } from './src/state/remoteConfigStore';
+import {
+  useServiceabilityStore,
+  isServiceabilityPending,
+  originKeyFor,
+} from './src/state/serviceabilityStore';
 import { useLiveLocation } from './src/hooks/useLiveLocation';
+import { useServiceability } from './src/hooks/useServiceability';
 import { useLanguageStore } from './src/state/languageStore';
 import { useThemeStore } from './src/state/themeStore';
 import { useOnboardingStore } from './src/state/onboardingStore';
@@ -37,6 +46,12 @@ import { reconcilePendingUpiOrder } from './src/services/paymentReconciliation';
 // launch theme (Android splash theme / iOS LaunchScreen) hands off to this JS
 // splash, which is the single owner of the branded cold-start experience.
 const SPLASH_MIN_DISPLAY_MS = 5000;
+
+// Extra bound on holding the splash for the first coverage decision. The silent fix it waits on has
+// its own 10 s native timeout, so this sits above that: the splash covers the real fix, and only a
+// hung storage/native call can reach this ceiling. Showing the gate late is far better than flashing
+// a catalogue that cannot deliver here.
+const COVERAGE_HOLD_TIMEOUT_MS = 12000;
 
 // Routes unhandled JS/render errors to the gateway /errors sink (release observability). Runs at
 // module scope so it is installed before any screen mounts.
@@ -107,12 +122,27 @@ export default function App() {
   );
   const fetchRemoteConfig = useRemoteConfigStore((s) => s.fetchConfig);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const locationStatus = useLocationStore((s) => s.status);
+  const activeLocation = useLocationStore((s) => s.activeLocation);
+  const fixAttemptedAt = useLocationStore((s) => s.fixAttemptedAt);
+  const serviceabilityStatus = useServiceabilityStore((s) => s.status);
+  const serviceabilityChecking = useServiceabilityStore((s) => s.checking);
+  const serviceabilityLocationKey = useServiceabilityStore((s) => s.locationKey);
   const isOnline = useConnectivityStore((s) => s.isOnline);
   const hasConnected = useConnectivityStore((s) => s.hasConnected);
   const navigationBlocked = useConnectivityStore((s) => s.navigationBlocked);
   const startMonitoring = useConnectivityStore((s) => s.startMonitoring);
   // Hydrate the last fix and poll only while foregrounded (never prompts on launch).
   useLiveLocation();
+  // Cache the saved addresses so proximity auto-select can match a fix against them without a
+  // network round-trip on every poll. Server-only: an offline read keeps the last known list.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    void useAddressesStore.getState().refresh();
+  }, [isAuthenticated]);
+  // Match the live origin against the superadmin-enabled district coverage. Runs under the splash
+  // on a cold start, so the hard gate is already decided by the time the navigator is visible.
+  useServiceability();
 
   // Probe `/health` on mount, then poll while foregrounded so a connectivity drop is noticed
   // without a NetInfo dependency (see connectivityStore).
@@ -228,6 +258,45 @@ export default function App() {
   // registers no phone account, so no system dialog appears after OTP login. The native ring surface
   // itself is set up lazily on the first call/incoming push.
   const wasAuthenticated = useRef(isAuthenticated);
+  const [serviceabilityGateExpired, setServiceabilityGateExpired] = useState(false);
+  const [navigatorEverMounted, setNavigatorEverMounted] = useState(false);
+
+  // A cold start must not flash the home page before the session's own position is known. The
+  // coverage gate therefore waits for two things to settle: the first silent fix attempt of this
+  // session (`fixAttemptedAt`, so a persisted origin can never decide coverage for a user who has
+  // since moved) and a coverage result that belongs to the *current* origin. Both are bounded, so a
+  // dead fix or a dead fetch cannot strand the branded splash.
+  const currentOriginKey = originKeyFor({ status: locationStatus, activeLocation });
+  const serviceabilityPendingNow =
+    isAuthenticated &&
+    isServiceabilityPending(
+      {
+        status: serviceabilityStatus,
+        checking: serviceabilityChecking,
+        locationKey: serviceabilityLocationKey,
+      },
+      currentOriginKey,
+    );
+  const firstFixSettled = !isAuthenticated || fixAttemptedAt !== null;
+  const holdForServiceability =
+    !navigatorEverMounted &&
+    (!firstFixSettled || serviceabilityPendingNow) &&
+    !serviceabilityGateExpired;
+
+  useEffect(() => {
+    if (!holdForServiceability) return;
+    const timer = setTimeout(
+      () => setServiceabilityGateExpired(true),
+      COVERAGE_HOLD_TIMEOUT_MS,
+    );
+    return () => clearTimeout(timer);
+  }, [holdForServiceability]);
+
+  useEffect(() => {
+    if (minSplashDone && firstFixSettled && !serviceabilityPendingNow) {
+      setNavigatorEverMounted(true);
+    }
+  }, [minSplashDone, firstFixSettled, serviceabilityPendingNow]);
   useEffect(() => {
     if (isAuthenticated) void bootstrapCalling();
     else if (wasAuthenticated.current) void shutdownCalling();
@@ -261,6 +330,33 @@ export default function App() {
         <StatusBar barStyle="light-content" />
         <SplashFallback variant="royal" />
       </>
+    );
+  }
+
+  if (holdForServiceability) {
+    return (
+      <>
+        <StatusBar barStyle="light-content" />
+        <SplashFallback variant="royal" />
+      </>
+    );
+  }
+
+  // Hard coverage gate: the superadmin district master is the authority. No shopping navigator is
+  // mounted outside coverage, so a Chennai catalogue can never appear behind a Trichy address.
+  // A settled `unserviceable` deliberately keeps the gate closed even while a re-check for a moved
+  // origin is in flight (`holdForServiceability` shows the splash instead), so the fail-safe
+  // direction is always "no catalogue" rather than a brief leak of an out-of-area feed.
+  if (
+    isAuthenticated &&
+    locationStatus === 'ready' &&
+    serviceabilityStatus === 'unserviceable'
+  ) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar barStyle={barStyle} />
+        <ServiceAreaBlockedPage />
+      </SafeAreaProvider>
     );
   }
 

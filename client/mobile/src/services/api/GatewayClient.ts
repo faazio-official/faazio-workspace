@@ -918,12 +918,26 @@ interface AddressRecord {
   phone?: string;
   address: string;
   isDefault: boolean;
+  /** Exact delivery point (0125). Absent on a text-only row or one never pinned. */
+  latitude?: number;
+  longitude?: number;
 }
 
 /** Map a server address row onto the app's `SavedAddress` card shape (label → tag). */
 function toSavedAddress(a: AddressRecord): SavedAddress {
   const tag = a.label === 'HOME' || a.label === 'WORK' ? a.label : 'OTHER';
-  return { id: a.addressId, tag, isDefault: a.isDefault, name: a.name ?? '', phone: a.phone ?? '', address: a.address };
+  // A point is only carried when both axes arrived; a lone axis is not a usable coordinate.
+  const hasPoint =
+    typeof a.latitude === 'number' && typeof a.longitude === 'number';
+  return {
+    id: a.addressId,
+    tag,
+    isDefault: a.isDefault,
+    name: a.name ?? '',
+    phone: a.phone ?? '',
+    address: a.address,
+    ...(hasPoint ? { latitude: a.latitude, longitude: a.longitude } : {}),
+  };
 }
 
 export class GatewayClient {
@@ -1404,8 +1418,13 @@ export class GatewayClient {
   /**
    * Upsert the caller's saved address (PUT /profile/addresses; server-enforced ownership). An
    * empty `id` creates a new address (the server mints the id); a non-empty id updates it.
+   *
+   * A pinned point is sent only as a complete pair — the server rejects a lone axis, and a partial
+   * point would be worse than none (pricing and proximity matching both trust a stored point).
    */
   async saveAddress(addr: SavedAddress): Promise<SavedAddress> {
+    const hasPoint =
+      typeof addr.latitude === 'number' && typeof addr.longitude === 'number';
     const body = {
       addressId: addr.id,
       label: addr.tag,
@@ -1413,6 +1432,7 @@ export class GatewayClient {
       phone: addr.phone,
       address: addr.address,
       isDefault: !!addr.isDefault,
+      ...(hasPoint ? { latitude: addr.latitude, longitude: addr.longitude } : {}),
     };
     return this.serverOnly(
       () =>

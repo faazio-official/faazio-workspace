@@ -1118,12 +1118,12 @@ insert into checkout.users (user_id, name, email, phone, default_address_id) val
   ('user_9000000004', 'Arjun Nair', 'arjun.nair@example.com', '', null),
   ('user_9000000005', 'Priya Menon', 'priya.menon@example.com', '', null) on conflict do nothing;
 
-insert into checkout.addresses (address_id, user_id, label, name, phone, address, is_default) values
-  ('addr-1', 'user-1', 'Greenwood', null, null, 'Greenwood Regency, Greenwood Regt Rd, Greenwood City - 609602', true),
-  ('addr-2', 'user-1', 'Greenwood Office', null, null, '7th Floor, Greenwood Tech Park, Greenwood City - 609602', false),
-  ('addr_1', 'user-1', 'HOME', 'Rohit Sharma', '+91 98765 43210', 'Flat 101, Greenwood Residency, Block A, Greenwood Main Road, Greenwood Regency, Bangalore – 560068, Karnataka', true),
-  ('addr_2', 'user-1', 'WORK', 'Rohit Sharma', '+91 98765 43210', 'Upcraft Solutions Pvt Ltd, 3rd Floor, 27th Cross, HSR Layout, Sector 2, Bangalore – 560102, Karnataka', false),
-  ('addr_3', 'user-1', 'OTHER', 'Rohit Sharma', '+91 98765 43210', '12-8-134, New Friends Colony, Tolichowki, Hyderabad – 500008, Telangana', false) on conflict do nothing;
+insert into checkout.addresses (address_id, user_id, label, name, phone, address, is_default, latitude, longitude) values
+  ('addr-1', 'user-1', 'Greenwood', null, null, 'Greenwood Regency, Greenwood Regt Rd, Greenwood City - 609602', true, null, null),
+  ('addr-2', 'user-1', 'Greenwood Office', null, null, '7th Floor, Greenwood Tech Park, Greenwood City - 609602', false, null, null),
+  ('addr_1', 'user-1', 'HOME', 'Rohit Sharma', '+91 98765 43210', 'Flat 101, Greenwood Residency, Block A, Greenwood Main Road, Greenwood Regency, Bangalore – 560068, Karnataka', true, 12.8956, 77.6456),
+  ('addr_2', 'user-1', 'WORK', 'Rohit Sharma', '+91 98765 43210', 'Upcraft Solutions Pvt Ltd, 3rd Floor, 27th Cross, HSR Layout, Sector 2, Bangalore – 560102, Karnataka', false, 12.9121, 77.6446),
+  ('addr_3', 'user-1', 'OTHER', 'Rohit Sharma', '+91 98765 43210', '12-8-134, New Friends Colony, Tolichowki, Hyderabad – 500008, Telangana', false, 17.4046, 78.4199) on conflict do nothing;
 
 insert into promo.coupons (coupon_id, code, title, scope, state_code, sector, value_percent, max_discount_paisa, min_order_paisa, free_delivery, valid_till, active) values
   ('cpn-faazio20', 'FAAZIO20', 'FAAZIO20', 'GLOBAL'::campaign_scope, null, null, 20, 0, 49900, false, '2027-12-31T23:59:59Z'::timestamptz, true),
@@ -1255,12 +1255,12 @@ insert into blood.donors (user_id, name, blood_group, city, donation_type, willi
   ('user_9000000004', 'Arjun Nair', 'O-', 'Kochi', 'both', true, true, true, now()),
   ('user_9000000005', 'Priya Menon', 'AB+', 'Chennai', 'blood-bank', true, true, true, now()) on conflict do nothing;
 
-insert into blood.requests (id, created_by, hospital, city, state, blood_group, units, patient_context, patient_name, contact_person, needed_within, verified, urgency, contact, address, remarks, posted_at, expires_at) values
-  ('br-1', '', 'Government General Hospital', 'Chennai', 'Tamil Nadu', 'O+', 3, 'Accident Patient (Emergency)', 'R. Kumar', 'S. Kumar', 'Needed within 24 hours', true, 'urgent', '+91 98765 43210', 'Park Town, Chennai, Tamil Nadu', 'Donor should carry a valid ID proof at the time of donation.', (now() - interval '2 hours'), (now() + interval '14 days')),
-  ('br-2', '', 'Apollo Hospitals', 'Chennai', 'Tamil Nadu', 'A-', 2, 'Thalassemia patient — regular transfusion', 'A. Banu', 'M. Banu', 'Needed within 48 hours', true, 'high', '+91 98450 11223', 'Greams Road, Chennai, Tamil Nadu', 'Prefer donors who have donated at Apollo before.', (now() - interval '5 hours'), (now() + interval '14 days')),
-  ('br-3', '', 'MIOT International', 'Chennai', 'Tamil Nadu', 'B+', 1, 'Cancer patient — platelet transfusion', 'V. Ravi', 'L. Ravi', 'Flexible date', true, 'normal', '+91 97110 44556', 'Manapakkam, Chennai, Tamil Nadu', 'Platelet donors should be non-smokers.', (now() - interval '8 hours'), (now() + interval '14 days')),
-  ('br-4', '', 'Global Hospitals', 'Chennai', 'Tamil Nadu', 'AB+', 4, 'Emergency surgery patient', 'K. Prakash', 'D. Prakash', 'Needed within 6 hours', true, 'urgent', '+91 99410 88776', 'Perumbakkam, Chennai, Tamil Nadu', 'Hospital can arrange pickup for the donor if needed.', (now() - interval '1 hours'), (now() + interval '14 days')),
-  ('br-5', '', 'Kauvery Hospital', 'Chennai', 'Tamil Nadu', 'O-', 1, 'Postpartum complication patient', 'S. Meena', 'R. Meena', 'Needed within 72 hours', true, 'normal', '+91 90030 22110', 'Alwarpet, Chennai, Tamil Nadu', 'Universal donor type — most impactful donation.', (now() - interval '24 hours'), (now() + interval '14 days')) on conflict do nothing;
+insert into blood.requests (id, created_by, hospital, city, state, blood_group, units, patient_context, needed_within, verified, urgency, contact, address, remarks, posted_at, expires_at) values
+  ('br-1', '', 'Government General Hospital', 'Chennai', 'Tamil Nadu', 'O+', 3, 'Accident Patient (Emergency)', 'Needed within 24 hours', true, 'urgent', '+91 98765 43210', 'Park Town, Chennai, Tamil Nadu', 'Donor should carry a valid ID proof at the time of donation.', (now() - interval '2 hours'), (now() + interval '14 days')),
+  ('br-2', '', 'Apollo Hospitals', 'Chennai', 'Tamil Nadu', 'A-', 2, 'Thalassemia patient — regular transfusion', 'Needed within 48 hours', true, 'high', '+91 98450 11223', 'Greams Road, Chennai, Tamil Nadu', 'Prefer donors who have donated at Apollo before.', (now() - interval '5 hours'), (now() + interval '14 days')),
+  ('br-3', '', 'MIOT International', 'Chennai', 'Tamil Nadu', 'B+', 1, 'Cancer patient — platelet transfusion', 'Flexible date', true, 'normal', '+91 97110 44556', 'Manapakkam, Chennai, Tamil Nadu', 'Platelet donors should be non-smokers.', (now() - interval '8 hours'), (now() + interval '14 days')),
+  ('br-4', '', 'Global Hospitals', 'Chennai', 'Tamil Nadu', 'AB+', 4, 'Emergency surgery patient', 'Needed within 6 hours', true, 'urgent', '+91 99410 88776', 'Perumbakkam, Chennai, Tamil Nadu', 'Hospital can arrange pickup for the donor if needed.', (now() - interval '1 hours'), (now() + interval '14 days')),
+  ('br-5', '', 'Kauvery Hospital', 'Chennai', 'Tamil Nadu', 'O-', 1, 'Postpartum complication patient', 'Needed within 72 hours', true, 'normal', '+91 90030 22110', 'Alwarpet, Chennai, Tamil Nadu', 'Universal donor type — most impactful donation.', (now() - interval '24 hours'), (now() + interval '14 days')) on conflict do nothing;
 
 insert into blood.interests (request_id, donor_user_id, kind) values
   ('br-1', 'user-1', 'interested'),
@@ -1665,26 +1665,5 @@ insert into taxonomy.category_headers (category_id, header)
 select id, 'MAIN_APP_HEADER' from taxonomy.categories
  where show_on_home_rail and app <> 'FOOD'::app_brand
 on conflict (category_id, header) do nothing;
-
--- tax.category_gst_rates (0120). A fresh deploy runs the migrations before this seed, so the 0120
--- backfill sees no taxonomy rows yet. Every seeded row therefore takes its sector default slab (FOOD
--- is always 5%); the superadmin re-rates individual categories from the portal.
-insert into tax.category_gst_rates (category_id, gst_rate_pct, gst_rate_category_id, updated_by)
-select c.id,
-       g.gst_rate_pct,
-       case
-         when c.app = 'FOOD'::app_brand then 'gst-food-standard'
-         when c.app = 'PHARMA'::app_brand then 'gst-pharma-general'
-         else 'gst-mart-packaged'
-       end,
-       'seed'
-  from taxonomy.categories c
-  join tax.gst_rate_categories g
-    on g.id = case
-         when c.app = 'FOOD'::app_brand then 'gst-food-standard'
-         when c.app = 'PHARMA'::app_brand then 'gst-pharma-general'
-         else 'gst-mart-packaged'
-       end
-on conflict (category_id) do nothing;
 
 commit;

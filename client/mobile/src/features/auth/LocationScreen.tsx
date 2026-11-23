@@ -33,6 +33,7 @@ import {
 } from '@/hooks/usePlaceAutocomplete';
 import { requestAndRefreshLocation, useLiveOrigin } from '@/hooks/useLiveLocation';
 import { useLocationStore } from '@/state/locationStore';
+import { useServiceabilityStore } from '@/state/serviceabilityStore';
 import { parentRamp } from '@/theme/brandTokens';
 import { semantic } from '@/theme/brandTokens';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -211,7 +212,7 @@ function BouncingPin() {
 
 export function LocationScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
-  const storedAddress = useLocationStore((s) => s.address);
+  const storedAddress = useLocationStore((s) => s.activeLocation?.address ?? '');
   // A returning user with a saved address goes straight to the picker; a first-time user sees the
   // pre-permission primer, and only an explicit tap on its CTA spends the one OS dialog.
   const [step, setStep] = useState<'request' | 'manual' | 'loader'>(
@@ -224,6 +225,7 @@ export function LocationScreen({ navigation }: Props) {
   const [permissionError, setPermissionError] = useState('');
   const [manualError, setManualError] = useState('');
   const [placesRetry, setPlacesRetry] = useState(0);
+  const checkServiceability = useServiceabilityStore((s) => s.check);
   const liveOrigin = useLiveOrigin();
   const {
     suggestions,
@@ -258,12 +260,13 @@ export function LocationScreen({ navigation }: Props) {
       return;
     }
     const state = useLocationStore.getState();
-    if (state.status !== 'ready') {
+    const active = state.activeLocation;
+    if (state.status !== 'ready' || !active) {
       setPermissionError('We could not get your location. Try again, or enter an area manually.');
       return;
     }
     setSelectedLocation(
-      state.address || `${state.latitude.toFixed(4)}, ${state.longitude.toFixed(4)}`,
+      active.address || `${active.latitude.toFixed(4)}, ${active.longitude.toFixed(4)}`,
     );
     setStep('loader');
   };
@@ -281,10 +284,10 @@ export function LocationScreen({ navigation }: Props) {
       setManualError('Could not find that place. Try another area or use your current location.');
       return;
     }
-    useLocationStore.getState().setFix({
+    useLocationStore.getState().setActiveLocation({
       coordinates: resolved.coordinates,
       address: resolved.address,
-      source: 'manual',
+      source: 'pinned',
     });
     setSelectedLocation(
       resolved.address ||
@@ -303,22 +306,45 @@ export function LocationScreen({ navigation }: Props) {
 
   useEffect(() => {
     if (step !== 'loader') return;
+    let cancelled = false;
     const timer = setTimeout(() => {
-      const state = useLocationStore.getState();
-      // A valid fix needs both axes; (0, 0) is the "no fix yet" sentinel, while a single
-// legitimate zero (equator/prime meridian) must not be rejected.
-      const confirmed =
-        state.status === 'ready' && !(state.latitude === 0 && state.longitude === 0);
-      if (confirmed) {
+      void (async () => {
+        const state = useLocationStore.getState();
+        const active = state.activeLocation;
+        // A valid origin needs both axes; (0, 0) is the "no fix yet" sentinel, while a single
+        // legitimate zero (equator/prime meridian) must not be rejected.
+        const confirmed =
+          state.status === 'ready' &&
+          active != null &&
+          !(active.latitude === 0 && active.longitude === 0);
+        if (!confirmed) {
+          if (cancelled) return;
+          // Never advance on a location we could not confirm — send the user back to pick one.
+          setStep('manual');
+          setManualError('We could not confirm that location. Try another area or use your current location.');
+          return;
+        }
+
+        // The same enabled-district check the app-level hard gate uses. A result of
+        // `unserviceable` is not navigated around: the gate replaces the navigator with the
+        // coverage page. Only a network/verification failure returns to the picker here.
+        const result = await checkServiceability();
+        if (cancelled || result === 'unserviceable') return;
+        if (result !== 'serviceable') {
+          setStep('manual');
+          setManualError(
+            'We could not verify delivery coverage right now. Check your connection and try again.',
+          );
+          return;
+        }
         navigation.navigate('MainTabs');
-      } else {
-        // Never advance on a location we could not confirm — send the user back to pick one.
-        setStep('manual');
-        setManualError('We could not confirm that location. Try another area or use your current location.');
-      }
+      })();
     }, 1500);
-    return () => clearTimeout(timer);
-  }, [step, navigation]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [step, navigation, checkServiceability]);
 
   // Request step entry animations
   useEffect(() => {

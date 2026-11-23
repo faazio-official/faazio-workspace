@@ -1,9 +1,8 @@
 import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { hs } from '@/utils/responsive';
-import { SPACE } from '@/theme/spacing';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
-import { SectionHeader, useAddToCartFeedback, usePricedProducts } from './common';
+import { SectionHeader, usePricedProducts } from './common';
 import type { SectionProps } from './common';
 import type { Product } from '@data/types';
 
@@ -15,9 +14,8 @@ interface AudienceGridSectionProps extends SectionProps {
 // 2-column product grid for a single-brand curated audience (Men/Women/Children).
 function AudienceGridSection({
   title, products,
-  onProductClick, addToCart,
+  onProductClick,
 }: AudienceGridSectionProps) {
-  const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
   const priced = usePricedProducts(products);
   return (
     <>
@@ -27,9 +25,8 @@ function AudienceGridSection({
           <MartProductCard
             key={product.id}
             product={product}
-            isAdded={addedId === product.id}
+            showAddButton={false}
             onPress={() => onProductClick?.(product)}
-            onAdd={() => handleAdd(product.id, product.name, product.price, product.emoji)}
           />
         ))}
       </View>
@@ -45,6 +42,5 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
-    paddingBottom: SPACE.BLOCK,
   },
 });

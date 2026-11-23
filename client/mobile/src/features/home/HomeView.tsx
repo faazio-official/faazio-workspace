@@ -11,6 +11,7 @@ import type { StoreRecord } from '@data/directory/stores';
 import type { SubAppId } from '@/state/uiStore';
 import { gateway } from '@/services/api/GatewayClient';
 import { useHomeFeed } from './hooks/useHomeFeed';
+import { useTabBarClearance } from '@/hooks/useTabBarClearance';
 import {
   mensPicks,
   womensPicks,
@@ -42,7 +43,6 @@ import { neutral } from '@/theme/brandTokens';
 
 interface HomeViewProps {
   onLaunchSubApp: (subAppId: SubAppId) => void;
-  addToCart: (id: string, name: string, price: number, emoji: string) => void;
   onProductClick?: (product: any) => void;
   onStoreClick?: (store: StoreProfile) => void;
   onOpenDeals?: (params: { mode: 'campaign' | 'discounts'; campaignId?: string; storeId?: string }) => void;
@@ -66,7 +66,6 @@ interface HomeRow {
 
 export default function HomeView({
   onLaunchSubApp,
-  addToCart,
   onProductClick,
   onStoreClick,
   onOpenDeals,
@@ -77,8 +76,8 @@ export default function HomeView({
   contentPaddingTop,
 }: HomeViewProps) {
   const sectionProps = useMemo(
-    () => ({ onLaunchSubApp, addToCart, onProductClick, onStoreClick, onOpenDeals }),
-    [onLaunchSubApp, addToCart, onProductClick, onStoreClick, onOpenDeals],
+    () => ({ onLaunchSubApp, onProductClick, onStoreClick, onOpenDeals }),
+    [onLaunchSubApp, onProductClick, onStoreClick, onOpenDeals],
   );
 
   // Server-driven SDUI registry: section order and joined product/store rows come from the
@@ -86,6 +85,8 @@ export default function HomeView({
   // disabled (offline shell); while online, an empty/failed read shows an honest state.
   const { feed, loading, error, reload, refreshing, refresh } = useHomeFeed();
   const offline = !gateway.remoteEnabled;
+  // The hub pill dock overlays the feed, so the scroll tail must clear it.
+  const tabBarClearance = useTabBarClearance();
 
   const rows = useMemo<HomeRow[]>(() => {
     if (offline) {
@@ -192,7 +193,10 @@ export default function HomeView({
   return (
     <Animated.FlatList
       style={styles.list}
-      contentContainerStyle={[styles.content, { paddingTop: contentPaddingTop }]}
+      contentContainerStyle={[
+        styles.content,
+        { paddingTop: contentPaddingTop, paddingBottom: SPACE.LIST_BOTTOM + tabBarClearance },
+      ]}
       data={rows}
       keyExtractor={(item) => item.id}
       renderItem={renderItem}
@@ -207,9 +211,10 @@ export default function HomeView({
         />
       }
       initialNumToRender={2}
-      maxToRenderPerBatch={6}
-      windowSize={5}
-      updateCellsBatchingPeriod={50}
+      maxToRenderPerBatch={10}
+      windowSize={10}
+      updateCellsBatchingPeriod={30}
+      removeClippedSubviews={true}
       ListEmptyComponent={emptyState}
     />
   );

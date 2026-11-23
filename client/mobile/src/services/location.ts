@@ -23,6 +23,12 @@ export interface Coordinates {
 export interface ReverseGeocodeResult {
   city?: string | null;
   district?: string | null;
+  /**
+   * The revenue/administrative district (`subAdminArea` on Android, `subAdministrativeArea` on
+   * iOS). Distinct from `district`, which is the sub-locality: for a taluk town such as Lalgudi,
+   * `district` is "Lalgudi" while this is "Tiruchirappalli" — the value coverage is keyed on.
+   */
+  adminDistrict?: string | null;
   region?: string | null;
   postalCode?: string | null;
   street?: string | null;

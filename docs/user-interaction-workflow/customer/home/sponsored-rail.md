@@ -19,7 +19,9 @@
 ## State
 
 - Section-local state (no shared ad store).
-- `useCartStore` for add-to-cart from sponsored product cards.
+- No card-level add on Home: the Home sponsored rail renders `UniversalFeedCard` with
+  `showAddButton={false}` (tap → PDP → add). The shared `SponsoredRail` still exposes `onAdd` for
+  hosts that keep a card-level add control (e.g. the Mart showcase).
 
 ## Data path
 

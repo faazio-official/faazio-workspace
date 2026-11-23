@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { XCircle, RefreshCw, Banknote, Smartphone, ChevronDown } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
+import { useTabBarClearance } from '@/hooks/useTabBarClearance';
 import { BRAND } from './constants';
 
 export interface PaymentFailedScreenProps {
@@ -46,12 +47,17 @@ export default function PaymentFailedScreen({
   error,
 }: PaymentFailedScreenProps) {
   const insets = useSafeAreaInsets();
+  // In tab mode the floating hub dock overlays this screen; keep the last button reachable.
+  const tabBarClearance = useTabBarClearance();
   const [showApps, setShowApps] = useState(false);
   const amount = (amountPaisa / 100).toLocaleString('en-IN', { minimumFractionDigits: 2 });
 
   return (
     <View style={[styles.root, { paddingTop: insets.top + vs(32) }]}>
-      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        contentContainerStyle={[styles.scroll, { paddingBottom: vs(40) + tabBarClearance }]}
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.iconWrap}>
           <XCircle size={ms(48)} color="#DC2626" strokeWidth={2.2} />
         </View>

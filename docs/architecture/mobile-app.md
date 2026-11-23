@@ -174,8 +174,9 @@ missing (a fixture id is never rendered as a server row), and `NearbyRequestCard
 "0 km away" for live rows that carry no geo (distance is omitted when unknown).
 
 **Home "Deals of the day" vendor-campaign zone** (`features/home/sections/BrandCampaignsSection.tsx`,
-section id `hotBrandDeals`): the renamed section (was "Hot Brand Deals") renders **two stacked,
-auto-playing paging carousels** on the purple `#EDE9FE` container. Each carousel item is a white
+section id `hotBrandDeals`): the section (was "Hot Brand Deals") renders **two stacked,
+auto-playing paging carousels** on the purple `#EDE9FE` container. The in-container title is not
+rendered — the block opens directly on the first carousel. Each carousel item is a white
 `BrandCampaignCard` (`features/home/cards/BrandCampaignCard.tsx`) — a bold **vendor-name title**
 with a "View all →" action, a computed **"Up to X% off"** discount label below (derived from the
 campaign products' max discount — no `offerTag`/EMI text), and a 2-product row of bigger minimal ad
@@ -196,6 +197,13 @@ the **`DealsLanding`** route in `campaign` mode, which reads the server-joined s
 "Daily Essentials") is a display-only rename — its section id `dealsOfDay` is unchanged; it now
 uses the SDUI `dealsOfDay` joined products (falling back to `getProductsByIds(MART_DEALS ids)` only
 when rendered without a join); the `MART_DEALS` fixture is the offline shell only.
+
+**Home cards are tap-to-view only.** No Home section renders a card-level add control: every rail
+(`dealsOfDay`, Men/Women/Kids, Recently Viewed, Nearby Offers, Hair & Skin Care, Discover/FilterFeed)
+and the Home sponsored rail pass `showAddButton={false}`, so a tap opens `ProductDetail` and the
+shopper adds from there. Home therefore owns no cart write; `addToCart` is no longer threaded
+through `HomeView`/`SectionProps`. The shared `ProductCardBase` keeps its add button for the
+sub-app catalogues (Mart/Food/Pharma).
 
 **Home sponsored rail** (`features/home/sections/SponsoredRailSection.tsx`, section id
 `sponsoredRail`, titled "Sponsored picks", placed after `dealsOfDay`): a **paid, separately-labelled**
@@ -428,8 +436,12 @@ title it renders a **store-grouped body**: the paid **`CATEGORY_TOP` hero carous
 AD-labelled, tap → its server-resolved product/store; collapses when unfilled), then one
 `StoreProductSection` per matching store — a **store-name heading** (tap → vendor page; rating ·
 distance, no chevron) over a **continuous vertical list of one-per-row `ProductRowCard`s** (96px square
-image left; name/desc/price + discount and the add/stepper on the right; cart wired via
-`useCartProductActions`, card tap → `ProductDetail`). Only this one hero is shown per page; it is real
+image left; name/desc/price + discount on the right; the row is browse-only — no inline add/stepper,
+so a tap opens `ProductDetail`, where the item is added to the cart). A floating **circular** menu
+button (64 dp, `Menu`) opens the sub-category selector as the shared `SlideUpSheet`
+(`padded={false}`) — an edge-to-edge sheet that slides up and sticks to the bottom with no side
+margins, no close button (dismiss by swipe-down, scrim tap, or back), and one full-width row per
+sub-category that scrolls the body to that section. Only this one hero is shown per page; it is real
 paid inventory (the old store-derived ad slides with a fake `SPONSORED` badge were removed). An
 **inline searchbar** (this page only) live-filters the store list by name/locality; a title with no
 matching stores shows a subtle "No vendors yet" row. Selecting a different rail chip resets the
@@ -528,6 +540,23 @@ so the category rail stays visible while the feed scrolls beneath it — the sam
 hub header. The wrapper (`components/SubAppWrapper.tsx`) passes `compactHeader` (renamed from the old
 `hasAddressBar`) to toggle the compact layout and supplies the rail for `FA_MART`.
 
+Every visible customer bottom navbar is a **floating capsule dock**, not a bar glued to the screen
+edges: `theme/spacing.ts` → `FLOATING_NAV` (`MARGIN` inset on each side, `GAP` clearance below the
+capsule) is the single geometry owner, so `navigation/MainTabs` (`HubTabBar`),
+`components/SubAppWrapper` (Mart/Pharma) and `features/food/components/FoodBottomNav` all render a
+fully rounded capsule inset from both sides with clear space under it. Content clearance must
+reserve `barHeight + FLOATING_NAV.GAP` (e.g. `SubAppWrapper`'s viewport `paddingBottom`), and any
+Home-shortcut `centerX` math subtracts the margins so the circle stays over the first tab.
+
+The dock itself is an **absolute, transparent overlay** in all three variants — nothing is painted
+behind the capsule, so feed/list content scrolls visibly under and around it instead of being cut
+off by an opaque band. `HubTabBar` therefore reports its measured height through
+`BottomTabBarHeightCallbackContext`, and every hub tab screen insets its own scroll tail with
+`hooks/useTabBarClearance()` (`HomeView`, `FavouritesPageView`, `AccountView`, the BAG footer in
+`CartView`, `BottomPayBar`, and the payment screens). That hook reads
+`BottomTabBarHeightContext` and returns `0` outside a tab navigator, so the same presentational
+component works unchanged on a pushed route.
+
 Every visible bottom navbar also exposes the shared `components/shared/NavbarHomeShortcut`: a
 Faazio-blue circular Home button centered over the first tab, with three quarters of the circle
 above the bar. It appears on Favourites/You in `MainTabs`, on Mart/Pharma wrapper tabs, and on both
@@ -620,7 +649,10 @@ Startup
   - **iOS** — a `UILabel` in `SplashScreen.storyboard`, 12pt medium white @ 90% opacity, centred
     and bottom-anchored 56pt above the container's bottom edge (same inset as the JS layer).
   - **JS** — `SplashFallback` `royal` variant renders the same string as absolutely-positioned text
-    56pt above the bottom edge. Customer (`App.tsx`), delivery (`DeliveryPartnerApp`) and seller
+    56pt above the bottom edge, split into a quiet lead-in (`Product of`, 13pt regular @ 78%) and the
+    studio name (`FA CREATORS`, 13pt bold with 1.4 tracking) sharing one baseline, so the emphasis
+    comes from weight rather than a second type size. Customer (`App.tsx`), delivery
+    (`DeliveryPartnerApp`) and seller
     (`SellerPartnerApp`, which now holds the splash over the WebView until the portal paints) all
     show it.
 - **Splash assets** — the three layers (Android native, iOS native, JS fallback) all derive from
@@ -697,6 +729,9 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `callStore` | Shared by the customer and delivery apps: one masked call at a time — phase (`idle`/`connecting`/`ringing`/`active`/`ending`/`ended`/`error`), server call projection, masked peer label, connected timestamp, mute/speaker/audio route (`earpiece`/`speaker`/`bluetooth`), Bluetooth availability, reconnecting + PSTN-fallback prompts, recoverable notice. Owned by `features/call/controller.ts`; no raw phone number or VOIP token is persisted |
 | `remoteConfigStore` | Central remote config (the "Central Digital Menu", `admins.app_config` `0059`): boots `gateway.getAppConfig()` (`GET /app-config`, public, variant-filtered) best-effort under the splash, keeps a flat key→value map, and **never blocks startup** (failure keeps the bake-time `config.ts` defaults). Baked values are the safe defaults; a remote row overrides its key only when present; `GATEWAY_URL`/`APP_VARIANT` are never overridden. Selectors: `selectPlacesApiKey` (wired → `usePlaceAutocomplete` — a `maps.places_api_key` edit is live on the next boot), `selectMaintenanceEnabled` (available, no screen consumes it yet), `resolvePlacesApiKey` (non-hook read for `resolvePlaceLocation`). Not persisted — refetched every cold boot |
 | `connectivityStore` | Live device connectivity (no NetInfo dep): `GET {GATEWAY_URL}/health` with a 5 s timeout, polled every 30 s while foregrounded, re-checked on `AppState` → `active`. Any HTTP response (even 4xx/5xx) means online; only a thrown fetch/timeout means offline. Holds `isOnline` (`null` until the first probe so no cold-start flash), `hasConnected` (first-ever online, distinguishes cold-start offline), `pendingNavigation` + `navigationBlocked` for the offline guard. `checkConnectivity`/`startMonitoring`/`stopMonitoring`. With no gateway configured it reports **unknown** (`isOnline: null`) — it never claims online and never blocks navigation. State only — no UI |
+| `serviceabilityStore` | Enabled-district coverage for the live origin. `check(force)` reads `GET /geo/states` + `GET /geo/districts` (active `admins.district_master` rows, 60 s in-memory TTL) and matches the on-device reverse-geocoded `adminDistrict` (revenue district) / `city` / `region` / formatted address locally — no coordinates are sent. `status` (`unknown`/`serviceable`/`unserviceable`/`failed`) with `reason`, matched codes/names and `locationKey`; `checking` is a separate flag so a re-check never reopens the gate before a new result. `failed` (offline/HTTP) is never treated as unserviceable, and `isServiceabilityPending(state, currentOriginKey)` reports "no settled verdict for this origin" — the splash hold keys on that so a stale verdict cannot decide the gate. The app-level hard gate in `App.tsx` renders `ServiceAreaBlockedPage` (no shopping navigator) while unserviceable; `LocationScreen` awaits the same check before `MainTabs`. Reset on sign-out/origin reset |
+| `locationStore` | The user's location as **two separate facts** (see "Live location" below): `deviceFix` (hardware only, written by a real GPS read, keeps updating while an address override is active) and `activeLocation` (where the order goes / feeds sort from, `source: 'gps' \| 'saved' \| 'pinned'`), plus `overrideActive`, `status`, permission flags. Persisted `faazio:location:v2`. `setActiveLocation` sets the override; `adoptDeviceAsActive` clears it ("use my location"); `syncActiveToDevice(candidate)` runs proximity auto-select |
+| `addressesStore` | Server-cached saved addresses for proximity auto-select (the location poller has no screen to fetch from). `refresh()` reads `GET /profile/addresses`; `setAddresses` lets the Saved Addresses screen push its write result. Server-only — an offline read keeps the last known list, never a fixture |
 
 ### Offline / connectivity awareness
 
@@ -1817,26 +1852,80 @@ thumbnail; the savings/coupon card keeps its 16px inset.
 
 ## Live location — foreground-only nearby retrieval
 
-Every commerce surface sorts from one live origin. `src/state/locationStore.ts` owns the fix
-(`idle | loading | ready | denied | blocked`), records where it came from (`source: 'gps' | 'manual'`),
-persists the last coordinate + permission flag + address label + status/source under
-`faazio:location:last`, and exposes `selectOrigin`. `setFix({ source: 'manual' })` is used by
-manual area picks and saved-address selections: a manual origin is a valid `ready` origin but is
-**not** a permission grant, so it never starts the GPS poll. `setPermissionStatus(status, granted,
-servicesEnabled)` lets a native re-check update the permission view without fabricating coordinates.
+Every commerce surface sorts from one live origin. `src/state/locationStore.ts` keeps **two separate
+facts**:
+
+- **`deviceFix`** — the hardware position, written only by a real GPS read (`setDeviceFix`). It keeps
+  updating in the foreground even after the user picks another address, because the checkout
+  distance guardrail needs the truth about where the phone is.
+- **`activeLocation`** — where the order goes and which feeds sort from (`useLiveOrigin()`), carrying
+  `source: 'gps' | 'saved' | 'pinned'`. It is the only thing sent to the gateway as the delivery
+  origin.
+
+Collapsing these (as the store used to) makes two real flows impossible: ordering to a saved address
+in another city, and warning the user they are nowhere near it. `overrideActive` records a
+deliberate choice; while it is set, proximity auto-select stands down so GPS drift cannot yank the
+origin back. The store persists both fixes, the override flag, the permission hint and the status
+under `faazio:location:v2`, and exposes `selectOrigin` / `selectDeviceFix`. It also holds the
+session-only `fixAttemptedAt` (set once by the first silent fix attempt, never persisted) that the
+coverage gate waits on, and `hydrate()` refuses to overwrite a device fix that landed while its
+storage read was in flight — the live fix is the truth about where the device is now, so a persisted
+origin cannot decide coverage for a user who has since moved.
+
+`setActiveLocation({ source: 'saved' | 'pinned' })` is used by saved-address selection and manual
+area picks; it is a valid `ready` origin but **not** a permission grant, so it never starts the GPS
+poll. `setPermissionStatus(status, granted, servicesEnabled)` lets a native re-check update the
+permission view without fabricating coordinates, and a chosen origin stays usable when GPS is denied.
+
+**Proximity auto-select.** While `overrideActive` is false, every fix is matched against the caller's
+saved addresses (`utils/addressProximity.findNearbySavedAddress`, 200 m radius, using each row's
+stored `latitude`/`longitude` from `0125`). The nearest match becomes `activeLocation` with
+`source: 'saved'`; with no match the origin follows the device fix. Unpinned rows are skipped —
+matching a text address per poll would need a network call and could match a different point than
+the user saved. `useAddressesStore` (`src/state/addressesStore.ts`) caches the server list for this
+(server-only; an offline read keeps the last known list).
 
 `src/hooks/useLiveLocation.ts` is mounted once in `App.tsx`. It hydrates the cache, then on every
 `AppState` → `active` re-checks the native authorization (`getLocationAuthorizationStatus()`) and the
 OS master switch (`isLocationServicesEnabled()`, backed by the `FaazioGeocoder` native module on both
 platforms). A flip to **granted** adopts the grant and runs a silent coarse fix (feeds re-sort); a
 flip to denied/blocked (or Location Services off) moves the store to `denied`/`blocked` without
-wiping a manual origin. It then polls a coarse fix every 10 s **only while `AppState` is `active`**,
-for GPS origins with permission + services on, reverse-geocoding only after ~50 m of movement. It
-never shows the OS prompt on launch.
+wiping a chosen origin. The first attempt of the session records `fixAttemptedAt` (on every outcome,
+including a refusal) so the cold-start coverage gate knows the session's own position has settled.
+It then polls a coarse fix every 10 s **only while `AppState` is `active`**, with permission +
+services on, reverse-geocoding only after ~50 m of movement. It never shows the OS prompt on launch.
+
+**Reverse-geocode field contract.** The native `FaazioGeocoder` returns `district` as the
+sub-locality (`subLocality` / `CLPlacemark.subLocality`) **only** — it never falls back to the city.
+`city` (`locality`) and `adminDistrict` (revenue district: `subAdminArea` /
+`subAdministrativeArea`) are separate keys. A missing sub-locality leaves `district` null instead of
+repeating the city, so `formatPlace` renders `[street, district, city, region, postalCode]` without
+a duplicated name and coverage matching sees the true city.
+
+Coverage is a second, independent gate on that origin. `src/state/serviceabilityStore.ts` +
+`src/hooks/useServiceability.ts` (mounted beside `useLiveLocation` in `App.tsx`) match the
+reverse-geocoded revenue district (`adminDistrict`, i.e. `subAdminArea`/`subAdministrativeArea`),
+`city`, region and formatted address against the **active** district master (`GET /geo/districts`,
+i.e. `admins.district_master.is_active`, plus active states from `GET /geo/states`). The revenue
+district is matched ahead of the sub-locality `district` field: for a taluk town such as Lalgudi the
+latter is "Lalgudi", which appears in no master, so matching it first would hard-block a covered
+user. The match runs locally; coordinates never travel to the gateway for it. On a cold start the
+splash is held until the session's first silent fix attempt has settled (`fixAttemptedAt`, session-only,
+never persisted) **and** a coverage verdict exists for the origin the device actually reported, so a
+persisted origin from a previous run can never decide coverage for a user who has since moved; the
+hold is bounded (12 s) so a dead fix or fetch cannot strand the splash. Every `AppState → active`
+forces a fresh read, so a superadmin district toggle is reflected without a restart. An authenticated
+origin outside coverage is a **hard gate**: `App.tsx` renders
+`components/shared/ServiceAreaBlockedPage.tsx` instead of the navigator; "Choose another location"
+resets the origin and returns to `Location`, and the notify action is a real `mailto:`. A failed
+coverage read is `failed`, not `unserviceable`, so a network failure cannot lock a covered user out.
+`LocationScreen` awaits the same check before navigating, and only a settled `serviceable` advances
+(a `failed`/`unknown` result returns to the picker instead of guessing).
 
 `AppNavigator` is location-aware on an authenticated cold start: it waits for
 `useLocationStore.hydrate()` (3 s bound) and routes `status === 'idle'` to `Location` (primer) and
-`ready`/`denied`/`blocked` to `MainTabs`. Consent is explicit and primed: `LocationScreen` shows a
+`ready`/`denied`/`blocked` to `MainTabs` only when coverage is serviceable (otherwise the app-level
+coverage page owns the screen). Consent is explicit and primed: `LocationScreen` shows a
 pre-permission primer card whose "Allow location access" CTA calls `requestAndRefreshLocation()`
 (high accuracy + address), and whose "Enter location manually" path skips the OS dialog entirely.
 Manual search uses the Places API (New) autocomplete when `GOOGLE_PLACES_API_KEY` is configured,

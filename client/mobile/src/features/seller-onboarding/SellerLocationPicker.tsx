@@ -42,12 +42,15 @@ export default function SellerLocationPicker({
   onPick,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const stored = useLocationStore((s) => ({
-    latitude: s.latitude,
-    longitude: s.longitude,
-  }));
+  const stored = useLocationStore((s) =>
+    typeof s.activeLocation?.latitude === 'number' &&
+    typeof s.activeLocation?.longitude === 'number' &&
+    !(s.activeLocation.latitude === 0 && s.activeLocation.longitude === 0)
+      ? { latitude: s.activeLocation.latitude, longitude: s.activeLocation.longitude }
+      : null,
+  );
   const [pin, setPin] = useState<Coordinates>(
-    initial ?? (stored.latitude ? stored : FALLBACK),
+    initial ?? stored ?? FALLBACK,
   );
   const [address, setAddress] = useState('');
   const [resolving, setResolving] = useState(false);
@@ -56,12 +59,12 @@ export default function SellerLocationPicker({
   // tap/drag on the map. The fallback is a viewport centre for orientation, never a selection —
   // confirming it would invent a shop location, which every downstream distance/fee calculation
   // would then trust.
-  const [picked, setPicked] = useState(initial != null || Boolean(stored.latitude));
+  const [picked, setPicked] = useState(initial != null || stored != null);
 
   useEffect(() => {
     if (!visible) return;
-    const real = initial != null || Boolean(stored.latitude);
-    const start = initial ?? (stored.latitude ? stored : FALLBACK);
+    const real = initial != null || stored != null;
+    const start = initial ?? stored ?? FALLBACK;
     setPin(start);
     setPicked(real);
     setAddress('');
@@ -92,8 +95,9 @@ export default function SellerLocationPicker({
     const ok = await refreshLiveLocation(true);
     setLocating(false);
     if (!ok) return;
-    const state = useLocationStore.getState();
-    moveTo({ latitude: state.latitude, longitude: state.longitude });
+    const fix = useLocationStore.getState().deviceFix;
+    if (!fix) return;
+    moveTo({ latitude: fix.latitude, longitude: fix.longitude });
   };
 
   return (

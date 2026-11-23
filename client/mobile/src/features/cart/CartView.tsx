@@ -4,7 +4,7 @@ import { semanticTint } from '@/theme/brandTokens';
 import { categorical } from '@/theme/categorical';
 import { parentRamp } from '@/theme/brandTokens';
 import { SHADOW_COLOR } from '@/theme/tokens';
-import { StyleSheet, View, ScrollView, TouchableOpacity, Animated, Image } from 'react-native';
+import { StyleSheet, View, ScrollView, TouchableOpacity, Animated, Image, Modal } from 'react-native';
 import {
   ArrowLeft,
   ShoppingBag,
@@ -20,9 +20,11 @@ import {
   Store,
   Coins,
   Trash2,
+  MapPin,
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { useTabBarClearance } from '@/hooks/useTabBarClearance';
 import { semantic } from '@/theme/brandTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
@@ -53,9 +55,14 @@ import { clearUpiOrderPending, markUpiOrderPending } from '@/services/paymentRec
 import { consumeLastClickedSlotId } from '@/services/adsAttribution';
 import { coinsEarnedFor, isCardActive } from '@/features/rewards/rewardsLogic';
 import { COIN_REDEEM_RATE } from '@data/rewards/rewards';
-import { useLiveAddress } from '@/hooks/useLiveAddress';
+import { useDeviceFix } from '@/hooks/useLiveLocation';
+import { useLocationStore } from '@/state/locationStore';
+import { haversineKm } from '@/utils/distance';
 import { useAuthStore } from '@/state/authStore';
 import { brandRamp } from '@/theme/brandTokens';
+
+/** Beyond this distance the phone is nowhere near the delivery point — confirm before charging. */
+const FAR_AWAY_KM = 1;
 
 const CATEGORY_META: Record<CartCategory, { label: string }> = {
   MART: { label: 'Mart' },
@@ -221,13 +228,44 @@ export default function CartView({
   const discountCard = useRewardsStore((s) => s.discountCard);
   const streakCardActive = discountCard ? isCardActive(discountCard, new Date()) : false;
   const insets = useSafeAreaInsets();
+  // In tab mode the floating hub dock overlays this view, so the BAG footer is lifted
+  // clear of the capsule. Pushed `Cart` screens have no tab ancestor → 0.
+  const tabBarClearance = useTabBarClearance();
 
-  const liveAddress = useLiveAddress(fulfillment === 'DELIVERY');
-  // Only a resolved fix is persisted for auto-dispatch; idle/loading/denied keeps the 0,0 sentinel.
-  const hasLiveFix = liveAddress.status === 'ready' && liveAddress.lat !== 0 && liveAddress.lng !== 0;
+  // The order's origin is the ACTIVE location (a saved address or a dropped pin included), not a
+  // fresh GPS read: a customer ordering to a saved Chennai address from Trichy must be charged and
+  // dispatched from Chennai. The device fix is kept separately for the distance guardrail.
+  const activeLocation = useLocationStore((s) => s.activeLocation);
+  const deviceFix = useDeviceFix();
+  const hasLiveFix =
+    typeof activeLocation?.latitude === 'number' &&
+    typeof activeLocation?.longitude === 'number' &&
+    !(activeLocation.latitude === 0 && activeLocation.longitude === 0);
   const savedAddress = savedAddresses.find((a) => a.isDefault === true) ?? savedAddresses[0];
-  const deliveryAddress = liveAddress?.address
-    ? { label: 'Current location', address: liveAddress.address }
+  // A saved address the user deliberately picked elsewhere (not the default) must win: submitting
+  // the default's id with the active point would charge for one place and deliver to another.
+  const activeSavedAddress =
+    activeLocation?.addressId != null
+      ? savedAddresses.find((a) => a.id === activeLocation.addressId)
+      : undefined;
+  const checkoutAddressId =
+    activeLocation?.source === 'gps' ? undefined : (activeLocation?.addressId ?? savedAddress?.id);
+  const deliveryAddress = activeLocation?.address
+    ? {
+        label:
+          activeLocation.source === 'saved'
+            ? activeSavedAddress
+              ? activeSavedAddress.tag === 'HOME'
+                ? 'Home'
+                : activeSavedAddress.tag === 'WORK'
+                  ? 'Work'
+                  : 'Saved address'
+              : 'Saved address'
+            : activeLocation.source === 'pinned'
+              ? 'Pinned location'
+              : 'Current location',
+        address: activeLocation.address,
+      }
     : savedAddress
       ? {
           label:
@@ -498,7 +536,7 @@ export default function CartView({
       try {
         const quotes = await Promise.all(
           storeIdsForQuote.map((storeId) =>
-            gateway.fetchDeliveryFee(storeId, liveAddress.lat, liveAddress.lng),
+            gateway.fetchDeliveryFee(storeId, activeLocation!.latitude, activeLocation!.longitude),
           ),
         );
         const quote = furthest(quotes);
@@ -519,13 +557,24 @@ export default function CartView({
     return () => {
       cancelled = true;
     };
-  }, [step, fulfillment, hasLiveFix, storeIdsForQuote, liveAddress.lat, liveAddress.lng]);
+  }, [step, fulfillment, hasLiveFix, storeIdsForQuote, activeLocation?.latitude, activeLocation?.longitude]);
 
-  const handlePlaceOrder = (payload?: PlaceOrderPayload) => {
+  /**
+   * Far-from-origin guardrail. Ordering to a saved address in another city is a real flow (send
+   * something to family), so it is not blocked — but the customer must confirm they meant it,
+   * because the delivery fee, ETA and rider dispatch all follow the chosen address.
+   */
+  const [distanceConfirm, setDistanceConfirm] = useState<{
+    payload?: PlaceOrderPayload;
+    km: number;
+  } | null>(null);
+  const deviceAddress = useLocationStore((s) => s.deviceFix?.address ?? '');
+
+  const handlePlaceOrder = (payload?: PlaceOrderPayload, skipDistanceGuard = false) => {
     if (paymentProcessing) return;
     setPaymentError(null);
     const { method = 'COD', upiAppId, upiLabel, coinsRedeemed = 0 } = payload ?? {};
-    if ((fulfillment ?? 'DELIVERY') === 'DELIVERY' && !savedAddress?.id && !deliveryAddress.address.trim()) {
+    if ((fulfillment ?? 'DELIVERY') === 'DELIVERY' && !checkoutAddressId && !deliveryAddress.address.trim()) {
       setPaymentError('Add a delivery address before paying.');
       return;
     }
@@ -536,6 +585,18 @@ export default function CartView({
           : 'No pickup location is available for these items.',
       );
       return;
+    }
+    // Compare the phone's real position with the delivery point. Only when both are known: no fix
+    // means we cannot honestly claim the user is far away.
+    if (!skipDistanceGuard && (fulfillment ?? 'DELIVERY') === 'DELIVERY' && deviceFix && hasLiveFix) {
+      const km = haversineKm(deviceFix, {
+        latitude: activeLocation!.latitude,
+        longitude: activeLocation!.longitude,
+      });
+      if (km > FAR_AWAY_KM) {
+        setDistanceConfirm({ payload, km });
+        return;
+      }
     }
     setPaymentProcessing(true);
     void (async () => {
@@ -548,7 +609,9 @@ export default function CartView({
         const pickups = isPickup ? pickupPoints : [];
         const primaryPickup = pickups[0];
         // Only a durable server address id is safe to submit; pickup carries no address.
-        const addressId = isPickup ? undefined : savedAddress?.id || undefined;
+        // The address id must match the point being submitted: the active saved address when one
+        // was chosen, otherwise the default. A GPS/pinned origin with no saved row sends no id.
+        const addressId = isPickup ? undefined : checkoutAddressId || undefined;
         const idempotencyKey =
           idempotencyKeyRef.current ??
           (idempotencyKeyRef.current = `cart-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`);
@@ -572,7 +635,7 @@ export default function CartView({
           ...(usingStreakCard ? { useDiscountCard: true } : {}),
           ...(attributedSlotId ? { attribution: { slotId: attributedSlotId } } : {}),
           ...(!isPickup && hasLiveFix
-            ? { deliveryLocation: { latitude: liveAddress.lat, longitude: liveAddress.lng } }
+            ? { deliveryLocation: { latitude: activeLocation!.latitude, longitude: activeLocation!.longitude } }
             : {}),
           ...(primaryPickup
             ? { pickup: { name: primaryPickup.name, address: primaryPickup.address } }
@@ -627,7 +690,7 @@ export default function CartView({
           fulfillment: mode,
           pickup: primaryPickup,
           pickups,
-          location: hasLiveFix ? { lat: liveAddress.lat, lng: liveAddress.lng } : undefined,
+          location: hasLiveFix ? { lat: activeLocation!.latitude, lng: activeLocation!.longitude } : undefined,
           coinsEarned,
           coinsRedeemed,
         };
@@ -997,7 +1060,7 @@ export default function CartView({
         </ScrollView>
 
         {cartItems.length > 0 && (
-          <View style={styles.bottomBar}>
+          <View style={[styles.bottomBar, { marginBottom: tabBarClearance }]}>
             {estimatedCoins > 0 && (
               <View style={styles.coinEstimatePill}>
                 <Coins size={ms(12)} color={categorical.amber} strokeWidth={2.2} />
@@ -1097,184 +1160,13 @@ export default function CartView({
     );
   }
 
-
-    return (
-      <View style={styles.fulfillmentRoot}>
-        <View style={[styles.bagTopBar, { paddingTop: insets.top + vs(12) }]}>
-          <TouchableOpacity onPress={() => setStep('BAG')} style={styles.bagBackBtn} activeOpacity={0.7} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-            <ArrowLeft size={ms(20)} color={neutral.ink} strokeWidth={2.4} />
-          </TouchableOpacity>
-          <AppText style={styles.bagTitle} numberOfLines={1}>
-            How do you want your order?
-          </AppText>
-          <View style={{ width: ms(40) }} />
-        </View>
-
-        <ScrollView
-          style={styles.fulfillmentScroll}
-          contentContainerStyle={styles.fulfillmentScrollContent}
-          showsVerticalScrollIndicator={false}
-        >
-          <BreakdownCard
-            total={finalTotal}
-            subtotal={subtotal}
-            deliveryFee={deliveryFee}
-            deliveryBreakdown={fulfillment === 'PICKUP' ? undefined : deliveryFeeQuote ?? undefined}
-            deliveryFeeEstimated={fulfillment === 'DELIVERY' && deliveryQuoteMissing}
-            fulfillment={fulfillment ?? undefined}
-          />
-
-          <View style={styles.fulfilmentCard}>
-            <AppText style={styles.fulfilmentTitle}>How do you want your order?</AppText>
-            <View style={styles.fulfillmentToggle}>
-              <TouchableOpacity
-                onPress={() => setFulfillment('DELIVERY')}
-                style={[styles.fulfillmentToggleOption, fulfillment === 'DELIVERY' && styles.fulfillmentToggleOptionActive]}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityState={{ selected: fulfillment === 'DELIVERY' }}
-              >
-                <Send size={ms(14)} color={fulfillment === 'DELIVERY' ? neutral.card : neutral.inkMuted} strokeWidth={2.2} />
-                <AppText style={[styles.fulfillmentToggleText, fulfillment === 'DELIVERY' && styles.fulfillmentToggleTextActive]}>
-                  Delivery
-                </AppText>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={() => setFulfillment('PICKUP')}
-                style={[styles.fulfillmentToggleOption, fulfillment === 'PICKUP' && styles.fulfillmentToggleOptionActive]}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityState={{ selected: fulfillment === 'PICKUP' }}
-              >
-                <Store size={ms(14)} color={fulfillment === 'PICKUP' ? neutral.card : neutral.inkMuted} strokeWidth={2.2} />
-                <AppText style={[styles.fulfillmentToggleText, fulfillment === 'PICKUP' && styles.fulfillmentToggleTextActive]}>
-                  Self Pickup
-                </AppText>
-              </TouchableOpacity>
-            </View>
-          </View>
-
-          <AppText style={styles.fulfillmentSectionLabel}>Choose pickup or delivery</AppText>
-
-          {fulfillment === 'DELIVERY' ? (
-            <View style={styles.fulfillmentAddressCard}>
-              <View style={styles.liveAddressIcon}>
-                <Send size={ms(14)} color={brandRamp.FOOD.base} strokeWidth={2.2} />
-              </View>
-              <View style={styles.liveAddressBody}>
-                <AppText style={styles.addrLabel} numberOfLines={1}>
-                  {liveAddress?.status === 'loading' ? 'Locating your address…' : deliveryAddress.label}
-                </AppText>
-                <AppText style={styles.addrSub} numberOfLines={1}>
-                  {liveAddress?.status === 'loading'
-                    ? 'Getting your current location'
-                    : deliveryAddress.address}
-                </AppText>
-              </View>
-              {liveAddress?.status !== 'loading' && (
-                <TouchableOpacity
-                  onPress={() => navigation.navigate('SavedAddresses')}
-                  style={styles.changeBtn}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Change delivery address"
-                >
-                  <AppText style={styles.changeText}>Change</AppText>
-                </TouchableOpacity>
-              )}
-            </View>
-          ) : (
-            <View style={styles.fulfillmentPickupWrap}>
-              {pickupPointsLoading ? (
-                <AppText style={styles.fulfillmentPickupText}>Loading pickup locations…</AppText>
-              ) : pickupPointsError ? (
-                <View style={styles.fulfillmentPickupCard}>
-                  <AppText style={styles.fulfillmentPickupText}>{pickupPointsError}</AppText>
-                  <TouchableOpacity
-                    onPress={() => setPickupReloadNonce((n) => n + 1)}
-                    activeOpacity={0.8}
-                    accessibilityRole="button"
-                  >
-                    <AppText style={styles.changeText}>Try again</AppText>
-                  </TouchableOpacity>
-                </View>
-              ) : pickupPoints.length === 0 ? (
-                <View style={styles.fulfillmentPickupCard}>
-                  <AppText style={styles.fulfillmentPickupText}>
-                    No pickup locations are available for these items.
-                  </AppText>
-                </View>
-              ) : (
-                pickupPoints.map((p) => (
-                  <View key={p.id} style={styles.fulfillmentPickupCard}>
-                    <View style={styles.pickupCardHeader}>
-                      <Store size={ms(14)} color={categorical.blue} strokeWidth={2.2} />
-                      <AppText style={styles.pickupCardName} numberOfLines={1}>
-                        {p.name}
-                      </AppText>
-                    </View>
-                    <AppText style={styles.fulfillmentPickupText}>{p.address}</AppText>
-                    {p.hours ? (
-                      <AppText style={styles.fulfillmentPickupText}>Open {p.hours}</AppText>
-                    ) : null}
-                    {p.phone ? (
-                      <AppText style={styles.fulfillmentPickupText}>Contact: {p.phone}</AppText>
-                    ) : null}
-                  </View>
-                ))
-              )}
-            </View>
-          )}
-        </ScrollView>
-
-        <View style={styles.fulfillmentBottomBar}>
-          {checkoutError ? (
-            <AppText style={styles.checkoutErrorText}>{checkoutError}</AppText>
-          ) : null}
-          <TouchableOpacity
-            style={[styles.proceedBtn, !fulfillment && styles.proceedBtnDisabled]}
-            onPress={() => {
-              if (fulfillment === 'DELIVERY' && !deliveryAddress.address.trim()) {
-                setCheckoutError('Add a delivery address before paying.');
-                return;
-              }
-              if (fulfillment === 'PICKUP') {
-                if (pickupPointsLoading) {
-                  setCheckoutError('Loading pickup locations. Please wait a moment.');
-                  return;
-                }
-                if (pickupPointsError || pickupPoints.length === 0) {
-                  setCheckoutError(
-                    pickupPointsError ?? 'No pickup location is available for these items.',
-                  );
-                  return;
-                }
-              }
-              setCheckoutError(null);
-              setPaymentError(null);
-              setStep('PAYMENT');
-            }}
-            activeOpacity={0.88}
-            disabled={!fulfillment}
-            accessibilityRole="button"
-            accessibilityLabel={fulfillment ? 'Proceed to payment' : 'Choose pickup or delivery'}
-          >
-            <AppText style={styles.proceedText}>
-              {fulfillment ? 'Proceed to pay' : 'Choose pickup or delivery'}
-            </AppText>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
-
   if (step === 'PAYMENT') {
     const itemCount = selectedItems.reduce((acc, curr) => acc + curr.quantity, 0);
     const primaryPickup = pickupPoints[0];
     return (
+      <>
       <View style={styles.paymentRoot}>
-        {/* Fulfillment choice */}
-        <View style={styles.fulfilmentCard}>
+        {/* Fulfillment choice */}        <View style={styles.fulfilmentCard}>
           <AppText style={styles.fulfilmentTitle}>How do you want your order?</AppText>
           <View style={styles.fulfillmentToggle}>
             <TouchableOpacity
@@ -1320,12 +1212,59 @@ export default function CartView({
           onPlaceOrder={handlePlaceOrder}
         />
       </View>
+
+      {/* Far-from-origin confirmation. Placing an order for another city is legitimate, so this
+          confirms rather than blocks — but the fee/ETA follow the chosen address, not the phone. */}
+      <Modal
+        visible={distanceConfirm != null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDistanceConfirm(null)}
+      >
+        <View style={styles.confirmBackdrop}>
+          <View style={styles.confirmSheet} accessibilityRole="alert">
+            <View style={styles.confirmIconBox}>
+              <MapPin size={ms(20)} color={semantic.warning} strokeWidth={2.2} />
+            </View>
+            <AppText style={styles.confirmTitle}>You're far from this address</AppText>
+            <AppText style={styles.confirmBody}>
+              You're currently in {deviceAddress || 'a different area'}, but this order is going to{' '}
+              {deliveryAddress.address || 'the selected address'}
+              {distanceConfirm ? ` (${distanceConfirm.km.toFixed(1)} km away)` : ''}. The delivery fee
+              and rider dispatch follow the delivery address. Continue?
+            </AppText>
+            <View style={styles.confirmActions}>
+              <TouchableOpacity
+                style={styles.confirmCancel}
+                activeOpacity={0.8}
+                onPress={() => setDistanceConfirm(null)}
+                accessibilityRole="button"
+              >
+                <AppText style={styles.confirmCancelText}>Change address</AppText>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.confirmPrimary}
+                activeOpacity={0.85}
+                onPress={() => {
+                  const pending = distanceConfirm;
+                  setDistanceConfirm(null);
+                  handlePlaceOrder(pending?.payload, true);
+                }}
+                accessibilityRole="button"
+              >
+                <AppText style={styles.confirmPrimaryText}>Continue</AppText>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      </>
     );
   }
 
   // RECEIPT VIEW
   return (
-    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset }]} showsVerticalScrollIndicator={false}
+    <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset, paddingBottom: SPACE.LIST_BOTTOM + tabBarClearance }]} showsVerticalScrollIndicator={false}
       onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
       scrollEventThrottle={16}>
       <View style={styles.cardBox}>
@@ -2770,5 +2709,78 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     fontWeight: '600',
     color: semantic.danger,
+  },
+
+  /* Far-from-origin confirmation */
+  confirmBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(17, 24, 39, 0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: hs(24),
+  },
+  confirmSheet: {
+    width: '100%',
+    backgroundColor: neutral.card,
+    borderRadius: ms(18),
+    paddingHorizontal: hs(20),
+    paddingVertical: vs(20),
+    alignItems: 'center',
+  },
+  confirmIconBox: {
+    width: ms(44),
+    height: ms(44),
+    borderRadius: ms(22),
+    backgroundColor: semanticTint.warning,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: SPACE.BLOCK,
+  },
+  confirmTitle: {
+    fontSize: ms(15),
+    fontWeight: '600',
+    color: neutral.ink,
+    textAlign: 'center',
+    marginBottom: vs(6),
+  },
+  confirmBody: {
+    fontSize: ms(12),
+    fontWeight: '500',
+    color: neutral.inkMuted,
+    lineHeight: vs(18),
+    textAlign: 'center',
+    marginBottom: SPACE.BLOCK,
+  },
+  confirmActions: {
+    flexDirection: 'row',
+    gap: hs(10),
+    alignSelf: 'stretch',
+  },
+  confirmCancel: {
+    flex: 1,
+    height: ms(44),
+    borderRadius: ms(12),
+    borderWidth: 1,
+    borderColor: neutral.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmCancelText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: neutral.inkMuted,
+  },
+  confirmPrimary: {
+    flex: 1,
+    height: ms(44),
+    borderRadius: ms(12),
+    backgroundColor: semantic.success,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  confirmPrimaryText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: neutral.card,
   },
 });

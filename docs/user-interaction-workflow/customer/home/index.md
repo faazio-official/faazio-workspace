@@ -34,7 +34,7 @@
 ## State
 
 - `useLocationStore` — nearby origin.
-- `useCartStore` — add-to-cart from cards.
+- No shared cart writes: every Home card is tap-to-view (add happens on the product detail screen).
 - Local section state for carousels and pagination.
 
 ## Data path

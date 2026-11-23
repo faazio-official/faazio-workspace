@@ -16,6 +16,7 @@ import { dishToProduct } from '@data/food/specials';
 import { useFoodFilterStore } from '@/state/foodFilterStore';
 import { venueMatches, dishMatches } from '../utils/dietFilter';
 import FoodHeader from '../components/FoodHeader';
+import FoodCategoryRail from '../components/FoodCategoryRail';
 import SectionHeader from '../components/SectionHeader';
 import FeaturedDishCarousel from '../components/FeaturedDishCarousel';
 import FoodSectionHeader from '../components/FoodSectionHeader';

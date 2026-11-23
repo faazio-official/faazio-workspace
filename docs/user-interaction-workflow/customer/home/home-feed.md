@@ -32,12 +32,26 @@
 ## State
 
 - `useLocationStore` — nearby origin for geo rails.
-- `useCartStore` — add-to-cart from cards.
+- Home product cards are **tap-to-view only**: every Home section passes `showAddButton={false}`, so a
+  card opens `ProductDetail` and the shopper adds from there — no card-level add control on Home.
 - `useRefreshStore` — cross-component pull signal (`home` counter) shared by the feed and the
   header rail, which are siblings in the collapsing header.
 - `useHomeFeed` returns `{ feed, loading, error, refreshing, refresh, reload }`; `refresh` sets
   `refreshing` and bumps the store, `reload` retries from the empty/error state.
 - Local section state for carousels and pagination.
+
+## Vertical rhythm
+
+- **One owner per boundary.** A `SectionHeader` owns its top gap (`SPACE.SECTION`, 16) and its gap
+  to its own content (`SPACE.BLOCK`, 8); no section adds its own `paddingTop`/`marginTop` for the
+  same boundary and no grid adds a trailing `paddingBottom`.
+- **Rail cards carry no vertical margin.** `ProductCardBase` sets `marginBottom: 0` for
+  `variant="rail"`/`"flash"` and keeps `vs(12)` only for grid cards, so a horizontal rail's height is
+  the card itself instead of card + 12dp of empty tail.
+- **Section headers are 32dp rows**, not 44 — the "View all" control keeps a 44dp target via
+  `hitSlop` instead of inflating the row and pushing the whole feed apart.
+- Net effect: the gap between two rails is ~24dp (`SECTION` + `BLOCK`) rather than ~36dp, so the
+  viewport stays filled on the Y axis without scrolling through dead space.
 
 ## Data path
 

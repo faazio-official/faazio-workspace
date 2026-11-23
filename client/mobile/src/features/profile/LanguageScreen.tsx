@@ -1,7 +1,7 @@
 import React from 'react';
 import { StyleSheet, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Check, ChevronLeft, Languages } from 'lucide-react-native';
+import { Check, ChevronLeft } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '@/navigation/types';
 import AppText from '@/components/AppText';
@@ -75,14 +75,6 @@ export default function LanguageScreen({ navigation }: Props) {
                 accessibilityState={{ selected }}
                 accessibilityLabel={`${option.native} (${option.english})`}
               >
-                <View
-                  style={[
-                    styles.iconBox,
-                    { backgroundColor: selected ? palette.card : palette.accentSoft },
-                  ]}
-                >
-                  <Languages size={ms(18)} color={palette.accent} strokeWidth={2.2} />
-                </View>
                 <View style={styles.text}>
                   <AppText style={[styles.title, { color: palette.text }]}>
                     {option.native}
@@ -99,11 +91,7 @@ export default function LanguageScreen({ navigation }: Props) {
             );
           })}
         </View>
-        <AppText style={[styles.footnote, { color: palette.textSubtle }]}>
-          Product, category, shop and food names appear in the language the seller or admin authored.
-          Untranslated items stay in English. Your choice is saved on this device, and cart and order
-          lines always keep the English item name.
-        </AppText>
+
       </View>
     </View>
   );

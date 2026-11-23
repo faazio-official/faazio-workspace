@@ -4,6 +4,7 @@ import { Home, Search, ShoppingCart, User } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs, SCREEN_W } from '@/utils/responsive';
 import { useCartStore } from '@/state/store';
+import { FLOATING_NAV } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
 import NavbarHomeShortcut from '@/components/shared/NavbarHomeShortcut';
 
@@ -23,10 +24,12 @@ interface FoodBottomNavProps {
 }
 
 /**
- * Fixed bottom navigation. 2 tabs (Home / Search), icon over text, active tab
- * tinted with the brand color, plus a dedicated Cart item (with a count badge)
- * that opens the root Cart page, and a "You" item (left of Cart) that pushes
- * the root "You" account page.
+ * Floating bottom navigation dock. A detached capsule inset from both screen
+ * edges (`FLOATING_NAV.MARGIN`) and lifted `FLOATING_NAV.GAP` above the bottom
+ * edge, so the bar never touches the sides or the bottom. 2 tabs (Home /
+ * Search), icon over text, active tab tinted with the brand color, plus a
+ * dedicated Cart item (with a count badge) that opens the root Cart page, and a
+ * "You" item (left of Cart) that pushes the root "You" account page.
  */
 const FoodBottomNav = memo(function FoodBottomNav({
   activeTab,
@@ -41,65 +44,67 @@ const FoodBottomNav = memo(function FoodBottomNav({
   );
 
   return (
-    <View
-      style={styles.bar}
-      onLayout={(event) => setBarHeight(event.nativeEvent.layout.height)}
-    >
-      {TABS.map((tab) => {
-        const isActive = activeTab === tab.name;
-        const Icon = tab.icon;
-        const tint = isActive ? foodTheme.primary : foodTheme.textMuted;
-        return (
-          <TouchableOpacity
-            key={tab.name}
-            style={styles.item}
-            onPress={() => onChange(tab.name)}
-            activeOpacity={0.75}
-            accessibilityRole="button"
-            accessibilityLabel={tab.name}
-            accessibilityState={{ selected: isActive }}
-          >
-            <Icon size={ms(22)} color={tint} strokeWidth={isActive ? 2.5 : 2} />
-            <AppText style={[styles.label, isActive && styles.labelActive]}>{tab.name}</AppText>
-          </TouchableOpacity>
-        );
-      })}
-
-      <TouchableOpacity
-        style={styles.item}
-        onPress={onYouPress}
-        activeOpacity={0.75}
-        accessibilityRole="button"
-        accessibilityLabel="You"
+    <View style={styles.dock} pointerEvents="box-none">
+      <View
+        style={styles.bar}
+        onLayout={(event) => setBarHeight(event.nativeEvent.layout.height)}
       >
-        <User size={ms(22)} color={foodTheme.textMuted} strokeWidth={2} />
-        <AppText style={styles.label}>You</AppText>
-      </TouchableOpacity>
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.name;
+          const Icon = tab.icon;
+          const tint = isActive ? foodTheme.primary : foodTheme.textMuted;
+          return (
+            <TouchableOpacity
+              key={tab.name}
+              style={styles.item}
+              onPress={() => onChange(tab.name)}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={tab.name}
+              accessibilityState={{ selected: isActive }}
+            >
+              <Icon size={ms(22)} color={tint} strokeWidth={isActive ? 2.5 : 2} />
+              <AppText style={[styles.label, isActive && styles.labelActive]}>{tab.name}</AppText>
+            </TouchableOpacity>
+          );
+        })}
 
-      <TouchableOpacity
-        style={styles.item}
-        onPress={onCartPress}
-        activeOpacity={0.75}
-        accessibilityRole="button"
-        accessibilityLabel="Cart"
-      >
-        <View>
-          <ShoppingCart size={ms(22)} color={foodTheme.textMuted} strokeWidth={2} />
-          {cartCount > 0 && (
-            <View style={styles.cartBadge}>
-              <AppText style={styles.cartBadgeText}>{cartCount}</AppText>
-            </View>
-          )}
-        </View>
-        <AppText style={styles.label}>Cart</AppText>
-      </TouchableOpacity>
-      {onHomePress && barHeight > 0 ? (
-        <NavbarHomeShortcut
-          centerX={SCREEN_W / 8}
-          barHeight={barHeight}
-          onPress={onHomePress}
-        />
-      ) : null}
+        <TouchableOpacity
+          style={styles.item}
+          onPress={onYouPress}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="You"
+        >
+          <User size={ms(22)} color={foodTheme.textMuted} strokeWidth={2} />
+          <AppText style={styles.label}>You</AppText>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.item}
+          onPress={onCartPress}
+          activeOpacity={0.75}
+          accessibilityRole="button"
+          accessibilityLabel="Cart"
+        >
+          <View>
+            <ShoppingCart size={ms(22)} color={foodTheme.textMuted} strokeWidth={2} />
+            {cartCount > 0 && (
+              <View style={styles.cartBadge}>
+                <AppText style={styles.cartBadgeText}>{cartCount}</AppText>
+              </View>
+            )}
+          </View>
+          <AppText style={styles.label}>Cart</AppText>
+        </TouchableOpacity>
+        {onHomePress && barHeight > 0 ? (
+          <NavbarHomeShortcut
+            centerX={(SCREEN_W - 2 * FLOATING_NAV.MARGIN) / 8}
+            barHeight={barHeight}
+            onPress={onHomePress}
+          />
+        ) : null}
+      </View>
     </View>
   );
 });
@@ -107,23 +112,28 @@ const FoodBottomNav = memo(function FoodBottomNav({
 export default FoodBottomNav;
 
 const styles = StyleSheet.create({
-  bar: {
+  dock: {
     position: 'absolute',
-    bottom: 0,
     left: 0,
     right: 0,
+    bottom: 0,
     zIndex: 30,
+    paddingHorizontal: FLOATING_NAV.MARGIN,
+    paddingBottom: FLOATING_NAV.GAP,
+  },
+  bar: {
     flexDirection: 'row',
     justifyContent: 'space-around',
     alignItems: 'center',
     backgroundColor: '#FFFFFF',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(148,163,184,0.18)',
-    paddingTop: vs(8),
+    borderRadius: ms(28),
+    borderWidth: 1,
+    borderColor: 'rgba(148,163,184,0.18)',
+    paddingVertical: vs(8),
     shadowColor: '#000000',
-    shadowOffset: { width: 0, height: -4 },
-    shadowOpacity: 0.06,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.1,
+    shadowRadius: 16,
     elevation: 12,
   },
   item: {

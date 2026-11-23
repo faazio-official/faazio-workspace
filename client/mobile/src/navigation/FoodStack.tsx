@@ -5,6 +5,7 @@ import { FoodSearchScreen } from '../features/food/screens/FoodSearchScreen';
 import { RestaurantProfileScreen } from '../features/food/screens/RestaurantProfileScreen';
 import { RestaurantOffersScreen } from '../features/food/screens/RestaurantOffersScreen';
 import { RestaurantMenuScreen } from '../features/food/screens/RestaurantMenuScreen';
+import { FoodCategoryDrillInScreen } from '../features/food/screens/FoodCategoryDrillInScreen';
 import type { FoodStackParamList } from './types';
 
 const FoodStackNav = createNativeStackNavigator<FoodStackParamList>();
@@ -25,6 +26,7 @@ export function FoodStack() {
       <FoodStackNav.Screen name="RestaurantProfile" component={RestaurantProfileScreen} />
       <FoodStackNav.Screen name="RestaurantOffers" component={RestaurantOffersScreen} />
       <FoodStackNav.Screen name="RestaurantMenu" component={RestaurantMenuScreen} />
+      <FoodStackNav.Screen name="FoodCategoryDrillIn" component={FoodCategoryDrillInScreen} />
     </FoodStackNav.Navigator>
   );
 }

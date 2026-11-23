@@ -10,7 +10,13 @@ import {
   reverseGeocode,
   type Coordinates,
 } from '@/services/location';
-import { formatPlace, useLocationStore } from '@/state/locationStore';
+import {
+  formatPlace,
+  useLocationStore,
+  type LocationState,
+} from '@/state/locationStore';
+import { useAddressesStore } from '@/state/addressesStore';
+import { findNearbySavedAddress } from '@/utils/addressProximity';
 
 /** Foreground poll interval; background tracking is intentionally not used. */
 const POLL_MS = 10_000;
@@ -18,6 +24,30 @@ const MOVE_THRESHOLD_M = 50;
 
 function sameOrigin(a: Coordinates | null, b: Coordinates): boolean {
   return Boolean(a && distanceMeters(a, b) < MOVE_THRESHOLD_M);
+}
+
+function currentDevice(store: LocationState): Coordinates | null {
+  const fix = store.deviceFix;
+  if (!fix) return null;
+  if (fix.latitude === 0 && fix.longitude === 0) return null;
+  return { latitude: fix.latitude, longitude: fix.longitude };
+}
+
+/** Match a fix against the cached saved list (empty when it has not loaded — a safe no-match). */
+function nearbyFor(coordinates: Coordinates) {
+  return findNearbySavedAddress(
+    coordinates,
+    useAddressesStore.getState().addresses,
+  );
+}
+
+/**
+ * Reconcile the origin with a freshly read device position. When the user has not overridden the
+ * origin, this adopts a saved address they are standing in (proximity auto-select) or follows the
+ * device position. When they HAVE overridden, only `deviceFix` moves — the origin they chose stays.
+ */
+function applyDevicePosition(coordinates: Coordinates): void {
+  useLocationStore.getState().syncActiveToDevice(nearbyFor(coordinates));
 }
 
 /**
@@ -33,7 +63,7 @@ export async function refreshLiveLocation(
   const store = useLocationStore.getState();
   if (!prompt && !store.permissionGranted) return false;
   if (!prompt && !(await isLocationServicesEnabled())) {
-    // Master switch off: no fix is possible. Surface it without wiping a manual origin.
+    // Master switch off: no fix is possible. Surface it without wiping a chosen origin.
     store.setPermissionStatus('blocked', false, false);
     return false;
   }
@@ -53,25 +83,24 @@ export async function refreshLiveLocation(
     const coordinates = prompt
       ? await getHighAccuracyPosition()
       : await getCoarsePosition();
-    const previous =
-      store.status === 'ready'
-        ? { latitude: store.latitude, longitude: store.longitude }
-        : null;
-    if (sameOrigin(previous, coordinates) && store.address) {
-      store.setFix({ coordinates });
+    const previous = currentDevice(store);
+    if (sameOrigin(previous, coordinates) && store.deviceFix?.address) {
+      store.setDeviceFix({ coordinates });
+      applyDevicePosition(coordinates);
       return true;
     }
     const place = await reverseGeocode(
       coordinates.latitude,
       coordinates.longitude,
     );
-    store.setFix({
+    store.setDeviceFix({
       coordinates,
       place,
       address:
         formatPlace(place) ||
         `${coordinates.latitude.toFixed(4)}, ${coordinates.longitude.toFixed(4)}`,
     });
+    applyDevicePosition(coordinates);
     return true;
   } catch {
     if (prompt) store.setDenied();
@@ -89,6 +118,9 @@ export type LocationRequestResult = 'ready' | 'denied' | 'blocked' | 'failed';
 /**
  * Explicit consent + fix for onboarding/manual location. Requests the OS
  * permission and, when granted, resolves a high-accuracy fix and address.
+ *
+ * This is also the "follow me again" action: it clears any saved/pinned override so the origin
+ * tracks the device from here on.
  */
 export async function requestAndRefreshLocation(): Promise<LocationRequestResult> {
   const store = useLocationStore.getState();
@@ -108,13 +140,17 @@ export async function requestAndRefreshLocation(): Promise<LocationRequestResult
       coordinates.latitude,
       coordinates.longitude,
     );
-    store.setFix({
+    store.setDeviceFix({
       coordinates,
       place,
       address:
         formatPlace(place) ||
         `${coordinates.latitude.toFixed(4)}, ${coordinates.longitude.toFixed(4)}`,
     });
+    // An explicit "use my location" is the user asking to follow the device again.
+    const latest = useLocationStore.getState();
+    latest.adoptDeviceAsActive();
+    latest.syncActiveToDevice(nearbyFor(coordinates));
     return 'ready';
   } catch {
     store.setDenied();
@@ -128,46 +164,47 @@ export async function requestAndRefreshLocation(): Promise<LocationRequestResult
  * status is the truth, not the last persisted JS flag.
  *
  * - flip to granted → silent coarse fix (feeds re-sort from the new origin);
- * - flip to denied/blocked → nudge state for the Home banner (manual origin kept);
+ * - flip to denied/blocked → nudge state for the Home banner (chosen origin kept);
  * - `undetermined`/`unavailable` → no state change (never invent a denial).
  */
 async function reconcilePermissionOnResume(): Promise<void> {
   const store = useLocationStore.getState();
-  const [access, servicesEnabled] = await Promise.all([
-    getLocationAuthorizationStatus(),
-    isLocationServicesEnabled(),
-  ]);
+  try {
+    const [access, servicesEnabled] = await Promise.all([
+      getLocationAuthorizationStatus(),
+      isLocationServicesEnabled(),
+    ]);
 
-  if (!servicesEnabled) {
-    store.setPermissionStatus('blocked', false, false);
-    return;
-  }
-
-  if (access === 'granted') {
-    if (store.source === 'manual') {
-      // The user deliberately set this origin by hand (typed area / saved address). Adopt the
-      // grant but never silently replace their choice with a GPS fix.
-      store.setPermissionStatus('idle', true, true);
+    if (!servicesEnabled) {
+      store.setPermissionStatus('blocked', false, false);
       return;
     }
-    if (!store.permissionGranted) {
-      // Newly granted outside the app: adopt it, then fetch silently.
-      store.setPermissionStatus('idle', true, true);
-      await refreshLiveLocation(false);
-    } else {
-      // Already granted: a cheap drift check keeps a moving user's origin fresh.
-      await refreshLiveLocation(false);
+
+    if (access === 'granted') {
+      if (!store.permissionGranted) {
+        // Newly granted outside the app: adopt it, then fetch silently.
+        store.setPermissionStatus('idle', true, true);
+        await refreshLiveLocation(false);
+      } else {
+        // Already granted: a cheap drift check keeps a moving user's origin fresh.
+        await refreshLiveLocation(false);
+      }
+      return;
     }
-    return;
-  }
 
-  if (access === 'blocked') {
-    store.setPermissionStatus('blocked', false, true);
-    return;
-  }
+    if (access === 'blocked') {
+      store.setPermissionStatus('blocked', false, true);
+      return;
+    }
 
-  if (access === 'denied') {
-    store.setPermissionStatus('denied', false, true);
+    if (access === 'denied') {
+      store.setPermissionStatus('denied', false, true);
+    }
+  } finally {
+    // The coverage gate holds the cold-start splash until the session's first fix attempt has
+    // settled, so a persisted origin from a previous run cannot decide coverage by itself.
+    // Idempotent: only the first attempt of the session is recorded.
+    store.markFixAttempt();
   }
 }
 
@@ -180,7 +217,6 @@ export function useLiveLocation(enabled = true): void {
   const hydrate = useLocationStore((s) => s.hydrate);
   const status = useLocationStore((s) => s.status);
   const permissionGranted = useLocationStore((s) => s.permissionGranted);
-  const source = useLocationStore((s) => s.source);
   const servicesEnabled = useLocationStore((s) => s.servicesEnabled);
 
   useEffect(() => {
@@ -207,12 +243,12 @@ export function useLiveLocation(enabled = true): void {
     };
   }, [enabled]);
 
-  // Silent foreground poll — GPS origins only, and only while the OS allows a fix.
+  // Silent foreground poll. This runs even when the user picked a saved address elsewhere: the
+  // device position must stay current so the checkout distance guardrail can compare the two.
   const shouldPoll =
     enabled &&
     permissionGranted &&
     servicesEnabled &&
-    source !== 'manual' &&
     (status === 'ready' || status === 'loading' || status === 'idle');
 
   useEffect(() => {
@@ -235,16 +271,34 @@ export function useLiveLocation(enabled = true): void {
   }, [shouldPoll]);
 }
 
-/** Stable live origin (null until the first fix); safe to use in useMemo deps. */
+/** Stable active origin (null until one exists); safe to use in useMemo deps. */
 export function useLiveOrigin(): Coordinates | null {
   const status = useLocationStore((s) => s.status);
-  const latitude = useLocationStore((s) => s.latitude);
-  const longitude = useLocationStore((s) => s.longitude);
+  const latitude = useLocationStore((s) => s.activeLocation?.latitude);
+  const longitude = useLocationStore((s) => s.activeLocation?.longitude);
   return useMemo(
     () =>
-      status === 'ready' && !(latitude === 0 && longitude === 0)
+      status === 'ready' &&
+      typeof latitude === 'number' &&
+      typeof longitude === 'number' &&
+      !(latitude === 0 && longitude === 0)
         ? { latitude, longitude }
         : null,
     [status, latitude, longitude],
+  );
+}
+
+/** Stable hardware position (null until a fix exists) — for the distance guardrail only. */
+export function useDeviceFix(): Coordinates | null {
+  const latitude = useLocationStore((s) => s.deviceFix?.latitude);
+  const longitude = useLocationStore((s) => s.deviceFix?.longitude);
+  return useMemo(
+    () =>
+      typeof latitude === 'number' &&
+      typeof longitude === 'number' &&
+      !(latitude === 0 && longitude === 0)
+        ? { latitude, longitude }
+        : null,
+    [latitude, longitude],
   );
 }

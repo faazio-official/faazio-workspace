@@ -27,11 +27,13 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
 import AppTextInput from '@/components/AppTextInput';
+import PinLocationPicker from '@/components/shared/PinLocationPicker';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { SavedAddress, AddressTag } from '@data/types';
 import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import { geocodeAddress } from '@/services/location';
+import { useAddressesStore } from '@/state/addressesStore';
 import { useLocationStore } from '@/state/locationStore';
 import type { RootStackParamList } from '@/navigation/types';
 
@@ -156,10 +158,19 @@ interface AddressEditorProps {
 }
 
 /** Add / edit sheet for a saved address. Purely presentational — the screen owns the gateway write. */
-function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, error }: AddressEditorProps) {
+function AddressEditor({
+  visible,
+  initial,
+  saving,
+  onClose,
+  onSave,
+  onDelete,
+  error,
+}: AddressEditorProps) {
   const insets = useSafeAreaInsets();
   const [draft, setDraft] = useState<SavedAddress>(() => initial ?? blankAddress());
   const [submitted, setSubmitted] = useState(false);
+  const [pinPickerVisible, setPinPickerVisible] = useState(false);
 
   // Re-seed the form each time the sheet opens (or the target row changes).
   useEffect(() => {
@@ -170,6 +181,8 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
   }, [visible, initial]);
 
   const isNew = !initial || initial.id === '';
+  const hasPoint =
+    typeof draft.latitude === 'number' && typeof draft.longitude === 'number';
   const nameError = draft.name.trim().length === 0 ? 'Enter the recipient name.' : '';
   const addressError = draft.address.trim().length === 0 ? 'Enter the full address.' : '';
   const phoneError =
@@ -265,6 +278,27 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
             />
             {submitted && addressError ? <AppText style={styles.fieldError}>{addressError}</AppText> : null}
 
+            {/* Exact delivery point. Text alone makes nearby sorting and delivery pricing guess. */}
+            <TouchableOpacity
+              onPress={() => setPinPickerVisible(true)}
+              style={styles.pinRow}
+              activeOpacity={0.75}
+              accessibilityRole="button"
+              accessibilityLabel={hasPoint ? 'Change pinned delivery point' : 'Pin this address on the map'}
+            >
+              <MapPin size={ms(15)} color={hasPoint ? semantic.success : neutral.inkMuted} strokeWidth={2.2} />
+              <View style={styles.pinCopy}>
+                <AppText style={[styles.pinTitle, hasPoint && styles.pinTitleSet]}>
+                  {hasPoint ? 'Delivery point pinned' : 'Pin this address on the map'}
+                </AppText>
+                <AppText style={styles.pinSub} numberOfLines={1}>
+                  {hasPoint
+                    ? `${draft.latitude!.toFixed(5)}, ${draft.longitude!.toFixed(5)}`
+                    : 'Set the exact gate or building so nearby stores and fees match.'}
+                </AppText>
+              </View>
+            </TouchableOpacity>
+
             <View style={styles.defaultRow}>
               <View style={styles.defaultCopy}>
                 <AppText style={styles.defaultTitle}>Set as default</AppText>
@@ -314,6 +348,23 @@ function AddressEditor({ visible, initial, saving, onClose, onSave, onDelete, er
           </View>
         </View>
       </View>
+
+      <PinLocationPicker
+        visible={pinPickerVisible}
+        initial={hasPoint ? { latitude: draft.latitude!, longitude: draft.longitude! } : null}
+        title="Pin your delivery point"
+        onCancel={() => setPinPickerVisible(false)}
+        onPick={({ coordinates, address }) => {
+          setDraft((d) => ({
+            ...d,
+            latitude: coordinates.latitude,
+            longitude: coordinates.longitude,
+            // Only fill the text when it is empty — never overwrite what the user typed.
+            address: d.address.trim() ? d.address : address,
+          }));
+          setPinPickerVisible(false);
+        }}
+      />
     </Modal>
   );
 }
@@ -345,6 +396,9 @@ export function SavedAddressesScreen({ navigation }: Props) {
       .then((rows) => {
         if (!alive) return;
         setAddresses(rows);
+        // Keep the shared cache in step: proximity auto-select reads it from the location poller,
+        // which has no screen to fetch from.
+        useAddressesStore.getState().setAddresses(rows);
       })
       .catch(() => {
         if (alive) setLoadError(true);
@@ -392,7 +446,11 @@ export function SavedAddressesScreen({ navigation }: Props) {
         return;
       }
     }
-    setAddresses((prev) => prev.filter((a) => a.id !== item.id));
+    setAddresses((prev) => {
+      const next = prev.filter((a) => a.id !== item.id);
+      useAddressesStore.getState().setAddresses(next);
+      return next;
+    });
     setSelectedId((cur) => (cur === item.id ? '' : cur));
     setEditorVisible(false);
   }, []);
@@ -409,9 +467,12 @@ export function SavedAddressesScreen({ navigation }: Props) {
 
   /**
    * Selecting a saved card makes it the live origin, so the nearby feeds and checkout agree.
-   * Saved rows carry text only, so the origin comes from a best-effort forward geocode. When that
+   *
+   * A row with a stored point uses it directly — that is the whole reason the point is persisted:
+   * no network round-trip, and the origin is exactly the point checkout will deliver to. A row
+   * saved before coordinates existed falls back to a best-effort forward geocode. When that also
    * fails the label is NOT adopted alone — checkout text and a stale nearby origin must not
-   * silently diverge; the user is told and can pick the area from the location screen instead.
+   * silently diverge; the user is told and can pin the address instead.
    */
   const [syncingId, setSyncingId] = useState<string>('');
   const [syncError, setSyncError] = useState('');
@@ -422,16 +483,23 @@ export function SavedAddressesScreen({ navigation }: Props) {
     if (!item) return;
     setSyncingId(id);
     try {
-      const coordinates = await geocodeAddress(item.address);
+      const storedPoint =
+        typeof item.latitude === 'number' && typeof item.longitude === 'number'
+          ? { latitude: item.latitude, longitude: item.longitude }
+          : null;
+      const coordinates = storedPoint ?? (await geocodeAddress(item.address));
       if (!coordinates) {
         setSyncError(
-          'We could not locate this address on the map. Set it from the location screen so nearby stores match it.',
+          'We could not locate this address on the map. Open it and pin it so nearby stores match it.',
         );
         return;
       }
-      useLocationStore
-        .getState()
-        .setFix({ coordinates, address: item.address, source: 'manual' });
+      useLocationStore.getState().setActiveLocation({
+        coordinates,
+        address: item.address,
+        source: 'saved',
+        addressId: item.id,
+      });
     } finally {
       setSyncingId('');
     }
@@ -454,24 +522,30 @@ export function SavedAddressesScreen({ navigation }: Props) {
         // A new default clears the others (mirrors the server).
         const base = withId.isDefault ? prev.map((a) => ({ ...a, isDefault: false })) : prev;
         const idx = base.findIndex((a) => a.id === withId.id);
-        if (idx < 0) return [...base, withId];
-        const copy = [...base];
-        copy[idx] = withId;
-        return copy;
+        const next = idx < 0 ? [...base, withId] : [...base.slice(0, idx), withId, ...base.slice(idx + 1)];
+        useAddressesStore.getState().setAddresses(next);
+        return next;
       });
       setSelectedId(withId.id);
       setEditorVisible(false);
-      // A saved default (or the row just edited) becomes the live origin, so the nearby feeds and
-      // checkout keep reading the same address.
+      // A saved default becomes the live origin, so the nearby feeds and checkout keep reading the
+      // same address. A stored point is used directly; only a legacy text-only row is geocoded.
       if (withId.isDefault) {
         setSyncError('');
         setSyncingId(withId.id);
-        void geocodeAddress(withId.address)
+        const storedPoint =
+          typeof withId.latitude === 'number' && typeof withId.longitude === 'number'
+            ? { latitude: withId.latitude, longitude: withId.longitude }
+            : null;
+        void (storedPoint ? Promise.resolve(storedPoint) : geocodeAddress(withId.address))
           .then((coordinates) => {
             if (!coordinates) return;
-            useLocationStore
-              .getState()
-              .setFix({ coordinates, address: withId.address, source: 'manual' });
+            useLocationStore.getState().setActiveLocation({
+              coordinates,
+              address: withId.address,
+              source: 'saved',
+              addressId: withId.id,
+            });
           })
           .finally(() => setSyncingId(''));
       }
@@ -964,6 +1038,35 @@ const styles = StyleSheet.create({
   },
   fieldInputMultiline: {
     minHeight: vs(72),
+  },
+  pinRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(10),
+    borderWidth: 1,
+    borderColor: neutral.border,
+    borderRadius: ms(10),
+    paddingHorizontal: hs(12),
+    paddingVertical: vs(10),
+    marginTop: SPACE.ITEM,
+    backgroundColor: neutral.surfaceAlt,
+  },
+  pinCopy: {
+    flex: 1,
+  },
+  pinTitle: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: neutral.ink,
+  },
+  pinTitleSet: {
+    color: semantic.success,
+  },
+  pinSub: {
+    fontSize: ms(11),
+    fontWeight: '500',
+    color: neutral.inkMuted,
+    marginTop: vs(2),
   },
   defaultRow: {
     flexDirection: 'row',

@@ -108,7 +108,12 @@ class FaazioGeocoder: NSObject {
 
       let payload: [String: Any] = [
         "street": place.thoroughfare ?? place.subThoroughfare ?? NSNull(),
-        "district": place.subLocality ?? place.locality ?? NSNull(),
+        // Sub-locality only. Falling back to `locality` put the CITY in the district field
+        // (e.g. district "Tiruchirappalli", city "Tiruchirappalli"); the city has its own key below.
+        "district": place.subLocality ?? NSNull(),
+        // The revenue/administrative district coverage is keyed on. `district` above is the
+        // sub-locality, which for a taluk town (e.g. Lalgudi) is not the district name.
+        "adminDistrict": place.subAdministrativeArea ?? NSNull(),
         "city": place.locality ?? NSNull(),
         "region": place.administrativeArea ?? NSNull(),
         "postalCode": place.postalCode ?? NSNull(),

@@ -1,0 +1,63 @@
+# Test stack – identical to dev stack but isolated for CI
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: faazio
+      POSTGRES_DB: faazio
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./server/supabase/migrations:/migrations:ro
+      - ./server/supabase/seed:/seed:ro
+      - ./server/gateway/scripts/compose-postgres-init.sh:/docker-entrypoint-initdb.d/00-init.sh:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d faazio"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  valkey:
+    image: valkey/valkey:8-alpine
+    command: ["valkey-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mongo:
+    image: mongo:7
+    environment:
+      MONGO_DATABASE: faazio
+    ports:
+      - "27017:27017"
+    volumes:
+      - ./server/supabase/seed/mongo/seed.js:/docker-entrypoint-initdb.d/seed.js:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mongosh --quiet --eval \"db.adminCommand('ping').ok\" | grep 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  gateway:
+    build: ./server/gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+      valkey:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    environment:
+      GATEWAY_ADDR: ":8080"
+      DATABASE_URL: "postgres://postgres:faazio@postgres:5432/faazio?sslmode=disable"
+      VALKEY_URL: "redis://valkey:6379/0"
+      MONGO_URI: "mongodb://mongo:27017"
+      MONGO_DATABASE: "faazio"
+      SUPABASE_JWT_SECRET: "test-secret"
+      FIREBASE_PROJECT_ID: "test-firebase"
+    ports:
+      - "8080:8080"

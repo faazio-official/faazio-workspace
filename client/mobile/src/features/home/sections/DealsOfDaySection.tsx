@@ -6,7 +6,7 @@ import { MART_DEALS, dealToProduct } from '@data/mart/deals';
 import type { Product } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
-import { SectionHeader, useAddToCartFeedback } from './common';
+import { SectionHeader } from './common';
 import type { SectionProps } from './common';
 import AppText from '@/components/AppText';
 import { neutral } from '@/theme/brandTokens';
@@ -21,8 +21,7 @@ interface DealsOfDaySectionProps extends SectionProps {
   products?: Product[];
 }
 
-function DealsOfDaySection({ products, onProductClick, addToCart }: DealsOfDaySectionProps) {
-  const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
+function DealsOfDaySection({ products, onProductClick }: DealsOfDaySectionProps) {
   const offline = !gateway.remoteEnabled;
   const [serverProducts, setServerProducts] = useState<Product[]>([]);
   const [fetchState, setFetchState] = useState<'idle' | 'loading' | 'live' | 'error'>('idle');
@@ -83,9 +82,8 @@ function DealsOfDaySection({ products, onProductClick, addToCart }: DealsOfDaySe
               variant="rail"
               width={DEAL_CARD_W}
               showDescription
-              isAdded={addedId === product.id}
+              showAddButton={false}
               onPress={() => onProductClick?.(product)}
-              onAdd={() => handleAdd(product.id, product.name, product.price, product.emoji)}
             />
           ))}
         </ScrollView>

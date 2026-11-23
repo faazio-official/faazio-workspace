@@ -2,13 +2,15 @@
 
 **App / route:** customer · `Cart` → `FULFILLMENT` / `PAYMENT` (`CartView.tsx`)
 **Status:** Shipped
-**Trigger:** Choosing **Delivery** and entering the FULFILLMENT or PAYMENT step with a live fix.
+**Trigger:** Choosing **Delivery** and entering the FULFILLMENT or PAYMENT step with an active origin.
 
 ## Steps
 
 1. The user chooses Delivery (vs Self-Pickup) and a saved/live address.
 2. For each store in the cart, the app calls
    `gateway.fetchDeliveryFee(storeId, lat, lng)` (`GET /checkout/delivery-fee?storeId&lat&lng`).
+   `lat`/`lng` are the **active location's** point — the chosen saved address or dropped pin, not a
+   fresh GPS read. Ordering to a Chennai saved address from Trichy must quote Chennai's distance.
 3. A multi-store cart keeps the **furthest** (highest total) quote; settlement charges that same
    worst case.
 4. The quote is reused on the PAYMENT step so the figure matches what the server will charge.
@@ -17,7 +19,8 @@
 ## State
 
 - `useCartStore` — store ids / lines.
-- `useLocationStore` — live drop fix.
+- `useLocationStore` — `activeLocation` (the drop point quoted and submitted); `deviceFix` is not
+  used for pricing.
 - `CartView` local `deliveryFeeQuote` / `deliveryQuoteMissing`.
 
 ## Data path
@@ -25,9 +28,9 @@
 - `gateway.fetchDeliveryFee` → `GET /checkout/delivery-fee` → `tax.delivery_fee_settings` +
   `directory.stores` pins + night/rain/festival surge (`contracts.SurgeReader`,
   `WeatherChecker`, `FestivalLookup`).
-- Distance is Haversine over the store pin and the live drop fix; the result is persisted on
+- Distance is Haversine over the store pin and the active drop point; the result is persisted on
   `checkout.orders` so payout is a pass-through.
-- If the read fails or there is no live fix, the UI uses the standard default fee constant and
+- If the read fails or there is no active origin, the UI uses the standard default fee constant and
   labels it an **estimate** — it never guesses distance against a bundled directory.
 
 ## Success / error / empty

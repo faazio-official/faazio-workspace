@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
+import { useTabBarClearance } from '@/hooks/useTabBarClearance';
 import { BRAND } from '../constants';
 
 interface BottomPayBarProps {
@@ -19,9 +20,11 @@ interface BottomPayBarProps {
 export default function BottomPayBar({ total, onPay, disabled = false, loading = false }: BottomPayBarProps) {
   const inactive = disabled || loading;
   // The app root reserves the bottom safe area once (App.tsx AppLayout), so this
-  // in-tree bar uses a fixed pad and must not add insets.bottom again.
+  // in-tree bar uses a fixed pad and must not add insets.bottom again. In tab mode
+  // the floating hub dock overlays this screen, so the bar lifts above it.
+  const tabBarClearance = useTabBarClearance();
   return (
-    <View style={styles.wrap}>
+    <View style={[styles.wrap, { bottom: tabBarClearance }]}>
       <TouchableOpacity
         onPress={onPay}
         style={[styles.payBtn, inactive && styles.payBtnDisabled]}

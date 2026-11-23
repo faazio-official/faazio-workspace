@@ -11,8 +11,9 @@
 `RequestDataDeletion`, `Theme`, `PaymentOptions` (registered, unused), `PaymentCallback`,
 `ActiveCall` (masked call to the delivery partner).
 
-**State:** `src/state/` (auth, cart, favorite, orders, rewards, location, language, onboarding,
-pharma, bloodDonor, search, foodFilter, vendorRating, remoteConfig, connectivity, theme, call).
+**State:** `src/state/` (auth, cart, favorite, orders, rewards, location, addresses, serviceability,
+language, onboarding, pharma, bloodDonor, search, foodFilter, vendorRating, remoteConfig,
+connectivity, theme, call).
 **Data:** `GatewayClient` (`src/services/api/GatewayClient.ts`) is the only online origin.
 `@data/*` is an offline/error shell or type source. Home/Food/Pharma online rails render server
 rows or honest empty/error states (fixtures only when the gateway is disabled).
@@ -27,6 +28,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Onboarding | Phone OTP login | `Login` (`features/auth/LoginScreen.tsx`) | [phone-otp-login.md](./onboarding/phone-otp-login.md) |
 | Onboarding | Language selection | `LanguageSelection` | [onboarding/index.md](./onboarding/index.md) |
 | Onboarding | Location picker | `Location` (`features/auth/LocationScreen.tsx`) | [location-picker.md](./onboarding/location-picker.md) |
+| Onboarding | Service-area gate | App-level `ServiceAreaBlockedPage` (no route) | [service-area-gate.md](./onboarding/service-area-gate.md) |
 | Home | SDUI home feed | `MainTabs` → `Home` (`features/home/HomeTabScreen.tsx`) | [home/index.md](./home/index.md) · [home-feed.md](./home/home-feed.md) |
 | Home | Sponsored rail | Home sections | [sponsored-rail.md](./home/sponsored-rail.md) |
 | Discovery | Mart / Food / Pharma browse | `SubApp`, `FoodApp`, `CategoryDrillIn`, `VendorDetails` | [discovery/index.md](./discovery/index.md) · [store-drillin.md](./discovery/store-drillin.md) |
@@ -53,12 +55,19 @@ Domain indexes are the entry point for each area; every flow page is linked from
 
 ## Cross-cutting rules
 
-- **Auth gate:** the root navigator starts at `MainTabs` when authenticated, `Login` when onboarding
-  was seen, else `Onboarding` (`AppNavigator.tsx` initial route).
+- **Auth gate:** the root navigator starts at `MainTabs` when authenticated and the origin is in an
+  enabled coverage district, `Login` when onboarding was seen, else `Onboarding` (`AppNavigator.tsx`
+  initial route). An authenticated origin outside coverage renders the app-level
+  `ServiceAreaBlockedPage` instead of the navigator.
 - **Offline:** `connectivityStore` probes `GET /health`; offline navigation is blocked/replayed by
   `navigation/offlineNavigationGuard.ts`. Offline is not a mock mode.
 - **No fabricated state:** empty carts, empty orders, and empty feeds render honest empty states.
   There is no client-generated demo order, balance, or coin ledger.
+- **Bottom nav overlay:** the hub pill dock (`MainTabs` `HubTabBar`) is an absolute transparent
+  overlay, so Home / Favourites / Cart / You content scrolls behind and around the capsule. Tab
+  screens reserve its measured height via `hooks/useTabBarClearance()` for their scroll tails and
+  fixed footers (`BottomPayBar`, the BAG footer); the hook returns `0` on pushed routes, where the
+  same view renders without a tab bar.
 
 ## Known gaps
 

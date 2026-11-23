@@ -3,7 +3,7 @@ import { View, ScrollView, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
-import { useAddToCartFeedback, usePricedProducts } from './common';
+import { usePricedProducts } from './common';
 import type { SectionProps } from './common';
 import type { AppBrand, Product } from '@data/types';
 import AppText from '@/components/AppText';
@@ -17,9 +17,8 @@ interface RecentlyViewedRailSectionProps extends SectionProps {
 
 function RecentlyViewedRailSection({
   title, products, accent, appBrand,
-  onProductClick, addToCart,
+  onProductClick,
 }: RecentlyViewedRailSectionProps) {
-  const { addedId, handleAdd } = useAddToCartFeedback(addToCart);
   const priced = usePricedProducts(products);
   return (
     <>
@@ -35,9 +34,8 @@ function RecentlyViewedRailSection({
             key={product.id}
             product={product}
             variant="rail"
-            isAdded={addedId === product.id}
+            showAddButton={false}
             onPress={() => onProductClick?.(product)}
-            onAdd={() => handleAdd(product.id, product.name, product.price, product.emoji)}
           />
         ))}
       </ScrollView>
