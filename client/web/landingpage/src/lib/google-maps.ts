@@ -87,6 +87,13 @@ type AutocompleteSuggestionCtor = {
 
 type GoogleMapsNamespace = {
   importLibrary(name: string): Promise<Record<string, unknown>>;
+  /** Legacy marker constructor exposed on the core namespace (not by `importLibrary("maps")`). */
+  Marker: new (opts: {
+    map: MapsMap;
+    position: LatLng;
+    draggable?: boolean;
+    title?: string;
+  }) => MapsMarker;
   event?: { addListener(instance: unknown, event: string, cb: () => void): void };
 };
 
@@ -213,7 +220,11 @@ export function loadGoogleMaps(): Promise<MapsApi> {
       ]);
       const api = {
         Map: mapsLib["Map"],
-        Marker: mapsLib["Marker"],
+        // `importLibrary("maps")` does not export `Marker` — the constructor lives on the core
+        // namespace (legacy, but still supported and what this picker styles against). Reading it
+        // from `mapsLib` left it `undefined`, so `mapsApiReady` failed and the whole picker
+        // collapsed on every load.
+        Marker: g.Marker,
         event: g.event,
         Geocoder: geocodingLib["Geocoder"],
         AutocompleteSuggestion: placesLib["AutocompleteSuggestion"],
