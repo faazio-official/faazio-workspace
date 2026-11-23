@@ -83,4 +83,4 @@ per-district drill-down `/admin/super/districts/[code]`
 - `docs/architecture/db-schema.md` §12.42
 - `docs/architecture/monolith-breakdown.md` §1 (districts row) + §4 (district codes)
 - `docs/architecture/web-portal.md` (super-admin route table)
-- [`../onboarding/seller-lead-queue.md`](../onboarding/seller-lead-queue.md) (leads resolve against this master)
+- [`../onboarding/seller-inquiry-queue.md`](../onboarding/seller-inquiry-queue.md) (leads resolve against this master)

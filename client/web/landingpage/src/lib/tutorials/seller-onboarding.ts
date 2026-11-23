@@ -113,7 +113,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     control: "App",
     title: "Add each shop you sell from",
     detail:
-      "Every shop picks its app, category, platform fee, licence and map pin. The first pin sets your state and district.",
+      "Every shop picks its app, category, platform fee, licence, map pin and at least one photo of the shop front. The first pin sets your state and district.",
     holdMs: 2200,
   },
   {
@@ -124,7 +124,7 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
     control: "Submit for review",
     title: "Submit for review",
     detail:
-      "Submit unlocks only when the OTP, passbook, tier, agreements and each shop's details are complete.",
+      "Submit unlocks only when the OTP, passbook, tier, agreements and each shop's details and photos are complete.",
     holdMs: 2000,
   },
   {

@@ -858,16 +858,23 @@ runtime, not build time.
   claim matching `contactPhone` (last 10 digits). Locally, without Firebase, mint legacy HS256 tokens
   with `SUPABASE_JWT_SECRET` and drive the flow with
   `server/gateway/scripts/simulate-seller-registration.sh` (see the seller-registration workflow doc).
-- **`POST /seller-leads` returns `400 bad_request` for a real landing-page enquiry** — the gateway
-  decodes with `DisallowUnknownFields`, so a body key that `createLeadRequest`
-  (`internal/sellers/leads.go`) does not declare fails the whole request. The client payload is built
-  by `buildLeadPayload` (`client/web/landingpage/src/lib/leads.ts`); `src/lib/leads.test.ts` pins its
-  keys against the Go struct. Run `./scripts/simulate-seller-lead.sh` for the full 201/400/429 matrix.
-- **`POST /seller-leads` returns `429 rate_limited` during local testing** — the public route is
-  capped at 5 enquiries per IP per UTC day (`faazio:v1:sellers:lead:{ipHash}:{yyyymmdd}` in Valkey).
-  Clear the day's counters:
+- **`POST /seller-inquiries` returns `400 bad_request` for a real landing-page enquiry** — the gateway
+  decodes with `DisallowUnknownFields`, so a body key that `createInquiryRequest`
+  (`internal/sellers/inquiry.go`) does not declare fails the whole request. The client payload is built
+  by `buildInquiryPayload` (`client/web/landingpage/src/lib/inquiries.ts`); `src/lib/inquiries.test.ts`
+  pins its keys against the Go struct. The same `400` covers a missing shop picture — at least one
+  `shopPhotoIds` entry is required (1–5, each a claimed-able `SHOP` AVIF draft).
+- **`POST /media/avif` returns `415 unsupported_media_type`** — the route decodes JPEG and PNG only
+  (`image/jpeg`, `image/png`); HEIC/WebP must be converted before sending. It also rejects a body over
+  12 MiB (`413`) — downscale client-side first.
+- **`POST /seller-inquiries` returns `429 rate_limited` during local testing** — the public route is
+  capped at 5 enquiries per IP per UTC day (`faazio:v1:sellers:lead:{ipHash}:{yyyymmdd}` in Valkey);
+  `POST /media/avif` has its own 30/day cap (`faazio:v1:media:avif:*`). Clear the day's counters:
   `docker exec gateway-valkey-1 valkey-cli --scan --pattern 'faazio:v1:sellers:lead:*' | xargs -r -n1 docker exec gateway-valkey-1 valkey-cli DEL`.
-  `simulate-seller-lead.sh` does this itself before it starts.
+- **`PATCH /sellers/{id}/status` returns `409 not_an_application`** — the row is still `INQUIRY` (a web
+  enquiry with no KYC). Promote it from the enquiry queue (`PATCH /seller-inquiries/{id}`
+  `{"status":"PENDING_REVIEW"}`) or let the merchant complete the app application, which promotes the
+  same row automatically. An enquiry can never jump straight to `ACTIVE`.
 - **The `/sell-with-us` map panel never appears, or appears with no search suggestions** — the
   landing page reads `VITE_GOOGLE_MAPS_API_KEY` at build time, so a missing value means no panel at
   all and a value added after a build needs a redeploy. If the panel renders but typing yields no

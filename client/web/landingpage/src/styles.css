@@ -7035,6 +7035,107 @@
   overflow: hidden;
 }
 
+/* ── Shop photos ─────────────────────────────────────────────────────────── */
+.sell-photos-label {
+  display: block;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--color-foreground);
+}
+
+.sell-photos-required {
+  font-weight: 400;
+  color: var(--color-muted-foreground);
+}
+
+.sell-photos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.sell-photo {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-sunken);
+}
+
+.sell-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.sell-photo-fallback {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 8px;
+  font-size: 0.75rem;
+  text-align: center;
+  color: var(--color-muted-foreground);
+}
+
+.sell-photo-remove {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 999px;
+  background: color-mix(in oklab, black 55%, transparent);
+  color: white;
+  cursor: pointer;
+}
+
+.sell-photo-remove svg {
+  width: 13px;
+  height: 13px;
+}
+
+.sell-photo-add {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 96px;
+  height: 96px;
+  padding: 8px;
+  border: 1px dashed var(--color-border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  font-size: 0.75rem;
+  color: var(--color-muted-foreground);
+  cursor: pointer;
+}
+
+.sell-photo-add:hover:not(:disabled) {
+  border-color: var(--color-brand-line);
+  color: var(--color-brand-ink);
+}
+
+.sell-photo-add:disabled {
+  cursor: progress;
+  opacity: 0.6;
+}
+
+.sell-photo-add svg {
+  width: 20px;
+  height: 20px;
+}
+
 .sell-submit {
   align-self: flex-start;
   margin-top: 4px;

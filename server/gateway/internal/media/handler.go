@@ -2,10 +2,13 @@ package media
 
 import (
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -14,6 +17,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
+	"github.com/faazio/server/gateway/internal/platform/imgconv"
 	"github.com/faazio/server/gateway/internal/platform/r2"
 	"github.com/go-chi/chi/v5"
 )
@@ -23,6 +27,14 @@ const (
 	maxResolveIDs = 200
 	maxOwnerID    = 128
 	maxMimeLen    = 64
+	// maxAVIFInputBytes caps the source bytes POST /media/avif will decode. A phone camera JPEG is
+	// typically 2–6 MiB; 12 MiB leaves headroom without letting one caller pin a core for minutes.
+	maxAVIFInputBytes = 12 << 20
+	// maxAVIFLongEdge bounds the stored image. 1600px covers a full-width shop gallery on a 3x phone
+	// while keeping an encode in the low hundreds of milliseconds.
+	maxAVIFLongEdge = 1600
+	// maxAVIFUploadsPerIPPerDay caps anonymous conversions (5 photos per enquiry, plus retries).
+	maxAVIFUploadsPerIPPerDay = 30
 )
 
 // allowedMimes is the upload allowlist (AGENTS.md security): only web-safe raster images.
@@ -37,6 +49,8 @@ var allowedMimes = map[string]string{
 var allowedOwnerTypes = map[string]bool{
 	"": true, "PRODUCT": true, "STORE": true, "MENU": true, "BRAND": true,
 	"BANNER": true, "AVATAR": true, "PRESCRIPTION": true, "KYC": true, "QR": true,
+	// SHOP is the public shop-front gallery claimed by seller onboarding / a web enquiry.
+	"SHOP": true,
 }
 
 // Handler serves the media registry endpoints. The gateway is the only minter/signer; clients never
@@ -58,6 +72,10 @@ func NewHandler(repo *Repo, signer *r2.Signer, c *cache.Cache, audit contracts.A
 // Register mounts the media routes. Resolve is public; upload/confirm/private need auth; moderation + GC are admin.
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/media/resolve", h.resolve)
+	// Server-side AVIF conversion. Public because the landing-page enquiry form is anonymous and
+	// neither the browser nor React Native can encode AVIF; the result is an unclaimed DRAFT that is
+	// unreachable until a create call claims it. Rate-limited per IP (see avifUpload).
+	r.Post("/media/avif", h.avifUpload)
 	r.Group(func(g chi.Router) {
 		g.Use(auth.Require)
 		g.Post("/media/upload-url", h.uploadURL)
@@ -187,6 +205,74 @@ func (h *Handler) confirm(w http.ResponseWriter, r *http.Request) {
 	h.cache.Del(r.Context(), cache.MediaAsset(asset.ID))
 	h.log(r, "MEDIA_CONFIRM", asset)
 	h.respondAsset(w, asset)
+}
+
+// avifUpload accepts raw image bytes (JPEG/PNG), converts them to AVIF server-side and stores the
+// result as an unclaimed PUBLIC DRAFT SHOP asset. It answers {assetId,key,url,width,height,bytes}.
+//
+// Why a byte-accepting endpoint exists at all (every other upload presigns and streams straight to
+// R2): no client on this platform can produce AVIF — browsers do not encode it and React Native ships
+// no encoder — so the conversion has to happen where a pure-Go encoder runs. Bytes are capped at
+// maxAVIFInputBytes, only JPEG/PNG are decoded, and the encoded output is always re-encoded from
+// pixels (so no EXIF/GPS survives).
+func (h *Handler) avifUpload(w http.ResponseWriter, r *http.Request) {
+	if !h.signer.Enabled() {
+		httpx.Fail(w, http.StatusServiceUnavailable, "media_unavailable", "media storage not configured")
+		return
+	}
+	// Per-IP daily cap: this endpoint does real CPU work (AVIF encode), so an unbounded caller could
+	// burn the box. Fail-open on a cache error, like the enquiry counter.
+	ipHash := shortHash(clientIP(r))
+	day := time.Now().UTC().Format("20060102")
+	if n, err := h.cache.Incr(r.Context(), cache.AVIFUploadRate(ipHash, day), cache.TTLAVIFUploadRate); err == nil && n > maxAVIFUploadsPerIPPerDay {
+		httpx.Fail(w, http.StatusTooManyRequests, "rate_limited", "too many image uploads from this connection today")
+		return
+	}
+	// Read up to the shared request-body ceiling so the mismatch surfaces here, not as a truncated read.
+	raw, err := io.ReadAll(io.LimitReader(r.Body, maxAVIFInputBytes+1))
+	if err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "could not read image")
+		return
+	}
+	if len(raw) == 0 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "an image is required")
+		return
+	}
+	if len(raw) > maxAVIFInputBytes {
+		httpx.Fail(w, http.StatusRequestEntityTooLarge, "too_large", "image is larger than 12 MiB")
+		return
+	}
+	out, width, height, err := imgconv.Encode(raw, imgconv.Options{MaxLongEdge: maxAVIFLongEdge})
+	if err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "unsupported image — upload a JPEG or PNG")
+		return
+	}
+	hash := sha256Hex(out)
+	id := mintID()
+	key := mintKey(id, hash, "avif")
+	asset, err := h.repo.Create(r.Context(), contracts.MediaAsset{
+		ID: id, OwnerType: "SHOP", Kind: "PUBLIC", Bucket: h.signer.BucketFor(false),
+		Key: key, Mime: imgconv.MimeAVIF, Bytes: int64(len(out)), Width: &width, Height: &height,
+		Hash: hash, CreatedBy: actorID(r),
+	})
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "media_unavailable", "could not register image")
+		return
+	}
+	if err := h.signer.PutObject(r.Context(), asset.Bucket, asset.Key, imgconv.MimeAVIF, out); err != nil {
+		_, _ = h.repo.Delete(r.Context(), asset.ID, actorID(r), true)
+		httpx.Fail(w, http.StatusBadGateway, "media_unavailable", "could not store image")
+		return
+	}
+	h.log(r, "MEDIA_AVIF_UPLOAD", asset)
+	httpx.JSON(w, http.StatusCreated, map[string]any{
+		"assetId": asset.ID,
+		"key":     asset.Key,
+		"url":     h.signer.PublicURL(asset.Key),
+		"width":   width,
+		"height":  height,
+		"bytes":   len(out),
+	})
 }
 
 // resolve resolves a batch of public asset ids to their CDN URLs (anon-safe).
@@ -350,6 +436,46 @@ func actorID(r *http.Request) string {
 		return id
 	}
 	return "anonymous"
+}
+
+// shortHash returns a stable 64-bit hex prefix of a value (an IP address here) — never the plaintext.
+func shortHash(v string) string {
+	sum := sha256.Sum256([]byte(v))
+	return hex.EncodeToString(sum[:8])
+}
+
+// sha256Hex is the content hash used for the content-addressed object key (safe to cache forever).
+func sha256Hex(b []byte) string {
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
+}
+
+// clientIP is the caller's address, preferring Cloudflare's header over the socket.
+func clientIP(r *http.Request) string {
+	if ip := firstIP(r.Header.Get("CF-Connecting-IP")); ip != "" {
+		return ip
+	}
+	if ip := firstIP(strings.Split(r.Header.Get("X-Forwarded-For"), ",")[0]); ip != "" {
+		return ip
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil && host != "" {
+		return host
+	}
+	return r.RemoteAddr
+}
+
+func firstIP(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return ""
+	}
+	if host, _, err := net.SplitHostPort(value); err == nil {
+		value = host
+	}
+	if net.ParseIP(value) == nil {
+		return ""
+	}
+	return value
 }
 
 // mintID returns a fresh 'img_<16 hex>' id.

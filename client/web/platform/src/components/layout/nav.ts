@@ -111,7 +111,7 @@ export function sellerNavItems(sector?: Sector | null): NavItem[] {
 export const DISTRICT_ADMIN_NAV: NavItem[] = [
   { label: "Dashboard", to: "/admin/district", icon: Gauge, group: "Overview", exact: true },
   { label: "Sellers", to: "/admin/district/sellers", icon: Users, group: "Supply" },
-  { label: "Seller leads", to: "/admin/district/seller-leads", icon: Inbox, group: "Supply" },
+  { label: "Seller enquiries", to: "/admin/district/seller-inquiries", icon: Inbox, group: "Supply" },
   { label: "Customers", to: "/admin/district/customers", icon: Users, group: "Supply" },
   { label: "Delivery partners", to: "/admin/district/delivery-boys", icon: Truck, group: "Supply" },
   { label: "Products", to: "/admin/district/products", icon: Package, group: "Supply" },
@@ -141,7 +141,7 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "District coverage", to: "/admin/super/districts", icon: Grid2x2, group: "Governance" },
   { label: "Security", to: "/admin/super/security", icon: ShieldCheck, group: "Governance" },
   { label: "Sellers", to: "/admin/super/sellers", icon: Users, group: "Supply" },
-  { label: "Seller leads", to: "/admin/super/seller-leads", icon: Inbox, group: "Supply" },
+  { label: "Seller enquiries", to: "/admin/super/seller-inquiries", icon: Inbox, group: "Supply" },
   { label: "Fee change requests", to: "/admin/super/fee-change-requests", icon: Receipt, group: "Supply" },
   { label: "Delivery partners", to: "/admin/super/delivery-boys", icon: Truck, group: "Supply" },
   { label: "Products", to: "/admin/super/products", icon: Package, group: "Supply" },

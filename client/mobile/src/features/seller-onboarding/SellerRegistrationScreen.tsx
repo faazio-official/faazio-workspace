@@ -212,7 +212,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   });
   const [vendors, setVendors] = useState<VendorDraft[]>(() => [newVendorDraft()]);
   const [passbookUri, setPassbookUri] = useState<string | null>(null);
-  const [capture, setCapture] = useState<'passbook' | 'fssai' | 'drug' | null>(null);
+  const [capture, setCapture] = useState<'passbook' | 'fssai' | 'drug' | 'shop' | null>(null);
   const [captureVendorKey, setCaptureVendorKey] = useState<string | null>(null);
   const [pinTarget, setPinTarget] = useState<string | null>(null);
 
@@ -610,6 +610,12 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       if (v.app === 'FOOD' && pct < 5) {
         return `${label} is a food shop: its platform fee must be at least 5%.`;
       }
+      if (v.shopPhotoUris.length === 0) {
+        return `Add at least one photo of ${label} — customers see it, and an admin cannot review a shop without one.`;
+      }
+      if (v.shopPhotoUris.length > 5) {
+        return `Up to 5 photos for ${label}.`;
+      }
       if (v.app === 'FOOD' && (v.fssaiNumber.trim() === '') !== (v.fssaiUri === null)) {
         return `For ${label}, provide both the FSSAI number and certificate, or neither.`;
       }
@@ -665,6 +671,11 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           if (v.app === 'PHARMA' && v.drugLicenseUri) {
             drug = await gateway.uploadSellerDocument(v.drugLicenseUri, ownerId);
           }
+          // Shop photos go through /media/avif: the gateway converts each to AVIF and only then does
+          // the application reference it, so storage holds AVIF and nothing else.
+          const shopPhotoIds = await Promise.all(
+            v.shopPhotoUris.map(async (uri) => (await gateway.uploadShopPhoto(uri)).assetId),
+          );
           const useShopBank =
             !v.sameAsAccountBank &&
             [v.bankName, v.bankAccountNumber, v.bankIfsc, v.bankBeneficiary].some((field) =>
@@ -685,6 +696,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
               v.app === 'PHARMA' ? v.drugLicenseNumber.trim() || undefined : undefined,
             drugLicenseFileKey: drug?.key,
             drugLicenseAssetId: drug?.assetId,
+            shopPhotoIds,
             bankName: useShopBank ? v.bankName.trim() : undefined,
             bankAccountNumber: useShopBank
               ? v.bankAccountNumber.replace(/\D/g, '')
@@ -740,7 +752,11 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     vendors.length > 0 &&
     vendors.some((v) => v.latitude != null && v.longitude != null) &&
     vendors.every(
-      (v) => Boolean(v.shopName.trim()) && Boolean(v.shopAddress.trim()) && Boolean(v.categoryId),
+      (v) =>
+        Boolean(v.shopName.trim()) &&
+        Boolean(v.shopAddress.trim()) &&
+        Boolean(v.categoryId) &&
+        v.shopPhotoUris.length > 0,
     );
 
   const stateName = states.find((s) => s.stateCode === form.stateCode)?.name;
@@ -1189,6 +1205,15 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                     setCaptureVendorKey(vendor.key);
                     setCapture(kind);
                   }}
+                  onAddShopPhoto={() => {
+                    setCaptureVendorKey(vendor.key);
+                    setCapture('shop');
+                  }}
+                  onRemoveShopPhoto={(uri) =>
+                    updateVendor(vendor.key, {
+                      shopPhotoUris: vendor.shopPhotoUris.filter((u) => u !== uri),
+                    })
+                  }
                   onAddAnother={addVendor}
                 />
               ))}
@@ -1262,7 +1287,9 @@ export function SellerRegistrationScreen({ navigation }: Props) {
             ? 'FSSAI certificate'
             : capture === 'drug'
               ? 'Drug licence certificate'
-              : 'Bank passbook'
+              : capture === 'shop'
+                ? 'Photo of your shop'
+                : 'Bank passbook'
         }
         onClose={() => {
           setCapture(null);
@@ -1273,6 +1300,14 @@ export function SellerRegistrationScreen({ navigation }: Props) {
             updateVendor(captureVendorKey, { fssaiUri: uri });
           } else if (capture === 'drug' && captureVendorKey) {
             updateVendor(captureVendorKey, { drugLicenseUri: uri });
+          } else if (capture === 'shop' && captureVendorKey) {
+            setVendors((prev) =>
+              prev.map((v) =>
+                v.key === captureVendorKey && v.shopPhotoUris.length < 5
+                  ? { ...v, shopPhotoUris: [...v.shopPhotoUris, uri] }
+                  : v,
+              ),
+            );
           } else if (capture === 'passbook') {
             setPassbookUri(uri);
           }

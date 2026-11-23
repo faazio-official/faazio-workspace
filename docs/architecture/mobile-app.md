@@ -1559,7 +1559,11 @@ category (server-only `GET /categories?app=`, no fixture list), platform fee % (
 own map pin (`SellerLocationPicker` → precise lat/lng), an **optional** FOOD FSSAI number +
 certificate or PHARMA drug-licence number + certificate (both-or-neither), and an optional **shop
 bank override**: the "Same as account bank details" checkbox defaults on; unchecked reveals shop
-bank name/account/IFSC/beneficiary, sent only when filled. Cards are repeatable ("Add another
+bank name/account/IFSC/beneficiary, sent only when filled. Each card also carries the shop's
+**shop-front photos** — at least one, up to five, added with the camera or library and uploaded
+individually to `POST /media/avif` (`GatewayClient.uploadShopPhoto`), because React Native has no AVIF
+encoder and the gateway re-encodes from pixels (stripping EXIF/GPS). Submission is blocked until every
+shop has at least one photo, and the ids travel as `shopPhotoIds`. Cards are repeatable ("Add another
 shop", remove when > 1); the submission sends every card in the `vendors[]` payload. Licences are
 optional at submission and may be attached later; when one half is supplied the gateway requires the
 number + certificate together, and an admin verifies them during review. UI copy says "Shop";

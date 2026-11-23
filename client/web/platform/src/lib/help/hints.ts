@@ -404,12 +404,14 @@ export const PAGE_HINTS: Record<string, PageHint> = {
     changesMade: "Read-only; rows are retained for 7 days then purged nightly.",
     app: ["portal"],
   },
-  "/admin/district/seller-leads": {
+  "/admin/district/seller-inquiries": {
     what: "Enquiries people sent from the public Sell with us page in your district.",
-    how: "Open a lead, call the number, then mark it contacted, approved or rejected.",
+    how: "Open an enquiry, call the number, then mark it contacted and decide: proceeding or rejected.",
     whyCreated: "So a landing-page enquiry becomes a tracked call-back instead of an unread email.",
-    boundedWorkflow: "Lead follow-up: open a lead → contact → approve or reject with a reason.",
-    changesMade: "Approving records intent only; the merchant still applies in the app.",
+    boundedWorkflow:
+      "Enquiry follow-up: open an enquiry → contact → mark proceeding (KYC in the app) or reject with a reason.",
+    changesMade:
+      "The enquiry is the seller record itself: marking it proceeding turns it into a pending application the merchant completes in the app.",
     app: ["portal"],
   },
   "/admin/district/fee-change-requests": {
@@ -528,12 +530,14 @@ export const PAGE_HINTS: Record<string, PageHint> = {
     changesMade: "Read-only; decisions lead to issuing district-admin logins.",
     app: ["portal", "consumer"],
   },
-  "/admin/super/seller-leads": {
+  "/admin/super/seller-inquiries": {
     what: "Enquiries from the public Sell with us page across every district.",
-    how: "Filter by district or status, open a lead, call, then move it forward.",
+    how: "Filter by district or stage, open an enquiry, call, then move it forward.",
     whyCreated: "So platform-wide demand for selling on Faazio has one tracked queue.",
-    boundedWorkflow: "Lead follow-up: scan new leads → contact → approve or reject with a reason.",
-    changesMade: "Approving records intent only; the merchant still applies in the app.",
+    boundedWorkflow:
+      "Enquiry follow-up: scan new enquiries → contact → mark proceeding or reject with a reason.",
+    changesMade:
+      "The enquiry is the seller record itself: marking it proceeding turns it into a pending application the merchant completes in the app.",
     app: ["portal"],
   },
   "/admin/super/fee-change-requests": {

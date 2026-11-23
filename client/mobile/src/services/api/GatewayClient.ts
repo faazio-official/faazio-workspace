@@ -650,6 +650,8 @@ export interface SellerApplicationVendorInput {
   hours?: string;
   latitude?: number;
   longitude?: number;
+  /** Public shop-front photos (media ids from POST /media/avif). At least one is required. */
+  shopPhotoIds?: string[];
 }
 
 /** One active state/UT from `GET /geo/states` (admins.states). */
@@ -718,6 +720,9 @@ export interface SellerApplicationVendor {
   fssaiNumber?: string;
   fssaiCertKey?: string;
   fssaiCertAssetId?: string;
+  /** Public shop-front gallery (AVIF keys + media ids, parallel arrays). */
+  photoKeys?: string[];
+  photoAssetIds?: string[];
   address?: string;
   phone?: string;
   hours?: string;
@@ -2135,6 +2140,28 @@ export class GatewayClient {
     if (!res.ok) throw new GatewayHttpError(res.status);
     await this.confirmMedia(ticket.assetId, 'KYC', ownerId);
     return { key: ticket.key, assetId: ticket.assetId };
+  }
+
+  /**
+   * Upload a shop-front photo: POST the raw bytes to `/media/avif`, which converts them to AVIF
+   * server-side and stores a PUBLIC SHOP draft. Returns the asset id + key the application then claims.
+   *
+   * The gateway is the converter because no React Native image pipeline encodes AVIF. Bytes are
+   * re-encoded from pixels, so the camera's EXIF/GPS never reaches storage.
+   */
+  async uploadShopPhoto(uri: string): Promise<UploadedSellerDocument> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    const blob = await (await fetch(uri)).blob();
+    const mime = blob.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    const res = await fetch(`${GATEWAY_URL}/media/avif`, {
+      method: 'POST',
+      headers: { 'Content-Type': mime },
+      body: blob,
+    });
+    if (!res.ok) throw new GatewayHttpError(res.status);
+    const body = (await res.json()) as { assetId?: string; key?: string };
+    if (!body.assetId || !body.key) throw new GatewayHttpError(502);
+    return { key: body.key, assetId: body.assetId };
   }
 
   /** The signed-in seller's vendor shops (GET /seller/stores). */

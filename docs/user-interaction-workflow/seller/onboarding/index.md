@@ -1,6 +1,6 @@
 # Seller onboarding — domain index
 
-**Status:** Shipped (by design: the KYC-complete application is mobile-only; the seller's login is auto-provisioned on approval; the seller app is a WebView over the portal). The landing page `/sell-with-us` adds a **public enquiry** that creates a `sellers.seller_leads` row only — not an account (see [`seller-web-intake.md`](./seller-web-intake.md)). Vendor fee/cover steps remain tracked as separate gaps in [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+**Status:** Shipped (by design: the KYC-complete application is mobile-only; the seller's login is auto-provisioned on approval; the seller app is a WebView over the portal). The landing page `/sell-with-us` adds a **public enquiry** that creates a `sellers.sellers` row with `status = 'INQUIRY'` and `source = 'web'` only — not a KYC account (see [`seller-web-intake.md`](./seller-web-intake.md)); the app application promotes that same row (`0129`). Vendor fee/cover steps remain tracked as separate gaps in [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 **Surfaces:** mobile `SellWithUs` (`SellerRegistrationScreen.tsx`) for application + KYC upload,
 the landing page `/sell-with-us` for the public pre-install enquiry (no auth, no KYC fields),
 portal `/seller/onboarding` for vendor creation, district-admin review at
@@ -17,15 +17,15 @@ seller opens onboarding/stores in the portal; an admin opens a seller applicatio
 | Flow | Doc |
 |---|---|
 | Public web enquiry (landing page) | [seller-web-intake.md](./seller-web-intake.md) |
-| Admin lead follow-up queue (portal) | [seller-lead-queue.md](./seller-lead-queue.md) |
+| Admin enquiry follow-up queue (portal) | [seller-inquiry-queue.md](./seller-inquiry-queue.md) |
 | Registration / application | [seller-registration.md](./seller-registration.md) |
 | KYC documents + review | [kyc-documents.md](./kyc-documents.md) |
 | Store/vendor setup | [store-setup.md](./store-setup.md) |
 
 ## Steps (application → store)
 
-0. (Optional) A visitor sends an enquiry at `/sell-with-us` → `POST /seller-leads` →
-   `sellers.seller_leads`; an admin follows up. No account is created.
+0. (Optional) A visitor sends an enquiry at `/sell-with-us` → `POST /seller-inquiries` →
+   a `sellers.sellers` row with `status = 'INQUIRY'`; an admin follows up. No KYC account is created.
 1. Applicant completes `SellWithUs` on mobile and submits `POST /sellers`.
 2. Applicant uploads KYC documents through the mobile media pipeline.
 3. District/super admin verifies documents and the application.
@@ -35,8 +35,8 @@ seller opens onboarding/stores in the portal; an admin opens a seller applicatio
 ## Lifecycle
 
 ```
-web enquiry (/sell-with-us → POST /seller-leads → sellers.seller_leads, no account)
-  → application (POST /sellers, mobile)
+web enquiry (/sell-with-us → POST /seller-inquiries → sellers.sellers status INQUIRY, no KYC)
+  → application (POST /sellers, mobile — promotes the same row)
   → KYC documents uploaded (media.assets)
   → district/super review (verify-doc, verify-kyc)
   → store/vendor created (POST /seller/stores)
@@ -54,9 +54,9 @@ web enquiry (/sell-with-us → POST /seller-leads → sellers.seller_leads, no a
 
 ## Data path
 
-- `POST /seller-leads` (public) → `sellers.seller_leads`; the admin queue reads `GET /seller-leads`
-  and moves `PATCH /seller-leads/{id}` (district-scoped) — see
-  [`seller-lead-queue.md`](./seller-lead-queue.md).
+- `POST /seller-inquiries` (public) → a `sellers.sellers` row with `status = 'INQUIRY'`; the admin
+  queue reads `GET /seller-inquiries` and moves `PATCH /seller-inquiries/{id}` (district-scoped) — see
+  [`seller-inquiry-queue.md`](./seller-inquiry-queue.md).
 - `POST /sellers`, `GET /sellers/me`, `GET /sellers/{id}` → `sellers.sellers`.
 - `POST /media/upload-url` + `POST /media/confirm` → `media.assets`.
 - `POST /sellers/{id}/verify-doc/{docType}` → `sellers.kyc_documents`,
@@ -78,8 +78,8 @@ web enquiry (/sell-with-us → POST /seller-leads → sellers.seller_leads, no a
 - **Application is intentionally mobile-only:** `POST /sellers` is called only from the customer
   app's `SellWithUs`; the portal deliberately has no application form. This is the completed design.
   The landing page's `/sell-with-us` form is deliberately **not** an application: it collects no
-  KYC identifiers and writes a `sellers.seller_leads` row that an admin follows up in the portal
-  queue ([`seller-web-intake.md`](./seller-web-intake.md), [`seller-lead-queue.md`](./seller-lead-queue.md)).
+  KYC identifiers and writes a `sellers.sellers` row with `status = 'INQUIRY'` that an admin follows up
+  in the portal queue ([`seller-web-intake.md`](./seller-web-intake.md), [`seller-inquiry-queue.md`](./seller-inquiry-queue.md)).
 - **Portal login is auto-provisioned on approval:** `POST /sellers/{id}/verify-kyc` (or
   `PATCH /sellers/{id}/status` → `ACTIVE`) creates a `SELLER` `admins.portal_users` row scoped to
   `seller_id` from the application's `contact_email` (`must_change=true`), and returns the one-time
@@ -95,10 +95,10 @@ web enquiry (/sell-with-us → POST /seller-leads → sellers.seller_leads, no a
 
 ## Known gaps
 
-- A web lead is linked to the application it becomes only when the merchant applies with the same
-  contact phone or email (`POST /sellers` back-fills `seller_id`, `0113`); a different phone *and*
-  email leaves the lead unlinked and it is closed by hand
-  ([`seller-lead-queue.md`](./seller-lead-queue.md)).
+- A web enquiry is promoted to the application it becomes only when the merchant applies with the
+  same contact phone or email (`POST /sellers` matches and updates that same row, `0129`); a different
+  phone *and* email creates a second row, and the enquiry is then rejected by hand
+  ([`seller-inquiry-queue.md`](./seller-inquiry-queue.md)).
 - Mobile seller onboarding OTP is unavailable when Firebase Auth is unconfigured
   (`SellerRegistrationScreen.tsx` reports it).
 - See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).

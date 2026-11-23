@@ -88,7 +88,7 @@ func NewRouter(d Deps) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(10 * time.Second))
 	r.Use(middleware.Throttle(100))
-	r.Use(httpx.MaxBytes(httpx.DefaultMaxBodyBytes))
+	r.Use(bodyLimit())
 	r.Use(mediaBodyLimit())
 	r.Use(sensitiveThrottle())
 	r.Use(corsMiddleware(d.Config.AllowedOrigins))
@@ -227,7 +227,8 @@ func NewRouter(d Deps) http.Handler {
 	portalHasher := portal.NewHasher(d.Config.PortalPepper)
 	sellers.NewHandler(sellersRepo, d.Cache, adminsRepo,
 		portal.NewSellerLoginProvisioner(portalRepo, portalHasher)).
-		WithSubUsers(portal.NewSubUserLoginProvisioner(portalRepo, portalHasher)).Register(r)
+		WithSubUsers(portal.NewSubUserLoginProvisioner(portalRepo, portalHasher)).
+		WithPhotos(mediaRepo).Register(r)
 	promo.NewHandler(promoRepo, d.Cache, adminsRepo).Register(r)
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Signer.PublicOrigin()).Register(r)
 	// Manual seller payouts: super/state board + seller-read ledger. Razorpay Route/settlement was
@@ -323,14 +324,41 @@ func healthHandler(d Deps) http.HandlerFunc {
 	}
 }
 
+// maxAVIFBodyBytes is the request-body ceiling for POST /media/avif. It must match the handler's
+// own input cap (media.maxAVIFInputBytes): the conversion endpoint is the only route that carries raw
+// image bytes, because no client on either surface can encode AVIF.
+const maxAVIFBodyBytes = 12 << 20
+
+// bodyLimit applies the JSON body ceiling per path. Every endpoint is JSON and stays at the global
+// DefaultMaxBodyBytes; /media/avif is the single binary-ingest exception and gets its own larger cap.
+// One middleware (rather than nesting a bigger reader inside a smaller one) because an inner
+// MaxBytesReader cannot raise a limit the outer one already clamped.
+func bodyLimit() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body == nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+			limit := int64(httpx.DefaultMaxBodyBytes)
+			if r.URL.Path == "/media/avif" {
+				limit = maxAVIFBodyBytes
+			}
+			r.Body = http.MaxBytesReader(w, r.Body, limit)
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
 // mediaBodyLimit caps bodies on the R2 media routes at 256 KiB — well below the global 1 MiB — so
 // an oversized presign/confirm body is rejected before it is read. Uploads stream directly to R2 via
-// a presigned URL, so no media endpoint legitimately carries image bytes.
+// a presigned URL, so no media endpoint legitimately carries image bytes. /media/avif is exempt: it is
+// the byte-ingest exception and owns its limit in bodyLimit.
 func mediaBodyLimit() func(http.Handler) http.Handler {
 	const mediaMaxBodyBytes = 256 << 10
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.HasPrefix(r.URL.Path, "/media/") && r.Body != nil {
+			if r.Body != nil && strings.HasPrefix(r.URL.Path, "/media/") && r.URL.Path != "/media/avif" {
 				r.Body = http.MaxBytesReader(w, r.Body, mediaMaxBodyBytes)
 			}
 			next.ServeHTTP(w, r)
@@ -364,6 +392,8 @@ func isSensitiveRequest(r *http.Request) bool {
 	case r.Method == http.MethodPut && strings.HasPrefix(path, "/vendors/") && strings.HasSuffix(path, "/rating"):
 		return true
 	case strings.HasPrefix(path, "/media/"):
+		return true
+	case r.Method == http.MethodPost && path == "/seller-inquiries":
 		return true
 	case strings.HasPrefix(path, "/auth/portal/"):
 		return true

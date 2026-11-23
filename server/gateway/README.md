@@ -89,15 +89,19 @@ HS256 token signed with `SUPABASE_JWT_SECRET` is accepted as a fallback. There i
 bearer token. For local seller registration without Firebase, mint HS256 tokens via
 `scripts/simulate-seller-registration.sh`. Setup: `docs/RUNBOOKS/FIREBASE_AUTH.md`.
 
-The landing page's public "Sell with us" enquiry (`POST /seller-leads`) needs no token. Drive it —
-and check the client/gateway wire contract — with `scripts/simulate-seller-lead.sh` (asserts the
-201/400/429 matrix, including the honeypot and the unknown-field guard). It clears the per-IP daily
-counter first, so it is repeatable.
+The landing page's public "Sell with us" enquiry (`POST /seller-inquiries`) needs no token; it writes a
+`sellers.sellers` row with `status = INQUIRY` and `source = web` (`0129`), not a separate lead table.
+Drive it — and check the client/gateway wire contract — with `scripts/simulate-seller-inquiry.sh`
+(asserts the 201/400/429 matrix, including the honeypot, the mandatory shop photo and the
+unknown-field guard). It clears the per-IP daily counter first, so it is repeatable. An enquiry needs at
+least one photo uploaded through `POST /media/avif`, so set `SHOP_PHOTO_ID` to skip the happy path
+otherwise.
 
-`scripts/simulate-seller-lead-queue.sh` covers the admin half: it signs in as a `SUPER_ADMIN` and
-walks a lead through the portal queue (claim → note → reject → re-open → approve), asserting the
-400/404/409 gates and the `?district=` narrowing. It needs `PORTAL_JWT_SECRET` + `PORTAL_PEPPER` on
-the gateway and a superadmin in `admins.portal_users` (see `docs/RUNBOOKS/PORTAL_AUTH.md`).
+`scripts/simulate-seller-inquiry-queue.sh` covers the admin half: it signs in as a `SUPER_ADMIN` and
+walks an enquiry through the portal queue (claim → stage CONTACTED → reject gates → promote to
+`PENDING_REVIEW`), asserting the 400/404/409 gates, the `INQUIRY → ACTIVE` refusal and the
+`?district=` narrowing. It needs `PORTAL_JWT_SECRET` + `PORTAL_PEPPER` on the gateway and a superadmin
+in `admins.portal_users` (see `docs/RUNBOOKS/PORTAL_AUTH.md`).
 
 ## Media workers
 

@@ -34,7 +34,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Domain | Flow | Surface | Doc |
 |---|---|---|---|
 | Onboarding | Public web enquiry (no account) | landing page `/sell-with-us` | [onboarding/seller-web-intake.md](./onboarding/seller-web-intake.md) |
-| Onboarding | Lead follow-up queue (portal) | portal `/admin/*/seller-leads` | [onboarding/seller-lead-queue.md](./onboarding/seller-lead-queue.md) |
+| Onboarding | Enquiry follow-up queue (portal) | portal `/admin/*/seller-inquiries` | [onboarding/seller-inquiry-queue.md](./onboarding/seller-inquiry-queue.md) |
 | Onboarding | Registration / application | mobile `SellWithUs` (customer app) | [onboarding/index.md](./onboarding/index.md) · [seller-registration.md](./onboarding/seller-registration.md) |
 | Onboarding | KYC document upload + admin review | mobile `SellWithUs` upload; admin `/admin/district/sellers/[id]` | [kyc-documents.md](./onboarding/kyc-documents.md) |
 | Onboarding | Store/vendor setup | portal `/seller/onboarding` (adds a vendor), `/seller/stores` | [store-setup.md](./onboarding/store-setup.md) |

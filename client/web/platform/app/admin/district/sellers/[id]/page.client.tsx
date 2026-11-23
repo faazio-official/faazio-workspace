@@ -1,8 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
+import { Eye, EyeOff, Upload } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { KpiStrip } from "@/components/patterns/KpiCard";
@@ -24,28 +25,41 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { formatDate, formatINR, formatNumber } from "@/lib/format";
 import { sumGmv, sumOrders } from "@/lib/analytics/derive";
 import {
+  addSellerKycDocument,
   fetchPrivateDocumentUrl,
   fetchSellerDetail,
   getBankAccount,
   listKyc,
   rejectSellerApplication,
+  replaceSellerKycDocument,
   setSellerStatus,
+  updateSeller,
   updateVendorPlatformFee,
   verifySellerDocument,
   verifySellerKyc,
 } from "@/lib/api";
+import { uploadPrivateDocument } from "@/lib/media/kyc";
 import { useAnalyticsSeries, useSeller } from "@/lib/api/hooks";
 import type {
   KycDocument,
   SellerDetail,
   SellerLoginCredential,
+  SellerProfilePatch,
   SellerVendorRecord,
 } from "@/data/types";
 
 const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]{2}$/;
+const DOC_TYPES: KycDocument["docType"][] = ["GSTIN", "PAN", "BANK_PROOF", "SHOP_LICENSE", "PASSBOOK", "FSSAI"];
 
 function SellerReview() {
   const { id } = useParams<{ id: string }>();
@@ -55,6 +69,7 @@ function SellerReview() {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [credential, setCredential] = useState<SellerLoginCredential | null>(null);
+  const [revealed, setRevealed] = useState(false);
 
   const loadDetail = useCallback(async () => {
     try {
@@ -101,6 +116,7 @@ function SellerReview() {
   const gstinOk = GSTIN_RE.test(seller.gstin);
   const docs = seller.kycDocuments ?? [];
   const bank = seller.bankAccount;
+  const isInquiry = seller.status === "INQUIRY";
 
   const verifyDoc = async (doc: KycDocument) => {
     setBusy(true);
@@ -125,6 +141,40 @@ function SellerReview() {
     }
   };
 
+  const uploadDoc = async (docType: KycDocument["docType"], file: File, mode: "add" | "replace") => {
+    setBusy(true);
+    try {
+      const upload = await uploadPrivateDocument(file);
+      const next =
+        mode === "replace"
+          ? await replaceSellerKycDocument(seller.sellerId, docType, upload)
+          : await addSellerKycDocument(seller.sellerId, docType, upload);
+      setDetail(next);
+      toast.success(
+        mode === "replace"
+          ? `${docType.replace(/_/g, " ")} replaced — re-verify it`
+          : `${docType.replace(/_/g, " ")} uploaded`,
+      );
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not upload that document");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveProfile = async (patch: SellerProfilePatch) => {
+    setBusy(true);
+    try {
+      await updateSeller(seller.sellerId, patch);
+      await loadDetail();
+      toast.success("Registered details updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save those details");
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const approve = async () => {
     setBusy(true);
     try {
@@ -134,8 +184,8 @@ function SellerReview() {
         if (next.credential) setCredential(next.credential);
       }
       toast.success("KYC verified — seller activated");
-    } catch {
-      toast.error("Could not activate the seller");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not activate the seller");
     } finally {
       setBusy(false);
     }
@@ -179,9 +229,37 @@ function SellerReview() {
               <SectorPill key={vendor.storeId} sector={vendor.app} />
             ))}
             <StatusPill status={seller.status} />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setRevealed((v) => !v)}
+              aria-pressed={revealed}
+            >
+              {revealed ? <EyeOff className="size-3.5" aria-hidden /> : <Eye className="size-3.5" aria-hidden />}
+              {revealed ? "Hide sensitive details" : "Show hidden details"}
+            </Button>
           </div>
         }
       />
+
+      {isInquiry ? (
+        <SectionCard
+          title="This is a web enquiry, not an application yet"
+          description="The merchant has not submitted KYC. Work the call-back from Seller enquiries; the record becomes an application when they apply in the app."
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <Button asChild size="sm" variant="outline">
+              <Link href="/admin/district/seller-inquiries">Open the enquiry queue</Link>
+            </Button>
+            <Button size="sm" variant="outline" disabled={busy} onClick={() => void approve()}>
+              Verify KYC &amp; activate
+            </Button>
+            <span className="text-[12px] text-muted-foreground">
+              Activation is refused while no KYC exists — ask the merchant to finish onboarding first.
+            </span>
+          </div>
+        </SectionCard>
+      ) : null}
 
       <KpiStrip
         items={[
@@ -202,8 +280,15 @@ function SellerReview() {
           description="Passbook is mandatory; FSSAI and drug licences are optional and verified during review."
           actions={<ComponentHelp id="doc-row" label="About KYC documents" />}
         >
-          {docs.length === 0 ? (
-            <p className="text-[13px] text-muted-foreground">No documents uploaded yet.</p>
+          {isInquiry ? (
+            <p className="text-[13px] text-muted-foreground">
+              An enquiry has no KYC documents. They are uploaded by the merchant in the app.
+            </p>
+          ) : docs.length === 0 ? (
+            <div className="space-y-3">
+              <p className="text-[13px] text-muted-foreground">No documents uploaded yet.</p>
+              <UploadDocRow busy={busy} taken={[]} onUpload={(docType, file) => uploadDoc(docType, file, "add")} />
+            </div>
           ) : (
             <ul className="space-y-2">
               {docs.map((doc) => (
@@ -214,7 +299,9 @@ function SellerReview() {
                   <div>
                     <p className="text-[13px] font-medium">{doc.docType.replace(/_/g, " ")}</p>
                     <p className="num text-[11px] text-muted-foreground">
-                      {doc.assetId ?? doc.fileKey ?? doc.fileUrl ?? "No file reference"}
+                      {revealed
+                        ? (doc.assetId ?? doc.fileKey ?? doc.fileUrl ?? "No file reference")
+                        : (doc.assetId ? `…${doc.assetId.slice(-6)}` : "file on record")}
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -227,27 +314,26 @@ function SellerReview() {
                         Verify
                       </Button>
                     ) : null}
+                    <ReplaceDocButton
+                      docType={doc.docType}
+                      busy={busy}
+                      onPick={(file) => uploadDoc(doc.docType, file, "replace")}
+                    />
                   </div>
                 </li>
               ))}
+              <li className="pt-1">
+                <UploadDocRow
+                  busy={busy}
+                  taken={docs.map((d) => d.docType)}
+                  onUpload={(docType, file) => uploadDoc(docType, file, "add")}
+                />
+              </li>
             </ul>
           )}
         </SectionCard>
 
-        <SectionCard title="Registered details">
-          <dl className="space-y-2 text-[13px]">
-            <Row label="GSTIN" value={seller.gstin} {...(gstinOk ? {} : { tone: "bad" as const })} />
-            <Row label="PAN" value={seller.pan} />
-            <Row label="Address" value={seller.businessAddress} />
-            <Row label="Phone" value={seller.contactPhone || "—"} />
-            <Row label="Email" value={seller.contactEmail || "—"} />
-            <Row
-              label="Bank"
-              value={bank ? `${bank.bankName ? `${bank.bankName} · ` : ""}${bank.accountNumberMasked} · ${bank.ifsc}` : "Not added"}
-            />
-            <Row label="OTP signature" value={seller.otpVerified ? "Verified" : "Missing"} />
-          </dl>
-        </SectionCard>
+        <RegisteredDetails seller={seller} busy={busy} revealed={revealed} onSave={saveProfile} />
       </div>
 
       <SectionCard
@@ -337,6 +423,244 @@ function SellerReview() {
   );
 }
 
+/** One hidden file input reused for "upload a missing document" and "replace this document". */
+function useFilePicker(onPick: (file: File) => void) {
+  const ref = useRef<HTMLInputElement>(null);
+  const input = (
+    <input
+      ref={ref}
+      type="file"
+      accept="image/jpeg,image/png,image/webp"
+      className="sr-only"
+      onChange={(event) => {
+        const file = event.target.files?.[0];
+        event.target.value = "";
+        if (file) onPick(file);
+      }}
+    />
+  );
+  return { input, open: () => ref.current?.click() };
+}
+
+function UploadDocRow({
+  busy,
+  taken,
+  onUpload,
+}: {
+  busy: boolean;
+  taken: KycDocument["docType"][];
+  onUpload: (docType: KycDocument["docType"], file: File) => void;
+}) {
+  const available = DOC_TYPES.filter((d) => !taken.includes(d));
+  const [docType, setDocType] = useState<KycDocument["docType"]>(available[0] ?? "PASSBOOK");
+  const picker = useFilePicker((file) => onUpload(docType, file));
+  if (available.length === 0) {
+    return (
+      <p className="text-[12px] text-muted-foreground">
+        Every document type is on file. Use Replace on a row to re-upload one.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <Select value={docType} onValueChange={(v) => setDocType(v as KycDocument["docType"])}>
+        <SelectTrigger className="h-9 w-[11rem] text-[12px]" aria-label="Document type">
+          <SelectValue />
+        </SelectTrigger>
+        <SelectContent>
+          {available.map((d) => (
+            <SelectItem key={d} value={d}>
+              {d.replace(/_/g, " ")}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Button size="sm" variant="outline" disabled={busy} onClick={picker.open}>
+        <Upload className="size-3.5" aria-hidden />
+        Upload a missing document
+      </Button>
+      {picker.input}
+    </div>
+  );
+}
+
+function ReplaceDocButton({
+  docType,
+  busy,
+  onPick,
+}: {
+  docType: KycDocument["docType"];
+  busy: boolean;
+  onPick: (file: File) => void;
+}) {
+  const picker = useFilePicker(onPick);
+  return (
+    <>
+      <Button size="sm" variant="outline" disabled={busy} onClick={picker.open}>
+        Replace
+      </Button>
+      {picker.input}
+    </>
+  );
+}
+
+function RegisteredDetails({
+  seller,
+  busy,
+  revealed,
+  onSave,
+}: {
+  seller: SellerDetail;
+  busy: boolean;
+  revealed: boolean;
+  onSave: (patch: SellerProfilePatch) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<SellerProfilePatch>({
+    businessName: seller.businessName,
+    ownerName: seller.ownerName,
+    gstin: seller.gstin,
+    pan: seller.pan,
+    businessAddress: seller.businessAddress,
+    contactPhone: seller.contactPhone,
+  });
+
+  useEffect(() => {
+    setDraft({
+      businessName: seller.businessName,
+      ownerName: seller.ownerName,
+      gstin: seller.gstin,
+      pan: seller.pan,
+      businessAddress: seller.businessAddress,
+      contactPhone: seller.contactPhone,
+    });
+  }, [seller]);
+
+  const gstinOk = GSTIN_RE.test(draft.gstin ?? "");
+  const bank = seller.bankAccount;
+
+  return (
+    <SectionCard
+      title="Registered details"
+      description="These are the merchant's KYC-bearing business facts. A GSTIN/PAN/address edit re-enters review."
+      actions={
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditing((v) => !v)}>
+          {editing ? "Cancel" : "Edit"}
+        </Button>
+      }
+    >
+      {editing ? (
+        <div className="space-y-3">
+          <Field label="Business name">
+            <Input
+              value={draft.businessName ?? ""}
+              onChange={(e) => setDraft((d) => ({ ...d, businessName: e.target.value }))}
+            />
+          </Field>
+          <Field label="Owner name">
+            <Input
+              value={draft.ownerName ?? ""}
+              onChange={(e) => setDraft((d) => ({ ...d, ownerName: e.target.value }))}
+            />
+          </Field>
+          <Field label="GSTIN">
+            <Input
+              className="num"
+              value={draft.gstin ?? ""}
+              onChange={(e) => setDraft((d) => ({ ...d, gstin: e.target.value.toUpperCase() }))}
+            />
+            {!gstinOk ? (
+              <p className="mt-1 text-[11px] text-destructive">Not a valid GSTIN format.</p>
+            ) : null}
+          </Field>
+          <Field label="PAN">
+            <Input
+              className="num"
+              value={draft.pan ?? ""}
+              onChange={(e) => setDraft((d) => ({ ...d, pan: e.target.value.toUpperCase() }))}
+            />
+          </Field>
+          <Field label="Business address">
+            <Textarea
+              rows={2}
+              value={draft.businessAddress ?? ""}
+              onChange={(e) => setDraft((d) => ({ ...d, businessAddress: e.target.value }))}
+            />
+          </Field>
+          <Field label="Contact phone">
+            <Input
+              className="num"
+              inputMode="numeric"
+              value={draft.contactPhone ?? ""}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, contactPhone: e.target.value.replace(/\D/g, "").slice(0, 10) }))
+              }
+            />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              disabled={busy || !gstinOk}
+              onClick={async () => {
+                await onSave(draft);
+                setEditing(false);
+              }}
+            >
+              Save details
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <dl className="space-y-2 text-[13px]">
+          <Row label="GSTIN" value={seller.gstin} {...(gstinOk ? {} : { tone: "bad" as const })} />
+          <Row label="PAN" value={maskPan(seller.pan, revealed)} />
+          <Row label="Address" value={seller.businessAddress} />
+          <Row label="Phone" value={seller.contactPhone || "—"} />
+          <Row label="Email" value={seller.contactEmail || "—"} />
+          <Row
+            label="Bank"
+            value={
+              bank
+                ? `${bank.bankName ? `${bank.bankName} · ` : ""}${bank.accountNumberMasked} · ${bank.ifsc}`
+                : "Not added"
+            }
+          />
+          <Row label="OTP signature" value={seller.otpVerified ? "Verified" : "Missing"} />
+          {seller.source ? <Row label="Source" value={seller.source === "web" ? "Landing page" : "App"} /> : null}
+          {revealed ? (
+            <>
+              <Row label="Seller ID" value={seller.sellerId} />
+              <Row label="Created" value={formatDate(seller.createdAt)} />
+              {seller.inquiryAssignedTo ? (
+                <Row label="Enquiry owner" value={seller.inquiryAssignedTo} />
+              ) : null}
+            </>
+          ) : null}
+        </dl>
+      )}
+    </SectionCard>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <p className="mb-1 text-[12px] text-muted-foreground">{label}</p>
+      {children}
+    </div>
+  );
+}
+
+/** PAN is identity-grade PII: hidden behind the reveal toggle, with only the last 4 visible by default. */
+function maskPan(pan: string, revealed: boolean): string {
+  if (!pan) return "—";
+  if (revealed) return pan;
+  return pan.length > 4 ? `${"•".repeat(pan.length - 4)}${pan.slice(-4)}` : pan;
+}
+
 function VendorFeeRow({
   vendor,
   busy,
@@ -359,6 +683,12 @@ function VendorFeeRow({
             {vendor.fssaiNumber ? ` · FSSAI ${vendor.fssaiNumber}` : ""}
             {vendor.isLive ? " · live" : " · paused"}
           </p>
+          {(vendor.photoKeys ?? []).length ? (
+            <p className="text-[11px] text-muted-foreground">
+              {(vendor.photoKeys ?? []).length} shop photo
+              {(vendor.photoKeys ?? []).length === 1 ? "" : "s"}
+            </p>
+          ) : null}
         </div>
         <div className="flex items-center gap-1.5">
           <Input

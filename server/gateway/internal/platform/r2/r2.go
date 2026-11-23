@@ -12,6 +12,7 @@
 package r2
 
 import (
+	"bytes"
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
@@ -173,6 +174,37 @@ func (s *Signer) PresignGet(_ context.Context, bucket, key string, expires time.
 // PresignDelete returns a short-lived presigned DELETE URL (GC of orphaned objects).
 func (s *Signer) PresignDelete(_ context.Context, bucket, key string, expires time.Duration) (string, error) {
 	return s.presign("DELETE", bucket, key, expires)
+}
+
+// PutObject writes bytes to bucket/key through a presigned PUT. It is the second server-initiated
+// object write (the first is the GC delete), and it exists only for the AVIF conversion path: an
+// anonymous landing-page enquiry and a mobile shop photo upload bytes to the gateway because the
+// gateway is the only place a pure-Go/WASM AVIF encoder exists, so the bytes cannot go client→R2.
+// Normal product/KYC uploads still presign and stream straight to R2.
+//
+// A nil signer returns ErrDisabled. The object is written with the supplied content type.
+func (s *Signer) PutObject(ctx context.Context, bucket, key, contentType string, body []byte) error {
+	url, err := s.PresignPut(ctx, bucket, key, time.Minute)
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	req.ContentLength = int64(len(body))
+	res, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode < 200 || res.StatusCode >= 300 {
+		return fmt.Errorf("r2: put object returned %d", res.StatusCode)
+	}
+	return nil
 }
 
 // DeleteObject removes an object from R2 by issuing a presigned DELETE. It is the one server-initiated

@@ -2894,77 +2894,85 @@ consistent with the super-admin orders board, which already returns real custome
 (ILIKE on the trigram indexes), so a zero-spend customer that sorts past the 200-row page is still
 findable. Addresses and email remain out of the projection. Idempotent and re-runnable.
 
-### 12.41 Public seller lead intake (migration `0111`)
+### 12.41 Web enquiries are INQUIRY seller rows (migration `0129`, supersedes `0111`–`0113`)
 
-**Authority:** `monolith-breakdown.md` §1 (sellers row), `user-interaction-workflow/seller/onboarding/seller-web-intake.md`.
+**Authority:** `monolith-breakdown.md` §1 (sellers row), `user-interaction-workflow/seller/onboarding/seller-web-intake.md`,
+`user-interaction-workflow/seller/onboarding/seller-inquiry-queue.md`.
 
-The landing page `/sell-with-us` lets a visitor register interest before installing the app. That
-enquiry must never create a seller account — `sellers.sellers` is auth-gated and its create path
-collects PAN/bank/passbook/OTP — so `0111` adds a separate intake table:
+A landing-page enquiry and an app application are the same merchant at two depths of one funnel. `0111`
+put enquiries in a parallel `sellers.seller_leads` table with its own lifecycle, admin queue and portal
+pages, which meant the same merchant could exist twice and the "did they apply?" join was a
+phone/email back-fill. `0129` merges the two: **an enquiry IS a `sellers.sellers` row**, distinguished
+by `status = 'INQUIRY'` and `source = 'web'`.
 
 ```sql
-create table if not exists sellers.seller_leads (
-  lead_id           text primary key,
-  business_name     text not null check (octet_length(business_name) between 1 and 160),
-  owner_name        text not null check (octet_length(owner_name) between 1 and 160),
-  category          app_brand not null,
-  contact_phone     text not null,
-  contact_email     text not null,
-  business_address  text not null default '' check (octet_length(business_address) <= 500),
-  state_code        char(2),
-  district_code     text references admins.district_master (district_code) on delete set null,
-  state_name        text not null default '',
-  district_name     text not null default '',
-  latitude          float8,
-  longitude         float8,
-  platform_fee_pct  smallint check (platform_fee_pct is null or platform_fee_pct between 1 and 100),
-  notes             text not null default '' check (octet_length(notes) <= 500),
-  status            text not null default 'NEW'
-                    check (status in ('NEW','CONTACTED','APPROVED','REJECTED')),
-  source            text not null default 'web',
-  ip_hash           text not null default '',
-  created_at        timestamptz not null default now(),
-  updated_at        timestamptz not null default now(),
-  check ((latitude is null and longitude is null)
-         or (latitude between -90 and 90 and longitude between -180 and 180))
+-- 1. one new lifecycle state; INQUIRY → PENDING_REVIEW (app completion) or → REJECTED only
+alter type seller_status add value if not exists 'INQUIRY';
+
+-- 2. provenance + the shop facts a web form collects before any vendor row exists
+alter table sellers.sellers
+  add column source text not null default 'app',
+  add column inquiry_category app_brand,                    -- becomes each vendor's app on completion
+  add column inquiry_platform_fee_pct smallint,             -- the number the call-back opens with
+  add column inquiry_notes text,                            -- what the merchant wrote (≤500 bytes)
+  add column shop_photos jsonb not null default '[]',       -- [{"assetId","key"}], AVIF only
+  add column inquiry_stage text not null default 'NEW',     -- NEW/CONTACTED/APPROVED/REJECTED
+  add column inquiry_assigned_to text not null default '',  -- admins.portal_users id; '' = unclaimed
+  add column inquiry_assigned_at timestamptz;
+alter table sellers.sellers add constraint sellers_inquiry_stage_chk
+  check (inquiry_stage in ('NEW','CONTACTED','APPROVED','REJECTED'));
+alter table sellers.sellers add constraint sellers_source_chk check (source in ('web','app'));
+
+create index sellers_district_status_created_idx
+  on sellers.sellers (district_code, status, created_at desc);
+create index sellers_inquiry_queue_idx
+  on sellers.sellers (district_code, inquiry_stage, created_at desc) where status = 'INQUIRY';
+
+-- 3. shop-front gallery on the vendor row (parallel arrays: AVIF keys + media ids)
+alter table directory.stores
+  add column photo_keys text[] not null default '{}',
+  add column photo_asset_ids text[] not null default '{}';
+
+-- 4. shop-front galleries have their own media owner type (not STORE logo/banner, not private KYC)
+alter table media.assets add constraint media_assets_owner_type_chk check (
+  owner_type in ('','PRODUCT','STORE','MENU','BRAND','BANNER','AVATAR','PRESCRIPTION','KYC','QR','SHOP')
 );
-create index seller_leads_status_created_idx on sellers.seller_leads (status, created_at desc);
-create index seller_leads_district_idx on sellers.seller_leads (district_code);
+
+-- 5. surviving leads become INQUIRY rows, then the table goes
+insert into sellers.sellers (…, status, source, inquiry_category, inquiry_platform_fee_pct, …)
+select …, case when l.status = 'REJECTED' then 'REJECTED' else 'INQUIRY' end, 'web', … from seller_leads l;
+drop table sellers.seller_leads;
 ```
 
-- **Why a separate table:** a lead carries no KYC identifiers and has no `user_id`, so it cannot
-  satisfy `sellers.sellers`' constraints (or its PII exposure rules). Keeping it apart means the
-  public, unauthenticated write can never touch the account table.
-- **Pin is all-or-nothing:** the coordinate CHECK rejects a half pin. The gateway requires a shop
-  address (≥5 chars), a district (code or name) and a **platform fee** on every lead. The landing
-  page treats location as mandatory and blocks submit without a pinned district, so coordinates are
-  never invented; a pin-less row only arises from a client predating that gate.
-- **Platform fee is required at intake:** `platform_fee_pct` stays nullable in the table (an older
-  client's row can exist), but the handler rejects an enquiry with no fee (`400 bad_request`,
-  `platformFeePct` 1–100, FOOD ≥ 5 via `validPlatformFee`), so the admin queue always opens the
-  call-back with a number. The column's CHECK mirrors the same range.
-- **District resolution:** the gateway resolves the submitted name against `geo.Districts` and
-  stores the canonical `state_code`/`district_code`; the raw `state_name`/`district_name` are kept
-  so a near-miss is still readable. An unknown explicit code is a `400 unknown_district`. The
-  landing page resolves the codes client-side via the public `GET /seller-leads/districts` and sends
-  them; the gateway still resolves a name when codes are absent.
-- **Abuse:** `ip_hash` is a 64-bit hex prefix of the submitter IP (never plaintext). The per-IP
-  daily counter lives in Valkey (`faazio:v1:sellers:lead:{ipHash}:{yyyymmdd}`, 5/day, fail-open) —
-  no Postgres rate table.
-- **Access:** RLS is enabled and no `anon`/`authenticated` grant exists; the gateway's `service_role`
-  is the only reader/writer. The public `POST /seller-leads` is the only anonymous write and
-  `GET /seller-leads/districts` the only anonymous read (in-process geo mirror — not this table);
-  status moves go through the admin-only `GET /seller-leads` and `PATCH /seller-leads/{id}`
-  (district-scoped, `leads_admin.go`), so the `NEW → CONTACTED → APPROVED → REJECTED` lifecycle is
-  worked in the portal queue (`user-interaction-workflow/seller/onboarding/seller-lead-queue.md`).
-- **Review columns (0112):** `admin_note` (≤500 bytes), `reviewed_by`, `reviewed_at` let the queue
-  record who moved a lead and why. `(district_code, status, created_at desc)` indexes the queue's
-  default district+status read. Additive, idempotent and re-runnable.
-- **Ownership + link (0113):** `assigned_to` (admins.portal_users id, empty = unclaimed) and
-  `assigned_at` give each lead one call-back owner (`(assigned_to, status, created_at desc)` index);
-  `seller_id` (FK → `sellers.sellers`, `on delete set null`) is back-filled by `POST /sellers` when a
-  lead's contact phone or email matches the application, so an onboarded merchant leaves the queue.
-  Additive, idempotent and re-runnable.
+- **`inquiry_stage` is not `status`.** `status` is the merchant lifecycle (`INQUIRY` → `PENDING_REVIEW`
+  → `ACTIVE`/`REJECTED`); `inquiry_stage` is the operator's call-back progress and can be `CONTACTED`
+  while the row is still `INQUIRY`. A decision moves `status`, never the other way round.
+- **Transition rules (enforced in `internal/sellers`):** `INQUIRY → PENDING_REVIEW` and
+  `INQUIRY → REJECTED` are the only moves out of `INQUIRY`. `INQUIRY → ACTIVE` / `SUSPENDED` is a
+  `409 not_an_application` — an enquiry has no KYC documents, so it cannot be activated. Likewise
+  `POST /sellers/{id}/verify-kyc` and `POST /sellers/{id}/kyc` refuse an `INQUIRY` row.
+- **Promotion, not duplication:** `POST /sellers` matches an open enquiry on contact phone or email
+  (`Repo.matchOpenInquiry`) and **updates that row** to `PENDING_REVIEW` / `source = 'app'`, keeping
+  `inquiry_*` as the historical record and seeding the vendor's gallery from `shop_photos` when the
+  application brings no new photos. One merchant, one row, one id from first enquiry to live seller.
+- **No `user_id` means no app surface:** `GET /sellers/me` reads by `user_id`, so a web enquiry (which
+  has none) can never surface as the caller's own application.
+- **Shop photos are AVIF only.** They are `media.assets` rows with `owner_type = 'SHOP'`, `kind =
+  'PUBLIC'`, claimed inside the same transaction that writes the seller row — so a row can never point
+  at an asset the submitter did not upload. Bytes are produced solely by `POST /media/avif`
+  (`internal/platform/imgconv`, gen2brain/avif over wazero); non-AVIF drafts are rejected by
+  `media.Repo.Claim`.
+- **At least one picture, at most five**, on both surfaces (landing page and app). The gateway enforces
+  it for a web enquiry and per vendor for an application.
+- **Abuse:** unchanged from `0111` — `ip_hash` is a 64-bit hex prefix of the submitter IP (never
+  plaintext), the per-IP daily counter lives in Valkey
+  (`faazio:v1:sellers:lead:{ipHash}:{yyyymmdd}`, 5/day, fail-open), and the anonymous write has no
+  `admins.audit_logs` row because that table's `actor_role` check only accepts seller/admin roles.
+- **District resolution:** unchanged — `districtPlaceId` first (`0127`), then `districtCode`, then
+  `districtName`; an unknown explicit code is `400 unknown_district`; the landing page resolves the
+  codes client-side via the public `GET /seller-inquiries/districts`.
+- **Reproducible:** additive and re-runnable except the final `drop table`, which is `if exists` and
+  guarded by the carry-over insert above it.
 
 ### 12.42 District master is the single writable source of truth (migration `0114`)
 

@@ -146,7 +146,8 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Ad impression de-dupe lock (`faazio:v1:ads:seen:{userId}:{slotId}`, `POST /ads/events`) | 300 s (`NX EX`) | **never** | auto-expire (one impression per user per slot) |
 | Ad abuse-report de-dupe lock (`faazio:v1:ads:report:{userId}:{placementId}`, `POST /ads/campaigns/{id}/report`) | 86400 s (`NX EX`) | **never** | auto-expire (one report per user per placement) |
 | Self-serve publish rate counter (`faazio:v1:ads:publish:{sellerId}:{yyyymmdd}`, `POST /ads/campaigns`) | 86400 s (`INCR`+`EXPIRE`) | **never** | auto-expire (≤10 publishes/seller/UTC day; fail-open when Valkey is off) |
-| Public seller-lead rate counter (`faazio:v1:sellers:lead:{ipHash}:{yyyymmdd}`, `POST /seller-leads`) | 86400 s (`INCR`+`EXPIRE`) | **never** | auto-expire (≤5 landing-page enquiries per IP per UTC day; the key holds a 64-bit IP hash, never the address; fail-open when Valkey is off) |
+| Public seller-inquiry rate counter (`faazio:v1:sellers:lead:{ipHash}:{yyyymmdd}`, `POST /seller-inquiries`) | 86400 s (`INCR`+`EXPIRE`) | **never** | auto-expire (≤5 landing-page enquiries per IP per UTC day; the key holds a 64-bit IP hash, never the address; fail-open when Valkey is off) |
+| Public AVIF upload rate counter (`faazio:v1:media:avif:{ipHash}:{yyyymmdd}`, `POST /media/avif`) | 86400 s (`INCR`+`EXPIRE`) | **never** | auto-expire (≤30 uploads per IP per UTC day — one enquiry needs ≤5 shop photos plus retries; the key holds a 64-bit IP hash, never the address; fail-open when Valkey is off) |
 | Manual payout cycles (per seller, `faazio:v1:settlement:{sellerId}:{cycle}`) — `internal/payouts` ledger reads via `cache.Settlement` | 600 s | **never** | payout write (mark-paid) |
 | Idempotency locks (checkout) | 300 s | — | auto-expire |
 | Auth subject → app user_id | 3600 s (1 h) | — | delete on profile merge (mapping is otherwise immutable) |
@@ -269,10 +270,11 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 - **Payments / order PII** — never at the edge; only short-lived auth-scoped Valkey keys.
 - **Seller records (`0015`)** — carry PII (phone/address) and are role-scoped, so `internal/sellers`
   reads bypass the cache entirely (no `faazio:v1:sellers:*` key exists).
-- **Seller leads (`sellers.seller_leads`, `0111`/`0112`)** — public enquiries carrying contact
-  phone/email, so the row itself is never cached — including the admin queue read
-  (`GET /seller-leads`) and its status writes. The only Valkey key in this namespace is the per-IP
-  daily rate counter (TTL matrix §5), which holds an IP hash and no lead content.
+- **Seller enquiries (`sellers.sellers` rows with `status = 'INQUIRY'`, `0129`)** — a web enquiry is a
+  seller row and carries contact phone/email, so the row itself is never cached — including the admin
+  queue read (`GET /seller-inquiries`) and its stage/status writes. The only Valkey keys in this
+  namespace are the per-IP daily counters (TTL matrix §5) for the enquiry and the AVIF ingest, which
+  hold an IP hash and no enquiry content.
 - **District-admin roster + credential writes (`0036`)** — roster rows carry email/phone PII and portal
   users carry credentials; the unified `POST /district-admins` never reads/writes a cache key (same rule
   as seller PII). The roster is a portal-only read with no cache.

@@ -7,15 +7,16 @@ scoped to `seller_id`, `must_change=true`; the seller app is a WebView over the 
 Contract clickwrap, the server-owned rate card and the compliance status gate are **Partial**: the
 acceptance/IP/tier audit is live, but no government GSTIN/PAN/FSSAI/bank provider is linked yet.
 **Trigger:** "Sell with us" entry in the customer app. A visitor who has not installed the app yet
-can send a public enquiry on the landing page (`/sell-with-us` → `POST /seller-leads`) — that
-creates a lead only, never an account, and this application remains the way to apply
-([`seller-web-intake.md`](./seller-web-intake.md)).
+can send a public enquiry on the landing page (`/sell-with-us` → `POST /seller-inquiries`) — that
+creates an `INQUIRY` row only, never a KYC account, and this application remains the way to apply
+([`seller-web-intake.md`](./seller-web-intake.md)). Submitting here with the same contact phone or
+email **promotes** that same row to `PENDING_REVIEW` instead of creating a second record (`0129`).
 
 ## Steps
 
 1. Applicant enters account fields (business name, owner, PAN, optional GSTIN) and one or more
    vendor entries (app, category, per-store fee, FSSAI or drug licence, own pin, optional masked
-   bank override).
+   bank override, and **at least one shop-front photo**, up to five).
 2. Contract tier: the screen reads `GET /sellers/contract-tiers` (server-owned rate card) and shows
    the selected tier's commission and payout terms. No tier is hardcoded on the client.
 3. Clickwrap: the applicant must tick three acceptances — Terms of Service, Seller / Partner
@@ -24,7 +25,11 @@ creates a lead only, never an account, and this application remains the way to a
    `src/routes/seller-terms.tsx`; `/partner-terms` 301-redirects there); the clickwrap capture and
    audit remain server-side.
 4. Phone verification with Firebase OTP on mobile (the digital signature).
-5. KYC documents upload (`uploadSellerDocument`).
+5. KYC documents upload (`uploadSellerDocument`), and per-vendor **shop photos**: each picked image is
+   POSTed to `POST /media/avif`, which re-encodes it to AVIF server-side and returns an
+   `assetId`/`key`. The gateway converts because React Native has no AVIF encoder; the bytes are
+   re-encoded from pixels, so camera EXIF/GPS never reaches storage. The application then sends each
+   vendor's ids as `shopPhotoIds`.
 6. `gateway.submitSellerApplication(input)` → `POST /sellers` stores `sellers.sellers.user_id` from
    the auth subject, the `vendors[]` payload, the acceptance audit (timestamp, IP hash, account id),
    the resolved tier/rate-card version and the compliance status. `districtCode` is derived from the
@@ -48,6 +53,9 @@ creates a lead only, never an account, and this application remains the way to a
 - `gateway.getMySellerApplication` → `GET /sellers/me`.
 - `gateway.uploadSellerDocument` → `/media/upload-url` + R2 `PUT` + `/media/confirm` →
   `media.assets`.
+- `gateway.uploadShopPhoto` → `POST /media/avif` (raw JPEG/PNG body) → AVIF object in R2 +
+  `media.assets` (`owner_type = 'SHOP'`, PUBLIC, claimed by `POST /sellers`) →
+  `directory.stores.photo_keys`/`photo_asset_ids`.
 - `gateway.resubmitSellerApplication` → `POST /sellers/{id}/edit`.
 - No fixture seller rows or local rate cards are presented as live.
 

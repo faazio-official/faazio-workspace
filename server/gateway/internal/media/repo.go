@@ -83,6 +83,40 @@ func (r *Repo) Confirm(ctx context.Context, id, ownerType, ownerID, actorID stri
 	return assets[0], true, nil
 }
 
+// Claim promotes DRAFT PUBLIC AVIF assets to ACTIVE and links them to ownerType/ownerID, in one
+// statement so the caller's transaction can attach shop photos to a row it is creating. It returns
+// the object keys in the same order as ids.
+//
+// Every id must exist, still be a DRAFT, be a PUBLIC asset and carry image/avif — otherwise the whole
+// claim fails and the caller's transaction rolls back. That is what stops a client from attaching an
+// asset it did not upload (or a private KYC document) by guessing an id.
+func (r *Repo) Claim(ctx context.Context, q contracts.Querier, ids []string, ownerType, ownerID string) ([]string, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	if r.pool == nil {
+		return nil, fmt.Errorf("media: database not configured")
+	}
+	rows := q.QueryRow(ctx, `
+		with claimed as (
+		  update media.assets
+		     set status = 'ACTIVE', owner_type = $2, owner_id = $3, updated_at = now()
+		   where id = any($1::text[]) and status = 'DRAFT'
+		     and kind = 'PUBLIC' and mime = 'image/avif'
+		  returning id, r2_key
+		)
+		select array_agg(r2_key order by array_position($1::text[], id))
+		  from claimed`, ids, ownerType, ownerID)
+	var keys []string
+	if err := rows.Scan(&keys); err != nil {
+		return nil, err
+	}
+	if len(keys) != len(ids) {
+		return nil, fmt.Errorf("media: %d of %d photos are not claimable drafts", len(ids)-len(keys), len(ids))
+	}
+	return keys, nil
+}
+
 // ByID returns one asset by id.
 func (r *Repo) ByID(ctx context.Context, id string) (contracts.MediaAsset, bool, error) {
 	if r.pool == nil {

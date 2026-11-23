@@ -59,6 +59,9 @@ const STATUS_TONE: Record<string, Tone> = {
   VERIFIED: "info",
   RECEIVED: "info",
   QUOTED: "info",
+  // A web enquiry is not yet an application — it reads as information, not work-in-progress.
+  INQUIRY: "info",
+  CONTACTED: "info",
   DRAFT: "neutral",
   ENDED: "neutral",
   DELISTED: "neutral",

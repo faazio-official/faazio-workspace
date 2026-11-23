@@ -14,8 +14,9 @@ import type {
   OrderRecord,
   OrderStatus,
   ProductRecord,
+  InquiryStage,
   Role,
-  SellerLead,
+  SellerRecord,
   SellerStatus,
   SubUser,
 } from "@/data/types";
@@ -226,33 +227,38 @@ export function useStores(filter: { sellerId?: string | undefined; stateCode?: s
 }
 
 /**
- * Live seller-lead queue read (`GET /seller-leads`). Fetched on demand rather than hydrated into the
- * store: leads are PII and change as admins work them, so a stale store copy would be worse than a
- * request. `version` lets a caller force a refresh after a mutation.
+ * Live enquiry-queue read (`GET /seller-inquiries`). Fetched on demand rather than hydrated into the
+ * store: enquiries are PII and change as admins work them, so a stale store copy would be worse than
+ * a request. `version` lets a caller force a refresh after a mutation.
  */
-export function useSellerLeads(
-  filter: { status?: string | undefined; assigned?: "me" | "unassigned" | undefined } = {},
+export function useSellerInquiries(
+  filter: {
+    stage?: InquiryStage | "ALL" | undefined;
+    assigned?: "me" | "unassigned" | undefined;
+    query?: string | undefined;
+    districtCode?: string | undefined;
+  } = {},
   version = 0,
-): { leads: SellerLead[]; loading: boolean } {
-  const [leads, setLeads] = useState<SellerLead[]>([]);
+): { inquiries: SellerRecord[]; loading: boolean } {
+  const [inquiries, setInquiries] = useState<SellerRecord[]>([]);
   const [loading, setLoading] = useState(false);
   const key = JSON.stringify(filter);
 
   useEffect(() => {
     if (!remoteConfigured()) {
-      setLeads([]);
+      setInquiries([]);
       setLoading(false);
       return;
     }
     let cancelled = false;
     setLoading(true);
     api
-      .listSellerLeads(JSON.parse(key) as Parameters<typeof api.listSellerLeads>[0])
+      .listSellerInquiries(JSON.parse(key) as Parameters<typeof api.listSellerInquiries>[0])
       .then((rows) => {
-        if (!cancelled) setLeads(rows);
+        if (!cancelled) setInquiries(rows);
       })
       .catch(() => {
-        if (!cancelled) setLeads([]);
+        if (!cancelled) setInquiries([]);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -262,7 +268,7 @@ export function useSellerLeads(
     };
   }, [key, version]);
 
-  return { leads, loading };
+  return { inquiries, loading };
 }
 
 /**

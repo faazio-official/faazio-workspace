@@ -73,6 +73,14 @@ interface RawSeller {
   otpVerifiedAt?: string;
   rejectionReason?: string;
   rejectionHistory?: unknown;
+  source?: "web" | "app";
+  inquiryCategory?: SellerRecord["inquiryCategory"];
+  inquiryPlatformFeePct?: number;
+  inquiryNotes?: string;
+  shopPhotos?: { assetId: string; key: string; url?: string }[];
+  inquiryStage?: SellerRecord["inquiryStage"];
+  inquiryAssignedTo?: string;
+  inquiryAssignedAt?: string;
 }
 
 interface RawLedgerEntry {

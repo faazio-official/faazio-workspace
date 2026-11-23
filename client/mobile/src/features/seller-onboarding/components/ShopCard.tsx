@@ -1,6 +1,6 @@
 import React from 'react';
-import { ActivityIndicator, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { LocateFixed, Plus, Store, X } from 'lucide-react-native';
+import { ActivityIndicator, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Camera, LocateFixed, Plus, Store, X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import Checkbox from '@/components/shared/Checkbox';
 import SelectDropdown, { type SelectOption } from '@/components/shared/SelectDropdown';
@@ -24,6 +24,11 @@ export interface VendorDraft {
   fssaiUri: string | null;
   drugLicenseNumber: string;
   drugLicenseUri: string | null;
+  /**
+   * Public shop-front photos (captured URIs). At least one is required: the gateway rejects a shop
+   * with no picture, because an unreviewable shop cannot be activated and customers need a preview.
+   */
+  shopPhotoUris: string[];
   sameAsAccountBank: boolean;
   bankName: string;
   bankAccountNumber: string;
@@ -48,6 +53,7 @@ export function newVendorDraft(app: AppBrand = 'MART'): VendorDraft {
     fssaiUri: null,
     drugLicenseNumber: '',
     drugLicenseUri: null,
+    shopPhotoUris: [],
     sameAsAccountBank: true,
     bankName: '',
     bankAccountNumber: '',
@@ -72,6 +78,8 @@ interface Props {
   onAppChange: (app: AppBrand) => void;
   onPinLocation: () => void;
   onCaptureDoc: (kind: 'fssai' | 'drug') => void;
+  onAddShopPhoto: () => void;
+  onRemoveShopPhoto: (uri: string) => void;
   onAddAnother: () => void;
 }
 
@@ -85,6 +93,8 @@ export default function ShopCard({
   onAppChange,
   onPinLocation,
   onCaptureDoc,
+  onAddShopPhoto,
+  onRemoveShopPhoto,
   onAddAnother,
 }: Props) {
   const categoryOptions: SelectOption<string>[] = vendor.categories.map((c) => ({
@@ -168,6 +178,46 @@ export default function ShopCard({
         The platform retains this share of each order; the rest is settled to your bank after the
         7-day buyer-protection hold.
       </AppText>
+
+      <View style={styles.photoBlock}>
+        <AppText style={styles.photoLabel}>
+          Photos of your shop <AppText style={styles.photoRequired}>(at least one)</AppText>
+        </AppText>
+        <AppText style={styles.helper}>
+          A photo of the shop front is what customers see once you go live. It is converted to AVIF
+          before it is stored.
+        </AppText>
+        <View style={styles.photoGrid}>
+          {vendor.shopPhotoUris.map((uri, photoIndex) => (
+            <View key={uri} style={styles.photoTile}>
+              <Image source={{ uri }} style={styles.photoImage} resizeMode="cover" />
+              <TouchableOpacity
+                style={styles.photoRemove}
+                onPress={() => onRemoveShopPhoto(uri)}
+                accessibilityRole="button"
+                accessibilityLabel={`Remove shop photo ${photoIndex + 1}`}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              >
+                <X size={ms(12)} color={neutral.surface} strokeWidth={2.6} />
+              </TouchableOpacity>
+            </View>
+          ))}
+          {vendor.shopPhotoUris.length < 5 ? (
+            <TouchableOpacity
+              style={styles.photoAdd}
+              onPress={onAddShopPhoto}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Add a photo of your shop"
+            >
+              <Camera size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
+              <AppText style={styles.photoAddText}>
+                {vendor.shopPhotoUris.length ? 'Add' : 'Add photo'}
+              </AppText>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      </View>
 
       {vendor.app === 'FOOD' ? (
         <>
@@ -294,6 +344,41 @@ const styles = StyleSheet.create({
   remove: { width: ms(28), height: ms(28), alignItems: 'center', justifyContent: 'center', borderRadius: ms(8) },
   categoryLoader: { alignSelf: 'flex-start', marginVertical: vs(10) },
   helper: { fontSize: ms(10.5), color: neutral.inkSubtle, lineHeight: ms(15), marginTop: vs(8) },
+  photoBlock: { marginTop: vs(12) },
+  photoLabel: {
+    fontSize: ms(11),
+    fontWeight: '700',
+    color: neutral.inkSubtle,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  photoRequired: { fontWeight: '400', textTransform: 'none', letterSpacing: 0 },
+  photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: hs(8), marginTop: vs(8) },
+  photoTile: { width: ms(72), height: ms(72), borderRadius: ms(10), overflow: 'hidden' },
+  photoImage: { width: '100%', height: '100%' },
+  photoRemove: {
+    position: 'absolute',
+    top: ms(3),
+    right: ms(3),
+    width: ms(20),
+    height: ms(20),
+    borderRadius: ms(10),
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+  },
+  photoAdd: {
+    width: ms(72),
+    height: ms(72),
+    borderRadius: ms(10),
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: vs(4),
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: neutral.border,
+  },
+  photoAddText: { fontSize: ms(10), color: parentRamp.base, fontWeight: '600' },
   pinButton: {
     flexDirection: 'row',
     alignItems: 'center',

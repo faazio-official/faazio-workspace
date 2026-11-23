@@ -17,6 +17,22 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// fakePhotos stands in for the media registry: every submitted id is accepted and echoed as a key.
+// Real claiming (DRAFT → ACTIVE, PUBLIC+AVIF only) is covered by the media package's own tests; the
+// sellers tests care that an application cannot be created without at least one picture.
+type fakePhotos struct{}
+
+func (fakePhotos) Claim(_ context.Context, _ contracts.Querier, ids []string, ownerType, ownerID string) ([]string, error) {
+	if ownerType != "SHOP" {
+		return nil, fmt.Errorf("unexpected owner type %q", ownerType)
+	}
+	keys := make([]string, len(ids))
+	for i, id := range ids {
+		keys[i] = "media/test/" + ownerID + "/" + id + ".avif"
+	}
+	return keys, nil
+}
+
 func handlerRouter(t *testing.T, pool *pgxpool.Pool) http.Handler {
 	t.Helper()
 	c, err := cache.Connect(context.Background(), "")
@@ -25,7 +41,7 @@ func handlerRouter(t *testing.T, pool *pgxpool.Pool) http.Handler {
 	}
 	r := chi.NewRouter()
 	r.Use(authtest.Middleware())
-	NewHandler(New(pool), c, nil, nil).Register(r)
+	NewHandler(New(pool), c, nil, nil).WithPhotos(fakePhotos{}).Register(r)
 	return r
 }
 
@@ -58,7 +74,8 @@ func TestSellerRoleGating(t *testing.T) {
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
 			`"bankBeneficiary":"Gate Test","passbookFileKey":"kyc/gate/passbook.jpg",`+
 			`"vendors":[{"name":"Gate Store","app":"FOOD","platformFeePct":10,`+
-			`"fssaiNumber":"12345678901234","fssaiFileKey":"kyc/gate/fssai.jpg"}]}`,
+			`"fssaiNumber":"12345678901234","fssaiFileKey":"kyc/gate/fssai.jpg",`+
+			`"shopPhotoIds":["img_testgate1"]}]}`,
 		map[string]string{"X-Dev-Phone": "9876543210"})
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create status = %d body=%s", create.Code, create.Body.String())
@@ -143,7 +160,7 @@ func TestSellerCreateRejectsInvalidState(t *testing.T) {
 			`"contactEmail":"bad-state@example.com","otpVerified":true,"contractTier":"STANDARD","termsAccepted":true,"partnerAgreementAccepted":true,"ipLicenseGranted":true,`+
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
 			`"bankBeneficiary":"Bad State","passbookFileKey":"kyc/gate/passbook.jpg",`+
-			`"vendors":[{"name":"Bad Store","app":"FOOD","platformFeePct":10}]}`,
+			`"vendors":[{"name":"Bad Store","app":"FOOD","platformFeePct":10,"shopPhotoIds":["img_badstore1"]}]}`,
 		map[string]string{"X-Dev-Phone": "9876500001"})
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("invalid state status = %d body=%s, want 400", rec.Code, rec.Body.String())
@@ -193,7 +210,7 @@ func TestSellerCreateRequiresContractAcceptance(t *testing.T) {
 			`"ipLicenseGranted":%t,"bankName":"HDFC Bank",`+
 			`"bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
 			`"bankBeneficiary":"Contract Test","passbookFileKey":"kyc/gate/passbook.jpg",`+
-			`"vendors":[{"name":"Contract Store","app":"FOOD","platformFeePct":10}]}`,
+			`"vendors":[{"name":"Contract Store","app":"FOOD","platformFeePct":10,"shopPhotoIds":["img_contract1"]}]}`,
 			tier, terms, partner, ip)
 	}
 	headers := map[string]string{"X-Dev-Phone": "9876500002"}
@@ -231,7 +248,7 @@ func TestSellerCreateDuplicateEmailConflict(t *testing.T) {
 			`"contactEmail":"` + email + `","otpVerified":true,"contractTier":"STANDARD","termsAccepted":true,"partnerAgreementAccepted":true,"ipLicenseGranted":true,` +
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",` +
 			`"bankBeneficiary":"` + name + `","passbookFileKey":"kyc/gate/passbook.jpg",` +
-			`"vendors":[{"name":"` + name + ` Store","app":"FOOD","platformFeePct":10}]}`
+			`"vendors":[{"name":"` + name + ` Store","app":"FOOD","platformFeePct":10,"shopPhotoIds":["img_dupe1"]}]}`
 	}
 
 	first := do(t, h, http.MethodPost, "/sellers", body("9876500002", "Dupe One"),
@@ -255,7 +272,8 @@ func createTestSeller(t *testing.T, pool *pgxpool.Pool, h http.Handler, name str
 			`"bankName":"HDFC Bank","bankAccountNumber":"123456789012","bankIfsc":"HDFC0001234",`+
 			`"bankBeneficiary":"`+name+`","passbookFileKey":"kyc/gate/passbook.jpg",`+
 			`"vendors":[{"name":"`+name+` Store","app":"FOOD","platformFeePct":10,`+
-			`"fssaiNumber":"12345678901234","fssaiFileKey":"kyc/gate/fssai.jpg"}]}`,
+			`"fssaiNumber":"12345678901234","fssaiFileKey":"kyc/gate/fssai.jpg",`+
+			`"shopPhotoIds":["img_testgate1"]}]}`,
 		map[string]string{"X-Dev-Phone": "9876543210"})
 	if create.Code != http.StatusCreated {
 		t.Fatalf("create for %s status = %d body=%s", name, create.Code, create.Body.String())

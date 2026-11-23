@@ -9,7 +9,7 @@ import { DataShell } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { formatINR, formatNumber, formatPercent } from "@/lib/format";
 import { periodDelta, sumGmv, sumOrders } from "@/lib/analytics/derive";
-import { useAnalyticsSeries, useCampaigns, useDistricts, usePortalLoading, useOrders, useSellerLeads, useSellers } from "@/lib/api/hooks";
+import { useAnalyticsSeries, useCampaigns, useDistricts, usePortalLoading, useOrders, useSellerInquiries, useSellers } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { districtName } from "@/lib/api/reference";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -29,7 +29,7 @@ function StateDashboard() {
   const orders = useOrders({ stateCode });
   const campaigns = useCampaigns({ stateCode });
   // Unclaimed landing-page enquiries: the queue is only useful if someone is told it is non-empty.
-  const { leads } = useSellerLeads({ status: "NEW", assigned: "unassigned" });
+  const { inquiries } = useSellerInquiries({ stage: "NEW", assigned: "unassigned" });
 
   const pendingKyc = sellers.filter((s) => s.status === "PENDING_REVIEW").length;
   const breaches = orders.filter(
@@ -136,15 +136,15 @@ function StateDashboard() {
                 <ComponentHelp id="alert-pending-kyc" label="About this alert" />
               </li>
             ) : null}
-            {leads.length > 0 ? (
+            {inquiries.length > 0 ? (
               <li className="flex items-center gap-1.5">
                 <Link
-                  href="/admin/district/seller-leads"
+                  href="/admin/district/seller-inquiries"
                   className="flex flex-1 items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-3 py-2 text-[13px]"
                 >
                   <AlertTriangle className="size-4 text-warning" />
-                  {leads.length} seller lead{leads.length > 1 ? "s" : ""} from the landing page
-                  {leads.length > 1 ? " are" : " is"} waiting for a call-back
+                  {inquiries.length} seller enquir{inquiries.length > 1 ? "ies" : "y"} from the landing page
+                  {inquiries.length > 1 ? " are" : " is"} waiting for a call-back
                 </Link>
               </li>
             ) : null}
@@ -159,7 +159,7 @@ function StateDashboard() {
                 </Link>
               </li>
             ))}
-            {pendingKyc === 0 && breaches.length === 0 && leads.length === 0 ? (
+            {pendingKyc === 0 && breaches.length === 0 && inquiries.length === 0 ? (
               <li className="rounded-lg border border-success/40 bg-success/10 px-3 py-2 text-[13px]">
                 No open alerts for {scopeLabel}.
               </li>

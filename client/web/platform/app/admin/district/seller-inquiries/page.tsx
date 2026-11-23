@@ -2,8 +2,8 @@ import { pageMetadata } from "@/lib/seo";
 import PageClient from "./page.client";
 
 export const metadata = pageMetadata(
-  "Seller leads",
-  "Enquiries from the Sell with us page in your district, with call-back tracking.",
+  "Seller enquiries",
+  "Landing-page Sell with us enquiries in your district, with call-back ownership and the decision to open an application.",
 );
 
 export default function Page() {

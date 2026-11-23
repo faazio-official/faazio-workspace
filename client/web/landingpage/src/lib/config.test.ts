@@ -6,7 +6,7 @@ import { DEFAULT_GATEWAY_URL, gatewayUrl } from "@/lib/config";
  * renders and the visitor still sees "Enquiry received" — so the precedence is pinned here.
  *
  * `GATEWAY_URL` (server, request time) beats `VITE_GATEWAY_URL` (build-time local fallback) beats the
- * production default. A trailing slash is stripped so `${base}/seller-leads` never doubles up.
+ * production default. A trailing slash is stripped so `${base}/seller-inquiries` never doubles up.
  */
 describe("gatewayUrl", () => {
   const original = process.env["GATEWAY_URL"];

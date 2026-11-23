@@ -33,6 +33,10 @@ type Handler struct {
 	// compliance is the government/provider validation adapter. Defaults to format checks; the
 	// router may install a real provider with WithCompliance.
 	compliance ComplianceValidator
+	// photos claims the DRAFT media assets a shop photo was uploaded as (POST /media/avif). nil
+	// leaves claiming disabled (unit/test wiring) — a real deployment always wires it, otherwise an
+	// application could not attach shop pictures.
+	photos contracts.PhotoClaimer
 }
 
 // NewHandler builds the sellers handler.
@@ -51,6 +55,13 @@ func (h *Handler) WithCompliance(v ComplianceValidator) *Handler {
 // WithSubUsers wires the portal sub-user credential provisioner (accept/revoke lifecycle).
 func (h *Handler) WithSubUsers(p contracts.SubUserProvisioner) *Handler {
 	h.subUsers = p
+	return h
+}
+
+// WithPhotos wires the media photo-claim adapter (POST /media/avif drafts → ACTIVE, owned by the
+// seller). Without it onboarding cannot attach a shop-front picture.
+func (h *Handler) WithPhotos(p contracts.PhotoClaimer) *Handler {
+	h.photos = p
 	return h
 }
 
@@ -74,6 +85,9 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/sellers/{id}/detail", h.get)
 		g.Get("/sellers/{id}/kyc", h.listKYC)
 		g.Post("/sellers/{id}/kyc", h.addKYC)
+		// Replace (not append) the current document of one type: the admin re-uploads over a bad or
+		// expired document. The replacement clears verification so it is re-checked.
+		g.Put("/sellers/{id}/kyc/{docType}", h.replaceKYC)
 		// Payout account + business profile are owner-only for a seller sub-user (admins unaffected).
 		g.With(auth.RequireSellerOwner).Get("/sellers/{id}/bank-account", h.getBank)
 		g.With(auth.RequireSellerOwner).Put("/sellers/{id}/bank-account", h.putBank)
@@ -112,21 +126,22 @@ func (h *Handler) Register(r chi.Router) {
 	// the capability; the invitee sets their password here and the credential is minted.
 	r.Post("/seller/sub-users/accept", h.acceptSubUserInvite)
 
-	// Landing-page "Sell with us" enquiry. Public by design (the page is open to visitors) and NOT a
-	// seller account — it writes sellers.seller_leads only, never sellers.sellers (leads.go).
-	r.Post("/seller-leads", h.createLead)
+	// Public "Sell with us" enquiry. Public by design (the page is open to visitors). It creates a
+	// sellers.sellers row with status INQUIRY (source 'web') — the SAME row the merchant later
+	// completes in the app, which promotes it to PENDING_REVIEW instead of duplicating them (0129).
+	r.Post("/seller-inquiries", h.createInquiry)
 	// The same form reads the active district master to resolve its pin's district to canonical
 	// state/district codes before submitting. Public, no DB round-trip (the geo mirror answers).
-	r.Get("/seller-leads/districts", h.leadDistricts)
+	r.Get("/seller-inquiries/districts", h.inquiryDistricts)
 
-	// Admin follow-up queue for those leads (leads_admin.go). District admins see their district,
-	// super admins see every district; a seller is refused outright.
+	// Admin follow-up queue for those enquiries. District admins see their district, super admins see
+	// every district; a seller is refused outright.
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleDistrictAdmin, auth.RoleSuperAdmin))
-		g.Get("/seller-leads", h.listLeads)
-		g.Patch("/seller-leads/{id}", h.updateLead)
+		g.Get("/seller-inquiries", h.listInquiries)
+		g.Patch("/seller-inquiries/{id}", h.updateInquiry)
 		// Claim / release the call-back (owner is always the caller).
-		g.Post("/seller-leads/{id}/assign", h.claimLead)
+		g.Post("/seller-inquiries/{id}/assign", h.claimInquiry)
 	})
 
 	// Platform-fee change review queue: district admin sees their district, super admin sees all.
@@ -234,6 +249,9 @@ type vendorApplication struct {
 	Hours             string   `json:"hours"`
 	Latitude          *float64 `json:"latitude"`
 	Longitude         *float64 `json:"longitude"`
+	// ShopPhotoIDs are the media ids returned by POST /media/avif. At least one is required: a shop
+	// with no picture is not reviewable.
+	ShopPhotoIDs []string `json:"shopPhotoIds"`
 }
 
 type createSellerRequest struct {
@@ -331,6 +349,17 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		}
 		if !validLatLng(v.Latitude, v.Longitude) {
 			httpx.Fail(w, http.StatusBadRequest, "bad_request", "vendor shop location is invalid")
+			return
+		}
+		// At least one shop-front picture per vendor. The landing page already requires one, and the
+		// app matches it: an application that cannot show the shop is not reviewable.
+		v.ShopPhotoIDs = dedupeIDs(v.ShopPhotoIDs)
+		if len(v.ShopPhotoIDs) == 0 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "at least one shop picture is required for each shop")
+			return
+		}
+		if len(v.ShopPhotoIDs) > maxShopPhotos {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "at most 5 shop pictures per shop")
 			return
 		}
 		if v.CategoryID != "" {
@@ -442,6 +471,10 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	vendors := make([]VendorSeed, 0, len(req.Vendors))
 	for _, v := range req.Vendors {
+		photos := make([]ShopPhoto, 0, len(v.ShopPhotoIDs))
+		for _, id := range v.ShopPhotoIDs {
+			photos = append(photos, ShopPhoto{AssetID: id})
+		}
 		vendors = append(vendors, VendorSeed{
 			Name: v.Name, App: v.App, StateCode: req.StateCode, Address: v.Address, Phone: v.Phone,
 			Hours: v.Hours, Latitude: v.Latitude, Longitude: v.Longitude, PlatformFeePct: v.PlatformFeePct,
@@ -449,6 +482,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 			FSSAICertKey: strings.TrimSpace(v.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(v.FSSAIAssetID),
 			DrugLicenseNumber: v.DrugLicenseNumber, DrugLicenseCertKey: strings.TrimSpace(v.DrugLicenseFileKey),
 			DrugLicenseCertAssetID: strings.TrimSpace(v.DrugLicenseAssetID),
+			ShopPhotos:             photos,
 			BankName:               v.BankName, BankAccountNumber: v.BankAccountNumber, BankIFSC: v.BankIFSC,
 			BankBeneficiary: v.BankBeneficiary,
 		})
@@ -483,7 +517,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	report := validator.Validate(r.Context(), ComplianceInput{Seller: seller, Bank: bank, Vendors: vendors})
 	seller.ComplianceStatus = report.Status
 	seller.ComplianceNote = report.Note
-	s, err := h.repo.CreateExtended(r.Context(), accountID, seller, bank, docs, vendors, report.Checks)
+	s, err := h.repo.CreateExtended(r.Context(), accountID, seller, bank, docs, vendors, report.Checks, h.photos)
 	if err != nil {
 		if errors.Is(err, ErrEmailTaken) {
 			httpx.Fail(w, http.StatusConflict, "email_taken", "a seller application with this contact email already exists")
@@ -491,13 +525,6 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		}
 		httpx.Fail(w, http.StatusInternalServerError, "seller_create_failed", "could not create seller")
 		return
-	}
-
-	// Close the loop on the landing-page queue: an enquiry that mentioned this phone or email is now
-	// this application. Best-effort — a failed link must never fail the application itself, and a
-	// lead that matches nothing is the normal case (most enquiries never apply).
-	if _, err := h.repo.LinkLeadToSeller(r.Context(), s.ContactPhone, s.ContactEmail, s.SellerID); err != nil {
-		h.log(r, "SELLER_LEAD_LINK_FAILED", s.SellerID, nil, map[string]string{"error": "link_failed"})
 	}
 
 	h.log(r, "SELLER_CREATE", s.SellerID, nil, redactSeller(s))
@@ -528,6 +555,14 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 	req.Reason = strings.TrimSpace(req.Reason)
 	if !validSellerStatus(req.Status) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid seller status")
+		return
+	}
+	// An open web enquiry has no KYC, so it can never be activated (or suspended — there is nothing
+	// live to suspend). It may only become a pending application or be rejected; the enquiry queue
+	// owns that decision (inquiry_admin.go), not the generic status endpoint.
+	if before.Status == "INQUIRY" && !validInquiryTransition(req.Status) {
+		httpx.Fail(w, http.StatusConflict, "invalid_transition",
+			"an enquiry can only move to PENDING_REVIEW or REJECTED — review it from the enquiry queue")
 		return
 	}
 	if len(req.Reason) > 500 {
@@ -627,6 +662,12 @@ func (h *Handler) updatePlatformFee(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) verifyKYC(w http.ResponseWriter, r *http.Request) {
 	s, ok := h.adminSeller(w, r)
 	if !ok {
+		return
+	}
+	// verifyKYC is the activation shortcut: it has no meaning for an enquiry, which has no KYC.
+	if s.Status == "INQUIRY" {
+		httpx.Fail(w, http.StatusConflict, "not_an_application",
+			"an enquiry has no KYC to verify — move it to PENDING_REVIEW first")
 		return
 	}
 	if s.ComplianceStatus == ComplianceFailed {
@@ -1440,14 +1481,23 @@ type kycRequest struct {
 	AssetID string `json:"assetId"`
 }
 
+// kycReplaceRequest is the body of PUT /sellers/{id}/kyc/{docType}: the fresh private upload that
+// replaces the seller's current document of that type.
+type kycReplaceRequest struct {
+	FileKey string `json:"fileKey"`
+	AssetID string `json:"assetId"`
+}
+
+// addKYC appends one KYC document (admin- or seller-supplied). Replacing an existing document of the
+// same type is PUT /sellers/{id}/kyc/{docType}, which clears its verification.
 func (h *Handler) addKYC(w http.ResponseWriter, r *http.Request) {
-	s, ok, err := h.repo.ByID(r.Context(), chi.URLParam(r, "id"))
-	if err != nil {
-		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+	s, ok := h.adminSeller(w, r)
+	if !ok {
 		return
 	}
-	if !ok || !auth.CanActForSellerDistrict(r.Context(), s.SellerID, s.DistrictCode, s.StateCode) {
-		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
+	if s.Status == "INQUIRY" {
+		httpx.Fail(w, http.StatusConflict, "not_an_application",
+			"an enquiry has no KYC documents yet — the merchant uploads them from the app")
 		return
 	}
 	var req kycRequest
@@ -1469,6 +1519,46 @@ func (h *Handler) addKYC(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log(r, "KYC_ADD", s.SellerID, nil, map[string]string{"docType": doc.DocType})
 	httpx.JSON(w, http.StatusCreated, doc)
+}
+
+// replaceKYC swaps the seller's current document of one type for a fresh upload and clears the old
+// verification. It is the admin "re-upload over this document" action on the seller detail page,
+// distinct from POST /sellers/{id}/kyc which only appends.
+func (h *Handler) replaceKYC(w http.ResponseWriter, r *http.Request) {
+	s, ok := h.adminSeller(w, r)
+	if !ok {
+		return
+	}
+	if s.Status == "INQUIRY" {
+		httpx.Fail(w, http.StatusConflict, "not_an_application",
+			"an enquiry has no KYC documents yet — the merchant uploads them from the app")
+		return
+	}
+	docType := strings.ToUpper(strings.TrimSpace(chi.URLParam(r, "docType")))
+	if !validDocType(docType) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid document type")
+		return
+	}
+	var req kycReplaceRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	if !isStorageKey(strings.TrimSpace(req.FileKey)) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "fileKey is invalid")
+		return
+	}
+	doc, err := h.repo.ReplaceKYC(r.Context(), KycDocument{
+		SellerID: s.SellerID, DocType: docType,
+		FileKey: strings.TrimSpace(req.FileKey), AssetID: strings.TrimSpace(req.AssetID),
+	})
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "kyc_update_failed", "could not replace document")
+		return
+	}
+	h.log(r, "KYC_REPLACE_"+docType, s.SellerID, nil, map[string]string{"docType": doc.DocType})
+	detail, _, _ := h.repo.DetailByID(r.Context(), s.SellerID)
+	httpx.JSON(w, http.StatusOK, detail)
 }
 
 func (h *Handler) getBank(w http.ResponseWriter, r *http.Request) {
@@ -1627,7 +1717,7 @@ func validPlatformFee(category string, pct int) bool {
 
 func validSellerStatus(s string) bool {
 	switch s {
-	case "PENDING_REVIEW", "ACTIVE", "SUSPENDED", "REJECTED":
+	case "PENDING_REVIEW", "ACTIVE", "SUSPENDED", "REJECTED", "INQUIRY":
 		return true
 	default:
 		return false

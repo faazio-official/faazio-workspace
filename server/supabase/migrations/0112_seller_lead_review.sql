@@ -1,4 +1,6 @@
 -- Faazio MVP — admin follow-up fields for the landing-page "Sell with us" lead queue.
+-- SUPERSEDED BY 0129: sellers.seller_leads was merged into sellers.sellers as status = 'INQUIRY'
+-- (source = 'web'). This migration is kept only so the applied history stays reproducible.
 -- Authority: docs/architecture/db-schema.md §12.41, monolith-breakdown.md §1 (sellers row),
 -- user-interaction-workflow/seller/onboarding/seller-web-intake.md.
 --

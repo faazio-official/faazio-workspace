@@ -1,7 +1,8 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { toast } from "sonner";
-import { ExternalLink, MapPin, Phone, Mail, Percent } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Mail, Percent, ArrowUpRight } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
@@ -28,17 +29,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
-import { assignSellerLead, listSellerLeads, updateSellerLeadStatus } from "@/lib/api";
+import { assignSellerInquiry, listSellerInquiries, updateSellerInquiry } from "@/lib/api";
 import { useSession } from "@/lib/hooks/useSession";
 import { useDistricts } from "@/lib/api/hooks";
 import { districtName } from "@/lib/api/reference";
 import { ApiError } from "@/lib/api/http";
-import type { SellerLead } from "@/data/types";
+import type { InquiryStage, SellerRecord } from "@/data/types";
 
-const STATUSES = ["NEW", "CONTACTED", "APPROVED", "REJECTED", "ALL"] as const;
-type StatusFilter = (typeof STATUSES)[number];
+const STAGES: (InquiryStage | "ALL")[] = ["NEW", "CONTACTED", "APPROVED", "REJECTED", "ALL"];
 
-/** Ownership filter: everything, only my call-backs, or only leads nobody has taken. */
+/** Ownership filter: everything, only my call-backs, or only enquiries nobody has taken. */
 const OWNERSHIP = [
   { value: "ALL", label: "Everyone" },
   { value: "me", label: "Mine" },
@@ -46,99 +46,92 @@ const OWNERSHIP = [
 ] as const;
 type OwnershipFilter = (typeof OWNERSHIP)[number]["value"];
 
-/** The next step offered for each status. REJECTED/APPROVED are terminal in this queue. */
-const NEXT_ACTION: Record<string, { label: string; status: SellerLead["status"]; needsNote: boolean }> = {
-  NEW: { label: "Mark contacted", status: "CONTACTED", needsNote: false },
-  CONTACTED: { label: "Approve", status: "APPROVED", needsNote: false },
-};
-
 /**
- * Landing-page "Sell with us" follow-up queue. `scope="district"` only narrows the display; the
- * gateway already scopes a district admin to their own district and lets a super admin see every
+ * Landing-page "Sell with us" follow-up queue.
+ *
+ * An enquiry is a `sellers.sellers` row with status INQUIRY, so the canonical record lives on the
+ * seller detail page — this board only triages the call-back. `scope="district"` narrows the display;
+ * the gateway already scopes a district admin to their own district and lets a super admin see every
  * district, so the client filter can never widen what the server returned.
  *
- * Approving a lead does NOT create a seller account — the merchant still applies in the app. That is
- * deliberate: an enquiry is a phone number on a landing page, not a verified business.
+ * The decision here is PENDING_REVIEW ("proceeding — complete KYC in the app") or REJECTED. It is
+ * never ACTIVE: an enquiry has no KYC documents, so the gateway refuses that transition.
  */
-export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
+export function SellerInquiryBoard({ scope }: { scope: "district" | "global" }) {
   const session = useSession();
   const districts = useDistricts();
-  const [status, setStatus] = useState<StatusFilter>("NEW");
+  const [stage, setStage] = useState<InquiryStage | "ALL">("NEW");
   const [ownership, setOwnership] = useState<OwnershipFilter>("ALL");
   const [district, setDistrict] = useState("");
   const [query, setQuery] = useState("");
-  const [rows, setRows] = useState<SellerLead[]>([]);
+  const [rows, setRows] = useState<SellerRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
-  const [selected, setSelected] = useState<SellerLead | null>(null);
+  const [selected, setSelected] = useState<SellerRecord | null>(null);
   const [note, setNote] = useState("");
   const [dialogError, setDialogError] = useState("");
+
+  const detailHref = (sellerId: string) =>
+    scope === "district"
+      ? `/admin/district/sellers/${sellerId}`
+      : `/admin/super/sellers/${sellerId}`;
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       setRows(
-        await listSellerLeads({
-          status: status === "ALL" ? undefined : status,
+        await listSellerInquiries({
+          stage,
           districtCode: scope === "district" ? (session?.districtCode ?? undefined) : district || undefined,
           query: query.trim() || undefined,
           assigned: ownership === "ALL" ? undefined : ownership,
         }),
       );
     } catch {
-      toast.error("Could not load seller leads");
+      toast.error("Could not load seller enquiries");
       setRows([]);
     } finally {
       setLoading(false);
     }
-  }, [scope, session?.districtCode, status, district, query, ownership]);
+  }, [scope, session?.districtCode, stage, district, query, ownership]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const pendingCount = useMemo(() => rows.filter((r) => r.status === "NEW").length, [rows]);
+  const newCount = useMemo(() => rows.filter((r) => r.inquiryStage === "NEW").length, [rows]);
 
-  async function claim(row: SellerLead, take: boolean) {
-    setBusy(row.leadId);
+  async function claim(row: SellerRecord, take: boolean) {
+    setBusy(row.sellerId);
     try {
-      const updated = await assignSellerLead(row.leadId, take);
+      const updated = await assignSellerInquiry(row.sellerId, take);
       toast.success(take ? `You have ${row.businessName}` : `Released ${row.businessName}`);
-      if (selected?.leadId === row.leadId) setSelected(updated);
+      if (selected?.sellerId === row.sellerId) setSelected(updated);
       await load();
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
-        toast.error("Another admin already claimed this lead", {
+        toast.error("Another admin already claimed this enquiry", {
           description: "The queue has been refreshed with their claim.",
         });
         await load();
         return;
       }
-      toast.error(error instanceof ApiError ? error.message : "Could not update the lead");
+      toast.error(error instanceof ApiError ? error.message : "Could not update the enquiry");
     } finally {
       setBusy(null);
     }
   }
 
-  async function move(row: SellerLead, next: SellerLead["status"], reason = "") {
-    setBusy(row.leadId);
+  async function move(row: SellerRecord, next: InquiryStage) {
+    setBusy(row.sellerId);
     try {
-      await updateSellerLeadStatus(row.leadId, next, reason);
+      await updateSellerInquiry(row.sellerId, { stage: next });
       toast.success(`${row.businessName} → ${next.toLowerCase()}`);
       setSelected(null);
-      setNote("");
       setDialogError("");
       await load();
     } catch (error) {
-      if (error instanceof ApiError && error.status === 409) {
-        toast.error("Another admin already moved this lead", {
-          description: "The queue has been refreshed with their decision.",
-        });
-        setSelected(null);
-        await load();
-        return;
-      }
-      const message = error instanceof ApiError ? error.message : "Could not update the lead";
+      const message = error instanceof ApiError ? error.message : "Could not update the enquiry";
       if (selected) setDialogError(message);
       else toast.error(message);
     } finally {
@@ -146,9 +139,43 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
     }
   }
 
-  function openLead(row: SellerLead) {
+  async function decide(row: SellerRecord, status: "PENDING_REVIEW" | "REJECTED") {
+    setBusy(row.sellerId);
+    try {
+      await updateSellerInquiry(row.sellerId, {
+        status,
+        stage: status === "REJECTED" ? "REJECTED" : "APPROVED",
+        reason: status === "REJECTED" ? note : undefined,
+      });
+      toast.success(
+        status === "REJECTED"
+          ? `${row.businessName} rejected`
+          : `${row.businessName} is proceeding — KYC now happens in the app`,
+      );
+      setSelected(null);
+      setNote("");
+      setDialogError("");
+      await load();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 409) {
+        toast.error("Another admin already decided this enquiry", {
+          description: "The queue has been refreshed with their decision.",
+        });
+        setSelected(null);
+        await load();
+        return;
+      }
+      const message = error instanceof ApiError ? error.message : "Could not update the enquiry";
+      if (selected) setDialogError(message);
+      else toast.error(message);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  function openInquiry(row: SellerRecord) {
     setSelected(row);
-    setNote(row.adminNote ?? "");
+    setNote(row.inquiryNotes ?? "");
     setDialogError("");
   }
 
@@ -159,16 +186,16 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
 
   return (
     <div className="space-y-4">
-      <PageHeader title="Seller leads" description={scopeDescription} />
+      <PageHeader title="Seller enquiries" description={scopeDescription} />
 
       <SectionCard bodyClassName="p-0">
         <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
-          {STATUSES.map((option) => (
+          {STAGES.map((option) => (
             <FilterChip
               key={option}
-              label={option}
-              active={status === option}
-              onClick={() => setStatus(option)}
+              label={option === "ALL" ? "All" : option.charAt(0) + option.slice(1).toLowerCase()}
+              active={stage === option}
+              onClick={() => setStage(option)}
             />
           ))}
           <span aria-hidden className="mx-1 h-4 w-px bg-border" />
@@ -197,7 +224,7 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
               </select>
             ) : null}
             <Input
-              aria-label="Search leads"
+              aria-label="Search enquiries"
               placeholder="Shop, owner, phone or email"
               value={query}
               onChange={(event) => setQuery(event.target.value)}
@@ -211,9 +238,9 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
           isEmpty={rows.length === 0}
           empty={
             <EmptyState
-              title={status === "NEW" ? "No new leads" : "No leads here"}
+              title={stage === "NEW" ? "No new enquiries" : "No enquiries here"}
               description={
-                status === "NEW"
+                stage === "NEW"
                   ? "New enquiries from the landing page land here. Nothing to call back yet."
                   : "No enquiries match this filter."
               }
@@ -228,13 +255,13 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
                 <TableHead>District</TableHead>
                 <TableHead>Received</TableHead>
                 <TableHead>Owner</TableHead>
-                <TableHead>Status</TableHead>
+                <TableHead>Stage</TableHead>
                 <TableHead className="text-right">
                   <span className="inline-flex items-center gap-1.5">
                     Actions
                     <ComponentHelp
-                      helpKey="pattern:seller-lead-followup"
-                      label="About following up a seller lead"
+                      helpKey="pattern:seller-inquiry-followup"
+                      label="About following up a seller enquiry"
                     />
                   </span>
                 </TableHead>
@@ -242,15 +269,17 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
             </TableHeader>
             <TableBody>
               {rows.map((row) => (
-                <TableRow key={row.leadId} className="h-12">
+                <TableRow key={row.sellerId} className="h-12">
                   <TableCell className="text-[13px] font-medium">
-                    {row.businessName}
+                    <Link href={detailHref(row.sellerId)} className="text-primary hover:underline">
+                      {row.businessName}
+                    </Link>
                     <p className="mt-0.5 text-[11px] font-normal text-muted-foreground">
-                      {row.category} · {row.ownerName}
+                      {row.inquiryCategory ?? "—"} · {row.ownerName}
                     </p>
-                    {row.sellerId ? (
-                      <p className="mt-0.5 text-[11px] font-normal text-success">
-                        Applied · {row.sellerId}
+                    {row.shopPhotos?.length ? (
+                      <p className="mt-0.5 text-[11px] font-normal text-muted-foreground">
+                        {row.shopPhotos.length} shop photo{row.shopPhotos.length === 1 ? "" : "s"}
                       </p>
                     ) : null}
                   </TableCell>
@@ -261,53 +290,49 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
                     </span>
                     <p className="mt-0.5 inline-flex items-center gap-1.5">
                       <Mail className="size-3" aria-hidden />
-                      {row.contactEmail}
+                      {row.contactEmail ?? "—"}
                     </p>
                   </TableCell>
                   <TableCell className="text-[12px] text-muted-foreground">
-                    {row.districtCode
-                      ? districtName(districts, row.districtCode) || row.districtCode
-                      : (row.districtName ?? "—")}
+                    {row.districtCode ? districtName(districts, row.districtCode) || row.districtCode : "—"}
                   </TableCell>
                   <TableCell className="num text-[12px]">{formatDateTime(row.createdAt)}</TableCell>
                   <TableCell className="text-[12px] text-muted-foreground">
-                    {row.assignedTo ? (
-                      row.assignedTo === session?.accountId ? (
+                    {row.inquiryAssignedTo ? (
+                      row.inquiryAssignedTo === session?.accountId ? (
                         <span className="text-foreground">You</span>
                       ) : (
-                        row.assignedTo
+                        row.inquiryAssignedTo
                       )
                     ) : (
                       "Unclaimed"
                     )}
                   </TableCell>
                   <TableCell>
-                    <StatusPill status={row.status} />
+                    <StatusPill status={row.inquiryStage ?? "NEW"} />
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end gap-1.5">
-                      <Button size="sm" variant="outline" onClick={() => openLead(row)}>
+                      <Button size="sm" variant="outline" onClick={() => openInquiry(row)}>
                         Open
                       </Button>
-                      {!row.assignedTo ? (
+                      {!row.inquiryAssignedTo ? (
                         <Button
                           size="sm"
                           variant="outline"
-                          disabled={busy === row.leadId}
+                          disabled={busy === row.sellerId}
                           onClick={() => void claim(row, true)}
                         >
                           Claim
                         </Button>
                       ) : null}
-                      {NEXT_ACTION[row.status] ? (
+                      {row.inquiryStage === "NEW" ? (
                         <Button
                           size="sm"
-                          disabled={busy === row.leadId}
-                          onClick={() =>
-                            void move(row, NEXT_ACTION[row.status]!.status)
-                          }
+                          disabled={busy === row.sellerId}
+                          onClick={() => void move(row, "CONTACTED")}
                         >
-                          {NEXT_ACTION[row.status]!.label}
+                          Mark contacted
                         </Button>
                       ) : null}
                     </div>
@@ -317,9 +342,9 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
             </TableBody>
           </Table>
         </DataShell>
-        {pendingCount > 0 && status !== "NEW" ? (
+        {newCount > 0 && stage !== "NEW" ? (
           <p className="border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
-            {pendingCount} new in this view.
+            {newCount} new in this view.
           </p>
         ) : null}
       </SectionCard>
@@ -331,80 +356,101 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
               <DialogHeader>
                 <DialogTitle>{selected.businessName}</DialogTitle>
                 <DialogDescription>
-                  {selected.ownerName} · {selected.category} ·{" "}
+                  {selected.ownerName} · {selected.inquiryCategory ?? "—"} ·{" "}
                   {formatDateTime(selected.createdAt)}
                 </DialogDescription>
               </DialogHeader>
 
               <div className="space-y-3 text-[13px]">
+                {selected.shopPhotos?.length ? (
+                  <div className="flex flex-wrap gap-2">
+                    {selected.shopPhotos.map((photo) =>
+                      photo.url ? (
+                        // A raw <img> is deliberate: these are R2-hosted public URLs, already AVIF and
+                        // sized by the gateway, so the Next image optimizer would only add a hop.
+                        <img
+                          key={photo.assetId}
+                          src={photo.url}
+                          alt={`${selected.businessName} shop front`}
+                          className="size-20 rounded-md border border-border object-cover"
+                        />
+                      ) : (
+                        <span
+                          key={photo.assetId}
+                          className="flex size-20 items-center justify-center rounded-md border border-border bg-muted text-[10px] text-muted-foreground"
+                        >
+                          no preview
+                        </span>
+                      ),
+                    )}
+                  </div>
+                ) : null}
+
                 <div className="flex items-start gap-2 text-muted-foreground">
                   <MapPin className="mt-0.5 size-3.5 shrink-0" aria-hidden />
-                  <span>
-                    {selected.businessAddress}
-                    {selected.districtName ? `, ${selected.districtName}` : ""}
-                    {selected.stateName ? `, ${selected.stateName}` : ""}
-                  </span>
+                  <span>{selected.businessAddress || "No address given"}</span>
                 </div>
                 <div className="flex items-start gap-2 text-muted-foreground">
                   <Percent className="mt-0.5 size-3.5 shrink-0" aria-hidden />
                   <span>
                     Expected platform fee:{" "}
                     <span className="font-medium text-foreground">
-                      {selected.platformFeePct != null ? `${selected.platformFeePct}%` : "not given"}
+                      {selected.inquiryPlatformFeePct != null
+                        ? `${selected.inquiryPlatformFeePct}%`
+                        : "not given"}
                     </span>
                   </span>
                 </div>
                 <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
-                  <a href={`tel:${selected.contactPhone}`} className="focus-ringed inline-flex items-center gap-1.5 underline">
+                  <a
+                    href={`tel:${selected.contactPhone}`}
+                    className="focus-ringed inline-flex items-center gap-1.5 underline"
+                  >
                     <Phone className="size-3.5" aria-hidden />
                     {selected.contactPhone}
                   </a>
-                  <a href={`mailto:${selected.contactEmail}`} className="focus-ringed inline-flex items-center gap-1.5 underline">
-                    <Mail className="size-3.5" aria-hidden />
-                    {selected.contactEmail}
-                  </a>
+                  {selected.contactEmail ? (
+                    <a
+                      href={`mailto:${selected.contactEmail}`}
+                      className="focus-ringed inline-flex items-center gap-1.5 underline"
+                    >
+                      <Mail className="size-3.5" aria-hidden />
+                      {selected.contactEmail}
+                    </a>
+                  ) : null}
                 </div>
 
-                {selected.latitude != null && selected.longitude != null ? (
-                  <a
-                    href={`https://www.google.com/maps/search/?api=1&query=${selected.latitude},${selected.longitude}`}
-                    target="_blank"
-                    rel="noreferrer noopener"
-                    className="focus-ringed inline-flex items-center gap-1.5 text-[12px] text-primary underline"
-                  >
-                    <ExternalLink className="size-3" aria-hidden />
-                    Open the pinned shop location
-                  </a>
-                ) : (
-                  <p className="text-[12px] text-muted-foreground">
-                    No pin on this enquiry (an older submission). Confirm the shop address on the
-                    call.
-                  </p>
-                )}
+                <Link
+                  href={detailHref(selected.sellerId)}
+                  className="focus-ringed inline-flex items-center gap-1.5 text-[12px] text-primary underline"
+                >
+                  <ArrowUpRight className="size-3" aria-hidden />
+                  Open the full record
+                </Link>
 
-                {selected.notes ? (
+                {selected.inquiryNotes ? (
                   <div className="rounded-md border border-border bg-muted/40 p-2.5">
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
                       What they wrote
                     </p>
-                    <p className="mt-1 text-[12px]">{selected.notes}</p>
+                    <p className="mt-1 text-[12px]">{selected.inquiryNotes}</p>
                   </div>
                 ) : null}
 
                 <div className="space-y-1.5">
-                  <Label htmlFor="lead-note" className="text-[12px]">
-                    Follow-up note {selected.status === "REJECTED" ? "(required)" : "(optional)"}
+                  <Label htmlFor="inquiry-note" className="text-[12px]">
+                    Rejection reason (required to reject)
                   </Label>
                   <Textarea
-                    id="lead-note"
+                    id="inquiry-note"
                     value={note}
                     maxLength={500}
                     rows={3}
                     onChange={(event) => setNote(event.target.value)}
-                    placeholder="What the call established, or why this lead is not a fit."
+                    placeholder="What the call established, or why this enquiry is not a fit."
                   />
                   <p className="text-[11px] text-muted-foreground">
-                    {note.length}/500 · only the review record, never shown publicly.
+                    {note.length}/500 · shown to the merchant when rejecting, never public.
                   </p>
                 </div>
 
@@ -414,63 +460,62 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
                   </p>
                 ) : null}
 
-                {selected.sellerId ? (
+                {selected.status !== "INQUIRY" ? (
                   <p className="rounded-md border border-success/40 bg-success/10 px-2.5 py-2 text-[12px]">
-                    Applied as <span className="num font-medium">{selected.sellerId}</span> — this
-                    enquiry is closed; work the application in Sellers.
+                    Decided — this is now a{" "}
+                    <span className="font-medium">{selected.status.replace("_", " ").toLowerCase()}</span>{" "}
+                    seller record. Work it in Sellers.
                   </p>
                 ) : null}
 
                 <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-2.5 text-[11px] text-muted-foreground">
                   <span>
-                    {selected.assignedTo
-                      ? selected.assignedTo === session?.accountId
+                    {selected.inquiryAssignedTo
+                      ? selected.inquiryAssignedTo === session?.accountId
                         ? "You own this call-back"
-                        : `Owned by ${selected.assignedTo}`
-                      : "Nobody has claimed this lead"}
-                    {selected.reviewedBy
-                      ? ` · last moved by ${selected.reviewedBy}${selected.reviewedAt ? ` on ${formatDateTime(selected.reviewedAt)}` : ""}`
+                        : `Owned by ${selected.inquiryAssignedTo}`
+                      : "Nobody has claimed this enquiry"}
+                    {selected.inquiryAssignedAt
+                      ? ` · since ${formatDateTime(selected.inquiryAssignedAt)}`
                       : ""}
                   </span>
                   <Button
                     size="sm"
                     variant="ghost"
-                    disabled={busy === selected.leadId}
-                    onClick={() => void claim(selected, !selected.assignedTo)}
+                    disabled={busy === selected.sellerId}
+                    onClick={() => void claim(selected, !selected.inquiryAssignedTo)}
                   >
-                    {selected.assignedTo === session?.accountId ? "Release" : "Claim"}
+                    {selected.inquiryAssignedTo === session?.accountId ? "Release" : "Claim"}
                   </Button>
                 </div>
               </div>
 
-              <div className="flex flex-wrap justify-end gap-2">
-                {selected.status !== "CONTACTED" && selected.status !== "REJECTED" ? (
+              {selected.status === "INQUIRY" ? (
+                <div className="flex flex-wrap justify-end gap-2">
+                  {selected.inquiryStage !== "CONTACTED" ? (
+                    <Button
+                      variant="outline"
+                      disabled={busy === selected.sellerId}
+                      onClick={() => void move(selected, "CONTACTED")}
+                    >
+                      Mark contacted
+                    </Button>
+                  ) : null}
                   <Button
-                    variant="outline"
-                    disabled={busy === selected.leadId}
-                    onClick={() => void move(selected, "CONTACTED", note)}
+                    disabled={busy === selected.sellerId}
+                    onClick={() => void decide(selected, "PENDING_REVIEW")}
                   >
-                    Mark contacted
+                    Proceeding — open application
                   </Button>
-                ) : null}
-                {selected.status !== "APPROVED" ? (
-                  <Button
-                    disabled={busy === selected.leadId}
-                    onClick={() => void move(selected, "APPROVED", note)}
-                  >
-                    Approve
-                  </Button>
-                ) : null}
-                {selected.status !== "REJECTED" ? (
                   <Button
                     variant="destructive"
-                    disabled={busy === selected.leadId || note.trim().length < 4}
-                    onClick={() => void move(selected, "REJECTED", note)}
+                    disabled={busy === selected.sellerId || note.trim().length < 4}
+                    onClick={() => void decide(selected, "REJECTED")}
                   >
                     Reject
                   </Button>
-                ) : null}
-              </div>
+                </div>
+              ) : null}
             </>
           ) : null}
         </DialogContent>

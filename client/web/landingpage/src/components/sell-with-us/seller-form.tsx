@@ -2,13 +2,19 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { HiOutlineCheckCircle, HiOutlineEnvelope, HiOutlinePhone } from "react-icons/hi2";
-import { leadSchema, submitSellerLead, type LeadInput } from "@/lib/leads";
+import {
+  inquirySchema,
+  submitSellerInquiry,
+  type InquiryInput,
+  type ShopPhotoRef,
+} from "@/lib/inquiries";
 import { mapsKey } from "@/lib/google-maps";
 import { BUSINESS_EMAIL, BUSINESS_PHONE } from "@/lib/site";
 import {
   MapLocationPicker,
   type PickedLocation,
 } from "@/components/sell-with-us/map-location-picker";
+import { ShopPhotosField } from "@/components/sell-with-us/shop-photos-field";
 
 const CATEGORIES = [
   { value: "MART", label: "Grocery / Mart" },
@@ -21,19 +27,22 @@ const CENTRE = { lat: 10.9254, lng: 79.838 };
 /** The tel: href needs digits only; the visible number keeps its formatting. */
 const TEL_HREF = `tel:${BUSINESS_PHONE.replace(/[^+\d]/g, "")}`;
 
-type Submitted = { leadId: string | null } | null;
+type Submitted = { sellerId: string | null } | null;
 
 /**
  * The public "Sell with us" enquiry form. It collects what a first conversation needs — who you are,
- * what you sell, where the shop is, and the platform fee you expect — and never asks for PAN, bank
- * details, a passbook or an OTP. Those belong to the KYC-complete application in the mobile app, which
- * is where an approved lead continues. Submitting here creates a lead (`sellers.seller_leads`), not an
- * account.
+ * what you sell, where the shop is, at least one photo of it, and the platform fee you expect — and
+ * never asks for PAN, bank details, a passbook or an OTP. Those belong to the KYC-complete application
+ * in the mobile app, which is where an approved enquiry continues.
+ *
+ * Submitting creates the merchant row itself (`sellers.sellers`, status INQUIRY, source 'web'); the
+ * merchant's app application later promotes that same row, so no enquiry is a dead-end contact card.
  */
 export function SellerForm() {
   const [location, setLocation] = useState<PickedLocation | null>(null);
   const [locationError, setLocationError] = useState("");
   const [submitted, setSubmitted] = useState<Submitted>(null);
+  const [photos, setPhotos] = useState<ShopPhotoRef[]>([]);
   const [serverError, setServerError] = useState("");
   const [mapAvailable, setMapAvailable] = useState(Boolean(mapsKey()));
 
@@ -44,8 +53,8 @@ export function SellerForm() {
     watch,
     formState: { errors, isSubmitting },
     reset,
-  } = useForm<LeadInput>({
-    resolver: zodResolver(leadSchema),
+  } = useForm<InquiryInput>({
+    resolver: zodResolver(inquirySchema),
     defaultValues: {
       businessName: "",
       ownerName: "",
@@ -59,6 +68,7 @@ export function SellerForm() {
       businessAddress: "",
       districtName: "",
       notes: "",
+      shopPhotos: [],
       website: "",
     },
   });
@@ -69,7 +79,7 @@ export function SellerForm() {
   // identity, so an enquiry without it cannot be placed. The district input mirrors this value.
   const hasLocation = Boolean(location?.districtName);
 
-  const onSubmit = async (values: LeadInput) => {
+  const onSubmit = async (values: InquiryInput) => {
     setServerError("");
     // Location is mandatory: the district is derived from it (the durable Google place_id), so an
     // enquiry with no pin has no district identity to route on. The submit button is disabled until
@@ -84,7 +94,7 @@ export function SellerForm() {
       location.address ||
       values.businessAddress ||
       [location.districtName, location.stateName].filter(Boolean).join(", ");
-    const result = await submitSellerLead({
+    const result = await submitSellerInquiry({
       data: {
         ...values,
         districtName: location.districtName,
@@ -93,14 +103,16 @@ export function SellerForm() {
         businessAddress: address,
         latitude: location.latitude,
         longitude: location.longitude,
+        shopPhotos: photos.map((p) => ({ assetId: p.assetId, key: p.key })),
       },
     });
     if (!result.ok) {
       setServerError(result.message);
       return;
     }
-    setSubmitted({ leadId: result.leadId });
+    setSubmitted({ sellerId: result.sellerId });
     reset();
+    setPhotos([]);
     setLocation(null);
   };
 
@@ -109,9 +121,9 @@ export function SellerForm() {
       <div className="sell-done" role="status">
         <HiOutlineCheckCircle aria-hidden="true" className="sell-done-icon" />
         <h2>Enquiry received</h2>
-        {submitted.leadId ? (
+        {submitted.sellerId ? (
           <p className="sell-ref">
-            Your enquiry reference <strong>{submitted.leadId}</strong> — quote it when the partner
+            Your enquiry reference <strong>{submitted.sellerId}</strong> — quote it when the partner
             team calls.
           </p>
         ) : null}
@@ -267,6 +279,17 @@ export function SellerForm() {
               ? "Read from the location you shared — no need to type it."
               : "Share your shop location beside the map — the address, district and coordinates are read from it."}
           </p>
+
+          <ShopPhotosField
+            photos={photos}
+            onChange={(next) => {
+              setPhotos(next);
+              // The photo ids live in form state too, so the schema's "at least one" rule runs with
+              // the rest of the validation instead of as a second, parallel gate.
+              setValue("shopPhotos", next, { shouldValidate: true, shouldDirty: true });
+            }}
+            error={errors.shopPhotos?.message}
+          />
 
           <div className="field">
             <label htmlFor="notes">Anything we should know? (optional)</label>

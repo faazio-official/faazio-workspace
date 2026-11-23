@@ -5,10 +5,18 @@ export type Sector = "MART" | "FOOD" | "PHARMA";
 export type Role = "SELLER" | "DISTRICT_ADMIN" | "SUPER_ADMIN";
 
 export type SellerStatus =
+  | "INQUIRY"
   | "PENDING_REVIEW"
   | "ACTIVE"
   | "SUSPENDED"
   | "REJECTED";
+
+/** Public shop-front picture: media.assets id + its immutable R2 key. Bytes are always AVIF. */
+export interface ShopPhoto {
+  assetId: string;
+  key: string;
+  url?: string | undefined;
+}
 export type ProductStatus =
   | "DRAFT"
   | "PENDING_REVIEW"
@@ -70,7 +78,20 @@ export interface SellerRecord {
   /** Vendor rollup from GET /sellers (an account can own shops in several apps). */
   vendorCount?: number | undefined;
   vendorApps?: Sector[] | undefined;
+  /** Where the row originated: a public landing-page enquiry ('web') or the app ('app'). */
+  source?: "web" | "app" | undefined;
+  /** Shop facts a web enquiry collects before any vendor row exists (INQUIRY rows only). */
+  inquiryCategory?: Sector | undefined;
+  inquiryPlatformFeePct?: number | undefined;
+  inquiryNotes?: string | undefined;
+  shopPhotos?: ShopPhoto[] | undefined;
+  /** Operator call-back state on an open enquiry: NEW | CONTACTED | APPROVED | REJECTED. */
+  inquiryStage?: InquiryStage | undefined;
+  inquiryAssignedTo?: string | undefined;
+  inquiryAssignedAt?: string | undefined;
 }
+
+export type InquiryStage = "NEW" | "CONTACTED" | "APPROVED" | "REJECTED";
 
 /** sellers.kyc_documents */
 export interface KycDocument {
@@ -164,6 +185,9 @@ export interface SellerVendorRecord {
   fssaiCertAssetId?: string | undefined;
   stateCode?: string | undefined;
   districtCode?: string | undefined;
+  /** Public shop-front gallery (AVIF keys + media ids, parallel arrays). */
+  photoKeys?: string[] | undefined;
+  photoAssetIds?: string[] | undefined;
 }
 
 /** One-time SELLER portal login minted when an application is approved (never persisted client-side). */
@@ -490,37 +514,6 @@ export interface FeeChangeRequest {
   reviewedBy?: string | undefined;
   reviewedAt?: string | undefined;
   reviewReason?: string | undefined;
-}
-
-/** sellers.seller_leads — landing-page "Sell with us" enquiries (0111 + 0112). */
-export interface SellerLead {
-  leadId: string;
-  businessName: string;
-  ownerName: string;
-  category: string;
-  contactPhone: string;
-  contactEmail: string;
-  businessAddress: string;
-  stateCode?: string | undefined;
-  districtCode?: string | undefined;
-  stateName?: string | undefined;
-  districtName?: string | undefined;
-  latitude?: number | null | undefined;
-  longitude?: number | null | undefined;
-  platformFeePct?: number | null | undefined;
-  notes?: string | undefined;
-  status: "NEW" | "CONTACTED" | "APPROVED" | "REJECTED" | string;
-  source?: string | undefined;
-  /** Operator's follow-up note / the reason a lead was rejected (0112). */
-  adminNote?: string | undefined;
-  reviewedBy?: string | undefined;
-  reviewedAt?: string | undefined;
-  /** The admin who claimed the call-back (0113); empty = unclaimed. */
-  assignedTo?: string | undefined;
-  assignedAt?: string | undefined;
-  /** The application this lead became, back-filled when the merchant applies (0113). */
-  sellerId?: string | undefined;
-  createdAt: string;
 }
 
 /** admins.audit_logs */

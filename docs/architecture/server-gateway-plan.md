@@ -163,15 +163,26 @@ caller) and are event-purged on store live toggle and product edit/status change
   Seller settings: `GET|PUT /seller/notifications/preferences`, `GET|POST /seller/sub-users`,
   `POST /seller/sub-users/{id}/resend`, `DELETE /seller/sub-users/{id}` and public
   `POST /seller/sub-users/accept` (tables from `0097`/`0098`; scope from the JWT `seller_id`).
-  Public intake: `POST /seller-leads` (no auth — the landing page `/sell-with-us` enquiry; honeypot,
-  per-IP daily cap, **mandatory `platformFeePct`** (1–100, FOOD ≥ 5), writes `sellers.seller_leads`
-  only, never `sellers.sellers`; migration `0111`) plus the public read `GET /seller-leads/districts`
-  (active `admins.district_master` projection from the in-process geo mirror; no DB, no PII, 5-minute
-  public cache) the form uses to send canonical `stateCode`/`districtCode` with its pin.
-  Admin follow-up queue: `GET /seller-leads` + `PATCH /seller-leads/{id}` + `POST /seller-leads/{id}/assign`
-  (district/super admin only, district-scoped; `NEW → CONTACTED → APPROVED|REJECTED` with reviewer,
-  note and an audit row; claim/release ownership; review columns + queue index in `0112`, owner +
-  `seller_id` link in `0113`). `POST /sellers` back-fills `seller_id` onto a matching lead.
+  Public intake: `POST /seller-inquiries` (no auth — the landing page `/sell-with-us` enquiry; honeypot,
+  per-IP daily cap, **mandatory `platformFeePct`** (1–100, FOOD ≥ 5) and **1–5 shop pictures**, writing
+  one `sellers.sellers` row with `status = 'INQUIRY'` / `source = 'web'` and claiming its `SHOP` photos
+  in the same transaction; migration `0129`, which supersedes the `0111` lead table) plus the public
+  read `GET /seller-inquiries/districts` (active `admins.district_master` projection from the
+  in-process geo mirror; no DB, no PII, 5-minute public cache) the form uses to send canonical
+  `stateCode`/`districtCode` with its pin.
+  Admin follow-up queue: `GET /seller-inquiries` + `PATCH /seller-inquiries/{id}` +
+  `POST /seller-inquiries/{id}/assign` (district/super admin only, district-scoped; call-back
+  `inquiry_stage` `NEW → CONTACTED → APPROVED|REJECTED` plus the lifecycle decision
+  `PENDING_REVIEW`/`REJECTED`, reviewer, note and an audit row; claim/release ownership).
+  `POST /sellers` **promotes** the matching enquiry row (contact phone/email) to `PENDING_REVIEW` /
+  `source = 'app'` instead of creating a second merchant. `INQUIRY → ACTIVE` is refused
+  (`409 not_an_application`): an enquiry has no KYC.
+  Media: `POST /media/avif` is the only byte-ingest route — public, per-IP daily cap, 12 MiB body,
+  decodes JPEG/PNG and re-encodes AVIF server-side (`internal/platform/imgconv`, CGo-free), stripping
+  EXIF/GPS; both the landing page and the app use it for shop photos.
+  Admin KYC maintenance: `POST /sellers/{id}/kyc` (add) and `PUT /sellers/{id}/kyc/{docType}`
+  (replace) let an operator attach or swap a document from the seller detail page; both refuse an
+  `INQUIRY` row.
   The invite returns a one-time hashed accept token (7-day, single-use); accept mints a scoped
   `SELLER` credential with `sub_role` STAFF/VIEWER; revoke deactivates it. Owner-only routes use
   `auth.RequireSellerOwner`; a VIEWER is read-only via `auth.EnforceSubUserReadOnly`.

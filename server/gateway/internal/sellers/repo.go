@@ -16,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/jackc/pgx/v5"
 )
@@ -71,6 +72,19 @@ type Seller struct {
 	ComplianceNote               string `json:"complianceNote,omitempty"`
 	ValidatedAt                  string `json:"validatedAt,omitempty"`
 	ValidatedBy                  string `json:"validatedBy,omitempty"`
+	// Source is where the row originated: 'web' for a public /sell-with-us enquiry (status INQUIRY),
+	// 'app' for a KYC-complete application submitted from the mobile app (0129).
+	Source string `json:"source,omitempty"`
+	// Inquiry* are the shop facts a web enquiry collects before any vendor row exists. They are
+	// null/empty on an app application, where each vendor carries its own category and fee.
+	InquiryCategory    string      `json:"inquiryCategory,omitempty"`
+	InquiryPlatformFee *int        `json:"inquiryPlatformFeePct,omitempty"`
+	InquiryNotes       string      `json:"inquiryNotes,omitempty"`
+	ShopPhotos         []ShopPhoto `json:"shopPhotos,omitempty"`
+	// InquiryStage/InquiryAssigned* track the operator call-back on an open enquiry (0129).
+	InquiryStage      string `json:"inquiryStage,omitempty"`
+	InquiryAssignedTo string `json:"inquiryAssignedTo,omitempty"`
+	InquiryAssignedAt string `json:"inquiryAssignedAt,omitempty"`
 	// VendorCount/VendorApps are populated by List (one account can own shops in several apps).
 	VendorCount int      `json:"vendorCount,omitempty"`
 	VendorApps  []string `json:"vendorApps,omitempty"`
@@ -107,6 +121,10 @@ type VendorSeed struct {
 	DrugLicenseNumber      string
 	DrugLicenseCertKey     string
 	DrugLicenseCertAssetID string
+	// ShopPhotos are the public shop-front gallery attached to this vendor. At least one is required:
+	// a shop with no picture is not reviewable. Asset IDs are DRAFT media rows the caller uploaded;
+	// the create transaction claims them (contracts.PhotoClaimer) and stores the resulting keys.
+	ShopPhotos []ShopPhoto
 	// Per-shop payout override (masked account tail only); empty means use the account bank.
 	BankName          string
 	BankAccountNumber string
@@ -160,6 +178,9 @@ type Vendor struct {
 	FSSAICertAssetID string `json:"fssaiCertAssetId,omitempty"`
 	StateCode        string `json:"stateCode,omitempty"`
 	DistrictCode     string `json:"districtCode,omitempty"`
+	// PhotoKeys/PhotoAssetIDs are the public shop-front gallery (AVIF), parallel arrays.
+	PhotoKeys     []string `json:"photoKeys,omitempty"`
+	PhotoAssetIDs []string `json:"photoAssetIds,omitempty"`
 }
 
 type Detail struct {
@@ -296,7 +317,10 @@ const sellerColumns = `seller_id, business_name, owner_name, gstin, pan, address
 	ip_license_granted_at, coalesce(ip_license_granted_ip,''), coalesce(ip_license_granted_account_id,''),
 	coalesce(contract_tier,''), coalesce(rate_card_version,''), coalesce(commission_pct,0),
 	coalesce(settlement_terms,''), coalesce(compliance_status,'PENDING'), coalesce(compliance_note,''),
-	validated_at, coalesce(validated_by,'')`
+	validated_at, coalesce(validated_by,''),
+	coalesce(source,'app'), coalesce(inquiry_category::text,''), inquiry_platform_fee_pct,
+	coalesce(inquiry_notes,''), shop_photos,
+	coalesce(inquiry_stage,'NEW'), coalesce(inquiry_assigned_to,''), inquiry_assigned_at`
 
 const sellerSelect = `select ` + sellerColumns + ` from sellers.sellers`
 
@@ -421,7 +445,8 @@ func (r *Repo) Vendors(ctx context.Context, sellerID string) ([]Vendor, error) {
 		select st.id, st.name, st.app::text, st.is_live, st.platform_fee_pct,
 		       coalesce(st.seller_category_id,''), coalesce(st.fssai_number,''),
 		       coalesce(st.fssai_cert_key,''), coalesce(st.fssai_cert_asset_id,''),
-		       coalesce(st.state_code,''), coalesce(s.district_code,'')
+		       coalesce(st.state_code,''), coalesce(s.district_code,''),
+		       coalesce(st.photo_keys,'{}'), coalesce(st.photo_asset_ids,'{}')
 		  from directory.stores st
 		  join sellers.sellers s on s.seller_id = st.seller_id
 		 where st.seller_id = $1
@@ -435,7 +460,7 @@ func (r *Repo) Vendors(ctx context.Context, sellerID string) ([]Vendor, error) {
 		var v Vendor
 		if err := rows.Scan(&v.StoreID, &v.Name, &v.App, &v.IsLive, &v.PlatformFeePct,
 			&v.SellerCategoryID, &v.FSSAINumber, &v.FSSAICertKey, &v.FSSAICertAssetID,
-			&v.StateCode, &v.DistrictCode); err != nil {
+			&v.StateCode, &v.DistrictCode, &v.PhotoKeys, &v.PhotoAssetIDs); err != nil {
 			return nil, err
 		}
 		out = append(out, v)
@@ -445,17 +470,25 @@ func (r *Repo) Vendors(ctx context.Context, sellerID string) ([]Vendor, error) {
 
 // Create inserts an onboarding seller (status PENDING_REVIEW) and returns the new row.
 func (r *Repo) Create(ctx context.Context, userID string, s Seller) (Seller, error) {
-	return r.CreateExtended(ctx, userID, s, nil, nil, nil, nil)
+	return r.CreateExtended(ctx, userID, s, nil, nil, nil, nil, nil)
 }
 
-// CreateExtended inserts the account, payout account, KYC documents, its vendors and the compliance
-// checks in one transaction. The account row carries no brand/fee/FSSAI: those live on each vendor
-// row. userID links the application to the authenticated shopper for GET /sellers/me.
-func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank *BankAccount, docs []KycDocument, vendors []VendorSeed, checks []ComplianceCheck) (Seller, error) {
+// CreateExtended inserts (or promotes) the account, payout account, KYC documents, its vendors and the
+// compliance checks in one transaction. The account row carries no brand/fee/FSSAI: those live on each
+// vendor row. userID links the application to the authenticated shopper for GET /sellers/me.
+//
+// Promotion, not duplication (0129): when an INQUIRY row already exists for the same contact phone or
+// email — a merchant who enquired on the landing page and is now completing onboarding in the app —
+// that SAME row becomes the application (status PENDING_REVIEW, source 'app'). The operator's
+// call-back history (stage, claim) and the enquiry's shop photos survive, and the merchant does not
+// appear twice in the seller list.
+//
+// photos claims the DRAFT shop-photo assets inside this transaction (nil disables claiming, e.g. in
+// tests that pass no photos).
+func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank *BankAccount, docs []KycDocument, vendors []VendorSeed, checks []ComplianceCheck, photos contracts.PhotoClaimer) (Seller, error) {
 	if r.pool == nil {
 		return Seller{}, fmt.Errorf("sellers: database not configured")
 	}
-	s.SellerID = "sel-" + shortID()
 	var otpAt any
 	if s.OTPVerified {
 		if s.OTPVerifiedAt == "" {
@@ -473,32 +506,76 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 
-	created, err := scanSeller(tx.QueryRow(ctx, `
-		insert into sellers.sellers
-		  (seller_id, user_id, business_name, owner_name, gstin, pan, address, phone, contact_email,
-		   state_code, district_code,
-		   otp_verified, otp_verified_at, latitude, longitude,
-		   terms_accepted_at, terms_accepted_ip, terms_accepted_account_id,
-		   partner_agreement_accepted_at, partner_agreement_accepted_ip,
-		   partner_agreement_accepted_account_id,
-		   ip_license_granted_at, ip_license_granted_ip, ip_license_granted_account_id,
-		   contract_tier, rate_card_version, commission_pct, settlement_terms,
-		   compliance_status, compliance_note, validated_at, validated_by)
-		values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
-		        $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32)
-		returning `+sellerColumns,
-		s.SellerID, nullIfEmpty(userID), s.BusinessName, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
-		nullIfEmpty(s.ContactPhone), s.ContactEmail, s.StateCode, nullIfEmpty(s.DistrictCode),
-		s.OTPVerified, otpAt, s.Latitude, s.Longitude,
-		timeOrNil(s.TermsAcceptedAt), nullIfEmpty(s.TermsAcceptedIP), nullIfEmpty(s.TermsAcceptedAccountID),
-		timeOrNil(s.PartnerAgreementAcceptedAt), nullIfEmpty(s.PartnerAgreementAcceptedIP),
-		nullIfEmpty(s.PartnerAgreementAcceptedAcct),
-		timeOrNil(s.IPLicenseGrantedAt), nullIfEmpty(s.IPLicenseGrantedIP), nullIfEmpty(s.IPLicenseGrantedAccountID),
-		nullIfEmpty(s.ContractTier), nullIfEmpty(s.RateCardVersion), nullIfZero(s.CommissionPct),
-		nullIfEmpty(s.SettlementTerms), s.ComplianceStatus, nullIfEmpty(s.ComplianceNote),
-		timeOrNil(s.ValidatedAt), nullIfEmpty(s.ValidatedBy)))
+	// Is this merchant already an open web enquiry? Match on the normalised phone or the lower-cased
+	// email — the same identity rules the old lead link used, now applied at the row level.
+	existingID, inheritedPhotos, err := r.matchOpenInquiry(ctx, tx, s.ContactPhone, s.ContactEmail)
 	if err != nil {
-		// The only unique constraint this insert can hit is the contact-email index
+		return Seller{}, err
+	}
+	s.Source = "app"
+	s.Status = "PENDING_REVIEW"
+
+	var created Seller
+	if existingID != "" {
+		created, err = scanSeller(tx.QueryRow(ctx, `
+			update sellers.sellers set
+			  user_id = coalesce(nullif($2,''), user_id),
+			  business_name = $3, owner_name = $4, gstin = $5, pan = $6, address = $7,
+			  phone = nullif($8,''), contact_email = $9, state_code = $10,
+			  district_code = nullif($11,''), latitude = $12, longitude = $13,
+			  otp_verified = $14, otp_verified_at = $15, status = 'PENDING_REVIEW'::seller_status,
+			  source = 'app', rejection_reason = null, rejection_history = '[]'::jsonb,
+			  terms_accepted_at = $16, terms_accepted_ip = $17, terms_accepted_account_id = $18,
+			  partner_agreement_accepted_at = $19, partner_agreement_accepted_ip = $20,
+			  partner_agreement_accepted_account_id = $21,
+			  ip_license_granted_at = $22, ip_license_granted_ip = $23,
+			  ip_license_granted_account_id = $24,
+			  contract_tier = nullif($25,''), rate_card_version = nullif($26,''),
+			  commission_pct = nullif($27,0), settlement_terms = nullif($28,''),
+			  compliance_status = $29, compliance_note = nullif($30,''),
+			  validated_at = $31, validated_by = nullif($32,''),
+			  updated_at = now()
+			 where seller_id = $1
+			 returning `+sellerColumns,
+			existingID, userID, s.BusinessName, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
+			s.ContactPhone, s.ContactEmail, s.StateCode, s.DistrictCode, s.Latitude, s.Longitude,
+			s.OTPVerified, otpAt,
+			timeOrNil(s.TermsAcceptedAt), nullIfEmpty(s.TermsAcceptedIP), nullIfEmpty(s.TermsAcceptedAccountID),
+			timeOrNil(s.PartnerAgreementAcceptedAt), nullIfEmpty(s.PartnerAgreementAcceptedIP),
+			nullIfEmpty(s.PartnerAgreementAcceptedAcct),
+			timeOrNil(s.IPLicenseGrantedAt), nullIfEmpty(s.IPLicenseGrantedIP), nullIfEmpty(s.IPLicenseGrantedAccountID),
+			s.ContractTier, s.RateCardVersion, s.CommissionPct, s.SettlementTerms,
+			s.ComplianceStatus, s.ComplianceNote, timeOrNil(s.ValidatedAt), s.ValidatedBy))
+	} else {
+		s.SellerID = "sel-" + shortID()
+		created, err = scanSeller(tx.QueryRow(ctx, `
+			insert into sellers.sellers
+			  (seller_id, user_id, business_name, owner_name, gstin, pan, address, phone, contact_email,
+			   state_code, district_code,
+			   otp_verified, otp_verified_at, latitude, longitude,
+			   terms_accepted_at, terms_accepted_ip, terms_accepted_account_id,
+			   partner_agreement_accepted_at, partner_agreement_accepted_ip,
+			   partner_agreement_accepted_account_id,
+			   ip_license_granted_at, ip_license_granted_ip, ip_license_granted_account_id,
+			   contract_tier, rate_card_version, commission_pct, settlement_terms,
+			   compliance_status, compliance_note, validated_at, validated_by, status, source)
+			values ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,
+			        $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,
+			        'PENDING_REVIEW'::seller_status,'app')
+			returning `+sellerColumns,
+			s.SellerID, nullIfEmpty(userID), s.BusinessName, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
+			nullIfEmpty(s.ContactPhone), s.ContactEmail, s.StateCode, nullIfEmpty(s.DistrictCode),
+			s.OTPVerified, otpAt, s.Latitude, s.Longitude,
+			timeOrNil(s.TermsAcceptedAt), nullIfEmpty(s.TermsAcceptedIP), nullIfEmpty(s.TermsAcceptedAccountID),
+			timeOrNil(s.PartnerAgreementAcceptedAt), nullIfEmpty(s.PartnerAgreementAcceptedIP),
+			nullIfEmpty(s.PartnerAgreementAcceptedAcct),
+			timeOrNil(s.IPLicenseGrantedAt), nullIfEmpty(s.IPLicenseGrantedIP), nullIfEmpty(s.IPLicenseGrantedAccountID),
+			nullIfEmpty(s.ContractTier), nullIfEmpty(s.RateCardVersion), nullIfZero(s.CommissionPct),
+			nullIfEmpty(s.SettlementTerms), s.ComplianceStatus, nullIfEmpty(s.ComplianceNote),
+			timeOrNil(s.ValidatedAt), nullIfEmpty(s.ValidatedBy)))
+	}
+	if err != nil {
+		// The only unique constraint this write can hit is the contact-email index
 		// (seller_id is a random slug); surface it as a typed error so the handler returns 409.
 		if isUniqueViolation(err) {
 			return Seller{}, ErrEmailTaken
@@ -531,18 +608,40 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 		if fee == 0 {
 			fee = 10
 		}
+		// Shop-front gallery: the vendor's own photos win; a merchant who enquired first and now
+		// applies without re-attaching keeps the photos the enquiry already had.
+		photoIDs := make([]string, 0, len(v.ShopPhotos))
+		for _, p := range v.ShopPhotos {
+			photoIDs = append(photoIDs, p.AssetID)
+		}
+		var photoKeys []string
+		if len(photoIDs) > 0 {
+			photoKeys, err = claimShopPhotos(ctx, tx, photos, photoIDs, created.SellerID)
+			if err != nil {
+				return Seller{}, err
+			}
+		} else if len(inheritedPhotos) > 0 && len(vendors) == 1 {
+			// Only a single-vendor application can inherit the enquiry gallery unambiguously.
+			for _, p := range inheritedPhotos {
+				photoIDs = append(photoIDs, p.AssetID)
+				photoKeys = append(photoKeys, p.Key)
+			}
+		}
 		if _, err := tx.Exec(ctx, `
 			insert into directory.stores
 			  (id, app, name, seller_id, state_code, address, phone, hours, latitude, longitude,
 			   platform_fee_pct, seller_category_id, fssai_number, fssai_cert_key, fssai_cert_asset_id,
 			   drug_license_number, drug_license_cert_key, drug_license_cert_asset_id,
-			   bank_name, bank_account_number, bank_ifsc, bank_beneficiary_name, is_live)
+			   bank_name, bank_account_number, bank_ifsc, bank_beneficiary_name, is_live,
+			   photo_keys, photo_asset_ids)
 			values ($1, $2::app_brand, $3, $4, nullif($5,''), nullif($6,''), nullif($7,''), nullif($8,''),
-			        $9, $10, $11, nullif($12,''), $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, false)`,
+			        $9, $10, $11, nullif($12,''), $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, false,
+			        $23, $24)`,
 			"store-"+shortID(), v.App, v.Name, created.SellerID, v.StateCode, v.Address, v.Phone, v.Hours,
 			v.Latitude, v.Longitude, fee, v.SellerCategoryID, v.FSSAINumber, v.FSSAICertKey, v.FSSAICertAssetID,
 			v.DrugLicenseNumber, v.DrugLicenseCertKey, v.DrugLicenseCertAssetID,
-			v.BankName, v.BankAccountNumber, v.BankIFSC, v.BankBeneficiary); err != nil {
+			v.BankName, v.BankAccountNumber, v.BankIFSC, v.BankBeneficiary,
+			photoKeys, photoIDs); err != nil {
 			return Seller{}, err
 		}
 	}
@@ -557,6 +656,32 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 		return Seller{}, err
 	}
 	return created, nil
+}
+
+// matchOpenInquiry finds an INQUIRY row this merchant already owns, by contact phone or email. It
+// returns its seller id and any shop photos it carries, so an app application promotes the enquiry
+// instead of duplicating it (0129). No match is the normal case.
+func (r *Repo) matchOpenInquiry(ctx context.Context, q contracts.Querier, phone, email string) (string, []ShopPhoto, error) {
+	if phone == "" && email == "" {
+		return "", nil, nil
+	}
+	var (
+		id     string
+		photos []byte
+	)
+	err := q.QueryRow(ctx, `
+		select seller_id, shop_photos from sellers.sellers
+		 where status = 'INQUIRY'
+		   and ((nullif($1,'') is not null and phone = $1)
+		     or (nullif($2,'') is not null and lower(contact_email) = lower($2)))
+		 order by created_at desc limit 1`, phone, email).Scan(&id, &photos)
+	if err != nil {
+		if isNoRows(err) {
+			return "", nil, nil
+		}
+		return "", nil, err
+	}
+	return id, decodeShopPhotos(photos), nil
 }
 
 // SetStatus changes a seller's moderation status. Returns ok=false when the seller is absent.
@@ -842,12 +967,42 @@ func (r *Repo) VerificationHistory(ctx context.Context, sellerID string) ([]Veri
 	return out, rows.Err()
 }
 
-// AddKYC records a KYC document (a private R2 object key, never a URL).
+// AddKYC records a KYC document (a private R2 object key, never a URL). It is insert-only: the
+// document trail keeps every upload, so replacing a document is a new row plus a verify of the new
+// one. Use ReplaceKYC for the "re-upload over the current document" admin action.
 func (r *Repo) AddKYC(ctx context.Context, d KycDocument) (KycDocument, error) {
 	if r.pool == nil {
 		return KycDocument{}, fmt.Errorf("sellers: database not configured")
 	}
 	return insertKYC(ctx, r.pool, d)
+}
+
+// ReplaceKYC overwrites the seller's current document of docType with a new upload and clears its
+// verification: a replaced document must be re-verified, never silently inherit the old approval.
+// The previous row is deleted (one row per seller+doc type) and the replacement is written; both
+// happen in one transaction so a failure leaves the old document in place.
+func (r *Repo) ReplaceKYC(ctx context.Context, d KycDocument) (KycDocument, error) {
+	if r.pool == nil {
+		return KycDocument{}, fmt.Errorf("sellers: database not configured")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return KycDocument{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `
+		delete from sellers.kyc_documents where seller_id = $1 and doc_type = $2::kyc_doc_type`,
+		d.SellerID, d.DocType); err != nil {
+		return KycDocument{}, err
+	}
+	doc, err := insertKYC(ctx, tx, d)
+	if err != nil {
+		return KycDocument{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return KycDocument{}, err
+	}
+	return doc, nil
 }
 
 type execQuerier interface {
@@ -929,6 +1084,9 @@ type sellerScan struct {
 	history     []byte
 	createdAt   time.Time
 	lat, lng    *float64
+	fee         *int
+	photos      []byte
+	assignedAt  *time.Time
 }
 
 // dest returns the scan targets in sellerColumns order. Both seller readers share it so a new
@@ -944,6 +1102,8 @@ func (sc *sellerScan) dest() []any {
 		&sc.ipAt, &sc.s.IPLicenseGrantedIP, &sc.s.IPLicenseGrantedAccountID,
 		&sc.s.ContractTier, &sc.s.RateCardVersion, &sc.s.CommissionPct, &sc.s.SettlementTerms,
 		&sc.s.ComplianceStatus, &sc.s.ComplianceNote, &sc.validatedAt, &sc.s.ValidatedBy,
+		&sc.s.Source, &sc.s.InquiryCategory, &sc.fee, &sc.s.InquiryNotes, &sc.photos,
+		&sc.s.InquiryStage, &sc.s.InquiryAssignedTo, &sc.assignedAt,
 	}
 }
 
@@ -964,11 +1124,16 @@ func (sc *sellerScan) seller() Seller {
 	if sc.validatedAt != nil {
 		s.ValidatedAt = sc.validatedAt.UTC().Format(time.RFC3339)
 	}
+	if sc.assignedAt != nil {
+		s.InquiryAssignedAt = sc.assignedAt.UTC().Format(time.RFC3339)
+	}
 	if len(sc.history) > 0 {
 		s.RejectionHistory = json.RawMessage(sc.history)
 	} else {
 		s.RejectionHistory = json.RawMessage("[]")
 	}
+	s.InquiryPlatformFee = sc.fee
+	s.ShopPhotos = decodeShopPhotos(sc.photos)
 	s.CreatedAt = sc.createdAt.UTC().Format(time.RFC3339)
 	s.Latitude = sc.lat
 	s.Longitude = sc.lng
@@ -1607,6 +1772,11 @@ func shortID() string {
 func isUniqueViolation(err error) bool {
 	var pgErr interface{ SQLState() string }
 	return errors.As(err, &pgErr) && pgErr.SQLState() == "23505"
+}
+
+// isNoRows reports pgx.ErrNoRows (a RETURNING that matched nothing).
+func isNoRows(err error) bool {
+	return errors.Is(err, pgx.ErrNoRows)
 }
 
 func nullIfEmpty(v string) any {

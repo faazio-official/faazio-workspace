@@ -334,6 +334,18 @@ type MediaReader interface {
 	ByKey(ctx context.Context, key string) (MediaAsset, bool, error)
 }
 
+// PhotoClaimer promotes pre-uploaded DRAFT shop photos to ACTIVE and links them to the row that now
+// owns them (implemented by internal/media). A shop-front photo is uploaded before its seller/
+// inquiry row exists (the client only learns the row id after the create call), so the create path
+// claims the drafts inside its own transaction.
+//
+// Every id must be a DRAFT PUBLIC AVIF asset; Claim returns the object keys in the same order as
+// ids and fails when any id is unknown or in the wrong state, so a forged or stale id can never
+// attach someone else's image.
+type PhotoClaimer interface {
+	Claim(ctx context.Context, q Querier, ids []string, ownerType, ownerID string) (keys []string, err error)
+}
+
 // ProductReader reads catalog products (implemented by internal/catalog).
 type ProductReader interface {
 	ByID(ctx context.Context, id string) (Product, bool, error)

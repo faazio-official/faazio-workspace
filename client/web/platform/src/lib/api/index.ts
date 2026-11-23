@@ -43,7 +43,10 @@ import type {
   Role,
   Sector,
   SellerDetail,
-  SellerLead,
+  InquiryStage,
+  KycDocument,
+  ShopPhoto,
+
   SellerLoginCredential,
   SellerProfilePatch,
   SellerRecord,
@@ -1245,11 +1248,22 @@ export async function updateAdminOrderStatus(orderId: string, status: OrderStatu
 
 /* --------------------------------- sellers ------------------------------- */
 
+/**
+ * Seller roster from the hydrated store.
+ *
+ * `INQUIRY` rows are web enquiries, not applications: they have no KYC and no vendors, and they are
+ * triaged in Seller enquiries. "ALL" therefore means "every application", and the enquiry queue is the
+ * only way to list enquiries — mixing the two here would put call-backs next to KYC decisions.
+ */
 export function listSellers(filter: { stateCode?: string | undefined; districtCode?: string | undefined; status?: SellerStatus | "ALL" | undefined } = {}) {
   return state().sellers.filter((s) => {
     if (filter.stateCode && s.stateCode !== filter.stateCode) return false;
     if (filter.districtCode && s.districtCode !== filter.districtCode) return false;
-    if (filter.status && filter.status !== "ALL" && s.status !== filter.status) return false;
+    if (filter.status && filter.status !== "ALL") {
+      if (s.status !== filter.status) return false;
+    } else if (s.status === "INQUIRY") {
+      return false;
+    }
     return true;
   });
 }
@@ -1280,6 +1294,14 @@ export async function fetchSellers(): Promise<SellerRecord[]> {
       otpVerified?: boolean;
       otpVerifiedAt?: string;
       rejectionReason?: string;
+      source?: "web" | "app";
+      inquiryCategory?: SellerRecord["inquiryCategory"];
+      inquiryPlatformFeePct?: number;
+      inquiryNotes?: string;
+      shopPhotos?: ShopPhoto[];
+      inquiryStage?: InquiryStage;
+      inquiryAssignedTo?: string;
+      inquiryAssignedAt?: string;
     }[]
   >("/sellers");
   return rows.map((s) => ({
@@ -1669,6 +1691,57 @@ export async function rejectSellerApplication(sellerId: string, reason: string):
     patchSellerLocal(sellerId, { status: "PENDING_REVIEW" });
     throw err;
   }
+}
+
+/**
+ * Admin: append one KYC document to an application (`POST /sellers/{id}/kyc`). Used when a document is
+ * missing entirely — a fresh upload rather than a replacement.
+ */
+export async function addSellerKycDocument(
+  sellerId: string,
+  docType: KycDocument["docType"],
+  upload: { key: string; assetId: string },
+): Promise<SellerDetail> {
+  if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
+  const detail = toCamel(
+    await remote.post<SellerDetail>(`/sellers/${encodeURIComponent(sellerId)}/kyc`, {
+      docType,
+      fileKey: upload.key,
+      assetId: upload.assetId,
+    }),
+  );
+  audit({
+    action: "KYC_ADD",
+    entity: "sellers.sellers",
+    entityId: sellerId,
+    after: { docType },
+  });
+  return detail;
+}
+
+/**
+ * Admin: replace the current document of one type (`PUT /sellers/{id}/kyc/{docType}`). The old row is
+ * removed and the new upload lands unverified, so it re-enters review. Distinct from appending.
+ */
+export async function replaceSellerKycDocument(
+  sellerId: string,
+  docType: KycDocument["docType"],
+  upload: { key: string; assetId: string },
+): Promise<SellerDetail> {
+  if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
+  const detail = toCamel(
+    await remote.put<SellerDetail>(
+      `/sellers/${encodeURIComponent(sellerId)}/kyc/${encodeURIComponent(docType)}`,
+      { fileKey: upload.key, assetId: upload.assetId },
+    ),
+  );
+  audit({
+    action: "KYC_REPLACE",
+    entity: "sellers.sellers",
+    entityId: sellerId,
+    after: { docType },
+  });
+  return detail;
 }
 
 /** Short-lived presigned GET for a private KYC asset (creator or admin only). */
@@ -2814,71 +2887,77 @@ export async function rejectFeeChangeRequest(requestId: string, reason: string):
   audit({ action: "FEE_CHANGE_REJECT", entity: "sellers.seller_fee_change_requests", entityId: requestId, after: { reason } });
 }
 
-/* ------------------------------ seller leads ----------------------------- */
+/* ---------------------------- seller enquiries --------------------------- */
 
 /**
- * Landing-page "Sell with us" follow-up queue (`GET /seller-leads`). Admin-only; the gateway scopes a
- * district admin to their own district and lets a super admin see every district, so the `district`
- * filter here only narrows the super admin's view.
+ * Public web enquiries (`GET /seller-inquiries`). An enquiry is a `sellers.sellers` row with status
+ * INQUIRY (source 'web'), so it reads through the same `SellerRecord` shape as an application.
+ *
+ * Admin-only; the gateway scopes a district admin to their own district and lets a super admin see
+ * every district, so the `districtCode` filter here only narrows the super admin's view.
  */
-export async function listSellerLeads(
+export async function listSellerInquiries(
   filter: {
     districtCode?: string | undefined;
-    status?: string | undefined;
+    stage?: InquiryStage | "ALL" | undefined;
     query?: string | undefined;
     /** "me" = claimed by the caller, "unassigned" = nobody has taken it. */
     assigned?: "me" | "unassigned" | undefined;
   } = {},
-): Promise<SellerLead[]> {
+): Promise<SellerRecord[]> {
   if (!remoteConfigured()) return [];
-  return remote.get<SellerLead[]>("/seller-leads", {
+  const rows = await remote.get<SellerRecord[]>("/seller-inquiries", {
     query: {
       district: filter.districtCode,
-      status: filter.status,
+      stage: filter.stage === "ALL" ? undefined : filter.stage,
       q: filter.query,
       assigned: filter.assigned,
     },
   });
+  return rows.map((row) => toCamel(row));
 }
 
 /**
- * Claim (`assigned: true`) or release the call-back on a lead. The owner is always the caller — the
- * API cannot hand a lead to another admin. A 409 means someone else claimed it first.
+ * Claim (`assigned: true`) or release the call-back on an enquiry. The owner is always the caller —
+ * the API cannot hand an enquiry to another admin. A 409 means someone else claimed it first.
  */
-export async function assignSellerLead(leadId: string, assigned: boolean): Promise<SellerLead> {
-  const lead = await remote.post<SellerLead>(`/seller-leads/${encodeURIComponent(leadId)}/assign`, {
-    assigned: assigned ? "me" : "",
-  });
+export async function assignSellerInquiry(sellerId: string, assigned: boolean): Promise<SellerRecord> {
+  const row = await remote.post<SellerRecord>(
+    `/seller-inquiries/${encodeURIComponent(sellerId)}/assign`,
+    { assigned: assigned ? "me" : "" },
+  );
   audit({
-    action: "SELLER_LEAD_ASSIGN",
-    entity: "sellers.seller_leads",
-    entityId: leadId,
-    after: { assignedTo: lead.assignedTo ?? "" },
+    action: "SELLER_INQUIRY_ASSIGN",
+    entity: "sellers.sellers",
+    entityId: sellerId,
+    after: { assignedTo: row.inquiryAssignedTo ?? "" },
   });
-  return lead;
+  return toCamel(row);
 }
 
 /**
- * Move one lead through NEW → CONTACTED → (APPROVED | REJECTED). APPROVED means "we called and they
- * are proceeding" — it does not create a seller account; the merchant still applies in the app.
- * A 409 means another admin already moved the lead, so the caller must reload rather than retry.
+ * Move one enquiry's follow-up stage and/or make the lifecycle decision.
+ *
+ * `stage` tracks the call-back (NEW → CONTACTED → APPROVED | REJECTED). `status` is the real decision:
+ * PENDING_REVIEW (the merchant is proceeding and will complete KYC in the app) or REJECTED (with a
+ * reason the merchant can read). INQUIRY → ACTIVE is refused server-side — an enquiry has no KYC.
  */
-export async function updateSellerLeadStatus(
-  leadId: string,
-  status: SellerLead["status"],
-  note = "",
-): Promise<SellerLead> {
-  const lead = await remote.patch<SellerLead>(`/seller-leads/${encodeURIComponent(leadId)}`, {
-    status,
-    note: note.trim(),
+export async function updateSellerInquiry(
+  sellerId: string,
+  patch: { stage?: InquiryStage | undefined; status?: "PENDING_REVIEW" | "REJECTED" | undefined; reason?: string | undefined },
+): Promise<SellerDetail> {
+  const row = await remote.patch<SellerDetail>(`/seller-inquiries/${encodeURIComponent(sellerId)}`, {
+    stage: patch.stage,
+    status: patch.status,
+    reason: patch.reason?.trim(),
   });
   audit({
-    action: "SELLER_LEAD_STATUS",
-    entity: "sellers.seller_leads",
-    entityId: leadId,
-    after: { status: lead.status },
+    action: "SELLER_INQUIRY_UPDATE",
+    entity: "sellers.sellers",
+    entityId: sellerId,
+    after: { stage: patch.stage, status: patch.status },
   });
-  return lead;
+  return toCamel(row);
 }
 
 /* --------------------------------- reviews ------------------------------- */
