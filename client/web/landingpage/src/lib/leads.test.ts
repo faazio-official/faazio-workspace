@@ -81,6 +81,22 @@ describe("seller lead wire contract", () => {
     });
   });
 
+  it("carries the district place_id so the gateway resolves the district by identity", () => {
+    const payload = buildLeadPayload(
+      leadSchema.parse({
+        ...validInput,
+        districtPlaceId: "ChIJkaraikal",
+        stateName: "Puducherry",
+      }),
+    );
+    expect(payload).toMatchObject({
+      districtPlaceId: "ChIJkaraikal",
+      stateName: "Puducherry",
+    });
+    // It must be a real declared field, not a silently-dropped extra.
+    expect(goRequestFields().has("districtPlaceId")).toBe(true);
+  });
+
   it("omits optional keys instead of sending undefined", () => {
     const payload = buildLeadPayload(
       leadSchema.parse({

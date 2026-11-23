@@ -4,6 +4,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { HiOutlineCheckCircle, HiOutlineMapPin } from "react-icons/hi2";
 import { leadSchema, submitSellerLead, type LeadInput } from "@/lib/leads";
 import { mapsKey } from "@/lib/google-maps";
+import { BUSINESS_EMAIL, BUSINESS_PHONE } from "@/lib/site";
 import {
   MapLocationPicker,
   type PickedLocation,
@@ -46,19 +47,42 @@ export function SellerForm() {
       category: "MART",
       contactPhone: "",
       contactEmail: "",
+      // Mirror fields: written from the shared pin via setValue, never typed.
+      businessAddress: "",
       districtName: "",
       notes: "",
       website: "",
     },
   });
 
+  // A location with a district is the gate: the district's Google place_id is the lead's routing
+  // identity, so an enquiry without it cannot be placed. The district input mirrors this value.
+  const hasLocation = Boolean(location?.districtName);
+
   const onSubmit = async (values: LeadInput) => {
     setServerError("");
+    // Location is mandatory: the district is derived from it (the durable Google place_id), so an
+    // enquiry with no pin has no district identity to route on. The submit button is disabled until
+    // a location exists, but guard here too — Enter on a text field must not bypass it.
+    if (!location || !location.districtName) {
+      setLocationError("Share your shop location to continue — it sets your district.");
+      return;
+    }
+    // Google occasionally returns a district but no formatted street address; the district + state
+    // label is still a usable address, and a blank one would fail the gateway's >=5-char check.
+    const address =
+      location.address ||
+      values.businessAddress ||
+      [location.districtName, location.stateName].filter(Boolean).join(", ");
     const result = await submitSellerLead({
       data: {
         ...values,
-        latitude: location?.latitude,
-        longitude: location?.longitude,
+        districtName: location.districtName,
+        stateName: location.stateName || undefined,
+        districtPlaceId: location.districtPlaceId || undefined,
+        businessAddress: address,
+        latitude: location.latitude,
+        longitude: location.longitude,
       },
     });
     if (!result.ok) {
@@ -166,41 +190,34 @@ export function SellerForm() {
             </div>
           </div>
 
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="businessAddress">Shop address</label>
-              <input
-                id="businessAddress"
-                type="text"
-                autoComplete="street-address"
-                placeholder="Street, landmark, town"
-                aria-invalid={errors.businessAddress ? "true" : undefined}
-                {...register("businessAddress")}
-              />
-              {errors.businessAddress ? (
-                <p className="field-error">{errors.businessAddress.message}</p>
-              ) : null}
-            </div>
-            <div className="field">
-              <label htmlFor="districtName">District</label>
-              <input
-                id="districtName"
-                type="text"
-                placeholder="e.g. Karaikal"
-                aria-invalid={errors.districtName ? "true" : undefined}
-                {...register("districtName")}
-              />
-              {errors.districtName ? (
-                <p className="field-error">{errors.districtName.message}</p>
-              ) : null}
-            </div>
+          {/* Address + district are read-only views of the shared location — never typed. The form
+              values themselves are registered hidden inputs, written from the picker's onChange. */}
+          <input type="hidden" {...register("businessAddress")} />
+          <input type="hidden" {...register("districtName")} />
+          <div className="field">
+            <label htmlFor="shop-address-readout">Shop address &amp; district</label>
+            <input
+              id="shop-address-readout"
+              type="text"
+              readOnly
+              placeholder="Filled from your shared location"
+              aria-invalid={errors.districtName || errors.businessAddress ? "true" : undefined}
+              value={
+                location?.districtName
+                  ? `${location.address || "Pinned location"} — ${location.districtName}${location.stateName ? `, ${location.stateName}` : ""}`
+                  : ""
+              }
+            />
+            {errors.districtName || errors.businessAddress ? (
+              <p className="field-error">
+                {errors.districtName?.message ?? errors.businessAddress?.message}
+              </p>
+            ) : null}
           </div>
           <p className="field-hint">
-            {location?.address
-              ? "Filled from the map pin. Edit it if the pin landed slightly off."
-              : mapAvailable
-                ? "Type the address and district, or drop a pin on the map to fill them in."
-                : "Type the address and district — they are all we need to find your shop."}
+            {location?.districtName
+              ? "Read from the location you shared — no need to type it."
+              : "Share your shop location beside the map — the address and district are read from it."}
           </p>
 
           <div className="field">
@@ -221,9 +238,21 @@ export function SellerForm() {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary sell-submit" disabled={isSubmitting}>
+          <button
+            type="submit"
+            className="btn btn-primary sell-submit"
+            disabled={isSubmitting || !hasLocation}
+            aria-describedby={hasLocation ? undefined : "location-required-note"}
+          >
             {isSubmitting ? "Sending…" : "Send my enquiry"}
           </button>
+          {!hasLocation ? (
+            <p className="field-hint" id="location-required-note">
+              {mapAvailable
+                ? "Share your shop location above to send your enquiry."
+                : "Location sharing is unavailable in this browser, so your enquiry can't be sent here. Message us on WhatsApp instead."}
+            </p>
+          ) : null}
           {serverError ? (
             <p className="field-error" role="alert">
               {serverError}
@@ -244,18 +273,19 @@ export function SellerForm() {
               onChange={(next) => {
                 setLocationError("");
                 setLocation(next);
+                // The address and district are read-only mirrors of the shared location: neither is
+                // typed, so the submitted district always matches the place_id beside it.
                 if (next.address) setValue("businessAddress", next.address, { shouldDirty: true });
                 if (next.districtName)
                   setValue("districtName", next.districtName, { shouldDirty: true });
-                if (next.stateName) setValue("stateName", next.stateName);
               }}
               onAddressError={(message) => setLocationError(message)}
               onUnavailable={() => {
+                // Location is mandatory, so a map that cannot load blocks the enquiry rather than
+                // silently falling back to a typed address (which would have no district identity).
                 setMapAvailable(false);
                 setLocation(null);
-                setLocationError(
-                  "The map isn't available right now — type your address and district instead.",
-                );
+                setLocationError("");
               }}
             />
             {location?.districtName ? (
@@ -270,7 +300,16 @@ export function SellerForm() {
               </p>
             ) : null}
           </div>
-        ) : null}
+        ) : (
+          <div className="sell-map">
+            <p className="map-picker-note" role="status">
+              Location sharing isn&apos;t available here, so this form can&apos;t be sent from this
+              browser. Please email <a href={`mailto:${BUSINESS_EMAIL}`}>{BUSINESS_EMAIL}</a> or
+              call <a href={`tel:${BUSINESS_PHONE.replace(/[^+\d]/g, "")}`}>{BUSINESS_PHONE}</a> and
+              we&apos;ll take your shop details there.
+            </p>
+          </div>
+        )}
       </div>
     </form>
   );

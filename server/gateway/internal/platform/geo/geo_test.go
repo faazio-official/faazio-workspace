@@ -50,6 +50,24 @@ func TestLookups(t *testing.T) {
 	}
 }
 
+// TestPlaceIDLookup proves the place_id index (0127): a district is resolvable by the Google
+// place_id a reverse geocode returns, and an empty place_id is never a key.
+func TestPlaceIDLookup(t *testing.T) {
+	s := newSnapshot([]District{
+		{Code: "TCH", Name: "Chennai", StateCode: "TN", GooglePlaceID: "ChIJchennai", Active: true},
+		{Code: "TNK", Name: "Kanchipuram", StateCode: "TN", Active: true},
+	})
+	if got, ok := s.byPlaceID["ChIJchennai"]; !ok || got.Code != "TCH" {
+		t.Fatalf("byPlaceID[ChIJchennai] = %+v,%v; want TCH,true", got, ok)
+	}
+	if _, ok := s.byPlaceID[""]; ok {
+		t.Fatal("an empty place_id must never be a key")
+	}
+	if _, ok := s.byPlaceID["ChIJnope"]; ok {
+		t.Fatal("an unknown place_id must not resolve")
+	}
+}
+
 // TestReloadFromDB proves the read-through cache: whatever the live master holds becomes the
 // validation snapshot, including a row added through the write path.
 func TestReloadFromDB(t *testing.T) {

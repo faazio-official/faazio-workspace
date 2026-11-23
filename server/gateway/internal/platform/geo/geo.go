@@ -23,6 +23,11 @@ type District struct {
 	Code      string
 	Name      string
 	StateCode string
+	// GooglePlaceID is the Google Geocoding place_id of the district's administrative_area_level_3
+	// component (0127). Empty when Google cannot resolve the district — callers then fall back to
+	// name matching. This is the durable identity a reverse-geocoded location is matched on, because
+	// district NAMES drift ("Bengaluru" vs "Bangalore", "Mahé" vs "Mahe").
+	GooglePlaceID string
 	// Active mirrors is_active: false hides the district from pickers but keeps it a valid code.
 	Active bool
 }
@@ -77,19 +82,24 @@ var seed = []District{
 // snapshot is one immutable view of the master: the ordered slice plus its lookup maps. Reads swap a
 // pointer, so no lock is taken on the hot path and a reload never observes a half-built map.
 type snapshot struct {
-	all    []District
-	byCode map[string]District
-	states map[string]bool
+	all       []District
+	byCode    map[string]District
+	byPlaceID map[string]District
+	states    map[string]bool
 }
 
 func newSnapshot(rows []District) *snapshot {
 	s := &snapshot{
-		all:    rows,
-		byCode: make(map[string]District, len(rows)),
-		states: make(map[string]bool),
+		all:       rows,
+		byCode:    make(map[string]District, len(rows)),
+		byPlaceID: make(map[string]District, len(rows)),
+		states:    make(map[string]bool),
 	}
 	for _, d := range rows {
 		s.byCode[d.Code] = d
+		if d.GooglePlaceID != "" {
+			s.byPlaceID[d.GooglePlaceID] = d
+		}
 		s.states[d.StateCode] = true
 	}
 	return s
@@ -110,7 +120,7 @@ func Reload(ctx context.Context, pool *db.Pool) error {
 		return nil
 	}
 	rows, err := pool.Query(ctx, `
-		select district_code, district_name, state_code::text, is_active
+		select district_code, district_name, state_code::text, coalesce(google_place_id, ''), is_active
 		  from admins.district_master
 		 order by (state_code <> 'TN'), state_code, district_name`)
 	if err != nil {
@@ -120,7 +130,7 @@ func Reload(ctx context.Context, pool *db.Pool) error {
 	out := make([]District, 0, len(seed))
 	for rows.Next() {
 		var d District
-		if err := rows.Scan(&d.Code, &d.Name, &d.StateCode, &d.Active); err != nil {
+		if err := rows.Scan(&d.Code, &d.Name, &d.StateCode, &d.GooglePlaceID, &d.Active); err != nil {
 			return err
 		}
 		out = append(out, d)
@@ -177,6 +187,23 @@ func StateForDistrict(code string) string {
 // Name returns the display name for a district code, or "".
 func Name(code string) string {
 	return current.Load().byCode[Normalise(code)].Name
+}
+
+// ByPlaceID resolves a Google place_id to its district. This is the durable join a reverse-geocoded
+// location uses: the place_id is stable across spelling changes, while the district name is not.
+// Returns false when the id is unknown (or the district has no place_id).
+func ByPlaceID(placeID string) (District, bool) {
+	placeID = strings.TrimSpace(placeID)
+	if placeID == "" {
+		return District{}, false
+	}
+	d, ok := current.Load().byPlaceID[placeID]
+	return d, ok
+}
+
+// PlaceID returns the Google place_id for a district code, or "".
+func PlaceID(code string) string {
+	return current.Load().byCode[Normalise(code)].GooglePlaceID
 }
 
 // InCoverageState reports whether a state has district coverage.

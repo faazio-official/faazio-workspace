@@ -5,6 +5,7 @@ import {
   fetchSuggestions,
   mapsApiReady,
   resolveSuggestion,
+  reverseGeocode,
   type MapsApi,
 } from "@/lib/google-maps";
 
@@ -14,6 +15,33 @@ import {
  * that still hits the network, or a selection that yields no coordinates — so the contract is pinned
  * here with fake API surfaces.
  */
+
+/** A Geocoder stand-in that answers differently for the address call and the district call. */
+function geocoderApi(opts: {
+  address?: { formatted_address?: string; address_components?: unknown[] } | null;
+  district?: { place_id?: string; types?: string[] } | null;
+  throwAddress?: boolean;
+  throwDistrict?: boolean;
+}): MapsApi {
+  return {
+    Map: class {},
+    Marker: class {},
+    Place: class {},
+    AutocompleteSessionToken: class {},
+    AutocompleteSuggestion: { fetchAutocompleteSuggestions: async () => ({ suggestions: [] }) },
+    event: { addListener: () => {} },
+    Geocoder: class {
+      async geocode(req: { location: unknown; result_type?: string }) {
+        if (req.result_type === "administrative_area_level_3") {
+          if (opts.throwDistrict) throw new Error("district lookup failed");
+          return { results: opts.district ? [opts.district] : [] };
+        }
+        if (opts.throwAddress) throw new Error("address lookup failed");
+        return { results: opts.address ? [opts.address] : [] };
+      }
+    },
+  } as unknown as MapsApi;
+}
 
 function fakeApi(overrides: {
   suggestions?: unknown[];
@@ -113,6 +141,25 @@ describe("resolveSuggestion", () => {
     expect(resolved?.address.stateName).toBe("Puducherry");
   });
 
+  it("carries the district place_id reverse-geocoded from the chosen point", async () => {
+    const api = fakeApi({
+      place: { location: { lat: () => 10.92, lng: () => 79.83 } },
+    });
+    // The fake Geocoder answers the level_3 lookup with a place row.
+    (api as unknown as { Geocoder: unknown }).Geocoder = class {
+      async geocode(req: { result_type?: string }) {
+        if (req.result_type === "administrative_area_level_3") {
+          return {
+            results: [{ place_id: "ChIJkaraikal", types: ["administrative_area_level_3"] }],
+          };
+        }
+        return { results: [] };
+      }
+    };
+    const resolved = await resolveSuggestion(api, "p1");
+    expect(resolved?.address.districtPlaceId).toBe("ChIJkaraikal");
+  });
+
   it("returns null when the place carries no location, so the pin is never invented", async () => {
     const api = fakeApi({ place: { location: undefined } });
     expect(await resolveSuggestion(api, "p1")).toBeNull();
@@ -131,13 +178,14 @@ describe("describePlace", () => {
   it("reads Places API (New) longText components", () => {
     const part = describePlace("12 Main St", [
       { longText: "Puducherry", types: ["administrative_area_level_1"] },
-      { longText: "Karaikal", types: ["administrative_area_level_2"] },
+      { longText: "Karaikal", types: ["administrative_area_level_3"] },
       { longText: "609602", types: ["postal_code"] },
     ]);
     expect(part).toEqual({
       formattedAddress: "12 Main St",
       stateName: "Puducherry",
       districtName: "Karaikal",
+      districtPlaceId: "",
       postcode: "609602",
     });
   });
@@ -145,7 +193,7 @@ describe("describePlace", () => {
   it("still reads legacy Geocoder long_name components", () => {
     const part = describePlace("12 Main St", [
       { long_name: "Puducherry", short_name: "PY", types: ["administrative_area_level_1"] },
-      { long_name: "Karaikal", short_name: "K", types: ["administrative_area_level_2"] },
+      { long_name: "Karaikal", short_name: "K", types: ["administrative_area_level_3"] },
     ]);
     expect(part.stateName).toBe("Puducherry");
     expect(part.districtName).toBe("Karaikal");
@@ -159,12 +207,104 @@ describe("describePlace", () => {
     expect(part.districtName).toBe("");
   });
 
-  it("keeps the sub-district (administrative_area_level_3) when there is no level 2", () => {
+  it("prefers the district (level_3) over the division (level_2)", () => {
+    // In India, administrative_area_level_2 is the DIVISION ("Bangalore Division"), and the revenue
+    // district is level_3 ("Bengaluru Urban"). Using level_2 put division names in the district field.
     const part = describePlace("12 Main St", [
-      { longText: "Lalgudi", types: ["administrative_area_level_3"] },
-      { longText: "Tiruchirappalli", types: ["locality"] },
+      { longText: "Karnataka", types: ["administrative_area_level_1"] },
+      { longText: "Bangalore Division", types: ["administrative_area_level_2"] },
+      { longText: "Bengaluru Urban", types: ["administrative_area_level_3"] },
     ]);
-    expect(part.districtName).toBe("Lalgudi");
+    expect(part.districtName).toBe("Bengaluru Urban");
+  });
+
+  it("falls back to level_2 only when there is no level_3", () => {
+    const part = describePlace("12 Main St", [
+      { longText: "Mandi Division", types: ["administrative_area_level_2"] },
+    ]);
+    expect(part.districtName).toBe("Mandi Division");
+  });
+
+  it("carries the district place_id through to the AddressPart", () => {
+    const part = describePlace(
+      "12 Main St",
+      [{ longText: "Karaikal", types: ["administrative_area_level_3"] }],
+      "ChIJabc123",
+    );
+    expect(part.districtPlaceId).toBe("ChIJabc123");
+  });
+});
+
+describe("reverseGeocode", () => {
+  const at = { lat: 10.9254, lng: 79.838 };
+
+  it("returns the address and the district place_id from the level_3 lookup", async () => {
+    const api = geocoderApi({
+      address: {
+        formatted_address: "12 Main St, Karaikal, Puducherry",
+        address_components: [
+          { longText: "Puducherry", types: ["administrative_area_level_1"] },
+          { longText: "Karaikal", types: ["administrative_area_level_3"] },
+        ],
+      },
+      district: { place_id: "ChIJkaraikal", types: ["administrative_area_level_3"] },
+    });
+    const part = await reverseGeocode(api, at);
+    expect(part.districtName).toBe("Karaikal");
+    expect(part.stateName).toBe("Puducherry");
+    expect(part.districtPlaceId).toBe("ChIJkaraikal");
+  });
+
+  it("skips the district lookup when the address has no district", async () => {
+    let districtCalls = 0;
+    const api = {
+      Map: class {},
+      Marker: class {},
+      Place: class {},
+      AutocompleteSessionToken: class {},
+      AutocompleteSuggestion: { fetchAutocompleteSuggestions: async () => ({ suggestions: [] }) },
+      event: { addListener: () => {} },
+      Geocoder: class {
+        async geocode(req: { result_type?: string }) {
+          if (req.result_type === "administrative_area_level_3") {
+            districtCalls += 1;
+            return { results: [{ place_id: "unused", types: ["administrative_area_level_3"] }] };
+          }
+          return { results: [{ formatted_address: "Somewhere", address_components: [] }] };
+        }
+      },
+    } as unknown as MapsApi;
+    const part = await reverseGeocode(api, at);
+    expect(part.districtPlaceId).toBe("");
+    expect(districtCalls).toBe(0);
+  });
+
+  it("degrades to an empty place_id when the district lookup fails", async () => {
+    const api = geocoderApi({
+      address: {
+        formatted_address: "12 Main St",
+        address_components: [
+          { longText: "Puducherry", types: ["administrative_area_level_1"] },
+          { longText: "Karaikal", types: ["administrative_area_level_3"] },
+        ],
+      },
+      throwDistrict: true,
+    });
+    const part = await reverseGeocode(api, at);
+    // The address still stands so the enquiry keeps its name fallback.
+    expect(part.districtName).toBe("Karaikal");
+    expect(part.districtPlaceId).toBe("");
+  });
+
+  it("returns an empty AddressPart rather than throwing when the address lookup fails", async () => {
+    const api = geocoderApi({ throwAddress: true, district: null });
+    await expect(reverseGeocode(api, at)).resolves.toEqual({
+      formattedAddress: "",
+      stateName: "",
+      districtName: "",
+      districtPlaceId: "",
+      postcode: "",
+    });
   });
 });
 

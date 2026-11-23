@@ -69,14 +69,20 @@ type Lead struct {
 }
 
 type createLeadRequest struct {
-	BusinessName    string   `json:"businessName"`
-	OwnerName       string   `json:"ownerName"`
-	Category        string   `json:"category"`
-	ContactPhone    string   `json:"contactPhone"`
-	ContactEmail    string   `json:"contactEmail"`
-	BusinessAddress string   `json:"businessAddress"`
-	StateCode       string   `json:"stateCode"`
-	DistrictCode    string   `json:"districtCode"`
+	BusinessName    string `json:"businessName"`
+	OwnerName       string `json:"ownerName"`
+	Category        string `json:"category"`
+	ContactPhone    string `json:"contactPhone"`
+	ContactEmail    string `json:"contactEmail"`
+	BusinessAddress string `json:"businessAddress"`
+	StateCode       string `json:"stateCode"`
+	DistrictCode    string `json:"districtCode"`
+	// DistrictPlaceID is the Google place_id of the district's administrative_area_level_3
+	// component, as reverse-geocoded by the landing page from the visitor's shared location. It is
+	// the preferred join (see resolveLeadDistrict): a place_id cannot be misspelled or renamed the
+	// way a district name can ("Bengaluru" vs "Bangalore"). Name matching stays as the fallback for
+	// older cached bundles and for districts Google cannot resolve.
+	DistrictPlaceID string   `json:"districtPlaceId"`
 	StateName       string   `json:"stateName"`
 	DistrictName    string   `json:"districtName"`
 	Latitude        *float64 `json:"latitude"`
@@ -138,6 +144,7 @@ func (h *Handler) createLead(w http.ResponseWriter, r *http.Request) {
 	req.BusinessAddress = strings.TrimSpace(req.BusinessAddress)
 	req.StateCode = strings.ToUpper(strings.TrimSpace(req.StateCode))
 	req.DistrictCode = geo.Normalise(req.DistrictCode)
+	req.DistrictPlaceID = strings.TrimSpace(req.DistrictPlaceID)
 	req.StateName = strings.TrimSpace(req.StateName)
 	req.DistrictName = strings.TrimSpace(req.DistrictName)
 	req.Notes = strings.TrimSpace(req.Notes)
@@ -166,7 +173,7 @@ func (h *Handler) createLead(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a shop address is required")
 		return
 	}
-	if req.DistrictCode == "" && req.DistrictName == "" {
+	if req.DistrictCode == "" && req.DistrictName == "" && req.DistrictPlaceID == "" {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a district is required")
 		return
 	}
@@ -220,20 +227,39 @@ func (h *Handler) createLead(w http.ResponseWriter, r *http.Request) {
 }
 
 // resolveLeadDistrict returns the canonical state/district codes plus the display names.
+//
+// Order of preference, strongest identity first:
+//  1. districtPlaceId — the Google place_id of the administrative_area_level_3 the visitor's shared
+//     location reverse-geocoded to. This is the durable join: it is immune to the spelling and rename
+//     drift that breaks name matching (e.g. "Bengaluru" vs "Bangalore", "Mahé" vs "Mahe"), and it is
+//     what the landing page sends once "Use my current location" has run.
+//  2. An explicit, valid districtCode (a caller that already speaks codes).
+//  3. The submitted district name, matched case-insensitively — the fallback for an older cached
+//     bundle (which sends no place_id) and for a district Google cannot resolve.
+//
+// An unresolved name/place_id is still accepted and kept as text, so a visitor in a district outside
+// the seeded master is never rejected — the admin following up can still read where the shop is.
 func resolveLeadDistrict(req createLeadRequest) (stateCode, districtCode, stateName, districtName string) {
 	districtName = req.DistrictName
+	stateName = req.StateName
+
+	if req.DistrictPlaceID != "" {
+		if d, ok := geo.ByPlaceID(req.DistrictPlaceID); ok {
+			return d.StateCode, d.Code, stateName, d.Name
+		}
+	}
 	if req.DistrictCode != "" && geo.IsValid(req.DistrictCode) {
-		return geo.StateForDistrict(req.DistrictCode), req.DistrictCode, req.StateName, geo.Name(req.DistrictCode)
+		return geo.StateForDistrict(req.DistrictCode), req.DistrictCode, stateName, geo.Name(req.DistrictCode)
 	}
 	if req.DistrictName != "" {
-		want := strings.ToLower(req.DistrictName)
+		want := strings.ToLower(strings.TrimSpace(req.DistrictName))
 		for _, d := range geo.All() {
 			if strings.ToLower(d.Name) == want {
-				return d.StateCode, d.Code, req.StateName, d.Name
+				return d.StateCode, d.Code, stateName, d.Name
 			}
 		}
 	}
-	return req.StateCode, "", req.StateName, districtName
+	return req.StateCode, "", stateName, districtName
 }
 
 func leadID() string {

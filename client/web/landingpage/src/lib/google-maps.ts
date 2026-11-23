@@ -24,6 +24,13 @@ export type AddressPart = {
   formattedAddress: string;
   stateName: string;
   districtName: string;
+  /**
+   * Google place_id of the district's `administrative_area_level_3` component. This is the durable
+   * district identity sent to the gateway — a place_id cannot be misspelled or renamed the way a
+   * district name can. It is only populated by the reverse-geocode path (see `reverseDistrict`),
+   * because the Geocoder does not attach a place_id to individual address components.
+   */
+  districtPlaceId: string;
   postcode: string;
 };
 
@@ -109,8 +116,18 @@ export type MapsApi = {
     title?: string;
   }) => MapsMarker;
   Geocoder: new () => {
-    geocode(request: { location: LatLng }): Promise<{
-      results: Array<{ formatted_address?: string; address_components?: Component[] }>;
+    geocode(request: {
+      location?: LatLng;
+      // Geocoding-only filter: asks Google to return the administrative_area_level_3 (district) row
+      // rather than a street address, so the result's place_id IS the district's.
+      result_type?: string;
+    }): Promise<{
+      results: Array<{
+        place_id?: string;
+        types?: string[];
+        formatted_address?: string;
+        address_components?: Component[];
+      }>;
     }>;
   };
   AutocompleteSuggestion: AutocompleteSuggestionCtor;
@@ -285,6 +302,11 @@ export async function fetchSuggestions(
  * Turns a chosen suggestion into coordinates plus a readable address.
  *
  * `fetchFields` is the billed call, so it happens on selection only — never while typing.
+ *
+ * `place_id`s are not attached to individual address *components*, so the district's identity is not
+ * on this place's components; it is reverse-geocoded from the selected point (the same
+ * `administrative_area_level_3` lookup the pin path uses) so a searched shop and a dragged pin yield
+ * the same district id.
  */
 export async function resolveSuggestion(
   api: MapsApi,
@@ -295,10 +317,11 @@ export async function resolveSuggestion(
     await place.fetchFields({ fields: ["location", "formattedAddress", "addressComponents"] });
     const loc = place.location;
     if (!loc) return null;
-    return {
-      point: { lat: loc.lat(), lng: loc.lng() },
-      address: describePlace(place.formattedAddress, place.addressComponents),
-    };
+    const point = { lat: loc.lat(), lng: loc.lng() };
+    const address = describePlace(place.formattedAddress, place.addressComponents);
+    if (!address.districtName) return { point, address };
+    const districtPlaceId = await reverseDistrictPlaceId(api, point);
+    return { point, address: { ...address, districtPlaceId } };
   } catch {
     return null;
   }
@@ -311,10 +334,12 @@ function parts(components: Component[] = []) {
   };
   return {
     stateName: pick("administrative_area_level_1"),
-    // District is the revenue/admin district only. `locality` is the CITY (e.g. Tiruchirappalli),
-    // so falling back to it put the city in the district field. When Google returns no
-    // administrative district the field stays empty and the visitor types it.
-    districtName: pick("administrative_area_level_2") || pick("administrative_area_level_3"),
+    // District is the revenue/admin district. In India Google puts the DIVISION in
+    // `administrative_area_level_2` ("Bangalore Division", "Mandi Division") and the actual DISTRICT
+    // in `administrative_area_level_3` ("Bengaluru Urban", "Bilaspur"). Level 3 is therefore the
+    // correct source; level 2 is only a last resort for other countries. `locality` is the city (e.g.
+    // Tiruchirappalli) and must never be used as the district.
+    districtName: pick("administrative_area_level_3") || pick("administrative_area_level_2"),
     postcode: pick("postal_code"),
   };
 }
@@ -322,23 +347,68 @@ function parts(components: Component[] = []) {
 export function describePlace(
   formattedAddress: string | undefined,
   components?: Component[],
+  districtPlaceId = "",
 ): AddressPart {
   const p = parts(components);
   return {
     formattedAddress: formattedAddress?.trim() ?? "",
     stateName: p.stateName,
     districtName: p.districtName,
+    districtPlaceId,
     postcode: p.postcode,
   };
 }
 
-export function reverseGeocode(api: MapsApi, at: LatLng): Promise<AddressPart> {
+/**
+ * Resolves a coordinate to the shop address AND the district's place_id.
+ *
+ * Two calls, deliberately:
+ *  1. A normal reverse geocode for the readable address the picker shows and prefills.
+ *  2. A reverse geocode filtered to `administrative_area_level_3`, whose result row's `place_id`
+ *     IS the district's identity. Google does not attach a place_id to individual address
+ *     *components*, so the district id cannot be read off call 1 — and for India the district lives
+ *     at level 3 (level 2 is the division).
+ *
+ * The second call only runs when a district name came back, so a coordinate with no administrative
+ * district pays for one request, not two. Failures degrade to an empty place_id (the gateway then
+ * falls back to name matching) rather than blocking the enquiry.
+ */
+export async function reverseGeocode(api: MapsApi, at: LatLng): Promise<AddressPart> {
   const geocoder = new api.Geocoder();
-  return geocoder
-    .geocode({ location: at })
-    .then((res) => {
-      const first = res.results[0];
-      return describePlace(first?.formatted_address, first?.address_components);
-    })
-    .catch(() => ({ formattedAddress: "", stateName: "", districtName: "", postcode: "" }));
+  let base: AddressPart;
+  try {
+    const res = await geocoder.geocode({ location: at });
+    const first = res.results[0];
+    base = describePlace(first?.formatted_address, first?.address_components);
+  } catch {
+    return {
+      formattedAddress: "",
+      stateName: "",
+      districtName: "",
+      districtPlaceId: "",
+      postcode: "",
+    };
+  }
+  if (!base.districtName) return base;
+  const districtPlaceId = await reverseDistrictPlaceId(api, at);
+  return { ...base, districtPlaceId };
+}
+
+/**
+ * The place_id of the `administrative_area_level_3` row at a coordinate, or "" when Google has none
+ * (e.g. parts of Jammu & Kashmir and Ladakh return no administrative components at all).
+ */
+async function reverseDistrictPlaceId(api: MapsApi, at: LatLng): Promise<string> {
+  try {
+    const geocoder = new api.Geocoder();
+    const res = await geocoder.geocode({
+      location: at,
+      result_type: "administrative_area_level_3",
+    });
+    return (
+      res.results.find((r) => r.types?.includes("administrative_area_level_3"))?.place_id ?? ""
+    );
+  } catch {
+    return "";
+  }
 }

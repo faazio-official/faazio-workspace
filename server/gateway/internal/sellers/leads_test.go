@@ -7,6 +7,8 @@ import (
 	"testing"
 
 	"github.com/faazio/server/gateway/internal/platform/cache"
+	"github.com/faazio/server/gateway/internal/platform/geo"
+	"github.com/faazio/server/gateway/internal/platform/testenv"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -113,6 +115,9 @@ func TestResolveLeadDistrict(t *testing.T) {
 		{createLeadRequest{DistrictName: "karaikal"}, "PY", "PY1", "Karaikal"},
 		{createLeadRequest{DistrictName: "Nowhere", StateCode: "TN"}, "TN", "", "Nowhere"},
 		{createLeadRequest{DistrictCode: "ZZZ", DistrictName: "Chennai"}, "TN", "TCH", "Chennai"},
+		// A name Google could not spell-match still wins by a wrong-code + right-name pair: the
+		// explicit code is invalid, so the name resolves.
+		{createLeadRequest{DistrictCode: "ZZZ", DistrictPlaceID: "not-a-real-id", DistrictName: "Karaikal"}, "PY", "PY1", "Karaikal"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.req.DistrictCode+"/"+tc.req.DistrictName, func(t *testing.T) {
@@ -121,6 +126,48 @@ func TestResolveLeadDistrict(t *testing.T) {
 				t.Fatalf("got (%s,%s,%s), want (%s,%s,%s)", state, district, name, tc.state, tc.district, tc.districtNm)
 			}
 		})
+	}
+}
+
+// TestResolveLeadDistrictByPlaceID proves the durable join: a lead that sends only `districtPlaceId`
+// (no code, no name) resolves to that district, and the master's canonical name replaces the raw
+// submitted one. Needs a real DB (testenv.Pool skips without TEST_DATABASE_URL) because the place_id
+// index is built from the master snapshot.
+func TestResolveLeadDistrictByPlaceID(t *testing.T) {
+	pool := testenv.Pool(t)
+	ctx := context.Background()
+
+	const code, placeID = "TZP", "ChIJleads-test-place"
+	_, _ = pool.Exec(ctx, `delete from admins.district_master where district_code = $1`, code)
+	t.Cleanup(func() {
+		_, _ = pool.Exec(context.Background(), `delete from admins.district_master where district_code = $1`, code)
+		_ = geo.Reload(context.Background(), pool)
+	})
+	if _, err := pool.Exec(ctx,
+		`insert into admins.district_master (district_code, district_name, state_code, google_place_id)
+		 values ($1,$2,'TN',$3)`, code, "Place ID Test", placeID); err != nil {
+		t.Fatalf("insert: %v", err)
+	}
+	if err := geo.Reload(ctx, pool); err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+
+	// Only the place_id is supplied; the misspelled name must not matter.
+	state, district, _, name := resolveLeadDistrict(createLeadRequest{
+		DistrictPlaceID: placeID,
+		DistrictName:    "Totally Wrong Spelling",
+	})
+	if state != "TN" || district != code || name != "Place ID Test" {
+		t.Fatalf("got (%s,%s,%s), want (TN,%s,Place ID Test)", state, district, name, code)
+	}
+
+	// An unknown place_id must fall through to the name, never resolve to something arbitrary.
+	state, district, _, _ = resolveLeadDistrict(createLeadRequest{
+		DistrictPlaceID: "ChIJdoes-not-exist",
+		DistrictName:    "Karaikal",
+	})
+	if state != "PY" || district != "PY1" {
+		t.Fatalf("fallthrough got (%s,%s), want PY,PY1", state, district)
 	}
 }
 

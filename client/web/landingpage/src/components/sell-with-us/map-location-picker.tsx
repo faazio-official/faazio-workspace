@@ -20,6 +20,8 @@ export type PickedLocation = {
   address: string;
   stateName: string;
   districtName: string;
+  /** Google place_id of the district (administrative_area_level_3); "" when Google has none. */
+  districtPlaceId: string;
 };
 
 type Props = {
@@ -39,9 +41,11 @@ const DEBOUNCE_MS = 220;
  * Shop-pin picker for the public "Sell with us" page.
  *
  * Mirrors the mobile `SellerLocationPicker`: search a place, drag the pin until it sits on the shop,
- * and read back lat/lng plus a reverse-geocoded address. When no Maps key is configured the picker
- * renders nothing at all — the form's address + district fields carry the enquiry, and **no** pin is
- * ever invented.
+ * and read back lat/lng plus a reverse-geocoded address, state, district and the district's Google
+ * `place_id`. Sharing a location is **mandatory** on this form — the shop address and the district
+ * identity are read from the pin, so there is no typed address field to fall back to. When no Maps
+ * key is configured the picker renders nothing and the parent replaces it with a notice (the enquiry
+ * cannot be sent); **no** pin is ever invented.
  *
  * Address search uses Places API (New) `AutocompleteSuggestion` rather than the retired
  * `places.Autocomplete` widget: suggestions are rendered into this component's own listbox so the
@@ -83,6 +87,7 @@ export function MapLocationPicker({
       address: address.formattedAddress,
       stateName: address.stateName,
       districtName: address.districtName,
+      districtPlaceId: address.districtPlaceId,
     });
   }, []);
 
@@ -317,7 +322,7 @@ export function MapLocationPicker({
         {status === "loading" ? <p className="map-picker-note">Loading the map…</p> : null}
         {status === "error" ? (
           <p className="map-picker-note">
-            The map didn&apos;t load. Add your shop address and district in the form instead.
+            The map didn&apos;t load. Please reload the page to share your shop location.
           </p>
         ) : null}
       </div>

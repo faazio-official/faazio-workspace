@@ -18,9 +18,10 @@ import (
 // maxNameLen bounds district_name; the longest real name (Tiruchirappalli) is well under it.
 const maxNameLen = 80
 
-// codePattern mirrors the DB CHECK in 0046: two uppercase letters then one uppercase letter/digit
-// (TCH = Chennai, PY0 = Puducherry).
-var codePattern = regexp.MustCompile(`^[A-Z]{2}[A-Z0-9]$`)
+// codePattern mirrors the DB CHECK widened by 0127: two uppercase letters then one to three
+// uppercase letters/digits (TCH = Chennai, PY0 = Puducherry, UP71 = a state with >36 districts).
+// The old 3-char cap could not express Uttar Pradesh's 75 districts.
+var codePattern = regexp.MustCompile(`^[A-Z]{2}[A-Z0-9]{1,3}$`)
 
 // statePattern is the ISO 3166-2:IN shape (char(2) uppercase).
 var statePattern = regexp.MustCompile(`^[A-Z]{2}$`)

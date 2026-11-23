@@ -1,6 +1,7 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { gatewayUrl } from "@/lib/config";
+import { BUSINESS_EMAIL } from "@/lib/site";
 
 /**
  * Public "Sell with us" lead intake.
@@ -26,8 +27,18 @@ export const leadSchema = z.object({
       "Enter a valid phone number",
     ),
   contactEmail: z.string().trim().email("Enter a valid email").max(254),
-  businessAddress: z.string().trim().min(5, "Enter your shop's street address").max(500),
-  districtName: z.string().trim().min(2, "Enter your district").max(80),
+  // The shop address is no longer typed by hand: it is the formatted address of the shared location.
+  // It is still required (the gateway rejects a lead with no address), but it arrives from the pin
+  // rather than a text field, so the minimum-length check happens at submit, not in the form UI.
+  businessAddress: z.string().trim().min(5, "Share your shop location").max(500),
+  districtName: z.string().trim().min(2, "Share your shop location").max(80),
+  /**
+   * Google place_id of the district (administrative_area_level_3), reverse-geocoded from the shared
+   * location. The gateway resolves the district by this id first — it is immune to the spelling and
+   * rename drift that breaks name matching. Absent only when Google returns no district for the
+   * coordinate, in which case the gateway falls back to `districtName`.
+   */
+  districtPlaceId: z.string().trim().max(300).optional(),
   stateName: z.string().trim().max(80).optional(),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
@@ -58,6 +69,7 @@ export function buildLeadPayload(data: LeadInput): Record<string, unknown> {
     contactEmail: data.contactEmail,
     businessAddress: data.businessAddress,
     districtName: data.districtName,
+    districtPlaceId: data.districtPlaceId,
     stateName: data.stateName,
     latitude: data.latitude,
     longitude: data.longitude,
@@ -68,7 +80,7 @@ export function buildLeadPayload(data: LeadInput): Record<string, unknown> {
 
 function messageForStatus(status: number, code: string | undefined): string {
   if (status === 429 || code === "rate_limited") {
-    return "That's a few enquiries from this connection today. Try again tomorrow, or message us on WhatsApp.";
+    return `That's a few enquiries from this connection today. Try again tomorrow, or email us at ${BUSINESS_EMAIL}.`;
   }
   if (status === 400) {
     return "Some details didn't look right. Check the phone number, email and district, then try again.";
