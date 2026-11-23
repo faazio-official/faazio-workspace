@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/platform/db"
@@ -35,7 +36,15 @@ type PortalUser struct {
 	// SubUserID links a sub-user credential to its sellers.sub_users roster row (empty for an owner).
 	SubUserID string
 	CreatedAt time.Time
+	// DeletedAt is set when the credential is in the trash (0128). Non-nil rows are excluded from
+	// every auth lookup, list and identity gate, and are purged 7 days after this instant.
+	DeletedAt *time.Time
+	// DeleteReason is the superadmin's stated reason; kept with the trashed row until it is purged.
+	DeleteReason string
 }
+
+// Deleted reports whether the credential is in the trash window.
+func (u PortalUser) Deleted() bool { return u.DeletedAt != nil }
 
 // Session is one admins.portal_sessions row (0038 lifetime columns included).
 type Session struct {
@@ -70,9 +79,11 @@ func (r *Repo) ready() error {
 const userColumns = `user_id, email, display_name, password_hash, role, active, must_change,
 	failed_attempts, locked_until, last_login_at, password_changed_at,
 	coalesce(seller_id, ''), coalesce(state_code, ''), coalesce(district_code, ''),
-	coalesce(sub_role, ''), coalesce(sub_user_id, ''), created_at`
+	coalesce(sub_role, ''), coalesce(sub_user_id, ''), created_at,
+	deleted_at, coalesce(delete_reason, '')`
 
-// ByEmailLower looks an account up case-insensitively. ok=false when absent.
+// ByEmailLower looks an account up case-insensitively. ok=false when absent or trashed — a deleted
+// credential must never authenticate, and its email is free to be re-issued immediately (0128).
 func (r *Repo) ByEmailLower(ctx context.Context, email string) (PortalUser, bool, error) {
 	if err := r.ready(); err != nil {
 		return PortalUser{}, false, err
@@ -80,7 +91,7 @@ func (r *Repo) ByEmailLower(ctx context.Context, email string) (PortalUser, bool
 	u, err := scanUser(r.pool.QueryRow(ctx, `
 		select `+userColumns+`
 		  from admins.portal_users
-		 where lower(email) = lower($1)
+		 where lower(email) = lower($1) and deleted_at is null
 		 limit 1`, email))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -91,8 +102,27 @@ func (r *Repo) ByEmailLower(ctx context.Context, email string) (PortalUser, bool
 	return u, true, nil
 }
 
-// ByID returns one account. ok=false when absent.
+// ByID returns one live account. ok=false when absent or trashed.
 func (r *Repo) ByID(ctx context.Context, userID string) (PortalUser, bool, error) {
+	if err := r.ready(); err != nil {
+		return PortalUser{}, false, err
+	}
+	u, err := scanUser(r.pool.QueryRow(ctx, `
+		select `+userColumns+`
+		  from admins.portal_users
+		 where user_id = $1 and deleted_at is null`, userID))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return PortalUser{}, false, nil
+		}
+		return PortalUser{}, false, err
+	}
+	return u, true, nil
+}
+
+// ByIDAny returns one account whether or not it is in the trash — used by restore, which must resolve
+// a trashed row (ByID deliberately hides it).
+func (r *Repo) ByIDAny(ctx context.Context, userID string) (PortalUser, bool, error) {
 	if err := r.ready(); err != nil {
 		return PortalUser{}, false, err
 	}
@@ -109,8 +139,9 @@ func (r *Repo) ByID(ctx context.Context, userID string) (PortalUser, bool, error
 	return u, true, nil
 }
 
-// BySellerID returns a seller's owner login (oldest first). Sub-user credentials are excluded
-// (`sub_role is null`) so the approval provisioner never reuses a staff login as the owner's.
+// BySellerID returns a seller's live owner login (oldest first). Sub-user credentials are excluded
+// (`sub_role is null`) so the approval provisioner never reuses a staff login as the owner's, and a
+// trashed login is ignored so a re-approval mints a fresh one.
 func (r *Repo) BySellerID(ctx context.Context, sellerID string) (PortalUser, bool, error) {
 	if err := r.ready(); err != nil {
 		return PortalUser{}, false, err
@@ -118,7 +149,7 @@ func (r *Repo) BySellerID(ctx context.Context, sellerID string) (PortalUser, boo
 	u, err := scanUser(r.pool.QueryRow(ctx, `
 		select `+userColumns+`
 		  from admins.portal_users
-		 where seller_id = $1 and role = 'SELLER' and sub_role is null
+		 where seller_id = $1 and role = 'SELLER' and sub_role is null and deleted_at is null
 		 order by created_at
 		 limit 1`, sellerID))
 	if err != nil {
@@ -131,7 +162,7 @@ func (r *Repo) BySellerID(ctx context.Context, sellerID string) (PortalUser, boo
 }
 
 // BySubUserID returns the credential linked to a sellers.sub_users row. ok=false when the invite has
-// not been accepted yet.
+// not been accepted yet or the credential is trashed.
 func (r *Repo) BySubUserID(ctx context.Context, subUserID string) (PortalUser, bool, error) {
 	if err := r.ready(); err != nil {
 		return PortalUser{}, false, err
@@ -139,7 +170,7 @@ func (r *Repo) BySubUserID(ctx context.Context, subUserID string) (PortalUser, b
 	u, err := scanUser(r.pool.QueryRow(ctx, `
 		select `+userColumns+`
 		  from admins.portal_users
-		 where sub_user_id = $1
+		 where sub_user_id = $1 and deleted_at is null
 		 limit 1`, subUserID))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -150,7 +181,8 @@ func (r *Repo) BySubUserID(ctx context.Context, subUserID string) (PortalUser, b
 	return u, true, nil
 }
 
-// List returns every portal credential (never the password hash), newest first.
+// List returns every live portal credential (never the password hash), newest first. Trashed rows are
+// excluded — they surface through ListDeleted.
 func (r *Repo) List(ctx context.Context) ([]PortalUser, error) {
 	if err := r.ready(); err != nil {
 		return nil, err
@@ -158,7 +190,35 @@ func (r *Repo) List(ctx context.Context) ([]PortalUser, error) {
 	rows, err := r.pool.Query(ctx, `
 		select `+userColumns+`
 		  from admins.portal_users
+		 where deleted_at is null
 		 order by created_at desc
+		 limit 200`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []PortalUser{}
+	for rows.Next() {
+		u, err := scanUser(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, u)
+	}
+	return out, rows.Err()
+}
+
+// ListDeleted returns the trashed credentials still inside the 7-day undo window (newest deletion
+// first), so the superadmin can restore one.
+func (r *Repo) ListDeleted(ctx context.Context) ([]PortalUser, error) {
+	if err := r.ready(); err != nil {
+		return nil, err
+	}
+	rows, err := r.pool.Query(ctx, `
+		select `+userColumns+`
+		  from admins.portal_users
+		 where deleted_at is not null
+		 order by deleted_at desc
 		 limit 200`)
 	if err != nil {
 		return nil, err
@@ -179,7 +239,8 @@ func scanUser(row pgx.Row) (PortalUser, error) {
 	var u PortalUser
 	err := row.Scan(&u.UserID, &u.Email, &u.DisplayName, &u.PasswordHash, &u.Role, &u.Active,
 		&u.MustChange, &u.FailedAttempts, &u.LockedUntil, &u.LastLoginAt, &u.PasswordChangedAt,
-		&u.SellerID, &u.StateCode, &u.DistrictCode, &u.SubRole, &u.SubUserID, &u.CreatedAt)
+		&u.SellerID, &u.StateCode, &u.DistrictCode, &u.SubRole, &u.SubUserID, &u.CreatedAt,
+		&u.DeletedAt, &u.DeleteReason)
 	return u, err
 }
 
@@ -298,7 +359,7 @@ func (r *Repo) CreateUser(ctx context.Context, u PortalUser) (PortalUser, error)
 	return created, nil
 }
 
-// SetUserActive flips the active flag. ok=false when the row is absent.
+// SetUserActive flips the active flag. ok=false when the row is absent or trashed.
 func (r *Repo) SetUserActive(ctx context.Context, userID string, active bool) (bool, error) {
 	if err := r.ready(); err != nil {
 		return false, err
@@ -306,14 +367,86 @@ func (r *Repo) SetUserActive(ctx context.Context, userID string, active bool) (b
 	tag, err := r.pool.Exec(ctx, `
 		update admins.portal_users
 		   set active = $2, updated_at = now()
-		 where user_id = $1`, userID, active)
+		 where user_id = $1 and deleted_at is null`, userID, active)
 	if err != nil {
 		return false, err
 	}
 	return tag.RowsAffected() == 1, nil
 }
 
-// CountActiveSuperAdmins reports how many active SUPER_ADMIN rows exist (the last-superadmin guard).
+// SoftDelete moves a credential to the trash (deleted_at = now()) and revokes its sessions in one
+// statement pair. A trashed row can no longer authenticate (ByEmailLower/ByID exclude it) and its
+// email is immediately free to re-issue. ok=false when the row is absent or already trashed.
+func (r *Repo) SoftDelete(ctx context.Context, userID, reason string) (bool, error) {
+	if err := r.ready(); err != nil {
+		return false, err
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	tag, err := tx.Exec(ctx, `
+		update admins.portal_users
+		   set deleted_at = now(), delete_reason = $2, active = false, updated_at = now()
+		 where user_id = $1 and deleted_at is null`, userID, strings.TrimSpace(reason))
+	if err != nil {
+		return false, err
+	}
+	if tag.RowsAffected() == 0 {
+		return false, nil
+	}
+	if _, err := tx.Exec(ctx, `
+		update admins.portal_sessions set revoked_at = now()
+		 where user_id = $1 and revoked_at is null`, userID); err != nil {
+		return false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// Restore clears the soft delete so the credential becomes live again (it keeps `active = false` —
+// the superadmin re-enables it deliberately rather than silently re-granting access). ok=false when
+// the row is absent or not trashed. ErrEmailTaken when the address was re-issued while the row sat in
+// the trash (the live-only unique index, 0128), so the caller can answer 409 instead of a 500.
+func (r *Repo) Restore(ctx context.Context, userID string) (bool, error) {
+	if err := r.ready(); err != nil {
+		return false, err
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update admins.portal_users
+		   set deleted_at = null, delete_reason = '', updated_at = now()
+		 where user_id = $1 and deleted_at is not null`, userID)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return false, ErrEmailTaken
+		}
+		return false, err
+	}
+	return tag.RowsAffected() == 1, nil
+}
+
+// PurgeDeleted permanently removes trashed credentials older than maxAge (sessions cascade; a seller
+// sub-user roster row survives with portal_user_id set null). Global sweep; callers pass the trash
+// window. Returns the number of rows removed.
+func (r *Repo) PurgeDeleted(ctx context.Context, maxAge time.Duration) (int64, error) {
+	if err := r.ready(); err != nil {
+		return 0, err
+	}
+	tag, err := r.pool.Exec(ctx, `
+		delete from admins.portal_users
+		 where deleted_at is not null and deleted_at < $1`, time.Now().Add(-maxAge))
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
+}
+
+// CountActiveSuperAdmins reports how many live, active SUPER_ADMIN rows exist (the last-superadmin
+// guard). Trashed/deactivated rows do not count.
 func (r *Repo) CountActiveSuperAdmins(ctx context.Context) (int, error) {
 	if err := r.ready(); err != nil {
 		return 0, err
@@ -321,8 +454,22 @@ func (r *Repo) CountActiveSuperAdmins(ctx context.Context) (int, error) {
 	var count int
 	err := r.pool.QueryRow(ctx, `
 		select count(*) from admins.portal_users
-		 where role = 'SUPER_ADMIN' and active`).Scan(&count)
+		 where role = 'SUPER_ADMIN' and active and deleted_at is null`).Scan(&count)
 	return count, err
+}
+
+// EmailInUse reports whether a LIVE credential (any role) already owns this email — the identity gate
+// trashed rows must not block, because their address is free to re-issue.
+func (r *Repo) EmailInUse(ctx context.Context, email string) (bool, error) {
+	if err := r.ready(); err != nil {
+		return false, err
+	}
+	var ok bool
+	err := r.pool.QueryRow(ctx, `
+		select exists(
+		  select 1 from admins.portal_users
+		   where lower(email) = lower($1) and deleted_at is null)`, strings.TrimSpace(email)).Scan(&ok)
+	return ok, err
 }
 
 // SellerExists reports whether the seller id is real (the credential FK would reject it anyway,

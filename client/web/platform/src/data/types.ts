@@ -441,6 +441,11 @@ export interface PortalCredential {
   subRole?: string | undefined;
   lastLoginAt?: string | undefined;
   createdAt?: string | undefined;
+  /** Set when the credential is in the 7-day trash (0128); absent for a live row. */
+  deletedAt?: string | undefined;
+  deleteReason?: string | undefined;
+  /** deletedAt + 7 days — when the purge removes the row for good. */
+  purgeAt?: string | undefined;
 }
 
 /** admins.app_config category allowlist (checked in the DB constraint). */

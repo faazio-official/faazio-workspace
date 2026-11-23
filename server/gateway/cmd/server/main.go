@@ -150,6 +150,12 @@ func main() {
 		go auditPurger.Run(workerCtx)
 	}
 
+	// Credential trash worker: hourly sweep of soft-deleted portal logins past the 7-day undo window
+	// (0128). Runs only with a database; the console also sweeps on every list read.
+	if pool != nil {
+		go portal.NewPurger(portal.New(pool), nil).Run(workerCtx)
+	}
+
 	handler := server.NewRouter(server.Deps{
 		Config:  cfg,
 		Pool:    pool,

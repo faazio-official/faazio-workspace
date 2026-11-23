@@ -191,7 +191,7 @@ func checkCollisions(ctx context.Context, tx pgx.Tx, in CreateParams) (*Conflict
 	err := tx.QueryRow(ctx, `
 		select user_id, role, coalesce(seller_id,''), coalesce(district_code,'')
 		  from admins.portal_users
-		 where lower(email) = lower($1)
+		 where lower(email) = lower($1) and deleted_at is null
 		 limit 1`, in.Email).Scan(&id, &role, &sellerID, &districtCode)
 	switch {
 	case err == nil:
@@ -334,7 +334,7 @@ func (p *Provisioner) SetActive(ctx context.Context, adminID string, active bool
 	if _, err := tx.Exec(ctx, `
 		update admins.portal_users
 		   set active = $2, updated_at = now()
-		 where lower(email) = lower($1) and role = 'DISTRICT_ADMIN'`, a.Email, active); err != nil {
+		 where lower(email) = lower($1) and role = 'DISTRICT_ADMIN' and deleted_at is null`, a.Email, active); err != nil {
 		return DistrictAdmin{}, false, err
 	}
 	if !active {
@@ -343,7 +343,7 @@ func (p *Provisioner) SetActive(ctx context.Context, adminID string, active bool
 			 where revoked_at is null
 			   and user_id in (
 			     select user_id from admins.portal_users
-			      where lower(email) = lower($1) and role = 'DISTRICT_ADMIN')`, a.Email); err != nil {
+			      where lower(email) = lower($1) and role = 'DISTRICT_ADMIN' and deleted_at is null)`, a.Email); err != nil {
 			return DistrictAdmin{}, false, err
 		}
 	}
@@ -451,7 +451,7 @@ func (p *Provisioner) UpdateIdentity(ctx context.Context, adminID string, in Upd
 	if _, err := tx.Exec(ctx, `
 		update admins.portal_users
 		   set email = $2, display_name = $3, active = $4, updated_at = now()
-		 where lower(email) = lower($1) and role = 'DISTRICT_ADMIN'`, oldEmail, email, name, active); err != nil {
+		 where lower(email) = lower($1) and role = 'DISTRICT_ADMIN' and deleted_at is null`, oldEmail, email, name, active); err != nil {
 		return DistrictAdmin{}, false, err
 	}
 	if !active {
@@ -460,7 +460,7 @@ func (p *Provisioner) UpdateIdentity(ctx context.Context, adminID string, in Upd
 			 where revoked_at is null
 			   and user_id in (
 			     select user_id from admins.portal_users
-			      where lower(email) = lower($1) and role = 'DISTRICT_ADMIN')`, email); err != nil {
+			      where lower(email) = lower($1) and role = 'DISTRICT_ADMIN' and deleted_at is null)`, email); err != nil {
 			return DistrictAdmin{}, false, err
 		}
 	}
@@ -494,7 +494,7 @@ func identityEmailConflict(ctx context.Context, tx pgx.Tx, adminID, oldEmail, ne
 	var id, role, districtCode, email string
 	err := tx.QueryRow(ctx, `
 		select user_id, role, coalesce(district_code,''), email
-		  from admins.portal_users where lower(email) = lower($1) limit 1`, newEmail).
+		  from admins.portal_users where lower(email) = lower($1) and deleted_at is null limit 1`, newEmail).
 		Scan(&id, &role, &districtCode, &email)
 	switch {
 	case err == nil:

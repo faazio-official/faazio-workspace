@@ -148,6 +148,7 @@ func (r *Repo) EnqueueSeller(ctx context.Context, storeIDs []string, kind, title
 		  join directory.stores s on s.seller_id = pu.seller_id
 		  left join sellers.notification_preferences np on np.seller_id = pu.seller_id
 		 where s.id = any($1) and pu.active and pu.role = 'SELLER' and pu.sub_role is null
+		   and pu.deleted_at is null
 		   and (case $2
 		          when 'SELLER_ORDER_NEW' then coalesce(np.new_order, true)
 		          when 'SELLER_LOW_STOCK' then coalesce(np.low_stock, true)

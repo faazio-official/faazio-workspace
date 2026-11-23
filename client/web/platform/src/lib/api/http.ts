@@ -146,8 +146,8 @@ export const remote = {
     request<T>(path, { ...opts, method: "PUT", body }),
   patch: <T>(path: string, body?: unknown, opts?: Omit<RequestOptions, "method" | "body">) =>
     request<T>(path, { ...opts, method: "PATCH", body }),
-  delete: <T>(path: string, opts?: Omit<RequestOptions, "method" | "body">) =>
-    request<T>(path, { ...opts, method: "DELETE" }),
+  delete: <T>(path: string, body?: unknown, opts?: Omit<RequestOptions, "method" | "body">) =>
+    request<T>(path, { ...opts, method: "DELETE", ...(body !== undefined ? { body } : {}) }),
 };
 
 /**
@@ -160,7 +160,7 @@ export function writeAwaited(
   body?: unknown,
 ): Promise<void> {
   if (!remoteConfigured()) return Promise.resolve();
-  const pending = method === "delete" ? remote.delete(path) : remote[method](path, body);
+  const pending = method === "delete" ? remote.delete(path, body) : remote[method](path, body);
   return Promise.resolve(pending).then(() => undefined);
 }
 

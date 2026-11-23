@@ -294,6 +294,21 @@ export const SUPER_COMPONENT_HINTS: Record<string, ComponentHint> = {
       example: "Deactivate a login for a partner who has left.",
       app: ["portal"],
     },
+    "delete-credential": {
+      what: "Deletes a portal login.",
+      workflow: "Credential management — remove a credential.",
+      changes:
+        "Blocks sign-in immediately and revokes sessions. The login sits in Deleted for 7 days, then the gateway removes it from the database for good.",
+      example: "Delete a duplicate login created by mistake, then restore it if you need it back.",
+      app: ["portal"],
+    },
+    "trash-restore": {
+      what: "Restores a deleted login.",
+      workflow: "Credential management — undo a delete.",
+      changes: "Brings the login back deactivated; reactivate it to grant access again.",
+      example: "Restore a login deleted by mistake before the 7-day window closes.",
+      app: ["portal"],
+    },
     "role-select": {
       what: "Chooses whether the login is a seller or a district admin.",
       workflow: "Credential management — scope the login.",

@@ -1,12 +1,13 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Copy, KeyRound, Plus, RefreshCw } from "lucide-react";
+import { Copy, KeyRound, Plus, RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
+import { FilterChip } from "@/components/patterns/FilterChip";
 import { StatusPill } from "@/components/patterns/Pills";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -44,27 +45,39 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SellerCredentialCard } from "@/components/patterns/SellerCredentialCard";
 import { formatDateTime } from "@/lib/format";
 import { ApiError } from "@/lib/api/http";
 import { useSellers } from "@/lib/api/hooks";
 import {
   createPortalCredential,
+  deletePortalCredential,
   fetchSellers,
+  listDeletedPortalCredentials,
   listPortalCredentials,
   resetPortalCredentialPassword,
+  restorePortalCredential,
   setPortalCredentialActive,
   districtAdminConflictMessage,
   type CreatePortalCredentialInput,
 } from "@/lib/api";
 import { useDistricts } from "@/lib/api/hooks";
-import type { PortalCredential, Role, SellerLoginCredential } from "@/data/types";
+import type { PortalCredential, Role } from "@/data/types";
 import { remoteConfigured } from "@/lib/config";
 import { usePortalStore } from "@/lib/api/store";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD = 12;
 const PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*";
+
+/** Role tabs. Sellers and district admins are the two surfaces the superadmin works day to day; the
+ *  seeded superadmins stay reachable from the same board so a lockout never needs SQL. */
+const ROLE_TABS = [
+  { value: "SELLER", label: "Sellers" },
+  { value: "DISTRICT_ADMIN", label: "District admins" },
+  { value: "SUPER_ADMIN", label: "Super admins" },
+  { value: "ALL", label: "All" },
+] as const;
+type RoleTab = (typeof ROLE_TABS)[number]["value"];
 
 function generatePassword(): string {
   const bytes = new Uint8Array(16);
@@ -86,8 +99,12 @@ function CredentialsPage() {
   const sellers = useSellers();
   const districts = useDistricts();
   const [creds, setCreds] = useState<PortalCredential[]>([]);
+  const [trashed, setTrashed] = useState<PortalCredential[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [tab, setTab] = useState<RoleTab>("SELLER");
+  const [showTrash, setShowTrash] = useState(false);
 
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<CreatePortalCredentialInput>({
@@ -102,24 +119,20 @@ function CredentialsPage() {
   const [resetting, setResetting] = useState<PortalCredential | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [resetForceChange, setResetForceChange] = useState(true);
+  const [deleting, setDeleting] = useState<PortalCredential | null>(null);
+  const [deleteReason, setDeleteReason] = useState("");
   const [busy, setBusy] = useState(false);
-  // A password minted for a "ready to share" seller login: held in memory only, so the admin can
-  // copy / WhatsApp it once. Nothing here is read back from the server (only the Argon2id hash is
-  // stored), which is why an unshared login is re-passworded rather than revealed.
-  const [shared, setShared] = useState<{
-    id: string;
-    email: string;
-    businessName: string;
-    phone?: string | undefined;
-    credential: SellerLoginCredential;
-  } | null>(null);
-  const [minting, setMinting] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      setCreds(await listPortalCredentials());
+      const [live, trash] = await Promise.all([
+        listPortalCredentials(),
+        listDeletedPortalCredentials(),
+      ]);
+      setCreds(live);
+      setTrashed(trash);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load credentials.");
     } finally {
@@ -165,17 +178,27 @@ function CredentialsPage() {
       districtCode: district ?? "",
       password: generatePassword(),
     }));
+    setTab("DISTRICT_ADMIN");
     setCreateOpen(true);
     const clean = window.location.pathname;
     window.history.replaceState(null, "", clean);
   }, []);
 
-  // Seller owner logins that were minted on approval but never signed in: their one-time password
-  // was shown to whoever approved the application, so a super-admin may still need to hand it over.
-  // Sub-user rows (subRole) are excluded — those invitees set their own password.
-  const awaitingShare = creds.filter(
-    (c) => c.role === "SELLER" && c.active && !c.lastLoginAt && !c.subRole,
+  const visible = useMemo(
+    () => (tab === "ALL" ? creds : creds.filter((c) => c.role === tab)),
+    [creds, tab],
   );
+  const visibleTrash = useMemo(
+    () => (tab === "ALL" ? trashed : trashed.filter((c) => c.role === tab)),
+    [trashed, tab],
+  );
+  const rows = showTrash ? visibleTrash : visible;
+
+  const counts = useMemo(() => {
+    const live = { SELLER: 0, DISTRICT_ADMIN: 0, SUPER_ADMIN: 0 } as Record<string, number>;
+    for (const c of creds) live[c.role] = (live[c.role] ?? 0) + 1;
+    return live;
+  }, [creds]);
 
   const createValid =
     EMAIL_RE.test(form.email.trim()) &&
@@ -233,35 +256,6 @@ function CredentialsPage() {
     }
   }
 
-  /**
-   * Mint a fresh temporary password for an auto-provisioned seller login that has not been used yet,
-   * so the super-admin can hand it over (copy / WhatsApp) from the dashboard. This is a real password
-   * reset — the previous temporary password stops working immediately — because the stored value is
-   * only an Argon2id hash and can never be read back.
-   */
-  async function mintShareLogin(c: PortalCredential) {
-    const seller = sellers.find((s) => s.sellerId === c.sellerId);
-    setMinting(c.id);
-    try {
-      const password = generatePassword();
-      await resetPortalCredentialPassword(c.id, password, { forceChange: true });
-      setCreds((prev) => prev.map((x) => (x.id === c.id ? { ...x, mustChange: true } : x)));
-      setShared({
-        id: c.id,
-        email: c.email,
-        businessName: seller?.businessName ?? c.name,
-        phone: seller?.contactPhone,
-        credential: { email: c.email, temporaryPassword: password, created: true },
-      });
-    } catch (err) {
-      toast.error("Could not prepare a shareable password", {
-        description: err instanceof Error ? err.message : undefined,
-      });
-    } finally {
-      setMinting(null);
-    }
-  }
-
   async function submitReset() {
     if (!resetting) return;
     setBusy(true);
@@ -286,11 +280,62 @@ function CredentialsPage() {
     }
   }
 
+  async function submitDelete() {
+    if (!deleting) return;
+    setBusy(true);
+    try {
+      const { purgeAt } = await deletePortalCredential(deleting.id, deleteReason.trim());
+      setCreds((prev) => prev.filter((x) => x.id !== deleting.id));
+      setTrashed((prev) => [
+        {
+          ...deleting,
+          active: false,
+          deletedAt: new Date().toISOString(),
+          ...(purgeAt ? { purgeAt } : {}),
+          ...(deleteReason.trim() ? { deleteReason: deleteReason.trim() } : {}),
+        },
+        ...prev,
+      ]);
+      setDeleting(null);
+      setDeleteReason("");
+      toast.success("Credential deleted", {
+        description: purgeAt
+          ? `Restorable until ${formatDateTime(purgeAt)}, then removed permanently.`
+          : "Restorable for 7 days, then removed permanently.",
+      });
+    } catch (err) {
+      toast.error("Could not delete the credential", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitRestore(c: PortalCredential) {
+    try {
+      await restorePortalCredential(c.id);
+      setTrashed((prev) => prev.filter((x) => x.id !== c.id));
+      const { deletedAt: _deletedAt, purgeAt: _purgeAt, deleteReason: _deleteReason, ...live } = c;
+      setCreds((prev) => [{ ...live, active: false }, ...prev]);
+      toast.success("Credential restored", {
+        description: "It is deactivated — reactivate it when the holder should sign in again.",
+      });
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "trash_expired") {
+        setTrashed((prev) => prev.filter((x) => x.id !== c.id));
+      }
+      toast.error("Could not restore the credential", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
         title="Portal credentials"
-        description="Issue seller and state-admin logins, and reset the password for any role. New superadmins are seeded operationally."
+        description="Issue seller and district-admin logins, reset any password, and delete a credential with a 7-day undo. Seller logins are created when you approve an application."
         actions={
           <div className="flex items-center gap-1.5">
             <ComponentHelp id="issue-login" label="About issuing a login" />
@@ -308,90 +353,53 @@ function CredentialsPage() {
         }
       />
 
-      <SectionCard
-        title="Ready to share"
-        description="Seller logins auto-provisioned when an application was approved that nobody has signed in to yet. Prepare a password to copy or send over WhatsApp."
-        bodyClassName="p-0"
-      >
-        <DataShell
-          loading={loading}
-          error={error ?? undefined}
-          isEmpty={awaitingShare.length === 0}
-          empty={
-            <EmptyState
-              title="Nothing waiting"
-              description="Approving a seller mints their login automatically — it will appear here until their first sign-in."
+      <SectionCard bodyClassName="p-0">
+        <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
+          {ROLE_TABS.map((option) => (
+            <FilterChip
+              key={option.value}
+              label={
+                option.value === "ALL"
+                  ? "All"
+                  : `${option.label}${counts[option.value] ? ` · ${counts[option.value]}` : ""}`
+              }
+              active={tab === option.value}
+              onClick={() => setTab(option.value)}
             />
-          }
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Seller</TableHead>
-                <TableHead>Email</TableHead>
-                <TableHead>Created</TableHead>
-                <TableHead className="text-right">Share</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {awaitingShare.map((c) => {
-                const seller = sellers.find((s) => s.sellerId === c.sellerId);
-                return (
-                  <TableRow key={c.id} className="h-12">
-                    <TableCell className="text-[13px] font-medium">
-                      {seller?.businessName ?? c.name ?? "—"}
-                    </TableCell>
-                    <TableCell className="num text-[12px]">{c.email}</TableCell>
-                    <TableCell className="num text-[12px] text-muted-foreground">
-                      {c.createdAt ? formatDateTime(c.createdAt) : "—"}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="gap-1.5"
-                        disabled={minting === c.id || shared?.id === c.id}
-                        onClick={() => void mintShareLogin(c)}
-                      >
-                        <KeyRound className="size-3.5" />
-                        {shared?.id === c.id
-                          ? "Password ready"
-                          : minting === c.id
-                            ? "Preparing…"
-                            : "Prepare password"}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </DataShell>
-      </SectionCard>
-
-      {shared ? (
-        <SectionCard
-          title={`Share login for ${shared.businessName}`}
-          description="This password is shown once and never stored in the clear."
-        >
-          <SellerCredentialCard
-            credential={shared.credential}
-            businessName={shared.businessName}
-            phone={shared.phone}
+          ))}
+          <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+          <FilterChip
+            label={showTrash ? "Deleted" : `Deleted${trashed.length ? ` · ${trashed.length}` : ""}`}
+            active={showTrash}
+            onClick={() => setShowTrash((v) => !v)}
           />
-        </SectionCard>
-      ) : null}
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            {showTrash
+              ? "Deleted logins are restorable for 7 days, then removed permanently."
+              : "Deleting a login moves it to Deleted for 7 days."}
+          </span>
+        </div>
 
-      <SectionCard title="Issued logins" bodyClassName="p-0">
         <DataShell
           loading={loading}
           error={error ?? undefined}
-          isEmpty={creds.length === 0}
+          isEmpty={rows.length === 0}
           empty={
-            <EmptyState
-              title="No credentials yet"
-              description="Create a seller or state-admin login to give them portal access."
-            />
+            showTrash ? (
+              <EmptyState
+                title="Nothing deleted"
+                description="Deleted logins appear here for 7 days so a mistake can be undone."
+              />
+            ) : (
+              <EmptyState
+                title="No credentials here"
+                description={
+                  tab === "SELLER"
+                    ? "Approving a seller application mints their login — it will appear here."
+                    : "Create a credential to give this role portal access."
+                }
+              />
+            )
           }
         >
           <Table>
@@ -401,49 +409,97 @@ function CredentialsPage() {
                 <TableHead>Scope</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Last sign-in</TableHead>
+                <TableHead>{showTrash ? "Deleted" : "Last sign-in"}</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead className="text-right">
                   <span className="inline-flex items-center gap-1.5">
                     Actions
-                    <ComponentHelp id="reset-password" label="About resetting a password" />
-                    <ComponentHelp id="toggle-active" label="About deactivating a login" />
+                    {showTrash ? (
+                      <ComponentHelp id="trash-restore" label="About restoring a login" />
+                    ) : (
+                      <>
+                        <ComponentHelp id="reset-password" label="About resetting a password" />
+                        <ComponentHelp id="toggle-active" label="About deactivating a login" />
+                        <ComponentHelp id="delete-credential" label="About deleting a login" />
+                      </>
+                    )}
                   </span>
                 </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {creds.map((c) => (
+              {rows.map((c) => (
                 <TableRow key={c.id} className="h-12">
                   <TableCell className="text-[13px] font-medium">{roleLabel(c.role)}</TableCell>
                   <TableCell className="num text-[12px]">{scopeLabel(c)}</TableCell>
                   <TableCell className="text-[13px]">{c.name}</TableCell>
                   <TableCell className="num text-[12px]">{c.email}</TableCell>
                   <TableCell className="num text-[12px] text-muted-foreground">
-                    {c.lastLoginAt ? formatDateTime(c.lastLoginAt) : "Never"}
+                    {showTrash
+                      ? c.deletedAt
+                        ? formatDateTime(c.deletedAt)
+                        : "—"
+                      : c.lastLoginAt
+                        ? formatDateTime(c.lastLoginAt)
+                        : "Never"}
                   </TableCell>
                   <TableCell className="space-x-1">
-                    <StatusPill status={c.active ? "ACTIVE" : "DEACTIVATED"} />
-                    {c.mustChange ? <StatusPill status="TEMP PASSWORD" /> : null}
+                    {showTrash ? (
+                      <>
+                        <StatusPill status="DELETED" />
+                        {c.purgeAt ? (
+                          <span className="num text-[11px] text-muted-foreground">
+                            purge {formatDateTime(c.purgeAt)}
+                          </span>
+                        ) : null}
+                      </>
+                    ) : (
+                      <>
+                        <StatusPill status={c.active ? "ACTIVE" : "DEACTIVATED"} />
+                        {c.mustChange ? <StatusPill status="TEMP PASSWORD" /> : null}
+                      </>
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
-                    <div className="flex justify-end gap-2">
+                    {showTrash ? (
                       <Button
                         size="sm"
                         variant="outline"
                         className="gap-1.5"
-                        onClick={() => {
-                          setResetting(c);
-                          setNewPassword(generatePassword());
-                          setResetForceChange(c.role !== "SUPER_ADMIN");
-                        }}
+                        onClick={() => void submitRestore(c)}
                       >
-                        <KeyRound className="size-3.5" /> Reset
+                        <RotateCcw className="size-3.5" /> Restore
                       </Button>
-                      <Button size="sm" variant="outline" onClick={() => void toggleActive(c)}>
-                        {c.active ? "Deactivate" : "Reactivate"}
-                      </Button>
-                    </div>
+                    ) : (
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={() => {
+                            setResetting(c);
+                            setNewPassword(generatePassword());
+                            setResetForceChange(c.role !== "SUPER_ADMIN");
+                          }}
+                        >
+                          <KeyRound className="size-3.5" /> Reset
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => void toggleActive(c)}>
+                          {c.active ? "Deactivate" : "Reactivate"}
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 text-destructive hover:text-destructive"
+                          onClick={() => {
+                            setDeleting(c);
+                            setDeleteReason("");
+                          }}
+                        >
+                          <Trash2 className="size-3.5" /> Delete
+                        </Button>
+                      </div>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -594,8 +650,8 @@ function CredentialsPage() {
                 <span>
                   Require a password change on first sign-in
                   <span className="block text-[11px] text-muted-foreground">
-                    Recommended for seller and state-admin logins. Uncheck to activate this password
-                    immediately.
+                    Recommended for seller and district-admin logins. Uncheck to activate this
+                    password immediately.
                   </span>
                 </span>
               </label>
@@ -660,6 +716,34 @@ function CredentialsPage() {
               onClick={() => void submitReset()}
             >
               {busy ? "Resetting…" : "Reset password"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={Boolean(deleting)} onOpenChange={(next) => !next && setDeleting(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {deleting?.name}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Their login stops working immediately and every session is revoked. The credential
+              moves to <span className="font-medium">Deleted</span> and can be restored for 7 days —
+              after that it is permanently removed from the database.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-1.5 py-2">
+            <Label htmlFor="delete-reason">Reason (optional)</Label>
+            <Input
+              id="delete-reason"
+              value={deleteReason}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              placeholder="e.g. duplicate login created by mistake"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={busy} onClick={() => void submitDelete()}>
+              {busy ? "Deleting…" : "Delete credential"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -54,8 +54,8 @@ import {
 import type { AdminDistrictRow, DistrictInput } from "@/lib/api";
 import { useAdminDistricts, useStates } from "@/lib/api/hooks";
 
-/** Mirrors the gateway CHECK in 0046: 2 letters + a letter/digit (TCH, PY0). */
-const CODE_PATTERN = /^[A-Z]{2}[A-Z0-9]$/;
+/** Mirrors the gateway CHECK widened by 0127: 2 letters + 1–3 letters/digits (TCH, PY0, UP71). */
+const CODE_PATTERN = /^[A-Z]{2}[A-Z0-9]{1,3}$/;
 
 export function DistrictCoveragePage() {
   const [stateFilter, setStateFilter] = useState("ALL");

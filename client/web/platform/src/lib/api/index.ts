@@ -209,6 +209,12 @@ export async function listPortalCredentials(): Promise<PortalCredential[]> {
   return res.users ?? [];
 }
 
+/** Superadmin-only: trashed logins still inside the 7-day restore window. */
+export async function listDeletedPortalCredentials(): Promise<PortalCredential[]> {
+  const res = await remote.get<{ users?: PortalCredential[] }>("/admin/portal-users/trash");
+  return res.users ?? [];
+}
+
 /** Superadmin-only: issue a scoped seller or state-admin login (temporary password). */
 export async function createPortalCredential(
   input: CreatePortalCredentialInput,
@@ -233,6 +239,26 @@ export async function resetPortalCredentialPassword(
     { newPassword, ...(opts.forceChange !== undefined ? { forceChange: opts.forceChange } : {}) },
   );
   return { mustChange: res.mustChange ?? true };
+}
+
+/**
+ * Superadmin-only: move a credential to the trash. It stops authenticating immediately and can be
+ * restored for 7 days, after which the gateway purges the row for good. Returns the purge instant.
+ */
+export async function deletePortalCredential(
+  id: string,
+  reason = "",
+): Promise<{ purgeAt?: string | undefined }> {
+  const res = await remote.delete<{ ok?: boolean; purgeAt?: string }>(
+    `/admin/portal-users/${encodeURIComponent(id)}`,
+    { body: { reason } },
+  );
+  return { purgeAt: res.purgeAt };
+}
+
+/** Superadmin-only: restore a trashed credential (it comes back deactivated). */
+export async function restorePortalCredential(id: string): Promise<void> {
+  await remote.post(`/admin/portal-users/${encodeURIComponent(id)}/restore`);
 }
 
 /* --------------------------- remote config (app-config) --------------------------- */

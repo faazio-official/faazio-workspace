@@ -66,6 +66,7 @@ const STATUS_TONE: Record<string, Tone> = {
   normal: "neutral",
   SUSPENDED: "danger",
   BLACKLISTED: "danger",
+  DELETED: "danger",
   REJECTED: "danger",
   CANCELLED: "danger",
   RETURNED: "danger",

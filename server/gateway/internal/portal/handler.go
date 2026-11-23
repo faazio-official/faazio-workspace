@@ -32,6 +32,10 @@ const (
 	emailLoginLimit   = 5
 )
 
+// CredentialTrashWindow is how long a deleted portal credential stays restorable before the purge
+// removes it for good (mirrors the 7-day catalogue product trash, 0089).
+const CredentialTrashWindow = 7 * 24 * time.Hour
+
 // Handler serves the gateway-native portal auth + credential endpoints.
 type Handler struct {
 	repo   *Repo
@@ -68,9 +72,12 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(httpx.MaxBytes(maxBodyBytes))
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
 		g.Get("/admin/portal-users", h.listCredentials)
+		g.Get("/admin/portal-users/trash", h.listDeletedCredentials)
 		g.Post("/admin/portal-users", h.createCredential)
 		g.Put("/admin/portal-users/{id}", h.setCredentialActive)
 		g.Put("/admin/portal-users/{id}/password", h.resetCredentialPassword)
+		g.Delete("/admin/portal-users/{id}", h.deleteCredential)
+		g.Post("/admin/portal-users/{id}/restore", h.restoreCredential)
 	})
 }
 
@@ -110,6 +117,11 @@ type userDTO struct {
 	SubRole      string `json:"subRole,omitempty"`
 	LastLoginAt  string `json:"lastLoginAt,omitempty"`
 	CreatedAt    string `json:"createdAt,omitempty"`
+	// DeletedAt marks a trashed credential (0128); PurgeAt is DeletedAt + the 7-day undo window, so
+	// the console can show "permanently deleted on …".
+	DeletedAt    string `json:"deletedAt,omitempty"`
+	DeleteReason string `json:"deleteReason,omitempty"`
+	PurgeAt      string `json:"purgeAt,omitempty"`
 }
 
 type tokenDTO struct {
@@ -129,12 +141,17 @@ func toUserDTO(u PortalUser) userDTO {
 	if !u.CreatedAt.IsZero() {
 		created = u.CreatedAt.UTC().Format(time.RFC3339)
 	}
-	return userDTO{
+	dto := userDTO{
 		ID: u.UserID, Email: u.Email, Name: u.DisplayName, Role: u.Role,
 		MustChange: u.MustChange, Active: u.Active, SellerID: u.SellerID,
 		StateCode: u.StateCode, DistrictCode: u.DistrictCode, SubRole: u.SubRole,
-		LastLoginAt: lastLogin, CreatedAt: created,
+		LastLoginAt: lastLogin, CreatedAt: created, DeleteReason: u.DeleteReason,
 	}
+	if u.DeletedAt != nil {
+		dto.DeletedAt = u.DeletedAt.UTC().Format(time.RFC3339)
+		dto.PurgeAt = u.DeletedAt.Add(CredentialTrashWindow).UTC().Format(time.RFC3339)
+	}
+	return dto
 }
 
 // failUnavailable returns the same generic 500 to the caller (no schema/enumeration leak) but logs
@@ -460,9 +477,31 @@ func (h *Handler) listCredentials(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "portal session required")
 		return
 	}
+	// Run the trash sweep first so a credential past its 7-day window never lingers as restorable.
+	_, _ = h.repo.PurgeDeleted(r.Context(), CredentialTrashWindow)
 	users, err := h.repo.List(r.Context())
 	if err != nil {
 		failUnavailable(w, "credentials_list", "credentials unavailable", err)
+		return
+	}
+	out := make([]userDTO, 0, len(users))
+	for _, u := range users {
+		out = append(out, toUserDTO(u))
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{"users": out})
+}
+
+// listDeletedCredentials returns the trashed credentials still inside the undo window
+// (GET /admin/portal-users/trash).
+func (h *Handler) listDeletedCredentials(w http.ResponseWriter, r *http.Request) {
+	if !auth.IsPortal(r.Context()) {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "portal session required")
+		return
+	}
+	_, _ = h.repo.PurgeDeleted(r.Context(), CredentialTrashWindow)
+	users, err := h.repo.ListDeleted(r.Context())
+	if err != nil {
+		failUnavailable(w, "credentials_trash_list", "credentials unavailable", err)
 		return
 	}
 	out := make([]userDTO, 0, len(users))
@@ -654,6 +693,109 @@ func (h *Handler) resetCredentialPassword(w http.ResponseWriter, r *http.Request
 	_ = h.repo.RevokeUserSessions(r.Context(), user.UserID)
 	h.record(r, "PORTAL_USER_PASSWORD_RESET", auth.UserID(r.Context()), auth.Role(r.Context()), shortHash(clientIP(r)), "success")
 	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "mustChange": force})
+}
+
+type deleteCredentialRequest struct {
+	Reason string `json:"reason"`
+}
+
+// deleteCredential moves a credential to the trash (DELETE /admin/portal-users/{id}). The row keeps
+// its audit trail and can be restored for 7 days, after which the purge removes it for good. Sessions
+// are revoked immediately, and the login stops authenticating the moment deleted_at is set.
+func (h *Handler) deleteCredential(w http.ResponseWriter, r *http.Request) {
+	if !auth.IsPortal(r.Context()) {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "portal session required")
+		return
+	}
+	var req deleteCredentialRequest
+	// The body is optional: a bare DELETE with no JSON is allowed (reason stays empty).
+	if isJSON(r) {
+		_ = httpx.Decode(r, &req)
+	}
+	req.Reason = strings.TrimSpace(req.Reason)
+	if len(req.Reason) > 500 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "reason is too long")
+		return
+	}
+	user, found, err := h.repo.ByID(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		failUnavailable(w, "credentials_delete_lookup", "credentials unavailable", err)
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "credential not found")
+		return
+	}
+	if user.Role == auth.RoleSuperAdmin {
+		// Never let the console remove the final active superadmin — that is a full lockout.
+		count, err := h.repo.CountActiveSuperAdmins(r.Context())
+		if err != nil {
+			failUnavailable(w, "credentials_superadmin_count", "credentials unavailable", err)
+			return
+		}
+		if count <= 1 {
+			httpx.Fail(w, http.StatusBadRequest, "last_super_admin", "the last active superadmin cannot be deleted")
+			return
+		}
+	}
+	if user.UserID == auth.UserID(r.Context()) {
+		// Deleting the acting superadmin's own credential would strand the session mid-flight.
+		httpx.Fail(w, http.StatusBadRequest, "self_delete", "you cannot delete the credential you are signed in with")
+		return
+	}
+	ok, err := h.repo.SoftDelete(r.Context(), user.UserID, req.Reason)
+	if err != nil {
+		failUnavailable(w, "credentials_delete", "could not delete credential", err)
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "credential not found")
+		return
+	}
+	h.record(r, "PORTAL_USER_DELETE", auth.UserID(r.Context()), auth.Role(r.Context()), shortHash(clientIP(r)), "success")
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"ok":      true,
+		"purgeAt": time.Now().Add(CredentialTrashWindow).UTC().Format(time.RFC3339),
+	})
+}
+
+// restoreCredential clears the trash flag (POST /admin/portal-users/{id}/restore) within the 7-day
+// window. The credential comes back deactivated, so access is re-granted deliberately.
+func (h *Handler) restoreCredential(w http.ResponseWriter, r *http.Request) {
+	if !auth.IsPortal(r.Context()) {
+		httpx.Fail(w, http.StatusUnauthorized, "unauthorized", "portal session required")
+		return
+	}
+	id := chi.URLParam(r, "id")
+	user, found, err := h.repo.ByIDAny(r.Context(), id)
+	if err != nil {
+		failUnavailable(w, "credentials_restore_lookup", "credentials unavailable", err)
+		return
+	}
+	if !found || user.DeletedAt == nil {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "credential not found in trash")
+		return
+	}
+	if time.Since(*user.DeletedAt) > CredentialTrashWindow {
+		// The window lapsed between the sweep and this call: the row is gone, never resurrectable.
+		httpx.Fail(w, http.StatusGone, "trash_expired", "the restore window has closed; this credential was permanently deleted")
+		return
+	}
+	ok, err := h.repo.Restore(r.Context(), user.UserID)
+	if err != nil {
+		if errors.Is(err, ErrEmailTaken) {
+			httpx.Fail(w, http.StatusConflict, "email_taken", "that email now belongs to another live login — delete or rename it first")
+			return
+		}
+		failUnavailable(w, "credentials_restore", "could not restore credential", err)
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "credential not found in trash")
+		return
+	}
+	h.record(r, "PORTAL_USER_RESTORE", auth.UserID(r.Context()), auth.Role(r.Context()), shortHash(clientIP(r)), "success")
+	httpx.JSON(w, http.StatusOK, map[string]bool{"ok": true})
 }
 
 // defaultForceChange reports whether a credential must rotate its password on next sign-in:
