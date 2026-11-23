@@ -1,6 +1,12 @@
 <resources>
   <!-- Splash credit line ("Product of FA CREATORS") rendered as a bottom layer.
        The tagline PNG is baked per-density by scripts/generate-splash-logo.py
-       because splash drawables cannot contain text. -->
+       because splash drawables cannot contain text.
+
+       The PNG is a 200x80dp canvas (the API 31+ branding box, so that layer's
+       stretch is 1:1) with the ink on the canvas's bottom edge. This pre-31
+       layer-list anchors the whole canvas, so its bottom inset is the platform's
+       60dp branding margin minus the 4dp that keeps the ink on the same baseline
+       as the iOS storyboard and the JS layer. -->
   <dimen name="splashscreen_tagline_margin_bottom">56dp</dimen>
 </resources>
