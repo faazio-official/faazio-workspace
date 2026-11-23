@@ -203,6 +203,178 @@ func TestHeaderLabels(t *testing.T) {
 	}
 }
 
+// TestDeleteWithMove pins the category-delete contract: the subtree is hidden, listings are never
+// orphaned, a move target is mandatory once listings exist, and the target must be a live
+// sibling-level category in the same app.
+func TestDeleteWithMove(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := NewRepo(pool)
+	ctx := context.Background()
+
+	var storeID string
+	if err := pool.QueryRow(ctx, `
+		select id from directory.stores where app = 'MART'::app_brand and is_live order by id limit 1`).
+		Scan(&storeID); err != nil {
+		t.Skipf("no live MART store to hang test listings on: %v", err)
+	}
+
+	mkProduct := func(id, category, taxonomyID string) {
+		if _, err := pool.Exec(ctx, `
+			insert into catalog.products (id, app, category, name, price_paisa, store_id, status, taxonomy_category_id)
+			values ($1, 'MART'::app_brand, $2, $1, 1000, $3, 'ACTIVE'::product_status, $4)`,
+			id, category, storeID, taxonomyID); err != nil {
+			t.Fatalf("seed product %s: %v", id, err)
+		}
+	}
+
+	parent, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Del Parent", SortOrder: 9300, GSTRateCategoryID: "gst-mart-packaged"}, "test")
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	keep, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Del Keep", SortOrder: 9301, GSTRateCategoryID: "gst-mart-packaged"}, "test")
+	if err != nil {
+		t.Fatalf("create keep: %v", err)
+	}
+	keepLeaf, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Del Keep Leaf", ParentID: &keep.ID, SortOrder: 9302, GSTRateCategoryID: "gst-mart-packaged"}, "test")
+	if err != nil {
+		t.Fatalf("create keep leaf: %v", err)
+	}
+	child, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Del Child", ParentID: &parent.ID, SortOrder: 9303, GSTRateCategoryID: "gst-mart-packaged"}, "test")
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	grand, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Del Grand", ParentID: &child.ID, SortOrder: 9304, GSTRateCategoryID: "gst-mart-packaged"}, "test")
+	if err != nil {
+		t.Fatalf("create grandchild: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from catalog.products where id like 'zzdel-%'`)
+		_, _ = pool.Exec(ctx, `delete from taxonomy.categories where id = any($1)`,
+			[]string{grand.ID, child.ID, parent.ID, keepLeaf.ID, keep.ID})
+	})
+
+	mkProduct("zzdel-a", grand.Name, grand.ID)
+	mkProduct("zzdel-b", grand.Name, grand.ID)
+	mkProduct("zzdel-c", child.Name, child.ID)
+
+	// 1. Listings in the subtree and no move target → refused, nothing hidden.
+	if _, err := repo.Delete(ctx, parent.ID, "", "test"); !errors.Is(err, ErrCategoryHasProducts) {
+		t.Fatalf("delete without moveTo err = %v, want ErrCategoryHasProducts", err)
+	}
+	if got, err := repo.Get(ctx, parent.ID); err != nil || !got.IsActive {
+		t.Fatalf("a refused delete must leave the category live: active=%v err=%v", got.IsActive, err)
+	}
+
+	// 2. A same-level but different-level target (leaf child) is rejected: parent→child mixes levels.
+	if _, err := repo.Delete(ctx, parent.ID, child.ID, "test"); !errors.Is(err, ErrInvalidMoveTarget) {
+		t.Fatalf("cross-level target err = %v, want ErrInvalidMoveTarget", err)
+	}
+	// A target inside the subtree is rejected too.
+	if _, err := repo.Delete(ctx, parent.ID, parent.ID, "test"); !errors.Is(err, ErrInvalidMoveTarget) {
+		t.Fatalf("self target err = %v, want ErrInvalidMoveTarget", err)
+	}
+
+	// 3. A valid top-level target moves every listing onto its active leaf and hides the subtree.
+	res, err := repo.Delete(ctx, parent.ID, keep.ID, "test")
+	if err != nil {
+		t.Fatalf("delete with moveTo: %v", err)
+	}
+	if res.MovedProducts != 3 {
+		t.Fatalf("movedProducts = %d, want 3", res.MovedProducts)
+	}
+	if res.Deactivated != 3 {
+		t.Fatalf("deactivated = %d, want 3 (parent+child+grandchild)", res.Deactivated)
+	}
+	if res.TargetID != keepLeaf.ID || res.TargetName != keepLeaf.Name {
+		t.Fatalf("target = %s/%s, want the destination's active leaf %s/%s",
+			res.TargetID, res.TargetName, keepLeaf.ID, keepLeaf.Name)
+	}
+	for _, id := range []string{"zzdel-a", "zzdel-b", "zzdel-c"} {
+		var cat, tax string
+		if err := pool.QueryRow(ctx, `select category, taxonomy_category_id from catalog.products where id = $1`, id).
+			Scan(&cat, &tax); err != nil {
+			t.Fatalf("read moved product %s: %v", id, err)
+		}
+		if tax != keepLeaf.ID || cat != keepLeaf.Name {
+			t.Fatalf("product %s = %q/%q, want %q/%q", id, cat, tax, keepLeaf.Name, keepLeaf.ID)
+		}
+	}
+	for _, id := range []string{parent.ID, child.ID, grand.ID} {
+		got, err := repo.Get(ctx, id)
+		if err != nil {
+			t.Fatalf("get %s: %v", id, err)
+		}
+		if got.IsActive {
+			t.Fatalf("category %s must be hidden after delete", id)
+		}
+	}
+	if got, err := repo.Get(ctx, keep.ID); err != nil || !got.IsActive {
+		t.Fatalf("the move target must stay live: active=%v err=%v", got.IsActive, err)
+	}
+
+	// 4. A category with no listings needs no move target and still hides its subtree.
+	empty, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Del Empty", SortOrder: 9305, GSTRateCategoryID: "gst-mart-packaged"}, "test")
+	if err != nil {
+		t.Fatalf("create empty parent: %v", err)
+	}
+	emptyChild, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Del Empty Child", ParentID: &empty.ID, SortOrder: 9306, GSTRateCategoryID: "gst-mart-packaged"}, "test")
+	if err != nil {
+		t.Fatalf("create empty child: %v", err)
+	}
+	if res, err := repo.Delete(ctx, empty.ID, "", "test"); err != nil {
+		t.Fatalf("delete without listings: %v", err)
+	} else if res.Deactivated != 2 || res.MovedProducts != 0 {
+		t.Fatalf("empty delete = hidden %d moved %d, want 2/0", res.Deactivated, res.MovedProducts)
+	}
+	if got, err := repo.Get(ctx, emptyChild.ID); err != nil || got.IsActive {
+		t.Fatalf("deleting a parent must cascade to its children: active=%v err=%v", got.IsActive, err)
+	}
+	// 5. A missing id reports ErrCategoryNotFound.
+	if _, err := repo.Delete(ctx, "cat-does-not-exist", "", "test"); !errors.Is(err, ErrCategoryNotFound) {
+		t.Fatalf("missing id err = %v, want ErrCategoryNotFound", err)
+	}
+}
+
+// TestCategoryProductCount pins the count the portal uses to decide whether a delete needs a move
+// target: it counts live listings linked directly to the node.
+func TestCategoryProductCount(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := NewRepo(pool)
+	ctx := context.Background()
+
+	var storeID string
+	if err := pool.QueryRow(ctx, `
+		select id from directory.stores where app = 'MART'::app_brand and is_live order by id limit 1`).
+		Scan(&storeID); err != nil {
+		t.Skipf("no live MART store to hang test listings on: %v", err)
+	}
+
+	cat, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Count Cat", SortOrder: 9400, GSTRateCategoryID: "gst-mart-packaged"}, "test")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from catalog.products where id like 'zzcnt-%'`)
+		_, _ = pool.Exec(ctx, `delete from taxonomy.categories where id = $1`, cat.ID)
+	})
+	for _, id := range []string{"zzcnt-1", "zzcnt-2"} {
+		if _, err := pool.Exec(ctx, `
+			insert into catalog.products (id, app, category, name, price_paisa, store_id, status, taxonomy_category_id)
+			values ($1, 'MART'::app_brand, $2, $1, 1000, $3, 'ACTIVE'::product_status, $4)`,
+			id, cat.Name, storeID, cat.ID); err != nil {
+			t.Fatalf("seed product: %v", err)
+		}
+	}
+
+	got, err := repo.Get(ctx, cat.ID)
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	if got.ProductCount != 2 {
+		t.Fatalf("productCount = %d, want 2", got.ProductCount)
+	}
+}
+
 func hasLabel(labels []string, want string) bool {
 	for _, h := range labels {
 		if h == want {

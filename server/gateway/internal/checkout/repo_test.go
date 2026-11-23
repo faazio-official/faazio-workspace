@@ -58,6 +58,50 @@ func TestDeleteAddress(t *testing.T) {
 	}
 }
 
+// A stored point must round-trip, and a partial/out-of-range pair must be refused rather than
+// silently stored — delivery pricing and proximity matching both trust a stored point.
+func TestUpsertAddressCoordinates(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	if _, err := pool.Exec(ctx, `insert into checkout.users (user_id, name, email, phone) values ('user-geo-test','T','t@t','0') on conflict (user_id) do nothing`); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.users where user_id = 'user-geo-test'`) })
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.addresses where user_id = 'user-geo-test'`) })
+
+	lat, lng := 10.9254, 79.838
+	if _, ok, err := repo.UpsertAddress(ctx, "user-geo-test", Address{
+		Address: "1 Test Street, Testville", Latitude: &lat, Longitude: &lng,
+	}); err != nil || !ok {
+		t.Fatalf("upsert with point: ok=%v err=%v", ok, err)
+	}
+
+	rows, err := repo.AddressesByUser(ctx, "user-geo-test")
+	if err != nil || len(rows) != 1 {
+		t.Fatalf("read back: n=%d err=%v", len(rows), err)
+	}
+	gotLat, gotLng, hasPoint := rows[0].Coordinates()
+	if !hasPoint || gotLat != lat || gotLng != lng {
+		t.Fatalf("point round-trip = %v,%v ok=%v, want %v,%v", gotLat, gotLng, hasPoint, lat, lng)
+	}
+
+	// A lone axis is a bug, not a partial fix.
+	if _, _, err := repo.UpsertAddress(ctx, "user-geo-test", Address{
+		Address: "2 Test Street", Latitude: &lat,
+	}); err == nil {
+		t.Fatal("a lone latitude must be rejected")
+	}
+	// Out-of-range must never reach the table.
+	bad := 99.0
+	if _, _, err := repo.UpsertAddress(ctx, "user-geo-test", Address{
+		Address: "3 Test Street", Latitude: &bad, Longitude: &lng,
+	}); err == nil {
+		t.Fatal("an out-of-range latitude must be rejected")
+	}
+}
+
 func TestProvisionUserIDLinksOnFirstLogin(t *testing.T) {
 	pool := testenv.Pool(t)
 	repo := New(pool)
@@ -225,5 +269,66 @@ func TestInsertOrderRecordsIdempotency(t *testing.T) {
 	}
 	if len(got.LineItems) != 1 || got.LineItems[0].UnitPrice != 100 {
 		t.Fatalf("line items = %+v", got.LineItems)
+	}
+}
+
+// The admin order boards show the vendor's revenue district, not a city. The projection used to
+// alias `admins.district_master.district_name` onto the JSON key `city`, so every "City" column and
+// city-mix chart silently rendered district data. The row now carries `districtName` and no `city`.
+func TestAdminOrderRowsExposeDistrictNotCity(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	sellerID := "SL-TEST-DIST"
+	const districtCode = "PY1" // Karaikal (seeded master)
+	cleanup := func() {
+		_, _ = pool.Exec(ctx, `delete from checkout.order_items where order_id like 'ORD-TEST-DIST%'`)
+		_, _ = pool.Exec(ctx, `delete from checkout.orders where order_id like 'ORD-TEST-DIST%'`)
+		_, _ = pool.Exec(ctx, `delete from directory.stores where id = 'store-test-dist'`)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id = $1`, sellerID)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	if _, err := pool.Exec(ctx,
+		`insert into sellers.sellers (seller_id, business_name, owner_name, category, state_code, district_code)
+		 values ($1, 'Test Seller', 'Test Owner', 'MART', 'PY', $2)`, sellerID, districtCode); err != nil {
+		t.Fatalf("seed seller: %v", err)
+	}
+	if _, err := pool.Exec(ctx,
+		`insert into directory.stores (id, app, name, seller_id) values ('store-test-dist', 'MART', 'Test Store', $1)`,
+		sellerID); err != nil {
+		t.Fatalf("seed store: %v", err)
+	}
+
+	order := Order{
+		ID: "ORD-TEST-DIST-1", OrderNumber: "#DIST", UserID: "user-1",
+		Status: "Processing", VendorStoreIDs: []string{"store-test-dist"},
+	}
+	lines := []OrderLineItem{{LineID: order.ID + "-l1", ProductID: "fm-m1", Name: "x", Qty: 1, UnitPrice: 100}}
+	if err := repo.InsertOrder(ctx, order, lines, "", nil); err != nil {
+		t.Fatalf("InsertOrder: %v", err)
+	}
+
+	rows, err := repo.AllOrders(ctx, AdminOrderFilter{Limit: 50})
+	if err != nil {
+		t.Fatalf("AllOrders: %v", err)
+	}
+	var found *AdminOrderRow
+	for i := range rows {
+		if rows[i].OrderID == order.ID {
+			found = &rows[i]
+			break
+		}
+	}
+	if found == nil {
+		t.Fatal("seeded order missing from the admin board")
+	}
+	if found.DistrictName != "Karaikal" {
+		t.Fatalf("districtName = %q, want the master district name", found.DistrictName)
+	}
+	if found.DistrictCode != districtCode {
+		t.Fatalf("districtCode = %q, want %q", found.DistrictCode, districtCode)
 	}
 }

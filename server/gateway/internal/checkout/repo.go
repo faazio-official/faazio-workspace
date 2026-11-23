@@ -126,20 +126,23 @@ type AdminOrderRow struct {
 	OrderNumber   string `json:"orderNumber"`
 	CustomerName  string `json:"customerName"`
 	CustomerPhone string `json:"customerPhone"`
-	City          string `json:"city"`
-	StateCode     string `json:"stateCode"`
-	DistrictCode  string `json:"districtCode"`
-	SellerID      string `json:"sellerId"`
-	SellerName    string `json:"sellerName"`
-	Sector        string `json:"sector"`
-	StoreID       string `json:"storeId"`
-	ItemsCount    int64  `json:"itemsCount"`
-	AmountPaisa   int64  `json:"amountPaisa"`
-	Status        string `json:"status"`
-	PlacedAt      string `json:"placedAt"`
-	StatusDate    string `json:"statusDate,omitempty"`
-	SlaDueAt      string `json:"slaDueAt"`
-	Fulfillment   string `json:"fulfillment"`
+	// DistrictName is the vendor's revenue district (admins.district_master). It is NOT a city: the
+	// order carries no city column, so the board exposes the district under its own name instead of
+	// aliasing it onto `city` (which made every "City" column and city-mix chart show districts).
+	DistrictName string `json:"districtName"`
+	StateCode    string `json:"stateCode"`
+	DistrictCode string `json:"districtCode"`
+	SellerID     string `json:"sellerId"`
+	SellerName   string `json:"sellerName"`
+	Sector       string `json:"sector"`
+	StoreID      string `json:"storeId"`
+	ItemsCount   int64  `json:"itemsCount"`
+	AmountPaisa  int64  `json:"amountPaisa"`
+	Status       string `json:"status"`
+	PlacedAt     string `json:"placedAt"`
+	StatusDate   string `json:"statusDate,omitempty"`
+	SlaDueAt     string `json:"slaDueAt"`
+	Fulfillment  string `json:"fulfillment"`
 }
 
 // AdminOrderDelivery is the latest delivery job for an order (nil when the order was never
@@ -578,7 +581,7 @@ select o.order_id,
        o.order_number,
        coalesce(a.name, u.name, '')      as customer_name,
        coalesce(a.phone, u.phone, '')    as customer_phone,
-       coalesce(dm.district_name, '')    as city,
+       coalesce(dm.district_name, '')    as district_name,
        coalesce(sl.state_code, '')       as state_code,
        coalesce(sl.district_code, '')    as district_code,
        coalesce(st.seller_id, '')        as seller_id,
@@ -694,7 +697,7 @@ func scanAdminOrderRows(rows pgx.Rows) ([]AdminOrderRow, error) {
 			statusDate time.Time
 		)
 		if err := rows.Scan(&row.OrderID, &row.OrderNumber, &row.CustomerName, &row.CustomerPhone,
-			&row.City, &row.StateCode, &row.DistrictCode, &row.SellerID, &row.SellerName,
+			&row.DistrictName, &row.StateCode, &row.DistrictCode, &row.SellerID, &row.SellerName,
 			&row.Sector, &row.StoreID, &row.ItemsCount, &row.AmountPaisa, &row.Status,
 			&placedAt, &statusDate, &row.Fulfillment); err != nil {
 			return nil, err
@@ -1977,6 +1980,21 @@ type Address struct {
 	Phone     string `json:"phone,omitempty"`
 	Address   string `json:"address"`
 	IsDefault bool   `json:"isDefault"`
+	// Latitude/Longitude are the exact delivery point (PII, paired). Null when the row was saved
+	// before 0125 or was never pinned; the app then falls back to the text address.
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
+}
+
+// Coordinates returns the row's stored point, or ok=false when it has none (or an invalid pair).
+func (a Address) Coordinates() (lat, lng float64, ok bool) {
+	if a.Latitude == nil || a.Longitude == nil {
+		return 0, 0, false
+	}
+	if !validLatitude(*a.Latitude) || !validLongitude(*a.Longitude) {
+		return 0, 0, false
+	}
+	return *a.Latitude, *a.Longitude, true
 }
 
 // AddressesByUser returns the caller's saved addresses (default first).
@@ -1985,7 +2003,8 @@ func (r *Repo) AddressesByUser(ctx context.Context, userID string) ([]Address, e
 		return nil, fmt.Errorf("checkout: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select coalesce(address_id,''), coalesce(label,''), coalesce(name,''), coalesce(phone,''), address, is_default
+		select coalesce(address_id,''), coalesce(label,''), coalesce(name,''), coalesce(phone,''), address, is_default,
+		       latitude, longitude
 		  from checkout.addresses where user_id = $1 order by is_default desc, address_id`, userID)
 	if err != nil {
 		return nil, err
@@ -1994,7 +2013,8 @@ func (r *Repo) AddressesByUser(ctx context.Context, userID string) ([]Address, e
 	out := []Address{}
 	for rows.Next() {
 		var a Address
-		if err := rows.Scan(&a.AddressID, &a.Label, &a.Name, &a.Phone, &a.Address, &a.IsDefault); err != nil {
+		if err := rows.Scan(&a.AddressID, &a.Label, &a.Name, &a.Phone, &a.Address, &a.IsDefault,
+			&a.Latitude, &a.Longitude); err != nil {
 			return nil, err
 		}
 		out = append(out, a)
@@ -2004,12 +2024,21 @@ func (r *Repo) AddressesByUser(ctx context.Context, userID string) ([]Address, e
 
 // UpsertAddress inserts or updates an address owned by userID. When the supplied id does not belong
 // to the caller the write is refused (ok=false). Setting isDefault clears the caller's other defaults.
+// Coordinates are optional but strictly both-or-neither and range-checked: a lone axis is rejected
+// rather than silently stored, because the app treats a stored point as authoritative for delivery
+// pricing and proximity matching.
 func (r *Repo) UpsertAddress(ctx context.Context, userID string, a Address) (Address, bool, error) {
 	if r.pool == nil {
 		return Address{}, false, fmt.Errorf("checkout: database not configured")
 	}
 	if a.Address == "" || len(a.Address) > 512 {
 		return Address{}, false, fmt.Errorf("checkout: invalid address")
+	}
+	if (a.Latitude == nil) != (a.Longitude == nil) {
+		return Address{}, false, fmt.Errorf("checkout: address coordinates must be both or neither")
+	}
+	if a.Latitude != nil && (!validLatitude(*a.Latitude) || !validLongitude(*a.Longitude)) {
+		return Address{}, false, fmt.Errorf("checkout: address coordinates out of range")
 	}
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -2036,12 +2065,14 @@ func (r *Repo) UpsertAddress(ctx context.Context, userID string, a Address) (Add
 		}
 	}
 	if _, err := tx.Exec(ctx, `
-		insert into checkout.addresses (address_id, user_id, label, name, phone, address, is_default)
-		values ($1,$2,$3,$4,$5,$6,$7)
+		insert into checkout.addresses (address_id, user_id, label, name, phone, address, is_default, latitude, longitude)
+		values ($1,$2,$3,$4,$5,$6,$7,$8,$9)
 		on conflict (address_id) do update
 		  set label = excluded.label, name = excluded.name, phone = excluded.phone,
-		      address = excluded.address, is_default = excluded.is_default`,
-		a.AddressID, userID, a.Label, nullIfEmpty(a.Name), nullIfEmpty(a.Phone), a.Address, a.IsDefault); err != nil {
+		      address = excluded.address, is_default = excluded.is_default,
+		      latitude = excluded.latitude, longitude = excluded.longitude`,
+		a.AddressID, userID, a.Label, nullIfEmpty(a.Name), nullIfEmpty(a.Phone), a.Address, a.IsDefault,
+		a.Latitude, a.Longitude); err != nil {
 		return Address{}, false, err
 	}
 	if err := tx.Commit(ctx); err != nil {

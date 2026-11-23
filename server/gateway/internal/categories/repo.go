@@ -46,6 +46,9 @@ type Category struct {
 	GSTRatePct          int    `json:"gstRatePct"`
 	GSTRateCategoryID   string `json:"gstRateCategoryId,omitempty"`
 	GSTRateCategoryName string `json:"gstRateCategoryName,omitempty"`
+	// ProductCount is how many live listings link directly to this node. A delete needs a move
+	// target as soon as this node or any descendant reports a non-zero count.
+	ProductCount int64 `json:"productCount"`
 }
 
 // SubCategoryInput is one inline sub-category created/updated with its parent in the portal sheet.
@@ -163,14 +166,17 @@ const gstSelect = `coalesce((select g.gst_rate_pct from tax.category_gst_rates g
 const rowSelect = `select id, app::text, name, slug, coalesce(description, ''), coalesce(icon_url, ''),
 	parent_id, coalesce(search_query, ''), is_active, show_on_home_rail, sort_order,
 	created_at::text, updated_at::text, created_by, coalesce(updated_by, ''),
-	coalesce(name_ta, ''), coalesce(description_ta, ''), ` + headerLabelsSelect + `, ` + gstSelect
+	coalesce(name_ta, ''), coalesce(description_ta, ''), ` + headerLabelsSelect + `, ` + gstSelect + `,
+	(select count(*) from catalog.products p
+	  where p.deleted_at is null and p.taxonomy_category_id = taxonomy.categories.id)`
 
 func scanCategory(row pgx.Row) (Category, error) {
 	var c Category
 	err := row.Scan(&c.ID, &c.App, &c.Name, &c.Slug, &c.Description, &c.IconURL,
 		&c.ParentID, &c.SearchQuery, &c.IsActive, &c.ShowOnHomeRail, &c.SortOrder,
 		&c.CreatedAt, &c.UpdatedAt, &c.CreatedBy, &c.UpdatedBy, &c.NameTA, &c.DescriptionTA,
-		&c.HeaderLabels, &c.GSTRatePct, &c.GSTRateCategoryID, &c.GSTRateCategoryName)
+		&c.HeaderLabels, &c.GSTRatePct, &c.GSTRateCategoryID, &c.GSTRateCategoryName,
+		&c.ProductCount)
 	if c.HeaderLabels == nil {
 		c.HeaderLabels = []string{}
 	}
@@ -514,6 +520,220 @@ func (r *Repo) Deactivate(ctx context.Context, id, actor string) (bool, error) {
 		return false, err
 	}
 	return tag.RowsAffected() > 0, nil
+}
+
+// Category delete contract. A delete always soft-deactivates the row **and its whole subtree** (a
+// hidden parent must never leave live children behind). Listings that point at a node in that
+// subtree are never orphaned: the caller must name a `moveTo` sibling-level category, and every
+// affected listing is re-linked to that destination's drill-in leaf in the same transaction.
+var (
+	// ErrCategoryNotFound means the id does not exist.
+	ErrCategoryNotFound = errors.New("categories: not found")
+	// ErrCategoryHasProducts means listings still live in the subtree and no move target was given.
+	ErrCategoryHasProducts = errors.New("categories: listings must be moved first")
+	// ErrInvalidMoveTarget means the destination is absent, inactive, another app, inside the
+	// subtree being deleted, or at a different tree level than the category being deleted.
+	ErrInvalidMoveTarget = errors.New("categories: invalid move target")
+)
+
+// DeleteResult reports what one category deletion hid and re-linked.
+type DeleteResult struct {
+	ID string `json:"id"`
+	// Deactivated is the number of taxonomy rows hidden (the category plus its descendants).
+	Deactivated int64 `json:"deactivated"`
+	// MovedProducts is the number of listings re-linked to the destination leaf.
+	MovedProducts int64 `json:"movedProducts"`
+	// TargetID / TargetName identify the drill-in leaf the listings moved onto (empty when none).
+	TargetID   string `json:"targetId,omitempty"`
+	TargetName string `json:"targetName,omitempty"`
+}
+
+// subtreeSQL walks one category's descendants inclusively. `$1` is the root id.
+const subtreeSQL = `
+	with recursive sub as (
+	  select c.id, c.parent_id, c.name, c.sort_order
+	    from taxonomy.categories c
+	   where c.id = $1
+	  union all
+	  select c.id, c.parent_id, c.name, c.sort_order
+	    from taxonomy.categories c
+	    join sub on c.parent_id = sub.id
+	)
+	select id, parent_id, name, sort_order from sub`
+
+// Delete soft-deactivates one category plus everything under it. When listings point at any node in
+// that subtree the caller must pass moveTo — a live sibling-level category — and each listing is
+// re-linked (and re-labelled) onto that destination's drill-in leaf.
+//
+// Level discipline: a top-level category may only be merged into another top-level category, and a
+// child may only be merged into another child, so a deletion can never push products across tree
+// levels. The destination is reduced to an ACTIVE LEAF (itself when childless, otherwise its first
+// active descendant leaf by sort order — the same "representative leaf" rule 0094 uses) because the
+// catalog only accepts leaves as a product's taxonomy link.
+//
+// Returns ErrCategoryHasProducts when listings remain and moveTo is empty, so the portal can prompt
+// for a destination instead of silently dropping the mapping.
+func (r *Repo) Delete(ctx context.Context, id, moveTo, actor string) (DeleteResult, error) {
+	var out DeleteResult
+	if r.pool == nil {
+		return out, fmt.Errorf("categories: database not configured")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return out, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// 1. The node being deleted (row lock so a concurrent edit cannot move it mid-transaction).
+	var (
+		app      string
+		parentID *string
+		name     string
+	)
+	if err := tx.QueryRow(ctx, `
+		select app::text, parent_id, name
+		  from taxonomy.categories
+		 where id = $1
+		 for update`, id).Scan(&app, &parentID, &name); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return out, ErrCategoryNotFound
+		}
+		return out, err
+	}
+
+	// 2. The subtree ids, used for both the product sweep and the deactivation.
+	rows, err := tx.Query(ctx, subtreeSQL, id)
+	if err != nil {
+		return out, err
+	}
+	subtree := make([]string, 0, 8)
+	for rows.Next() {
+		var subID string
+		var subParent *string
+		var subName string
+		var subSort int64
+		if err := rows.Scan(&subID, &subParent, &subName, &subSort); err != nil {
+			rows.Close()
+			return out, err
+		}
+		subtree = append(subtree, subID)
+	}
+	rows.Close()
+	if err := rows.Err(); err != nil {
+		return out, err
+	}
+
+	// 3. Listings that would be orphaned. Only explicit taxonomy links count: a coarse display label
+	// shares a name with a node sometimes, but it was never a drill-in membership.
+	var affected int64
+	if err := tx.QueryRow(ctx, `
+		select count(*) from catalog.products
+		 where deleted_at is null and taxonomy_category_id = any($1)`, subtree).Scan(&affected); err != nil {
+		return out, err
+	}
+
+	moveTo = strings.TrimSpace(moveTo)
+	if affected > 0 && moveTo == "" {
+		return out, ErrCategoryHasProducts
+	}
+
+	if moveTo != "" {
+		// 4. Validate the destination: same app, same tree level, not inside the subtree, active.
+		var (
+			dstApp    string
+			dstParent *string
+			dstActive bool
+		)
+		if err := tx.QueryRow(ctx, `
+			select app::text, parent_id, is_active
+			  from taxonomy.categories
+			 where id = $1`, moveTo).Scan(&dstApp, &dstParent, &dstActive); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return out, ErrInvalidMoveTarget
+			}
+			return out, err
+		}
+		if !dstActive || dstApp != app {
+			return out, ErrInvalidMoveTarget
+		}
+		// Same level: both top-level, or both children. `parentID == nil` is the level marker.
+		if (dstParent == nil) != (parentID == nil) {
+			return out, ErrInvalidMoveTarget
+		}
+		for _, subID := range subtree {
+			if subID == moveTo {
+				return out, ErrInvalidMoveTarget
+			}
+		}
+
+		// 5. Reduce the destination to an ACTIVE LEAF (the catalog's only legal product target).
+		leafID, leafName, err := resolveLeaf(ctx, tx, moveTo)
+		if err != nil {
+			return out, err
+		}
+
+		tag, err := tx.Exec(ctx, `
+			update catalog.products
+			   set category             = $2,
+			       taxonomy_category_id = $3,
+			       updated_at           = now()
+			 where deleted_at is null
+			   and taxonomy_category_id = any($1)`, subtree, leafName, leafID)
+		if err != nil {
+			return out, err
+		}
+		out.MovedProducts = tag.RowsAffected()
+		out.TargetID = leafID
+		out.TargetName = leafName
+	}
+
+	// 6. Hide the node and everything beneath it in one statement.
+	tag, err := tx.Exec(ctx, `
+		update taxonomy.categories
+		   set is_active = false, updated_by = $2, updated_at = now()
+		 where id = any($1)`, subtree, actor)
+	if err != nil {
+		return out, err
+	}
+	out.ID = id
+	out.Deactivated = tag.RowsAffected()
+
+	if err := tx.Commit(ctx); err != nil {
+		return out, err
+	}
+	return out, nil
+}
+
+// resolveLeaf returns the ACTIVE leaf a listing may be linked to: the id itself when it has no active
+// children, otherwise its first active descendant leaf by (sort_order, id) — deterministic, so a
+// retried delete lands on the same leaf.
+func resolveLeaf(ctx context.Context, tx pgx.Tx, id string) (string, string, error) {
+	var leafID, leafName string
+	err := tx.QueryRow(ctx, `
+		with recursive sub as (
+		  select c.id, c.name, c.sort_order
+		    from taxonomy.categories c
+		   where c.id = $1 and c.is_active
+		  union all
+		  select c.id, c.name, c.sort_order
+		    from taxonomy.categories c
+		    join sub on c.parent_id = sub.id
+		   where c.is_active
+		)
+		select s.id, s.name
+		  from sub s
+		 where not exists (
+		         select 1 from taxonomy.categories k where k.parent_id = s.id and k.is_active)
+		 order by s.sort_order, s.id
+		 limit 1`, id).Scan(&leafID, &leafName)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			// The destination has no active leaf (e.g. it was deactivated concurrently).
+			return "", "", ErrInvalidMoveTarget
+		}
+		return "", "", err
+	}
+	return leafID, leafName, nil
 }
 
 // replaceHeaderLabels rewrites the curated header labels for one category inside tx.

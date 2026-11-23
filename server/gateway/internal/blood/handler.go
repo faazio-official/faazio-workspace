@@ -2,6 +2,7 @@ package blood
 
 import (
 	"encoding/json"
+	"log/slog"
 	"net/http"
 	"strings"
 	"time"
@@ -142,6 +143,8 @@ func (h *Handler) listRequests(w http.ResponseWriter, r *http.Request) {
 	}
 	requests, err := h.repo.Requests(r.Context(), group, city)
 	if err != nil {
+		// Log detailed error for diagnostics
+		slog.ErrorContext(r.Context(), "blood_requests_error", "error", err)
 		httpx.Fail(w, http.StatusInternalServerError, "requests_unavailable", "blood requests unavailable")
 		return
 	}

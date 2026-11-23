@@ -48,7 +48,7 @@ func (h *Handler) series(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "scope must be global | seller | state | product")
 		return
 	}
-	if scope != "global" && id == "" {
+	if scope != "global" && scope != "state" && id == "" {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "id is required for this scope")
 		return
 	}

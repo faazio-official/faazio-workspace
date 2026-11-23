@@ -231,18 +231,39 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, item)
 }
 
+// remove soft-deletes a category and its subtree. Listings inside the subtree are never dropped: the
+// caller must name `?moveTo=<category id>` (a live sibling-level category) and they are re-linked to
+// that destination's drill-in leaf. A delete that would orphan listings and names no destination
+// fails with 409 `move_required` so the portal can prompt for one.
 func (h *Handler) remove(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	ok, err := h.repo.Deactivate(r.Context(), id, auth.UserID(r.Context()))
-	if err != nil {
+	moveTo := strings.TrimSpace(r.URL.Query().Get("moveTo"))
+	res, err := h.repo.Delete(r.Context(), id, moveTo, auth.UserID(r.Context()))
+	switch {
+	case errors.Is(err, ErrCategoryNotFound):
+		httpx.Fail(w, http.StatusNotFound, "not_found", "category not found")
+		return
+	case errors.Is(err, ErrCategoryHasProducts):
+		httpx.Fail(w, http.StatusConflict, "move_required",
+			"move the listings to another category before deleting this one")
+		return
+	case errors.Is(err, ErrInvalidMoveTarget):
+		httpx.Fail(w, http.StatusBadRequest, "invalid_move_target",
+			"pick another category at the same level in this app")
+		return
+	case err != nil:
 		httpx.Fail(w, http.StatusInternalServerError, "categories_write_failed", "could not delete category")
 		return
 	}
-	if !ok {
-		httpx.Fail(w, http.StatusNotFound, "not_found", "category not found")
-		return
-	}
-	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "deactivated": true, "id": id})
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"ok":            true,
+		"deactivated":   true,
+		"id":            res.ID,
+		"hidden":        res.Deactivated,
+		"movedProducts": res.MovedProducts,
+		"targetId":      res.TargetID,
+		"targetName":    res.TargetName,
+	})
 }
 
 // normalizeHeaderLabels upper-cases, trims and de-duplicates an explicit header label list so the repo
