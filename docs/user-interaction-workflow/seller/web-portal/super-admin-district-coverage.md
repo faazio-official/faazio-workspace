@@ -13,7 +13,9 @@ per-district drill-down `/admin/super/districts/[code]`
    filters server-side (`?state=TN`).
 2. **Create:** *New district* opens a sheet — District code, District name, State/UT, Available.
    Save calls `POST /admin/districts`. The portal validates the code against
-   `^[A-Z]{2}[A-Z0-9]$` before sending; the gateway repeats the check plus `admins.states` membership.
+   `^[A-Z]{2}[A-Z0-9]{1,3}$` before sending; the gateway repeats the check plus `admins.states`
+   membership. The 1–3 trailing chars accept large states' codes (`UP01`…`UP75`); the master shipped
+   with all 36 states/UTs seeded (`0127`), so most districts already exist and only need enabling.
    A created district is immediately valid for seller onboarding and district scoping (the gateway
    reloads its `internal/platform/geo` mirror on the write), so no deploy is needed.
 3. **Edit:** *Edit* prefills name, state and availability; the **code field is disabled** because
@@ -67,11 +69,14 @@ per-district drill-down `/admin/super/districts/[code]`
 
 ## Known gaps
 
-- `GET /admin/districts` has no pagination; the master is ~42 rows and additive, so a full read is fine
-  for now.
+- `GET /admin/districts` has no pagination; the master is now **777 rows** (all 36 states/UTs, only
+  TN + PY active) since `0127`, so the full read still works but the table relies on the state filter
+  and search rather than scrolling the whole list.
 - `data/districts.ts` (mobile/web offline fixtures) is still a manual mirror of the DB — see
   `docs/user-interaction-workflow/KNOWN_GAPS.md`. The mobile pickers read the live
   `GET /geo/districts` through `GatewayClient`; the fixture is only the offline shell.
+- The 42 legacy 3-char codes (`TNA`, `PY0`…) are frozen forever — they are FK targets. New districts
+  use `STATE+NN` codes and carry a `google_place_id` so lead intake can resolve them.
 
 ## Linked docs
 

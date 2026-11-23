@@ -1780,13 +1780,16 @@ CREATE TABLE admins.portal_users (
   last_login_at       timestamptz,
   password_changed_at timestamptz NOT NULL DEFAULT now(),
   created_at/updated_at timestamptz NOT NULL DEFAULT now(),
+  deleted_at          timestamptz,                 -- 0128 soft delete: non-null = trashed
+  delete_reason       text NOT NULL DEFAULT '',    -- 0128 why it was deleted (≤500 bytes)
   CONSTRAINT portal_users_scope_check CHECK (
     (role = 'SUPER_ADMIN' AND seller_id IS NULL AND state_code IS NULL) OR
     (role = 'SELLER'      AND seller_id IS NOT NULL AND state_code IS NULL) OR
     (role = 'STATE_ADMIN' AND seller_id IS NULL AND state_code IS NOT NULL)
   )
 );
-CREATE UNIQUE INDEX portal_users_email_lower_uniq ON admins.portal_users (lower(email));
+CREATE UNIQUE INDEX portal_users_email_lower_live_uniq ON admins.portal_users (lower(email))
+  WHERE deleted_at IS NULL;                        -- 0128: live rows only
 
 CREATE TABLE admins.portal_sessions (
   token_hash            text PRIMARY KEY,          -- sha256(raw refresh token), hex
@@ -1805,18 +1808,28 @@ CREATE TABLE admins.portal_sessions (
 );
 ```
 
-Indexes: `(lower(email))` unique, `(active)`, `(seller_id) WHERE seller_id IS NOT NULL`,
-`(state_code) WHERE state_code IS NOT NULL`, `portal_sessions(session_id)`, `portal_sessions(user_id)`,
+Indexes: `(lower(email))` unique **over live rows only** (`WHERE deleted_at IS NULL`, 0128 — a trashed
+row's email is free to re-issue), `(active)`, `(seller_id) WHERE seller_id IS NOT NULL`,
+`(state_code) WHERE state_code IS NOT NULL`, `(deleted_at) WHERE deleted_at IS NOT NULL` (0128 trash),
+`portal_sessions(session_id)`, `portal_sessions(user_id)`,
 `portal_sessions(expires_at)`, `portal_sessions(absolute_expires_at)` (0038), `portal_sessions(rotated_to_hash)
 WHERE rotated_to_hash IS NOT NULL` (0038).
 RLS is enabled and `anon`/`authenticated` are revoked: the gateway (service_role) is the only writer and
 direct Supabase clients never see credential/session rows. **No seed INSERT ships** — the two accounts
 are provisioned manually with `tools/hash-password` (runbook `PORTAL_AUTH.md`); seller and state-admin
-logins are issued at runtime by `POST /admin/portal-users` (superadmin only) and can be disabled or
-password-reset per `PUT /admin/portal-users/{id}` and `PUT /admin/portal-users/{id}/password`.
+logins are issued at runtime by `POST /admin/portal-users` (superadmin only) and can be disabled,
+password-reset or soft-deleted per `PUT /admin/portal-users/{id}`, `PUT /admin/portal-users/{id}/password`
+and `DELETE /admin/portal-users/{id}` (+ `POST /admin/portal-users/{id}/restore`).
 `must_change` confines only scoped roles: a new/reset `SELLER`/`STATE_ADMIN` defaults to a forced first
 rotation (the request may set `forceChange:false`), while `SUPER_ADMIN` is never forced — its password
 is active immediately, and `0034_portal_superadmin_no_force.sql` repairs any seeded superadmin row.
+
+**Soft delete (`0128`):** `deleted_at`/`delete_reason` put a credential in the trash. Every auth lookup,
+admin list and identity gate filters `deleted_at IS NULL`, so a trashed login cannot authenticate or
+block a re-issued email. It is restorable for 7 days (`CredentialTrashWindow`, matching the catalogue
+product trash, 0089); after that `admins.purge_deleted_portal_users()` — run hourly by the gateway
+`portal.Purger` and on every credential list — removes the row (sessions cascade, a seller sub-user's
+`portal_user_id` is set null).
 
 Session lifecycle (`0038` adds the GCP-style lifetimes): access = HS256 JWT (`iss=faazio-portal`, `aud=portal`,
 `app_role`, optional `seller_id`/`state_code`, `must_change`, 15 min, `jti`); refresh = opaque `faazio_pr_*`
@@ -1870,8 +1883,10 @@ CREATE INDEX IF NOT EXISTS sellers_phone_digits_idx
 ```
 
 New confirms:
-- `admins.portal_users` has `portal_users_email_lower_uniq` (`lower(email)`, `0032`) — the
-  **cross-role gate**: a `STATE_ADMIN`/`SELLER` email can never shadow a `SUPER_ADMIN` email.
+- `admins.portal_users` has `portal_users_email_lower_live_uniq` (`lower(email)` over live rows,
+  `0128`, replacing the `0032` full index) — the **cross-role gate**: a `STATE_ADMIN`/`SELLER` email
+  can never shadow a `SUPER_ADMIN` email. A trashed row does not block the address (it is re-issuable
+  the moment the credential is deleted).
   `state_admins` roster rows do **not** FK to `portal_users` (a roster can be pre-provisioned
   without a login); the link is the shared `lower(email)`, joined at write time by
   `internal/admins` (Provisioner).
@@ -2974,7 +2989,8 @@ create policy district_master_delete on admins.district_master for delete to aut
 
 - **Write path (SUPER_ADMIN only):** `POST /admin/districts`, `PUT /admin/districts/{code}`,
   `PATCH /admin/districts/{code}/toggle`, `DELETE /admin/districts/{code}` in `internal/districts`.
-  Shape checks mirror the table's `CHECK` constraints (`^[A-Z]{2}[A-Z0-9]$` code, name ≤80 chars,
+  Shape checks mirror the table's `CHECK` constraints (`^[A-Z]{2}[A-Z0-9]{1,3}$` code — widened by
+  `0127`, see §12.45 — name ≤80 chars,
   `char(2)` state) and the state must exist in `admins.states` (or be a coverage state), so adding a
   state stays data-only. A duplicate code is `409`; an invalid payload is `400`.
 - **Read path (unchanged):** `GET /geo/districts?state=` returns active rows for any signed-in
@@ -3088,5 +3104,54 @@ CREATE INDEX category_gst_rates_rate_idx ON tax.category_gst_rates (gst_rate_cat
   product picker reads the same value checkout charges. SUPER_ADMIN: `GET|POST
   /admin/tax/gst-rate-categories`, `PUT|DELETE /admin/tax/gst-rate-categories/{id}`, `GET
   /admin/tax/category-gst-rates`, `PUT /admin/tax/category-gst-rates/{id}` (delete is a soft
-  deactivate, refused with `409` while any category still links the slab). The `0115`
+  deactivate, refused with `409` while any category still links the slab). The   `0115`
   `GET|PUT /admin/tax/settings` route is gone; `tax.platform_settings` is read directly by checkout.
+
+### 12.45 All-India district master keyed on Google `place_id` (migration `0127`)
+
+**Authority:** `monolith-breakdown.md` §1 (districts), `user-interaction-workflow/seller/onboarding/seller-web-intake.md`,
+`user-interaction-workflow/seller/web-portal/super-admin-district-coverage.md`.
+
+`0046` seeded 42 districts (TN 38 + PY 4) resolved by matching a **free-text name**. Names drift
+("Bengaluru"↔"Bangalore", "Trichy"↔"Tiruchirappalli"), so a reverse-geocoded label could not reliably
+identify a row — and the landing page read Google's `administrative_area_level_2`, which in India is
+the **division** ("Bangalore Division", "Mandi Division"), not the district. `0127` fixes both: the
+table is seeded with all 36 states/UTs and keyed on the district's durable Google `place_id`.
+
+```sql
+-- 1. width: 36 districts/state was impossible (UP 75, MP 55, BR 38); widen the code CHECK
+alter table admins.district_master drop constraint if exists district_master_district_code_check;
+alter table admins.district_master add constraint district_master_district_code_check
+  check (district_code ~ '^[A-Z]{2}[A-Z0-9]{1,3}$');
+alter table admins.portal_users drop constraint if exists portal_users_district_code_check;
+alter table admins.portal_users add constraint portal_users_district_code_check
+  check (district_code is null or district_code ~ '^[A-Z]{2}[A-Z0-9]{1,3}$');
+
+-- 2. the durable identity: unique when present, NULL when Google cannot resolve the district
+alter table admins.district_master add column if not exists google_place_id text;
+create unique index district_master_google_place_id_key
+  on admins.district_master (google_place_id) where google_place_id is not null;
+
+-- 3. seed 777 districts across all 36 states/UTs; the 42 legacy codes are preserved (upsert on PK)
+--    and only Tamil Nadu + Puducherry are is_active = true — live coverage is unchanged.
+```
+
+- **Level discipline (the trap):** `administrative_area_level_1` = state/UT,
+  `level_2` = **division**, `level_3` = **district**. `place_id` is never on `address_components`, so
+  the client reverse-geocodes a second time with `result_type=administrative_area_level_3` and takes
+  that result's own `place_id`. The **reverse** id is authoritative (a real visitor's pin is
+  reverse-geocoded); forward ids differ for the same district (e.g. Kolkata), so the seed stores the
+  reverse id where one exists.
+- **Codes:** legacy 3-char codes (`TNA`, `PY0`) are frozen forever — they are FK targets for
+  `sellers.sellers`, `admins.district_admins`, `admins.portal_users`, `payments.*` and leads. New
+  districts get `STATE+NN` (`UP01`…`UP75`), valid only because the CHECK was widened here.
+- **Write path:** unchanged (`0127` seeds data only). `internal/districts` `codePattern` and the
+  portal's `CODE_PATTERN` both widened to `^[A-Z]{2}[A-Z0-9]{1,3}$` to match.
+- **Read/resolve path:** `internal/platform/geo` carries `GooglePlaceID` plus a `byPlaceID` index;
+  `internal/sellers` resolves a public lead by `districtPlaceId` **first**, then `districtCode`, then
+  `districtName`, so a lead lands on the exact district even when the label is misspelled.
+- **Reproducible:** `scripts/gen-district-seed.mjs` (geocode + reverse round-trip verification;
+  777/777 districts verified) and `scripts/gen-district-migration.mjs` (SQL generator) regenerate the
+  migration; an `ALIASES` map absorbs official renames. Unresolvable districts (J&K/Ladakh return no
+  administrative components) keep a NULL `google_place_id` rather than a wrong one.
+

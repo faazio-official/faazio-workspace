@@ -276,9 +276,12 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 - **District-admin roster + credential writes (`0036`)** — roster rows carry email/phone PII and portal
   users carry credentials; the unified `POST /district-admins` never reads/writes a cache key (same rule
   as seller PII). The roster is a portal-only read with no cache.
-- **District master (`admins.district_master`, `0046`)** — `GET /geo/districts` (`internal/districts`)
+- **District master (`admins.district_master`, `0046`/`0127`)** — `GET /geo/districts` (`internal/districts`)
   is a tiny indexed master read (partial index `district_master_state_idx`) that changes ~never; no
-  `faazio:v1:geo:districts` key exists (a TTL/purge would add obligations for zero gain).
+  `faazio:v1:geo:districts` key exists (a TTL/purge would add obligations for zero gain). `0127` grew
+  the table to 777 rows (all 36 states/UTs, TN+PY active) with a `google_place_id` index, still a
+  trivial read. The in-process `geo` snapshot (not Valkey) is the hot cache and is reloaded on every
+  write.
 - **Audit logs (`admins.audit_logs`, `0015`/`0037`)** — still **never cached** (no `faazio:v1:audit:*`
   key exists). The 7-day retention purge is an **origin DELETE** (gateway worker calling
   `admins.purge_audit_logs()` at 00:00 IST), not a cache TTL — authorities:

@@ -645,7 +645,14 @@ Startup
     bottom-anchored tagline, `@dimen/splashscreen_tagline_margin_bottom` = 56dp).
   - **API 31+** — the system draws the splash (icon + background only), so
     `values-v31/styles.xml` supplies `android:windowSplashScreenBrandingImage`, the platform's
-    dedicated bottom-branding slot.
+    dedicated bottom-branding slot. That slot does **not** draw the drawable at its intrinsic size:
+    WindowManager Shell puts it in a fixed 200×80dp view as that view's background
+    (`starting_surface_brand_image_width/height`) and stretches the bitmap to the box. The tagline
+    PNG is therefore baked onto an exact 200×80dp canvas (ink on the canvas bottom edge) so the
+    stretch is 1:1; an ink-trimmed asset (~142×9dp) was stretched ~8× vertically and read as a
+    smear. The branding view itself is anchored 60dp above the window bottom by the platform, so
+    the credit lands on the platform's 60dp branding margin — 4dp above the 56dp used by the
+    pre-31 layer-list, iOS and JS, which cannot be closed from the app side.
   - **iOS** — a `UILabel` in `SplashScreen.storyboard`, 12pt medium white @ 90% opacity, centred
     and bottom-anchored 56pt above the container's bottom edge (same inset as the JS layer).
   - **JS** — `SplashFallback` `royal` variant renders the same string as absolutely-positioned text
@@ -661,7 +668,7 @@ Startup
   emits the native drawables/imageset, the tagline PNGs **and** the JS
   `src/assets/logo-wordmark-transparent.png` (same 2171×724 canvas with the blue field keyed out
   and the wordmark pasted back at its original offset, so JS sizing/position is unchanged). It
-  encodes two constraints that are easy to get wrong by hand:
+  encodes three constraints that are easy to get wrong by hand:
   - **Android 12+ masks the splash icon to a circle.** From `core-splashscreen:1.0.1`,
     `splashscreen_icon_size_no_background` is 288dp and the platform clips to a 192dp circle
     (radius 96dp). A 3:1 wordmark spanning the full canvas would lose ~39% of its width, so the
@@ -674,6 +681,10 @@ Startup
     Android mdpi/xhdpi/xxhdpi), and the storyboard carries an explicit `width = 200` plus a
     `width:height = 1.0` square constraint. The iOS app shares the Faazio Blue splash
     background (see `docs/UI_DESIGN_SYSTEM.md` §5).
+  - **The API 31+ branding slot has a fixed size.** The tagline must be baked onto the platform's
+    200×80dp box, not trimmed to its ink, or the system stretches it to the box (~8× vertically)
+    and the credit line becomes unreadable. Keep `TAGLINE_CANVAS_DP` in sync with the platform's
+    `starting_surface_brand_image_width/height` if Android changes them.
   `src/assets/logo.png` is a flat `#1627E9` field carrying the white wordmark, derived from
   `client/mobile/assets/brand/logo-rectangle.png`. The script keys the field out to transparency
   (luma key with a dead zone) and keeps only the white wordmark, so the native assets are

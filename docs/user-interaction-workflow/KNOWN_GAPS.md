@@ -63,9 +63,10 @@ the customer app's `SellWithUs`). On approval (`POST /sellers/{id}/verify-kyc`, 
 `contact_email` as a `SELLER` row scoped to `seller_id` (`must_change=true`); the one-time temporary
 password is returned to the approving admin and never logged, and an existing login is reused
 idempotently. Every approving surface renders that one-time credential with copy + WhatsApp
-hand-over, and unused logins can be re-passworded and shared from **Ready to share** on
-`/admin/super/credentials`; a superadmin can also issue or reset credentials there at any time
-(HS256 JWT in HttpOnly cookies) — used when `contact_email` is already owned by another account.
+hand-over, and a login whose password was missed can be reset and re-shared from
+`/admin/super/credentials` (role-tabbed board); a superadmin can also issue, reset, deactivate or
+soft-delete credentials there at any time (HS256 JWT in HttpOnly cookies) — used when `contact_email`
+is already owned by another account. A delete is restorable for 7 days before the purge removes it.
 The seller app is a WebView shell over the same portal. This is the completed design, not a partial
 flow — see [`seller/onboarding/index.md`](./seller/onboarding/index.md),
 [`seller/web-portal/credential-handover.md`](./seller/web-portal/credential-handover.md) and

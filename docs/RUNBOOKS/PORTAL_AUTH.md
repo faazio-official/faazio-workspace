@@ -178,12 +178,26 @@ user to `/login`. The rotation still revokes every refresh session and denylists
 the re-auth itself fails, the UI falls back to clearing the session and sending the user to `/login`.
 
 Equivalent API (superadmin bearer only): `GET|POST /admin/portal-users`,
-`PUT /admin/portal-users/{id}` (`{active}`), `PUT /admin/portal-users/{id}/password`
-(`{newPassword, forceChange?}`). A reset defaults to `forceChange=true` for `SELLER` / `DISTRICT_ADMIN`
+`GET /admin/portal-users/trash`, `PUT /admin/portal-users/{id}` (`{active}`),
+`PUT /admin/portal-users/{id}/password` (`{newPassword, forceChange?}`),
+`DELETE /admin/portal-users/{id}` (`{reason?}`), `POST /admin/portal-users/{id}/restore`.
+A reset defaults to `forceChange=true` for `SELLER` / `DISTRICT_ADMIN`
 and `false` for `SUPER_ADMIN`; the optional `forceChange` overrides either way. Any active superadmin
 may reset any role, including another superadmin — no OTP/mail, effect is immediate (sessions are
 revoked). Deactivating a superadmin is refused (`last_super_admin`) when it would leave zero active
 superadmins. Do not create `SUPER_ADMIN` rows from this surface; use §2.
+
+**Delete is a 7-day soft delete (`0128`).** `DELETE /admin/portal-users/{id}` sets `deleted_at` /
+`delete_reason`, revokes the user's refresh sessions, and stops the login authenticating at once
+(every auth lookup, admin list and roster/sub-user identity gate filters `deleted_at is null`). The
+row appears under `GET /admin/portal-users/trash` with `purgeAt = deletedAt + 7 days`; `Restore`
+brings it back **deactivated** (`active=false`) so reactivation is deliberate. After the window
+`admins.purge_deleted_portal_users()` removes it — run hourly by the gateway `portal.Purger` and on
+every credential list — deleting its sessions and nulling any sub-user `portal_user_id`. The email is
+free to re-issue the moment the credential is trashed (the unique index is live-rows only). Refused
+cases: deleting the caller's own login (`self_delete`) and the last active superadmin
+(`last_super_admin`); a restore after the window is `410 trash_expired`, and restoring onto an email
+already re-issued in the meantime is `409 email_taken`.
 
 ### Seller team (sub-user) logins
 

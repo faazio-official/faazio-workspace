@@ -229,10 +229,11 @@ caller) and are event-purged on store live toggle and product edit/status change
   `q` matches name, phone and user id (ILIKE on the `0110` trigram indexes) and `limit` caps the page
   (default 200, max 500). `0110` appends the customer's sign-in phone to the projection — same
   projection the district customers page and the super-admin users page both read.
-- **District scope (`internal/platform/geo`, migrations `0046`–`0049` + `0057`):** the wire role is
-  `DISTRICT_ADMIN`; the 42 TN/PY district codes are validated against `admins.district_master` and
-  the Go master. Sellers carry a `district_code` — **required on new onboarding** (`0047`; `POST
-  /sellers` rejects a missing/unknown/state-mismatched code), nullable only for legacy rows;
+- **District scope (`internal/platform/geo`, migrations `0046`–`0049` + `0057` + `0127`):** the wire
+  role is `DISTRICT_ADMIN`; district codes are validated against `admins.district_master` and the Go
+  master. Live coverage is 42 TN/PY districts, but the master holds all 777 districts of 36 states/UTs
+  (`0127`), only TN+PY active. Sellers carry a `district_code` — **required on new onboarding** (`0047`;
+  `POST /sellers` rejects a missing/unknown/state-mismatched code), nullable only for legacy rows;
   seller/KYC/admin reads/writes use
   `auth.CanActForSellerDistrict` (district claim first, legacy parent `state_code` fallback). The
   seller-owned catalog/directory/pharma management routes are stricter: `auth.AdminScope` requires a
@@ -241,16 +242,20 @@ caller) and are event-purged on store live toggle and product edit/status change
   owner (W71), so seeded `tr-*`/`dn-*` rows are not orphaned; `UpsertMenu`, promo opt-ins and blood
   moderation re-check scope at the write (`DELETE /blood-requests/{id}` is state-scoped for district
   admins). Product projections now include `storeId` for the PDP store link.
-- **District master (`internal/districts`, `0046` + `0114`):** `GET /geo/districts?state=TN` serves the
-  active `admins.district_master` rows as camelCase `{districtCode,name,stateCode}` to any signed-in
-  account (the seller-onboarding picker); `?state=` is an optional 2-letter filter (400 on a longer
-  value). The DB is the single source of truth, and since `0114` it is writable through the SUPER_ADMIN
-  API: `GET /admin/districts` (all rows incl. deactivated + timestamps), `POST /admin/districts`,
-  `PUT /admin/districts/{code}`, `PATCH /admin/districts/{code}/toggle`, `DELETE /admin/districts/{code}`
-  (audited `DISTRICT_*`; `409 conflict` on a duplicate code, `409 district_in_use` when sellers/admins/
-  payouts still reference it — deactivate instead). Every write calls `geo.Reload`, so the in-process
-  `internal/platform/geo` mirror (loaded at boot by `geo.Init`) accepts the new code immediately without
-  a restart; the picker read stays uncached.
+- **District master (`internal/districts`, `0046` + `0114` + `0127`):** `GET /geo/districts?state=TN`
+  serves the active `admins.district_master` rows as camelCase `{districtCode,name,stateCode}` to any
+  signed-in account (the seller-onboarding picker); `?state=` is an optional 2-letter filter (400 on a
+  longer value). The DB is the single source of truth, and since `0114` it is writable through the
+  SUPER_ADMIN API: `GET /admin/districts` (all rows incl. deactivated + timestamps), `POST
+  /admin/districts`, `PUT /admin/districts/{code}`, `PATCH /admin/districts/{code}/toggle`, `DELETE
+  /admin/districts/{code}` (audited `DISTRICT_*`; `409 conflict` on a duplicate code, `409
+  district_in_use` when sellers/admins/payouts still reference it — deactivate instead). Every write
+  calls `geo.Reload`, so the in-process `internal/platform/geo` mirror (loaded at boot by `geo.Init`)
+  accepts the new code immediately without a restart; the picker read stays uncached. `0127` seeded all
+  777 districts of 36 states/UTs (TN+PY the only active rows) and added `google_place_id` (unique when
+  present) — the public lead intake resolves a district by `districtPlaceId` first via `geo.ByPlaceID`,
+  so a misspelled or renamed label still lands on the right row. The code CHECK was widened to
+  `^[A-Z]{2}[A-Z0-9]{1,3}$` (UP has 75 districts); the 42 legacy 3-char codes stay frozen as FK targets.
 - **Platform-fee change requests:** sellers file `POST /sellers/{id}/platform-fee-request`
   (`{storeId, platformFeePct, reason}` — `storeId` and the whole percent are required, `reason` is an
   optional ≤ 500-character seller note stored as `seller_note` (`0106`); `httpx.Decode` rejects

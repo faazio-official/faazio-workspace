@@ -377,14 +377,17 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 | Export | Type | Mobile consumers | Status |
 |---|---|---|---|
-| `DISTRICTS` | `DistrictInfo[]` — 42 TN/PY districts (`districtCode`, `name`, `stateCode`) | `SellerRegistrationScreen` (matches the first shop pin's reverse-geocoded district) | `@server` (fixture fallback) |
+| `DISTRICTS` | `DistrictInfo[]` — 42 active TN/PY districts (`districtCode`, `name`, `stateCode`) | `SellerRegistrationScreen` (matches the first shop pin's reverse-geocoded district) | `@server` (fixture fallback) |
 | `districtsForState` / `stateForDistrict` / `districtName` | helpers | seller onboarding, future district-scoped lists | `@mock` (not on the wire) |
 | `DistrictInfo` | type | mobile + web mirrors | `@server` (wire shape) |
 
-> **Contract:** `admins.district_master` is the single source of truth (migrations `0046` + `0114`).
-> `internal/platform/geo` is a **read-through cache** of that table (`Init` at boot, `Reload` after
-> every SUPER_ADMIN write through `/admin/districts*`); the embedded Go seed is only the no-database
-> fallback. `DISTRICTS` here is an **offline shell** only — the DB row set wins, and a district added
+> **Contract:** `admins.district_master` is the single source of truth (migrations `0046` + `0114` +
+> `0127`). `0127` seeded all 777 districts of 36 states/UTs (only TN+PY active) and added a durable
+> `google_place_id` per row, so the master holds districts beyond the current coverage; this fixture
+> stays the **42 active TN/PY rows** only. `internal/platform/geo` is a **read-through cache** of that
+> table (`Init` at boot, `Reload` after every SUPER_ADMIN write through `/admin/districts*`, plus a
+> `byPlaceID` index for lead resolution); the embedded Go seed is only the no-database fallback.
+> `DISTRICTS` here is an **offline shell** only — the DB row set wins, and a district added or enabled
 > through the portal is valid for onboarding immediately without editing this file. Keep the fixture
 > in step for offline parity (tracked in `docs/user-interaction-workflow/KNOWN_GAPS.md`); the web
 > portal reads the live rows from `GET /geo/districts` (picker) and `GET /admin/districts` (coverage

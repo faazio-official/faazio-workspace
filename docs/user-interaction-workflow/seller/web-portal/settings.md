@@ -86,8 +86,9 @@ hidden and enforced server-side. See `accept-invite.md` for the invitee's side.
   `sub_user_id`) and flips the roster `ACTIVE`.
 - Appearance: `src/lib/theme.ts` → `localStorage["faazio.theme"]` (no server).
 - Security — email: `changePortalEmail()` → `PUT /api/auth/portal/email` → gateway
-  `PUT /auth/portal/email` → `admins.portal_users.email` (existing column + `portal_users_email_lower_uniq`
-  unique index; **no migration**). The gateway re-verifies `password_hash`, then revokes
+  `PUT /auth/portal/email` → `admins.portal_users.email` (existing column with the
+  `portal_users_email_lower_live_uniq` live-rows unique index, `0128`; **no migration**). The gateway
+  re-verifies `password_hash`, then revokes
   `admins.portal_sessions` for the user and denylists the access `jti` (`faazio:v1:auth:deny:{jti}`).
 - Security — password: `changePortalPassword()` → `PUT /api/auth/portal/password` → gateway
   `PUT /auth/portal/password` → `admins.portal_users.password_hash` (Argon2id); revokes sessions +

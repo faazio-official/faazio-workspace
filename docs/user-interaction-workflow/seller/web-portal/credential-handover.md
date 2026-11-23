@@ -30,7 +30,8 @@ and surfaces the credential.
    - **Copy login** → `email\npassword` on the clipboard.
    - **Share on WhatsApp** → opens `wa.me/<contact phone>` pre-filled with the portal URL, email and
      temporary password. With no usable phone on file the message is copied instead and a toast says so.
-4. Closing the sheet discards the password — it cannot be shown again. If it was missed, use flow B.
+4. Closing the sheet discards the password — it cannot be shown again. If it was missed, reset the
+   login from **Portal credentials** (flow B).
 
 Edge cases rendered by the same card:
 
@@ -41,30 +42,46 @@ Edge cases rendered by the same card:
 - The gateway can refuse an activation; the row rolls back to its previous status and an error toast
   shows the server message, so the UI never claims a status the DB does not have.
 
-### B. Recover an unshared login (`/admin/super/credentials`)
+### B. Reset a login that was never handed over (`/admin/super/credentials`)
 
-1. The **Ready to share** section lists `SELLER` logins that are `active` and have **never signed
-   in** (`lastLoginAt` empty) — i.e. auto-provisioned on approval and still awaiting first use.
-   Seller staff logins (sub-users) are excluded; those invitees set their own password.
-2. Press **Prepare password**. A fresh strong password is generated in the browser and applied with
-   `PUT /admin/portal-users/{id}/password` (`forceChange`), then shown once in a **Share login** card
-   with the same Copy / WhatsApp actions.
-3. This is a real reset: the previous temporary password stops working immediately. There is no
-   "reveal", because only the Argon2id hash exists server-side.
+The approval is the only moment a temporary password exists. If it was missed, the super admin
+recovers access by **resetting** the login rather than revealing it:
 
-### C. Approve from the district seller review (`/admin/district/sellers/[id]`)
+1. Switch to the **Sellers** role tab (or **All**) on `/admin/super/credentials`, find the seller's
+   login (its `Last sign-in` reads **Never** until the seller accepts).
+2. Press **Reset**. A fresh strong password is generated and applied with
+   `PUT /admin/portal-users/{id}/password` (`forceChange`), then copy it and send it over WhatsApp
+   from the seller's contact phone.
+3. This is a real reset: any previous temporary password stops working immediately. There is no
+   "reveal", because only the Argon2id hash exists server-side. There is no separate
+   "ready to share" recovery list — the approval response already carries the password once, and
+   subsequent hand-overs go through Reset.
+
+### C. Delete a login (`/admin/super/credentials`)
+
+1. Press **Delete** on a row. An optional reason can be recorded.
+2. The login stops authenticating immediately and every session is revoked. It moves to the
+   **Deleted** filter with a `purge` timestamp (`deletedAt + 7 days`).
+3. **Restore** within 7 days brings it back **deactivated** — reactivate it deliberately. After the
+   window the gateway purge removes the row permanently (the email becomes free to re-issue the
+   instant it is deleted).
+4. The last active super admin and the super admin's own signed-in login cannot be deleted
+   (`last_super_admin` / `self_delete`).
+
+### D. Approve from the district seller review (`/admin/district/sellers/[id]`)
 
 **Verify KYC & activate** returns the credential from `POST /sellers/{id}/verify-kyc` and renders the
 same card under **Seller login** — identical copy/WhatsApp hand-over.
 
 ## State
 
-- Page-local `issued` (sellers board) and `shared` (credentials board) hold the credential in memory
-  only; dismissing clears it. Nothing is persisted client-side.
-- `setSellerStatus` is now an awaited `PATCH /sellers/{id}/status` with an optimistic status write and
+- Page-local `issued` (sellers board) holds the credential in memory only; dismissing clears it.
+  Nothing is persisted client-side.
+- `setSellerStatus` is an awaited `PATCH /sellers/{id}/status` with an optimistic status write and
   rollback on failure; it returns the parsed `credential` (or `null` in seed mode).
-- `creds` on `/admin/super/credentials` is the live `GET /admin/portal-users` list; `useSellers()`
-  supplies the business name and contact phone for the WhatsApp destination.
+- `creds` on `/admin/super/credentials` is the live `GET /admin/portal-users` list (trashed rows
+  excluded) and `trashed` is `GET /admin/portal-users/trash`; `useSellers()` supplies the business
+  name. The board filters by role (Sellers / District admins / Super admins / All) and by Deleted.
 
 ## Data path
 
@@ -72,15 +89,23 @@ same card under **Seller login** — identical copy/WhatsApp hand-over.
   `portal/seller_login.go ProvisionSellerLogin` → `admins.portal_users` (Argon2id via `PORTAL_PEPPER`).
 - `verifySellerKyc()` → `POST /sellers/{id}/verify-kyc` → same provisioner.
 - `resetPortalCredentialPassword()` → `PUT /admin/portal-users/{id}/password` → `portal/repo.go`
-  `SetPassword`.
-- No migration: the credential is returned in the approval response, not stored in a retrievable table.
+  `ResetPassword`.
+- `deletePortalCredential()` → `DELETE /admin/portal-users/{id}` → `portal/repo.go` `SoftDelete`
+  (trash + session revoke); `restorePortalCredential()` → `POST /admin/portal-users/{id}/restore` →
+  `Restore`. The hourly `portal.Purger` and the on-list sweep run `PurgeDeleted` after 7 days.
+- Migration `0128` adds `deleted_at`/`delete_reason` and swaps the email unique index to live rows
+  only.
+- No plaintext credential is ever stored; the approval response carries the one-time password.
 
 ## Success / error / empty
 
-- **Success:** sheet/card shows email + one-time password with copy and WhatsApp actions.
-- **Error:** activation failure rolls the row back and toasts the gateway's message; a failed password
-  mint toasts and leaves the row in **Ready to share**.
-- **Empty:** **Ready to share** shows "Nothing waiting" once every provisioned seller has signed in.
+- **Success:** sheet/card shows email + one-time password with copy and WhatsApp actions; a delete
+  returns the purge instant.
+- **Error:** activation failure rolls the row back and toasts the gateway's message; a failed reset
+  toasts and leaves the row unchanged; a restore after the window is `410 trash_expired` and the row
+  drops from the list.
+- **Empty:** the role tab shows "No credentials here" (with the approval hint for sellers); the
+  Deleted tab shows "Nothing deleted".
 
 ## Security notes
 
@@ -89,3 +114,6 @@ same card under **Seller login** — identical copy/WhatsApp hand-over.
 - No plaintext credential table was added: a retrievable store of live passwords is a standing
   breach target, and the reset-and-share path covers the same need.
 - Every seller must change the password at first sign-in (`must_change`).
+- A trashed credential cannot authenticate (`deleted_at is null` guards every lookup) and no longer
+  blocks its email (live-only unique index); deletes and restores are audit-logged
+  (`PORTAL_USER_DELETE` / `PORTAL_USER_RESTORE`).
