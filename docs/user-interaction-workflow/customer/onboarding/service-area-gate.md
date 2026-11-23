@@ -73,7 +73,8 @@ enabled in **Governance → District coverage**.
 ## Success / error / empty
 
 - **Success:** `serviceable`; `MainTabs` mounts with the normal origin.
-- **Unserviceable:** full-screen coverage page with change-location, re-check and notify actions.
+- **Unserviceable:** full-screen coverage page (Faazio welcome wordmark, map-pin-off icon) with
+  change-location, re-check and notify actions.
 - **Network / verification failure:** `failed`; on the cold-start path the app proceeds only after
   the bounded splash hold (offline users see the offline page), and the picker asks the user to retry
   instead of pretending coverage is known.

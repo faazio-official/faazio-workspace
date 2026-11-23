@@ -65,7 +65,9 @@ export function OfflinePage({
         },
       ]}
     >
-      <FaazioLogo size={40} />
+      <View accessible accessibilityRole="image" accessibilityLabel="Faazio">
+        <FaazioLogo size={40} variant="welcome" />
+      </View>
       <View style={[styles.iconCircle, { backgroundColor: palette.accentSoft }]}>
         <WifiOff size={26} color={palette.accent} />
       </View>

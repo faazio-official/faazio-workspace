@@ -28,6 +28,7 @@ import NavbarHomeShortcut from '@/components/shared/NavbarHomeShortcut';
 import { FaMartScreen } from '../features/ecommerce/FaMartScreen';
 import { PharmaScreen } from '../features/pharma/PharmaScreen';
 import AppText from '@/components/AppText';
+import { FaazioLogo } from '@/components/FaazioLogo';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
 import SubAppHeader from './shared/SubAppHeader';
 import { subAppHeaderH } from './shared/SubAppHeader';
@@ -233,6 +234,9 @@ export default function SubAppWrapper({
   if (!SUPPORTED_SUB_APPS.includes(subAppId)) {
     return (
       <View style={styles.unsupportedContainer}>
+        <View accessible accessibilityRole="image" accessibilityLabel="Faazio">
+          <FaazioLogo size={32} variant="welcome" />
+        </View>
         <AppText style={styles.unsupportedTitle}>Unsupported sub-app</AppText>
         <AppText style={styles.unsupportedSub}>This section isn&apos;t available yet.</AppText>
         <TouchableOpacity style={styles.unsupportedBtn} onPress={onExit} activeOpacity={0.8}>

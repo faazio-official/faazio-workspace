@@ -76,7 +76,9 @@ export function ServiceAreaBlockedPage() {
         },
       ]}
     >
-      <FaazioLogo size={40} />
+      <View accessible accessibilityRole="image" accessibilityLabel="Faazio">
+        <FaazioLogo size={40} variant="welcome" />
+      </View>
 
       <View style={[styles.iconCircle, { backgroundColor: palette.accentSoft }]}>
         <MapPinOff size={28} color={palette.accent} strokeWidth={2} />

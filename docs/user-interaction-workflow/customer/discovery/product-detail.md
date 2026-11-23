@@ -47,7 +47,8 @@
   server-backed only and stays hidden when the server returns nothing (no bundled dish fixture is
   invented).
 - **Error:** a failed canonical read keeps the passed product rendering and shows an inline retry
-  banner that re-runs `getProduct`. A missing route `product` shows "Product unavailable".
+  banner that re-runs `getProduct`. A missing route `product` shows "Product unavailable" with the
+  Faazio welcome wordmark (`FaazioLogo` `variant="welcome"`) above the message.
 - **Empty:** an empty review list shows "No reviews yet." (the section stays hidden when reviews
   were never loaded, e.g. offline). Out-of-stock products show "Out of stock" and disable the
   add-to-cart button; low stock (≤5) shows "Only N left in stock".

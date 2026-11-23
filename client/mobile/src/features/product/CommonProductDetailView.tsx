@@ -31,6 +31,7 @@ const CARD_GAP = hs(12);
 const CARD_WIDTH = (SCREEN_W - hs(32) - CARD_GAP) / 2;
 import { SPACE } from '@/theme/spacing';
 import AppText from '@/components/AppText';
+import { FaazioLogo } from '@/components/FaazioLogo';
 import ProductCardBase from '@/components/shared/ProductCardBase';
 import { formatRating } from '@/components/shared/format';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
@@ -240,6 +241,9 @@ export default function CommonProductDetailView({
           </TouchableOpacity>
         </View>
         <View style={styles.unavailable}>
+          <View accessible accessibilityRole="image" accessibilityLabel="Faazio">
+            <FaazioLogo size={32} variant="welcome" />
+          </View>
           <AppText style={styles.unavailableTitle}>Product unavailable</AppText>
           <AppText style={styles.unavailableSub}>
             This item can’t be shown right now. Please try again from the store.

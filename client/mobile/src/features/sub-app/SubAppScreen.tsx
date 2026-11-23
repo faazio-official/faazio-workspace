@@ -7,6 +7,7 @@ import { useCartStore, type CartItem } from '@/state/cartStore';
 import type { RootStackParamList } from '@/navigation/types';
 import { parentRamp } from '@/theme/brandTokens';
 import AppText from '@/components/AppText';
+import { FaazioLogo } from '@/components/FaazioLogo';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SubApp'>;
 
@@ -39,6 +40,9 @@ export function SubAppScreen({ navigation, route }: Props) {
   if (!subAppId) {
     return (
       <View style={styles.fallback}>
+        <View accessible accessibilityRole="image" accessibilityLabel="Faazio">
+          <FaazioLogo size={32} variant="welcome" />
+        </View>
         <AppText style={styles.fallbackTitle}>Sub-app unavailable</AppText>
         <AppText style={styles.fallbackSub}>This section couldn&apos;t be opened.</AppText>
         <TouchableOpacity
