@@ -2,6 +2,7 @@ package sellers
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"testing"
@@ -31,7 +32,7 @@ func TestCreateLeadValidation(t *testing.T) {
 	valid := `{"businessName":"Shop","ownerName":"Owner","category":"FOOD",` +
 		`"contactPhone":"9876543210","contactEmail":"owner@example.com",` +
 		`"businessAddress":"12 Bharathiar Street, Karaikal","districtName":"Karaikal",` +
-		`"latitude":10.9254,"longitude":79.8380}`
+		`"latitude":10.9254,"longitude":79.8380,"platformFeePct":10}`
 
 	cases := []struct {
 		name string
@@ -39,17 +40,20 @@ func TestCreateLeadValidation(t *testing.T) {
 		want int
 		code string
 	}{
-		{"missing address", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","districtName":"Karaikal"}`, http.StatusBadRequest, "bad_request"},
-		{"missing district", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street"}`, http.StatusBadRequest, "bad_request"},
-		{"missing business name", `{"ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com"}`, http.StatusBadRequest, "bad_request"},
-		{"bad category", `{"businessName":"S","ownerName":"O","category":"GROCERY","contactPhone":"9876543210","contactEmail":"a@b.com"}`, http.StatusBadRequest, "bad_request"},
-		{"short phone", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"12345","contactEmail":"a@b.com"}`, http.StatusBadRequest, "bad_request"},
-		{"bad email", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"nope"}`, http.StatusBadRequest, "bad_request"},
-		{"half pin", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street","districtName":"Karaikal","latitude":10.9}`, http.StatusBadRequest, "bad_request"},
-		{"out-of-range pin", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street","districtName":"Karaikal","latitude":120,"longitude":79}`, http.StatusBadRequest, "bad_request"},
-		{"unknown district", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","districtCode":"ZZZ","businessAddress":"12 Bharathiar Street"}`, http.StatusBadRequest, "unknown_district"},
+		{"missing address", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","districtName":"Karaikal","platformFeePct":10}`, http.StatusBadRequest, "bad_request"},
+		{"missing district", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street","platformFeePct":10}`, http.StatusBadRequest, "bad_request"},
+		{"missing business name", `{"ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","platformFeePct":10}`, http.StatusBadRequest, "bad_request"},
+		{"bad category", `{"businessName":"S","ownerName":"O","category":"GROCERY","contactPhone":"9876543210","contactEmail":"a@b.com","platformFeePct":10}`, http.StatusBadRequest, "bad_request"},
+		{"short phone", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"12345","contactEmail":"a@b.com","platformFeePct":10}`, http.StatusBadRequest, "bad_request"},
+		{"bad email", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"nope","platformFeePct":10}`, http.StatusBadRequest, "bad_request"},
+		{"half pin", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street","districtName":"Karaikal","latitude":10.9,"platformFeePct":10}`, http.StatusBadRequest, "bad_request"},
+		{"out-of-range pin", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street","districtName":"Karaikal","latitude":120,"longitude":79,"platformFeePct":10}`, http.StatusBadRequest, "bad_request"},
+		{"unknown district", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","districtCode":"ZZZ","businessAddress":"12 Bharathiar Street","platformFeePct":10}`, http.StatusBadRequest, "unknown_district"},
+		{"missing platform fee", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street","districtName":"Karaikal"}`, http.StatusBadRequest, "bad_request"},
+		{"zero platform fee", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street","districtName":"Karaikal","platformFeePct":0}`, http.StatusBadRequest, "bad_request"},
 		{"food fee too low", `{"businessName":"S","ownerName":"O","category":"FOOD","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street","districtName":"Karaikal","platformFeePct":2}`, http.StatusBadRequest, "bad_request"},
-		{"honeypot is accepted silently", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street","districtName":"Karaikal","website":"http://spam"}`, http.StatusCreated, ""},
+		{"malformed state code", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street","districtName":"Karaikal","stateCode":"TNX","platformFeePct":10}`, http.StatusBadRequest, "bad_request"},
+		{"honeypot is accepted silently", `{"businessName":"S","ownerName":"O","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Bharathiar Street","districtName":"Karaikal","platformFeePct":10,"website":"http://spam"}`, http.StatusCreated, ""},
 		{"valid reaches the repo", valid, http.StatusInternalServerError, "lead_unavailable"},
 	}
 	for _, tc := range cases {
@@ -73,11 +77,14 @@ func TestCreateLeadValidation(t *testing.T) {
 func TestCreateLeadAcceptsLandingPageBody(t *testing.T) {
 	h, _ := leadRouter(t)
 
-	// Verbatim shape of the landing-page request: contact fields + optional pin + `source`.
+	// Verbatim shape of the landing-page request: contact fields + pinned location + the resolved
+	// master codes + the mandatory platform fee. `source` is not sent by the current client but stays
+	// accepted for an older cached bundle.
 	landingPage := `{"businessName":"Karaikal Spice Mart","ownerName":"Ravi Kumar","category":"MART",` +
 		`"contactPhone":"9876543210","contactEmail":"ravi@example.com",` +
 		`"businessAddress":"12 Bharathiar Street, Karaikal","districtName":"Karaikal",` +
-		`"latitude":10.9254,"longitude":79.838,"notes":"","source":"web"}`
+		`"stateCode":"PY","districtCode":"PY1","latitude":10.9254,"longitude":79.838,` +
+		`"platformFeePct":10,"notes":"","source":"web"}`
 
 	cases := []struct {
 		name string
@@ -88,6 +95,8 @@ func TestCreateLeadAcceptsLandingPageBody(t *testing.T) {
 		// Decode succeeds, so the request reaches the repo; the nil pool is what fails it here.
 		{"landing page body with source", landingPage, http.StatusInternalServerError, "lead_unavailable"},
 		{"body without source", strings.Replace(landingPage, `,"source":"web"`, "", 1), http.StatusInternalServerError, "lead_unavailable"},
+		// An enquiry that omits the now-mandatory fee is a 400 before the repo.
+		{"landing page body without fee", strings.Replace(landingPage, `,"platformFeePct":10`, "", 1), http.StatusBadRequest, "bad_request"},
 		// The guard must stay: an unknown field is still a 400, not a silently ignored typo.
 		{"unknown field still rejected", strings.Replace(landingPage, `"source":"web"`, `"soruce":"web"`, 1), http.StatusBadRequest, "bad_request"},
 	}
@@ -101,6 +110,47 @@ func TestCreateLeadAcceptsLandingPageBody(t *testing.T) {
 				t.Fatalf("body %s missing code %q", rec.Body.String(), tc.code)
 			}
 		})
+	}
+}
+
+// TestLeadDistrictsIsPublic pins the read the enquiry form calls before it submits: no auth, active
+// rows only, and the same 3-field projection the picker uses. The form uses it to send canonical
+// state/district codes, so a missing or login-gated route would silently fall back to name matching.
+func TestLeadDistrictsIsPublic(t *testing.T) {
+	h, _ := leadRouter(t)
+
+	rec := do(t, h, http.MethodGet, "/seller-leads/districts", "", nil)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body %s)", rec.Code, rec.Body.String())
+	}
+	var rows []struct {
+		DistrictCode string `json:"districtCode"`
+		Name         string `json:"name"`
+		StateCode    string `json:"stateCode"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &rows); err != nil {
+		t.Fatalf("decode: %v (body %s)", err, rec.Body.String())
+	}
+	if len(rows) == 0 {
+		t.Fatal("expected the active district master, got an empty list")
+	}
+	// Only active rows, and the shape carries exactly the picker's fields.
+	for _, row := range rows {
+		if row.DistrictCode == "" || row.Name == "" || len(row.StateCode) != 2 {
+			t.Fatalf("malformed district row: %+v", row)
+		}
+		if !geo.IsActive(row.DistrictCode) {
+			t.Fatalf("inactive district %q leaked into the public read", row.DistrictCode)
+		}
+	}
+	found := false
+	for _, row := range rows {
+		if row.DistrictCode == "PY1" && row.Name == "Karaikal" && row.StateCode == "PY" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatal("expected Karaikal (PY1) in the active district read")
 	}
 }
 

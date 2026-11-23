@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ExternalLink, MapPin, Phone, Mail } from "lucide-react";
+import { ExternalLink, MapPin, Phone, Mail, Percent } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
@@ -345,6 +345,15 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
                     {selected.stateName ? `, ${selected.stateName}` : ""}
                   </span>
                 </div>
+                <div className="flex items-start gap-2 text-muted-foreground">
+                  <Percent className="mt-0.5 size-3.5 shrink-0" aria-hidden />
+                  <span>
+                    Expected platform fee:{" "}
+                    <span className="font-medium text-foreground">
+                      {selected.platformFeePct != null ? `${selected.platformFeePct}%` : "not given"}
+                    </span>
+                  </span>
+                </div>
                 <div className="flex flex-wrap items-center gap-4 text-muted-foreground">
                   <a href={`tel:${selected.contactPhone}`} className="focus-ringed inline-flex items-center gap-1.5 underline">
                     <Phone className="size-3.5" aria-hidden />
@@ -368,7 +377,8 @@ export function SellerLeadsBoard({ scope }: { scope: "district" | "global" }) {
                   </a>
                 ) : (
                   <p className="text-[12px] text-muted-foreground">
-                    No pin — the merchant typed the address. Confirm it on the call.
+                    No pin on this enquiry (an older submission). Confirm the shop address on the
+                    call.
                   </p>
                 )}
 

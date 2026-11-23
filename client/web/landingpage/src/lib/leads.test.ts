@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
-import { describe, expect, it } from "vitest";
-import { buildLeadPayload, leadSchema } from "@/lib/leads";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { buildLeadPayload, leadSchema, postSellerLead, resolveDistrictCodes } from "@/lib/leads";
 
 /**
  * The landing page and the gateway are separate deployables with no shared type. The gateway decodes
@@ -44,6 +44,7 @@ const validInput = {
   districtName: "Karaikal",
   latitude: 10.9254,
   longitude: 79.838,
+  platformFeePct: 10,
   notes: "",
   website: "",
 };
@@ -78,6 +79,7 @@ describe("seller lead wire contract", () => {
       districtName: "Karaikal",
       latitude: 10.9254,
       longitude: 79.838,
+      platformFeePct: 10,
     });
   });
 
@@ -97,6 +99,16 @@ describe("seller lead wire contract", () => {
     expect(goRequestFields().has("districtPlaceId")).toBe(true);
   });
 
+  it("carries the canonical master codes the form resolved from the pin", () => {
+    const payload = buildLeadPayload(
+      leadSchema.parse({ ...validInput, stateCode: "PY", districtCode: "PY1" }),
+    );
+    expect(payload).toMatchObject({ stateCode: "PY", districtCode: "PY1" });
+    // Both are real Go fields, so they decode rather than 400 as unknown keys.
+    expect(goRequestFields().has("stateCode")).toBe(true);
+    expect(goRequestFields().has("districtCode")).toBe(true);
+  });
+
   it("omits optional keys instead of sending undefined", () => {
     const payload = buildLeadPayload(
       leadSchema.parse({
@@ -105,12 +117,143 @@ describe("seller lead wire contract", () => {
         longitude: undefined,
         notes: undefined,
         stateName: undefined,
-        platformFeePct: undefined,
+        stateCode: undefined,
+        districtCode: undefined,
       }),
     );
     // JSON.stringify drops undefined values, so the wire body stays free of the optional keys.
     const wire = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
     expect(Object.keys(wire)).not.toContain("latitude");
     expect(Object.keys(wire)).not.toContain("notes");
+    expect(Object.keys(wire)).not.toContain("stateCode");
+    expect(Object.keys(wire)).not.toContain("districtCode");
+  });
+});
+
+describe("platform fee validation", () => {
+  it("requires a fee", () => {
+    const result = leadSchema.safeParse({ ...validInput, platformFeePct: undefined });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path.includes("platformFeePct"))).toBe(true);
+    }
+  });
+
+  it("rejects a fee outside 1–100", () => {
+    expect(leadSchema.safeParse({ ...validInput, platformFeePct: 0 }).success).toBe(false);
+    expect(leadSchema.safeParse({ ...validInput, platformFeePct: 101 }).success).toBe(false);
+  });
+
+  it("enforces the 5% floor for food and not for other categories", () => {
+    expect(
+      leadSchema.safeParse({ ...validInput, category: "FOOD", platformFeePct: 4 }).success,
+    ).toBe(false);
+    expect(
+      leadSchema.safeParse({ ...validInput, category: "FOOD", platformFeePct: 5 }).success,
+    ).toBe(true);
+    expect(
+      leadSchema.safeParse({ ...validInput, category: "MART", platformFeePct: 4 }).success,
+    ).toBe(true);
+  });
+});
+
+describe("district code resolution", () => {
+  const rows = [
+    { districtCode: "PY1", name: "Karaikal", stateCode: "PY" },
+    { districtCode: "TTC", name: "Tiruchirappalli", stateCode: "TN" },
+  ];
+
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () => new Response(JSON.stringify(rows), { status: 200 })),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("maps a district name to its master codes, case-insensitively", async () => {
+    await expect(resolveDistrictCodes({ districtName: " karaikal " })).resolves.toEqual({
+      stateCode: "PY",
+      districtCode: "PY1",
+    });
+  });
+
+  it("passes an explicit code through instead of looking it up", async () => {
+    await expect(
+      resolveDistrictCodes({ districtName: "Whatever", districtCode: "PY1", stateCode: "PY" }),
+    ).resolves.toEqual({ stateCode: "PY", districtCode: "PY1" });
+  });
+
+  it("returns {} for a name outside the master", async () => {
+    await expect(resolveDistrictCodes({ districtName: "Nowhere" })).resolves.toEqual({});
+  });
+});
+
+describe("postSellerLead", () => {
+  beforeEach(() => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).endsWith("/seller-leads/districts")) {
+          return new Response(
+            JSON.stringify([{ districtCode: "PY1", name: "Karaikal", stateCode: "PY" }]),
+            { status: 200 },
+          );
+        }
+        return new Response(JSON.stringify({ leadId: "lead-abc123", status: "NEW" }), {
+          status: 201,
+        });
+      }),
+    );
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("posts the payload with resolved codes and returns the lead id", async () => {
+    const result = await postSellerLead(validInput);
+    expect(result).toEqual({ ok: true, leadId: "lead-abc123" });
+
+    const leadCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([url]) => String(url).endsWith("/seller-leads"));
+    expect(leadCall).toBeTruthy();
+    const body = JSON.parse(String((leadCall![1] as RequestInit).body)) as Record<string, unknown>;
+    expect(body).toMatchObject({
+      districtName: "Karaikal",
+      stateCode: "PY",
+      districtCode: "PY1",
+      platformFeePct: 10,
+    });
+  });
+
+  it("accepts a honeypot submission silently without calling the gateway", async () => {
+    const result = await postSellerLead({ ...validInput, website: "http://spam" });
+    expect(result).toEqual({ ok: true, leadId: null });
+    const leadCall = vi
+      .mocked(fetch)
+      .mock.calls.find(([url]) => String(url).endsWith("/seller-leads"));
+    expect(leadCall).toBeUndefined();
+  });
+
+  it("maps a 400 to a check-your-details message", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (url: string) => {
+        if (String(url).endsWith("/seller-leads/districts")) {
+          return new Response("[]", { status: 200 });
+        }
+        return new Response(JSON.stringify({ code: "bad_request" }), { status: 400 });
+      }),
+    );
+    const result = await postSellerLead(validInput);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.message).toMatch(/didn't look right/i);
   });
 });

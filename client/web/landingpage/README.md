@@ -126,7 +126,7 @@ enquiry route is public and the admin queue lives in the Partner Portal.
 | --- | --- | --- |
 | `GATEWAY_URL` | Vercel **runtime** env | Gateway origin the lead server function posts to (default `https://api.faazio.com`). Read on the server only, so the browser never learns it. Takes precedence over `VITE_GATEWAY_URL`. |
 | `VITE_GATEWAY_URL` | Vercel build env | Build-time fallback for local dev (Vite inlines `VITE_*`). Leave empty in production. |
-| `VITE_GOOGLE_MAPS_API_KEY` | Vercel build env | Public, HTTP-referrer-restricted Google Maps JS key (**Maps JavaScript API + Geocoding API + Places API (New)**). Absent → the map panel is not rendered; the address + district fields carry the enquiry and it submits **no** pin. A key that fails to initialise (auth error / 10 s timeout) collapses the panel the same way. Coordinates are never fabricated. |
+| `VITE_GOOGLE_MAPS_API_KEY` | Vercel build env | Public, HTTP-referrer-restricted Google Maps JS key (**Maps JavaScript API + Geocoding API + Places API (New)**). Absent → the map panel is replaced by a phone/email fallback; because location is a hard gate, the enquiry cannot be sent from that browser. A key that fails to initialise (auth error / 10 s timeout) collapses to the same fallback. Coordinates are never fabricated. |
 
 Both gateway values are resolved by one module, `src/lib/config.ts` (the counterpart of the portal's
 `src/lib/config.ts`), so the precedence lives in one place and is pinned by `src/lib/config.test.ts`:

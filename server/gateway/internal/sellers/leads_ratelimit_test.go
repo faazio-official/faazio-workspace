@@ -29,7 +29,7 @@ func TestCreateLeadRateLimit(t *testing.T) {
 	// Every request in this test shares one RemoteAddr, so they share one counter.
 	body := `{"businessName":"Rate Shop","ownerName":"Owner","category":"MART",` +
 		`"contactPhone":"9876543210","contactEmail":"rate@example.com",` +
-		`"businessAddress":"12 Bharathiar Street","districtName":"Karaikal"}`
+		`"businessAddress":"12 Bharathiar Street","districtName":"Karaikal","platformFeePct":10}`
 
 	for i := 1; i <= maxLeadsPerIPPerDay; i++ {
 		rec := do(t, r, http.MethodPost, "/seller-leads", body, nil)
@@ -50,7 +50,7 @@ func TestCreateLeadRateLimit(t *testing.T) {
 	// The honeypot is checked before the counter, so a bot still learns nothing even at the cap.
 	honeypot := `{"businessName":"Bot","ownerName":"Bot","category":"MART",` +
 		`"contactPhone":"9876543210","contactEmail":"bot@example.com",` +
-		`"businessAddress":"12 Bharathiar Street","districtName":"Karaikal","website":"http://spam"}`
+		`"businessAddress":"12 Bharathiar Street","districtName":"Karaikal","platformFeePct":10,"website":"http://spam"}`
 	if rec := do(t, r, http.MethodPost, "/seller-leads", honeypot, nil); rec.Code != http.StatusCreated {
 		t.Fatalf("honeypot at the cap: status = %d, want %d", rec.Code, http.StatusCreated)
 	}

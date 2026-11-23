@@ -8,9 +8,10 @@
  * plain suggestions, which lets the picker keep its own input and its own dropdown — Google's
  * `PlaceAutocompleteElement` would replace the styled field with an unstylable web component.
  *
- * The key is absent in local devs without a Google Cloud project. In that case the picker degrades
- * to a manual address + district entry: the enquiry is still submittable, but it carries **no**
- * pin — coordinates are never invented.
+ * The key is absent in local devs without a Google Cloud project. Location is a hard gate on the
+ * enquiry form, so an absent or failing key does not produce a pin-less lead: the picker reports
+ * itself unavailable and the form shows a phone/email fallback instead of submitting. Coordinates
+ * are never invented.
  *
  * Types are declared locally (only what this page touches) so the landing page keeps no dependency
  * on `@types/google.maps`.

@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -30,6 +31,11 @@ const (
 	leadNotesMax        = 500
 	leadPhoneMax        = 20
 )
+
+// stateCodePattern is the ISO 3166-2:IN shape (two uppercase letters) for a client-supplied state
+// code. The landing page resolves it from the district master; a malformed one is a client bug, not a
+// lead, so it is rejected rather than silently dropped.
+var stateCodePattern = regexp.MustCompile(`^[A-Z]{2}$`)
 
 // Lead is one sellers.seller_leads row.
 type Lead struct {
@@ -181,15 +187,24 @@ func (h *Handler) createLead(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "notes are too long")
 		return
 	}
+	if req.StateCode != "" && !stateCodePattern.MatchString(req.StateCode) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "state code must be a 2-letter code")
+		return
+	}
 	if !validLatLng(req.Latitude, req.Longitude) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop location is invalid")
 		return
 	}
-	if req.PlatformFeePct != nil {
-		if !validPlatformFee(req.Category, *req.PlatformFeePct) {
-			httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range")
-			return
-		}
+	// The platform fee is required: it is the number the partner team opens the call-back with, and an
+	// enquiry without one forces a second conversation. The range follows the product rule (1–100,
+	// 5–100 for FOOD), the same rule the mobile application applies.
+	if req.PlatformFeePct == nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a platform fee is required")
+		return
+	}
+	if !validPlatformFee(req.Category, *req.PlatformFeePct) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range")
+		return
 	}
 
 	// Resolve the district against the server master. An explicit valid code wins; otherwise the
@@ -266,4 +281,30 @@ func leadID() string {
 	b := make([]byte, 6)
 	_, _ = rand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// leadDistrict is one active row of the district master as the public enquiry form reads it.
+type leadDistrict struct {
+	DistrictCode string `json:"districtCode"`
+	Name         string `json:"name"`
+	StateCode    string `json:"stateCode"`
+}
+
+// leadDistricts serves the active district master to the anonymous enquiry form, so the page can send
+// the canonical `stateCode`/`districtCode` alongside the reverse-geocoded name instead of leaving the
+// gateway to re-match a label. It answers from the in-process geo mirror (no DB round-trip, no auth)
+// and carries no PII: it is the same picker projection `GET /geo/districts` returns, minus the login.
+func (h *Handler) leadDistricts(w http.ResponseWriter, r *http.Request) {
+	all := geo.All()
+	out := make([]leadDistrict, 0, len(all))
+	for _, d := range all {
+		if !d.Active {
+			continue
+		}
+		out = append(out, leadDistrict{DistrictCode: d.Code, Name: d.Name, StateCode: d.StateCode})
+	}
+	// Public reference data changes only when an admin edits the master; a short shared cache keeps
+	// the form snappy without serving a deactivated district for long.
+	w.Header().Set("Cache-Control", "public, max-age=300")
+	httpx.JSON(w, http.StatusOK, out)
 }

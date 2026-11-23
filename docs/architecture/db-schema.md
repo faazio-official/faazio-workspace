@@ -2935,18 +2935,25 @@ create index seller_leads_district_idx on sellers.seller_leads (district_code);
 - **Why a separate table:** a lead carries no KYC identifiers and has no `user_id`, so it cannot
   satisfy `sellers.sellers`' constraints (or its PII exposure rules). Keeping it apart means the
   public, unauthenticated write can never touch the account table.
-- **Pin is all-or-nothing:** the coordinate CHECK rejects a half pin; the map picker degrades to a
-  pin-less lead (typed address + district) rather than inventing coordinates. The gateway requires a
-  shop address (≥5 chars) and a district (code or name) on every lead, so a follow-up is always
-  possible without a pin.
+- **Pin is all-or-nothing:** the coordinate CHECK rejects a half pin. The gateway requires a shop
+  address (≥5 chars), a district (code or name) and a **platform fee** on every lead. The landing
+  page treats location as mandatory and blocks submit without a pinned district, so coordinates are
+  never invented; a pin-less row only arises from a client predating that gate.
+- **Platform fee is required at intake:** `platform_fee_pct` stays nullable in the table (an older
+  client's row can exist), but the handler rejects an enquiry with no fee (`400 bad_request`,
+  `platformFeePct` 1–100, FOOD ≥ 5 via `validPlatformFee`), so the admin queue always opens the
+  call-back with a number. The column's CHECK mirrors the same range.
 - **District resolution:** the gateway resolves the submitted name against `geo.Districts` and
   stores the canonical `state_code`/`district_code`; the raw `state_name`/`district_name` are kept
-  so a near-miss is still readable. An unknown explicit code is a `400 unknown_district`.
+  so a near-miss is still readable. An unknown explicit code is a `400 unknown_district`. The
+  landing page resolves the codes client-side via the public `GET /seller-leads/districts` and sends
+  them; the gateway still resolves a name when codes are absent.
 - **Abuse:** `ip_hash` is a 64-bit hex prefix of the submitter IP (never plaintext). The per-IP
   daily counter lives in Valkey (`faazio:v1:sellers:lead:{ipHash}:{yyyymmdd}`, 5/day, fail-open) —
   no Postgres rate table.
 - **Access:** RLS is enabled and no `anon`/`authenticated` grant exists; the gateway's `service_role`
-  is the only reader/writer. The public `POST /seller-leads` is the only anonymous write; reads and
+  is the only reader/writer. The public `POST /seller-leads` is the only anonymous write and
+  `GET /seller-leads/districts` the only anonymous read (in-process geo mirror — not this table);
   status moves go through the admin-only `GET /seller-leads` and `PATCH /seller-leads/{id}`
   (district-scoped, `leads_admin.go`), so the `NEW → CONTACTED → APPROVED → REJECTED` lifecycle is
   worked in the portal queue (`user-interaction-workflow/seller/onboarding/seller-lead-queue.md`).

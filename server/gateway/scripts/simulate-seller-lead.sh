@@ -16,6 +16,9 @@
 #   201  honeypot filled (silent accept, no row)
 #   400  unknown district code
 #   400  bad category
+#   400  missing platform fee / FOOD fee below the 5% floor
+#   400  unknown field (DisallowUnknownFields guard)
+#   200  public district read (GET /seller-leads/districts)
 #   429  per-IP daily cap (only when Valkey is reachable and the cap is already spent)
 #
 # Requirements: bash, curl. No DB credentials, no JWT — the route is public by design.
@@ -73,7 +76,8 @@ check() {
   return 0
 }
 
-# The exact shape the landing page sends: contact fields + optional pin + source:"web".
+# The exact shape the landing page sends: contact fields + pinned location + resolved master codes +
+# the mandatory platform fee + source:"web" (kept for wire-compat with an older cached bundle).
 landing_page_body() {
   cat <<JSON
 {
@@ -83,9 +87,12 @@ landing_page_body() {
   "contactPhone": "9876543210",
   "contactEmail": "sim-lead-${RUN_ID}@example.com",
   "businessAddress": "12 Bharathiar Street, Karaikal",
+  "stateCode": "PY",
+  "districtCode": "PY1",
   "districtName": "Karaikal",
   "latitude": 10.9254,
   "longitude": 79.838,
+  "platformFeePct": 10,
   "notes": "simulate-seller-lead.sh run ${RUN_ID}",
   "source": "web"
 }
@@ -108,16 +115,31 @@ if check "landing page body (source:\"web\")" 201 "$(landing_page_body)"; then
 fi
 
 # 2. Honeypot: silently accepted, no row written. Must look like success to a bot.
-check "honeypot silently accepted" 201 '{"businessName":"Bot Shop","ownerName":"Bot","category":"MART","contactPhone":"9876543210","contactEmail":"bot@example.com","businessAddress":"12 Some Street","districtName":"Karaikal","website":"http://spam.example"}'
+check "honeypot silently accepted" 201 '{"businessName":"Bot Shop","ownerName":"Bot","category":"MART","contactPhone":"9876543210","contactEmail":"bot@example.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":10,"website":"http://spam.example"}'
 
 # 3. An unknown district code is a hard 400 (not silently stored).
-check "unknown district code rejected" 400 '{"businessName":"X","ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtCode":"ZZZ"}'
+check "unknown district code rejected" 400 '{"businessName":"X","ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtCode":"ZZZ","platformFeePct":10}'
 
 # 4. A category outside MART/FOOD/PHARMA is a 400.
-check "bad category rejected" 400 '{"businessName":"X","ownerName":"Y","category":"GROCERY","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal"}'
+check "bad category rejected" 400 '{"businessName":"X","ownerName":"Y","category":"GROCERY","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":10}'
 
-# 5. A typo'd field is still rejected — the DisallowUnknownFields guard must stay on.
-check "unknown field rejected" 400 '{"businessName":"X","ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","soruce":"web"}'
+# 5. The platform fee is required — an enquiry without one is a 400.
+check "missing platform fee rejected" 400 '{"businessName":"X","ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal"}'
+
+# 6. A FOOD enquiry below the 5% floor is a 400.
+check "food fee below floor rejected" 400 '{"businessName":"X","ownerName":"Y","category":"FOOD","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":2}'
+
+# 7. A typo'd field is still rejected — the DisallowUnknownFields guard must stay on.
+check "unknown field rejected" 400 '{"businessName":"X","ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":10,"soruce":"web"}'
+
+# 8. The district read the form resolves codes from is public and carries Karaikal.
+if curl -s -m 15 "${GATEWAY_URL}/seller-leads/districts" | grep -q '"districtCode":"PY1"'; then
+  echo "PASS  public district read carries PY1"
+  pass=$((pass + 1))
+else
+  echo "FAIL  public district read did not carry PY1"
+  fail=$((fail + 1))
+fi
 
 echo "--------------------------------------------------------------------------"
 echo "Summary: ${pass} passed, ${fail} failed"

@@ -25,9 +25,11 @@ only path into `sellers.sellers`.
    district and may narrow by the district select.
 3. Admin can filter by status (`New` / `Contacted` / `Approved` / `Rejected` / `All`) and search by
    shop name, owner name, phone or email (`?q=`).
-4. Admin opens a lead to see the full enquiry: address, district, click-to-call phone, mailto email,
-   the merchant's own notes, and — when a pin was dropped — an "Open the pinned shop location" link
-   to Google Maps.
+4. Admin opens a lead to see the full enquiry: address, district, **the expected platform fee**
+   (required on the enquiry, so the call-back opens with a number), click-to-call phone, mailto
+   email, the merchant's own notes, and — when the enquiry carries a pin — an "Open the pinned shop
+   location" link to Google Maps. An enquiry without a pin predates the mandatory-location gate; the
+   dialog then says to confirm the address on the call.
 4a. **Ownership.** Any admin may **Claim** an unclaimed lead (`POST /seller-leads/{id}/assign`
    `{assigned:"me"}`); the owner is always the caller, so a lead can never be handed to someone else.
    Claiming is first-come: a second admin gets a `409` rather than both believing they own the call.

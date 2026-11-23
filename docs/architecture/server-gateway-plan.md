@@ -164,7 +164,10 @@ caller) and are event-purged on store live toggle and product edit/status change
   `POST /seller/sub-users/{id}/resend`, `DELETE /seller/sub-users/{id}` and public
   `POST /seller/sub-users/accept` (tables from `0097`/`0098`; scope from the JWT `seller_id`).
   Public intake: `POST /seller-leads` (no auth — the landing page `/sell-with-us` enquiry; honeypot,
-  per-IP daily cap, writes `sellers.seller_leads` only, never `sellers.sellers`; migration `0111`).
+  per-IP daily cap, **mandatory `platformFeePct`** (1–100, FOOD ≥ 5), writes `sellers.seller_leads`
+  only, never `sellers.sellers`; migration `0111`) plus the public read `GET /seller-leads/districts`
+  (active `admins.district_master` projection from the in-process geo mirror; no DB, no PII, 5-minute
+  public cache) the form uses to send canonical `stateCode`/`districtCode` with its pin.
   Admin follow-up queue: `GET /seller-leads` + `PATCH /seller-leads/{id}` + `POST /seller-leads/{id}/assign`
   (district/super admin only, district-scoped; `NEW → CONTACTED → APPROVED|REJECTED` with reviewer,
   note and an audit row; claim/release ownership; review columns + queue index in `0112`, owner +

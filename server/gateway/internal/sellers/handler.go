@@ -115,6 +115,9 @@ func (h *Handler) Register(r chi.Router) {
 	// Landing-page "Sell with us" enquiry. Public by design (the page is open to visitors) and NOT a
 	// seller account — it writes sellers.seller_leads only, never sellers.sellers (leads.go).
 	r.Post("/seller-leads", h.createLead)
+	// The same form reads the active district master to resolve its pin's district to canonical
+	// state/district codes before submitting. Public, no DB round-trip (the geo mirror answers).
+	r.Get("/seller-leads/districts", h.leadDistricts)
 
 	// Admin follow-up queue for those leads (leads_admin.go). District admins see their district,
 	// super admins see every district; a seller is refused outright.

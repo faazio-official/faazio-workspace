@@ -179,7 +179,11 @@ role-scoped review methods `GET /sellers`, `GET /sellers/{id}`, `PATCH /sellers/
 re-checks role + state scope server-side. KYC/bank writes outside that admin path stay portal-only.
 The sellers context also exposes exactly one **anonymous** write — `POST /seller-leads`, the landing
 page's "Sell with us" enquiry (honeypot + per-IP daily cap, writes `sellers.seller_leads` only, never
-`sellers.sellers`) — and no anonymous read. That queue is then worked by admins only:
+`sellers.sellers`) — and one **anonymous** read, `GET /seller-leads/districts`, which serves the active
+`admins.district_master` projection (`districtCode`, `name`, `stateCode`) from the in-process geo
+mirror so the enquiry form can send canonical codes with its pin (no DB, no auth, no PII, 5-minute
+public cache). The platform fee is **required** on the enquiry (`platformFeePct`, 1–100, FOOD ≥ 5).
+That queue is then worked by admins only:
 `GET /seller-leads` (district-scoped list; `status`/`q` filters, 200-row cap) and
 `PATCH /seller-leads/{id}` (conditional `NEW → CONTACTED → APPROVED|REJECTED` move writing
 `reviewed_by`/`reviewed_at`/`admin_note`, one `SELLER_LEAD_STATUS` audit row with phone/email
