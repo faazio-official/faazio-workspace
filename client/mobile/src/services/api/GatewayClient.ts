@@ -1384,6 +1384,17 @@ export class GatewayClient {
     );
   }
 
+  /**
+   * Persist the customer's display name (`PUT /profile`) — the name captured at sign-in, so the
+   * account screen shows what the user typed rather than Firebase's phone-derived fallback. Strict:
+   * throws offline/on HTTP failure; the caller keeps the name in the session either way.
+   */
+  async updateProfileName(name: string): Promise<ProfileRow> {
+    return this.serverOnly(
+      () => this.http<ProfileRow>('/profile', { method: 'PUT', body: JSON.stringify({ name }) }),
+    );
+  }
+
   async getMembership(userId = 'user-1'): Promise<MembershipRow | undefined> {
     return this.serverOnly(
       () => this.http<MembershipRow>('/membership'),
@@ -2152,7 +2163,9 @@ export class GatewayClient {
   async uploadShopPhoto(uri: string): Promise<UploadedSellerDocument> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     const blob = await (await fetch(uri)).blob();
-    const mime = blob.type === 'image/png' ? 'image/png' : 'image/jpeg';
+    // React Native does not always populate `Blob.type` for a `file://` pick, so fall back to the
+    // picked file's extension. The gateway decodes JPEG/PNG only and rejects anything else.
+    const mime = blob.type === 'image/png' || /\.png$/i.test(uri) ? 'image/png' : 'image/jpeg';
     const res = await fetch(`${GATEWAY_URL}/media/avif`, {
       method: 'POST',
       headers: { 'Content-Type': mime },

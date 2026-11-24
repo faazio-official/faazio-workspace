@@ -8,15 +8,24 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/faazio/server/gateway/internal/platform/cache"
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/taxmath"
 	"github.com/jackc/pgx/v5"
 )
+
+// ErrInvalidProfileName rejects an empty or oversized display name on PUT /profile.
+var ErrInvalidProfileName = errors.New("checkout: invalid profile name")
+
+// maxProfileNameRunes bounds a customer display name. The client caps input to the same value so a
+// legitimate name never fails server-side; the bound exists so a crafted body cannot store bloat.
+const maxProfileNameRunes = 80
 
 // OrderLineAddon is one selected extra snapshot on an order line (checkout.order_item_addons).
 type OrderLineAddon struct {
@@ -2095,6 +2104,58 @@ func (r *Repo) DeleteAddress(ctx context.Context, userID, addressID string) (boo
 		return false, err
 	}
 	return tag.RowsAffected() > 0, nil
+}
+
+// UpdateProfileName persists the customer's display name (captured at sign-in) and returns the
+// refreshed accounts.profile row. Both identity rows are written so the account screen and the
+// admin/seller projections agree: accounts.profile is the read surface, checkout.users.name the
+// projection source. The row is created on first write for a user provisioned before this endpoint.
+// ErrInvalidProfileName covers an empty or over-long name; ok=false when the user does not exist.
+func (r *Repo) UpdateProfileName(ctx context.Context, userID, name string) (Profile, bool, error) {
+	if r.pool == nil {
+		return Profile{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	if userID == "" {
+		return Profile{}, false, nil
+	}
+	name = strings.TrimSpace(name)
+	if name == "" || utf8.RuneCountInString(name) > maxProfileNameRunes {
+		return Profile{}, false, ErrInvalidProfileName
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Profile{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	// checkout.users is the identity row every projection joins; it must exist for this user. The
+	// deleted_at filter refuses to re-personalise an anonymised account-deletion tombstone.
+	tag, err := tx.Exec(ctx,
+		`update checkout.users set name = $2 where user_id = $1 and deleted_at is null`, userID, name)
+	if err != nil {
+		return Profile{}, false, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Profile{}, false, nil
+	}
+	// accounts.profile may be missing for a pre-provision row — insert rather than update only.
+	if _, err := tx.Exec(ctx, `
+		insert into accounts.profile (id, account_id, name, email, phone)
+		select u.user_id, u.user_id, $2, u.email, u.phone from checkout.users u where u.user_id = $1
+		on conflict (id) do update set name = excluded.name, updated_at = now()`,
+		userID, name); err != nil {
+		return Profile{}, false, err
+	}
+	var p Profile
+	if err := tx.QueryRow(ctx,
+		`select id, account_id, name, email, phone from accounts.profile where id = $1`, userID).
+		Scan(&p.ID, &p.AccountID, &p.Name, &p.Email, &p.Phone); err != nil {
+		return Profile{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Profile{}, false, err
+	}
+	return p, true, nil
 }
 
 // DeleteAccount erases a customer's personal data and anonymises their checkout.users row. The row

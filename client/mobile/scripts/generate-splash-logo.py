@@ -32,24 +32,17 @@ must be background-independent too. It previously drew the raw opaque
 background exactly; any colour drift made the opaque field visible and the
 wordmark look cropped. It now uses the generated transparent wordmark below.
 
-The splash credit line "Product of FA CREATORS" sits at the bottom of both
-visible layers (native + JS). Android splash drawables cannot contain text, so
-the generator bakes `splashscreen_tagline.png` per density; the pre-31 compat
-layer-list composites it, API 31+ uses `windowSplashScreenBrandingImage`, and
-iOS + the JS layer render the same words with native text.
-
-Android 12+ does not draw the branding drawable at its intrinsic size: the
-platform puts it in a fixed 200x80dp view as that view's *background*
-(WindowManager Shell `starting_surface_brand_image_width/height`), so the bitmap
-is stretched to the box. A canvas trimmed to the ink (~142x9dp) was therefore
-stretched ~8x vertically and read as a smear. The tagline is baked onto an exact
-200x80dp canvas with the ink bottom-aligned, making the stretch 1:1 and pinning
-the credit's inset to the platform's 60dp branding margin.
+The splash credit line "Product of FA CREATORS" is owned by the JS layer-2
+splash (`src/components/SplashFallback.tsx`, `royal` variant) and the iOS
+storyboard `UILabel`, both of which draw it as real text. It is deliberately NOT
+baked into an Android splash bitmap: the API 31+ branding slot stretches a
+drawable to a WindowManager-Shell-sized box whose aspect ratio is OS/OEM
+dependent, which distorted the text (squeezed horizontally, stretched
+vertically) on real devices.
 
 Outputs
 -------
   android/app/src/main/res/drawable-{m,h,xh,xxh,xxxh}dpi/splashscreen_logo.png
-  android/app/src/main/res/drawable-{m,h,xh,xxh,xxxh}dpi/splashscreen_tagline.png
   ios/Faazio/Images.xcassets/SplashScreenLogo.imageset/image{,@2x,@3x}.png
   src/assets/logo-wordmark-transparent.png   (same canvas/position as logo.png)
 
@@ -65,7 +58,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
 SOURCE = ROOT / "src" / "assets" / "logo.png"
@@ -73,27 +66,6 @@ SOURCE = ROOT / "src" / "assets" / "logo.png"
 ANDROID_RES = ROOT / "android" / "app" / "src" / "main" / "res"
 IOS_IMAGESET = ROOT / "ios" / "Faazio" / "Images.xcassets" / "SplashScreenLogo.imageset"
 JS_WORDMARK = ROOT / "src" / "assets" / "logo-wordmark-transparent.png"
-
-# Android drawables cannot contain text, so the splash credit line is baked to a
-# transparent PNG. iOS and the JS layer render the same words with native text.
-TAGLINE_TEXT = "Product of FA CREATORS"
-TAGLINE_FONT_PX_DP = 12.0
-TAGLINE_TRACKING_DP = 0.3
-TAGLINE_FILL = (255, 255, 255, 230)
-TAGLINE_FONT_CANDIDATES = (
-    "/usr/share/fonts/truetype/roboto/unhinted/RobotoTTF/Roboto-Medium.ttf",
-    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-)
-
-# API 31+ branding slot. The platform scales the branding drawable into this
-# exact box (WindowManager Shell `starting_surface_brand_image_width/height`)
-# and anchors the box 60dp above the window bottom (splash_screen_view.xml), so
-# the asset is baked at this size with the ink on the box's bottom edge: the
-# stretch is 1:1 and the credit lands at the platform's 60dp branding margin.
-# The other three layers inset by 56dp, 4dp above this; the difference is under
-# one text descender and is what the platform allows — a branding view cannot be
-# moved below its own 60dp margin.
-TAGLINE_CANVAS_DP = (200.0, 80.0)
 
 # Android: splashscreen_icon_size_no_background = 288dp, so px == dp * density.
 ANDROID_DENSITIES = {
@@ -191,55 +163,6 @@ def render_android(ink: Image.Image, density: float) -> Image.Image:
     return out
 
 
-def _tagline_font(px: int) -> ImageFont.FreeTypeFont:
-    for path in TAGLINE_FONT_CANDIDATES:
-        if Path(path).exists():
-            return ImageFont.truetype(path, px)
-    raise SystemExit("ERROR: no usable font found for the splash tagline")
-
-
-def render_tagline(density: float) -> Image.Image:
-    """Render "Product of FA CREATORS" onto the 200x80dp branding canvas.
-
-    Per-character placement adds tracking, which Pillow's loader cannot apply.
-    The ink is centred horizontally and pinned to the canvas bottom: the API 31+
-    branding view is anchored 60dp off the window bottom with this exact box as
-    its background, so a 1:1 bitmap puts the credit's baseline on the platform's
-    own 60dp branding margin.
-
-    Baking the platform's box (rather than a canvas trimmed to the ink) is what
-    keeps the stretch 1:1; a ~142x9dp trimmed bitmap was being stretched into
-    200x80dp, i.e. ~8x vertically, and read as a smear instead of a credit line.
-    """
-    px = max(1, round(TAGLINE_FONT_PX_DP * density))
-    tracking = TAGLINE_TRACKING_DP * density
-    font = _tagline_font(px)
-
-    scratch = Image.new("RGBA", (1, 1))
-    measure = ImageDraw.Draw(scratch)
-    advances = [measure.textlength(ch, font=font) for ch in TAGLINE_TEXT]
-    ink_w = round(sum(advances) + tracking * (len(TAGLINE_TEXT) - 1))
-    ascent, descent = font.getmetrics()
-
-    ink = Image.new("RGBA", (ink_w, ascent + descent), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(ink)
-    x = 0.0
-    for ch, adv in zip(TAGLINE_TEXT, advances):
-        draw.text((x, 0), ch, font=font, fill=TAGLINE_FILL)
-        x += adv + tracking
-
-    bbox = ink.getchannel("A").getbbox()
-    if bbox is None:
-        raise SystemExit("ERROR: tagline rendered empty")
-    ink = ink.crop(bbox)
-
-    canvas_w = max(ink.width, round(TAGLINE_CANVAS_DP[0] * density))
-    canvas_h = max(ink.height, round(TAGLINE_CANVAS_DP[1] * density))
-    out = Image.new("RGBA", (canvas_w, canvas_h), (0, 0, 0, 0))
-    out.paste(ink, ((canvas_w - ink.width) // 2, canvas_h - ink.height), ink)
-    return out
-
-
 def render_js_wordmark(
     ink: Image.Image, bbox: tuple[int, int, int, int], size: tuple[int, int]
 ) -> Image.Image:
@@ -283,15 +206,6 @@ def main() -> int:
             img.save(path, "PNG", optimize=True)
         written += 1
         print(f"android     {path.relative_to(ROOT)}  {img.width}x{img.height}")
-
-    for name, density in ANDROID_DENSITIES.items():
-        img = render_tagline(density)
-        path = ANDROID_RES / f"drawable-{name}" / "splashscreen_tagline.png"
-        if not args.check:
-            path.parent.mkdir(parents=True, exist_ok=True)
-            img.save(path, "PNG", optimize=True)
-        written += 1
-        print(f"tagline     {path.relative_to(ROOT)}  {img.width}x{img.height}")
 
     for suffix, scale in IOS_SCALES.items():
         img = render_android(ink, scale)

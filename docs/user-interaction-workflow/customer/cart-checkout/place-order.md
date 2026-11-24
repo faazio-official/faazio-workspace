@@ -73,7 +73,6 @@
 
 ## Known gaps
 
-- `PaymentOptions` route is registered but never navigated; payment UI is inline in `CartView`.
 - Self-pickup points are fetched from `GET /pickup-points` and the selected snapshot is submitted
   in `POST /orders`; placement is blocked when the server returns none.
 - The confirmation receipt has no invoice UI. Invoice download lives in My Orders → Order Details

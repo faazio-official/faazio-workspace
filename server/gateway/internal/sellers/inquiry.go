@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"regexp"
@@ -115,6 +116,26 @@ func (r *Repo) CreateInquiry(ctx context.Context, s Seller, inquiryCategory stri
 	keys, err := claimShopPhotos(ctx, tx, photos, photoIDs, created.SellerID)
 	if err != nil {
 		return Seller{}, nil, err
+	}
+	// Persist the gallery on the row itself. Without this the claim would succeed and the enquiry
+	// would come back with `shopPhotos: []` — the admin queue and the promotion path both read this
+	// column, so the photos have to live here, not only in media.assets.
+	if len(keys) > 0 {
+		rows := make([]ShopPhoto, 0, len(keys))
+		for i, key := range keys {
+			rows = append(rows, ShopPhoto{AssetID: photoIDs[i], Key: key})
+		}
+		encoded, mErr := json.Marshal(rows)
+		if mErr != nil {
+			return Seller{}, nil, mErr
+		}
+		// string, not []byte: pgx sends a byte slice as bytea, which jsonb does not accept.
+		if _, err := tx.Exec(ctx,
+			`update sellers.sellers set shop_photos = $2::jsonb where seller_id = $1`,
+			created.SellerID, string(encoded)); err != nil {
+			return Seller{}, nil, err
+		}
+		created.ShopPhotos = rows
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Seller{}, nil, err

@@ -35,7 +35,10 @@ per-district drill-down `/admin/super/districts/[code]`
 6. **Drill-down:** clicking a district code opens `/admin/super/districts/[code]` — the existing
    per-district view (GMV trend, admin roster, campaigns, sellers) with a jump-to-district selector
    that routes within the drill-down. It reads `GET /admin/districts` (not the picker read) so a
-   **deactivated** district still resolves; its header shows an `INACTIVE` pill and says so.
+   **deactivated** district still resolves; its header shows an `INACTIVE` pill and says so. Its
+   **Assign admin** button (also shown as the empty-roster CTA) opens the shared
+   `DistrictAdminDrawer` **locked to that district** — see
+   [`district-admin-roster.md`](./district-admin-roster.md).
 7. Every write is audit-logged (`DISTRICT_CREATE`, `DISTRICT_UPDATE`, `DISTRICT_TOGGLE`,
    `DISTRICT_DELETE`) on `admins.district_master` via the shared `contracts.AuditWriter`.
 

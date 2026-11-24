@@ -549,11 +549,11 @@ export const PAGE_HINTS: Record<string, PageHint> = {
     app: ["portal"],
   },
   "/admin/super/district-admins": {
-    what: "District-admin accounts and which district each one governs.",
-    how: "Create an account per district; never share one login across districts.",
-    whyCreated: "So every district has exactly one accountable admin login.",
-    boundedWorkflow: "Roster management: create an admin (and login) → map to one district.",
-    changesMade: "A new admin can sign in and manage their district immediately.",
+    what: "District-admin accounts and which district and verticals each one governs.",
+    how: "Assign an admin to any district and grant Mart/Food/Pharma access; a district can have several admins.",
+    whyCreated: "So every district has an accountable admin scoped to exactly the verticals they run.",
+    boundedWorkflow: "Roster management: assign an admin to a district → choose invite or temporary password → grant verticals.",
+    changesMade: "An invited admin sets their own password from a one-time link; a temporary-password admin must rotate it at first sign-in.",
     app: ["portal"],
   },
   "/admin/super/app-config": {
@@ -1175,11 +1175,12 @@ const CORE_COMPONENT_HINTS: Record<string, ComponentHint> = {
     example: "Reject and explain the current rate already reflects the category.",
     app: ["portal"],
   },
-  "pattern:seller-lead-followup": {
-    what: "Moving a landing-page enquiry through contacted → approved or rejected.",
-    workflow: "Lead follow-up: open a lead → contact → approve or reject.",
-    changes: "Records who decided and your note; it does not create a seller account.",
-    example: "Approve after the call agrees the fee, and note when they will apply.",
+  "pattern:seller-inquiry-followup": {
+    what: "Moving a landing-page enquiry through contacted → proceeding or rejected.",
+    workflow: "Enquiry follow-up: open an enquiry → contact → send it to review or reject.",
+    changes:
+      "Records who decided and your note. Proceeding moves the same record into the normal seller review, so it never creates a second account.",
+    example: "Send to review after the call agrees the fee, and note when they will apply.",
     app: ["portal"],
   },
   "pattern:account-current-password": {

@@ -170,6 +170,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Post("/razorpay/customer/orders", h.createRazorpayOrder)
 		g.Get("/payments", h.getPayments)
 		g.Get("/profile", h.getProfile)
+		g.Put("/profile", h.putProfileName)
 		g.Get("/profile/addresses", h.getAddresses)
 		g.Put("/profile/addresses", h.putAddress)
 		g.Delete("/profile/addresses/{addressID}", h.deleteAddress)
@@ -918,6 +919,37 @@ func (h *Handler) getProfile(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, p)
 }
 
+// profileNameRequest is the PUT /profile body. Only the display name is writable here: the phone is
+// the verified Firebase identity claim and email is never customer-editable on this screen.
+type profileNameRequest struct {
+	Name string `json:"name"`
+}
+
+// putProfileName persists the name captured at sign-in so the account screen shows the customer's
+// own choice instead of Firebase's phone-derived fallback. An empty/over-long name is a 400; a
+// caller with no user row is a 404 (never a silent no-op).
+func (h *Handler) putProfileName(w http.ResponseWriter, r *http.Request) {
+	var body profileNameRequest
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	p, ok, err := h.repo.UpdateProfileName(r.Context(), auth.UserID(r.Context()), body.Name)
+	if err != nil {
+		if errors.Is(err, ErrInvalidProfileName) {
+			httpx.Fail(w, http.StatusBadRequest, "invalid_name", "enter a name")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "profile_unavailable", "could not save profile")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "profile not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, p)
+}
+
 func (h *Handler) getDetails(w http.ResponseWriter, r *http.Request) {
 	d, ok, err := h.repo.DetailsByUser(r.Context(), auth.UserID(r.Context()))
 	if err != nil {
@@ -1053,6 +1085,16 @@ func (h *Handler) districtAdminOrders(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "orders_unavailable", "orders unavailable")
 		return
+	}
+	// Vertical scope (0130): a district admin only sees orders from the verticals they manage.
+	if allowed := auth.AllowedVerticals(r.Context()); allowed != nil {
+		filtered := orders[:0]
+		for _, o := range orders {
+			if auth.CanAccessVertical(r.Context(), o.Sector) {
+				filtered = append(filtered, o)
+			}
+		}
+		orders = filtered
 	}
 	if orders == nil {
 		orders = []AdminOrderRow{}

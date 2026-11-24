@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useState } from "react";
+import { Plus } from "lucide-react";
 import { EmptyState, TableSkeleton } from "@/components/patterns/DataState";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
@@ -9,7 +10,9 @@ import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { GmvTrend } from "@/components/patterns/Charts";
 import { StatusPill } from "@/components/patterns/Pills";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { DistrictAdminDrawer, VerticalAccessBadges } from "@/components/admin/DistrictAdminDrawer";
 import {
   Select,
   SelectContent,
@@ -46,6 +49,7 @@ function SuperDistrictDrilldown() {
   // The admin read (not the picker read) so a deactivated district still resolves here.
   const { items: districts, loading } = useAdminDistricts();
   const [query, setQuery] = useState("");
+  const [assignOpen, setAssignOpen] = useState(false);
 
   const known = districts.find((d) => d.districtCode === districtCode);
   const stateCode = districtCode ? stateForDistrict(districts, districtCode) : "";
@@ -184,19 +188,35 @@ function SuperDistrictDrilldown() {
         <SectionCard
           title="Admin roster"
           bodyClassName="p-0"
-          actions={<ComponentHelp id="district-admin-roster" label="About the admin roster" />}
+          actions={
+            <div className="flex items-center gap-1.5">
+              <ComponentHelp id="district-admin-roster" label="About the admin roster" />
+              <ComponentHelp id="district-admin-assign" label="About assigning an admin" />
+              <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setAssignOpen(true)}>
+                <Plus className="size-3.5" /> Assign admin
+              </Button>
+            </div>
+          }
         >
           {admins.length === 0 ? (
-            <EmptyState
-              title="No admins for this district"
-              description="Create one from the District admins page so KYC and campaigns are covered."
-            />
+            <div className="px-4 py-6">
+              <EmptyState
+                title="No admins for this district"
+                description="Assign one now so KYC and campaigns are covered."
+              />
+              <div className="mt-3 flex justify-center">
+                <Button size="sm" className="gap-1.5" onClick={() => setAssignOpen(true)}>
+                  <Plus className="size-3.5" /> Assign admin to {known.districtCode}
+                </Button>
+              </div>
+            </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Email</TableHead>
+                  <TableHead>Access</TableHead>
                   <TableHead>Status</TableHead>
                 </TableRow>
               </TableHeader>
@@ -206,7 +226,17 @@ function SuperDistrictDrilldown() {
                     <TableCell className="text-[13px] font-medium">{admin.name}</TableCell>
                     <TableCell className="num text-[12px]">{admin.email}</TableCell>
                     <TableCell>
-                      <StatusPill status={admin.active ? "ACTIVE" : "DEACTIVATED"} />
+                      <VerticalAccessBadges
+                        martAccess={admin.martAccess}
+                        foodAccess={admin.foodAccess}
+                        pharmaAccess={admin.pharmaAccess}
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1">
+                        <StatusPill status={admin.active ? "ACTIVE" : "DEACTIVATED"} />
+                        {admin.inviteStatus === "pending" ? <StatusPill status="PENDING_INVITE" /> : null}
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -281,6 +311,14 @@ function SuperDistrictDrilldown() {
           </Table>
         )}
       </SectionCard>
+
+      <DistrictAdminDrawer
+        open={assignOpen}
+        onOpenChange={setAssignOpen}
+        districts={districts}
+        lockedDistrictCode={districtCode}
+        admins={admins}
+      />
     </div>
   );
 }

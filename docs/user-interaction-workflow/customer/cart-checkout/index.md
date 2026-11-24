@@ -56,8 +56,6 @@ The receipt success uses a single pulse, not a loop.
 
 ## Known gaps
 
-- `PaymentOptions` is registered in `AppNavigator` but never navigated; the real payment UI is
-  inline in `CartView`.
 - Invoice PDF may be unavailable while no renderer writes `pdf_key`; the download is offered only
   in My Orders → Order Details (never on the receipt/confirmation).
 - See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).

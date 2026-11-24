@@ -11,7 +11,7 @@ import (
 
 func TestMintAccessVerifies(t *testing.T) {
 	m := NewMinter("portal-secret")
-	token, jti, exp, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", "", "", false)
+	token, jti, exp, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", "", "", false, VerticalScope{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,7 +40,7 @@ func TestScopedAccessTokens(t *testing.T) {
 	m := NewMinter("portal-secret")
 	v := auth.NewPortalVerifier([]byte("portal-secret"), nil)
 
-	seller, _, _, err := m.MintAccess("pu-seller-1", auth.RoleSeller, "slr-1", "", "", "", false)
+	seller, _, _, err := m.MintAccess("pu-seller-1", auth.RoleSeller, "slr-1", "", "", "", false, VerticalScope{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -52,7 +52,7 @@ func TestScopedAccessTokens(t *testing.T) {
 		t.Fatalf("unexpected seller claims: %+v", claims)
 	}
 
-	state, _, _, err := m.MintAccess("pu-district-1", auth.RoleDistrictAdmin, "", "tch", "tn", "", false)
+	state, _, _, err := m.MintAccess("pu-district-1", auth.RoleDistrictAdmin, "", "tch", "tn", "", false, VerticalScope{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -64,7 +64,7 @@ func TestScopedAccessTokens(t *testing.T) {
 		t.Fatalf("district/state scope not normalized: %+v", claims)
 	}
 
-	noScope, _, _, err := m.MintAccess("pu-seller-2", auth.RoleSeller, "", "", "", "", false)
+	noScope, _, _, err := m.MintAccess("pu-seller-2", auth.RoleSeller, "", "", "", "", false, VerticalScope{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -76,7 +76,7 @@ func TestScopedAccessTokens(t *testing.T) {
 func TestExpiredAccessRejected(t *testing.T) {
 	m := NewMinter("portal-secret")
 	m.now = func() time.Time { return time.Now().Add(-2 * AccessTTL) }
-	token, _, _, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", "", "", true)
+	token, _, _, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", "", "", true, VerticalScope{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,7 +109,7 @@ func TestSubRoleClaim(t *testing.T) {
 	m := NewMinter("portal-secret")
 	v := auth.NewPortalVerifier([]byte("portal-secret"), nil)
 
-	viewer, _, _, err := m.MintAccess("pu-staff-1", auth.RoleSeller, "slr-1", "", "", "VIEWER", false)
+	viewer, _, _, err := m.MintAccess("pu-staff-1", auth.RoleSeller, "slr-1", "", "", "VIEWER", false, VerticalScope{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -122,7 +122,7 @@ func TestSubRoleClaim(t *testing.T) {
 	}
 
 	// A non-seller token can never carry a sub-user role.
-	admin, _, _, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", "", "VIEWER", false)
+	admin, _, _, err := m.MintAccess("pu-super-1", auth.RoleSuperAdmin, "", "", "", "VIEWER", false, VerticalScope{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -132,5 +132,35 @@ func TestSubRoleClaim(t *testing.T) {
 	}
 	if claims.SubRole != "" {
 		t.Fatalf("admin token kept a sub_role: %+v", claims)
+	}
+}
+
+func TestDistrictVerticalScopeClaims(t *testing.T) {
+	m := NewMinter("portal-secret")
+	v := auth.NewPortalVerifier([]byte("portal-secret"), nil)
+	token, _, _, err := m.MintAccess("pu-district-1", auth.RoleDistrictAdmin, "", "tch", "tn", "", false,
+		VerticalScope{Scoped: true, Mart: true, Food: false, Pharma: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, err := v.Verify(context.Background(), token)
+	if err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if !claims.VerticalScoped || !claims.MartAccess || claims.FoodAccess || !claims.PharmaAccess {
+		t.Fatalf("unexpected vertical claims: %+v", claims)
+	}
+
+	// An unscoped token must not carry any of the three claims (legacy full access).
+	legacy, _, _, err := m.MintAccess("pu-district-2", auth.RoleDistrictAdmin, "", "tch", "tn", "", false, VerticalScope{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	lc, err := v.Verify(context.Background(), legacy)
+	if err != nil {
+		t.Fatalf("verify legacy: %v", err)
+	}
+	if lc.VerticalScoped {
+		t.Fatalf("unscoped token carried vertical scope: %+v", lc)
 	}
 }

@@ -435,8 +435,15 @@ export interface HeroCampaign {
   requestedAt: string;
 }
 
+/** Per-vertical access a district admin can be granted at creation time (0130). */
+export interface DistrictAdminVerticalScope {
+  martAccess: boolean;
+  foodAccess: boolean;
+  pharmaAccess: boolean;
+}
+
 /** admins.district_admins */
-export interface DistrictAdmin {
+export interface DistrictAdmin extends DistrictAdminVerticalScope {
   adminId: string;
   name: string;
   email: string;
@@ -448,6 +455,13 @@ export interface DistrictAdmin {
   active: boolean;
   createdAt: string;
   lastActiveAt: string;
+  /**
+   * Invite lifecycle of the linked DISTRICT_ADMIN login (0131): "pending" until the invitee sets a
+   * password, then "active" (absent when no login has been issued). Mirrors portal_users.invite_status.
+   */
+  inviteStatus?: "pending" | "active" | "expired" | undefined;
+  /** When a pending invite link stops working (invite_expires_at). */
+  inviteExpiresAt?: string | undefined;
 }
 
 /** admins.portal_users — a portal login issued by a superadmin (never carries the hash). */
@@ -463,6 +477,10 @@ export interface PortalCredential {
   mustChange: boolean;
   /** Set for a seller staff login (STAFF/VIEWER); empty for a seller owner and for admins. */
   subRole?: string | undefined;
+  /** Invite lifecycle for an invite-mode login (0131): pending / active / expired. */
+  inviteStatus?: "pending" | "active" | "expired" | undefined;
+  /** When the pending invite link expires (portal_users.invite_expires_at). */
+  inviteExpiresAt?: string | undefined;
   lastLoginAt?: string | undefined;
   createdAt?: string | undefined;
   /** Set when the credential is in the 7-day trash (0128); absent for a live row. */

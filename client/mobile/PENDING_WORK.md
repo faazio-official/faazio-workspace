@@ -1,6 +1,6 @@
 # W106 — Checkout, login, and UI cleanups per user complaints (audio 1-6)
 
-**Status:** 🟢 Shipped. No DB migration, no gateway change.
+**Status:** 🟢 Shipped (W106: no DB migration, no gateway change; W107 adds `PUT /profile`, no DB migration).
 
 ### Checkout flow simplification (Audio 1)
 - **Moved fulfilment choice** from separate FULFILLMENT step into PAYMENT before Pay button
@@ -30,13 +30,27 @@
 - Name stored in user object during completeLogin and passed to session
 - Tamil listed for removal from languages.ts and native font files
 
+### Login: two-step name → phone, name persisted server-side (W107)
+- `LoginScreen` is now three steps (`authStep`: `name` → `phone` → `otp`): name + **Continue**, then
+  the `+91` phone field + **Send code**, then the unchanged OTP screen. `otpState` is derived
+  (`authStep === 'otp'`).
+- **Fixed "Send code" doing nothing**: `requestOtp` was missing `name` in its `useCallback` deps, so
+  the closure always read the first render's `''` and hit the name guard before `sendOtp`.
+- Typed name is kept in the login payload (`displayName()` only as a fallback) **and** persisted by
+  `GatewayClient.updateProfileName()` → `PUT /profile` (`{name}`), a new checkout endpoint writing
+  `checkout.users.name` + `accounts.profile.name` in one transaction.
+- Back from phone → name preserves the typed name; OTP → phone unchanged; hardware back follows the
+  same steps.
+
 ### Verification
 -**Typecheck:** `npm run ts:check` PASS (0 errors)
 -**Boundaries:** `npm run check:boundaries` PASS (dependency cruised)
 - Build via CI only (Gradle locally OOMs); deploy via `gh workflow run android-debug.yml`
 
 **Files impacted:**
-- `features/auth/LoginScreen.tsx` (name input, validation)
+- `features/auth/LoginScreen.tsx` (three-step name/phone/OTP, stale-closure fix, name write-through)
+- `services/api/GatewayClient.ts` (`updateProfileName`)
+- `server/gateway/internal/checkout/{repo,handler}.go` (`UpdateProfileName`, `PUT /profile`)
 - `features/cart/CartView.tsx` (checkout flow restructure)
 - `features/cart/utils.ts` (CheckoutStep type)
 - `features/cart/payment/PaymentOptionsScreen.tsx` (coupon field)
@@ -52,3 +66,16 @@
 - **Checkout (DELIVERY):** cartItems + coupon → PAYMENT (fulfilment DELIVERY) → breakdownDelivery {...} → Address Input → Apply Coupon → Address Valid → Place Order
 
 **Date:** 2026-11-22
+
+## W108 — Navigation/search gap cleanups (KNOWN_GAPS)
+
+**Status:** 🟢 Shipped. No DB migration, no gateway change.
+
+- **Removed the dead `PaymentOptions` route** from `AppNavigator`/`RootStackParamList`; checkout still
+  renders `PaymentOptionsScreen` inline from `CartView` (the only path).
+- **Basket "Checkout" CTA** in `SubAppWrapper` now calls the existing `onCartPress` handoff instead of
+  being a no-op `TouchableOpacity`.
+- **FOOD search config**: `SearchRouteScreen` selects `foodSearchConfig` for the FOOD sub-app (with the
+  dish → PDP press handler), and forwards the route's `initialMode` so deep links can preselect a mode.
+
+**Verification:** `npm run ts:check` · `npm run check:boundaries` · `npm test` (85/85) all pass.

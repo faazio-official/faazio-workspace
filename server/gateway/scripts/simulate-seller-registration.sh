@@ -16,10 +16,18 @@
 #
 # Usage:
 #   export SUPABASE_JWT_SECRET='<same secret the gateway uses>'
+#   export SHOP_PHOTO_IDS='<id1>,<id2>,…'   # one unclaimed DRAFT AVIF asset per applicant
 #   ./scripts/simulate-seller-registration.sh [N] [GATEWAY_URL]
 #
-#   N           number of registrations to submit (default 5)
-#   GATEWAY_URL base URL of the local gateway (default http://localhost:8080)
+#   N             number of registrations to submit (default 5)
+#   GATEWAY_URL   base URL of the local gateway (default http://localhost:8080)
+#   SHOP_PHOTO_IDS comma-separated ids returned by POST /media/avif (or seeded DRAFT rows). Every
+#                 application must carry >=1 shop-front photo (shared with the web enquiry path),
+#                 and a claim promotes the asset DRAFT -> ACTIVE, so each applicant needs its own id.
+#                 Seed N fresh drafts locally with:
+#                   for n in $(seq 1 N); do psql "$TEST_DATABASE_URL" -c \
+#                     "insert into media.assets (id,owner_type,owner_id,kind,bucket,r2_key,mime,bytes,hash,status,created_by)
+#                      values ('sim-photo-$n','SHOP','','PUBLIC','faazio-public','sim/$n.avif','image/avif',1024,'h$n','DRAFT','')"; done
 #
 # Exits non-zero if any registration or the follow-up GET /sellers/me check fails.
 
@@ -28,6 +36,13 @@ set -uo pipefail
 N="${1:-${N:-5}}"
 GATEWAY_URL="${2:-${GATEWAY_URL:-http://localhost:8080}}"
 : "${SUPABASE_JWT_SECRET:?set SUPABASE_JWT_SECRET to the same value the gateway uses}"
+: "${SHOP_PHOTO_IDS:?set SHOP_PHOTO_IDS to one unclaimed DRAFT AVIF asset id per applicant (see header)}"
+
+IFS=',' read -r -a PHOTO_IDS <<< "$SHOP_PHOTO_IDS"
+if [ "${#PHOTO_IDS[@]}" -lt "$N" ]; then
+  echo "need ${N} SHOP_PHOTO_IDS (one per applicant), got ${#PHOTO_IDS[@]}" >&2
+  exit 2
+fi
 
 command -v curl >/dev/null 2>&1 || { echo "curl is required" >&2; exit 2; }
 command -v openssl >/dev/null 2>&1 || { echo "openssl is required" >&2; exit 2; }
@@ -68,6 +83,7 @@ for i in $(seq 1 "$N"); do
   biz="Sim Traders ${RUN_ID}-${i}"
   owner="Sim Owner ${i}"
   token="$(mkjwt "$sub" "$phone")"
+  photo="${PHOTO_IDS[$((i - 1))]}"
 
   body="$(cat <<JSON
 {
@@ -94,7 +110,8 @@ for i in $(seq 1 "$N"); do
       "phone": "${phone}",
       "hours": "09:00-21:00",
       "latitude": ${LAT},
-      "longitude": ${LNG}
+      "longitude": ${LNG},
+      "shopPhotoIds": ["${photo}"]
     }
   ],
   "bankName": "HDFC Bank",

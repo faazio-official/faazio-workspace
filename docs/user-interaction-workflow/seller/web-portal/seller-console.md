@@ -135,7 +135,6 @@ table:
   [notifications.md](./notifications.md)).
 - Toast-only admin actions: district `content` publish, `orders` escalate, `pricing-audit` contact,
   super `settings` save.
-- `/admin/super/district-admins` is hardcoded to TTC.
 - See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs

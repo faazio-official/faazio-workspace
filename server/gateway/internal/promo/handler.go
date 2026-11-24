@@ -93,6 +93,11 @@ func (h *Handler) setCap(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid sector cap")
 		return
 	}
+	// Vertical scope (0130): a district admin may only manage caps for the verticals they hold.
+	if !auth.CanAccessVertical(r.Context(), req.Sector) {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no access to this vertical")
+		return
+	}
 	cap, err := h.repo.SetSectorCap(r.Context(), SectorCap{
 		Sector: req.Sector, StateCode: req.StateCode, MaxDiscountPercent: req.MaxDiscountPercent,
 	})
@@ -118,6 +123,15 @@ func (h *Handler) listCampaigns(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
 		return
 	}
+	if allowed := auth.AllowedVerticals(r.Context()); allowed != nil {
+		filtered := campaigns[:0]
+		for _, c := range campaigns {
+			if auth.CanAccessVertical(r.Context(), c.Sector) {
+				filtered = append(filtered, c)
+			}
+		}
+		campaigns = filtered
+	}
 	httpx.JSON(w, http.StatusOK, campaigns)
 }
 
@@ -138,7 +152,7 @@ func (h *Handler) getCampaign(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
 		return
 	}
-	if !ok || !adminScopeAllowed(r, c.Scope, c.StateCode) {
+	if !ok || !adminScopeAllowed(r, c.Scope, c.StateCode) || !auth.CanAccessVertical(r.Context(), c.Sector) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "campaign not found")
 		return
 	}
@@ -283,8 +297,8 @@ type campaignRequest struct {
 	Scope     string `json:"scope"`
 	StateCode string `json:"stateCode"`
 	// Sector optionally limits the campaign to one vertical (0123). Empty = every vertical.
-	Sector   string `json:"sector"`
-	StartsAt string `json:"startsAt"`
+	Sector    string `json:"sector"`
+	StartsAt  string `json:"startsAt"`
 	EndsAt    string `json:"endsAt"`
 	BannerURL string `json:"bannerUrl"`
 	Status    string `json:"status"`
@@ -310,6 +324,10 @@ func (h *Handler) createCampaign(w http.ResponseWriter, r *http.Request) {
 	if strings.TrimSpace(req.Name) == "" || !validScope(req.Scope) || !validCampaignStatus(req.Status) ||
 		(req.Scope == "STATE") != (req.StateCode != "") || !validCampaignSector(req.Sector) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid campaign")
+		return
+	}
+	if !auth.CanAccessVertical(r.Context(), req.Sector) {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no access to this vertical")
 		return
 	}
 	start, err1 := time.Parse(time.RFC3339, req.StartsAt)
@@ -357,7 +375,7 @@ func (h *Handler) setCampaignStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
 		return
 	}
-	if !found || !adminScopeAllowed(r, before.Scope, before.StateCode) {
+	if !found || !adminScopeAllowed(r, before.Scope, before.StateCode) || !auth.CanAccessVertical(r.Context(), before.Sector) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "campaign not found")
 		return
 	}
@@ -544,7 +562,7 @@ func (h *Handler) setOptinStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "promo_unavailable", "promo unavailable")
 		return
 	}
-	if !found || !adminScopeAllowed(r, campaign.Scope, campaign.StateCode) {
+	if !found || !adminScopeAllowed(r, campaign.Scope, campaign.StateCode) || !auth.CanAccessVertical(r.Context(), campaign.Sector) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "opt-in not found")
 		return
 	}

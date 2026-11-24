@@ -37,6 +37,9 @@ type Handler struct {
 	// leaves claiming disabled (unit/test wiring) — a real deployment always wires it, otherwise an
 	// application could not attach shop pictures.
 	photos contracts.PhotoClaimer
+	// photoURL turns a stored object key into a browser-usable URL for a public shop photo. nil (test
+	// wiring) leaves the keys only; the portal then renders a placeholder instead of a broken image.
+	photoURL func(key string) string
 }
 
 // NewHandler builds the sellers handler.
@@ -63,6 +66,41 @@ func (h *Handler) WithSubUsers(p contracts.SubUserProvisioner) *Handler {
 func (h *Handler) WithPhotos(p contracts.PhotoClaimer) *Handler {
 	h.photos = p
 	return h
+}
+
+// WithPhotoURLs wires the public-URL builder for shop-front photos (r2.Signer.PublicURL). Without it
+// reads carry the object key but no `url`, so the portal cannot preview a gallery.
+func (h *Handler) WithPhotoURLs(fn func(key string) string) *Handler {
+	h.photoURL = fn
+	return h
+}
+
+// withPhotoURLs fills ShopPhoto.URL on one seller's gallery. Called on every read that can return an
+// INQUIRY row, because the photos are stored as keys (the CDN origin is deployment config, not data).
+func (h *Handler) withPhotoURLs(s Seller) Seller {
+	if h.photoURL == nil || len(s.ShopPhotos) == 0 {
+		return s
+	}
+	out := make([]ShopPhoto, len(s.ShopPhotos))
+	copy(out, s.ShopPhotos)
+	for i := range out {
+		if out[i].URL == "" {
+			out[i].URL = h.photoURL(out[i].Key)
+		}
+	}
+	s.ShopPhotos = out
+	return s
+}
+
+// withPhotoURLsList applies withPhotoURLs across a queue/list read.
+func (h *Handler) withPhotoURLsList(items []Seller) []Seller {
+	if h.photoURL == nil {
+		return items
+	}
+	for i := range items {
+		items[i] = h.withPhotoURLs(items[i])
+	}
+	return items
 }
 
 // Register mounts the sellers routes.
@@ -184,7 +222,16 @@ func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
 		return
 	}
-	httpx.JSON(w, http.StatusOK, items)
+	if allowed := auth.AllowedVerticals(r.Context()); allowed != nil {
+		filtered := items[:0]
+		for _, it := range items {
+			if sellerInVerticalScope(r.Context(), it) {
+				filtered = append(filtered, it)
+			}
+		}
+		items = filtered
+	}
+	httpx.JSON(w, http.StatusOK, h.withPhotoURLsList(items))
 }
 
 // listContractTiers returns the active server-owned rate cards.
@@ -207,6 +254,7 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
 		return
 	}
+	d.Seller = h.withPhotoURLs(d.Seller)
 	httpx.JSON(w, http.StatusOK, d)
 }
 
@@ -221,7 +269,7 @@ func (h *Handler) me(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "no seller application")
 		return
 	}
-	httpx.JSON(w, http.StatusOK, s)
+	httpx.JSON(w, http.StatusOK, h.withPhotoURLs(s))
 }
 
 // vendorApplication is one VENDOR (shop) created with the account. The account itself is
@@ -540,6 +588,9 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 	}
 	if !ok || !auth.CanActForSellerDistrict(r.Context(), before.SellerID, before.DistrictCode, before.StateCode) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
+		return
+	}
+	if !h.sellerVerticalAllowed(w, r, before) {
 		return
 	}
 	if auth.Role(r.Context()) == auth.RoleSeller {
@@ -1353,6 +1404,20 @@ func (h *Handler) listFeeChangeRequests(w http.ResponseWriter, r *http.Request) 
 		httpx.Fail(w, http.StatusInternalServerError, "requests_unavailable", "fee-change requests unavailable")
 		return
 	}
+	if allowed := auth.AllowedVerticals(r.Context()); allowed != nil {
+		filtered := items[:0]
+		for _, it := range items {
+			apps, appErr := h.repo.SellerApps(r.Context(), it.SellerID)
+			if appErr != nil {
+				httpx.Fail(w, http.StatusInternalServerError, "requests_unavailable", "fee-change requests unavailable")
+				return
+			}
+			if auth.AllowsVertical(r.Context(), apps...) {
+				filtered = append(filtered, it)
+			}
+		}
+		items = filtered
+	}
 	httpx.JSON(w, http.StatusOK, items)
 }
 
@@ -1436,10 +1501,40 @@ func (h *Handler) adminFeeRequest(w http.ResponseWriter, r *http.Request) (FeeCh
 		httpx.Fail(w, http.StatusNotFound, "not_found", "request not found")
 		return FeeChangeRequest{}, false
 	}
+	if !h.sellerVerticalAllowed(w, r, s) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "request not found")
+		return FeeChangeRequest{}, false
+	}
 	return f, true
 }
 
 // adminSeller resolves the path seller and enforces admin role + state scope.
+
+// sellerVerticalAllowed enforces district-admin vertical scope (0130) on a seller action. A seller can
+// own shops in several verticals, so any one in scope allows the action; an enquiry with no vendor yet
+// is judged by its enquiry category. Writes the response and answers false when it is outside scope.
+func (h *Handler) sellerVerticalAllowed(w http.ResponseWriter, r *http.Request, s Seller) bool {
+	verticals := append([]string{}, s.VendorApps...)
+	if len(verticals) == 0 && s.InquiryCategory != "" {
+		verticals = append(verticals, s.InquiryCategory)
+	}
+	if len(verticals) == 0 || auth.AllowsVertical(r.Context(), verticals...) {
+		return true
+	}
+	httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
+	return false
+}
+
+// sellerInVerticalScope is the read-side predicate used to narrow a district queue to the verticals
+// the caller manages. Unrestricted callers (nil allowed set) keep every row.
+func sellerInVerticalScope(ctx context.Context, s Seller) bool {
+	verticals := s.VendorApps
+	if len(verticals) == 0 && s.InquiryCategory != "" {
+		verticals = []string{s.InquiryCategory}
+	}
+	return auth.AllowsVertical(ctx, verticals...)
+}
+
 func (h *Handler) adminSeller(w http.ResponseWriter, r *http.Request) (Seller, bool) {
 	if !auth.IsAdmin(r.Context()) {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "admin role required")
@@ -1452,6 +1547,9 @@ func (h *Handler) adminSeller(w http.ResponseWriter, r *http.Request) (Seller, b
 	}
 	if !ok || !auth.CanActForSellerDistrict(r.Context(), s.SellerID, s.DistrictCode, s.StateCode) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "seller not found")
+		return Seller{}, false
+	}
+	if !h.sellerVerticalAllowed(w, r, s) {
 		return Seller{}, false
 	}
 	return s, true

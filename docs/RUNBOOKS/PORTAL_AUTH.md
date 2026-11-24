@@ -160,15 +160,30 @@ A signed-in superadmin uses **Portal credentials** (`/admin/super/credentials`) 
 
 For **district admins** the entry point is **District admins** (`/admin/super/district-admins`): one
 form creates the roster row **and** the login atomically (`issueLogin` default ON,
-`POST /district-admins`, `0036`/`0048`; legacy `POST /state-admins` stays mounted for one release). `must_change` is locked `true`, so the temporary password is single-use. A duplicate
-**email** (portal/roster — case-insensitive) is hard-blocked with a role-specific `409`; a duplicate
-**phone** (seller/roster — digit-normalized) is a **soft warning** (`201 warnings[]`, amber UI) —
-shared/SME lines are allowed, never blocked. The page shows the copyable temporary password once.
-`issueLogin:false` pre-provisions a roster-only row (No login badge, one-click issue later).
+`POST /district-admins`, `0036`/`0048`; legacy `POST /state-admins` stays mounted for one release). The
+page is no longer locked to one district — it lists every district and the creation form picks any of
+them (the district drill-down opens the same drawer with the district fixed). Per-vertical scope
+(Mart/Food/Pharma, `0130`) is part of the same form. Three hand-over modes:
 
-The holder signs in at `/login`, is forced to `/security` to rotate the password, then lands in
-`seller` or `/admin/district`. Deactivate/reactivate from the same page; resetting a password revokes
-every existing refresh session and forces another change.
+- **Send invite** (default, `inviteMode`): the server mints the login as `invite_status='pending'` with
+  a 7-day single-use token (only its SHA-256 hash is stored) and returns the raw token once — the page
+  shows a copyable `/accept-invite/admin?token=…` link. The invitee sets their own password there,
+  which activates the login (`invite_status='active'`, `must_change=false`). A pending login cannot
+  sign in (`invalid_credentials`). **New invite link** on a pending row rotates the token
+  (`POST /district-admins/{id}/resend-invite`), which is also the recovery path for an expired invite.
+- **Set temporary password**: `must_change` is locked `true`, so the temporary password is single-use
+  and shown once.
+- **No login yet** (`issueLogin:false`): roster-only row (No login badge, one-click issue later).
+
+A duplicate **email** (portal/roster — case-insensitive) is hard-blocked with a role-specific `409`; a
+duplicate **phone** (seller/roster — digit-normalized) is a **soft warning** (`201 warnings[]`, amber
+UI) — shared/SME lines are allowed, never blocked. A superadmin password reset supersedes an
+outstanding invite (the invite columns are cleared).
+
+The holder signs in at `/login`, then lands in `/admin/district` (invite mode: straight to the console,
+since they chose their own password; password mode: forced to `/security` to rotate the temporary
+password first). Deactivate/reactivate from the same page; resetting a password revokes every existing
+refresh session and forces another change.
 
 After a **voluntary** rotation at `/security` the portal immediately re-authenticates with the new
 password (a fresh `POST /auth/portal/login`) and lands on `homeFor(role)` — it does **not** bounce the

@@ -51,7 +51,7 @@ caller) and are event-purged on store live toggle and product edit/status change
   `/product/:id`, `/product/:id/reviews`,
   `/vendors/:id/reviews` (+ `/summary`), `/stores`, `/stores/nearby?lat=&lng=&radius=&app=`,
   `/store/:id`, `/products/nearby?lat=&lng=&radius=&app=`, `/venues`, `/venues/:id/menu`,
-  `/stock/:id`, `/orders`, `/profile`, `/profile/details`, `/profile/addresses` (GET/PUT/DELETE),
+  `/stock/:id`, `/orders`, `/profile` (GET; PUT `{name}` = sign-in name write-through), `/profile/details`, `/profile/addresses` (GET/PUT/DELETE),
   `DELETE /users/me` (account deletion: anonymises the user row, erases PII tables — incl. the
   author's `blood.requests` via `created_by` and a `delivery_orders.route_sequence` reset, 0061 —
   keeps financial records; idempotent), `POST /users/me/data-deletion` (partial erasure of addresses/favourites/
@@ -238,6 +238,20 @@ caller) and are event-purged on store live toggle and product edit/status change
   an email change re-checks the one-person-one-role gate and mirrors the new email + display name onto
   the linked `DISTRICT_ADMIN` login, so the roster↔login link (deactivation keys on `lower(email)`)
   never breaks.
+  **Invite-driven onboarding (`0131`):** `POST /district-admins` accepts `inviteMode` — instead of a
+  temporary password the server mints the login in `invite_status='pending'` state with a single-use,
+  7-day SHA-256-hashed token and returns the raw `inviteToken` + `inviteExpiresAt` **once** (never
+  logged). `POST /district-admins/{id}/resend-invite` rotates that token for a still-pending invite
+  (409 `invite_not_pending` otherwise). `POST /district-admins/accept-invite` is **public** (the
+  invitee has no session yet; the token is the capability): it verifies the token is pending +
+  unexpired + live, sets the invitee's own password, clears the token and activates the login. A
+  superadmin password reset supersedes any outstanding invite.
+  **Vertical scope (`0130`):** the creator and the `PUT` accept `martAccess`/`foodAccess`/
+  `pharmaAccess` (nil defaults to granted), written to `admins.district_admins` and returned on
+  `GET /district-admins`; see `db-schema.md` §12.46. At sign-in the flags are minted into the
+  access token (`vertical_scoped`, `mart_access`, `food_access`, `pharma_access`) and enforced by
+  `internal/platform/auth` helpers on every district-admin moderation/list surface; a token without
+  the claim (pre-0130) keeps full access.
 - **Customer directory (`GET /customers`, `internal/admins`):** `DISTRICT_ADMIN`/`SUPER_ADMIN` read
   `checkout.users_admin` (a district admin is pinned to its own `state_code` server-side). Optional
   `q` matches name, phone and user id (ILIKE on the `0110` trigram indexes) and `limit` caps the page

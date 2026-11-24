@@ -18,6 +18,8 @@
 | Seller settings (profile, bank, notifications, sub-users, security) | [settings.md](./settings.md) |
 | Platform-fee change request + own history | [fee-change-requests.md](./fee-change-requests.md) |
 | Team invite acceptance | [accept-invite.md](./accept-invite.md) |
+| District admins (roster, vertical scope, invite hand-over) | [district-admin-roster.md](./district-admin-roster.md) |
+| District admin invite acceptance (set own password) | [district-admin-invite-accept.md](./district-admin-invite-accept.md) |
 | Super admin category taxonomy + mandatory GST + inline sub-categories + header labels / main app header | [super-admin-categories.md](./super-admin-categories.md) |
 | Super admin GST rate slab master | [super-admin-gst-rates.md](./super-admin-gst-rates.md) |
 | Super admin district coverage (district master CRUD) | [super-admin-district-coverage.md](./super-admin-district-coverage.md) |
@@ -62,8 +64,9 @@
 ## Known gaps
 
 - Local-only support/rush-hour/restaurant-status, toast-only admin actions, manual invite-link
-  delivery (no email provider), `lowStock`/`campaigns` having no event producer yet, and the
-  TTC-hardcoded district-admins page. See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
+  delivery (no email provider), `lowStock`/`campaigns` having no event producer yet, and
+  district-admin vertical-scope flags stored but not yet enforced by gateway authorization. See
+  [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

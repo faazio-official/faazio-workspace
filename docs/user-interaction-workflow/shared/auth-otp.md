@@ -22,10 +22,13 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
 
 ### Steps
 
-1. The app shows the phone entry screen (`LoginScreen.tsx` for customer, `PhoneEntryScreen.tsx` for
-   delivery). Customer validates with `toE164` / `isValidPhone`; delivery uses its local
-   `validPhone` check. Both auto-focus the field, surface device-local **recent numbers** as
-   suggestions, and auto-send 150 ms after the 10th digit (the explicit send button remains).
+1. The app shows its entry screen (`LoginScreen.tsx` for customer, `PhoneEntryScreen.tsx` for
+   delivery). Customer is three steps: a mandatory **name** step ("Continue", 80-char cap, back
+   from the phone step preserves it) → the phone step → the code step. Customer validates with
+   `toE164` / `isValidPhone`; delivery uses its local `validPhone` check. Both phone steps
+   auto-focus the field and surface device-local **recent numbers** as suggestions. The customer
+   screen sends **only** on an explicit "Send code" tap (no auto-send while typing); delivery keeps
+   its auto-send after the 10th digit with the explicit button as well.
 2. `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode and starts a **30 s resend
    cooldown** (customer `LoginScreen` and delivery `OtpVerify` both). A successful send records the
    number in the recent-numbers suggestion list.
@@ -33,7 +36,11 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
    render an animated 6-segment field driven by a hidden `textContentType="oneTimeCode"` /
    `autoComplete="sms-otp"` input and auto-submit at 6 digits.
 4. `verifyOtp` returns a Firebase session. Customer `completeLogin` decodes claims (`role`,
-   `stateCode`, `districtCode`, `sellerId`) into `useAuthStore.login`.
+   `stateCode`, `districtCode`, `sellerId`) into `useAuthStore.login`, carrying the **typed name**
+   (falling back to `displayName(session.user)`), then writes it through with
+   `GatewayClient.updateProfileName()` → `PUT /profile` (`{name}`) so `checkout.users.name` and
+   `accounts.profile.name` match what the customer entered. That write is best-effort and never
+   blocks the sign-in.
 5. The session is persisted in `react-native-keychain` (`services/secureSession.ts`).
 6. First authenticated gateway call provisions `checkout.users` (`auth.UserProvisioner`).
 7. Customer routes to `LanguageSelection` → `Location` → `MainTabs`. Delivery calls

@@ -39,6 +39,7 @@ const STATUS_TONE: Record<string, Tone> = {
   PUBLISHED: "success",
   confirmed: "success",
   PENDING: "warning",
+  PENDING_INVITE: "warning",
   PENDING_REVIEW: "warning",
   REQUESTED: "warning",
   AT_RISK: "warning",

@@ -35,7 +35,17 @@ type PortalUser struct {
 	SubRole string
 	// SubUserID links a sub-user credential to its sellers.sub_users roster row (empty for an owner).
 	SubUserID string
-	CreatedAt time.Time
+	// InviteStatus is the login lifecycle for an invite-minted credential (0131): pending / active /
+	// expired. Empty only on rows created before the column existed (treated as active).
+	InviteStatus    string
+	InviteExpiresAt *time.Time
+	CreatedAt       time.Time
+	// Vertical scope (0130) for a DISTRICT_ADMIN login. VerticalScoped is false for every other role
+	// and for a district admin whose roster row is missing — those keep full access (legacy tokens).
+	VerticalScoped bool
+	MartAccess     bool
+	FoodAccess     bool
+	PharmaAccess   bool
 	// DeletedAt is set when the credential is in the trash (0128). Non-nil rows are excluded from
 	// every auth lookup, list and identity gate, and are purged 7 days after this instant.
 	DeletedAt *time.Time
@@ -79,8 +89,8 @@ func (r *Repo) ready() error {
 const userColumns = `user_id, email, display_name, password_hash, role, active, must_change,
 	failed_attempts, locked_until, last_login_at, password_changed_at,
 	coalesce(seller_id, ''), coalesce(state_code, ''), coalesce(district_code, ''),
-	coalesce(sub_role, ''), coalesce(sub_user_id, ''), created_at,
-	deleted_at, coalesce(delete_reason, '')`
+	coalesce(sub_role, ''), coalesce(sub_user_id, ''), coalesce(invite_status, 'active'),
+	invite_expires_at, created_at, deleted_at, coalesce(delete_reason, '')`
 
 // ByEmailLower looks an account up case-insensitively. ok=false when absent or trashed — a deleted
 // credential must never authenticate, and its email is free to be re-issued immediately (0128).
@@ -100,6 +110,31 @@ func (r *Repo) ByEmailLower(ctx context.Context, email string) (PortalUser, bool
 		return PortalUser{}, false, err
 	}
 	return u, true, nil
+}
+
+// DistrictVerticalScope reads the per-vertical access flags (0130) for a district-admin login. The
+// roster row is keyed by the login email plus its district (falling back to any active roster row for
+// the email when the login has no district claim). ok=false means no roster row: the caller keeps
+// full access so a pre-0130 login is not silently narrowed by a missing row.
+func (r *Repo) DistrictVerticalScope(ctx context.Context, email, districtCode string) (mart, food, pharma, ok bool, err error) {
+	if err := r.ready(); err != nil {
+		return false, false, false, false, err
+	}
+	err = r.pool.QueryRow(ctx, `
+		select mart_access, food_access, pharma_access
+		  from admins.district_admins
+		 where lower(email) = lower($1)
+		   and ($2 = '' or coalesce(district_code, '') = $2)
+		   and active
+		 order by created_at desc
+		 limit 1`, email, districtCode).Scan(&mart, &food, &pharma)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return false, false, false, false, nil
+	}
+	if err != nil {
+		return false, false, false, false, err
+	}
+	return mart, food, pharma, true, nil
 }
 
 // ByID returns one live account. ok=false when absent or trashed.
@@ -239,8 +274,8 @@ func scanUser(row pgx.Row) (PortalUser, error) {
 	var u PortalUser
 	err := row.Scan(&u.UserID, &u.Email, &u.DisplayName, &u.PasswordHash, &u.Role, &u.Active,
 		&u.MustChange, &u.FailedAttempts, &u.LockedUntil, &u.LastLoginAt, &u.PasswordChangedAt,
-		&u.SellerID, &u.StateCode, &u.DistrictCode, &u.SubRole, &u.SubUserID, &u.CreatedAt,
-		&u.DeletedAt, &u.DeleteReason)
+		&u.SellerID, &u.StateCode, &u.DistrictCode, &u.SubRole, &u.SubUserID, &u.InviteStatus,
+		&u.InviteExpiresAt, &u.CreatedAt, &u.DeletedAt, &u.DeleteReason)
 	return u, err
 }
 
@@ -317,12 +352,17 @@ func (r *Repo) ResetPassword(ctx context.Context, userID, hash string, mustChang
 	if err := r.ready(); err != nil {
 		return err
 	}
+	// A superadmin reset supersedes any outstanding invite: the invite link stops working and the
+	// login becomes active with the new password.
 	_, err := r.pool.Exec(ctx, `
 		update admins.portal_users
 		   set password_hash = $2,
 		       must_change = $3,
 		       failed_attempts = 0,
 		       locked_until = null,
+		       invite_status = 'active',
+		       invite_token_hash = null,
+		       invite_expires_at = null,
 		       password_changed_at = now(),
 		       updated_at = now()
 		 where user_id = $1`, userID, hash, mustChange)

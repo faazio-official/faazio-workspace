@@ -104,8 +104,14 @@ locally without Firebase:
 ```bash
 # gateway running with SUPABASE_JWT_SECRET set; local Postgres migrated to the latest migration + seed
 export SUPABASE_JWT_SECRET='<same secret the gateway uses>'
+export SHOP_PHOTO_IDS='<id1>,<id2>'   # one unclaimed DRAFT AVIF asset per applicant
 server/gateway/scripts/simulate-seller-registration.sh 5 http://localhost:8080
 ```
+
+Every application must carry at least one shop-front photo (the web enquiry path shares the same
+`shopPhotoIds` rule), and a claim promotes the asset `DRAFT → ACTIVE`, so each applicant needs its own
+id. Without R2 credentials locally, seed N drafts directly in `media.assets` (the script's header has
+the exact `insert … 'DRAFT'` one-liner) and pass their ids.
 
 The script mints one HS256 token per applicant (`sub` + matching `phone` claim) and submits a valid
 `POST /sellers` body (`otpVerified: true`, unique sub/phone/email), then asserts `201`,

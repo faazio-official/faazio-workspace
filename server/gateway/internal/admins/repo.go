@@ -40,9 +40,18 @@ type DistrictAdmin struct {
 	Phone        string `json:"phone"`
 	DistrictCode string `json:"districtCode"`
 	StateCode    string `json:"stateCode,omitempty"`
+	// Per-vertical scope granted at creation (0130). Defaults to true for pre-0130 rows.
+	MartAccess   bool   `json:"martAccess"`
+	FoodAccess   bool   `json:"foodAccess"`
+	PharmaAccess bool   `json:"pharmaAccess"`
 	Active       bool   `json:"active"`
 	CreatedAt    string `json:"createdAt"`
 	LastActiveAt string `json:"lastActiveAt"`
+	// InviteStatus is the linked DISTRICT_ADMIN login's invite lifecycle (0131): "pending" until
+	// the invitee sets a password, then "active". Empty when no login has been issued.
+	InviteStatus string `json:"inviteStatus,omitempty"`
+	// InviteExpiresAt is when a pending invite link stops working.
+	InviteExpiresAt string `json:"inviteExpiresAt,omitempty"`
 }
 
 // Repo reads/writes the admins schema.
@@ -120,16 +129,23 @@ func (r *Repo) PurgeBefore(ctx context.Context, before time.Time) (int, error) {
 	return n, err
 }
 
-// ListDistrictAdmins returns district admins, optionally scoped to one district.
+// ListDistrictAdmins returns district admins, optionally scoped to one district, with each row's
+// per-vertical scope (0130) and the invite lifecycle of its linked DISTRICT_ADMIN login (0131).
 func (r *Repo) ListDistrictAdmins(ctx context.Context, districtCode string) ([]DistrictAdmin, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("admins: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active, created_at, last_active_at
-		  from admins.district_admins
-		 where ($1 = '' or district_code = $1)
-		 order by created_at desc`, districtCode)
+		select a.admin_id, a.name, a.email, a.phone, coalesce(a.district_code,''), coalesce(a.state_code,''),
+		       a.mart_access, a.food_access, a.pharma_access, a.active, a.created_at, a.last_active_at,
+		       coalesce(u.invite_status,''), coalesce(to_char(u.invite_expires_at at time zone 'UTC','YYYY-MM-DD"T"HH24:MI:SS"Z"'),'')
+		  from admins.district_admins a
+		  left join admins.portal_users u
+		         on lower(u.email) = lower(a.email)
+		        and u.role = 'DISTRICT_ADMIN'
+		        and u.deleted_at is null
+		 where ($1 = '' or a.district_code = $1)
+		 order by a.created_at desc`, districtCode)
 	if err != nil {
 		return nil, err
 	}
@@ -141,7 +157,9 @@ func (r *Repo) ListDistrictAdmins(ctx context.Context, districtCode string) ([]D
 			createdAt  time.Time
 			lastActive time.Time
 		)
-		if err := rows.Scan(&a.AdminID, &a.Name, &a.Email, &a.Phone, &a.DistrictCode, &a.StateCode, &a.Active, &createdAt, &lastActive); err != nil {
+		if err := rows.Scan(&a.AdminID, &a.Name, &a.Email, &a.Phone, &a.DistrictCode, &a.StateCode,
+			&a.MartAccess, &a.FoodAccess, &a.PharmaAccess, &a.Active, &createdAt, &lastActive,
+			&a.InviteStatus, &a.InviteExpiresAt); err != nil {
 			return nil, err
 		}
 		a.CreatedAt = createdAt.UTC().Format(time.RFC3339)
@@ -152,6 +170,8 @@ func (r *Repo) ListDistrictAdmins(ctx context.Context, districtCode string) ([]D
 }
 
 // CreateDistrictAdmin inserts a district admin.
+// CreateDistrictAdmin inserts a district admin. The vertical scope flags are written from the input
+// (0130) so a caller creating a restricted admin does not rely on the column defaults.
 func (r *Repo) CreateDistrictAdmin(ctx context.Context, a DistrictAdmin) (DistrictAdmin, error) {
 	if r.pool == nil {
 		return DistrictAdmin{}, fmt.Errorf("admins: database not configured")
@@ -159,11 +179,14 @@ func (r *Repo) CreateDistrictAdmin(ctx context.Context, a DistrictAdmin) (Distri
 	a.AdminID = "adm-" + shortID()
 	var createdAt, lastActive time.Time
 	err := r.pool.QueryRow(ctx, `
-		insert into admins.district_admins (admin_id, name, email, phone, district_code, state_code, active)
-		values ($1,$2,$3,$4,$5,$6,true)
-		returning active, created_at, last_active_at`,
-		a.AdminID, a.Name, a.Email, a.Phone, nullIfEmpty(a.DistrictCode), nullIfEmpty(a.StateCode)).
-		Scan(&a.Active, &createdAt, &lastActive)
+		insert into admins.district_admins
+		  (admin_id, name, email, phone, district_code, state_code, active,
+		   mart_access, food_access, pharma_access)
+		values ($1,$2,$3,$4,$5,$6,true,$7,$8,$9)
+		returning active, mart_access, food_access, pharma_access, created_at, last_active_at`,
+		a.AdminID, a.Name, a.Email, a.Phone, nullIfEmpty(a.DistrictCode), nullIfEmpty(a.StateCode),
+		a.MartAccess, a.FoodAccess, a.PharmaAccess).
+		Scan(&a.Active, &a.MartAccess, &a.FoodAccess, &a.PharmaAccess, &createdAt, &lastActive)
 	if err != nil {
 		return DistrictAdmin{}, err
 	}
@@ -185,9 +208,11 @@ func (r *Repo) SetDistrictAdminActive(ctx context.Context, adminID string, activ
 	err := r.pool.QueryRow(ctx, `
 		update admins.district_admins set active = $2
 		 where admin_id = $1
-		 returning admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active, created_at, last_active_at`,
+		 returning admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active,
+		           mart_access, food_access, pharma_access, created_at, last_active_at`,
 		adminID, active).
-		Scan(&a.AdminID, &a.Name, &a.Email, &a.Phone, &a.DistrictCode, &a.StateCode, &a.Active, &createdAt, &lastActive)
+		Scan(&a.AdminID, &a.Name, &a.Email, &a.Phone, &a.DistrictCode, &a.StateCode, &a.Active,
+			&a.MartAccess, &a.FoodAccess, &a.PharmaAccess, &createdAt, &lastActive)
 	if err != nil {
 		if isNoRows(err) {
 			return DistrictAdmin{}, false, nil

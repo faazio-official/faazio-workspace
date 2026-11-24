@@ -51,6 +51,7 @@ import {
 import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { otpErrorMessage } from '@/lib/otpError';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
+import { gateway } from '@/services/api/GatewayClient';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
@@ -128,6 +129,9 @@ function RotatingSpinner({ size = 14, borderWidth = 2, color = neutral.ink }) {
 
 const RESEND_COOLDOWN_S = 30;
 
+/** Matches the gateway's profile-name bound (`PUT /profile`), so a name never fails server-side. */
+const MAX_NAME_LENGTH = 80;
+
 /** Customer phone auth is India-only; the dial code is fixed, never user-selectable. */
 const COUNTRY_DIAL = '+91';
 
@@ -146,9 +150,13 @@ export function LoginScreen({ navigation }: Props) {
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState('');
   const [phoneError, setPhoneError] = useState('');
-  const [otpState, setOtpState] = useState(false);
+  // Three discrete steps: name first, then the phone number, then the SMS code. `otpState` is
+  // derived so every existing OTP guard keeps reading one source of truth.
+  const [authStep, setAuthStep] = useState<'name' | 'phone' | 'otp'>('name');
+  const otpState = authStep === 'otp';
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState('');
+  const [isNameFocused, setIsNameFocused] = useState(false);
   const [isPhoneFocused, setIsPhoneFocused] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
   const [isSending, setIsSending] = useState(false);
@@ -156,6 +164,7 @@ export function LoginScreen({ navigation }: Props) {
   const [resendCooldown, setResendCooldown] = useState(0);
   const [recentPhones, setRecentPhones] = useState<string[]>([]);
 
+  const nameInputRef = useRef<TextInput>(null);
   const phoneInputRef = useRef<TextInput>(null);
   const otpInputRef = useRef<TextInput>(null);
   const submitRef = useRef(false);
@@ -175,7 +184,12 @@ export function LoginScreen({ navigation }: Props) {
   useEffect(() => {
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
     const timer = setTimeout(() => {
-      const target = otpState ? otpInputRef.current : phoneInputRef.current;
+      const target =
+        authStep === 'otp'
+          ? otpInputRef.current
+          : authStep === 'phone'
+            ? phoneInputRef.current
+            : nameInputRef.current;
       if (!target) return;
       target.focus();
       if (!target.isFocused()) {
@@ -186,7 +200,7 @@ export function LoginScreen({ navigation }: Props) {
       clearTimeout(timer);
       if (retryTimer) clearTimeout(retryTimer);
     };
-  }, [otpState]);
+  }, [authStep]);
 
   useEffect(() => {
     const showSub = Keyboard.addListener('keyboardDidShow', () => setKeyboardVisible(true));
@@ -199,7 +213,7 @@ export function LoginScreen({ navigation }: Props) {
 
   useEffect(() => {
     // Suggest previously used numbers whenever the phone step is showing.
-    if (otpState) return;
+    if (authStep !== 'phone') return;
     let active = true;
     void getRecentPhones().then((list) => {
       if (active) setRecentPhones(list);
@@ -207,7 +221,7 @@ export function LoginScreen({ navigation }: Props) {
     return () => {
       active = false;
     };
-  }, [otpState]);
+  }, [authStep]);
 
   useEffect(() => {
     fadeAnim.setValue(0);
@@ -217,7 +231,7 @@ export function LoginScreen({ navigation }: Props) {
       easing: Easing.inOut(Easing.ease),
       useNativeDriver: true,
     }).start();
-  }, [otpState, fadeAnim]);
+  }, [authStep, fadeAnim]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -290,10 +304,13 @@ export function LoginScreen({ navigation }: Props) {
   const completeLogin = useCallback(
     async (session: FirebaseSession): Promise<boolean> => {
       const claims = decodeIdToken(session.accessToken);
+      // The name captured on the first step is the customer's own choice — keep it instead of
+      // discarding it for Firebase's phone-derived fallback (a phone-auth profile has no name).
+      const typedName = name.trim();
       await login({
         user: {
           id: session.user.uid,
-          name: displayName(session.user),
+          name: typedName || displayName(session.user),
           email: session.user.email ?? '',
           phone: phoneE164,
           role: claims.role,
@@ -303,11 +320,20 @@ export function LoginScreen({ navigation }: Props) {
         },
         accessToken: session.accessToken,
       });
+      // Keychain now holds the bearer, so the profile write authenticates. Best-effort on purpose:
+      // a failed write must never block a successful sign-in (the session already carries the name).
+      if (typedName) {
+        void gateway.updateProfileName(typedName).catch((err: unknown) => {
+          if (__DEV__) {
+            console.warn('[phone-auth] profile name sync failed:', (err as Error)?.message);
+          }
+        });
+      }
       if (!navigationRef.isReady()) return false;
       navigation.replace('LanguageSelection');
       return true;
     },
-    [login, navigation, phoneE164],
+    [login, navigation, phoneE164, name],
   );
 
   const submitOtp = useCallback(async () => {
@@ -327,7 +353,12 @@ export function LoginScreen({ navigation }: Props) {
         // Release builds never reach here — configure.js refuses to embed a mock-login build.
         const placeholderToken = `placeholder.${phone}.${Date.now()}`;
         await login({
-          user: { id: `user_${phoneE164}`, name: 'Faazio User', email: '', phone: phoneE164 },
+          user: {
+            id: `user_${phoneE164}`,
+            name: name.trim() || 'Faazio User',
+            email: '',
+            phone: phoneE164,
+          },
           accessToken: placeholderToken,
         });
         if (navigationRef.isReady()) {
@@ -344,7 +375,7 @@ export function LoginScreen({ navigation }: Props) {
       setIsVerifying(false);
       setOtpError(otpErrorMessage(err, 'That code was not valid. Please try again.'));
     }
-  }, [completeLogin, login, navigation, otpCode, phoneE164, phoneValid]);
+  }, [completeLogin, login, navigation, name, otpCode, phoneE164, phoneValid]);
 
   const handleSmsCode = useCallback((code: string) => {
     if (submitRef.current) return;
@@ -397,8 +428,14 @@ export function LoginScreen({ navigation }: Props) {
   const requestOtp = useCallback(
     async (digits: string) => {
       if (isSending) return;
-      if (!name.trim()) { setNameError('Enter your name'); return; }
-        if (!isValidPhone(digits)) {
+      // `name` must be a dependency below: without it this reads the first render's empty string and
+      // the guard below rejects every tap, so `sendOtp` is never reached.
+      if (!name.trim()) {
+        setNameError('Enter your name');
+        setAuthStep('name');
+        return;
+      }
+      if (!isValidPhone(digits)) {
         setPhoneError('Enter a valid Indian mobile number.');
         return;
       }
@@ -431,11 +468,37 @@ export function LoginScreen({ navigation }: Props) {
       }
       // Freeze the number that actually received the SMS, even if the field was edited mid-send.
       setPhone(digits);
-      setOtpState(true);
+      setAuthStep('otp');
       setResendCooldown(RESEND_COOLDOWN_S);
     },
-    [isSending, restartSmsConsent, stopSmsConsent],
+    [isSending, name, restartSmsConsent, stopSmsConsent],
   );
+
+  const handleNameChange = (val: string) => {
+    // Bounded to match the server's profile-name limit; the name is user copy, never an id.
+    setName(val.slice(0, MAX_NAME_LENGTH));
+    setNameError('');
+  };
+
+  /** Step 1 → 2: the name is mandatory before the phone field is offered. */
+  const goToPhoneStep = () => {
+    if (!name.trim()) {
+      setNameError('Enter your name');
+      return;
+    }
+    setNameError('');
+    setPhoneError('');
+    Keyboard.dismiss();
+    setAuthStep('phone');
+  };
+
+  /** Step 2 → 1: keep the typed name so the first field is never lost. */
+  const goBackToNameStep = useCallback(() => {
+    if (isSending) return;
+    setPhoneError('');
+    Keyboard.dismiss();
+    setAuthStep('name');
+  }, [isSending]);
 
   const handlePhoneChange = (val: string) => {
     const numericVal = val.replace(/\D/g, '').slice(0, 15);
@@ -465,7 +528,7 @@ export function LoginScreen({ navigation }: Props) {
     // Abandon this request entirely: a late auto-retrieval for the old number must not be
     // consumed by the next send, and a phantom native session must not linger.
     cancelPrimaryOtp();
-    setOtpState(false);
+    setAuthStep('phone');
     setOtpCode('');
     setOtpError('');
     submitRef.current = false;
@@ -475,13 +538,20 @@ export function LoginScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        if (!otpState) return false; // phone entry → let the stack pop to Welcome
-        goBackFromOtp();
-        return true;
+        // OTP → phone step (two-step: keyboard first), phone → name step, name → pop to Welcome.
+        if (otpState) {
+          goBackFromOtp();
+          return true;
+        }
+        if (authStep === 'phone') {
+          goBackToNameStep();
+          return true;
+        }
+        return false;
       };
       const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => sub.remove();
-    }, [otpState, goBackFromOtp]),
+    }, [otpState, authStep, goBackFromOtp, goBackToNameStep]),
   );
 
   const handleResend = () => {
@@ -521,7 +591,16 @@ export function LoginScreen({ navigation }: Props) {
       {!otpState ? (
         <View style={styles.phoneStateContainer}>
 
-          {!hasSeenOnboarding ? (
+          {authStep === 'phone' ? (
+            <ScalePressable
+              onPress={goBackToNameStep}
+              style={[styles.backBtn, { top: insets.top + vs(8) }]}
+              accessibilityRole="button"
+              accessibilityLabel="Back to name"
+            >
+              <ChevronLeft size={ms(20)} color={neutral.ink} strokeWidth={2.5} />
+            </ScalePressable>
+          ) : !hasSeenOnboarding ? (
             <ScalePressable
               onPress={() => navigation.navigate('Onboarding')}
               style={[styles.backBtn, { top: insets.top + vs(8) }]}
@@ -565,99 +644,123 @@ export function LoginScreen({ navigation }: Props) {
             </View>
 
             <View style={styles.formContainer}>
-          <View>
-            <View style={[styles.phoneInputRow, isPhoneFocused && styles.phoneInputRowFocused]}>
-              <AppTextInput
-                value={name}
-                onChangeText={setName}
-                placeholder="Enter your name"
-                placeholderTextColor={neutral.border}
-                style={styles.textInput}
-                onFocus={() => setIsPhoneFocused(true)}
-                onBlur={() => setIsPhoneFocused(false)}
-                accessibilityLabel="Name"
-              />
-            </View>
-            {nameError ? <AppText style={styles.phoneErrorText}>{nameError}</AppText> : null}
-          </View>
-              <View>
-                <View style={[styles.phoneInputRow, isPhoneFocused && styles.phoneInputRowFocused]}>
-                  <AppText style={styles.countryCode}>{COUNTRY_DIAL}</AppText>
-                  <View style={styles.separator} />
-                  <AppTextInput
-                    ref={phoneInputRef}
-                    style={styles.textInput}
-                    placeholder="Enter your mobile number"
-                    placeholderTextColor={neutral.border}
-                    keyboardType="phone-pad"
-                    maxLength={15}
-                    value={phone}
-                    onChangeText={handlePhoneChange}
-                    onFocus={() => setIsPhoneFocused(true)}
-                    onBlur={() => setIsPhoneFocused(false)}
-                    accessibilityLabel="Mobile number"
-                  />
-                </View>
-
-                {recentPhones.length > 0 && phone.length === 0 ? (
-                  <View style={styles.recentRow}>
-                    {recentPhones.map((e164) => {
-                      const national = nationalDigits(e164);
-                      return (
-                        <TouchableOpacity
-                          key={e164}
-                          style={styles.recentChip}
-                          onPress={() => handlePhoneChange(national)}
-                          activeOpacity={0.85}
-                          accessibilityRole="button"
-                          accessibilityLabel={`Use number ${COUNTRY_DIAL} ${formatAsYouType(national)}`}
-                        >
-                          <AppText style={styles.recentChipText}>
-                            {COUNTRY_DIAL} {formatAsYouType(national)}
-                          </AppText>
-                        </TouchableOpacity>
-                      );
-                    })}
+              {authStep === 'name' ? (
+                <View style={styles.stepBlock}>
+                  <View style={[styles.phoneInputRow, isNameFocused && styles.phoneInputRowFocused]}>
+                    <AppTextInput
+                      ref={nameInputRef}
+                      value={name}
+                      onChangeText={handleNameChange}
+                      placeholder="Enter your name"
+                      placeholderTextColor={neutral.border}
+                      style={styles.textInput}
+                      onFocus={() => setIsNameFocused(true)}
+                      onBlur={() => setIsNameFocused(false)}
+                      autoCapitalize="words"
+                      autoCorrect={false}
+                      returnKeyType="next"
+                      onSubmitEditing={goToPhoneStep}
+                      accessibilityLabel="Name"
+                    />
                   </View>
-                ) : null}
-
-                <AppText style={styles.termsText}>
-                  By clicking, I accept the{' '}
-                  <AppText style={styles.termsLink} onPress={handleOpenTerms} accessibilityRole="link">
-                    Terms & Conditions
-                  </AppText>{' '}
-                  and{' '}
-                  <AppText style={styles.termsLink} onPress={handleOpenPrivacy} accessibilityRole="link">
-                    Privacy Policy
-                  </AppText>
-                </AppText>
-
-                <View style={styles.loaderContainer}>
-                  {isSending ? (
-                    <View style={styles.loadingPill}>
-                      <RotatingSpinner size={14} borderWidth={2} color={neutral.ink} />
-                      <AppText style={styles.loadingText}>Sending code…</AppText>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      disabled={!phoneValid || otpState}
-                      onPress={() => void requestOtp(phone)}
-                      accessibilityRole="button"
-                      accessibilityLabel="Send code"
-                      accessibilityState={{ disabled: !phoneValid }}
-                      style={[styles.sendBtn, !phoneValid && styles.sendBtnDisabled]}
-                    >
-                      <AppText style={styles.sendBtnText}>Send code</AppText>
-                    </TouchableOpacity>
-                  )}
-                  {phoneError ? (
+                  {nameError ? (
                     <AppText style={styles.phoneErrorText} accessibilityLiveRegion="polite">
-                      {phoneError}
+                      {nameError}
                     </AppText>
                   ) : null}
+
+                  <View style={styles.loaderContainer}>
+                    <TouchableOpacity
+                      activeOpacity={0.85}
+                      onPress={goToPhoneStep}
+                      accessibilityRole="button"
+                      accessibilityLabel="Continue"
+                      style={styles.sendBtn}
+                    >
+                      <AppText style={styles.sendBtnText}>Continue</AppText>
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
+              ) : (
+                <View style={styles.stepBlock}>
+                  <View style={[styles.phoneInputRow, isPhoneFocused && styles.phoneInputRowFocused]}>
+                    <AppText style={styles.countryCode}>{COUNTRY_DIAL}</AppText>
+                    <View style={styles.separator} />
+                    <AppTextInput
+                      ref={phoneInputRef}
+                      style={styles.textInput}
+                      placeholder="Enter your mobile number"
+                      placeholderTextColor={neutral.border}
+                      keyboardType="phone-pad"
+                      maxLength={15}
+                      value={phone}
+                      onChangeText={handlePhoneChange}
+                      onFocus={() => setIsPhoneFocused(true)}
+                      onBlur={() => setIsPhoneFocused(false)}
+                      accessibilityLabel="Mobile number"
+                    />
+                  </View>
+
+                  {recentPhones.length > 0 && phone.length === 0 ? (
+                    <View style={styles.recentRow}>
+                      {recentPhones.map((e164) => {
+                        const national = nationalDigits(e164);
+                        return (
+                          <TouchableOpacity
+                            key={e164}
+                            style={styles.recentChip}
+                            onPress={() => handlePhoneChange(national)}
+                            activeOpacity={0.85}
+                            accessibilityRole="button"
+                            accessibilityLabel={`Use number ${COUNTRY_DIAL} ${formatAsYouType(national)}`}
+                          >
+                            <AppText style={styles.recentChipText}>
+                              {COUNTRY_DIAL} {formatAsYouType(national)}
+                            </AppText>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  ) : null}
+
+                  <AppText style={styles.termsText}>
+                    By clicking, I accept the{' '}
+                    <AppText style={styles.termsLink} onPress={handleOpenTerms} accessibilityRole="link">
+                      Terms & Conditions
+                    </AppText>{' '}
+                    and{' '}
+                    <AppText style={styles.termsLink} onPress={handleOpenPrivacy} accessibilityRole="link">
+                      Privacy Policy
+                    </AppText>
+                  </AppText>
+
+                  <View style={styles.loaderContainer}>
+                    {isSending ? (
+                      <View style={styles.loadingPill}>
+                        <RotatingSpinner size={14} borderWidth={2} color={neutral.ink} />
+                        <AppText style={styles.loadingText}>Sending code…</AppText>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        disabled={!phoneValid}
+                        onPress={() => void requestOtp(phone)}
+                        accessibilityRole="button"
+                        accessibilityLabel="Send code"
+                        accessibilityState={{ disabled: !phoneValid }}
+                        style={[styles.sendBtn, !phoneValid && styles.sendBtnDisabled]}
+                      >
+                        <AppText style={styles.sendBtnText}>Send code</AppText>
+                      </TouchableOpacity>
+                    )}
+                    {phoneError ? (
+                      <AppText style={styles.phoneErrorText} accessibilityLiveRegion="polite">
+                        {phoneError}
+                      </AppText>
+                    ) : null}
+                  </View>
+                </View>
+              )}
             </View>
           </Pressable>
         </View>
@@ -947,6 +1050,7 @@ const styles = StyleSheet.create({
     fontSize: ms(28),
   },
   formContainer: { flex: 1, alignItems: 'center', justifyContent: 'flex-start', paddingTop: SPACE.SECTION },
+  stepBlock: { width: '100%', alignItems: 'center' },
   phoneInputRow: {
     flexDirection: 'row',
     alignItems: 'center',

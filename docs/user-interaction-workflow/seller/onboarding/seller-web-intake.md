@@ -147,10 +147,11 @@ TEST_VALKEY_URL='redis://localhost:6379/0' \
   go test -count=1 ./internal/sellers/
 
 # 3. Live HTTP, public half — the whole response matrix against a running gateway
-./scripts/simulate-seller-inquiry.sh http://localhost:8080
+SHOP_PHOTO_ID='<unclaimed DRAFT AVIF id>' ./scripts/simulate-seller-inquiry.sh http://localhost:8080
 
-# 4. Live HTTP, admin half — the full lifecycle in the super-admin queue (needs portal auth)
-PORTAL_EMAIL=... PORTAL_PASSWORD=... \
+# 4. Live HTTP, admin half — the full lifecycle in the super-admin queue (needs portal auth, and two
+#    distinct drafts: claiming A's photo promotes it to ACTIVE, so B needs its own)
+PORTAL_EMAIL=... PORTAL_PASSWORD=... SHOP_PHOTO_ID=... SHOP_PHOTO_ID_B=... \
   ./scripts/simulate-seller-inquiry-queue.sh http://localhost:8080
 
 # 5. Wire contract — the client payload keys vs the Go request struct, plus the handler body

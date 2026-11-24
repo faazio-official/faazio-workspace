@@ -9,9 +9,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { approveAddon, rejectAddon, listAddons } from "@/lib/api";
 import { formatDate, formatINR } from "@/lib/format";
 import { StatusPill } from "@/components/patterns/Pills";
+import type { AddonRecord } from "@/data/types";
 
 export default function AddonQueue() {
-  const [addons, setAddons] = useState<any[]>([]);
+  const [addons, setAddons] = useState<AddonRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 

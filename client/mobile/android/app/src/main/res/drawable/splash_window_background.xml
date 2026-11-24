@@ -2,11 +2,11 @@
 <!--
   Splash window background for API 24-30 (pre-Android 12).
 
-  On these versions androidx core-splashscreen draws the launch screen as the
-  theme's `android:windowBackground` (a drawable, not a view), so text cannot be
-  rendered. The "Product of FA CREATORS" credit is therefore baked to
-  `splashscreen_tagline.png` by scripts/generate-splash-logo.py and composited
-  here at the bottom, centred.
+  The launch screen is the theme's `android:windowBackground` (a drawable, not a
+  view), so it can only render the background + the centred wordmark. The
+  "Product of FA CREATORS" credit is intentionally NOT composited here: the JS
+  layer-2 `SplashFallback` draws it as real text, which cannot be stretched or
+  distorted the way a baked bitmap can.
 
   The logo item reproduces the platform's own 288dp centred icon so pre-31
   matches the API 31+ splash instead of drifting.
@@ -20,8 +20,4 @@
         android:gravity="center"
         android:width="288dp"
         android:height="288dp" />
-    <item
-        android:drawable="@drawable/splashscreen_tagline"
-        android:gravity="center_horizontal|bottom"
-        android:bottom="@dimen/splashscreen_tagline_margin_bottom" />
 </layer-list>

@@ -339,7 +339,7 @@ export default function SubAppWrapper({
                   ₹{cartItems.reduce((s, i) => s + i.price * i.quantity, 0)}
                 </AppText>
               </View>
-              <TouchableOpacity style={[styles.basketCheckoutBtn, { backgroundColor: config.primaryColor }]} activeOpacity={0.8}>
+              <TouchableOpacity style={[styles.basketCheckoutBtn, { backgroundColor: config.primaryColor }]} onPress={() => onCartPress?.()} activeOpacity={0.8}>
                 <AppText style={styles.basketCheckoutText}>Checkout</AppText>
               </TouchableOpacity>
             </View>

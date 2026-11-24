@@ -39,7 +39,6 @@ const FoodStack = lazyNamed(() => import('./FoodStack'), 'FoodStack');
 const ProductDetailScreen = lazyNamed(() => import('@/features/product/ProductDetailScreen'), 'ProductDetailScreen');
 const SearchRouteScreen = lazyNamed(() => import('@/features/search/SearchRouteScreen'), 'SearchRouteScreen');
 const CartScreen = lazyNamed(() => import('@/features/cart/CartScreen'), 'CartScreen');
-const PaymentOptionsScreen = lazyNamed(() => import('@/features/cart/payment/PaymentOptionsScreen'), 'default');
 const PaymentCallbackScreen = lazyNamed(() => import('@/features/cart/payment/PaymentCallbackScreen'), 'default');
 const CategoryDrillInScreen = lazyNamed(() => import('@/features/catalog/CategoryDrillInScreen'), 'CategoryDrillInScreen');
 const VendorDetailScreen = lazyNamed(() => import('@/features/catalog/VendorDetailScreen'), 'VendorDetailScreen');
@@ -180,11 +179,6 @@ export function AppNavigator() {
             <Stack.Screen
               name="You"
               component={YouScreen}
-              options={{ animation: 'fade', animationDuration: 180 }}
-            />
-            <Stack.Screen
-              name="PaymentOptions"
-              component={PaymentOptionsScreen}
               options={{ animation: 'fade', animationDuration: 180 }}
             />
             <Stack.Screen

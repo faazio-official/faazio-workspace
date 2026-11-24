@@ -191,7 +191,10 @@ describe("SellerForm", () => {
   });
 
   it("shows the server error and keeps the form on failure", async () => {
-    submitSellerInquiry.mockResolvedValue({ ok: false, message: "Some details didn't look right." });
+    submitSellerInquiry.mockResolvedValue({
+      ok: false,
+      message: "Some details didn't look right.",
+    });
     render(<SellerForm />);
 
     fillRequired();

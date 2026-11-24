@@ -18,7 +18,9 @@
 #
 # Requirements: bash, curl, python3 (JSON parsing), and a running gateway with portal auth enabled
 # (PORTAL_JWT_SECRET + PORTAL_PEPPER) plus a SUPER_ADMIN in admins.portal_users. An enquiry requires at
-# least one shop picture, so set SHOP_PHOTO_ID to a real `POST /media/avif` assetId:
+# least one shop picture and claiming promotes that DRAFT asset to ACTIVE, so the two visitors need two
+# distinct unclaimed drafts: set SHOP_PHOTO_ID (visitor A) and SHOP_PHOTO_ID_B (visitor B) to real
+# `POST /media/avif` assetIds:
 #
 #   ID=$(curl -s -X POST "$GATEWAY_URL/media/avif" -H 'Content-Type: image/jpeg' \
 #          --data-binary @shop.jpg | python3 -c "import json,sys;print(json.load(sys.stdin)['assetId'])")
@@ -34,7 +36,8 @@ set -uo pipefail
 GATEWAY_URL="${1:-${GATEWAY_URL:-http://localhost:8080}}"
 : "${PORTAL_EMAIL:?set PORTAL_EMAIL to a SUPER_ADMIN portal login}"
 : "${PORTAL_PASSWORD:?set PORTAL_PASSWORD}"
-: "${SHOP_PHOTO_ID:?set SHOP_PHOTO_ID to a real POST /media/avif assetId (an enquiry needs >=1 photo)}"
+: "${SHOP_PHOTO_ID:?set SHOP_PHOTO_ID to a real POST /media/avif assetId for visitor A}"
+: "${SHOP_PHOTO_ID_B:?set SHOP_PHOTO_ID_B to a second unclaimed assetId for visitor B (the draft for A is already claimed)}"
 
 command -v curl >/dev/null 2>&1 || { echo "curl is required" >&2; exit 2; }
 command -v python3 >/dev/null 2>&1 || { echo "python3 is required" >&2; exit 2; }
@@ -70,24 +73,24 @@ fi
 AUTH="Authorization: Bearer ${TOKEN}"
 ok "portal login as super admin"
 
-# submit_inquiry NAME PHONE EMAIL -> prints "<status> <body>"
+# submit_inquiry NAME PHONE EMAIL PHOTO -> prints "<status> <body>"
 submit_inquiry() {
   curl -s -m 15 -w '\n%{http_code}' -X POST "${GATEWAY_URL}/seller-inquiries" \
     -H 'Content-Type: application/json' \
-    -d "{\"businessName\":\"$1\",\"ownerName\":\"Queue Owner\",\"category\":\"MART\",\"contactPhone\":\"$2\",\"contactEmail\":\"$3\",\"businessAddress\":\"12 Bharathiar Street, Karaikal\",\"districtName\":\"Karaikal\",\"latitude\":10.9254,\"longitude\":79.838,\"platformFeePct\":10,\"notes\":\"sim ${RUN_ID}\",\"shopPhotoIds\":[\"${SHOP_PHOTO_ID}\"]}"
+    -d "{\"businessName\":\"$1\",\"ownerName\":\"Queue Owner\",\"category\":\"MART\",\"contactPhone\":\"$2\",\"contactEmail\":\"$3\",\"businessAddress\":\"12 Bharathiar Street, Karaikal\",\"districtName\":\"Karaikal\",\"latitude\":10.9254,\"longitude\":79.838,\"platformFeePct\":10,\"notes\":\"sim ${RUN_ID}\",\"shopPhotoIds\":[\"$4\"]}"
 }
 
 # ── 1. PUBLIC: two visitors submit landing-page enquiries ────────────────────────────────────────
 NAME_A="Queue Sim Mart ${RUN_ID}"
 NAME_B="Queue Reject Mart ${RUN_ID}"
 
-CREATE="$(submit_inquiry "$NAME_A" "98765${RUN_ID: -5}" "queue-a-${RUN_ID}@example.com")"
+CREATE="$(submit_inquiry "$NAME_A" "98765${RUN_ID: -5}" "queue-a-${RUN_ID}@example.com" "$SHOP_PHOTO_ID")"
 expect "public enquiry A accepted" 201 "$(printf '%s' "$CREATE" | tail -n1)"
 SELLER_A="$(printf '%s' "$CREATE" | sed '$d' | json "d.get('sellerId','')")"
 if [ -z "$SELLER_A" ]; then echo "FAIL  no sellerId: ${CREATE}"; exit 1; fi
 echo "      sellerId=${SELLER_A}"
 
-CREATE_B="$(submit_inquiry "$NAME_B" "98766${RUN_ID: -5}" "queue-b-${RUN_ID}@example.com")"
+CREATE_B="$(submit_inquiry "$NAME_B" "98766${RUN_ID: -5}" "queue-b-${RUN_ID}@example.com" "$SHOP_PHOTO_ID_B")"
 expect "public enquiry B accepted" 201 "$(printf '%s' "$CREATE_B" | tail -n1)"
 SELLER_B="$(printf '%s' "$CREATE_B" | sed '$d' | json "d.get('sellerId','')")"
 if [ -z "$SELLER_B" ]; then echo "FAIL  no sellerId for B: ${CREATE_B}"; exit 1; fi

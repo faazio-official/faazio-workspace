@@ -754,6 +754,15 @@ func (h *Handler) setProductStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
 		return
 	}
+	// Vertical scope (0130): a district admin granted only some verticals may not moderate a listing
+	// outside them. Checked against the stored row before any write; same 404 as a foreign product.
+	if app, found, appErr := h.repo.ProductApp(r.Context(), id); appErr != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	} else if found && !auth.CanAccessVertical(r.Context(), app) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found")
+		return
+	}
 	p, ok, err := h.repo.SetProductStatus(r.Context(), id, sellerID, district, status, reason)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")

@@ -60,8 +60,6 @@ export type RootStackParamList = {
   Cart: { restaurantId?: string; restaurantName?: string; couponCode?: string } | undefined;
   /** "You" — account page, pushed from any app (back returns). */
   You: undefined;
-  /** Pixel-perfect payment method picker (preferred card, UPI, cards, more). */
-  PaymentOptions: undefined;
   /**
    * UPI return leg (`faazio://payment/callback`). Verifies the order's payment status against the
    * server and shows the authoritative result; `status` is only a hint, never trusted.

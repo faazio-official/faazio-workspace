@@ -177,7 +177,6 @@ func TestApplicationPromotesInquiry(t *testing.T) {
 			`"otpVerified":true,"contractTier":"STANDARD","termsAccepted":true,"partnerAgreementAccepted":true,`+
 			`"ipLicenseGranted":true,"bankName":"HDFC Bank","bankAccountNumber":"123456789012",`+
 			`"bankIfsc":"HDFC0001234","bankBeneficiary":"Merge Shop","passbookFileKey":"kyc/m/passbook.jpg",`+
-			`"shopPhotoIds":["img_m3"],`+
 			`"vendors":[{"name":"Merge Store","app":"MART","platformFeePct":12,"shopPhotoIds":["img_m4"]}]}`,
 		map[string]string{"X-Dev-Phone": "9876500103"})
 	if apply.Code != http.StatusCreated {

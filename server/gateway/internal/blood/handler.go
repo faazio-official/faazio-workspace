@@ -374,6 +374,11 @@ func queryFilter(r *http.Request) (group, city string) {
 
 // moderateRequest removes an inappropriate or stale public request (state/super admin only).
 func (h *Handler) moderateRequest(w http.ResponseWriter, r *http.Request) {
+	// Blood is a PHARMA-vertical surface; a district admin without Pharma access cannot moderate it.
+	if !auth.CanAccessVertical(r.Context(), auth.VerticalPharma) {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no access to this vertical")
+		return
+	}
 	id := chi.URLParam(r, "id")
 	stateCode := ""
 	if auth.Role(r.Context()) == auth.RoleDistrictAdmin {

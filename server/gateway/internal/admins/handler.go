@@ -54,6 +54,14 @@ func (h *Handler) Register(r chi.Router) {
 			g.Put(base+"/{id}", h.setAdminActive)
 			g.Delete(base+"/{id}", h.deleteAdmin)
 		}
+		g.Post("/district-admins/{id}/resend-invite", h.resendInvite)
+	})
+	// Invite acceptance is public (the invitee has no session yet): the one-time token in the body
+	// is the capability, and the invitee sets their own password here. Rate-limiting sits at the
+	// edge/Cloudflare like the other portal auth routes.
+	r.Group(func(g chi.Router) {
+		g.Use(httpx.MaxBytes(4 << 10))
+		g.Post("/district-admins/accept-invite", h.acceptInvite)
 	})
 }
 
@@ -129,6 +137,12 @@ type createAdminRequest struct {
 	// ForceChange is accepted for forward-compat but ignored: a DISTRICT_ADMIN login is ALWAYS forced to
 	// rotate its temporary password (must_change locked true) so the temp password is single-use.
 	ForceChange *bool `json:"forceChange,omitempty"`
+	// InviteMode mints the login in a pending-invite state (single-use link, no temporary password).
+	InviteMode *bool `json:"inviteMode,omitempty"`
+	// Per-vertical scope (0130). Nil means "grant every vertical" so older portal builds are unchanged.
+	MartAccess   *bool `json:"martAccess,omitempty"`
+	FoodAccess   *bool `json:"foodAccess,omitempty"`
+	PharmaAccess *bool `json:"pharmaAccess,omitempty"`
 }
 
 func (h *Handler) createAdmin(w http.ResponseWriter, r *http.Request) {
@@ -167,17 +181,25 @@ func (h *Handler) createAdmin(w http.ResponseWriter, r *http.Request) {
 	if req.IssueLogin != nil {
 		issueLogin = *req.IssueLogin
 	}
-	if issueLogin {
+	inviteMode := req.InviteMode != nil && *req.InviteMode
+	if inviteMode {
+		issueLogin = true
+	}
+	if issueLogin && !inviteMode {
 		if len(req.Password) < minNewPasswordLen || len(req.Password) > maxPasswordLen || weakPassword(req.Password) {
 			httpx.Fail(w, http.StatusBadRequest, "weak_password", "password must be at least 12 characters and not a common value")
 			return
 		}
 	}
+	martAccess := req.MartAccess == nil || *req.MartAccess
+	foodAccess := req.FoodAccess == nil || *req.FoodAccess
+	pharmaAccess := req.PharmaAccess == nil || *req.PharmaAccess
 
 	res, err := h.provisioner.Create(r.Context(), CreateParams{
 		Name: req.Name, Email: req.Email, PhoneDigits: phoneDigits,
 		DistrictCode: req.DistrictCode, StateCode: req.StateCode,
-		IssueLogin: issueLogin, Password: req.Password,
+		IssueLogin: issueLogin, Password: req.Password, InviteMode: inviteMode,
+		MartAccess: martAccess, FoodAccess: foodAccess, PharmaAccess: pharmaAccess,
 	})
 	if err != nil {
 		if conflict := AsConflict(err); conflict != nil {
@@ -199,6 +221,10 @@ func (h *Handler) createAdmin(w http.ResponseWriter, r *http.Request) {
 	out := map[string]any{"admin": res.Admin}
 	if res.LoginIssued {
 		out["credential"] = res.Credential
+	}
+	if res.InviteToken != "" {
+		out["inviteToken"] = res.InviteToken
+		out["inviteExpiresAt"] = res.InviteExpiresAt
 	}
 	if len(res.Warnings) > 0 {
 		// Soft, non-blocking notices (shared phone across a seller/roster row) — creation succeeded.
@@ -234,6 +260,9 @@ type updateAdminRequest struct {
 	Email        *string `json:"email"`
 	Phone        *string `json:"phone"`
 	DistrictCode *string `json:"districtCode"`
+	MartAccess   *bool   `json:"martAccess"`
+	FoodAccess   *bool   `json:"foodAccess"`
+	PharmaAccess *bool   `json:"pharmaAccess"`
 }
 
 func (h *Handler) setAdminActive(w http.ResponseWriter, r *http.Request) {
@@ -243,7 +272,8 @@ func (h *Handler) setAdminActive(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
 		return
 	}
-	hasProfile := req.Name != nil || req.Email != nil || req.Phone != nil || req.DistrictCode != nil
+	hasProfile := req.Name != nil || req.Email != nil || req.Phone != nil || req.DistrictCode != nil ||
+		req.MartAccess != nil || req.FoodAccess != nil || req.PharmaAccess != nil
 	if !hasProfile && req.Active == nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "no changes provided")
 		return
@@ -257,7 +287,8 @@ func (h *Handler) setAdminActive(w http.ResponseWriter, r *http.Request) {
 		// half-applied edit when the second write fails.
 		admin, ok, err = h.provisioner.UpdateIdentity(r.Context(), id, UpdateIdentityParams{
 			Name: req.Name, Email: req.Email, Phone: req.Phone, DistrictCode: req.DistrictCode,
-			Active: req.Active,
+			Active:     req.Active,
+			MartAccess: req.MartAccess, FoodAccess: req.FoodAccess, PharmaAccess: req.PharmaAccess,
 		})
 		if err != nil {
 			var ve *ValidationError
@@ -294,6 +325,69 @@ func (h *Handler) setAdminActive(w http.ResponseWriter, r *http.Request) {
 		Action: "DISTRICT_ADMIN_UPDATE", Entity: "admins.district_admins", EntityID: admin.AdminID, After: after,
 	})
 	httpx.JSON(w, http.StatusOK, admin)
+}
+
+// resendInvite rotates the one-time accept token for a pending district-admin invite and returns the
+// new raw token (shown once). 409 when the login is not a live pending invite.
+func (h *Handler) resendInvite(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	token, expiresAt, ok, err := h.provisioner.ResendInvite(r.Context(), id)
+	if err != nil {
+		if errors.Is(err, ErrInviteNotPending) {
+			httpx.Fail(w, http.StatusConflict, "invite_not_pending", "this invite can no longer be resent")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "district_admin_invite_resend_failed", "could not resend the invite")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "district admin not found")
+		return
+	}
+	_ = h.repo.Audit(r.Context(), contracts.AuditEntry{
+		ActorID: auth.UserID(r.Context()), ActorRole: auth.Role(r.Context()),
+		Action: "DISTRICT_ADMIN_INVITE_RESEND", Entity: "admins.portal_users", EntityID: id,
+	})
+	httpx.JSON(w, http.StatusOK, map[string]any{"inviteToken": token, "inviteExpiresAt": expiresAt})
+}
+
+type acceptInviteRequest struct {
+	Token    string `json:"token"`
+	Password string `json:"password"`
+}
+
+// acceptInvite is public (no session): it consumes the one-time token, sets the invitee's password
+// and activates their DISTRICT_ADMIN login. The invitee then signs in normally.
+func (h *Handler) acceptInvite(w http.ResponseWriter, r *http.Request) {
+	var req acceptInviteRequest
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	req.Token = strings.TrimSpace(req.Token)
+	if req.Token == "" || req.Password == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "token and password are required")
+		return
+	}
+	if len(req.Password) < minNewPasswordLen || len(req.Password) > maxPasswordLen || weakPassword(req.Password) {
+		httpx.Fail(w, http.StatusBadRequest, "weak_password", "password must be at least 12 characters and not a common value")
+		return
+	}
+	email, err := h.provisioner.AcceptInvite(r.Context(), req.Token, req.Password)
+	if err != nil {
+		if errors.Is(err, ErrInviteInvalid) {
+			httpx.Fail(w, http.StatusBadRequest, "invite_invalid", "this invite link is invalid or has expired")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "district_admin_invite_accept_failed", "could not accept the invite")
+		return
+	}
+	// Audit with a hashed email only (never the raw PII).
+	_ = h.repo.Audit(r.Context(), contracts.AuditEntry{
+		ActorRole: "DISTRICT_ADMIN", Action: "DISTRICT_ADMIN_INVITE_ACCEPT",
+		Entity: "admins.portal_users", EntityID: shortHash(email),
+	})
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
 }
 
 func (h *Handler) deleteAdmin(w http.ResponseWriter, r *http.Request) {

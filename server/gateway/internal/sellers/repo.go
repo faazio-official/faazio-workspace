@@ -1805,3 +1805,25 @@ func nullIfZero(v int) any {
 	}
 	return v
 }
+
+// SellerApps returns the verticals of every store the seller owns (an account can hold shops in
+// several apps), for district-admin vertical-scope enforcement.
+func (r *Repo) SellerApps(ctx context.Context, sellerID string) ([]string, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("sellers: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `select distinct app::text from directory.stores where seller_id = $1`, sellerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var app string
+		if err := rows.Scan(&app); err != nil {
+			return nil, err
+		}
+		out = append(out, app)
+	}
+	return out, rows.Err()
+}

@@ -47,12 +47,23 @@ func NewMinter(secret string) *Minter {
 // Enabled reports whether a signing secret is configured.
 func (m *Minter) Enabled() bool { return m != nil && len(m.secret) > 0 }
 
+// VerticalScope is the per-vertical (Mart/Food/Pharma) access a DISTRICT_ADMIN login carries. Scoped
+// is false for every other role and for a district admin whose roster row is missing — those keep
+// full access (legacy behaviour).
+type VerticalScope struct {
+	Scoped bool
+	Mart   bool
+	Food   bool
+	Pharma bool
+}
+
 // MintAccess returns a signed HS256 access JWT and its jti/expiry. A seller login carries
 // seller_id; a district-admin login carries district_code plus the parent state_code (legacy
 // state-scoped admins may carry only state_code). A seller sub-user also carries sub_role
 // (STAFF|VIEWER) so the gateway can enforce the read-only / owner-only boundary server-side. The
-// verifier rejects a missing scope.
-func (m *Minter) MintAccess(userID, role, sellerID, districtCode, stateCode, subRole string, mustChange bool) (token, jti string, expiresAt time.Time, err error) {
+// verifier rejects a missing scope. A scoped district admin additionally carries its 0130 vertical
+// flags so every context can enforce them without a DB round-trip.
+func (m *Minter) MintAccess(userID, role, sellerID, districtCode, stateCode, subRole string, mustChange bool, vertical VerticalScope) (token, jti string, expiresAt time.Time, err error) {
 	if !m.Enabled() {
 		return "", "", time.Time{}, errors.New("portal: jwt secret not configured")
 	}
@@ -63,7 +74,7 @@ func (m *Minter) MintAccess(userID, role, sellerID, districtCode, stateCode, sub
 	now := m.now().UTC()
 	exp := now.Add(AccessTTL)
 	header, _ := json.Marshal(map[string]string{"alg": "HS256", "typ": "JWT"})
-	claims, _ := json.Marshal(map[string]any{
+	claimsMap := map[string]any{
 		"iss":           TokenIssuer,
 		"aud":           TokenAudience,
 		"sub":           userID,
@@ -76,7 +87,14 @@ func (m *Minter) MintAccess(userID, role, sellerID, districtCode, stateCode, sub
 		"must_change":   mustChange,
 		"iat":           now.Unix(),
 		"exp":           exp.Unix(),
-	})
+	}
+	if vertical.Scoped {
+		claimsMap["vertical_scoped"] = true
+		claimsMap["mart_access"] = vertical.Mart
+		claimsMap["food_access"] = vertical.Food
+		claimsMap["pharma_access"] = vertical.Pharma
+	}
+	claims, _ := json.Marshal(claimsMap)
 	signing := base64.RawURLEncoding.EncodeToString(header) + "." + base64.RawURLEncoding.EncodeToString(claims)
 	mac := hmac.New(sha256.New, m.secret)
 	mac.Write([]byte(signing))

@@ -1,8 +1,8 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { AlertTriangle, Copy, KeyRound, RefreshCw } from "lucide-react";
+import { AlertTriangle, KeyRound, MailPlus, Plus } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -12,6 +12,13 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Sheet,
   SheetContent,
@@ -42,177 +49,138 @@ import { formatDate, formatDateTime } from "@/lib/format";
 import { ApiError, remote } from "@/lib/api/http";
 import { remoteConfigured } from "@/lib/config";
 import {
-  createDistrictAdminWithLogin,
   deleteDistrictAdmin,
   districtAdminConflictMessage,
-  districtAdminDuplicateHint,
+  districtAdminInviteUrl,
   listAuditLogs,
   listPortalCredentials,
-  normalizePhoneDigits,
+  resendDistrictAdminInvite,
   updateDistrictAdmin,
 } from "@/lib/api";
 import { usePortalLoading, useSellers, useDistrictAdmins, useDistricts } from "@/lib/api/hooks";
 import { usePortalStore } from "@/lib/api/store";
 import { districtName } from "@/lib/api/reference";
+import { DistrictAdminDrawer, VerticalAccessBadges } from "@/components/admin/DistrictAdminDrawer";
 import type { PortalCredential, DistrictAdmin } from "@/data/types";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const MIN_PASSWORD = 12;
-const PASSWORD_CHARS = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789!@#$%^&*";
-
-/** This page is district-locked: it only ever provisions admins for Tiruchirappalli (TTC). */
-const TTC_CODE = "TTC";
-
-function generatePassword(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes, (b) => PASSWORD_CHARS[b % PASSWORD_CHARS.length]).join("");
-}
-
-/** Read-only district chip — the page is locked to Tiruchirappalli (TTC). */
-function DistrictChip() {
-  const districts = useDistricts();
-  return (
-    <div className="flex h-9 items-center rounded-md border border-border bg-muted/40 px-3 text-[13px]">
-      <span className="num font-medium">{TTC_CODE}</span>
-      <span className="ml-1.5 text-muted-foreground">{districtName(districts, TTC_CODE)}</span>
-    </div>
-  );
-}
+const ALL = "__all__";
 
 function DistrictAdminAccounts() {
   const loading = usePortalLoading();
-  const admins = useDistrictAdmins(TTC_CODE);
+  const admins = useDistrictAdmins();
   const sellers = useSellers();
   const districts = useDistricts();
   const [creds, setCreds] = useState<PortalCredential[]>([]);
-  const [form, setForm] = useState({
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [editing, setEditing] = useState<DistrictAdmin | null>(null);
+  const [draft, setDraft] = useState({
     name: "",
     email: "",
     phone: "",
-    districtCode: TTC_CODE,
-    issueLogin: true,
-    password: "",
-    forceChange: true, // locked ON for DISTRICT_ADMIN — the temp password is single-use
+    districtCode: "",
+    martAccess: true,
+    foodAccess: true,
+    pharmaAccess: true,
   });
-  const [serverError, setServerError] = useState<{ field: "email" | "phone" | null; message: string } | null>(null);
-  const [createdPassword, setCreatedPassword] = useState<string | null>(null);
-  const [createdWarnings, setCreatedWarnings] = useState<string[] | null>(null);
-  const [creating, setCreating] = useState(false);
-  const [editing, setEditing] = useState<DistrictAdmin | null>(null);
-  const [draft, setDraft] = useState({ name: "", email: "", phone: "", districtCode: TTC_CODE });
   const [query, setQuery] = useState("");
+  const [districtFilter, setDistrictFilter] = useState<string>(ALL);
+  // A chip on the uncovered list (or the drilldown) locks the drawer to one district; the header
+  // button opens it unlocked so the picker inside can target any district.
+  const [lockedDistrict, setLockedDistrict] = useState<string | undefined>(undefined);
+  const [resending, setResending] = useState<string | null>(null);
 
-  // Portal logins drive the roster's login-status badges + the pre-submit one-person-one-role lint.
+  // Portal logins drive the roster's login/invite badges + the pre-submit one-person-one-role lint.
   useEffect(() => {
     let active = true;
-    void listPortalCredentials().then((rows) => {
-      if (active) setCreds(rows);
-    });
+    void listPortalCredentials()
+      .then((rows) => {
+        if (active) setCreds(rows);
+      })
+      .catch(() => undefined);
     return () => {
       active = false;
     };
   }, []);
 
-  // DB-backed roster: refresh the TTC slice from the gateway when configured. The store is already
-  // hydrated at login (hydrateFromGateway); this is a best-effort refresh and keeps the demo seed
-  // when the gateway is absent or the call fails.
+  // DB-backed roster: refresh from the gateway when configured (the store is hydrated at login).
   useEffect(() => {
     if (!remoteConfigured()) return;
     let active = true;
     void remote
-      .get<DistrictAdmin[]>("/district-admins", { query: { district: TTC_CODE } })
+      .get<DistrictAdmin[]>("/district-admins")
       .then((rows) => {
-        if (!active) return;
-        usePortalStore.getState().set((s) => ({
-          districtAdmins: [...s.districtAdmins.filter((a) => a.districtCode !== TTC_CODE), ...rows],
-        }));
+        if (active) usePortalStore.getState().set(() => ({ districtAdmins: rows }));
       })
       .catch(() => {
-        /* keep the hydrated/seed roster */
+        /* keep the hydrated roster */
       });
     return () => {
       active = false;
     };
   }, []);
 
-  const loginEmails = new Set(creds.filter((c) => c.role === "DISTRICT_ADMIN").map((c) => c.email.toLowerCase()));
   const loginByEmail = (email: string) =>
     creds.find((c) => c.role === "DISTRICT_ADMIN" && c.email.toLowerCase() === email.toLowerCase());
 
-  const phoneDigits = normalizePhoneDigits(form.phone);
-  const duplicateHint = districtAdminDuplicateHint(form.email, form.phone, creds, sellers, admins);
-  const passwordValid = !form.issueLogin || form.password.length >= MIN_PASSWORD;
-  const valid =
-    form.name.trim().length > 2 &&
-    EMAIL_RE.test(form.email) &&
-    phoneDigits.length === 10 &&
-    passwordValid &&
-    duplicateHint?.kind !== "error";
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return admins.filter((a) => {
+      if (districtFilter !== ALL && a.districtCode !== districtFilter) return false;
+      if (!q) return true;
+      return (
+        a.name.toLowerCase().includes(q) ||
+        a.email.toLowerCase().includes(q) ||
+        (a.districtCode ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [admins, query, districtFilter]);
 
-  // This page covers exactly one district (TTC), so coverage is 1/1 or 0/1.
-  const covered = admins.some((a) => a.districtCode === TTC_CODE && a.active) ? 1 : 0;
-  const ttcDistrict = districts.find((d) => d.districtCode === TTC_CODE);
-  const uncovered = ttcDistrict && covered === 0 ? [ttcDistrict] : [];
-  const totalDistricts = ttcDistrict ? 1 : 0;
+  // Coverage: every active district that has at least one active admin. It follows the district
+  // filter, so picking one district reports that district's own coverage rather than the platform's.
+  const coveredCodes = new Set(admins.filter((a) => a.active && a.districtCode).map((a) => a.districtCode));
+  const activeDistricts = districts.length > 0 ? districts : [];
+  const scopedDistricts =
+    districtFilter === ALL ? activeDistricts : activeDistricts.filter((d) => d.districtCode === districtFilter);
+  const covered = scopedDistricts.filter((d) => coveredCodes.has(d.districtCode)).length;
+  const uncovered = scopedDistricts.filter((d) => !coveredCodes.has(d.districtCode));
+  const totalDistricts = scopedDistricts.length;
   const activeCount = admins.filter((a) => a.active).length;
+  const pendingCount = admins.filter((a) => {
+    const login = loginByEmail(a.email);
+    return (a.inviteStatus ?? login?.inviteStatus) === "pending";
+  }).length;
   const coveragePct = totalDistricts ? Math.round((covered / totalDistricts) * 100) : 0;
+  const scopeLabel = districtFilter === ALL ? null : districtName(districts, districtFilter);
 
-  const q = query.trim().toLowerCase();
-  const filtered = admins.filter(
-    (a) =>
-      !q ||
-      a.name.toLowerCase().includes(q) ||
-      a.email.toLowerCase().includes(q) ||
-      (a.districtCode ?? "").toLowerCase().includes(q),
-  );
+  function openEdit(admin: DistrictAdmin) {
+    setDraft({
+      name: admin.name,
+      email: admin.email,
+      phone: admin.phone,
+      districtCode: admin.districtCode,
+      martAccess: admin.martAccess !== false,
+      foodAccess: admin.foodAccess !== false,
+      pharmaAccess: admin.pharmaAccess !== false,
+    });
+    setEditing(admin);
+  }
 
-  async function handleCreate() {
-    setCreating(true);
-    setServerError(null);
-    setCreatedWarnings(null);
+  async function handleResend(admin: DistrictAdmin) {
+    setResending(admin.adminId);
     try {
-      const { credential, warnings } = await createDistrictAdminWithLogin({
-        name: form.name.trim(),
-        email: form.email.trim(),
-        phone: form.phone.trim(),
-        districtCode: form.districtCode,
-        issueLogin: form.issueLogin,
-        password: form.issueLogin ? form.password : undefined,
+      const { inviteToken } = await resendDistrictAdminInvite(admin.adminId);
+      const link = districtAdminInviteUrl(inviteToken);
+      void navigator.clipboard?.writeText(link);
+      toast.success("New invite link copied", {
+        description: "The previous link no longer works. Send it to the admin.",
       });
-      if (credential) {
-        setCreds((prev) => [credential, ...prev.filter((c) => c.id !== credential.id)]);
-        setCreatedPassword(form.password);
-      }
-      if (warnings?.length) {
-        setCreatedWarnings(warnings);
-        toast.info("District admin created: shared phone", { description: warnings.join(" · ") });
-      } else if (credential) {
-        toast.success("District admin created with a portal login");
-      } else {
-        toast.success("District admin added to the roster (no login issued)");
-      }
-      setForm((f) => ({
-        name: "",
-        email: "",
-        phone: "",
-        districtCode: f.districtCode,
-        issueLogin: true,
-        password: generatePassword(),
-        forceChange: true,
-      }));
     } catch (err) {
-      const conflict = districtAdminConflictMessage(err);
-      setServerError(conflict);
-      if (err instanceof ApiError && (err.status === 409 || err.status === 400)) {
-        toast.error("District admin blocked", { description: conflict.message });
-      } else {
-        toast.error("Could not create the district admin", {
-          description: err instanceof Error ? err.message : undefined,
-        });
-      }
+      toast.error("Could not resend the invite", {
+        description: err instanceof Error ? err.message : undefined,
+      });
     } finally {
-      setCreating(false);
+      setResending(null);
     }
   }
 
@@ -220,37 +188,31 @@ function DistrictAdminAccounts() {
     <div className="space-y-4">
       <PageHeader
         title="District admins"
-        description="This page manages Tiruchirappalli (TTC) admins only, a district may have several admins; each admin is locked to exactly one district."
+        description="Assign admins to any district. A district can have several admins; each admin is scoped to exactly one district and the verticals you grant."
+        actions={
+          <Button
+            size="sm"
+            className="gap-1.5"
+            onClick={() => {
+              setLockedDistrict(undefined);
+              setDrawerOpen(true);
+            }}
+          >
+            <Plus className="size-3.5" /> Assign admin
+          </Button>
+        }
       />
-
-      <p className="text-[12px] text-muted-foreground">
-        One form creates the roster row{" "}
-        {form.issueLogin ? (
-          <>
-            and the portal login together. You can also{" "}
-            <button type="button" className="font-medium text-interactive underline" onClick={() => setForm((f) => ({ ...f, issueLogin: false, password: "" }))}>
-              pre-provision without a login
-            </button>
-            <ComponentHelp id="pre-provision" label="About pre-provisioning an admin" />.
-          </>
-        ) : (
-          <>
-            without a login; that admin cannot sign in until you{" "}
-            <Link href="/admin/super/credentials" className="font-medium text-interactive">
-              issue a portal login
-            </Link>
-            .
-          </>
-        )}
-      </p>
 
       <div className="space-y-2 rounded-lg border border-border bg-card px-4 py-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-[13px] font-medium">
-            <span className="num">{covered}</span> / {totalDistricts} district{totalDistricts === 1 ? "" : "s"} covered
+            <span className="num">{covered}</span> / {totalDistricts}{" "}
+            {districtFilter === ALL ? "district" : "selected district"} coverage
+            {scopeLabel ? <span className="ml-1.5 text-[12px] text-muted-foreground">{scopeLabel}</span> : null}
           </p>
           <p className="num text-[12px] text-muted-foreground">
             {activeCount} active admin{activeCount === 1 ? "" : "s"}
+            {pendingCount > 0 ? ` · ${pendingCount} pending invite${pendingCount === 1 ? "" : "s"}` : ""}
           </p>
         </div>
         <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
@@ -265,234 +227,46 @@ function DistrictAdminAccounts() {
         <div className="flex flex-wrap items-center gap-2 rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-[13px]">
           <AlertTriangle className="size-4 shrink-0 text-warning" />
           <span className="text-muted-foreground">No active admin for</span>
-          {uncovered.map((d) => (
+          {uncovered.slice(0, 12).map((d) => (
             <button
               key={d.districtCode}
               type="button"
-              title={`Create an admin for ${d.name}`}
+              title={`Assign an admin for ${d.name}`}
               onClick={() => {
-                setEditing(null);
-                document.getElementById("create-admin")?.scrollIntoView({ behavior: "smooth" });
+                setDistrictFilter(d.districtCode);
+                setLockedDistrict(d.districtCode);
+                setDrawerOpen(true);
               }}
               className="num rounded-md border border-warning/40 bg-warning/10 px-2 py-0.5 text-[11px] font-medium text-warning transition-colors hover:bg-warning/20"
             >
               {d.districtCode}
             </button>
           ))}
-          <span className="text-muted-foreground">Those districts have no one to review KYC or run campaigns.</span>
+          {uncovered.length > 12 ? (
+            <span className="text-[11px] text-muted-foreground">+{uncovered.length - 12} more</span>
+          ) : null}
         </div>
       ) : null}
 
-      <div id="create-admin">
-        <SectionCard title="Create an admin account">
-        <div className="grid gap-4 md:grid-cols-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="adm-name">Name</Label>
-            <Input
-              id="adm-name"
-              value={form.name}
-              onChange={(e) => {
-                setForm({ ...form, name: e.target.value });
-                setServerError(null);
-              }}
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="adm-email">Email</Label>
-            <Input
-              id="adm-email"
-              value={form.email}
-              onChange={(e) => {
-                setForm({ ...form, email: e.target.value });
-                setServerError(null);
-              }}
-              placeholder="admin.ttc@faazio.dev"
-              className={serverError?.field === "email" ? "border-destructive" : undefined}
-            />
-            {form.email && !EMAIL_RE.test(form.email) ? (
-              <p className="text-[11px] text-destructive">Enter a valid email address.</p>
-            ) : null}
-            {duplicateHint?.field === "email" ? (
-              <p className="text-[11px] text-destructive">Already in use: {duplicateHint.message}</p>
-            ) : null}
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="adm-phone">Phone</Label>
-            <Input
-              id="adm-phone"
-              className="num"
-              value={form.phone}
-              onChange={(e) => {
-                setForm({ ...form, phone: e.target.value });
-                setServerError(null);
-              }}
-            />
-            {form.phone && phoneDigits.length !== 10 ? (
-              <p className="text-[11px] text-destructive">Enter a valid 10-digit Indian mobile number.</p>
-            ) : null}
-            {duplicateHint?.field === "phone" ? (
-              <p className="flex items-start gap-1 text-[11px] text-warning">
-                <AlertTriangle className="mt-0.5 size-4 shrink-0" />
-                <span>{duplicateHint.message}</span>
-              </p>
-            ) : null}
-          </div>
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-1.5">
-              <Label>District</Label>
-              <ComponentHelp id="district-select" label="About the district field" />
-            </div>
-            <DistrictChip />
-            <p className="text-[11px] text-muted-foreground">
-              This page provisions admins for Tiruchirappalli (TTC) only.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-4 space-y-3">
-          <div className="flex items-start gap-2">
-            <label className="flex items-start gap-2.5 text-[13px]">
-              <Checkbox
-                className="mt-0.5"
-                checked={form.issueLogin}
-                onCheckedChange={(checked) => {
-                  const issueLogin = checked === true;
-                  setForm((f) => ({ ...f, issueLogin, password: issueLogin ? f.password : "" }));
-                }}
-              />
-              <span>
-                Issue portal login now
-                <span className="block text-[11px] text-muted-foreground">
-                  Creates the DISTRICT_ADMIN credential + temporary password in the same step. Uncheck to
-                  pre-provision a roster-only row (they cannot sign in until you issue a login).
-                </span>
-              </span>
-            </label>
-            <ComponentHelp id="issue-login-toggle" label="About issuing a login" className="mt-0.5" />
-          </div>
-
-          {form.issueLogin ? (
-            <div className="space-y-2 rounded-md border border-border bg-muted/30 px-4 py-3">
-              <div className="flex items-end gap-2">
-                <div className="flex-1 space-y-1.5">
-                  <Label htmlFor="adm-password">Temporary password</Label>
-                  <Input
-                    id="adm-password"
-                    className="num"
-                    value={form.password}
-                    onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  />
-                </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Copy password"
-                  onClick={() => {
-                    void navigator.clipboard?.writeText(form.password);
-                    toast.success("Copied");
-                  }}
-                >
-                  <Copy className="size-4" />
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="icon"
-                  aria-label="Regenerate password"
-                  onClick={() => setForm({ ...form, password: generatePassword() })}
-                >
-                  <RefreshCw className="size-4" />
-                </Button>
-              </div>
-              <p className="text-[11px] text-muted-foreground">
-                At least {MIN_PASSWORD} characters. Shown once; copy it before creating.
-              </p>
-              <label className="flex items-start gap-2.5 text-[13px]">
-                <Checkbox className="mt-0.5" checked={form.forceChange} disabled />
-                <span>
-                  Require a password change on first sign-in
-                  <span className="block text-[11px] text-muted-foreground">
-                    Locked ON for district admins; the temporary password is single-use.
-                  </span>
-                </span>
-              </label>
-            </div>
-          ) : null}
-
-          {serverError ? (
-            <p className="text-[12px] text-destructive">{serverError.message}</p>
-          ) : null}
-        </div>
-
-        {createdPassword ? (
-          <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-accent/40 bg-accent/10 px-4 py-3">
-            <div>
-              <p className="text-[12px] font-medium">Temporary password created</p>
-              <p className="num text-[13px]">{createdPassword}</p>
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Shown only once. Copy it now; it is not stored by the server.
-            </p>
-            <Button
-              size="sm"
-              variant="outline"
-              className="gap-1.5"
-              onClick={() => {
-                void navigator.clipboard?.writeText(createdPassword);
-                setCreatedPassword(null);
-                toast.success("Copied");
-              }}
-            >
-              <Copy className="size-3.5" /> Copy
-            </Button>
-          </div>
-        ) : null}
-
-        {createdWarnings?.length ? (
-          <div className="mt-4 flex items-start gap-2 rounded-md border border-warning/40 bg-warning/10 px-4 py-3">
-            <AlertTriangle className="mt-0.5 size-4 shrink-0 text-warning" />
-            <div>
-              <p className="text-[12px] font-medium text-warning">Created: shared phone</p>
-              <p className="text-[11px] text-muted-foreground">
-                This phone already belongs to another account. You can still continue; confirm the
-                intended owner if you did not expect this.
-              </p>
-              <ul className="mt-1 list-inside list-disc text-[11px] text-warning">
-                {createdWarnings.map((w) => (
-                  <li key={w}>{w}</li>
-                ))}
-              </ul>
-              <button
-                type="button"
-                className="mt-1 text-[11px] font-medium text-interactive underline"
-                onClick={() => setCreatedWarnings(null)}
-              >
-                Dismiss
-              </button>
-            </div>
-          </div>
-        ) : null}
-
-        <div className="mt-4 flex items-center justify-end gap-1.5">
-          <ComponentHelp id="create-admin-button" label="About creating an admin" />
-          <Button
-            size="sm"
-            disabled={!valid || creating}
-            onClick={() => void handleCreate()}
-          >
-            {creating ? "Creating..." : "Create admin"}
-          </Button>
-        </div>
-      </SectionCard>
-      </div>
-
       <SectionCard
         title="Admin roster"
-        description={query ? `${filtered.length} of ${admins.length} admins` : undefined}
+        description={query || districtFilter !== ALL ? `${filtered.length} of ${admins.length} admins` : undefined}
         bodyClassName="p-0"
         actions={
           <div className="flex items-center gap-1.5">
+            <Select value={districtFilter} onValueChange={setDistrictFilter}>
+              <SelectTrigger className="h-8 w-52 text-[12px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL}>All districts</SelectItem>
+                {districts.map((d) => (
+                  <SelectItem key={d.districtCode} value={d.districtCode}>
+                    {d.districtCode} · {d.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <Input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -509,11 +283,11 @@ function DistrictAdminAccounts() {
           isEmpty={filtered.length === 0}
           empty={
             <EmptyState
-              title={query ? "No matching admins" : "No admins yet"}
+              title={query || districtFilter !== ALL ? "No matching admins" : "No admins yet"}
               description={
-                query
-                  ? "Try a different name, email or district code."
-                  : "Create the first district admin above."
+                query || districtFilter !== ALL
+                  ? "Try a different name, email, district or clear the filter."
+                  : "Assign the first district admin to cover KYC and campaigns."
               }
             />
           }
@@ -524,7 +298,7 @@ function DistrictAdminAccounts() {
                 <TableHead>District</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Email</TableHead>
-                <TableHead>Phone</TableHead>
+                <TableHead>Access</TableHead>
                 <TableHead>Created</TableHead>
                 <TableHead>Last active</TableHead>
                 <TableHead>Status</TableHead>
@@ -533,8 +307,14 @@ function DistrictAdminAccounts() {
             </TableHeader>
             <TableBody>
               {filtered.map((admin) => {
-                const hasLogin = loginEmails.has(admin.email.toLowerCase());
                 const login = loginByEmail(admin.email);
+                const inviteStatus = admin.inviteStatus ?? login?.inviteStatus;
+                const expiresAt = admin.inviteExpiresAt ?? login?.inviteExpiresAt;
+                // A pending invite whose link has passed its expiry is shown as expired; the server
+                // still treats the row as 'pending', so rotating it mints a fresh link.
+                const inviteExpired =
+                  inviteStatus === "pending" && Boolean(expiresAt) && new Date(expiresAt!).getTime() < Date.now();
+                const hasLogin = Boolean(login) || inviteStatus === "pending";
                 return (
                   <TableRow key={admin.adminId} className="h-12">
                     <TableCell className="text-[13px] font-medium">
@@ -551,7 +331,13 @@ function DistrictAdminAccounts() {
                     </TableCell>
                     <TableCell className="text-[13px] font-medium">{admin.name}</TableCell>
                     <TableCell className="num text-[12px]">{admin.email}</TableCell>
-                    <TableCell className="num text-[12px]">{admin.phone}</TableCell>
+                    <TableCell>
+                      <VerticalAccessBadges
+                        martAccess={admin.martAccess}
+                        foodAccess={admin.foodAccess}
+                        pharmaAccess={admin.pharmaAccess}
+                      />
+                    </TableCell>
                     <TableCell className="num text-[12px]">{formatDate(admin.createdAt)}</TableCell>
                     <TableCell className="num text-[12px] text-muted-foreground">
                       {formatDateTime(admin.lastActiveAt)}
@@ -559,32 +345,39 @@ function DistrictAdminAccounts() {
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
                         <StatusPill status={admin.active ? "ACTIVE" : "DEACTIVATED"} />
-                        {hasLogin ? (
-                          <StatusPill status={login?.mustChange ? "TEMP PASSWORD" : "LOGIN"} />
+                        {inviteExpired ? (
+                          <StatusPill status="INVITE EXPIRED" />
+                        ) : inviteStatus === "pending" ? (
+                          <StatusPill status="PENDING_INVITE" />
+                        ) : login?.mustChange ? (
+                          <StatusPill status="TEMP PASSWORD" />
+                        ) : hasLogin ? (
+                          <StatusPill status="LOGIN" />
                         ) : (
                           <StatusPill status="NO LOGIN" />
                         )}
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => {
-                            setEditing(admin);
-                            setDraft({
-                              name: admin.name,
-                              email: admin.email,
-                              phone: admin.phone,
-                              districtCode: admin.districtCode,
-                            });
-                          }}
-                        >
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <Button size="sm" variant="outline" onClick={() => openEdit(admin)}>
                           Edit
                         </Button>
+                        {inviteStatus === "pending" ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="gap-1.5"
+                            disabled={resending === admin.adminId}
+                            onClick={() => void handleResend(admin)}
+                          >
+                            <MailPlus className="size-3.5" /> New invite link
+                          </Button>
+                        ) : null}
                         {!hasLogin ? (
-                          <Link href={`/admin/super/credentials?email=${encodeURIComponent(admin.email)}&role=DISTRICT_ADMIN&district=${TTC_CODE}`}>
+                          <Link
+                            href={`/admin/super/credentials?email=${encodeURIComponent(admin.email)}&role=DISTRICT_ADMIN&district=${encodeURIComponent(admin.districtCode)}`}
+                          >
                             <Button size="sm" variant="outline" className="gap-1.5">
                               <KeyRound className="size-3.5" /> Issue login
                             </Button>
@@ -660,8 +453,24 @@ function DistrictAdminAccounts() {
         </DataShell>
       </SectionCard>
 
+      <DistrictAdminDrawer
+        open={drawerOpen}
+        onOpenChange={(next) => {
+          setDrawerOpen(next);
+          if (!next) setLockedDistrict(undefined);
+        }}
+        districts={districts}
+        lockedDistrictCode={lockedDistrict}
+        credentials={creds}
+        sellers={sellers}
+        admins={admins}
+        onCreated={() => {
+          void listPortalCredentials().then(setCreds).catch(() => undefined);
+        }}
+      />
+
       <Sheet open={Boolean(editing)} onOpenChange={(next) => !next && setEditing(null)}>
-        <SheetContent className="w-full sm:max-w-md">
+        <SheetContent className="w-full overflow-y-auto sm:max-w-md">
           <SheetHeader>
             <SheetTitle>Edit admin</SheetTitle>
             <SheetDescription>{editing?.adminId}</SheetDescription>
@@ -695,8 +504,40 @@ function DistrictAdminAccounts() {
               </div>
               <div className="space-y-1.5">
                 <Label>District</Label>
-                <DistrictChip />
+                <Select
+                  value={draft.districtCode}
+                  onValueChange={(next) => setDraft({ ...draft, districtCode: next })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Choose a district" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {districts.map((d) => (
+                      <SelectItem key={d.districtCode} value={d.districtCode}>
+                        {d.districtCode} · {d.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+
+              <div className="space-y-2">
+                <Label>Vertical access</Label>
+                {[
+                  { key: "martAccess" as const, label: "Mart" },
+                  { key: "foodAccess" as const, label: "Food" },
+                  { key: "pharmaAccess" as const, label: "Pharma" },
+                ].map(({ key, label }) => (
+                  <label key={key} className="flex items-center gap-2.5 text-[13px]">
+                    <Checkbox
+                      checked={draft[key]}
+                      onCheckedChange={(checked) => setDraft({ ...draft, [key]: checked === true })}
+                    />
+                    <span>{label}</span>
+                  </label>
+                ))}
+              </div>
+
               <Button
                 size="sm"
                 disabled={!EMAIL_RE.test(draft.email) || draft.name.trim().length < 3}
@@ -706,11 +547,12 @@ function DistrictAdminAccounts() {
                       await updateDistrictAdmin(editing.adminId, draft);
                       toast.success("Admin updated");
                       setEditing(null);
-                      // The linked portal login's email is kept in sync server-side; refresh the
-                      // credential slice so the LOGIN badge follows the new email immediately.
                       void listPortalCredentials().then(setCreds).catch(() => undefined);
                     } catch (err) {
-                      const conflict = districtAdminConflictMessage(err);
+                      const conflict =
+                        err instanceof ApiError
+                          ? districtAdminConflictMessage(err)
+                          : { message: err instanceof Error ? err.message : "Update failed" };
                       toast.error("Update failed", { description: conflict.message });
                     }
                   })();

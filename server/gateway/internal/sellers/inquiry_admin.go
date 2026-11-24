@@ -133,7 +133,16 @@ func (h *Handler) listInquiries(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "inquiries unavailable")
 		return
 	}
-	httpx.JSON(w, http.StatusOK, items)
+	if allowed := auth.AllowedVerticals(r.Context()); allowed != nil {
+		filtered := items[:0]
+		for _, it := range items {
+			if sellerInVerticalScope(r.Context(), it) {
+				filtered = append(filtered, it)
+			}
+		}
+		items = filtered
+	}
+	httpx.JSON(w, http.StatusOK, h.withPhotoURLsList(items))
 }
 
 type updateInquiryRequest struct {
@@ -217,6 +226,7 @@ func (h *Handler) updateInquiry(w http.ResponseWriter, r *http.Request) {
 			map[string]string{"status": s.Status}, map[string]string{"status": after.Status})
 	}
 	detail, _, _ := h.repo.DetailByID(r.Context(), s.SellerID)
+	detail.Seller = h.withPhotoURLs(detail.Seller)
 	httpx.JSON(w, http.StatusOK, detail)
 }
 
@@ -253,7 +263,7 @@ func (h *Handler) claimInquiry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.log(r, "SELLER_INQUIRY_ASSIGN", s.SellerID, nil, map[string]string{"assignedTo": row.InquiryAssignedTo})
-	httpx.JSON(w, http.StatusOK, row)
+	httpx.JSON(w, http.StatusOK, h.withPhotoURLs(row))
 }
 
 // validInquiryTransition is the INQUIRY lifecycle guard: an enquiry may become a pending application
@@ -272,5 +282,5 @@ func decodeShopPhotos(raw []byte) []ShopPhoto {
 	if err := json.Unmarshal(raw, &rows); err != nil {
 		return out
 	}
-	return out
+	return rows
 }

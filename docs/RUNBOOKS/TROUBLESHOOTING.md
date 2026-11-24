@@ -430,6 +430,15 @@ never called, and the list's `onLayout` never fires. Do not "fix" it by swapping
 - Mongo `home feed unavailable` → `mongodb` not seeded. Run `server/supabase/seed/mongo/seed.js`
   (compose mounts it into `/docker-entrypoint-initdb.d`).
 
+### Gateway container exits: `exec /server: no such file or directory`
+
+The runtime image is `distroless/static` (no libc), but `gen2brain/avif` pulls in `ebitengine/purego`,
+whose fakecgo shim makes go **link the binary against musl** (`PT_INTERP /lib/ld-musl-x86_64.so.1`).
+The exec fails even though `/server` exists. The Dockerfile builds with `-tags nodynamic`, which keeps
+AVIF on the wazero/WASM encoder and produces a genuinely static binary — verify with
+`readelf -l ./server | grep -i interpreter` (must print nothing) or
+`docker compose logs gateway | grep 'exec /server'` (must be absent). Never drop the tag.
+
 ## 🧪 Gateway integration tests + seller-product simulation
 
 - **Integration tests skip, they do not fail, without a DB.** The `testenv` helpers

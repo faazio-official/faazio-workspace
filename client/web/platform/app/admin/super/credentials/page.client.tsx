@@ -456,7 +456,11 @@ function CredentialsPage() {
                     ) : (
                       <>
                         <StatusPill status={c.active ? "ACTIVE" : "DEACTIVATED"} />
-                        {c.mustChange ? <StatusPill status="TEMP PASSWORD" /> : null}
+                        {c.inviteStatus === "pending" ? (
+                          <StatusPill status="PENDING_INVITE" />
+                        ) : c.mustChange ? (
+                          <StatusPill status="TEMP PASSWORD" />
+                        ) : null}
                       </>
                     )}
                   </TableCell>

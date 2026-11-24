@@ -70,7 +70,6 @@
 
 - A pull re-reads the upstream 300 s cache for the server-backed lists (feed/taxonomy), so it can
   return identical content until the key lapses — see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
-- Root `Search` `FOOD` config mismatch (see [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md)).
 - `services/categoryVendors.ts` still exports unused fixture-backed `getVendorsForApp` /
   `getVendorsWithProducts` / `getVendorProducts`. The live drill-in (`useCategoryVendors`) uses the
   gateway directly and does not call these helpers or the `matchesQuery` / `isDiscounted` predicates

@@ -2,6 +2,8 @@ package checkout
 
 import (
 	"context"
+	"errors"
+	"strings"
 	"testing"
 
 	"github.com/faazio/server/gateway/internal/platform/testenv"
@@ -330,5 +332,59 @@ func TestAdminOrderRowsExposeDistrictNotCity(t *testing.T) {
 	}
 	if found.DistrictCode != districtCode {
 		t.Fatalf("districtCode = %q, want %q", found.DistrictCode, districtCode)
+	}
+}
+
+func TestUpdateProfileNameWritesBothIdentityRows(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	const userID = "u-test-profile-name"
+	cleanup := func() {
+		_, _ = pool.Exec(ctx, `delete from accounts.profile where id = $1`, userID)
+		_, _ = pool.Exec(ctx, `delete from checkout.users where user_id = $1`, userID)
+	}
+	cleanup()
+	t.Cleanup(cleanup)
+
+	if _, err := pool.Exec(ctx,
+		`insert into checkout.users (user_id, name, email, phone)
+		 values ($1, 'Faazio User', '', '+919000000010')`, userID); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+
+	// No accounts.profile row yet (pre-provision user): the write must create it, not only update.
+	p, ok, err := repo.UpdateProfileName(ctx, userID, "  Anitha R  ")
+	if err != nil || !ok {
+		t.Fatalf("update: ok=%v err=%v", ok, err)
+	}
+	if p.Name != "Anitha R" {
+		t.Fatalf("name = %q, want the trimmed input", p.Name)
+	}
+
+	var userName string
+	if err := pool.QueryRow(ctx, `select name from checkout.users where user_id = $1`, userID).Scan(&userName); err != nil {
+		t.Fatal(err)
+	}
+	if userName != "Anitha R" {
+		t.Fatalf("checkout.users.name = %q, want the same name", userName)
+	}
+
+	// GET /profile reads accounts.profile, so the two surfaces must agree after the write.
+	got, ok, err := repo.ProfileByUser(ctx, userID)
+	if err != nil || !ok || got.Name != "Anitha R" {
+		t.Fatalf("profile read-back: %+v ok=%v err=%v", got, ok, err)
+	}
+
+	if _, _, err := repo.UpdateProfileName(ctx, userID, "   "); !errors.Is(err, ErrInvalidProfileName) {
+		t.Fatalf("empty name err = %v, want ErrInvalidProfileName", err)
+	}
+	longName := strings.Repeat("x", maxProfileNameRunes+1)
+	if _, _, err := repo.UpdateProfileName(ctx, userID, longName); !errors.Is(err, ErrInvalidProfileName) {
+		t.Fatalf("over-long name err = %v, want ErrInvalidProfileName", err)
+	}
+	if _, ok, err := repo.UpdateProfileName(ctx, "u-test-profile-missing", "Someone"); err != nil || ok {
+		t.Fatalf("unknown user: ok=%v err=%v, want ok=false", ok, err)
 	}
 }

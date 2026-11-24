@@ -672,6 +672,9 @@ func (h *Handler) approveAddon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "addonId")
+	if !h.addonVerticalAllowed(w, r, id) {
+		return
+	}
 	a, found, err := h.repo.SetAddonStatus(r.Context(), id, "ACTIVE", "", sellerID, district)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
@@ -715,6 +718,9 @@ func (h *Handler) rejectAddon(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "addonId")
+	if !h.addonVerticalAllowed(w, r, id) {
+		return
+	}
 	a, found, err := h.repo.SetAddonStatus(r.Context(), id, "DRAFT", reason, sellerID, district)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
@@ -759,6 +765,9 @@ func (h *Handler) requestAddonChanges(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := chi.URLParam(r, "addonId")
+	if !h.addonVerticalAllowed(w, r, id) {
+		return
+	}
 	a, found, err := h.repo.SetAddonStatus(r.Context(), id, "CHANGES_REQUESTED", reason, sellerID, district)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
@@ -974,6 +983,23 @@ func (h *Handler) productAddons(w http.ResponseWriter, r *http.Request) {
 }
 
 // notifyAddonModeration tells the seller about an admin decision. Best-effort, after the write.
+
+// addonVerticalAllowed enforces district-admin vertical scope (0130) on add-on moderation. It answers
+// true for every non-scoped caller and for an add-on inside the caller's verticals; false means the
+// response was already written (outside scope → 404, matching a foreign add-on).
+func (h *Handler) addonVerticalAllowed(w http.ResponseWriter, r *http.Request, addonID string) bool {
+	sector, found, err := h.repo.AddonSector(r.Context(), addonID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return false
+	}
+	if found && !auth.CanAccessVertical(r.Context(), sector) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "add-on not found")
+		return false
+	}
+	return true
+}
+
 func (h *Handler) notifyAddonModeration(r *http.Request, a Addon, decision, reason string) {
 	if h.notifier == nil {
 		return
@@ -1021,4 +1047,21 @@ func (h *Handler) logEntity(r *http.Request, action, entity, entityID string, af
 		ActorID: actorID, ActorRole: role, Action: action,
 		Entity: entity, EntityID: entityID, After: raw,
 	})
+}
+
+// AddonSector returns the vertical an add-on belongs to (its venue store's app), so a scoped district
+// admin's moderation can be checked before any write. ok=false when the add-on is absent.
+func (r *Repo) AddonSector(ctx context.Context, addonID string) (string, bool, error) {
+	if r.pool == nil {
+		return "", false, fmt.Errorf("catalog: database not configured")
+	}
+	var sector string
+	err := r.pool.QueryRow(ctx, `select sector_app::text from directory.addons where addon_id = $1`, addonID).Scan(&sector)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return sector, true, nil
 }

@@ -408,7 +408,9 @@ CREATE TABLE checkout.users (
 `ProvisionUserID` (first authenticated OTP call) upserts this row **and** forward-fills the matching
 `accounts.profile` row (`id = account_id = user_id`, real phone/email only) so the app never renders
 the `@data` profile fixture for a signed-in user. `GET /profile` also falls back to this row for
-users provisioned before that write existed.
+users provisioned before that write existed. `PUT /profile` (`{name}`, trimmed, 1–80 runes) updates
+this row's `name` and upserts `accounts.profile.name` in the same transaction, so the name captured
+at sign-in is what the account screen and the seller/admin projections read.
 
 **Account deletion (`0060`):** `DELETE /users/me` does not hard-delete this row (the non-cascading
 `checkout.addresses`/`orders`/`payments` FKs and the legal-retention requirement forbid it). It
@@ -1756,7 +1758,7 @@ round-trip). The target must be an item the seller owns (handler-enforced agains
 deep-link another seller's product. RLS: a seller reads their own rows; admins read by scope (mirrors
 `0015`). Endpoints: caching doc §5, `mvp-backend.md` §3 and `monolith-breakdown.md` §1 (`ads` row).
 
-### 12.18 Portal auth — gateway-native credentials + rotating refresh (migrations `0032` + `0033` + `0034` + `0038`)
+### 12.18 Portal auth — gateway-native credentials + rotating refresh (migrations `0032` + `0033` + `0034` + `0038`; invite state `0131`)
 
 The Partner Portal sign-in is gateway-native: `0032` adds the durable credential + session store,
 `0033` widens the issued roles to `SELLER` and `STATE_ADMIN` with a scope, and `0034` clears the
@@ -1782,6 +1784,10 @@ CREATE TABLE admins.portal_users (
   created_at/updated_at timestamptz NOT NULL DEFAULT now(),
   deleted_at          timestamptz,                 -- 0128 soft delete: non-null = trashed
   delete_reason       text NOT NULL DEFAULT '',    -- 0128 why it was deleted (≤500 bytes)
+  district_code       text,                        -- 0048 DISTRICT_ADMIN district claim
+  invite_status       text NOT NULL DEFAULT 'active',  -- 0131: pending | active | expired
+  invite_token_hash   text,                        -- 0131: sha256 of the one-time invite token
+  invite_expires_at   timestamptz,                 -- 0131: 7-day invite TTL
   CONSTRAINT portal_users_scope_check CHECK (
     (role = 'SUPER_ADMIN' AND seller_id IS NULL AND state_code IS NULL) OR
     (role = 'SELLER'      AND seller_id IS NOT NULL AND state_code IS NULL) OR
@@ -1790,6 +1796,8 @@ CREATE TABLE admins.portal_users (
 );
 CREATE UNIQUE INDEX portal_users_email_lower_live_uniq ON admins.portal_users (lower(email))
   WHERE deleted_at IS NULL;                        -- 0128: live rows only
+CREATE UNIQUE INDEX portal_users_invite_token_uniq  -- 0131: one live invite per hash
+  ON admins.portal_users (invite_token_hash) WHERE invite_token_hash IS NOT NULL;
 
 CREATE TABLE admins.portal_sessions (
   token_hash            text PRIMARY KEY,          -- sha256(raw refresh token), hex
@@ -1889,7 +1897,8 @@ New confirms:
   the moment the credential is deleted).
   `state_admins` roster rows do **not** FK to `portal_users` (a roster can be pre-provisioned
   without a login); the link is the shared `lower(email)`, joined at write time by
-  `internal/admins` (Provisioner).
+  `internal/admins` (Provisioner). An invite-created login is `invite_status='pending'` with a hashed
+  one-time token and cannot sign in until `POST /district-admins/accept-invite` activates it (§12.46).
 - `sellers.sellers` has **no email column** (`0015` table def), so the only SELLER collision axis is
   phone digits (`sellers_phone_digits_idx`) — and that is a warning, not a 409. A seller-belonging
   email is caught via `portal_users` (a SELLER credential row uses the same email table), hence
@@ -2113,11 +2122,12 @@ seller-onboarding picker. The DB is the read authority — seeding a new state/d
 while `internal/platform/geo` stays the in-process validation mirror. Uncached
 (`caching-cloudflare-valkey.md` §8).
 
-`0065` seeds one active Tiruchirappalli (`TTC`) roster row (`adm-tiruchi-01`) so the TTC-locked
-district-admins page is non-empty on a fresh DB. It inserts the roster row only — no portal login or
-password hash (`PORTAL_AUTH.md` §2) — and is idempotent (`on conflict do nothing`). With it,
-`POST /district-admins` is district-mandatory: state-only scope is retired and `state_code` is
-derived from the district.
+`0065` seeds one active Tiruchirappalli (`TTC`) roster row (`adm-tiruchi-01`) so the district-admins
+directory is non-empty on a fresh DB. It inserts the roster row only — no portal login or
+password hash (`PORTAL_AUTH.md` §2) — and is idempotent (`on conflict do nothing`). The roster page is
+no longer district-locked: it lists every district and creation requires a district (state-only scope
+is retired; `state_code` is derived from the district). Per-vertical scope and the invite lifecycle are
+`0130`/`0131` — see §12.46.
 
 **Rules**
 
@@ -3169,4 +3179,56 @@ create unique index district_master_google_place_id_key
   777/777 districts verified) and `scripts/gen-district-migration.mjs` (SQL generator) regenerate the
   migration; an `ALIASES` map absorbs official renames. Unresolvable districts (J&K/Ladakh return no
   administrative components) keep a NULL `google_place_id` rather than a wrong one.
+
+### 12.46 District-admin vertical scope + invite lifecycle (migrations `0130` + `0131`)
+
+**Authority:** `monolith-breakdown.md` §1 (`admins` row), `web-portal.md` (unified district-admin
+creation), `user-interaction-workflow/seller/web-portal/district-admin-roster.md`,
+`server-gateway-plan.md` (portal identity writes).
+
+`0130` gives each `admins.district_admins` row a per-vertical scope so an admin can be granted exactly
+the verticals they run in their district; `0131` turns the login hand-over invite-driven — the creator
+mints the login in a pending state with a single-use, time-bound token and the invitee sets their own
+password. Cardinality is unchanged: `district_admins.district_code` is still a plain FK (not unique),
+so a district can have several admins.
+
+```sql
+-- 0130: per-vertical access, defaults TRUE so pre-0130 rows keep their current access
+alter table admins.district_admins
+  add column if not exists mart_access   boolean not null default true,
+  add column if not exists food_access   boolean not null default true,
+  add column if not exists pharma_access boolean not null default true;
+create index district_admins_vertical_idx
+  on admins.district_admins (district_code, mart_access, food_access, pharma_access)
+  where district_code is not null;
+
+-- 0131: invite lifecycle for a DISTRICT_ADMIN portal login (token stored hashed, mirroring 0098)
+alter table admins.portal_users
+  add column if not exists invite_status text not null default 'active'
+    check (invite_status in ('pending', 'active', 'expired')),
+  add column if not exists invite_token_hash text,
+  add column if not exists invite_expires_at timestamptz;
+create unique index portal_users_invite_token_uniq
+  on admins.portal_users (invite_token_hash) where invite_token_hash is not null;
+update admins.portal_users set invite_status = 'active'
+ where invite_status <> 'active' and deleted_at is null;   -- existing logins keep working
+```
+
+- **Vertical scope** is written by `POST /district-admins` and `PUT /district-admins/{id}` (nil/false
+  defaults grant every vertical for older portal builds) and read back on `GET /district-admins`
+  (`martAccess`/`foodAccess`/`pharmaAccess`). At portal sign-in the flags are minted into the access
+  token as `vertical_scoped` + `mart_access`/`food_access`/`pharma_access`, so the gateway enforces
+  them without a DB round-trip (`auth.CanAccessVertical` / `auth.AllowedVerticals`). A login with no
+  roster row (or a pre-0130 token) carries no scope claim and keeps full access.
+- **Invite state** lives on the login row, never on the roster row: `invite_status = 'pending'` with a
+  **SHA-256 `invite_token_hash`** (the raw capability token is returned once to the creator and never
+  stored or logged) and a 7-day `invite_expires_at`. A pending row carries a throwaway password hash so
+  it cannot authenticate; `portal.login` refuses a pending row with the same generic
+  `invalid_credentials` as a wrong password (no enumeration). Acceptance (`POST
+  /district-admins/accept-invite`) hashes the token, requires `pending` + unexpired + live, sets the
+  invitee's password, clears the token, and flips the row to `active` in one guarded update (a
+  concurrent second accept loses the race). A superadmin password reset supersedes an outstanding
+  invite (same columns cleared).
+- **Resend** (`POST /district-admins/{id}/resend-invite`) rotates hash + expiry for a still-pending
+  invite; the previous link stops working immediately.
 

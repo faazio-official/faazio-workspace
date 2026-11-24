@@ -55,6 +55,13 @@ type CreateParams struct {
 	StateCode    string // parent state, derived from DistrictCode (or legacy state scope)
 	IssueLogin   bool
 	Password     string
+	// InviteMode mints the DISTRICT_ADMIN login in a pending-invite state (single-use token, no
+	// temporary password) instead of requiring Password. Implies IssueLogin.
+	InviteMode bool
+	// Per-vertical scope for the roster row (0130).
+	MartAccess   bool
+	FoodAccess   bool
+	PharmaAccess bool
 }
 
 // CredentialDTO is the portal_users row emitted by a district-admin creation (never the hash/temp password).
@@ -67,18 +74,24 @@ type CredentialDTO struct {
 	StateCode    string `json:"stateCode,omitempty"`
 	Active       bool   `json:"active"`
 	MustChange   bool   `json:"mustChange"`
-	LastLoginAt  string `json:"lastLoginAt,omitempty"`
-	CreatedAt    string `json:"createdAt,omitempty"`
+	// InviteStatus is "pending" for an invite-mode login, "active" once accepted (0131).
+	InviteStatus    string `json:"inviteStatus,omitempty"`
+	InviteExpiresAt string `json:"inviteExpiresAt,omitempty"`
+	LastLoginAt     string `json:"lastLoginAt,omitempty"`
+	CreatedAt       string `json:"createdAt,omitempty"`
 }
 
 // CreateResult carries the roster row and, when a login was issued, the credential row. Warnings
 // are non-blocking soft notices (never 40x): a shared phone that already belongs to another seller
 // or roster row is allowed by policy, so the superadmin can still create and confirm the owner.
+// InviteToken is set only for an invite-mode create (returned once, never persisted).
 type CreateResult struct {
-	Admin       DistrictAdmin
-	Credential  CredentialDTO
-	LoginIssued bool
-	Warnings    []string
+	Admin           DistrictAdmin
+	Credential      CredentialDTO
+	LoginIssued     bool
+	InviteToken     string
+	InviteExpiresAt string
+	Warnings        []string
 }
 
 // Provisioner owns the unified district-admin creator: the roster + (optionally) the DISTRICT_ADMIN portal
@@ -96,10 +109,14 @@ func NewProvisioner(pool *db.Pool, hasher passwordHasher) *Provisioner {
 }
 
 // Create writes a roster row and, when IssueLogin is true, its DISTRICT_ADMIN portal login in one tx.
-// The temporary password is single-use (must_change locked true). Conflicts return a *ConflictError.
+// A password-mode login is single-use (must_change locked true). InviteMode instead mints a pending
+// invite with a one-time token and no temporary password. Conflicts return a *ConflictError.
 func (p *Provisioner) Create(ctx context.Context, in CreateParams) (CreateResult, error) {
 	if p.pool == nil {
 		return CreateResult{}, errors.New("admins: database not configured")
+	}
+	if in.InviteMode {
+		in.IssueLogin = true
 	}
 	if in.IssueLogin && p.hasher == nil {
 		return CreateResult{}, errors.New("admins: cannot issue a login without a password hasher")
@@ -126,13 +143,17 @@ func (p *Provisioner) Create(ctx context.Context, in CreateParams) (CreateResult
 	admin := DistrictAdmin{
 		AdminID: "adm-" + shortID(), Name: in.Name, Email: in.Email, Phone: in.PhoneDigits,
 		DistrictCode: in.DistrictCode, StateCode: in.StateCode,
+		MartAccess: in.MartAccess, FoodAccess: in.FoodAccess, PharmaAccess: in.PharmaAccess,
 	}
 	var createdAt, lastActive time.Time
 	if err := tx.QueryRow(ctx, `
-		insert into admins.district_admins (admin_id, name, email, phone, district_code, state_code, active)
-		values ($1,$2,$3,$4,$5,$6,true)
+		insert into admins.district_admins
+		  (admin_id, name, email, phone, district_code, state_code, active,
+		   mart_access, food_access, pharma_access)
+		values ($1,$2,$3,$4,$5,$6,true,$7,$8,$9)
 		returning active, created_at, last_active_at`,
-		admin.AdminID, admin.Name, admin.Email, admin.Phone, nullIfEmpty(admin.DistrictCode), nullIfEmpty(admin.StateCode)).
+		admin.AdminID, admin.Name, admin.Email, admin.Phone, nullIfEmpty(admin.DistrictCode), nullIfEmpty(admin.StateCode),
+		admin.MartAccess, admin.FoodAccess, admin.PharmaAccess).
 		Scan(&admin.Active, &createdAt, &lastActive); err != nil {
 		if conflict := rosterConstraintConflict(ctx, tx, in, err); conflict != nil {
 			return CreateResult{}, conflict
@@ -150,13 +171,38 @@ func (p *Provisioner) Create(ctx context.Context, in CreateParams) (CreateResult
 		return res, nil
 	}
 
-	// Hash binds the login. A hash failure happens BEFORE the portal_users insert, so the roster row
-	// created above rolls back with the tx — no orphan roster.
-	hash, err := p.hasher.Hash(in.Password)
-	if err != nil {
-		return CreateResult{}, fmt.Errorf("admins: password hash: %w", err)
+	var loginParams loginInsert
+	if in.InviteMode {
+		raw, hash, err := newInviteToken()
+		if err != nil {
+			return CreateResult{}, err
+		}
+		// The pending login has no usable password: hash a throwaway random secret nobody knows, so
+		// it cannot authenticate until the invite is accepted (which sets a real password).
+		placeholder, err := randomHex(24)
+		if err != nil {
+			return CreateResult{}, err
+		}
+		placeholderHash, err := p.hasher.Hash(placeholder)
+		if err != nil {
+			return CreateResult{}, fmt.Errorf("admins: password hash: %w", err)
+		}
+		expiresAt := time.Now().Add(InviteTTL)
+		loginParams = loginInsert{
+			Hash: placeholderHash, InviteTokenHash: hash, InviteExpiresAt: &expiresAt, PendingInvite: true,
+		}
+		res.InviteToken = raw
+		res.InviteExpiresAt = expiresAt.UTC().Format(time.RFC3339)
+	} else {
+		// Hash binds the login. A hash failure happens BEFORE the portal_users insert, so the roster
+		// row created above rolls back with the tx — no orphan roster.
+		hash, err := p.hasher.Hash(in.Password)
+		if err != nil {
+			return CreateResult{}, fmt.Errorf("admins: password hash: %w", err)
+		}
+		loginParams = loginInsert{Hash: hash}
 	}
-	cred, err := insertDistrictAdminLogin(ctx, tx, in, hash)
+	cred, err := insertDistrictAdminLogin(ctx, tx, in, loginParams)
 	if err != nil {
 		// Race: a portal login for this email appeared between the gate and the insert. The roster row
 		// in this tx rolls back; surface the real blocking identity.
@@ -275,9 +321,20 @@ func isUniqueViolation(err error) bool {
 	return errors.As(err, &pgErr) && pgErr.SQLState() == "23505"
 }
 
-// insertDistrictAdminLogin inserts the DISTRICT_ADMIN portal credential. must_change is locked true — the
-// temporary password is single-use by design (0034 keeps SUPER_ADMIN exempt; DISTRICT_ADMIN is not).
-func insertDistrictAdminLogin(ctx context.Context, tx pgx.Tx, in CreateParams, hash string) (CredentialDTO, error) {
+// loginInsert carries the columns insertDistrictAdminLogin varies between password mode and invite
+// mode. PendingInvite mints the row in invite_status='pending' with a hashed one-time token.
+type loginInsert struct {
+	Hash            string
+	InviteTokenHash string
+	InviteExpiresAt *time.Time
+	PendingInvite   bool
+}
+
+// insertDistrictAdminLogin inserts the DISTRICT_ADMIN portal credential. Password mode locks
+// must_change true (the temporary password is single-use by design; 0034 keeps SUPER_ADMIN exempt).
+// Invite mode instead stores invite_status='pending', a hashed one-time token and its expiry, with a
+// throwaway password hash so the row cannot authenticate until the invite is accepted.
+func insertDistrictAdminLogin(ctx context.Context, tx pgx.Tx, in CreateParams, li loginInsert) (CredentialDTO, error) {
 	userID, err := randomHex(12)
 	if err != nil {
 		return CredentialDTO{}, err
@@ -285,20 +342,41 @@ func insertDistrictAdminLogin(ctx context.Context, tx pgx.Tx, in CreateParams, h
 	userID = "pu-" + userID
 	var c CredentialDTO
 	var createdAt time.Time
+	var inviteStatus string
 	err = tx.QueryRow(ctx, `
 		insert into admins.portal_users
-		  (user_id, email, display_name, password_hash, role, active, must_change, district_code, state_code)
-		values ($1,$2,$3,$4,'DISTRICT_ADMIN',true,true,$5,$6)
-		returning user_id, email, display_name, role, active, must_change, created_at`,
-		userID, in.Email, in.Name, hash, nullIfEmpty(in.DistrictCode), nullIfEmpty(in.StateCode)).
-		Scan(&c.ID, &c.Email, &c.Name, &c.Role, &c.Active, &c.MustChange, &createdAt)
+		  (user_id, email, display_name, password_hash, role, active, must_change, district_code, state_code,
+		   invite_status, invite_token_hash, invite_expires_at)
+		values ($1,$2,$3,$4,'DISTRICT_ADMIN',true,true,$5,$6,$7,$8,$9)
+		returning user_id, email, display_name, role, active, must_change, invite_status, created_at`,
+		userID, in.Email, in.Name, li.Hash, nullIfEmpty(in.DistrictCode), nullIfEmpty(in.StateCode),
+		inviteStatusValue(li.PendingInvite), nullableString(li.InviteTokenHash), li.InviteExpiresAt).
+		Scan(&c.ID, &c.Email, &c.Name, &c.Role, &c.Active, &c.MustChange, &inviteStatus, &createdAt)
 	if err != nil {
 		return CredentialDTO{}, err
 	}
 	c.DistrictCode = in.DistrictCode
 	c.StateCode = in.StateCode
+	c.InviteStatus = inviteStatus
+	if li.InviteExpiresAt != nil {
+		c.InviteExpiresAt = li.InviteExpiresAt.UTC().Format(time.RFC3339)
+	}
 	c.CreatedAt = createdAt.UTC().Format(time.RFC3339)
 	return c, nil
+}
+
+func inviteStatusValue(pending bool) string {
+	if pending {
+		return "pending"
+	}
+	return "active"
+}
+
+func nullableString(v string) any {
+	if v == "" {
+		return nil
+	}
+	return v
 }
 
 // SetActive flips the roster flag and mirrors it onto the linked DISTRICT_ADMIN portal login (matched by
@@ -319,9 +397,11 @@ func (p *Provisioner) SetActive(ctx context.Context, adminID string, active bool
 	err = tx.QueryRow(ctx, `
 		update admins.district_admins set active = $2
 		 where admin_id = $1
-		 returning admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active, created_at, last_active_at`,
+		 returning admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active,
+		           mart_access, food_access, pharma_access, created_at, last_active_at`,
 		adminID, active).
-		Scan(&a.AdminID, &a.Name, &a.Email, &a.Phone, &a.DistrictCode, &a.StateCode, &a.Active, &createdAt, &lastActive)
+		Scan(&a.AdminID, &a.Name, &a.Email, &a.Phone, &a.DistrictCode, &a.StateCode, &a.Active,
+			&a.MartAccess, &a.FoodAccess, &a.PharmaAccess, &createdAt, &lastActive)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return DistrictAdmin{}, false, nil
 	}
@@ -371,6 +451,10 @@ type UpdateIdentityParams struct {
 	// Active, when set, is applied in the same transaction as the identity edit so a PUT carrying both
 	// can never commit a half-applied change.
 	Active *bool
+	// Per-vertical scope edits (0130). Nil leaves the current value unchanged.
+	MartAccess   *bool
+	FoodAccess   *bool
+	PharmaAccess *bool
 }
 
 // UpdateIdentity edits a district-admin roster row (name/email/phone/district) and keeps the linked
@@ -390,9 +474,11 @@ func (p *Provisioner) UpdateIdentity(ctx context.Context, adminID string, in Upd
 	var cur DistrictAdmin
 	var createdAt, lastActive time.Time
 	err = tx.QueryRow(ctx, `
-		select admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active, created_at, last_active_at
+		select admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active,
+		       mart_access, food_access, pharma_access, created_at, last_active_at
 		  from admins.district_admins where admin_id = $1 for update`, adminID).
-		Scan(&cur.AdminID, &cur.Name, &cur.Email, &cur.Phone, &cur.DistrictCode, &cur.StateCode, &cur.Active, &createdAt, &lastActive)
+		Scan(&cur.AdminID, &cur.Name, &cur.Email, &cur.Phone, &cur.DistrictCode, &cur.StateCode, &cur.Active,
+			&cur.MartAccess, &cur.FoodAccess, &cur.PharmaAccess, &createdAt, &lastActive)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return DistrictAdmin{}, false, nil
 	}
@@ -434,6 +520,16 @@ func (p *Provisioner) UpdateIdentity(ctx context.Context, adminID string, in Upd
 	if in.Active != nil {
 		active = *in.Active
 	}
+	martAccess, foodAccess, pharmaAccess := cur.MartAccess, cur.FoodAccess, cur.PharmaAccess
+	if in.MartAccess != nil {
+		martAccess = *in.MartAccess
+	}
+	if in.FoodAccess != nil {
+		foodAccess = *in.FoodAccess
+	}
+	if in.PharmaAccess != nil {
+		pharmaAccess = *in.PharmaAccess
+	}
 
 	oldEmail := cur.Email
 	if !strings.EqualFold(email, oldEmail) {
@@ -468,11 +564,14 @@ func (p *Provisioner) UpdateIdentity(ctx context.Context, adminID string, in Upd
 	var updated DistrictAdmin
 	err = tx.QueryRow(ctx, `
 		update admins.district_admins
-		   set name = $2, email = $3, phone = $4, district_code = nullif($5,''), state_code = $6, active = $7
+		   set name = $2, email = $3, phone = $4, district_code = nullif($5,''), state_code = $6, active = $7,
+		       mart_access = $8, food_access = $9, pharma_access = $10
 		 where admin_id = $1
-		 returning admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active, created_at, last_active_at`,
-		adminID, name, email, phone, districtCode, stateCode, active).
-		Scan(&updated.AdminID, &updated.Name, &updated.Email, &updated.Phone, &updated.DistrictCode, &updated.StateCode, &updated.Active, &createdAt, &lastActive)
+		 returning admin_id, name, email, phone, coalesce(district_code,''), coalesce(state_code,''), active,
+		           mart_access, food_access, pharma_access, created_at, last_active_at`,
+		adminID, name, email, phone, districtCode, stateCode, active, martAccess, foodAccess, pharmaAccess).
+		Scan(&updated.AdminID, &updated.Name, &updated.Email, &updated.Phone, &updated.DistrictCode, &updated.StateCode, &updated.Active,
+			&updated.MartAccess, &updated.FoodAccess, &updated.PharmaAccess, &createdAt, &lastActive)
 	if err != nil {
 		if isUniqueViolation(err) {
 			return DistrictAdmin{}, false, &ConflictError{Code: "email_has_district_roster", Message: "this email already belongs to another roster row"}

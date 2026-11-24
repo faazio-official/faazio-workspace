@@ -392,3 +392,54 @@ func TestEnforceSubUserReadOnly(t *testing.T) {
 		}
 	}
 }
+
+func verticalCtx(id Identity) context.Context {
+	return context.WithValue(context.Background(), identityKey{}, id)
+}
+
+func TestCanAccessVertical(t *testing.T) {
+	scoped := verticalCtx(Identity{
+		Role: RoleDistrictAdmin, DistrictCode: "TCH",
+		VerticalSet: true, MartAccess: true, FoodAccess: false, PharmaAccess: true,
+	})
+	cases := []struct {
+		name string
+		ctx  context.Context
+		vert string
+		want bool
+	}{
+		{"scoped mart allowed", scoped, VerticalMart, true},
+		{"scoped food denied", scoped, VerticalFood, false},
+		{"scoped pharma allowed", scoped, VerticalPharma, true},
+		{"unknown vertical not narrowed", scoped, "GROCERY", true},
+		{"super admin unrestricted", verticalCtx(Identity{Role: RoleSuperAdmin}), VerticalFood, true},
+		{"seller unrestricted", verticalCtx(Identity{Role: RoleSeller, SellerID: "slr-1"}), VerticalFood, true},
+		{"legacy district admin unrestricted", verticalCtx(Identity{Role: RoleDistrictAdmin, DistrictCode: "TCH"}), VerticalFood, true},
+		{"anonymous unrestricted", context.Background(), VerticalMart, true},
+	}
+	for _, tc := range cases {
+		if got := CanAccessVertical(tc.ctx, tc.vert); got != tc.want {
+			t.Errorf("%s: CanAccessVertical = %v, want %v", tc.name, got, tc.want)
+		}
+	}
+}
+
+func TestAllowedVerticals(t *testing.T) {
+	scoped := verticalCtx(Identity{
+		Role: RoleDistrictAdmin, DistrictCode: "TCH",
+		VerticalSet: true, MartAccess: true, FoodAccess: false, PharmaAccess: true,
+	})
+	got := AllowedVerticals(scoped)
+	if len(got) != 2 || got[0] != VerticalMart || got[1] != VerticalPharma {
+		t.Fatalf("AllowedVerticals = %v, want [MART PHARMA]", got)
+	}
+	if AllowedVerticals(context.Background()) != nil {
+		t.Fatal("anonymous caller must be unrestricted (nil)")
+	}
+	if !AllowsVertical(scoped, VerticalFood, VerticalPharma) {
+		t.Fatal("AllowsVertical should allow when any listed vertical is in scope")
+	}
+	if AllowsVertical(scoped, VerticalFood) {
+		t.Fatal("AllowsVertical should deny when no listed vertical is in scope")
+	}
+}

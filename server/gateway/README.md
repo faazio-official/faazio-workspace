@@ -72,7 +72,7 @@ CI runs the full suite with Postgres + Valkey service containers
 | `GET /stores?app=` · `GET /store/{id}` | — | directory |
 | `GET /stock/{productId}` | — | cartstock |
 | `GET/POST/PUT/DELETE /cart…` | ✔ | cartstock |
-| `GET/POST /orders`, `GET /profile`, `/profile/details`, `/membership`, `/order-status`, `/account-nav` | ✔ | checkout |
+| `GET/POST /orders`, `GET /profile`, `PUT /profile` (`{name}`), `/profile/details`, `/membership`, `/order-status`, `/account-nav` | ✔ | checkout |
 | `GET /product/{id}/reviews` · `GET /vendors/{id}/reviews` · `/summary` · `PUT /vendors/{id}/rating` | partly ✔ | reviews |
 | `POST /events` | ✔ | reco |
 | `POST /errors` | optional auth | errorsink |

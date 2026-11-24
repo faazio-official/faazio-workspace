@@ -71,6 +71,12 @@ type Identity struct {
 	// Phone is the verified `phone_number` claim of a Firebase ID token. Empty for portal/legacy
 	// tokens — a caller with an empty Phone has no server-verified phone, so OTPSigned rejects them.
 	Phone string
+	// Vertical scope (0130): only a DISTRICT_ADMIN portal login carries it. VerticalSet=false means
+	// the caller is unrestricted (every non-district-admin, and a pre-0130 district login).
+	VerticalSet  bool
+	MartAccess   bool
+	FoodAccess   bool
+	PharmaAccess bool
 }
 
 // UserResolver maps a verified auth subject (Firebase UID / legacy auth.uid) to an app user slug.
@@ -129,6 +135,10 @@ func Middleware(cfg Config) func(http.Handler) http.Handler {
 				id.Jti = claims.Jti
 				id.MustChange = claims.MustChange
 				id.Phone = claims.Phone
+				id.VerticalSet = claims.VerticalScoped
+				id.MartAccess = claims.MartAccess
+				id.FoodAccess = claims.FoodAccess
+				id.PharmaAccess = claims.PharmaAccess
 			}
 			if id.Portal && id.MustChange && id.Role != RoleSuperAdmin && !strings.HasPrefix(r.URL.Path, "/auth/portal/") {
 				w.Header().Set("Content-Type", "application/json; charset=utf-8")
@@ -369,6 +379,67 @@ func CanActForState(ctx context.Context, stateCode string) bool {
 	}
 }
 
+// Vertical constants (store/product `app` values and enquiry categories).
+const (
+	VerticalMart   = "MART"
+	VerticalFood   = "FOOD"
+	VerticalPharma = "PHARMA"
+)
+
+// CanAccessVertical reports whether the caller may act on the given vertical. Every caller except a
+// scoped DISTRICT_ADMIN is unrestricted; an unscoped district admin (legacy token / no roster row)
+// keeps full access. An unknown vertical is not narrowed (callers still enforce their own scope).
+func CanAccessVertical(ctx context.Context, vertical string) bool {
+	id, ok := ctx.Value(identityKey{}).(Identity)
+	if !ok || id.Role != RoleDistrictAdmin || !id.VerticalSet {
+		return true
+	}
+	switch strings.ToUpper(strings.TrimSpace(vertical)) {
+	case VerticalMart:
+		return id.MartAccess
+	case VerticalFood:
+		return id.FoodAccess
+	case VerticalPharma:
+		return id.PharmaAccess
+	default:
+		return true
+	}
+}
+
+// AllowedVerticals returns the verticals a scoped DISTRICT_ADMIN may act on. nil means unrestricted
+// (every other caller and a legacy district login) — callers treat nil as "no filter".
+func AllowedVerticals(ctx context.Context) []string {
+	id, ok := ctx.Value(identityKey{}).(Identity)
+	if !ok || id.Role != RoleDistrictAdmin || !id.VerticalSet {
+		return nil
+	}
+	out := make([]string, 0, 3)
+	if id.MartAccess {
+		out = append(out, VerticalMart)
+	}
+	if id.FoodAccess {
+		out = append(out, VerticalFood)
+	}
+	if id.PharmaAccess {
+		out = append(out, VerticalPharma)
+	}
+	return out
+}
+
+// AllowsVertical reports whether any one of a row's verticals (a seller can own shops in several
+// apps) is within the caller's scope. An empty list is treated as unrestricted.
+func AllowsVertical(ctx context.Context, verticals ...string) bool {
+	if len(verticals) == 0 {
+		return true
+	}
+	for _, v := range verticals {
+		if CanAccessVertical(ctx, v) {
+			return true
+		}
+	}
+	return false
+}
+
 // CanActForSellerDistrict is the district-precise predicate used by the sellers context. A district
 // admin with a district claim may only act on sellers in that district; a legacy state-scoped admin
 // (district claim empty) falls back to the state match. Super admins may act anywhere.
@@ -450,6 +521,12 @@ type jwtClaims struct {
 	} `json:"app_metadata"`
 	// MustChange confines a first-login portal session to the password-change routes.
 	MustChange bool `json:"must_change"`
+	// Vertical scope (0130): present only on a DISTRICT_ADMIN portal token minted after the flags
+	// shipped. Absent → unrestricted (legacy token).
+	VerticalScoped bool `json:"vertical_scoped"`
+	MartAccess     bool `json:"mart_access"`
+	FoodAccess     bool `json:"food_access"`
+	PharmaAccess   bool `json:"pharma_access"`
 	// Portal marks a gateway-native portal token (never serialized from the wire).
 	Portal bool `json:"-"`
 }

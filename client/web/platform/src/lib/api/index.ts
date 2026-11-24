@@ -55,6 +55,7 @@ import type {
   SduiSection,
   StoreRecord,
   DistrictAdmin,
+  DistrictAdminVerticalScope,
   SubUser,
   SubUserInvite,
   SubUserRole,
@@ -2670,20 +2671,32 @@ export function normalizePhoneDigits(raw: string): string {
   }
 }
 
-export interface CreateDistrictAdminInput {
+export interface CreateDistrictAdminInput extends DistrictAdminVerticalScope {
   name: string;
   email: string;
   phone: string;
   districtCode: string;
   issueLogin: boolean;
+  /** When true the server mints a single-use invite token instead of a temporary password. */
+  inviteMode?: boolean;
   password?: string | undefined;
 }
 
 export interface DistrictAdminCreateResult {
   admin: DistrictAdmin;
   credential?: PortalCredential | undefined;
+  /** One-time invite token (returned once on invite-mode create / resend; never persisted). */
+  inviteToken?: string | undefined;
+  /** When the pending invite link stops working. */
+  inviteExpiresAt?: string | undefined;
   /** Non-blocking soft notices from the server: a shared phone that already belongs to a seller/roster row. */
   warnings?: string[] | undefined;
+}
+
+/** Absolute URL of the public district-admin invite acceptance page for a one-time token. */
+export function districtAdminInviteUrl(token: string): string {
+  const origin = typeof window === "undefined" ? "" : window.location.origin;
+  return `${origin}/accept-invite/admin?token=${encodeURIComponent(token)}`;
 }
 
 /**
@@ -2698,6 +2711,8 @@ export async function createDistrictAdminWithLogin(
   const res = await remote.post<{
     admin: DistrictAdmin;
     credential?: PortalCredential;
+    inviteToken?: string;
+    inviteExpiresAt?: string;
     warnings?: string[];
   }>("/district-admins", {
     name: input.name,
@@ -2705,7 +2720,11 @@ export async function createDistrictAdminWithLogin(
     phone: input.phone,
     districtCode: input.districtCode,
     issueLogin: input.issueLogin,
-    ...(input.issueLogin ? { password: input.password } : {}),
+    inviteMode: input.inviteMode === true,
+    martAccess: input.martAccess,
+    foodAccess: input.foodAccess,
+    pharmaAccess: input.pharmaAccess,
+    ...(input.issueLogin && !input.inviteMode ? { password: input.password } : {}),
   });
   state().set((s) => ({
     districtAdmins: [res.admin, ...s.districtAdmins.filter((a) => a.adminId !== res.admin.adminId)],
@@ -2714,7 +2733,28 @@ export async function createDistrictAdminWithLogin(
   if (res.credential) {
     audit({ action: "PORTAL_USER_CREATE", entity: "admins.portal_users", entityId: res.credential.id, after: res.credential });
   }
-  return { admin: res.admin, credential: res.credential, warnings: res.warnings };
+  return {
+    admin: res.admin,
+    credential: res.credential,
+    inviteToken: res.inviteToken,
+    inviteExpiresAt: res.inviteExpiresAt,
+    warnings: res.warnings,
+  };
+}
+
+/**
+ * Rotate a pending district-admin invite's one-time link (`POST /district-admins/{id}/resend-invite`).
+ * The previous link stops working immediately; the new raw token is returned once.
+ */
+export async function resendDistrictAdminInvite(
+  adminId: string,
+): Promise<{ inviteToken: string; inviteExpiresAt?: string | undefined }> {
+  if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
+  const res = await remote.post<{ inviteToken: string; inviteExpiresAt?: string }>(
+    `/district-admins/${encodeURIComponent(adminId)}/resend-invite`,
+  );
+  audit({ action: "DISTRICT_ADMIN_INVITE_RESEND", entity: "admins.portal_users", entityId: adminId });
+  return { inviteToken: res.inviteToken, inviteExpiresAt: res.inviteExpiresAt };
 }
 
 export interface IdentityHint {
@@ -2792,6 +2832,9 @@ export async function updateDistrictAdmin(adminId: string, patch: Partial<Distri
   if (patch.phone !== undefined) body["phone"] = patch.phone;
   if (patch.districtCode !== undefined) body["districtCode"] = patch.districtCode;
   if (patch.active !== undefined) body["active"] = patch.active;
+  if (patch.martAccess !== undefined) body["martAccess"] = patch.martAccess;
+  if (patch.foodAccess !== undefined) body["foodAccess"] = patch.foodAccess;
+  if (patch.pharmaAccess !== undefined) body["pharmaAccess"] = patch.pharmaAccess;
   try {
     if (Object.keys(body).length > 0) {
       await writeAwaited("put", `/district-admins/${encodeURIComponent(adminId)}`, body);

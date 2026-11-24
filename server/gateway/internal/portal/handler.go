@@ -105,18 +105,20 @@ type changeEmailRequest struct {
 }
 
 type userDTO struct {
-	ID           string `json:"id"`
-	Email        string `json:"email"`
-	Name         string `json:"name"`
-	Role         string `json:"role"`
-	MustChange   bool   `json:"mustChange"`
-	Active       bool   `json:"active"`
-	SellerID     string `json:"sellerId,omitempty"`
-	StateCode    string `json:"stateCode,omitempty"`
-	DistrictCode string `json:"districtCode,omitempty"`
-	SubRole      string `json:"subRole,omitempty"`
-	LastLoginAt  string `json:"lastLoginAt,omitempty"`
-	CreatedAt    string `json:"createdAt,omitempty"`
+	ID              string `json:"id"`
+	Email           string `json:"email"`
+	Name            string `json:"name"`
+	Role            string `json:"role"`
+	MustChange      bool   `json:"mustChange"`
+	Active          bool   `json:"active"`
+	SellerID        string `json:"sellerId,omitempty"`
+	StateCode       string `json:"stateCode,omitempty"`
+	DistrictCode    string `json:"districtCode,omitempty"`
+	SubRole         string `json:"subRole,omitempty"`
+	InviteStatus    string `json:"inviteStatus,omitempty"`
+	InviteExpiresAt string `json:"inviteExpiresAt,omitempty"`
+	LastLoginAt     string `json:"lastLoginAt,omitempty"`
+	CreatedAt       string `json:"createdAt,omitempty"`
 	// DeletedAt marks a trashed credential (0128); PurgeAt is DeletedAt + the 7-day undo window, so
 	// the console can show "permanently deleted on …".
 	DeletedAt    string `json:"deletedAt,omitempty"`
@@ -145,7 +147,11 @@ func toUserDTO(u PortalUser) userDTO {
 		ID: u.UserID, Email: u.Email, Name: u.DisplayName, Role: u.Role,
 		MustChange: u.MustChange, Active: u.Active, SellerID: u.SellerID,
 		StateCode: u.StateCode, DistrictCode: u.DistrictCode, SubRole: u.SubRole,
-		LastLoginAt: lastLogin, CreatedAt: created, DeleteReason: u.DeleteReason,
+		InviteStatus: u.InviteStatus,
+		LastLoginAt:  lastLogin, CreatedAt: created, DeleteReason: u.DeleteReason,
+	}
+	if u.InviteExpiresAt != nil {
+		dto.InviteExpiresAt = u.InviteExpiresAt.UTC().Format(time.RFC3339)
 	}
 	if u.DeletedAt != nil {
 		dto.DeletedAt = u.DeletedAt.UTC().Format(time.RFC3339)
@@ -231,6 +237,14 @@ func (h *Handler) login(w http.ResponseWriter, r *http.Request) {
 	if !user.Active {
 		h.hasher.VerifyDummy(req.Password)
 		h.record(r, "PORTAL_LOGIN_FAIL", user.UserID, user.Role, ipHash, "inactive")
+		httpx.Fail(w, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
+		return
+	}
+	// A pending invite has no usable password yet — the invitee must accept the link to set one.
+	// Same generic response, so a pending row is not distinguishable from a wrong password.
+	if user.InviteStatus == "pending" {
+		h.hasher.VerifyDummy(req.Password)
+		h.record(r, "PORTAL_LOGIN_FAIL", user.UserID, user.Role, ipHash, "invite_pending")
 		httpx.Fail(w, http.StatusUnauthorized, "invalid_credentials", "invalid email or password")
 		return
 	}
@@ -424,7 +438,17 @@ const sessionsNew = ""
 // absoluteExpires is the family's hard cap — set to now+RefreshAbsoluteTTL on login and preserved
 // on every rotation so the cap never grows. ipHash/uaHash are one-way fingerprints, never raw PII.
 func (h *Handler) issue(r *http.Request, user PortalUser, familyID, refreshRaw, refreshHash string, refreshExpires, absoluteExpires time.Time, ipHash, uaHash string) (tokenDTO, error) {
-	access, _, _, err := h.minter.MintAccess(user.UserID, user.Role, user.SellerID, user.DistrictCode, user.StateCode, user.SubRole, user.MustChange)
+	// A district admin carries its 0130 vertical scope in the token so every context can enforce it
+	// without a DB round-trip. A missing roster row leaves Scoped=false (full access, legacy).
+	var vertical VerticalScope
+	if user.Role == auth.RoleDistrictAdmin {
+		mart, food, pharma, scoped, err := h.repo.DistrictVerticalScope(r.Context(), user.Email, user.DistrictCode)
+		if err != nil {
+			return tokenDTO{}, err
+		}
+		vertical = VerticalScope{Scoped: scoped, Mart: mart, Food: food, Pharma: pharma}
+	}
+	access, _, _, err := h.minter.MintAccess(user.UserID, user.Role, user.SellerID, user.DistrictCode, user.StateCode, user.SubRole, user.MustChange, vertical)
 	if err != nil {
 		return tokenDTO{}, err
 	}

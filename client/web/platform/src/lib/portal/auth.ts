@@ -281,3 +281,12 @@ export async function changePortalEmail(
 export async function acceptSubUserInvite(token: string, password: string): Promise<void> {
   await call("/api/auth/portal/accept-invite", "POST", { token, password });
 }
+
+/**
+ * Accepts a district-admin invite: consumes the one-time token and sets the invitee's password so
+ * the DISTRICT_ADMIN login becomes active. Public (the invitee has no session yet) — same-origin
+ * proxy, no portal cookie required. The admin then signs in normally at /login.
+ */
+export async function acceptDistrictAdminInvite(token: string, password: string): Promise<void> {
+  await call("/api/auth/portal/accept-admin-invite", "POST", { token, password });
+}

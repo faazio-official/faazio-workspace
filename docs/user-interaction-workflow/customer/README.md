@@ -8,7 +8,7 @@
 `Notifications`, `SavedAddresses`, `UserDetails`, `FaazioRewards`, `PrescriptionFlow`,
 `MedicalShopDetails`, `BloodDonor*`, `SellWithUs`, `SellerRequests`, `SellerRequestDetail`,
 `SellerPlatformFeeRequest`, `FeeChangeRequests`, `RateVendor`, `DeleteAccount`,
-`RequestDataDeletion`, `Theme`, `PaymentOptions` (registered, unused), `PaymentCallback`,
+`RequestDataDeletion`, `Theme`, `PaymentCallback`,
 `ActiveCall` (masked call to the delivery partner).
 
 **State:** `src/state/` (auth, cart, favorite, orders, rewards, location, addresses, serviceability,
@@ -71,9 +71,8 @@ Domain indexes are the entry point for each area; every flow page is linked from
 
 ## Known gaps
 
-See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Customer-specific gaps currently include the dead
-`PaymentOptions` route registration, the unreachable `Checkout` button in `SubAppWrapper`, the
-invoice-PDF stub, the root `Search` `FOOD` config mismatch, the `@mock` self-pickup resolver, and
+See [`../KNOWN_GAPS.md`](../KNOWN_GAPS.md). Customer-specific gaps currently include the
+invoice-PDF stub, the `@mock` self-pickup resolver, and
 **calling is end-to-end on Android, with the iOS PushKit/CallKit ring implemented but not yet
 verified on a device**: the customer-initiated server endpoint and the APNs VoIP push sender exist,
 while the PSTN provider bridge is unprovisioned

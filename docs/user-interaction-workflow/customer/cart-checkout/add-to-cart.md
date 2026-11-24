@@ -58,8 +58,6 @@
   opening the add-on sheet; the picker is wired on the restaurant menu + restaurant profile, where
   dish → venue is known. Add-ons remain optional (a dish with extras can still be added directly from
   search, just without extras).
-- `SubAppWrapper` has an unreachable fallback "Checkout" button with no `onPress`
-  (`components/SubAppWrapper.tsx`). See [`../../KNOWN_GAPS.md`](../../KNOWN_GAPS.md).
 
 ## Linked docs
 

@@ -983,3 +983,20 @@ func scanSellerProducts(rows pgx.Rows) ([]SellerProduct, error) {
 	}
 	return out, rows.Err()
 }
+
+// ProductApp returns a product's vertical so a scoped district admin's moderation can be checked
+// before any write. ok=false when the product is absent.
+func (r *Repo) ProductApp(ctx context.Context, id string) (string, bool, error) {
+	if r.pool == nil {
+		return "", false, fmt.Errorf("catalog: database not configured")
+	}
+	var app string
+	err := r.pool.QueryRow(ctx, `select app::text from catalog.products where id = $1`, id).Scan(&app)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, err
+	}
+	return app, true, nil
+}

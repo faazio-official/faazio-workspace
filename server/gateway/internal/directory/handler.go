@@ -642,6 +642,11 @@ func (h *Handler) setStoreFee(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "vendor not found")
 		return
 	}
+	// Vertical scope (0130): a district admin may only touch vendors in the verticals they manage.
+	if !auth.CanAccessVertical(r.Context(), app) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "vendor not found")
+		return
+	}
 	if !validVendorFee(app, body.PlatformFeePct) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "platform fee is outside the allowed range for this app")
 		return
@@ -718,6 +723,17 @@ func (h *Handler) setStoreLive(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusForbidden, "forbidden", "no store scope on this account")
 		return
 	}
+	// Vertical scope (0130) is checked against the stored row before the write.
+	if app, found, appErr := h.repo.StoreApp(r.Context(), id, sellerID, district); appErr != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	} else if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "store not found")
+		return
+	} else if !auth.CanAccessVertical(r.Context(), app) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "store not found")
+		return
+	}
 	store, ok, err := h.repo.SetStoreLive(r.Context(), id, sellerID, district, *body.Live)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
@@ -762,6 +778,17 @@ func (h *Handler) setStoreCover(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.ImageKey != nil {
 		imageKey = strings.TrimSpace(*body.ImageKey)
+	}
+	// Vertical scope (0130) is checked against the stored store before the cover is linked.
+	if app, found, appErr := h.repo.StoreApp(r.Context(), id, sellerID, district); appErr != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
+		return
+	} else if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "store not found")
+		return
+	} else if !auth.CanAccessVertical(r.Context(), app) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "store not found")
+		return
 	}
 	key, linkedID, ok := h.resolveImageLink(w, r, assetID, imageKey, auth.IsAdmin(r.Context()))
 	if !ok {
