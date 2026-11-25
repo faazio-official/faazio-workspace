@@ -12,8 +12,9 @@ page, or clicks **Assign admin** / the empty-roster CTA on a district drill-down
 
 1. **Roster read.** The page loads `GET /district-admins` (every district; the store is also hydrated
    at login) and `GET /admin/portal-users` (the logins, for the invite/lifecycle badges and the
-   pre-submit one-person-one-role lint). A district filter chip + search narrow the table; the coverage
-   bar follows the selected district (`covered / selected`) instead of a hardcoded district.
+   pre-submit one-person-one-role lint). A **state** filter (`All states` default) + search narrow the
+   table; the coverage bar follows the selected state (`covered / districts-in-state`) instead of a
+   hardcoded district.
 2. **Assign.** *Assign admin* opens the drawer. From the roster page the district picker is free (a
    searchable list); from a drill-down the district is locked to the URL's `code`, and an uncovered-
    district chip opens it locked to that district.
@@ -43,7 +44,7 @@ page, or clicks **Assign admin** / the empty-roster CTA on a district drill-down
 
 - `useDistrictAdmins()` — the roster slice (refreshed from `GET /district-admins` on mount).
 - `listPortalCredentials()` — local `creds` state for the login badges + duplicate lint.
-- Page-local: `query`, `districtFilter`, `lockedDistrict`, `drawerOpen`, `editing`/`draft` (edit
+- Page-local: `query`, `stateFilter`, `lockedDistrict`, `drawerOpen`, `editing`/`draft` (edit
   sheet), `resending`.
 - Drawer-local: `mode`, form fields, `created` (the one-time invite link / temp password), errors.
 

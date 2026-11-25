@@ -81,7 +81,10 @@ same card under **Seller login** — identical copy/WhatsApp hand-over.
   rollback on failure; it returns the parsed `credential` (or `null` in seed mode).
 - `creds` on `/admin/super/credentials` is the live `GET /admin/portal-users` list (trashed rows
   excluded) and `trashed` is `GET /admin/portal-users/trash`; `useSellers()` supplies the business
-  name. The board filters by role (Sellers / District admins / Super admins / All) and by Deleted.
+  name. The board filters by role (Sellers / District admins / Super admins / All) and by Deleted, has
+  a search box (name, email, role or scope), and — on the Seller tab — a **state + district** filter;
+  the District-admin tab shows a **state** filter only. A seller login's state/district resolve through
+  its `sellerId` on the seller row; a district-admin login's state resolves from its district master.
 
 ## Data path
 

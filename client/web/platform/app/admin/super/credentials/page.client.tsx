@@ -47,7 +47,7 @@ import {
 } from "@/components/ui/table";
 import { formatDateTime } from "@/lib/format";
 import { ApiError } from "@/lib/api/http";
-import { useSellers } from "@/lib/api/hooks";
+import { useSellers, useStates } from "@/lib/api/hooks";
 import {
   createPortalCredential,
   deletePortalCredential,
@@ -98,6 +98,7 @@ function roleLabel(role: Role): string {
 function CredentialsPage() {
   const sellers = useSellers();
   const districts = useDistricts();
+  const states = useStates();
   const [creds, setCreds] = useState<PortalCredential[]>([]);
   const [trashed, setTrashed] = useState<PortalCredential[]>([]);
   const [loading, setLoading] = useState(true);
@@ -105,6 +106,9 @@ function CredentialsPage() {
 
   const [tab, setTab] = useState<RoleTab>("SELLER");
   const [showTrash, setShowTrash] = useState(false);
+  const [query, setQuery] = useState("");
+  const [stateFilter, setStateFilter] = useState("ALL");
+  const [districtFilter, setDistrictFilter] = useState("ALL");
 
   const [createOpen, setCreateOpen] = useState(false);
   const [form, setForm] = useState<CreatePortalCredentialInput>({
@@ -193,6 +197,46 @@ function CredentialsPage() {
     [trashed, tab],
   );
   const rows = showTrash ? visibleTrash : visible;
+
+  // Scope joins: a seller login carries a sellerId (state/district live on the seller row); a
+  // district-admin login carries a districtCode (its parent state comes from the district master).
+  const sellerById = useMemo(() => new Map(sellers.map((s) => [s.sellerId, s] as const)), [sellers]);
+  const districtState = useMemo(
+    () => new Map(districts.map((d) => [d.districtCode, d.stateCode] as const)),
+    [districts],
+  );
+  const stateOf = useCallback(
+    (c: PortalCredential): string | undefined => {
+      if (c.role === "SELLER") return c.sellerId ? sellerById.get(c.sellerId)?.stateCode : undefined;
+      return (c.districtCode ? districtState.get(c.districtCode) : undefined) ?? c.stateCode;
+    },
+    [sellerById, districtState],
+  );
+  const districtOf = useCallback(
+    (c: PortalCredential): string | undefined =>
+      c.role === "SELLER" ? (c.sellerId ? sellerById.get(c.sellerId)?.districtCode : undefined) : c.districtCode,
+    [sellerById],
+  );
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return rows.filter((c) => {
+      if (tab === "SELLER") {
+        if (stateFilter !== "ALL" && stateOf(c) !== stateFilter) return false;
+        if (districtFilter !== "ALL" && districtOf(c) !== districtFilter) return false;
+      } else if (tab === "DISTRICT_ADMIN") {
+        if (stateFilter !== "ALL" && stateOf(c) !== stateFilter) return false;
+      }
+      if (!q) return true;
+      return (
+        c.name.toLowerCase().includes(q) ||
+        c.email.toLowerCase().includes(q) ||
+        roleLabel(c.role).toLowerCase().includes(q) ||
+        scopeLabel(c).toLowerCase().includes(q)
+      );
+    });
+  }, [rows, query, tab, stateFilter, districtFilter, stateOf, districtOf]);
+  const filtersActive = Boolean(query.trim()) || stateFilter !== "ALL" || districtFilter !== "ALL";
 
   const counts = useMemo(() => {
     const live = { SELLER: 0, DISTRICT_ADMIN: 0, SUPER_ADMIN: 0 } as Record<string, number>;
@@ -364,7 +408,11 @@ function CredentialsPage() {
                   : `${option.label}${counts[option.value] ? ` · ${counts[option.value]}` : ""}`
               }
               active={tab === option.value}
-              onClick={() => setTab(option.value)}
+              onClick={() => {
+                setTab(option.value);
+                setStateFilter("ALL");
+                setDistrictFilter("ALL");
+              }}
             />
           ))}
           <span aria-hidden className="mx-1 h-4 w-px bg-border" />
@@ -380,12 +428,64 @@ function CredentialsPage() {
           </span>
         </div>
 
+        <div className="flex flex-wrap items-center gap-2 border-b border-border p-3">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search by name, email or scope..."
+            className="h-8 w-64 text-[12px]"
+            aria-label="Search credentials"
+          />
+          {tab === "SELLER" || tab === "DISTRICT_ADMIN" ? (
+            <Select value={stateFilter} onValueChange={setStateFilter}>
+              <SelectTrigger className="h-8 w-44 text-[12px]">
+                <SelectValue placeholder="State" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All states</SelectItem>
+                {states.map((s) => (
+                  <SelectItem key={s.stateCode} value={s.stateCode}>
+                    {s.stateCode} · {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+          {tab === "SELLER" ? (
+            <Select value={districtFilter} onValueChange={setDistrictFilter}>
+              <SelectTrigger className="h-8 w-48 text-[12px]">
+                <SelectValue placeholder="District" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL">All districts</SelectItem>
+                {districts
+                  .filter((d) => stateFilter === "ALL" || d.stateCode === stateFilter)
+                  .map((d) => (
+                    <SelectItem key={d.districtCode} value={d.districtCode}>
+                      {d.districtCode} · {d.name}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          ) : null}
+          {filtersActive ? (
+            <span className="num text-[11px] text-muted-foreground">
+              {filtered.length} of {rows.length} shown
+            </span>
+          ) : null}
+        </div>
+
         <DataShell
           loading={loading}
           error={error ?? undefined}
-          isEmpty={rows.length === 0}
+          isEmpty={filtered.length === 0}
           empty={
-            showTrash ? (
+            filtersActive ? (
+              <EmptyState
+                title="No matching credentials"
+                description="Try a different search, state or district, or clear the filters."
+              />
+            ) : showTrash ? (
               <EmptyState
                 title="Nothing deleted"
                 description="Deleted logins appear here for 7 days so a mistake can be undone."
@@ -428,7 +528,7 @@ function CredentialsPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((c) => (
+              {filtered.map((c) => (
                 <TableRow key={c.id} className="h-12">
                   <TableCell className="text-[13px] font-medium">{roleLabel(c.role)}</TableCell>
                   <TableCell className="num text-[12px]">{scopeLabel(c)}</TableCell>

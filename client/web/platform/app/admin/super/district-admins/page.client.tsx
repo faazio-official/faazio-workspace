@@ -57,7 +57,7 @@ import {
   resendDistrictAdminInvite,
   updateDistrictAdmin,
 } from "@/lib/api";
-import { usePortalLoading, useSellers, useDistrictAdmins, useDistricts } from "@/lib/api/hooks";
+import { usePortalLoading, useSellers, useDistrictAdmins, useDistricts, useStates } from "@/lib/api/hooks";
 import { usePortalStore } from "@/lib/api/store";
 import { districtName } from "@/lib/api/reference";
 import { DistrictAdminDrawer, VerticalAccessBadges } from "@/components/admin/DistrictAdminDrawer";
@@ -71,6 +71,7 @@ function DistrictAdminAccounts() {
   const admins = useDistrictAdmins();
   const sellers = useSellers();
   const districts = useDistricts();
+  const states = useStates();
   const [creds, setCreds] = useState<PortalCredential[]>([]);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [editing, setEditing] = useState<DistrictAdmin | null>(null);
@@ -84,7 +85,7 @@ function DistrictAdminAccounts() {
     pharmaAccess: true,
   });
   const [query, setQuery] = useState("");
-  const [districtFilter, setDistrictFilter] = useState<string>(ALL);
+  const [stateFilter, setStateFilter] = useState<string>(ALL);
   // A chip on the uncovered list (or the drilldown) locks the drawer to one district; the header
   // button opens it unlocked so the picker inside can target any district.
   const [lockedDistrict, setLockedDistrict] = useState<string | undefined>(undefined);
@@ -123,10 +124,19 @@ function DistrictAdminAccounts() {
   const loginByEmail = (email: string) =>
     creds.find((c) => c.role === "DISTRICT_ADMIN" && c.email.toLowerCase() === email.toLowerCase());
 
+  // District → parent state, so the roster and coverage can be scoped by state.
+  const districtState = useMemo(
+    () => new Map(districts.map((d) => [d.districtCode, d.stateCode] as const)),
+    [districts],
+  );
+
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
     return admins.filter((a) => {
-      if (districtFilter !== ALL && a.districtCode !== districtFilter) return false;
+      if (stateFilter !== ALL) {
+        const adminState = districtState.get(a.districtCode) ?? a.stateCode;
+        if (adminState !== stateFilter) return false;
+      }
       if (!q) return true;
       return (
         a.name.toLowerCase().includes(q) ||
@@ -134,14 +144,14 @@ function DistrictAdminAccounts() {
         (a.districtCode ?? "").toLowerCase().includes(q)
       );
     });
-  }, [admins, query, districtFilter]);
+  }, [admins, query, stateFilter, districtState]);
 
-  // Coverage: every active district that has at least one active admin. It follows the district
-  // filter, so picking one district reports that district's own coverage rather than the platform's.
+  // Coverage: every active district that has at least one active admin. It follows the state
+  // filter, so picking one state reports that state's own coverage rather than the platform's.
   const coveredCodes = new Set(admins.filter((a) => a.active && a.districtCode).map((a) => a.districtCode));
   const activeDistricts = districts.length > 0 ? districts : [];
   const scopedDistricts =
-    districtFilter === ALL ? activeDistricts : activeDistricts.filter((d) => d.districtCode === districtFilter);
+    stateFilter === ALL ? activeDistricts : activeDistricts.filter((d) => d.stateCode === stateFilter);
   const covered = scopedDistricts.filter((d) => coveredCodes.has(d.districtCode)).length;
   const uncovered = scopedDistricts.filter((d) => !coveredCodes.has(d.districtCode));
   const totalDistricts = scopedDistricts.length;
@@ -151,7 +161,8 @@ function DistrictAdminAccounts() {
     return (a.inviteStatus ?? login?.inviteStatus) === "pending";
   }).length;
   const coveragePct = totalDistricts ? Math.round((covered / totalDistricts) * 100) : 0;
-  const scopeLabel = districtFilter === ALL ? null : districtName(districts, districtFilter);
+  const scopeLabel =
+    stateFilter === ALL ? null : (states.find((s) => s.stateCode === stateFilter)?.name ?? null);
 
   function openEdit(admin: DistrictAdmin) {
     setDraft({
@@ -207,7 +218,7 @@ function DistrictAdminAccounts() {
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-[13px] font-medium">
             <span className="num">{covered}</span> / {totalDistricts}{" "}
-            {districtFilter === ALL ? "district" : "selected district"} coverage
+            {stateFilter === ALL ? "district" : "state"} coverage
             {scopeLabel ? <span className="ml-1.5 text-[12px] text-muted-foreground">{scopeLabel}</span> : null}
           </p>
           <p className="num text-[12px] text-muted-foreground">
@@ -233,7 +244,7 @@ function DistrictAdminAccounts() {
               type="button"
               title={`Assign an admin for ${d.name}`}
               onClick={() => {
-                setDistrictFilter(d.districtCode);
+                setStateFilter(d.stateCode);
                 setLockedDistrict(d.districtCode);
                 setDrawerOpen(true);
               }}
@@ -250,19 +261,19 @@ function DistrictAdminAccounts() {
 
       <SectionCard
         title="Admin roster"
-        description={query || districtFilter !== ALL ? `${filtered.length} of ${admins.length} admins` : undefined}
+        description={query || stateFilter !== ALL ? `${filtered.length} of ${admins.length} admins` : undefined}
         bodyClassName="p-0"
         actions={
           <div className="flex items-center gap-1.5">
-            <Select value={districtFilter} onValueChange={setDistrictFilter}>
-              <SelectTrigger className="h-8 w-52 text-[12px]">
+            <Select value={stateFilter} onValueChange={setStateFilter}>
+              <SelectTrigger className="h-8 w-48 text-[12px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value={ALL}>All districts</SelectItem>
-                {districts.map((d) => (
-                  <SelectItem key={d.districtCode} value={d.districtCode}>
-                    {d.districtCode} · {d.name}
+                <SelectItem value={ALL}>All states</SelectItem>
+                {states.map((s) => (
+                  <SelectItem key={s.stateCode} value={s.stateCode}>
+                    {s.stateCode} · {s.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -283,10 +294,10 @@ function DistrictAdminAccounts() {
           isEmpty={filtered.length === 0}
           empty={
             <EmptyState
-              title={query || districtFilter !== ALL ? "No matching admins" : "No admins yet"}
+              title={query || stateFilter !== ALL ? "No matching admins" : "No admins yet"}
               description={
-                query || districtFilter !== ALL
-                  ? "Try a different name, email, district or clear the filter."
+                query || stateFilter !== ALL
+                  ? "Try a different name, email, state or clear the filter."
                   : "Assign the first district admin to cover KYC and campaigns."
               }
             />
