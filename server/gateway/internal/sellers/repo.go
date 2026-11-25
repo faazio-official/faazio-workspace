@@ -631,7 +631,7 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 		for _, p := range v.ShopPhotos {
 			photoIDs = append(photoIDs, p.AssetID)
 		}
-		var photoKeys []string
+		var photoKeys = make([]string, 0, len(v.ShopPhotos))
 		if len(photoIDs) > 0 {
 			photoKeys, err = claimShopPhotos(ctx, tx, photos, photoIDs, created.SellerID)
 			if err != nil {
