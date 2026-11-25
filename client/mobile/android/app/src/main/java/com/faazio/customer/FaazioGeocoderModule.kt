@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.location.Geocoder
 import android.location.LocationManager
+import android.provider.Settings
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -57,11 +58,15 @@ class FaazioGeocoderModule(reactContext: ReactApplicationContext) :
   }
 
   /**
-   * When the OS Location master switch is off, show Android's own "Turn on location" dialog
-   * (Play Services resolution, not a permission prompt). Resolves:
+   * When the OS Location master switch is off, show Android's own Google-Maps-style "Turn on
+   * location" dialog (Play Services resolution, not a permission prompt). Resolves:
    * - `"enabled"` — location is on afterwards;
-   * - `"cancelled"` — the user dismissed the system dialog and it is still off;
-   * - `"unavailable"` — no Activity / the dialog could not be launched.
+   * - `"cancelled"` — the user dismissed the prompt/screen and it is still off;
+   * - `"unavailable"` — no Activity, so no prompt could be launched.
+   *
+   * When Play Services cannot show its dialog (e.g. OEM builds such as Huawei/EMUI that block the
+   * resolution activity) this falls back to opening the system Location screen directly, so the
+   * user enables location in one tap and the pending promise resolves automatically on return.
    *
    * The app's runtime permission is requested separately by JS first, so by the time this runs the
    * grant is settled and Play Services is never permission-ambiguous.
@@ -77,7 +82,7 @@ class FaazioGeocoderModule(reactContext: ReactApplicationContext) :
       promise.resolve("unavailable")
       return
     }
-    // Ignore a duplicate tap while the system dialog is already up.
+    // Ignore a duplicate tap while a system prompt/screen is already up.
     if (pendingEnableLocation != null) {
       promise.resolve("cancelled")
       return
@@ -93,20 +98,45 @@ class FaazioGeocoderModule(reactContext: ReactApplicationContext) :
         .setAlwaysShow(true)
         .build()
 
-    LocationServices.getSettingsClient(reactApplicationContext)
-      .checkLocationSettings(settingsRequest)
-      .addOnSuccessListener { resolveEnableLocation("enabled") }
-      .addOnFailureListener { error ->
-        if (error is ResolvableApiException) {
-          try {
-            error.startResolutionForResult(activity, ENABLE_LOCATION_REQUEST)
-            return@addOnFailureListener
-          } catch (ignored: Exception) {
-            // Fall through: no resolvable activity, report the current state.
+    try {
+      LocationServices.getSettingsClient(reactApplicationContext)
+        .checkLocationSettings(settingsRequest)
+        .addOnSuccessListener {
+          // Play Services can believe the settings are satisfied while the platform providers are
+          // still off (seen on some OEM builds) — trust the actual provider state.
+          if (locationServicesEnabled()) {
+            resolveEnableLocation("enabled")
+          } else {
+            openLocationSettingsScreen(activity)
           }
         }
-        resolveEnableLocation(if (locationServicesEnabled()) "enabled" else "unavailable")
-      }
+        .addOnFailureListener { error ->
+          if (error is ResolvableApiException) {
+            try {
+              // The system "Turn on location" dialog, one tap, exactly like Google Maps.
+              error.startResolutionForResult(activity, ENABLE_LOCATION_REQUEST)
+              return@addOnFailureListener
+            } catch (ignored: Exception) {
+              // Fall through to the direct system Location screen.
+            }
+          }
+          openLocationSettingsScreen(activity)
+        }
+    } catch (error: Exception) {
+      openLocationSettingsScreen(activity)
+    }
+  }
+
+  /** Fallback when Play Services cannot show its dialog: open the OS Location screen. */
+  private fun openLocationSettingsScreen(activity: Activity) {
+    try {
+      activity.startActivityForResult(
+        Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS),
+        OPEN_LOCATION_SETTINGS_REQUEST,
+      )
+    } catch (ignored: Exception) {
+      resolveEnableLocation(if (locationServicesEnabled()) "enabled" else "unavailable")
+    }
   }
 
   private fun resolveEnableLocation(status: String) {
@@ -121,8 +151,10 @@ class FaazioGeocoderModule(reactContext: ReactApplicationContext) :
     resultCode: Int,
     data: Intent?,
   ) {
-    if (requestCode != ENABLE_LOCATION_REQUEST) return
-    // The dialog's result code is not authoritative; read the provider state directly.
+    if (requestCode != ENABLE_LOCATION_REQUEST && requestCode != OPEN_LOCATION_SETTINGS_REQUEST) {
+      return
+    }
+    // The dialog/screen's result code is not authoritative; read the provider state directly.
     resolveEnableLocation(if (locationServicesEnabled()) "enabled" else "cancelled")
   }
 
@@ -211,5 +243,6 @@ class FaazioGeocoderModule(reactContext: ReactApplicationContext) :
 
   private companion object {
     const val ENABLE_LOCATION_REQUEST = 0x4A21
+    const val OPEN_LOCATION_SETTINGS_REQUEST = 0x4A22
   }
 }

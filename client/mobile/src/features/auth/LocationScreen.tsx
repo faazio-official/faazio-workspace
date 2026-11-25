@@ -227,7 +227,6 @@ export function LocationScreen({ navigation }: Props) {
   const [permissionError, setPermissionError] = useState('');
   const [manualError, setManualError] = useState('');
   const [placesRetry, setPlacesRetry] = useState(0);
-  const [hasDismissedSystemLocationDialog, setHasDismissedSystemLocationDialog] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
   const [awaitingSettingsReturn, setAwaitingSettingsReturn] = useState(false);
   const checkServiceability = useServiceabilityStore((s) => s.check);
@@ -240,24 +239,12 @@ export function LocationScreen({ navigation }: Props) {
   } = usePlaceAutocomplete(searchQuery, liveOrigin, placesRetry);
 
   const useMyLocation = useCallback(
-    async (force = false) => {
+    async () => {
       setPermissionError('');
       setManualError('');
 
       // iOS's global Location Services switch has no in-app prompt — explain and send to Settings.
       if (Platform.OS === 'ios' && !(await isLocationServicesEnabled())) {
-        setShowLocationModal(true);
-        return;
-      }
-
-      // Android: once the user has dismissed the system "turn on location" dialog, don't silently
-      // re-fire it from the primary button. Explain first; the modal's Continue forces a retry.
-      if (
-        !force &&
-        Platform.OS === 'android' &&
-        hasDismissedSystemLocationDialog &&
-        !(await isLocationServicesEnabled())
-      ) {
         setShowLocationModal(true);
         return;
       }
@@ -270,8 +257,11 @@ export function LocationScreen({ navigation }: Props) {
         setRequested(false);
       }
       if (result === 'services-off') {
-        // The OS enable dialog was cancelled. No red error — the next tap explains via the modal.
-        setHasDismissedSystemLocationDialog(true);
+        // Android's native flow already showed the system "Turn on location" dialog (or opened the
+        // Location screen). Still off means the user dismissed it — keep a short inline hint only.
+        setPermissionError(
+          'Device location is off. Turn it on to show nearby stores, or enter your area manually.',
+        );
         return;
       }
       if (result === 'blocked') {
@@ -312,7 +302,7 @@ export function LocationScreen({ navigation }: Props) {
       );
       setStep('loader');
     },
-    [hasDismissedSystemLocationDialog],
+    [],
   );
 
   /** Instructional modal primary CTA: retry the OS flow, or open Settings on iOS. */
@@ -327,7 +317,7 @@ export function LocationScreen({ navigation }: Props) {
       setAwaitingSettingsReturn(true);
       return;
     }
-    await useMyLocation(true);
+    await useMyLocation();
   }, [useMyLocation]);
 
   // iOS: when the user comes back from Settings with the switch on, continue without another tap.
@@ -336,7 +326,7 @@ export function LocationScreen({ navigation }: Props) {
     const sub = AppState.addEventListener('change', (next) => {
       if (next !== 'active') return;
       setAwaitingSettingsReturn(false);
-      void useMyLocation(true);
+      void useMyLocation();
     });
     return () => sub.remove();
   }, [awaitingSettingsReturn, useMyLocation]);
