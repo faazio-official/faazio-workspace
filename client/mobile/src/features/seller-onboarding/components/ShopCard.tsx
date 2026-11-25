@@ -105,7 +105,7 @@ export default function ShopCard({
   const locationLabel = pinned
     ? vendor.pinnedAddress ||
       `${vendor.latitude!.toFixed(5)}, ${vendor.longitude!.toFixed(5)}`
-    : 'Pin this shop so customers can find it';
+    : 'Share this shop location — required to submit';
 
   return (
     <View style={styles.card}>
@@ -259,7 +259,10 @@ export default function ShopCard({
       <TouchableOpacity style={styles.pinButton} onPress={onPinLocation} activeOpacity={0.8}>
         <LocateFixed size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
         <View style={{ flex: 1 }}>
-          <AppText style={styles.pinTitle}>{pinned ? 'Shop location pinned' : 'View location on map'}</AppText>
+          <AppText style={styles.pinTitle}>
+            {pinned ? 'Shop location shared' : 'Share shop location'}
+            <AppText style={styles.pinRequired}> (required)</AppText>
+          </AppText>
           <AppText style={styles.pinValue} numberOfLines={1}>
             {locationLabel}
           </AppText>
@@ -392,6 +395,7 @@ const styles = StyleSheet.create({
     marginTop: vs(12),
   },
   pinTitle: { fontSize: ms(11), fontWeight: '800', color: neutral.ink },
+  pinRequired: { fontWeight: '400', color: neutral.inkSubtle },
   pinValue: { fontSize: ms(10), color: neutral.inkMuted, marginTop: vs(1) },
   bankToggle: { flexDirection: 'row', alignItems: 'center', gap: hs(10), marginTop: vs(14) },
   bankToggleText: { fontSize: ms(12), fontWeight: '700', color: neutral.inkMuted },

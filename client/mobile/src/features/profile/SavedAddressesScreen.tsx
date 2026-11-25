@@ -32,7 +32,7 @@ import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import type { SavedAddress, AddressTag } from '@data/types';
 import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
-import { geocodeAddress } from '@/services/location';
+import { geocodeAddress, reverseGeocode } from '@/services/location';
 import { useAddressesStore } from '@/state/addressesStore';
 import { useLocationStore } from '@/state/locationStore';
 import type { RootStackParamList } from '@/navigation/types';
@@ -497,6 +497,7 @@ export function SavedAddressesScreen({ navigation }: Props) {
       useLocationStore.getState().setActiveLocation({
         coordinates,
         address: item.address,
+        place: await reverseGeocode(coordinates.latitude, coordinates.longitude),
         source: 'saved',
         addressId: item.id,
       });
@@ -538,11 +539,13 @@ export function SavedAddressesScreen({ navigation }: Props) {
             ? { latitude: withId.latitude, longitude: withId.longitude }
             : null;
         void (storedPoint ? Promise.resolve(storedPoint) : geocodeAddress(withId.address))
-          .then((coordinates) => {
+          .then(async (coordinates) => {
             if (!coordinates) return;
+            const place = await reverseGeocode(coordinates.latitude, coordinates.longitude);
             useLocationStore.getState().setActiveLocation({
               coordinates,
               address: withId.address,
+              place,
               source: 'saved',
               addressId: withId.id,
             });

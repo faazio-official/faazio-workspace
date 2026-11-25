@@ -9,11 +9,11 @@ import Svg, { ClipPath, Defs, G, Path, Rect } from 'react-native-svg';
  * the single continuous "F" ribbon can be split with clip rects and each piece
  * animated independently:
  *
- *   0-250ms   the rounded top stroke of the "F" scales up from the centre,
- *             fading in.
- *   250-650ms the rest of the "F" (neck + arm + stem) drops down into place and
- *             the remaining letters ("aazio") slide out from behind the "F"
- *             with a subtle fade.
+ *   0-500ms    the rounded top stroke of the "F" scales up from the centre,
+ *              fading in.
+ *   500-1500ms the rest of the "F" (neck + arm + stem) drops down into place and
+ *              the remaining letters ("aazio") slide out from behind the "F"
+ *              with a subtle fade.
  *
  * `aazio` is rendered *behind* the "F" so the slide reads as emerging from it;
  * the a/o counters are punched with `fillRule="evenodd"` so no background
@@ -44,79 +44,66 @@ interface SplashWordmarkRevealProps {
   height: number;
 }
 
-export function SplashWordmarkReveal({ width, height }: SplashWordmarkRevealProps) {
-  const topOpacity = useRef(new Animated.Value(0)).current;
-  const topScale = useRef(new Animated.Value(0.86)).current;
-  const stemOpacity = useRef(new Animated.Value(0)).current;
-  const stemDrop = useRef(new Animated.Value(0)).current;
-  const restOpacity = useRef(new Animated.Value(0)).current;
-  const restSlide = useRef(new Animated.Value(0)).current;
+export const SplashWordmarkReveal = React.memo(function SplashWordmarkReveal({
+  width,
+  height,
+}: SplashWordmarkRevealProps) {
+  // One native-driven clock drives the whole reveal. A single Animated.Value —
+  // rather than a sequence of six parallel timings — keeps the timeline
+  // continuous (no stop/restart between phases) and hands the native driver one
+  // value to schedule, so the 60 fps curve is immune to the JS-thread bus, which
+  // is busy hydrating stores right as the splash mounts on cold start.
+  const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const easing = Easing.out(Easing.cubic);
-    Animated.sequence([
-      Animated.parallel([
-        Animated.timing(topOpacity, {
-          toValue: 1,
-          duration: 250,
-          easing,
-          useNativeDriver: true,
-        }),
-        Animated.timing(topScale, {
-          toValue: 1,
-          duration: 250,
-          easing,
-          useNativeDriver: true,
-        }),
-      ]),
-      Animated.parallel([
-        Animated.timing(stemOpacity, {
-          toValue: 1,
-          duration: 300,
-          easing,
-          useNativeDriver: true,
-        }),
-        Animated.timing(stemDrop, {
-          toValue: 1,
-          duration: 400,
-          easing,
-          useNativeDriver: true,
-        }),
-        Animated.timing(restOpacity, {
-          toValue: 1,
-          duration: 400,
-          easing,
-          useNativeDriver: true,
-        }),
-        Animated.timing(restSlide, {
-          toValue: 1,
-          duration: 400,
-          easing,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-  }, [
-    topOpacity,
-    topScale,
-    stemOpacity,
-    stemDrop,
-    restOpacity,
-    restSlide,
-  ]);
+    // Advance on the next frame so the SVG layers are laid out and rasterized
+    // before the clock starts; starting synchronously on mount stalls the first
+    // few frames.
+    const frame = requestAnimationFrame(() => {
+      Animated.timing(progress, {
+        toValue: 1,
+        duration: 1500,
+        // Material standard ease: gentle in, confident middle, soft settle.
+        easing: Easing.bezier(0.4, 0, 0.2, 1),
+        useNativeDriver: true,
+      }).start();
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [progress]);
 
-  const stemTranslateY = stemDrop.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-0.18 * height, 0],
+  // Staggered, overlapping sub-ranges on the shared eased clock: the "F" top
+  // leads, the stem drops and "aazio" slides in behind it, and every tail holds
+  // at its resting value so the phases cross-fade instead of pausing.
+  const topOpacity = progress.interpolate({
+    inputRange: [0, 0.3, 1],
+    outputRange: [0, 1, 1],
   });
-  const restTranslateX = restSlide.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-0.09 * width, 0],
+  const topScale = progress.interpolate({
+    inputRange: [0, 0.33, 1],
+    outputRange: [0.86, 1, 1],
+  });
+  const stemOpacity = progress.interpolate({
+    inputRange: [0.3, 0.55, 1],
+    outputRange: [0, 1, 1],
+  });
+  const stemTranslateY = progress.interpolate({
+    inputRange: [0.3, 0.85, 1],
+    outputRange: [-0.18 * height, 0, 0],
+  });
+  const restOpacity = progress.interpolate({
+    inputRange: [0.3, 0.65, 1],
+    outputRange: [0, 1, 1],
+  });
+  const restTranslateX = progress.interpolate({
+    inputRange: [0.33, 0.8, 1],
+    outputRange: [-0.09 * width, 0, 0],
   });
 
   return (
     <View style={styles.container}>
       <Animated.View
+        renderToHardwareTextureAndroid
+        shouldRasterizeIOS
         style={[
           styles.layer,
           { opacity: restOpacity, transform: [{ translateX: restTranslateX }] },
@@ -133,6 +120,8 @@ export function SplashWordmarkReveal({ width, height }: SplashWordmarkRevealProp
       </Animated.View>
 
       <Animated.View
+        renderToHardwareTextureAndroid
+        shouldRasterizeIOS
         style={[
           styles.layer,
           { opacity: stemOpacity, transform: [{ translateY: stemTranslateY }] },
@@ -151,6 +140,8 @@ export function SplashWordmarkReveal({ width, height }: SplashWordmarkRevealProp
       </Animated.View>
 
       <Animated.View
+        renderToHardwareTextureAndroid
+        shouldRasterizeIOS
         style={[
           styles.layer,
           { opacity: topOpacity, transform: [{ scale: topScale }] },
@@ -169,7 +160,7 @@ export function SplashWordmarkReveal({ width, height }: SplashWordmarkRevealProp
       </Animated.View>
     </View>
   );
-}
+});
 
 const styles = StyleSheet.create({
   container: {

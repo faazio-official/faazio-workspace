@@ -23,6 +23,7 @@ import {
   originKeyFor,
 } from './src/state/serviceabilityStore';
 import { useLiveLocation } from './src/hooks/useLiveLocation';
+import { useCustomerLocationSync } from './src/hooks/useCustomerLocationSync';
 import { useServiceability } from './src/hooks/useServiceability';
 import { useLanguageStore } from './src/state/languageStore';
 import { useThemeStore } from './src/state/themeStore';
@@ -45,7 +46,7 @@ import { reconcilePendingUpiOrder } from './src/services/paymentReconciliation';
 // Branded splash stays visible for at least this long on cold start. The native
 // launch theme (Android splash theme / iOS LaunchScreen) hands off to this JS
 // splash, which is the single owner of the branded cold-start experience.
-const SPLASH_MIN_DISPLAY_MS = 5000;
+const SPLASH_MIN_DISPLAY_MS = 3000;
 
 // Extra bound on holding the splash for the first coverage decision. The silent fix it waits on has
 // its own 10 s native timeout, so this sits above that: the splash covers the real fix, and only a
@@ -128,6 +129,7 @@ export default function App() {
   const serviceabilityStatus = useServiceabilityStore((s) => s.status);
   const serviceabilityChecking = useServiceabilityStore((s) => s.checking);
   const serviceabilityLocationKey = useServiceabilityStore((s) => s.locationKey);
+  const serviceabilityReason = useServiceabilityStore((s) => s.reason);
   const isOnline = useConnectivityStore((s) => s.isOnline);
   const hasConnected = useConnectivityStore((s) => s.hasConnected);
   const navigationBlocked = useConnectivityStore((s) => s.navigationBlocked);
@@ -143,6 +145,9 @@ export default function App() {
   // Match the live origin against the superadmin-enabled district coverage. Runs under the splash
   // on a cold start, so the hard gate is already decided by the time the navigator is visible.
   useServiceability();
+  // Report the covered origin's state/district/pincode so the admin directory gets a real location
+  // and the stable customer id. Quiet until the origin is serviceable with a pincode.
+  useCustomerLocationSync();
 
   // Probe `/health` on mount, then poll while foregrounded so a connectivity drop is noticed
   // without a NetInfo dependency (see connectivityStore).
@@ -195,7 +200,7 @@ export default function App() {
     let active = true;
     // Best-effort central remote config (superadmin-managed app settings). Fetched in parallel with
     // the session/language hydrations but never awaited, so startup is never blocked: the branded
-    // splash's minimum 5 s window covers the fetch, and a failure keeps the bake-time defaults. The
+    // splash's minimum 3 s window covers the fetch, and a failure keeps the bake-time defaults. The
     // 4 s timeout mirrors the hydration bound so a black-holed connection can't strand the fetch.
     void withTimeout(fetchRemoteConfig(), 4000, 'remoteConfig').catch(() => {});
     (async () => {
@@ -278,10 +283,28 @@ export default function App() {
       currentOriginKey,
     );
   const firstFixSettled = !isAuthenticated || fixAttemptedAt !== null;
+  // A coverage read that failed because the device was offline is not a verdict. Once connectivity
+  // returns, hold the branded splash (only until the first navigator mount) until the forced
+  // re-check `useServiceability` fires on reconnect settles, so an out-of-area device that booted
+  // offline can never reach the catalogue in between.
+  const coverageNeedsRecheck =
+    isAuthenticated &&
+    isOnline === true &&
+    serviceabilityStatus === 'failed' &&
+    serviceabilityReason === 'network';
   const holdForServiceability =
     !navigatorEverMounted &&
-    (!firstFixSettled || serviceabilityPendingNow) &&
+    (!firstFixSettled || serviceabilityPendingNow || coverageNeedsRecheck) &&
     !serviceabilityGateExpired;
+
+  const coldStartOffline = isOnline === false && !hasConnected;
+  const coverageBlocked =
+    isAuthenticated &&
+    locationStatus === 'ready' &&
+    serviceabilityStatus === 'unserviceable';
+  // The navigator is the fall-through surface, so this mirrors the render order below.
+  const navigatorVisible =
+    ready && minSplashDone && !coldStartOffline && !holdForServiceability && !coverageBlocked;
 
   useEffect(() => {
     if (!holdForServiceability) return;
@@ -292,11 +315,12 @@ export default function App() {
     return () => clearTimeout(timer);
   }, [holdForServiceability]);
 
+  // Only mark the navigator as ever-mounted when it is actually rendered. A cold start stuck on the
+  // offline page must keep this false, so the reconnect coverage re-check still holds the splash
+  // instead of flashing the catalogue before the verdict arrives.
   useEffect(() => {
-    if (minSplashDone && firstFixSettled && !serviceabilityPendingNow) {
-      setNavigatorEverMounted(true);
-    }
-  }, [minSplashDone, firstFixSettled, serviceabilityPendingNow]);
+    if (navigatorVisible) setNavigatorEverMounted(true);
+  }, [navigatorVisible]);
   useEffect(() => {
     if (isAuthenticated) void bootstrapCalling();
     else if (wasAuthenticated.current) void shutdownCalling();
@@ -312,24 +336,25 @@ export default function App() {
     );
   }
 
-  // Cold start while already offline: show the offline page immediately instead of a blank/loading
-  // screen. `hasConnected` false means we have never been online this session, so this is a cold
-  // start — a mid-session drop keeps the mounted navigator and only surfaces the toast/blocker.
-  if (isOnline === false && !hasConnected) {
-    return (
-      <SafeAreaProvider>
-        <StatusBar barStyle={barStyle} />
-        <OfflinePage />
-      </SafeAreaProvider>
-    );
-  }
-
   if (!minSplashDone) {
     return (
       <>
         <StatusBar barStyle="light-content" />
         <SplashFallback variant="royal" />
       </>
+    );
+  }
+
+  // Cold start while already offline: the branded layer-2 splash must finish its minimum display
+  // before the offline page may replace it — a fast-failing `/health` probe used to cut the splash
+  // short. `hasConnected` false means we have never been online this session, so this is a cold
+  // start; a mid-session drop keeps the mounted navigator and only surfaces the toast/blocker.
+  if (coldStartOffline) {
+    return (
+      <SafeAreaProvider>
+        <StatusBar barStyle={barStyle} />
+        <OfflinePage />
+      </SafeAreaProvider>
     );
   }
 
@@ -347,11 +372,7 @@ export default function App() {
   // A settled `unserviceable` deliberately keeps the gate closed even while a re-check for a moved
   // origin is in flight (`holdForServiceability` shows the splash instead), so the fail-safe
   // direction is always "no catalogue" rather than a brief leak of an out-of-area feed.
-  if (
-    isAuthenticated &&
-    locationStatus === 'ready' &&
-    serviceabilityStatus === 'unserviceable'
-  ) {
+  if (coverageBlocked) {
     return (
       <SafeAreaProvider>
         <StatusBar barStyle={barStyle} />

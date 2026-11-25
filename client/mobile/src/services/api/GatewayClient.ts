@@ -723,9 +723,13 @@ export interface SellerApplicationVendor {
   /** Public shop-front gallery (AVIF keys + media ids, parallel arrays). */
   photoKeys?: string[];
   photoAssetIds?: string[];
+  /** CDN URLs resolved from photoKeys by the gateway on read. */
+  photoUrls?: string[];
   address?: string;
   phone?: string;
   hours?: string;
+  latitude?: number;
+  longitude?: number;
   deliveryTime?: string;
   isVeg?: boolean;
   updatedAt?: string;
@@ -1392,6 +1396,29 @@ export class GatewayClient {
   async updateProfileName(name: string): Promise<ProfileRow> {
     return this.serverOnly(
       () => this.http<ProfileRow>('/profile', { method: 'PUT', body: JSON.stringify({ name }) }),
+    );
+  }
+
+  /**
+   * Report the customer's serviceable location (`PUT /profile/location`). The gateway validates the
+   * district against the master, derives the state, stores pincode/district and mints the stable
+   * customer id once a pincode + phone are known. Strict: throws offline/on HTTP failure; the caller
+   * retries on the next location change.
+   */
+  async updateProfileLocation(input: {
+    stateCode?: string;
+    districtCode?: string;
+    pincode?: string;
+  }): Promise<{ customerCode?: string; stateCode?: string; districtCode?: string; pincode?: string }> {
+    return this.serverOnly(
+      () =>
+        this.http<{ customerCode?: string; stateCode?: string; districtCode?: string; pincode?: string }>(
+          '/profile/location',
+          {
+            method: 'PUT',
+            body: JSON.stringify(input),
+          },
+        ),
     );
   }
 

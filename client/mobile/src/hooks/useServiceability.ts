@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import { useAuthStore } from '@/state/authStore';
+import { useConnectivityStore } from '@/state/connectivityStore';
 import { useLocationStore } from '@/state/locationStore';
 import { useServiceabilityStore } from '@/state/serviceabilityStore';
 
@@ -15,6 +16,10 @@ import { useServiceabilityStore } from '@/state/serviceabilityStore';
  * On every foreground the check is forced, so a district the super admin activates (or deactivates)
  * in the portal is picked up without restarting or walking around. The check itself throws on a
  * network failure and is recorded as `failed`, never as `unserviceable`.
+ *
+ * Returning from offline is also a forced re-check: a cold start that happened offline records
+ * `failed`, and that must never stand in for a verdict once the network is back — otherwise an
+ * out-of-area device could reach the catalogue simply by booting without a connection.
  */
 export function useServiceability(enabled = true): void {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -22,8 +27,10 @@ export function useServiceability(enabled = true): void {
   const latitude = useLocationStore((s) => s.activeLocation?.latitude);
   const longitude = useLocationStore((s) => s.activeLocation?.longitude);
   const address = useLocationStore((s) => s.activeLocation?.address);
+  const isOnline = useConnectivityStore((s) => s.isOnline);
   const check = useServiceabilityStore((s) => s.check);
   const reset = useServiceabilityStore((s) => s.reset);
+  const wasOffline = useRef(false);
 
   useEffect(() => {
     if (!enabled || !isAuthenticated) return;
@@ -52,4 +59,18 @@ export function useServiceability(enabled = true): void {
     });
     return () => sub.remove();
   }, [enabled, check]);
+
+  // Connectivity restored after a real offline stretch: force the read that could not happen while
+  // offline. Tracked as a transition so an ordinary online start (null → true) does not double-fire.
+  useEffect(() => {
+    if (!enabled) return;
+    if (isOnline === false) {
+      wasOffline.current = true;
+      return;
+    }
+    if (isOnline !== true || !wasOffline.current) return;
+    wasOffline.current = false;
+    if (!useAuthStore.getState().isAuthenticated) return;
+    void check(true);
+  }, [enabled, isOnline, check]);
 }

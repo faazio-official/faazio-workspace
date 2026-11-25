@@ -33,7 +33,7 @@ import {
   type PlaceSuggestion,
 } from '@/hooks/usePlaceAutocomplete';
 import { requestAndRefreshLocation, useLiveOrigin } from '@/hooks/useLiveLocation';
-import { isLocationServicesEnabled } from '@/services/location';
+import { isLocationServicesEnabled, reverseGeocode } from '@/services/location';
 import { useLocationStore } from '@/state/locationStore';
 import { useServiceabilityStore } from '@/state/serviceabilityStore';
 import { parentRamp } from '@/theme/brandTokens';
@@ -357,6 +357,12 @@ export function LocationScreen({ navigation }: Props) {
     useLocationStore.getState().setActiveLocation({
       coordinates: resolved.coordinates,
       address: resolved.address,
+      // A Places result carries only a formatted address; reverse-geocode once so the origin also
+      // carries its pincode/district for the customer-location sync (PUT /profile/location).
+      place: await reverseGeocode(
+        resolved.coordinates.latitude,
+        resolved.coordinates.longitude,
+      ),
       source: 'pinned',
     });
     setSelectedLocation(

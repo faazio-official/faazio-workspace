@@ -37,6 +37,7 @@ import {
   type SellerApplication,
 } from '@/services/api/GatewayClient';
 import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/services/firebaseAuth';
+import { otpErrorMessage } from '@/lib/otpError';
 import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
@@ -499,7 +500,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       }
       setOtpSent(true);
       setCountdown(60);
-    } catch {
+    } catch (err) {
       consentArmedRef.current = false;
       stopSmsConsent();
       if (phoneE164Ref.current === targetPhone) {
@@ -510,7 +511,12 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           setCountdown(0);
           setOtpCode('');
         }
-        setOtpError('Could not send the OTP. Please try again.');
+        // Surface the real Firebase code (rate-limit, app verification, network) instead of a
+        // generic retry message, so the applicant knows whether to wait, check the number or
+        // install the Play Store build.
+        setOtpError(
+          otpErrorMessage(err, 'Could not send the OTP. Please try again.'),
+        );
       }
     } finally {
       sendRef.current = false;
@@ -537,9 +543,11 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       setOtpVerified(true);
       setOtpVerifiedAt(new Date().toLocaleTimeString());
       setCountdown(0);
-    } catch {
+    } catch (err) {
       if (phoneE164Ref.current === targetPhone) {
-        setOtpError('That code is incorrect or expired. Request a new one.');
+        setOtpError(
+          otpErrorMessage(err, 'That code is incorrect or expired. Request a new one.'),
+        );
       }
     } finally {
       submitRef.current = false;
@@ -590,8 +598,8 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     if (!/^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase())) {
       return 'Pin at least one shop on the map in Tamil Nadu / Puducherry so the state and district can be set.';
     }
-    if (!vendors.some((v) => v.latitude != null && v.longitude != null)) {
-      return 'Pin at least one shop on the map in Tamil Nadu / Puducherry so the state and district can be set.';
+    if (!vendors.every((v) => v.latitude != null && v.longitude != null)) {
+      return 'Pin every shop on the map so its location is shared with Faazio and customers.';
     }
 
     for (const v of vendors) {
@@ -750,7 +758,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     ipGranted &&
     /^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase()) &&
     vendors.length > 0 &&
-    vendors.some((v) => v.latitude != null && v.longitude != null) &&
+    vendors.every((v) => v.latitude != null && v.longitude != null) &&
     vendors.every(
       (v) =>
         Boolean(v.shopName.trim()) &&
@@ -1231,8 +1239,8 @@ export function SellerRegistrationScreen({ navigation }: Props) {
               <View style={styles.geoNote}>
                 <AppText style={styles.geoNoteText}>
                   {geoLabel
-                    ? `State & district set from your pinned shop: ${geoLabel}.`
-                    : 'Pin at least one shop on the map so your state and district can be set.'}
+                    ? `State & district set from your pinned shop: ${geoLabel}. Pin every shop — a location is required to submit.`
+                    : 'Pin every shop so its location is shared with Faazio and your state and district can be set.'}
                 </AppText>
               </View>
             </View>

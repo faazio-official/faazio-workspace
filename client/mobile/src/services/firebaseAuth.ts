@@ -24,7 +24,7 @@ import {
   FIREBASE_AUTH_ENABLED,
 } from '../lib/config';
 import { DEFAULT_COUNTRY, toE164 as normalizePhone } from '@/lib/phone';
-import { isOtpSessionExpired } from '@/lib/otpError';
+import { isOtpSessionExpired, otpErrorCode } from '@/lib/otpError';
 
 export interface FirebaseUser {
   uid: string;
@@ -179,11 +179,33 @@ async function recoverSessionFromCurrentUser(
  */
 const OTP_APP_NAME = 'faazio-seller-otp';
 
-async function otpAuth(scope: OtpScope) {
-  if (scope === 'primary') return getAuth();
+interface OtpAuthTarget {
+  auth: Auth;
+  /** True only when the disposable secondary app was created and must be torn down afterwards. */
+  disposable: boolean;
+}
+
+/**
+ * Resolve the Firebase app that should carry this OTP round-trip.
+ *
+ * A phone-auth UID is derived from the phone number, so when the seller signature targets the SAME
+ * number that already owns the primary session, sending/verifying it on the primary app cannot
+ * change identity — it only re-authenticates the same user. Doing so avoids the secondary app's
+ * app-verification path (Play Integrity / reCAPTCHA), which is unreliable on sideloaded Android
+ * builds and was surfacing as a red "Could not send the OTP" on the signature step.
+ *
+ * Every other target (a contact number the shopper did not sign in with) still uses the disposable
+ * secondary app so the shopper's session is never swapped.
+ */
+async function otpAuth(scope: OtpScope, phone?: string): Promise<OtpAuthTarget> {
+  const primary = getAuth();
+  if (scope === 'primary') return { auth: primary, disposable: false };
+  if (phone && primary.currentUser?.phoneNumber === phone) {
+    return { auth: primary, disposable: false };
+  }
   const existing = getApps().find((app) => app.name === OTP_APP_NAME);
   const app = existing ?? (await initializeApp(getApp().options, OTP_APP_NAME));
-  return getAuth(app);
+  return { auth: getAuth(app), disposable: true };
 }
 
 async function disposeOtpApp(): Promise<void> {
@@ -228,12 +250,62 @@ function toSession(user: User, accessToken: string, expiresAt: number): Firebase
   };
 }
 
+/**
+ * Firebase codes that mean "this install could not prove it is the registered app" — a Play Integrity
+ * rejection on a sideloaded build that the SDK then cannot retry on its own.
+ */
+const APP_VERIFICATION_FAILURE_CODES = new Set([
+  'auth/invalid-app-credential',
+  'auth/missing-client-identifier',
+  'auth/app-not-authorized',
+  // Some firebase-auth versions surface a rejected Play Integrity token as a generic internal error.
+  'auth/internal-error',
+]);
+
+/**
+ * Sideloaded Android builds (CI debug APK, non-Play release APK) cannot pass Play Integrity, so the
+ * SDK falls back to reCAPTCHA. Firebase's current Android SDK defaults that fallback to **reCAPTCHA
+ * Enterprise**, which needs a site key linked from Google Cloud (`FIREBASE_AUTH.md` Part 6, not done
+ * yet) — without it the send dies with `Failed to initialize reCAPTCHA config: No Recaptcha
+ * Enterprise siteKey configured` and **no SMS is dispatched**. Forcing the legacy reCAPTCHA v2 web
+ * flow for the retry restores the documented fallback using only the signing fingerprints already
+ * registered in Firebase. Play-installed builds never hit this path (Play Integrity succeeds).
+ */
+function isAppVerificationFailure(err: unknown): boolean {
+  const code = otpErrorCode(err);
+  return code !== null && APP_VERIFICATION_FAILURE_CODES.has(code);
+}
+
+/** Legacy reCAPTCHA v2 is the only fallback that works before Part 6 is configured. */
+function forceLegacyRecaptchaFlow(auth: Auth): boolean {
+  const settings = auth.settings as Auth['settings'] & {
+    /** Present in RNFB Auth (Android), missing from its published `AuthSettings` type. */
+    forceRecaptchaFlowForTesting?: boolean;
+  };
+  if (settings.forceRecaptchaFlowForTesting) return false;
+  if (Platform.OS !== 'android') return false;
+  settings.forceRecaptchaFlowForTesting = true;
+  return true;
+}
+
+async function requestSmsCode(auth: Auth, phone: string): Promise<ConfirmationResult> {
+  try {
+    return await signInWithPhoneNumber(auth, phone);
+  } catch (err) {
+    if (!isAppVerificationFailure(err) || !forceLegacyRecaptchaFlow(auth)) throw err;
+    if (__DEV__) {
+      console.warn('[phone-auth] Play Integrity unavailable — retrying with reCAPTCHA v2');
+    }
+    return signInWithPhoneNumber(auth, phone);
+  }
+}
+
 async function sendOtpForScope(phoneDigits: string, scope: OtpScope): Promise<void> {
   if (!firebaseAuthConfigured()) {
     throw new Error('Firebase Auth is not configured.');
   }
   const phone = toE164(phoneDigits);
-  const auth = await otpAuth(scope);
+  const { auth, disposable } = await otpAuth(scope, phone);
   // Dev/simulator only: the iOS simulator always uses Firebase's reCAPTCHA web sheet. With app
   // verification disabled, a console registered test number signs in without leaving the app.
   // iOS-only on purpose: Android debug must behave like production, so verification is never
@@ -255,13 +327,13 @@ async function sendOtpForScope(phoneDigits: string, scope: OtpScope): Promise<vo
   // Arm before the request: native auto-retrieval can sign in as soon as the SMS lands.
   if (scope === 'primary') armAutoVerificationWatch(auth, current);
   try {
-    current.confirmation = await signInWithPhoneNumber(auth, phone);
+    current.confirmation = await requestSmsCode(auth, phone);
   } catch (err) {
     if (pending === current) {
       pending = null;
       clearAutoWatch();
     }
-    if (scope === 'seller' && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
+    if (disposable && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
     throw err;
   }
 }
@@ -279,6 +351,7 @@ async function verifyOtpForScope(
   if (!current || current.phone !== phone || current.scope !== scope) {
     throw new Error('No OTP request is pending.');
   }
+  const { auth, disposable } = await otpAuth(scope, phone);
   // Auto-retrieval already produced the session; any code entry can resolve it.
   if (current.autoSession) {
     const session = current.autoSession;
@@ -286,7 +359,7 @@ async function verifyOtpForScope(
       pending = null;
       clearAutoWatch();
     }
-    if (scope === 'seller' && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
+    if (disposable && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
     return session;
   }
   if (!current.confirmation) {
@@ -306,20 +379,19 @@ async function verifyOtpForScope(
       token.token,
       Math.floor(new Date(token.expirationTime).getTime() / 1000),
     );
-    if (scope === 'seller' && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
+    if (disposable && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
     return session;
   } catch (err) {
     current.manualVerifyStarted = false;
     // The watcher yields to a manual confirm, so it may have skipped an auto session that landed
     // concurrently. Recover it before surfacing an invalid-code error.
-    const auth = await otpAuth(scope);
     const recovered = current.autoSession ?? (await recoverSessionFromCurrentUser(auth, current));
     if (recovered) {
       if (pending === current) {
         pending = null;
         clearAutoWatch();
       }
-      if (scope === 'seller' && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
+      if (disposable && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
       return recovered;
     }
     // The verification session is dead (expired code / superseded verification id). Drop it so a

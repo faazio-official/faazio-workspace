@@ -50,6 +50,11 @@ export interface ActiveLocation {
   latitude: number;
   longitude: number;
   address: string;
+  /**
+   * Reverse-geocoded fields for this origin (postalCode/district/region), when the caller could
+   * resolve them. Used to report the customer's pincode to the gateway; never invented.
+   */
+  place?: ReverseGeocodeResult | null;
   /** Server id of the saved address this came from; absent for `gps` / `pinned`. */
   addressId?: string;
   source: ActiveSource;
@@ -104,6 +109,7 @@ export interface LocationState {
     address: string;
     source: ActiveSource;
     addressId?: string;
+    place?: ReverseGeocodeResult | null;
   }) => void;
   /**
    * Proximity auto-select: when the user has NOT overridden, follow the device position, preferring
@@ -204,6 +210,7 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
         latitude: deviceFix.latitude,
         longitude: deviceFix.longitude,
         address: deviceFix.address,
+        place: deviceFix.place,
         source: 'gps',
         updatedAt: Date.now(),
       },
@@ -211,7 +218,7 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
     persist(get());
   },
 
-  setActiveLocation: ({ coordinates, address, source, addressId }) => {
+  setActiveLocation: ({ coordinates, address, source, addressId, place }) => {
     set({
       status: 'ready',
       overrideActive: true,
@@ -219,6 +226,7 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
         latitude: coordinates.latitude,
         longitude: coordinates.longitude,
         address,
+        place: place ?? null,
         source,
         ...(addressId ? { addressId } : {}),
         updatedAt: Date.now(),
@@ -247,6 +255,8 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
           latitude: candidate.coordinates.latitude,
           longitude: candidate.coordinates.longitude,
           address: candidate.address,
+          // The user is standing in the saved address; the device geocode is a safe pincode source.
+          place: state.deviceFix?.place ?? null,
           addressId: candidate.addressId,
           source: 'saved',
           updatedAt: Date.now(),
@@ -274,6 +284,7 @@ export const useLocationStore = create<LocationState>()((set, get) => ({
         latitude: device.latitude,
         longitude: device.longitude,
         address: device.address,
+        place: device.place,
         source: 'gps',
         updatedAt: Date.now(),
       },
