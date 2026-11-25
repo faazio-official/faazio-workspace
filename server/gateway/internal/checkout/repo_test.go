@@ -60,6 +60,58 @@ func TestDeleteAddress(t *testing.T) {
 	}
 }
 
+// The app-reported location persists state/district/pincode and mints the stable customer code once.
+// The district's state is derived from the master (never a client pair), and invalid input is
+// refused rather than silently stored.
+func TestUpdateCustomerLocation(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	var districtCode, stateCode string
+	if err := pool.QueryRow(ctx,
+		`select district_code, state_code from admins.district_master where is_active limit 1`).
+		Scan(&districtCode, &stateCode); err != nil {
+		t.Skipf("no district master rows: %v", err)
+	}
+
+	uid := "user-loc-" + shortAddrID()
+	if _, err := pool.Exec(ctx,
+		`insert into checkout.users (user_id, name, email, phone) values ($1,'Loc Test','l@t','+91 98765 43210')`,
+		uid); err != nil {
+		t.Fatalf("seed user: %v", err)
+	}
+	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.users where user_id=$1`, uid) })
+
+	loc, ok, err := repo.UpdateCustomerLocation(ctx, uid, stateCode, districtCode, "600001")
+	if err != nil || !ok {
+		t.Fatalf("UpdateCustomerLocation: ok=%v err=%v", ok, err)
+	}
+	if loc.DistrictCode != strings.ToUpper(districtCode) || loc.StateCode != strings.ToUpper(stateCode) {
+		t.Fatalf("district/state not persisted: %+v", loc)
+	}
+	const wantCode = "fa6000019876543210"
+	if loc.CustomerCode != wantCode {
+		t.Fatalf("customer code = %q, want %q", loc.CustomerCode, wantCode)
+	}
+
+	if _, _, err := repo.UpdateCustomerLocation(ctx, uid, "", "", "12ab"); !errors.Is(err, ErrInvalidPincode) {
+		t.Fatalf("invalid pincode err = %v, want ErrInvalidPincode", err)
+	}
+	if _, _, err := repo.UpdateCustomerLocation(ctx, uid, "", "ZZZZ", ""); !errors.Is(err, ErrUnknownDistrict) {
+		t.Fatalf("unknown district err = %v, want ErrUnknownDistrict", err)
+	}
+
+	// A later move updates the location columns but keeps the assigned code stable.
+	loc2, ok, err := repo.UpdateCustomerLocation(ctx, uid, stateCode, districtCode, "600002")
+	if err != nil || !ok {
+		t.Fatalf("second UpdateCustomerLocation: ok=%v err=%v", ok, err)
+	}
+	if loc2.CustomerCode != wantCode || loc2.Pincode != "600002" {
+		t.Fatalf("code/pincode after move: %+v", loc2)
+	}
+}
+
 // A stored point must round-trip, and a partial/out-of-range pair must be refused rather than
 // silently stored — delivery pricing and proximity matching both trust a stored point.
 func TestUpsertAddressCoordinates(t *testing.T) {

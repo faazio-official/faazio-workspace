@@ -733,10 +733,31 @@ export const SUPER_COMPONENT_HINTS: Record<string, ComponentHint> = {
   // ── Users (customer monitoring) ────────────────────────────────────────────
   ...pageHints("/admin/super/users", {
     "user-search": {
-      what: "Searches every customer by name, phone or user id.",
+      what: "Searches every customer by name, phone, customer id or pincode.",
       workflow: "Customer monitoring — find a customer from a phone call or ticket.",
       changes: "Filters the list server-side; nothing is changed.",
       example: "Type the phone number a customer called from to find their row.",
+      app: ["portal"],
+    },
+    "user-state-filter": {
+      what: "Narrows the directory to one state.",
+      workflow: "Customer monitoring — scope the list before drilling into a district.",
+      changes: "Read-only filter; the KPI totals follow it.",
+      example: "Pick TN to see only Tamil Nadu customers.",
+      app: ["portal"],
+    },
+    "user-district-filter": {
+      what: "Narrows the directory to one district inside the selected state.",
+      workflow: "Customer monitoring — district-wise support and reporting.",
+      changes: "Read-only filter; changing the state resets the district.",
+      example: "Find every customer in Tiruchirappalli.",
+      app: ["portal"],
+    },
+    "user-customer-id": {
+      what: "The customer's public id (fa + pincode + phone).",
+      workflow: "Customer monitoring — quote a stable id in support notes.",
+      changes: "Read-only; 'pending' means the app has not reported a pincode yet.",
+      example: "fa6000019876543210 — pincode 600001, phone 9876543210.",
       app: ["portal"],
     },
     "user-orders": {

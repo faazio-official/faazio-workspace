@@ -2117,10 +2117,13 @@ CREATE FUNCTION sellers.is_admin_for(p_state char(2), p_district text) RETURNS b
 ```
 
 **Read path:** `GET /geo/districts?state=` (`internal/districts`, any signed-in account) serves the
-active `admins.district_master` rows (camelCase `{districtCode,name,stateCode}`) to the
-seller-onboarding picker. The DB is the read authority — seeding a new state/district is data-only —
-while `internal/platform/geo` stays the in-process validation mirror. Uncached
-(`caching-cloudflare-valkey.md` §8).
+active `admins.district_master` rows (camelCase `{districtCode,name,stateCode,latitude,longitude}`) to
+the seller-onboarding picker and the customer service-area gate. The DB is the read authority —
+seeding a new state/district is data-only — while `internal/platform/geo` stays the in-process
+validation mirror. `0133` adds the nullable district **centroid** (`latitude`/`longitude`, backfilled
+from `scripts/district-seed.json` keyed on `google_place_id`): the customer gate uses the nearest
+active district in the matched state as a fallback when a platform geocoder omits the revenue
+district name. Uncached (`caching-cloudflare-valkey.md` §8).
 
 `0065` seeds one active Tiruchirappalli (`TTC`) roster row (`adm-tiruchi-01`) so the district-admins
 directory is non-empty on a fresh DB. It inserts the roster row only — no portal login or
@@ -3231,4 +3234,49 @@ update admins.portal_users set invite_status = 'active'
   invite (same columns cleared).
 - **Resend** (`POST /district-admins/{id}/resend-invite`) rotates hash + expiry for a still-pending
   invite; the previous link stops working immediately.
+
+### 12.47 Customer location + pincode-based customer code (migration `0132`)
+
+**Authority:** `monolith-breakdown.md` §1 (checkout/admins rows),
+`user-interaction-workflow/seller/web-portal/super-admin-users.md`,
+`user-interaction-workflow/customer/onboarding/location-picker.md`.
+
+`checkout.users.state_code` was only ever written by tests/seed — the mobile app never sent the state
+it reverse-geocodes at onboarding, and there was no district or pincode column at all. `0132` adds the
+real location facts and a stable visible customer id while keeping the immutable `user_id` as the FK
+key (orders/payments/rewards/blood/tax all reference it):
+
+```sql
+alter table checkout.users
+  add column if not exists pincode       text,
+  add column if not exists district_code text,
+  add column if not exists customer_code text;
+
+alter table checkout.users add constraint users_pincode_format
+  check (pincode is null or pincode ~ '^[0-9]{6}$');
+create unique index users_customer_code_uniq
+  on checkout.users (customer_code) where customer_code is not null;
+create index users_district_idx on checkout.users (district_code);
+
+create or replace view checkout.users_admin with (security_invoker = on) as
+  select u.user_id, u.name, u.state_code, u.created_at,
+         count(o.order_id)::int4               as orders_count,
+         coalesce(sum(o.total_paisa),0)::int8  as spend_paisa,
+         max(o.placed_at)                      as last_order_at,
+         u.phone, u.district_code, u.pincode, u.customer_code
+    from checkout.users u
+    left join checkout.orders o on o.user_id = u.user_id
+   group by u.user_id, u.name, u.state_code, u.created_at, u.phone,
+            u.district_code, u.pincode, u.customer_code;
+```
+
+`PUT /profile/location` (`internal/checkout`) writes the state/district/pincode the app reports for a
+serviceable origin. The district is validated against `admins.district_master` and the state is
+derived from the master — a client can never store a mismatched pair. When a 6-digit pincode and the
+account phone are both known, the gateway mints `customer_code = 'fa' + pincode + last10(phone)` once
+(stable across later moves; the separate location columns keep tracking the latest origin). Account
+deletion clears `customer_code`/`district_code`/`pincode` with the other PII so a re-registered phone
+can reuse the code. `GET /customers` gains `district`, `offset` and a paged envelope
+(`items/total/totalOrders/totalSpendPaisa/limit/offset`), and its search also matches `customer_code`
+and `pincode`. Idempotent and re-runnable.
 

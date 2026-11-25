@@ -1,9 +1,16 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { Input } from "@/components/ui/input";
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination";
 import {
   Table,
   TableBody,
@@ -12,20 +19,25 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatINR, formatDate, formatDateTime } from "@/lib/format";
+import { formatINR, formatDate, formatDateTime, formatNumber } from "@/lib/format";
 import { useCustomers, useUserTrail } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
+
+const PAGE_SIZE = 50;
 
 function StateCustomers() {
   const session = useSession();
   const stateCode = session?.stateCode;
   const [search, setSearch] = useState("");
   const [q, setQ] = useState("");
+  const [page, setPage] = useState(0);
   const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
-  const { data: customers, loading, error } = useCustomers({
+  const { data: customers, total, totalSpendPaisa, loading, error } = useCustomers({
     ...(stateCode ? { stateCode } : {}),
     ...(q ? { query: q } : {}),
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
   });
   const { events: trail, loading: trailLoading } = useUserTrail(selectedUserId);
 
@@ -34,10 +46,13 @@ function StateCustomers() {
     return () => window.clearTimeout(t);
   }, [search]);
 
-  const totalSpend = useMemo(
-    () => customers.reduce((sum, c) => sum + c.spendPaisa, 0),
-    [customers],
-  );
+  useEffect(() => {
+    setPage(0);
+  }, [q, stateCode]);
+
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const from = total === 0 ? 0 : page * PAGE_SIZE + 1;
+  const to = page * PAGE_SIZE + customers.length;
 
   return (
     <div className="space-y-4">
@@ -58,7 +73,7 @@ function StateCustomers() {
             <ComponentHelp id="customer-search" label="About customer search" />
           </div>
           <span className="num text-sm text-muted-foreground">
-            {customers.length} customers · {formatINR(totalSpend)}
+            {total} customers · {formatINR(totalSpendPaisa)}
           </span>
         </div>
         <DataShell
@@ -99,7 +114,7 @@ function StateCustomers() {
                 >
                   <TableCell className="font-medium">{c.name}</TableCell>
                   <TableCell className="num">{c.phone || "—"}</TableCell>
-                  <TableCell className="text-muted-foreground">{c.userId}</TableCell>
+                  <TableCell className="text-muted-foreground">{c.customerCode ?? c.userId}</TableCell>
                   <TableCell>{c.stateCode ?? "—"}</TableCell>
                   <TableCell className="num text-right">{c.ordersCount}</TableCell>
                   <TableCell className="num text-right font-medium">{formatINR(c.spendPaisa)}</TableCell>
@@ -112,6 +127,44 @@ function StateCustomers() {
             </TableBody>
           </Table>
         </DataShell>
+        {total > 0 && (
+          <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border p-3">
+            <span className="num text-sm text-muted-foreground">
+              Showing {from}–{to} of {formatNumber(total)}
+            </span>
+            <Pagination className="mx-0 w-auto">
+              <PaginationContent>
+                <PaginationItem>
+                  <PaginationPrevious
+                    href="#"
+                    aria-disabled={page === 0}
+                    className={page === 0 ? "pointer-events-none opacity-50" : undefined}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      if (page > 0) setPage((p) => Math.max(0, p - 1));
+                    }}
+                  />
+                </PaginationItem>
+                <PaginationItem>
+                  <span className="px-3 text-sm text-muted-foreground">
+                    Page {page + 1} of {pageCount}
+                  </span>
+                </PaginationItem>
+                <PaginationItem>
+                  <PaginationNext
+                    href="#"
+                    aria-disabled={page >= pageCount - 1}
+                    className={page >= pageCount - 1 ? "pointer-events-none opacity-50" : undefined}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      setPage((p) => Math.min(pageCount - 1, p + 1));
+                    }}
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
+          </div>
+        )}
       </SectionCard>
 
       {selectedUserId && (

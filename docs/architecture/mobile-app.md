@@ -622,18 +622,25 @@ Startup
 - **Splash failsafe** — the native launch theme hands off on first render; the JS `SplashFallback`
   then owns the screen. There is **no timeout escape**: `App.tsx` has only
   `SPLASH_MIN_DISPLAY_MS` (a floor, not a ceiling), so a hydration stall keeps the splash up
-  rather than falling through to the app.
+  rather than falling through to the app. An offline cold start also respects that floor — the
+  offline page is rendered only after the layer-2 splash completes, and a reconnect forces the
+  serviceability re-check (holding the splash when the coverage read had failed offline) before the
+  navigator may mount.
 - **Branded splash minimum** — the cold-start splash (`SplashFallback` `royal` variant) shows the
   wide wordmark centered on Faazio blue (the canonical brand colour — see
   `docs/UI_DESIGN_SYSTEM.md` §5) with no spinner, and stays up for at least
-  `SPLASH_MIN_DISPLAY_MS` (5 s) via `App.tsx` before the app UI renders.
+  `SPLASH_MIN_DISPLAY_MS` (3 s) via `App.tsx` before the app UI renders.
   **Leaf-first wordmark reveal.** The `royal` layer draws the wordmark from the brand SVG glyph
   paths (`src/components/SplashWordmarkReveal.tsx`) instead of the flat raster, so the single
   continuous "F" ribbon can be split with clip rects and each piece animated. The rounded top
-  stroke of the "F" scales up from the centre and fades in (0–250 ms); the rest of the "F" (neck +
+  stroke of the "F" scales up from the centre and fades in (0–500 ms); the rest of the "F" (neck +
   arm + stem) then drops into place while the remaining letters ("aazio") slide out from behind the
-  "F" with a subtle fade (250–650 ms). The letters render behind the "F" and the a/o counters are
-  punched with `fillRule="evenodd"` (no baked background colour). The bottom credit line is not
+  "F" with a subtle fade (500–1500 ms). The letters render behind the "F" and the a/o counters are
+  punched with `fillRule="evenodd"` (no baked background colour). One native-driven `Animated.Value`
+  interpolates every stagger (rather than a sequence of parallel timings), so the timeline is
+  continuous and immune to JS-thread stalls during hydration; each layer sets
+  `renderToHardwareTextureAndroid` / `shouldRasterizeIOS` so the static SVG rasterizes once and the
+  transform/opacity reveal composites on the GPU. The bottom credit line is not
   animated. The raster `src/assets/logo-wordmark-transparent.png` (same 2171×724 ink layout) is
   still used by `FaazioLogo`'s `wordmark` variant (e.g. the Home header); its white field matches
   the SVG ink so both render identically at rest.
@@ -745,8 +752,8 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 | `callStore` | Shared by the customer and delivery apps: one masked call at a time — phase (`idle`/`connecting`/`ringing`/`active`/`ending`/`ended`/`error`), server call projection, masked peer label, connected timestamp, mute/speaker/audio route (`earpiece`/`speaker`/`bluetooth`), Bluetooth availability, reconnecting + PSTN-fallback prompts, recoverable notice. Owned by `features/call/controller.ts`; no raw phone number or VOIP token is persisted |
 | `remoteConfigStore` | Central remote config (the "Central Digital Menu", `admins.app_config` `0059`): boots `gateway.getAppConfig()` (`GET /app-config`, public, variant-filtered) best-effort under the splash, keeps a flat key→value map, and **never blocks startup** (failure keeps the bake-time `config.ts` defaults). Baked values are the safe defaults; a remote row overrides its key only when present; `GATEWAY_URL`/`APP_VARIANT` are never overridden. Selectors: `selectPlacesApiKey` (wired → `usePlaceAutocomplete` — a `maps.places_api_key` edit is live on the next boot), `selectMaintenanceEnabled` (available, no screen consumes it yet), `resolvePlacesApiKey` (non-hook read for `resolvePlaceLocation`). Not persisted — refetched every cold boot |
 | `connectivityStore` | Live device connectivity (no NetInfo dep): `GET {GATEWAY_URL}/health` with a 5 s timeout, polled every 30 s while foregrounded, re-checked on `AppState` → `active`. Any HTTP response (even 4xx/5xx) means online; only a thrown fetch/timeout means offline. Holds `isOnline` (`null` until the first probe so no cold-start flash), `hasConnected` (first-ever online, distinguishes cold-start offline), `pendingNavigation` + `navigationBlocked` for the offline guard. `checkConnectivity`/`startMonitoring`/`stopMonitoring`. With no gateway configured it reports **unknown** (`isOnline: null`) — it never claims online and never blocks navigation. State only — no UI |
-| `serviceabilityStore` | Enabled-district coverage for the live origin. `check(force)` reads `GET /geo/states` + `GET /geo/districts` (active `admins.district_master` rows, 60 s in-memory TTL) and matches the on-device reverse-geocoded `adminDistrict` (revenue district) / `city` / `region` / formatted address locally — no coordinates are sent. `status` (`unknown`/`serviceable`/`unserviceable`/`failed`) with `reason`, matched codes/names and `locationKey`; `checking` is a separate flag so a re-check never reopens the gate before a new result. `failed` (offline/HTTP) is never treated as unserviceable, and `isServiceabilityPending(state, currentOriginKey)` reports "no settled verdict for this origin" — the splash hold keys on that so a stale verdict cannot decide the gate. The app-level hard gate in `App.tsx` renders `ServiceAreaBlockedPage` (no shopping navigator) while unserviceable; `LocationScreen` awaits the same check before `MainTabs`. Reset on sign-out/origin reset |
-| `locationStore` | The user's location as **two separate facts** (see "Live location" below): `deviceFix` (hardware only, written by a real GPS read, keeps updating while an address override is active) and `activeLocation` (where the order goes / feeds sort from, `source: 'gps' \| 'saved' \| 'pinned'`), plus `overrideActive`, `status`, permission flags. Persisted `faazio:location:v2`. `setActiveLocation` sets the override; `adoptDeviceAsActive` clears it ("use my location"); `syncActiveToDevice(candidate)` runs proximity auto-select |
+| `serviceabilityStore` | Enabled-district coverage for the live origin. `check(force)` reads `GET /geo/states` + `GET /geo/districts` (active `admins.district_master` rows, 60 s in-memory TTL) and matches the on-device reverse-geocoded `adminDistrict` (revenue district) / `city` / `region` / formatted address locally — no coordinates are sent. It matches `activeLocation.place` first (GPS/saved/pinned origin) and falls back to `deviceFix.place`, so a chosen point is never judged by the phone's unrelated hardware position. Names are compared with a diacritic fold plus a repeated-letter fold (`Tiruchirappalli` ≈ `Tiruchirapalli`); the native geocoder returns English names regardless of device language. When the name match finds no district (a platform geocoder can omit `adminDistrict` for a taluk), the origin's coordinates resolve the nearest active district in the matched state via the district centroids (`0133`, ≤100 km) — a fallback only, never an override. `status` (`unknown`/`serviceable`/`unserviceable`/`failed`) with `reason`, matched codes/names and `locationKey`; `checking` is a separate flag so a re-check never reopens the gate before a new result. `failed` (offline/HTTP) is never treated as unserviceable, and `isServiceabilityPending(state, currentOriginKey)` reports "no settled verdict for this origin" — the splash hold keys on that so a stale verdict cannot decide the gate. The app-level hard gate in `App.tsx` renders `ServiceAreaBlockedPage` (no shopping navigator) while unserviceable; `LocationScreen` awaits the same check **forced** before `MainTabs`. Reset on sign-out/origin reset |
+| `locationStore` | The user's location as **two separate facts** (see "Live location" below): `deviceFix` (hardware only, written by a real GPS read, keeps updating while an address override is active) and `activeLocation` (where the order goes / feeds sort from, `source: 'gps' \| 'saved' \| 'pinned'`, with the origin's reverse-geocoded `place` when known), plus `overrideActive`, `status`, permission flags. Persisted `faazio:location:v2`. `setActiveLocation` sets the override; `adoptDeviceAsActive` clears it ("use my location"); `syncActiveToDevice(candidate)` runs proximity auto-select. `useCustomerLocationSync` reports the covered origin's state/district/pincode to `PUT /profile/location` |
 | `addressesStore` | Server-cached saved addresses for proximity auto-select (the location poller has no screen to fetch from). `refresh()` reads `GET /profile/addresses`; `setAddresses` lets the Saved Addresses screen push its write result. Server-only — an offline read keeps the last known list, never a fixture |
 
 ### Offline / connectivity awareness
@@ -1296,7 +1303,13 @@ numbers as tappable chips (`src/lib/recentPhones.ts`); a successful send records
 sign-out clears the list. The User Consent API only sees SMS received after it starts, so the
 ordering matters. Play Services then shows the consent sheet, fills the 6 digits and auto-submits.
 Independently, Android's Firebase SDK may auto-retrieve when Play Integrity succeeds; that session
-is surfaced through `onAuthStateChanged` and consumed without typing. iOS falls back to reCAPTCHA
+is surfaced through `onAuthStateChanged` and consumed without typing. When Play Integrity is rejected
+(a sideloaded debug/CI APK), `requestSmsCode` retries the send once with the legacy reCAPTCHA v2 web
+flow (`auth.settings.forceRecaptchaFlowForTesting`), because the SDK's default reCAPTCHA Enterprise
+fallback needs a Google Cloud site key the project has not been linked to yet (`FIREBASE_AUTH.md`
+Part 6) — without the retry that send fails with
+`Failed to initialize reCAPTCHA config: No Recaptcha Enterprise siteKey configured` and no SMS goes
+out. iOS falls back to reCAPTCHA
 until APNs is configured and uses `textContentType="oneTimeCode"` QuickType for autofill (see
 `docs/RUNBOOKS/FIREBASE_AUTH.md`). OTP submission is an explicit state machine, **not** a side effect of the 6th
 keystroke: a `useEffect` keyed on `otpCode` calls `submitOtp()` whenever the code reaches 6
@@ -1571,14 +1584,14 @@ resolves the rate card and records the acceptance timestamp, hashed IP and accou
 **Part 2 — the shops (vendors).** Each `ShopCard` (`features/seller-onboarding/components/`) picks
 its own app (`MART`/`FOOD`/`PHARMA` via the shared `SelectDropdown`), shop name/address, taxonomy
 category (server-only `GET /categories?app=`, no fixture list), platform fee % (FOOD floor 5), its
-own map pin (`SellerLocationPicker` → precise lat/lng), an **optional** FOOD FSSAI number +
+own **required** location (`SellerLocationPicker`), an **optional** FOOD FSSAI number +
 certificate or PHARMA drug-licence number + certificate (both-or-neither), and an optional **shop
 bank override**: the "Same as account bank details" checkbox defaults on; unchecked reveals shop
 bank name/account/IFSC/beneficiary, sent only when filled. Each card also carries the shop's
 **shop-front photos** — at least one, up to five, added with the camera or library and uploaded
 individually to `POST /media/avif` (`GatewayClient.uploadShopPhoto`), because React Native has no AVIF
 encoder and the gateway re-encodes from pixels (stripping EXIF/GPS). Submission is blocked until every
-shop has at least one photo, and the ids travel as `shopPhotoIds`. Cards are repeatable ("Add another
+shop has at least one photo **and a shared location**, and the photo ids travel as `shopPhotoIds`. Cards are repeatable ("Add another
 shop", remove when > 1); the submission sends every card in the `vendors[]` payload. Licences are
 optional at submission and may be attached later; when one half is supplied the gateway requires the
 number + certificate together, and an admin verifies them during review. UI copy says "Shop";
@@ -1588,11 +1601,12 @@ internal code keeps "vendor". Labels/placeholders still come from `SELLER_SETUP_
 Documents are captured with `DocumentCapture` (Vision Camera, consent-gated), uploaded straight to
 the private R2 bucket through `GatewayClient.uploadSellerDocument` (`/media/upload-url` presigned
 PUT → `/media/confirm`), and only the object key + asset id reach the application. Submission is
-blocked until the mandatory passbook photo and the OTP digital signature are complete (licences stay
-optional); the OTP runs on a
-disposable secondary Firebase app (`services/firebaseAuth.ts`) so the shopper's primary session is
-never swapped. The signature also uses Android **SMS User Consent**: `SellerRegistrationScreen` arms
-the retriever before `sendSellerOtp`, re-arms on resend, fills the six digits on approval, and
+blocked until the mandatory passbook photo, the shared location of every shop and the OTP digital
+signature are complete (licences stay optional). The OTP runs on the **primary** Firebase app when the
+signature targets the signed-in phone (same phone-auth UID, so no session swap) and on a disposable
+secondary app only for a different contact number — avoiding the secondary app's app-verification
+fallback on Android. The signature also uses Android **SMS User Consent**: `SellerRegistrationScreen`
+arms the retriever before `sendSellerOtp`, re-arms on resend, fills the six digits on approval, and
 auto-submits `verifySellerOtp` (manual entry and the Verify button remain available). Send and verify
 are mutually exclusive (a resend is refused while a verify is pending, and vice versa), the OTP and
 contact-phone inputs lock while `otpBusy`, editing the phone clears the signature and disarms the
@@ -1907,6 +1921,17 @@ origin cannot decide coverage for a user who has since moved.
 area picks; it is a valid `ready` origin but **not** a permission grant, so it never starts the GPS
 poll. `setPermissionStatus(status, granted, servicesEnabled)` lets a native re-check update the
 permission view without fabricating coordinates, and a chosen origin stays usable when GPS is denied.
+An `activeLocation` may also carry the origin's reverse-geocoded `place` (postalCode/district/region):
+a pinned/manual pick is reverse-geocoded once so it has one, while GPS origins inherit
+`deviceFix.place`.
+
+**Profile location sync.** `src/hooks/useCustomerLocationSync.ts` (mounted in `App.tsx` beside
+`useLiveLocation`/`useServiceability`) reports a `serviceable` origin with a 6-digit pincode to
+`PUT /profile/location` (`gateway.updateProfileLocation`). The gateway stores
+`checkout.users.state_code`/`district_code`/`pincode` and mints the stable public customer id
+`fa<pincode><phone>` (`0132`). The last-sent `user|state|district|pincode` tuple is persisted under
+`faazio:profile-location:v1`, so an unchanged origin does not re-PUT on a cold start; failures are
+silent and retried on the next change/foreground check.
 
 **Proximity auto-select.** While `overrideActive` is false, every fix is matched against the caller's
 saved addresses (`utils/addressProximity.findNearbySavedAddress`, 200 m radius, using each row's

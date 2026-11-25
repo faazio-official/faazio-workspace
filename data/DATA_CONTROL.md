@@ -395,7 +395,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 
 > **Contract:** Live source is `GET /geo/districts` via `GatewayClient.getDistricts` (any signed-in
 > account; `?state=` optional 2-letter filter); the wire row is camelCase
-> `{districtCode,name,stateCode}` — shape-identical to `DistrictInfo`, so the fixture is a drop-in
+> `{districtCode,name,stateCode,latitude?,longitude?}` (`0133` adds the nullable district centroid,
+> omitted when unseeded) — `DistrictInfo` carries the optional pair, so the fixture is a drop-in
 > offline fallback. `SellerRegistrationScreen` hydrates the live district list and matches the first
 > shop pin's reverse-geocoded district against it; the account state comes live from
 > `GET /geo/states` via `GatewayClient.getStates` (no manual state/district dropdowns). The server

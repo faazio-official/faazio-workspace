@@ -61,7 +61,8 @@ fix in the simulator by logging `getApps().length` (must be ≥ 1).
 LoginScreen / delivery PhoneEntry / seller signature
   └─ SMS User Consent armed BEFORE the SMS is requested
        └─ firebaseAuth.sendOtp(digits) / sendSellerOtp(phoneDigits)
-            → signInWithPhoneNumber(getAuth(), "+91…") (seller: disposable secondary app)
+            → signInWithPhoneNumber(auth, "+91…") (seller: primary app when the number matches the
+              signed-in shopper, else the disposable secondary app)
             ├─ Android: Play Integrity / reCAPTCHA → SMS (or native auto-retrieval)
             └─ iOS: APNs silent push, else reCAPTCHA → SMS
   └─ Android SMS User Consent (src/lib/smsUserConsent.ts + SmsUserConsentModule.kt)
@@ -81,15 +82,21 @@ created but the UI never consumed. A late auto-retrieval for the abandoned numbe
 sign the next attempt in, and re-entering a different number starts from a clean Firebase state.
 
 `sendOtp`/`verifyOtp` sign in the **primary** Firebase app so `refreshIdToken()` can rotate the
-session. Seller onboarding uses `sendSellerOtp`/`verifySellerOtp`, a disposable secondary app, because
-that OTP is only a signature and must not replace the shopper session. The seller signature uses the
-same Android SMS User Consent path: consent fills the six digits and auto-submits the seller verify,
-then the gateway's `auth.OTPSigned` check binds the shared shopper token's `phone_number` claim to the
-application's `contactPhone`. The seller screen also refuses a resend while a verify is in flight (and
-vice versa), locks the OTP and contact-phone inputs while `otpBusy`, clears the code on a phone edit,
-and returns to "Send OTP" if a resend fails (Firebase has already discarded the previous pending
-confirmation, so keeping "Verify" would only fail). The seller scope has no `onAuthStateChanged`
-auto-retrieval watcher; consent autofill or manual entry is its fast path.
+session. Seller onboarding uses `sendSellerOtp`/`verifySellerOtp`. Because a phone-auth UID is derived
+from the phone number, when the signature targets the **same** number that owns the signed-in shopper
+session it runs on the **primary** app (a re-authentication of the same user, never a session swap) —
+this sidesteps the disposable app's Play Integrity / reCAPTCHA fallback, which can fail on sideloaded
+Android builds and surfaced as a generic red "could not send the OTP". A contact number different from
+the shopper's phone still uses the disposable secondary app so that session is never replaced. The
+seller signature uses the same Android SMS User Consent path: consent fills the six digits and
+auto-submits the seller verify, then the gateway's `auth.OTPSigned` check binds the shared shopper
+token's `phone_number` claim to the application's `contactPhone`. The seller screen also refuses a
+resend while a verify is in flight (and vice versa), locks the OTP and contact-phone inputs while
+`otpBusy`, clears the code on a phone edit, and returns to "Send OTP" if a resend fails (Firebase has
+already discarded the previous pending confirmation, so keeping "Verify" would only fail). Send and
+verify failures map the real Firebase code to actionable copy (`src/lib/otpError.ts`). The seller
+scope has no `onAuthStateChanged` auto-retrieval watcher; consent autofill or manual entry is its fast
+path.
 Phone numbers are normalized to E.164 through `src/lib/phone.ts` (`libphonenumber-js`).
 `toE164(digits, country = 'IN')` keeps the historical `+91` default for the existing OTP flows. When
 the seller has no auth phone, the contact field pairs `CountryCodePicker` (7 countries: IN, US, CA,
@@ -310,6 +317,13 @@ edit is needed; the customer scheme is also committed in `Info.plist` as a fallb
 - [x] Server FCM service-account key generated (`firebase-adminsdk-fbsvc@project-65696e12-8def-460e-b29`).
 - [ ] **Part 6 — anti-abuse (blocked): Firebase project is not linked to Google Cloud.**
   - [ ] Enable **Play Integrity API** in the linked GCP project.
+  - [ ] Enable **reCAPTCHA Enterprise** and let Firebase provision the Android site key. The SDK
+    (firebase-auth from BOM 35) defaults its Play-Integrity fallback to reCAPTCHA Enterprise; with
+    no site key it logs
+    `E zzh: Failed to initialize reCAPTCHA config: No Recaptcha Enterprise siteKey configured for
+    tenant/project *` and **no SMS is sent**. Until this is done, `src/services/firebaseAuth.ts`
+    retries once with the legacy reCAPTCHA v2 flow (`forceRecaptchaFlowForTesting`) so sideloaded
+    APKs still get an SMS.
   - [ ] App Check → Android app → Play Integrity → **Enforce** (after testing).
   - [ ] Upload the APNs **.p8 auth key** to Firebase → Project Settings → Cloud Messaging (Key ID
     `D47Z2ZWYCN`, Team ID `HMAPFA7MR3`). The key provisioned above (see
@@ -402,10 +416,11 @@ Device smoke test (CI debug APK):
 | App crashes (SIGTRAP, `PhoneAuthProvider.swift` `fatalError`) when sending OTP on iOS | FirebaseAuth `verifyPhoneNumber` fatals when its callback URL scheme (`app-<GOOGLE_APP_ID with : → ->`) is missing from the built `Info.plist`; it trips before any network call. `ios/scripts/firebase-url-scheme.sh` (the `Firebase URL scheme` phase) injects it from the bundled `GoogleService-Info.plist`. If it recurs, the build predates that phase or the bundled Firebase plist has no `GOOGLE_APP_ID`: clean build, confirm the phase ran (look for the `note: added Firebase Auth URL scheme …` log line), and check the active `GoogleService-Info*.plist`. If `CLIENT_ID` exists, its reversed value is the equivalent scheme. With swizzling enabled (default) FirebaseAuth consumes the redirect itself; only forward URLs to `Auth.auth().canHandle(url)` in `AppDelegate.application(_:open:options:)` if swizzling is disabled. |
 | `401` from the gateway after login | The gateway builds the Firebase verifier only when `FIREBASE_PROJECT_ID` is non-empty (`config.Config.FirebaseProjectID`); if empty it verifies only portal/legacy HS256 tokens, so every Firebase ID token (RS256) 401s. Check: a valid token whose `iss` = `https://securetoken.google.com/project-65696e12-8def-460e-b29` and `aud` = `project-65696e12-8def-460e-b29` still gets `{"code":"unauthorized"}` from `https://api.faazio.com/categories/rail`, while a legacy HS256 token works. Fix: set `FIREBASE_PROJECT_ID` (and `FCM_PROJECT_ID`) on the Render service to `project-65696e12-8def-460e-b29` and redeploy; a `render.yaml` Blueprint deploy syncs these, a manually-created service does not. Client symptom: the Home/Mart category rail shows a **Retry** chip and logs `[rail] fetchCategoryRail failed ... GatewayHttpError status: 401` in dev. |
 | `401` from the gateway after login (config present) | `FIREBASE_PROJECT_ID` value mismatch (wrong/rotated project or a stray quote/space), or the container cannot reach `googleapis.com` to fetch the signing certs. Confirm the project id matches the client `google-services.json`. |
-| SMS never arrives | Region policy excludes +91, the number is not a test number, or the free quota is exhausted (Blaze billing required past the quota). |
+| SMS never arrives | Region policy excludes +91, the number is not a test number, or the free quota is exhausted (Blaze billing required past the quota). On a **sideloaded APK** also check logcat for `Failed to initialize reCAPTCHA config: No Recaptcha Enterprise siteKey configured` — Play Integrity is rejected and the Enterprise fallback cannot run until Part 6 (site key) is configured. `requestSmsCode` retries such a rejected send with the legacy reCAPTCHA v2 flow, which needs the browser round-trip; dismiss/complete it and the SMS is sent. A **Firebase test number** (customer `+91 9000000001`) never receives an SMS — only its console code (`123456`) works. |
 | No SMS-autofill consent sheet | Google Play Services is missing/outdated, the APK predates the native module, or the retriever was armed **after** the SMS was sent. Type the code manually; rebuild via `gh workflow run android-debug.yml -f app=customer`. |
 | Consent approved but the code is not filled | The message must contain a 6-digit run and be surfaced by Play Services. Type the code manually; no `RECEIVE_SMS` permission is involved. |
-| Seller signature OTP does not autofill | SMS User Consent is independent of the disposable `faazio-seller-otp` app, so the same consent sheet should appear after "Send OTP". Without Play Services, type the code manually; the Verify button enables at six digits. |
+| Seller signature OTP does not autofill | SMS User Consent is independent of the Firebase app that sent the code. When the signature targets the signed-in number it runs on the primary app; a different contact number uses the disposable `faazio-seller-otp` app. Either way the same consent sheet should appear after "Send OTP". Without Play Services, type the code manually; the Verify button enables at six digits. |
+| Seller signature shows a red "Could not send the OTP" | The screen now maps the real Firebase code via `src/lib/otpError.ts` (e.g. `auth/too-many-requests`, `auth/invalid-app-credential`, `auth/network-request-failed`). App-verification failures on a sideloaded build mean Play Integrity could not prove the install — install from Play, or complete Part 6. A same-number signature uses the primary app precisely to avoid this on Android. |
 | Seller screen drops back to "Send OTP" after tapping resend | The resend failed, so Firebase discarded the previous pending confirmation; re-send once the network is back rather than typing the old code. |
 | "Resend OTP" is tappable but does nothing during verification | Expected: a resend is refused while a verify owns the pending request. Wait for Verify to finish, then resend. |
 | `401 otp_unverified` after the seller signature | The bearer token's phone claim does not match the application `contactPhone` (now sent as parsed E.164). Sign in on the shopper account that owns the contact phone and re-verify; a client `otpVerified: true` alone is rejected. |

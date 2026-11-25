@@ -92,6 +92,27 @@ func (h *Handler) withPhotoURLs(s Seller) Seller {
 	return s
 }
 
+// withVendorPhotoURLs fills the browser-usable CDN URLs for one vendor's shop-front gallery. The
+// keys are what is stored; the URL is deployment config resolved on read.
+func (h *Handler) withVendorPhotoURLs(v Vendor) Vendor {
+	if h.photoURL == nil || len(v.PhotoKeys) == 0 {
+		return v
+	}
+	urls := make([]string, 0, len(v.PhotoKeys))
+	for _, key := range v.PhotoKeys {
+		if key == "" {
+			continue
+		}
+		if u := h.photoURL(key); u != "" {
+			urls = append(urls, u)
+		}
+	}
+	if len(urls) > 0 {
+		v.PhotoURLs = urls
+	}
+	return v
+}
+
 // withPhotoURLsList applies withPhotoURLs across a queue/list read.
 func (h *Handler) withPhotoURLsList(items []Seller) []Seller {
 	if h.photoURL == nil {
@@ -255,6 +276,9 @@ func (h *Handler) get(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d.Seller = h.withPhotoURLs(d.Seller)
+	for i := range d.Vendors {
+		d.Vendors[i] = h.withVendorPhotoURLs(d.Vendors[i])
+	}
 	httpx.JSON(w, http.StatusOK, d)
 }
 

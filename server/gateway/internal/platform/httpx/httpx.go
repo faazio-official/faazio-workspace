@@ -82,6 +82,15 @@ func LimitParam(r *http.Request, def, max int) int {
 	return n
 }
 
+// OffsetParam reads a non-negative `offset` query param. Malformed/negative values fall back to 0.
+func OffsetParam(r *http.Request) int {
+	n, err := strconv.Atoi(strings.TrimSpace(r.URL.Query().Get("offset")))
+	if err != nil || n < 0 {
+		return 0
+	}
+	return n
+}
+
 // EncodeCursor packs a keyset sort key into an opaque URL-safe string.
 func EncodeCursor(parts ...string) string {
 	return base64.RawURLEncoding.EncodeToString([]byte(strings.Join(parts, "\x1f")))

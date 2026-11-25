@@ -100,17 +100,28 @@ func (h *Handler) listLogs(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) listCustomers(w http.ResponseWriter, r *http.Request) {
-	stateCode := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("state")))
-	if auth.Role(r.Context()) == auth.RoleStateAdmin {
-		stateCode = auth.StateCode(r.Context())
+	q := r.URL.Query()
+	filter := CustomerFilter{
+		StateCode:    strings.ToUpper(strings.TrimSpace(q.Get("state"))),
+		DistrictCode: NormaliseDistrictCode(q.Get("district")),
+		Query:        strings.TrimSpace(q.Get("q")),
+		Limit:        httpx.LimitParam(r, 50, 200),
+		Offset:       httpx.OffsetParam(r),
 	}
-	q := strings.TrimSpace(r.URL.Query().Get("q"))
-	items, err := h.repo.Customers(r.Context(), stateCode, q, httpx.LimitParam(r, 200, 500))
+	// A scoped admin can never widen the directory with a query param: the state (and district,
+	// when the token carries one) comes from the verified claims.
+	if auth.Role(r.Context()) == auth.RoleStateAdmin {
+		filter.StateCode = strings.ToUpper(strings.TrimSpace(auth.StateCode(r.Context())))
+		if d := strings.TrimSpace(auth.DistrictCode(r.Context())); d != "" {
+			filter.DistrictCode = NormaliseDistrictCode(d)
+		}
+	}
+	page, err := h.repo.Customers(r.Context(), filter)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "customers_unavailable", "customers unavailable")
 		return
 	}
-	httpx.JSON(w, http.StatusOK, items)
+	httpx.JSON(w, http.StatusOK, page)
 }
 
 func (h *Handler) listAdmins(w http.ResponseWriter, r *http.Request) {

@@ -104,8 +104,19 @@ export const useServiceabilityStore = create<ServiceabilityState>()((set, get) =
 
     const promise = resolveServiceability({
       address: location.activeLocation?.address ?? '',
-      // The device fix owns the geocode payload; a chosen origin carries only a label.
-      place: location.deviceFix?.place ?? null,
+      // The chosen origin's own reverse geocode is the truth for a saved/pinned point. The device
+      // fix is only the fallback for a live GPS origin that has not been geocoded yet — using it
+      // first would decide coverage for a place the order is not going to.
+      place: location.activeLocation?.place ?? location.deviceFix?.place ?? null,
+      // The point the order goes to. Used only as a fallback when the geocode omits the district
+      // name (a platform geocoder can return `adminDistrict: null` for a taluk), so it never
+      // overrides a name match.
+      origin: location.activeLocation
+        ? {
+            latitude: location.activeLocation.latitude,
+            longitude: location.activeLocation.longitude,
+          }
+        : null,
       refreshCoverage: force,
     })
       .then((result): ServiceabilityStatus => {

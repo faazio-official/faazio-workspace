@@ -3294,12 +3294,27 @@ export function saveSduiLayoutHome(sections: SduiSection[], locale = "en"): void
 
 export interface CustomersFilter {
   stateCode?: string | undefined;
+  districtCode?: string | undefined;
   query?: string | undefined;
   limit?: number | undefined;
+  offset?: number | undefined;
+}
+
+/** One page of the directory plus the totals for the whole filtered set. */
+export interface CustomersPage {
+  items: CustomerRecord[];
+  total: number;
+  totalOrders: number;
+  totalSpendPaisa: number;
+  limit: number;
+  offset: number;
 }
 
 export interface CustomersState {
   data: CustomerRecord[];
+  total: number;
+  totalOrders: number;
+  totalSpendPaisa: number;
   loading: boolean;
   error: string | null;
   refresh: () => void;
@@ -3311,6 +3326,9 @@ export function mapCustomerRow(raw: Raw): CustomerRecord {
     userId: toStr(raw["userId"]),
     name: toStr(raw["name"]),
     stateCode: optStr(raw["stateCode"]),
+    districtCode: optStr(raw["districtCode"]),
+    pincode: optStr(raw["pincode"]),
+    customerCode: optStr(raw["customerCode"]),
     phone: optStr(raw["phone"]),
     ordersCount: Number(raw["ordersCount"] ?? 0) || 0,
     spendPaisa: Math.round((Number(raw["spend"] ?? 0) || 0) * 100),
@@ -3320,16 +3338,34 @@ export function mapCustomerRow(raw: Raw): CustomerRecord {
 }
 
 /**
- * Live server-filtered read of the admin customer directory (`GET /customers`). `q` matches name,
- * phone and user id server-side, so a customer with no spend (sorted last) is still findable.
- * Mirrors the super-admin orders board rather than filtering the hydrated store slice.
+ * Live server-filtered, paginated read of the admin customer directory (`GET /customers`). `q`
+ * matches name, phone, user id, customer code and pincode server-side, so a customer with no spend
+ * (sorted last) is still findable. State/district narrow the result; the server also returns totals
+ * for the filtered set so the page can show accurate KPIs without loading every row.
  */
-export async function fetchCustomers(filter: CustomersFilter = {}): Promise<CustomerRecord[]> {
-  if (!remoteConfigured()) return [];
-  const rows = await remote.get<Raw[]>("/customers", {
-    query: { state: filter.stateCode, q: filter.query, limit: filter.limit },
+export async function fetchCustomers(filter: CustomersFilter = {}): Promise<CustomersPage> {
+  if (!remoteConfigured()) {
+    return { items: [], total: 0, totalOrders: 0, totalSpendPaisa: 0, limit: filter.limit ?? 50, offset: filter.offset ?? 0 };
+  }
+  const raw = await remote.get<Raw>("/customers", {
+    query: {
+      state: filter.stateCode,
+      district: filter.districtCode,
+      q: filter.query,
+      limit: filter.limit,
+      offset: filter.offset,
+    },
   });
-  return (toCamel(rows) as Raw[]).map(mapCustomerRow);
+  const body = toCamel(raw) as Raw;
+  const items = Array.isArray(body?.["items"]) ? (body["items"] as Raw[]) : [];
+  return {
+    items: items.map(mapCustomerRow),
+    total: Number(body?.["total"] ?? 0) || 0,
+    totalOrders: Number(body?.["totalOrders"] ?? 0) || 0,
+    totalSpendPaisa: Number(body?.["totalSpendPaisa"] ?? 0) || 0,
+    limit: Number(body?.["limit"] ?? filter.limit ?? 50) || 50,
+    offset: Number(body?.["offset"] ?? filter.offset ?? 0) || 0,
+  };
 }
 
 /* ---------------------------------- menus -------------------------------- */

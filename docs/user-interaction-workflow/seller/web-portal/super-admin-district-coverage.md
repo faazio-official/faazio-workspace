@@ -58,8 +58,8 @@ per-district drill-down `/admin/super/districts/[code]`
 - `deleteDistrict()` → `DELETE /admin/districts/{code}` → row delete, or `409 district_in_use`.
 - The customer / seller-facing picker still reads `GET /geo/districts` (`is_active` only), so an
   edit reaches the apps on their next picker fetch — no cache to purge. The customer app's coverage
-  check keeps a 60 s in-memory copy and forces a refresh on every foreground / the gate's
-  "Check again".
+  check keeps a 60 s in-memory copy and forces a refresh on every foreground, the gate's
+  "Check again", and the location picker's confirmation check.
 
 ## Success / error / empty
 

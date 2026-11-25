@@ -116,7 +116,12 @@ class FaazioGeocoder: NSObject {
     let geocoder = CLGeocoder()
     let location = CLLocation(latitude: latitude, longitude: longitude)
 
-    geocoder.reverseGeocodeLocation(location) { placemarks, _ in
+    // Coverage names are matched against the English district master, so ask CoreLocation for
+    // Indian-English names regardless of the device UI language.
+    geocoder.reverseGeocodeLocation(
+      location,
+      preferredLocale: Locale(identifier: "en_IN")
+    ) { placemarks, _ in
       guard let place = placemarks?.first else {
         resolve(nil)
         return

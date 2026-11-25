@@ -18,10 +18,17 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/taxmath"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 // ErrInvalidProfileName rejects an empty or oversized display name on PUT /profile.
 var ErrInvalidProfileName = errors.New("checkout: invalid profile name")
+
+// ErrInvalidPincode rejects a non-6-digit PIN on PUT /profile/location.
+var ErrInvalidPincode = errors.New("checkout: invalid pincode")
+
+// ErrUnknownDistrict rejects a district code that is not in admins.district_master.
+var ErrUnknownDistrict = errors.New("checkout: unknown district")
 
 // maxProfileNameRunes bounds a customer display name. The client caps input to the same value so a
 // legitimate name never fails server-side; the bound exists so a crafted body cannot store bloat.
@@ -2158,6 +2165,178 @@ func (r *Repo) UpdateProfileName(ctx context.Context, userID, name string) (Prof
 	return p, true, nil
 }
 
+// CustomerLocation is the customer's reported serviceable location, as persisted on checkout.users
+// by PUT /profile/location. CustomerCode is the visible unique id (fa + pincode + phone); it is only
+// present once both a pincode and a phone are known.
+type CustomerLocation struct {
+	StateCode    string `json:"stateCode,omitempty"`
+	DistrictCode string `json:"districtCode,omitempty"`
+	Pincode      string `json:"pincode,omitempty"`
+	CustomerCode string `json:"customerCode,omitempty"`
+}
+
+// UpdateCustomerLocation persists the state/district/pincode the app reverse-geocoded for a covered
+// origin. The district is validated against admins.district_master and its state is derived from the
+// master, never trusted from the client. An empty field is forward-filled (it never erases a value
+// learned earlier). When a pincode and the account phone are both known, the stable customer_code is
+// minted once; later location changes update the location columns but never rewrite the code.
+// ok=false means the user row does not exist (or is a deletion tombstone).
+func (r *Repo) UpdateCustomerLocation(ctx context.Context, userID, stateCode, districtCode, pincode string) (CustomerLocation, bool, error) {
+	if r.pool == nil {
+		return CustomerLocation{}, false, fmt.Errorf("checkout: database not configured")
+	}
+	if userID == "" {
+		return CustomerLocation{}, false, nil
+	}
+	stateCode = strings.ToUpper(strings.TrimSpace(stateCode))
+	districtCode = strings.ToUpper(strings.TrimSpace(districtCode))
+	pincode = strings.TrimSpace(pincode)
+	if pincode != "" {
+		pincode = digitsOnly(pincode)
+		if !isSixDigitPincode(pincode) {
+			return CustomerLocation{}, false, ErrInvalidPincode
+		}
+	}
+
+	if districtCode != "" {
+		var masterState string
+		err := r.pool.QueryRow(ctx,
+			`select state_code from admins.district_master where district_code = $1`, districtCode).
+			Scan(&masterState)
+		if errors.Is(err, pgx.ErrNoRows) {
+			return CustomerLocation{}, false, ErrUnknownDistrict
+		}
+		if err != nil {
+			return CustomerLocation{}, false, err
+		}
+		stateCode = strings.ToUpper(strings.TrimSpace(masterState))
+	} else if stateCode != "" {
+		var known bool
+		if err := r.pool.QueryRow(ctx, `
+			select exists (select 1 from admins.states where state_code = $1)
+			    or exists (select 1 from admins.district_master where state_code = $1)`,
+			stateCode).Scan(&known); err != nil {
+			return CustomerLocation{}, false, err
+		}
+		if !known {
+			return CustomerLocation{}, false, ErrUnknownDistrict
+		}
+	}
+
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return CustomerLocation{}, false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var (
+		phone        string
+		code         string
+		storedPin    string
+		storedState  string
+		storedDistri string
+	)
+	err = tx.QueryRow(ctx, `
+		update checkout.users
+		   set state_code    = coalesce(nullif($2, ''), state_code),
+		       district_code = coalesce(nullif($3, ''), district_code),
+		       pincode       = coalesce(nullif($4, ''), pincode)
+		 where user_id = $1 and deleted_at is null
+		 returning coalesce(phone, ''), coalesce(customer_code, ''), coalesce(pincode, ''),
+		           coalesce(state_code, ''), coalesce(district_code, '')`,
+		userID, stateCode, districtCode, pincode).
+		Scan(&phone, &code, &storedPin, &storedState, &storedDistri)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return CustomerLocation{}, false, nil
+	}
+	if err != nil {
+		return CustomerLocation{}, false, err
+	}
+
+	if code == "" {
+		if minted := buildCustomerCode(storedPin, phone); minted != "" {
+			code = minted
+			// A savepoint keeps the transaction usable if the code collides (shared phone+pincode):
+			// Postgres aborts the whole tx on a unique violation, so roll back to here before retry.
+			if _, serr := tx.Exec(ctx, `savepoint customer_code`); serr != nil {
+				return CustomerLocation{}, false, serr
+			}
+			tag, uerr := tx.Exec(ctx,
+				`update checkout.users set customer_code = $2 where user_id = $1 and customer_code is null`,
+				userID, code)
+			if isUniqueViolation(uerr) {
+				if _, rerr := tx.Exec(ctx, `rollback to savepoint customer_code`); rerr != nil {
+					return CustomerLocation{}, false, rerr
+				}
+				code = minted + "-" + shortAddrID()
+				tag, uerr = tx.Exec(ctx,
+					`update checkout.users set customer_code = $2 where user_id = $1 and customer_code is null`,
+					userID, code)
+			}
+			if uerr != nil {
+				return CustomerLocation{}, false, uerr
+			}
+			if tag.RowsAffected() == 0 {
+				// Another concurrent write already minted the code; read the winner.
+				if err := tx.QueryRow(ctx,
+					`select coalesce(customer_code, '') from checkout.users where user_id = $1`, userID).
+					Scan(&code); err != nil {
+					return CustomerLocation{}, false, err
+				}
+			}
+		}
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return CustomerLocation{}, false, err
+	}
+	return CustomerLocation{
+		StateCode:    storedState,
+		DistrictCode: storedDistri,
+		Pincode:      storedPin,
+		CustomerCode: code,
+	}, true, nil
+}
+
+// buildCustomerCode is the public customer id: fa + 6-digit pincode + last 10 phone digits. Any
+// missing/invalid part returns "" (no code yet), never a malformed one.
+func buildCustomerCode(pincode, phone string) string {
+	pin := digitsOnly(pincode)
+	if !isSixDigitPincode(pin) {
+		return ""
+	}
+	digits := digitsOnly(phone)
+	if len(digits) > 10 {
+		digits = digits[len(digits)-10:]
+	}
+	if len(digits) != 10 {
+		return ""
+	}
+	return "fa" + pin + digits
+}
+
+func isSixDigitPincode(v string) bool {
+	if len(v) != 6 {
+		return false
+	}
+	for i := 0; i < len(v); i++ {
+		if v[i] < '0' || v[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+func digitsOnly(v string) string {
+	var b strings.Builder
+	b.Grow(len(v))
+	for _, r := range v {
+		if r >= '0' && r <= '9' {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
 // DeleteAccount erases a customer's personal data and anonymises their checkout.users row. The row
 // is kept because checkout.orders, checkout.payments and tax.tax_invoices reference it for
 // tax/accounting/dispute-resolution retention; those financial rows survive but are no longer
@@ -2245,6 +2424,9 @@ func (r *Repo) DeleteAccount(ctx context.Context, userID string) (authUID string
 			       phone = '',
 			       default_address_id = null,
 			       state_code = null,
+			       district_code = null,
+			       pincode = null,
+			       customer_code = null,
 			       last_login_at = null,
 			       auth_uid = null,
 			       deleted_at = now()
@@ -2490,6 +2672,15 @@ func shortAddrID() string {
 	b := make([]byte, 5)
 	_, _ = crand.Read(b)
 	return hex.EncodeToString(b)
+}
+
+// isUniqueViolation reports a Postgres unique-constraint error (SQLSTATE 23505).
+func isUniqueViolation(err error) bool {
+	if err == nil {
+		return false
+	}
+	var pgErr *pgconn.PgError
+	return errors.As(err, &pgErr) && pgErr.Code == "23505"
 }
 
 // DetailsByUser returns accounts.details.

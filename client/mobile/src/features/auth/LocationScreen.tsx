@@ -365,10 +365,12 @@ export function LocationScreen({ navigation }: Props) {
           return;
         }
 
-        // The same enabled-district check the app-level hard gate uses. A result of
-        // `unserviceable` is not navigated around: the gate replaces the navigator with the
-        // coverage page. Only a network/verification failure returns to the picker here.
-        const result = await checkServiceability();
+        // The same enabled-district check the app-level hard gate uses. Forced so a district the
+        // super admin has just enabled is seen even when the origin has not changed since the last
+        // (stale) verdict. A result of `unserviceable` is not navigated around: the gate replaces
+        // the navigator with the coverage page. Only a network/verification failure returns to the
+        // picker here.
+        const result = await checkServiceability(true);
         if (cancelled || result === 'unserviceable') return;
         if (result !== 'serviceable') {
           setStep('manual');

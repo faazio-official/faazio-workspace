@@ -253,10 +253,21 @@ caller) and are event-purged on store live toggle and product edit/status change
   `internal/platform/auth` helpers on every district-admin moderation/list surface; a token without
   the claim (pre-0130) keeps full access.
 - **Customer directory (`GET /customers`, `internal/admins`):** `DISTRICT_ADMIN`/`SUPER_ADMIN` read
-  `checkout.users_admin` (a district admin is pinned to its own `state_code` server-side). Optional
-  `q` matches name, phone and user id (ILIKE on the `0110` trigram indexes) and `limit` caps the page
-  (default 200, max 500). `0110` appends the customer's sign-in phone to the projection — same
-  projection the district customers page and the super-admin users page both read.
+  `checkout.users_admin` (a district admin is pinned to its claim `state_code` and, when present, its
+  `district_code` server-side). Optional `state`/`district` narrow the set, `q` matches name, phone,
+  user id, customer code and pincode (ILIKE on the `0110`/`0132` trigram indexes), and `limit`+`offset`
+  page the result (default 50, max 200). The response is a totals envelope
+  (`items`/`total`/`totalOrders`/`totalSpendPaisa`/`limit`/`offset`) so the page shows accurate KPIs
+  without hydrating every row. `0110` appends the sign-in phone and `0132` appends
+  district_code/pincode/customer_code to the projection — same projection the district customers page
+  and the super-admin users page both read.
+- **Customer location (`PUT /profile/location`, `internal/checkout`):** the app reports the
+  serviceable origin's state/district/pincode. The district is validated against
+  `admins.district_master` and the state derived from it (never a client pair); the gateway stores
+  `checkout.users.state_code`/`district_code`/`pincode` and mints the stable public id
+  `customer_code = fa<pincode><last10(phone)>` once when both are known (`0132`), returning
+  `{stateCode, districtCode, pincode, customerCode}`. `400 invalid_pincode`/`unknown_district`,
+  `404` when the user row is missing.
 - **District scope (`internal/platform/geo`, migrations `0046`–`0049` + `0057` + `0127`):** the wire
   role is `DISTRICT_ADMIN`; district codes are validated against `admins.district_master` and the Go
   master. Live coverage is 42 TN/PY districts, but the master holds all 777 districts of 36 states/UTs

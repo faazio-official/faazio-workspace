@@ -31,7 +31,11 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
    its auto-send after the 10th digit with the explicit button as well.
 2. `signInWithPhoneNumber` sends the SMS; the screen enters OTP mode and starts a **30 s resend
    cooldown** (customer `LoginScreen` and delivery `OtpVerify` both). A successful send records the
-   number in the recent-numbers suggestion list.
+   number in the recent-numbers suggestion list. When the install cannot pass Play Integrity
+   (sideloaded debug/CI APK), `requestSmsCode` (`src/services/firebaseAuth.ts`) retries once with the
+   legacy reCAPTCHA v2 web flow after an app-credential rejection — Firebase's default reCAPTCHA
+   Enterprise fallback needs a Google Cloud site key the project does not have yet (`FIREBASE_AUTH.md`
+   Part 6), so without the retry the send fails and no SMS is dispatched.
 3. The user enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval). Both apps
    render an animated 6-segment field driven by a hidden `textContentType="oneTimeCode"` /
    `autoComplete="sms-otp"` input and auto-submit at 6 digits.

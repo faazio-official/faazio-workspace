@@ -167,20 +167,31 @@ type VerificationLog struct {
 // Vendor is one directory.stores row owned by the account. Commercial fields (app brand, platform
 // fee, taxonomy category, FSSAI) live here, never on the account.
 type Vendor struct {
-	StoreID          string `json:"storeId"`
-	Name             string `json:"name"`
-	App              string `json:"app"`
-	IsLive           bool   `json:"isLive"`
-	PlatformFeePct   int    `json:"platformFeePct"`
-	SellerCategoryID string `json:"sellerCategoryId,omitempty"`
-	FSSAINumber      string `json:"fssaiNumber,omitempty"`
-	FSSAICertKey     string `json:"fssaiCertKey,omitempty"`
-	FSSAICertAssetID string `json:"fssaiCertAssetId,omitempty"`
-	StateCode        string `json:"stateCode,omitempty"`
-	DistrictCode     string `json:"districtCode,omitempty"`
+	StoreID                string `json:"storeId"`
+	Name                   string `json:"name"`
+	App                    string `json:"app"`
+	IsLive                 bool   `json:"isLive"`
+	PlatformFeePct         int    `json:"platformFeePct"`
+	SellerCategoryID       string `json:"sellerCategoryId,omitempty"`
+	FSSAINumber            string `json:"fssaiNumber,omitempty"`
+	FSSAICertKey           string `json:"fssaiCertKey,omitempty"`
+	FSSAICertAssetID       string `json:"fssaiCertAssetId,omitempty"`
+	DrugLicenseNumber      string `json:"drugLicenseNumber,omitempty"`
+	DrugLicenseCertKey     string `json:"drugLicenseCertKey,omitempty"`
+	DrugLicenseCertAssetID string `json:"drugLicenseCertAssetId,omitempty"`
+	StateCode              string `json:"stateCode,omitempty"`
+	DistrictCode           string `json:"districtCode,omitempty"`
+	// The shop's own identity + location, as captured during onboarding (directory.stores).
+	Address   string   `json:"address,omitempty"`
+	Phone     string   `json:"phone,omitempty"`
+	Hours     string   `json:"hours,omitempty"`
+	Latitude  *float64 `json:"latitude,omitempty"`
+	Longitude *float64 `json:"longitude,omitempty"`
 	// PhotoKeys/PhotoAssetIDs are the public shop-front gallery (AVIF), parallel arrays.
 	PhotoKeys     []string `json:"photoKeys,omitempty"`
 	PhotoAssetIDs []string `json:"photoAssetIds,omitempty"`
+	// PhotoURLs are the browser-usable CDN URLs resolved from PhotoKeys (never persisted).
+	PhotoURLs []string `json:"photoUrls,omitempty"`
 }
 
 type Detail struct {
@@ -445,7 +456,11 @@ func (r *Repo) Vendors(ctx context.Context, sellerID string) ([]Vendor, error) {
 		select st.id, st.name, st.app::text, st.is_live, st.platform_fee_pct,
 		       coalesce(st.seller_category_id,''), coalesce(st.fssai_number,''),
 		       coalesce(st.fssai_cert_key,''), coalesce(st.fssai_cert_asset_id,''),
+		       coalesce(st.drug_license_number,''), coalesce(st.drug_license_cert_key,''),
+		       coalesce(st.drug_license_cert_asset_id,''),
 		       coalesce(st.state_code,''), coalesce(s.district_code,''),
+		       coalesce(st.address,''), coalesce(st.phone,''), coalesce(st.hours,''),
+		       st.latitude, st.longitude,
 		       coalesce(st.photo_keys,'{}'), coalesce(st.photo_asset_ids,'{}')
 		  from directory.stores st
 		  join sellers.sellers s on s.seller_id = st.seller_id
@@ -460,7 +475,9 @@ func (r *Repo) Vendors(ctx context.Context, sellerID string) ([]Vendor, error) {
 		var v Vendor
 		if err := rows.Scan(&v.StoreID, &v.Name, &v.App, &v.IsLive, &v.PlatformFeePct,
 			&v.SellerCategoryID, &v.FSSAINumber, &v.FSSAICertKey, &v.FSSAICertAssetID,
-			&v.StateCode, &v.DistrictCode, &v.PhotoKeys, &v.PhotoAssetIDs); err != nil {
+			&v.DrugLicenseNumber, &v.DrugLicenseCertKey, &v.DrugLicenseCertAssetID,
+			&v.StateCode, &v.DistrictCode, &v.Address, &v.Phone, &v.Hours,
+			&v.Latitude, &v.Longitude, &v.PhotoKeys, &v.PhotoAssetIDs); err != nil {
 			return nil, err
 		}
 		out = append(out, v)

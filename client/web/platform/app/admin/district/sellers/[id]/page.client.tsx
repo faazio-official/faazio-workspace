@@ -3,7 +3,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { Eye, EyeOff, Upload } from "lucide-react";
+import { ExternalLink, Eye, EyeOff, MapPin, Upload } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { KpiStrip } from "@/components/patterns/KpiCard";
@@ -673,22 +673,75 @@ function VendorFeeRow({
   const [fee, setFee] = useState(String(vendor.platformFeePct));
   useEffect(() => setFee(String(vendor.platformFeePct)), [vendor.platformFeePct]);
   const floor = vendor.app === "FOOD" ? 5 : 1;
+  const hasPin =
+    typeof vendor.latitude === "number" && typeof vendor.longitude === "number";
+  const mapUrl = hasPin
+    ? `https://www.google.com/maps/search/?api=1&query=${vendor.latitude},${vendor.longitude}`
+    : null;
+  const photos = vendor.photoUrls ?? [];
+  const photoKeys = vendor.photoKeys ?? [];
   return (
     <div className="rounded-lg border border-border px-3 py-2">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
           <p className="text-[13px] font-medium">{vendor.name}</p>
           <p className="num text-[11px] text-muted-foreground">
             {vendor.storeId} · {vendor.app}
             {vendor.fssaiNumber ? ` · FSSAI ${vendor.fssaiNumber}` : ""}
+            {vendor.drugLicenseNumber ? ` · Drug licence ${vendor.drugLicenseNumber}` : ""}
             {vendor.isLive ? " · live" : " · paused"}
           </p>
-          {(vendor.photoKeys ?? []).length ? (
-            <p className="text-[11px] text-muted-foreground">
-              {(vendor.photoKeys ?? []).length} shop photo
-              {(vendor.photoKeys ?? []).length === 1 ? "" : "s"}
+          {vendor.address ? (
+            <p className="mt-1 flex items-start gap-1 text-[11px] text-muted-foreground">
+              <MapPin className="mt-0.5 size-3 shrink-0" aria-hidden />
+              <span>{vendor.address}</span>
             </p>
-          ) : null}
+          ) : (
+            <p className="mt-1 text-[11px] text-muted-foreground">No shop address stored.</p>
+          )}
+          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
+            {mapUrl ? (
+              <a
+                href={mapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+              >
+                <ExternalLink className="size-3" aria-hidden />
+                View pin on map
+              </a>
+            ) : (
+              <span>No map pin stored</span>
+            )}
+            {vendor.phone ? <span className="num">{vendor.phone}</span> : null}
+            {vendor.hours ? <span>{vendor.hours}</span> : null}
+          </div>
+          {photos.length ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {photos.map((url, i) => (
+                <a
+                  key={url}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={`Shop photo ${i + 1}`}
+                >
+                  <img
+                    src={url}
+                    alt={`${vendor.name} shop photo ${i + 1}`}
+                    className="size-16 rounded-md border border-border object-cover"
+                  />
+                </a>
+              ))}
+            </div>
+          ) : photoKeys.length ? (
+            <p className="mt-2 text-[11px] text-muted-foreground">
+              {photoKeys.length} AVIF shop photo{photoKeys.length === 1 ? "" : "s"} stored (preview
+              unavailable)
+            </p>
+          ) : (
+            <p className="mt-2 text-[11px] text-muted-foreground">No shop photos stored.</p>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           <Input

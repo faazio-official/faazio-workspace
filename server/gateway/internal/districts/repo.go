@@ -32,11 +32,15 @@ type District struct {
 
 // PickerDistrict is the seller-picker wire row from GET /geo/districts. It keeps the original
 // 3-field shape identical to the client fixture DistrictInfo (@data/districts) — no lifecycle fields
-// leak into the mobile picker contract.
+// leak into the mobile picker contract — plus the district centroid (0133) so the customer
+// service-area gate can resolve the nearest active district from the origin coordinates when the
+// platform geocoder omits the district name. Both are null when a district has no seeded centroid.
 type PickerDistrict struct {
-	DistrictCode string `json:"districtCode"`
-	Name         string `json:"name"`
-	StateCode    string `json:"stateCode"`
+	DistrictCode string   `json:"districtCode"`
+	Name         string   `json:"name"`
+	StateCode    string   `json:"stateCode"`
+	Latitude     *float64 `json:"latitude,omitempty"`
+	Longitude    *float64 `json:"longitude,omitempty"`
 }
 
 // Input is a create/update payload. Code is only read on create — it is the primary key, so an
@@ -79,7 +83,8 @@ func (r *Repo) List(ctx context.Context, stateCode string) ([]PickerDistrict, er
 		return nil, fmt.Errorf("districts: database not configured")
 	}
 	rows, err := r.pool.Query(ctx, `
-		select district_code as "districtCode", district_name as "name", state_code::text as "stateCode"
+		select district_code as "districtCode", district_name as "name", state_code::text as "stateCode",
+		       latitude, longitude
 		  from admins.district_master
 		 where is_active and ($1 = '' or state_code = $1)
 		 order by (state_code <> 'TN'), state_code, district_name`, stateCode)
@@ -90,7 +95,7 @@ func (r *Repo) List(ctx context.Context, stateCode string) ([]PickerDistrict, er
 	out := []PickerDistrict{}
 	for rows.Next() {
 		var d PickerDistrict
-		if err := rows.Scan(&d.DistrictCode, &d.Name, &d.StateCode); err != nil {
+		if err := rows.Scan(&d.DistrictCode, &d.Name, &d.StateCode, &d.Latitude, &d.Longitude); err != nil {
 			return nil, err
 		}
 		out = append(out, d)

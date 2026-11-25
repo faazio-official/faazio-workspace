@@ -923,6 +923,9 @@ export function useSduiLayouts(
 export function useCustomers(filter: api.CustomersFilter = {}): api.CustomersState {
   const key = JSON.stringify(filter);
   const [data, setData] = useState<CustomerRecord[]>([]);
+  const [total, setTotal] = useState(0);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalSpendPaisa, setTotalSpendPaisa] = useState(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [version, setVersion] = useState(0);
@@ -936,14 +939,20 @@ export function useCustomers(filter: api.CustomersFilter = {}): api.CustomersSta
     setLoading(true);
     api
       .fetchCustomers(JSON.parse(key) as api.CustomersFilter)
-      .then((rows) => {
+      .then((page) => {
         if (cancelled) return;
-        setData(rows);
+        setData(page.items);
+        setTotal(page.total);
+        setTotalOrders(page.totalOrders);
+        setTotalSpendPaisa(page.totalSpendPaisa);
         setError(null);
       })
       .catch(() => {
         if (cancelled) return;
         setData([]);
+        setTotal(0);
+        setTotalOrders(0);
+        setTotalSpendPaisa(0);
         setError("Could not load customers");
       })
       .finally(() => {
@@ -953,7 +962,7 @@ export function useCustomers(filter: api.CustomersFilter = {}): api.CustomersSta
       cancelled = true;
     };
   }, [key, version]);
-  return { data, loading, error, refresh };
+  return { data, total, totalOrders, totalSpendPaisa, loading, error, refresh };
 }
 
 export function useMenus(

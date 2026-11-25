@@ -8,9 +8,27 @@ const coverage = {
     { stateCode: 'PY', name: 'Puducherry', kind: 'UT' },
   ],
   districts: [
-    { districtCode: 'TTC', name: 'Tiruchirappalli', stateCode: 'TN' },
-    { districtCode: 'TCH', name: 'Chennai', stateCode: 'TN' },
-    { districtCode: 'PY0', name: 'Puducherry', stateCode: 'PY' },
+    {
+      districtCode: 'TTC',
+      name: 'Tiruchirappalli',
+      stateCode: 'TN',
+      latitude: 11.034599,
+      longitude: 78.5660852,
+    },
+    {
+      districtCode: 'TCH',
+      name: 'Chennai',
+      stateCode: 'TN',
+      latitude: 13.0843007,
+      longitude: 80.2704622,
+    },
+    {
+      districtCode: 'PY0',
+      name: 'Puducherry',
+      stateCode: 'PY',
+      latitude: 11.9415216,
+      longitude: 79.8082102,
+    },
   ],
 };
 
@@ -122,6 +140,24 @@ describe('matchServiceability', () => {
     }
   });
 
+  // Transliteration drift is common in the platform geocoder (`Tiruchirapalli` for the master's
+  // `Tiruchirappalli`). A repeated-letter difference must not hard-block an enabled district.
+  it('matches a district across a repeated-letter spelling difference', () => {
+    const result = matchServiceability(
+      'Lalgudi, Tiruchirapalli, Tamil Nadu 621601, India',
+      {
+        adminDistrict: 'Tiruchirapalli',
+        city: 'Tiruchirapalli',
+        region: 'Tamil Nadu',
+      },
+      coverage,
+    );
+    expect(result.status).toBe('serviceable');
+    if (result.status === 'serviceable') {
+      expect(result.match.districtCode).toBe('TTC');
+    }
+  });
+
   it('blocks a taluk town whose revenue district is not enabled', () => {
     const result = matchServiceability(
       'Melur, Madurai, Tamil Nadu 625106, India',
@@ -130,6 +166,63 @@ describe('matchServiceability', () => {
         adminDistrict: 'Madurai',
         region: 'Tamil Nadu',
       },
+      coverage,
+    );
+    expect(result).toEqual({
+      status: 'unserviceable',
+      reason: 'district_unavailable',
+      stateName: 'Tamil Nadu',
+    });
+  });
+
+  // Real device payload from Lalgudi (Tiruchirappalli district): the Android geocoder returned
+  // `adminDistrict: null`, city "Lalgudi" and sub-locality "sirudayur", so neither the district field
+  // nor the formatted address names Tiruchirappalli. The origin coordinates resolve the nearest
+  // active district instead of hard-blocking a covered user.
+  it('resolves a geocode with no district name from the origin centroid', () => {
+    const result = matchServiceability(
+      'sirudayur, Lalgudi, Tamil Nadu, 621601',
+      {
+        postalCode: '621601',
+        city: 'Lalgudi',
+        name: 'VRJ8+W46',
+        district: 'sirudayur',
+        region: 'Tamil Nadu',
+        adminDistrict: null,
+        street: null,
+      },
+      coverage,
+      { latitude: 10.8821515, longitude: 78.8151983 },
+    );
+    expect(result).toEqual({
+      status: 'serviceable',
+      match: {
+        stateCode: 'TN',
+        stateName: 'Tamil Nadu',
+        districtCode: 'TTC',
+        districtName: 'Tiruchirappalli',
+      },
+    });
+  });
+
+  it('does not fall back to a centroid when the origin is far from every active district', () => {
+    const result = matchServiceability(
+      'Somewhere, Tamil Nadu',
+      { region: 'Tamil Nadu' },
+      coverage,
+      { latitude: 28.6139, longitude: 77.209 },
+    );
+    expect(result).toEqual({
+      status: 'unserviceable',
+      reason: 'district_unavailable',
+      stateName: 'Tamil Nadu',
+    });
+  });
+
+  it('still blocks an omitted district name without origin coordinates', () => {
+    const result = matchServiceability(
+      'sirudayur, Lalgudi, Tamil Nadu, 621601',
+      { city: 'Lalgudi', district: 'sirudayur', region: 'Tamil Nadu', adminDistrict: null },
       coverage,
     );
     expect(result).toEqual({

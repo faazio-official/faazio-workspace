@@ -183,11 +183,22 @@ export interface SellerVendorRecord {
   fssaiNumber?: string | undefined;
   fssaiCertKey?: string | undefined;
   fssaiCertAssetId?: string | undefined;
+  drugLicenseNumber?: string | undefined;
+  drugLicenseCertKey?: string | undefined;
+  drugLicenseCertAssetId?: string | undefined;
   stateCode?: string | undefined;
   districtCode?: string | undefined;
+  /** Shop identity + map pin captured during onboarding (directory.stores). */
+  address?: string | undefined;
+  phone?: string | undefined;
+  hours?: string | undefined;
+  latitude?: number | undefined;
+  longitude?: number | undefined;
   /** Public shop-front gallery (AVIF keys + media ids, parallel arrays). */
   photoKeys?: string[] | undefined;
   photoAssetIds?: string[] | undefined;
+  /** CDN URLs resolved from photoKeys by the gateway on read. */
+  photoUrls?: string[] | undefined;
 }
 
 /** One-time SELLER portal login minted when an application is approved (never persisted client-side). */
@@ -692,12 +703,17 @@ export interface SduiLayout {
 
 /**
  * checkout.users_admin — admin customer directory projection. Carries the server-verified phone
- * (0110) for search/support; addresses and email stay out of the projection.
+ * (0110) and the app-reported district/pincode + derived customer code (0132) for search/support;
+ * addresses and email stay out of the projection.
  */
 export interface CustomerRecord {
   userId: string;
   name: string;
   stateCode?: string | undefined;
+  districtCode?: string | undefined;
+  pincode?: string | undefined;
+  /** Public unique id `fa<pincode><phone>`; absent until the app reports a covered location. */
+  customerCode?: string | undefined;
   phone?: string | undefined;
   ordersCount: number;
   spendPaisa: number;

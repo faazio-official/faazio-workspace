@@ -171,6 +171,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/payments", h.getPayments)
 		g.Get("/profile", h.getProfile)
 		g.Put("/profile", h.putProfileName)
+		g.Put("/profile/location", h.putProfileLocation)
 		g.Get("/profile/addresses", h.getAddresses)
 		g.Put("/profile/addresses", h.putAddress)
 		g.Delete("/profile/addresses/{addressID}", h.deleteAddress)
@@ -948,6 +949,44 @@ func (h *Handler) putProfileName(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	httpx.JSON(w, http.StatusOK, p)
+}
+
+// profileLocationRequest is the PUT /profile/location body. The app reports the state, district and
+// pincode it reverse-geocoded for a covered origin. The server validates the district against the
+// master and derives the state from it, so a client can never store a mismatched pair.
+type profileLocationRequest struct {
+	StateCode    string `json:"stateCode"`
+	DistrictCode string `json:"districtCode"`
+	Pincode      string `json:"pincode"`
+}
+
+// putProfileLocation persists the customer's serviceable location and mints the stable customer_code
+// once a pincode and the account phone are both known. A caller with no user row is a 404; an
+// invalid pincode or unknown district is a 400, never a silent no-op.
+func (h *Handler) putProfileLocation(w http.ResponseWriter, r *http.Request) {
+	var body profileLocationRequest
+	if err := httpx.Decode(r, &body); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
+		return
+	}
+	loc, ok, err := h.repo.UpdateCustomerLocation(
+		r.Context(), auth.UserID(r.Context()), body.StateCode, body.DistrictCode, body.Pincode)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrInvalidPincode):
+			httpx.Fail(w, http.StatusBadRequest, "invalid_pincode", "enter a 6-digit pincode")
+		case errors.Is(err, ErrUnknownDistrict):
+			httpx.Fail(w, http.StatusBadRequest, "unknown_district", "unknown district")
+		default:
+			httpx.Fail(w, http.StatusInternalServerError, "location_unavailable", "could not save location")
+		}
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "profile not found")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, loc)
 }
 
 func (h *Handler) getDetails(w http.ResponseWriter, r *http.Request) {

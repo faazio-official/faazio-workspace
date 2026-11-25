@@ -17,6 +17,11 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
 1. Applicant enters account fields (business name, owner, PAN, optional GSTIN) and one or more
    vendor entries (app, category, per-store fee, FSSAI or drug licence, own pin, optional masked
    bank override, and **at least one shop-front photo**, up to five).
+   **Every shop must share its location** before submission: the "Pin your shop" picker mirrors the
+   customer "share my location" screen — search the shop address or use the device's current fix,
+   with permission-aware error copy and a Settings fallback. It no longer depends on a native
+   `MapView` (a missing/restricted Google Maps SDK key rendered a blank canvas); the first shop's
+   reverse-geocoded point sets the account state/district.
 2. Contract tier: the screen reads `GET /sellers/contract-tiers` (server-owned rate card) and shows
    the selected tier's commission and payout terms. No tier is hardcoded on the client.
 3. Clickwrap: the applicant must tick three acceptances — Terms of Service, Seller / Partner
@@ -24,7 +29,12 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
    merchant disclosure is `https://faazio.com/seller-terms` (landing-page route
    `src/routes/seller-terms.tsx`; `/partner-terms` 301-redirects there); the clickwrap capture and
    audit remain server-side.
-4. Phone verification with Firebase OTP on mobile (the digital signature).
+4. Phone verification with Firebase OTP on mobile (the digital signature). The seller scope uses the
+   **primary** Firebase app when the OTP target is the same phone that owns the signed-in session
+   (a phone-auth UID is phone-derived, so this only re-authenticates the same user) and the disposable
+   secondary app only for a different contact number. This avoids the secondary app's Play Integrity
+   / reCAPTCHA fallback failing on sideloaded Android builds. Send/verify failures map the real
+   Firebase code (`rate-limited`, `app verification`, `network`) to actionable copy.
 5. KYC documents upload (`uploadSellerDocument`), and per-vendor **shop photos**: each picked image is
    POSTed to `POST /media/avif`, which re-encodes it to AVIF server-side and returns an
    `assetId`/`key`. The gateway converts because React Native has no AVIF encoder; the bytes are
@@ -36,7 +46,10 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
    first pinned shop's reverse-geocoded district and is **required** (`400 district is required`).
 7. `GET /sellers/me` returns the newest application linked by `user_id` (`404` = none), including the
    `vendorCount`/`vendorApps` rollup from `directory.stores`, so the "Shops" row survives a
-   cross-session reload (the create response carries the same rollup).
+   cross-session reload (the create response carries the same rollup). The admin detail
+   (`GET /sellers/{id}`) returns each vendor's stored name, app, fee, licences, **address, phone,
+   hours, latitude/longitude** and its **AVIF shop-photo CDN URLs**, so the review page can show every
+   shop's pin and gallery (not just its fee).
 8. A rejected application can be edited with `POST /sellers/{id}/edit` (REJECTED only; currently
    seller-role-gated, so the customer-app applicant cannot use it — see Known gaps).
 

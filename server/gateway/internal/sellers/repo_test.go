@@ -346,3 +346,45 @@ func TestFeeChangeRequestLifecycle(t *testing.T) {
 		t.Fatalf("rejected row is wrong: %+v", rejected)
 	}
 }
+
+// TestVendorsProjectShopLocation guards the admin detail read: a shop's own address and map pin are
+// written to directory.stores at onboarding and must come back from DetailByID (the review page
+// previously showed only the fee, so an operator could not verify where a shop actually is).
+func TestVendorsProjectShopLocation(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+
+	lat, lng := 10.7905, 78.7047
+	s, err := repo.CreateExtended(ctx, "user-loc-1", Seller{
+		BusinessName: "Location Traders", OwnerName: "B. Kumar",
+		GSTIN: "33ABCDE1234F1Z5", PAN: "ABCDE1234F", BusinessAddress: "9 Test Rd",
+		ContactPhone: "+91 9000000099", ContactEmail: "loc-projection@example.com", StateCode: "TN",
+	}, nil, nil, []VendorSeed{{
+		Name: "Pinned Shop", App: "MART", StateCode: "TN",
+		Address: "12 Shop St", Phone: "+91 9000000098", Hours: "9 AM – 9 PM",
+		Latitude: &lat, Longitude: &lng, PlatformFeePct: 12,
+	}}, nil, nil)
+	if err != nil {
+		t.Fatalf("create with vendor: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from directory.stores where seller_id = $1`, s.SellerID)
+		_, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id = $1`, s.SellerID)
+	})
+
+	d, ok, err := repo.DetailByID(ctx, s.SellerID)
+	if err != nil || !ok {
+		t.Fatalf("detail: ok=%v err=%v", ok, err)
+	}
+	if len(d.Vendors) != 1 {
+		t.Fatalf("want 1 vendor, got %d", len(d.Vendors))
+	}
+	v := d.Vendors[0]
+	if v.Address != "12 Shop St" || v.Phone != "+91 9000000098" || v.Hours != "9 AM – 9 PM" {
+		t.Fatalf("vendor identity not projected: %+v", v)
+	}
+	if v.Latitude == nil || *v.Latitude != lat || v.Longitude == nil || *v.Longitude != lng {
+		t.Fatalf("vendor pin not projected: %+v", v)
+	}
+}

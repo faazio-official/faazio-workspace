@@ -207,7 +207,10 @@ class FaazioGeocoderModule(reactContext: ReactApplicationContext) :
   fun reverseGeocode(latitude: Double, longitude: Double, promise: Promise) {
     Thread {
       try {
-        val geocoder = Geocoder(reactApplicationContext, Locale.getDefault())
+        // Coverage names are matched against the English district master, so ask the platform
+        // geocoder for English names regardless of the device UI language (a Tamil-locale phone
+        // otherwise returns தமிழ்நாடு / திருச்சிராப்பள்ளி and never matches the master).
+        val geocoder = Geocoder(reactApplicationContext, Locale.ENGLISH)
         if (!Geocoder.isPresent()) {
           promise.resolve(null)
           return@Thread

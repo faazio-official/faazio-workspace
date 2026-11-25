@@ -21,7 +21,6 @@ import type {
   CampaignScope,
   CampaignStatus,
   CouponRecord,
-  CustomerRecord,
   FestivalCampaign,
   HeroCampaign,
   LedgerEntry,
@@ -233,7 +232,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
   // Account settings (alert prefs + staff roster) are owner-only; a seller sub-user would get 403s.
   const isSellerOwner = role === "SELLER" && !cur.session?.subRole;
 
-  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, customers, menus, tickets, rates, rewardLedger, orders, inventory, pricing, stores, prefs, subUsers] =
+  const [sellers, campaigns, coupons, caps, optins, slots, heroCampaigns, admins, logs, ledger, payouts, rx, blood, sdui, menus, tickets, rates, rewardLedger, orders, inventory, pricing, stores, prefs, subUsers] =
     await Promise.all([
       safe(() => remote.get<RawSeller[]>("/sellers").then(toCamel)),
       safe(() => remote.get<FestivalCampaign[]>("/promo/campaigns").then(toCamel)),
@@ -281,10 +280,8 @@ export async function hydrateFromGateway(): Promise<boolean> {
           ? remote.get<Raw>("/admin/sdui/home").then(toCamel)
           : Promise.resolve<Raw | undefined>(undefined),
       ),
-      // Partner-completion (0017). Customers/tickets are admin surfaces; menus/rates are partner-wide.
-      safe(() =>
-        (role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/customers").then(toCamel)),
-      ),
+      // Partner-completion (0017). Tickets are an admin surface; menus/rates are partner-wide.
+      // (The customer directory is read live + paginated by the Users page, not hydrated here.)
       safe(() => remote.get<Raw[]>("/seller/menus").then(toCamel)),
       safe(() =>
         role === "SELLER" ? Promise.resolve<Raw[]>([]) : remote.get<Raw[]>("/support/tickets").then(toCamel),
@@ -530,21 +527,6 @@ export async function hydrateFromGateway(): Promise<boolean> {
       updatedAt: str(sdui["updatedAt"], new Date().toISOString()),
     };
     patch["sduiLayouts"] = [layout];
-    touched = true;
-  }
-  if (hasSlice(customers)) {
-    patch["customers"] = customers.map(
-      (c): CustomerRecord => ({
-        userId: str(c["userId"]),
-        name: str(c["name"]),
-        stateCode: c["stateCode"] ? str(c["stateCode"]) : undefined,
-        phone: c["phone"] ? str(c["phone"]) : undefined,
-        ordersCount: num(c["ordersCount"]),
-        spendPaisa: toPaisa(num(c["spend"])),
-        lastOrderAt: c["lastOrderAt"] ? str(c["lastOrderAt"]) : undefined,
-        createdAt: str(c["createdAt"]),
-      }),
-    );
     touched = true;
   }
   if (hasSlice(menus)) {

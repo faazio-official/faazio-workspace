@@ -53,9 +53,10 @@ func TestCustomersProjection(t *testing.T) {
 
 	uid := "user-cust-" + shortID()
 	orderID := "ord-" + shortID()
+	code := "fa600001919000000123"
 	if _, err := pool.Exec(ctx, `
-		insert into checkout.users (user_id, name, email, phone, state_code)
-		values ($1, 'Customer Test', 'c@t', '919000000123', 'KA')`, uid); err != nil {
+		insert into checkout.users (user_id, name, email, phone, state_code, district_code, pincode, customer_code)
+		values ($1, 'Customer Test', 'c@t', '919000000123', 'KA', 'BLR', '560001', $2)`, uid, code); err != nil {
 		t.Fatalf("seed user: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.users where user_id=$1`, uid) })
@@ -66,14 +67,14 @@ func TestCustomersProjection(t *testing.T) {
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from checkout.orders where order_id=$1`, orderID) })
 
-	list, err := repo.Customers(ctx, "KA", "", 10)
+	page, err := repo.Customers(ctx, CustomerFilter{StateCode: "KA", Limit: 10})
 	if err != nil {
 		t.Fatalf("Customers: %v", err)
 	}
 	var found *Customer
-	for i := range list {
-		if list[i].UserID == uid {
-			found = &list[i]
+	for i := range page.Items {
+		if page.Items[i].UserID == uid {
+			found = &page.Items[i]
 		}
 	}
 	if found == nil {
@@ -85,14 +86,20 @@ func TestCustomersProjection(t *testing.T) {
 	if found.Phone != "919000000123" {
 		t.Fatalf("phone missing from projection: %+v", *found)
 	}
-	// The search term matches phone/name/user id server-side.
-	for _, term := range []string{"9000000123", "customer test", uid} {
-		matched, err := repo.Customers(ctx, "", term, 10)
+	if found.DistrictCode != "BLR" || found.Pincode != "560001" || found.CustomerCode != code {
+		t.Fatalf("location fields missing from projection: %+v", *found)
+	}
+	if page.Total < 1 || page.TotalOrders < 1 || page.TotalSpendPaisa < 12345 {
+		t.Fatalf("page totals wrong: %+v", page)
+	}
+	// The search term matches phone/name/user id/customer code/pincode server-side.
+	for _, term := range []string{"9000000123", "customer test", uid, code, "560001"} {
+		matched, err := repo.Customers(ctx, CustomerFilter{Query: term, Limit: 10})
 		if err != nil {
 			t.Fatalf("Customers search %q: %v", term, err)
 		}
 		var hit bool
-		for _, c := range matched {
+		for _, c := range matched.Items {
 			if c.UserID == uid {
 				hit = true
 			}
@@ -101,14 +108,36 @@ func TestCustomersProjection(t *testing.T) {
 			t.Fatalf("search %q did not surface %s", term, uid)
 		}
 	}
+	// District scoping narrows the directory.
+	byDistrict, err := repo.Customers(ctx, CustomerFilter{DistrictCode: "BLR", Limit: 10})
+	if err != nil {
+		t.Fatalf("Customers district: %v", err)
+	}
+	var districtHit bool
+	for _, c := range byDistrict.Items {
+		if c.UserID == uid {
+			districtHit = true
+		}
+	}
+	if !districtHit {
+		t.Fatalf("district filter did not surface %s", uid)
+	}
 	// Other states are filtered out.
-	other, err := repo.Customers(ctx, "DL", "", 10)
+	other, err := repo.Customers(ctx, CustomerFilter{StateCode: "DL", Limit: 10})
 	if err != nil {
 		t.Fatalf("Customers DL: %v", err)
 	}
-	for _, c := range other {
+	for _, c := range other.Items {
 		if c.UserID == uid {
 			t.Fatal("state filter leaked a KA customer into DL")
 		}
+	}
+	// Pagination: offset past the only matching row returns an empty page but keeps the total.
+	paged, err := repo.Customers(ctx, CustomerFilter{StateCode: "KA", Limit: 10, Offset: 1000})
+	if err != nil {
+		t.Fatalf("Customers page: %v", err)
+	}
+	if len(paged.Items) != 0 || paged.Total < 1 {
+		t.Fatalf("pagination wrong: %+v", paged)
 	}
 }

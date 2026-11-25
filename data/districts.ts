@@ -7,6 +7,13 @@ export interface DistrictInfo {
   districtCode: string;
   name: string;
   stateCode: string;
+  /**
+   * District centroid (0133) served by `GET /geo/districts`. Used only as a coordinate fallback
+   * when a reverse-geocoded address omits the revenue district name. Optional here because the
+   * offline fixture does not carry centroids.
+   */
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 export const DISTRICTS: DistrictInfo[] = [

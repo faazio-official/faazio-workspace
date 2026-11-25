@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
@@ -234,63 +235,124 @@ func (r *Repo) DeleteDistrictAdmin(ctx context.Context, adminID string) error {
 }
 
 // Customer is one checkout.users_admin projection row. It carries the server-verified phone (0110)
-// so the directory can surface and search a phone-OTP customer by number; addresses/email stay out
-// of the projection. Only the gateway (service_role) reads the view.
+// and the location facts the app reports (district/pincode, 0132) so the directory can filter and
+// search a phone-OTP customer by number even when they have never placed an order. Addresses/email
+// stay out of the projection. Only the gateway (service_role) reads the view.
 type Customer struct {
-	UserID      string `json:"userId"`
-	Name        string `json:"name"`
-	StateCode   string `json:"stateCode,omitempty"`
-	Phone       string `json:"phone,omitempty"`
-	OrdersCount int64  `json:"ordersCount"`
-	Spend       int64  `json:"spend"` // whole rupees
-	LastOrderAt string `json:"lastOrderAt,omitempty"`
-	CreatedAt   string `json:"createdAt,omitempty"`
+	UserID       string `json:"userId"`
+	Name         string `json:"name"`
+	StateCode    string `json:"stateCode,omitempty"`
+	DistrictCode string `json:"districtCode,omitempty"`
+	Pincode      string `json:"pincode,omitempty"`
+	CustomerCode string `json:"customerCode,omitempty"`
+	Phone        string `json:"phone,omitempty"`
+	OrdersCount  int64  `json:"ordersCount"`
+	Spend        int64  `json:"spend"` // whole rupees
+	LastOrderAt  string `json:"lastOrderAt,omitempty"`
+	CreatedAt    string `json:"createdAt,omitempty"`
 }
 
-// Customers reads the customer projection, optionally scoped to one state and/or search term. The
-// search matches name, phone and user id server-side (ILIKE on the trigram indexes from 0110) so a
-// zero-spend customer that sorts past the board page limit is still findable. The gateway connects
-// as service_role, so it reads the full view; direct Supabase clients are never granted SELECT on it
-// (0017).
-func (r *Repo) Customers(ctx context.Context, stateCode, query string, limit int) ([]Customer, error) {
+// CustomerFilter narrows the admin customer directory. State/district are the caller's scope (a
+// DISTRICT_ADMIN is forced to its claims by the handler); Query is a server-side ILIKE search.
+type CustomerFilter struct {
+	StateCode    string
+	DistrictCode string
+	Query        string
+	Limit        int
+	Offset       int
+}
+
+// CustomersPage is one page of the directory plus the totals for the whole filtered set, so the
+// page can render accurate KPIs without hydrating every row.
+type CustomersPage struct {
+	Items           []Customer `json:"items"`
+	Total           int        `json:"total"`
+	TotalOrders     int64      `json:"totalOrders"`
+	TotalSpendPaisa int64      `json:"totalSpendPaisa"`
+	Limit           int        `json:"limit"`
+	Offset          int        `json:"offset"`
+}
+
+// Customers reads one page of the customer projection plus totals, optionally scoped to a state,
+// district and/or search term. The search matches name, phone, user id, customer code and pincode
+// server-side (ILIKE on the trigram indexes) so a zero-spend customer that sorts past the page limit
+// is still findable. The gateway connects as service_role, so it reads the full view; direct
+// Supabase clients are never granted SELECT on it (0017).
+func (r *Repo) Customers(ctx context.Context, f CustomerFilter) (CustomersPage, error) {
 	if r.pool == nil {
-		return nil, fmt.Errorf("admins: database not configured")
+		return CustomersPage{}, fmt.Errorf("admins: database not configured")
 	}
-	if limit <= 0 || limit > 500 {
-		limit = 200
+	if f.Limit <= 0 || f.Limit > 500 {
+		f.Limit = 50
 	}
-	rows, err := r.pool.Query(ctx, `
-		select user_id, name, coalesce(state_code,''), coalesce(phone,''), orders_count, spend_paisa, last_order_at, created_at
+	if f.Offset < 0 {
+		f.Offset = 0
+	}
+	stateCode := strings.ToUpper(strings.TrimSpace(f.StateCode))
+	districtCode := strings.ToUpper(strings.TrimSpace(f.DistrictCode))
+	query := strings.TrimSpace(f.Query)
+
+	page := CustomersPage{Items: []Customer{}, Limit: f.Limit, Offset: f.Offset}
+	if err := r.pool.QueryRow(ctx, `
+		select count(*),
+		       coalesce(sum(orders_count), 0)::int8,
+		       coalesce(sum(spend_paisa), 0)::int8
 		  from checkout.users_admin
 		 where ($1 = '' or state_code = $1)
-		   and ($2 = ''
-		        or name ilike '%' || $2 || '%'
-		        or phone ilike '%' || $2 || '%'
-		        or user_id ilike '%' || $2 || '%')
+		   and ($2 = '' or district_code = $2)
+		   and ($3 = ''
+		        or name ilike '%' || $3 || '%'
+		        or phone ilike '%' || $3 || '%'
+		        or user_id ilike '%' || $3 || '%'
+		        or customer_code ilike '%' || $3 || '%'
+		        or pincode ilike '%' || $3 || '%')`,
+		stateCode, districtCode, query).
+		Scan(&page.Total, &page.TotalOrders, &page.TotalSpendPaisa); err != nil {
+		return CustomersPage{}, err
+	}
+
+	rows, err := r.pool.Query(ctx, `
+		select user_id, name, coalesce(state_code, ''), coalesce(district_code, ''),
+		       coalesce(phone, ''), coalesce(pincode, ''), coalesce(customer_code, ''),
+		       orders_count, spend_paisa, last_order_at, created_at
+		  from checkout.users_admin
+		 where ($1 = '' or state_code = $1)
+		   and ($2 = '' or district_code = $2)
+		   and ($3 = ''
+		        or name ilike '%' || $3 || '%'
+		        or phone ilike '%' || $3 || '%'
+		        or user_id ilike '%' || $3 || '%'
+		        or customer_code ilike '%' || $3 || '%'
+		        or pincode ilike '%' || $3 || '%')
 		 order by spend_paisa desc, user_id asc
-		 limit $3`, stateCode, query, limit)
+		 limit $4 offset $5`, stateCode, districtCode, query, f.Limit, f.Offset)
 	if err != nil {
-		return nil, err
+		return CustomersPage{}, err
 	}
 	defer rows.Close()
-	out := []Customer{}
 	for rows.Next() {
 		var (
 			c           Customer
 			lastOrderAt *time.Time
 			createdAt   time.Time
 		)
-		if err := rows.Scan(&c.UserID, &c.Name, &c.StateCode, &c.Phone, &c.OrdersCount, &c.Spend, &lastOrderAt, &createdAt); err != nil {
-			return nil, err
+		if err := rows.Scan(
+			&c.UserID, &c.Name, &c.StateCode, &c.DistrictCode,
+			&c.Phone, &c.Pincode, &c.CustomerCode,
+			&c.OrdersCount, &c.Spend, &lastOrderAt, &createdAt); err != nil {
+			return CustomersPage{}, err
 		}
 		c.Spend = c.Spend / 100
 		if lastOrderAt != nil {
 			c.LastOrderAt = lastOrderAt.UTC().Format(time.RFC3339)
 		}
 		c.CreatedAt = createdAt.UTC().Format(time.RFC3339)
-		out = append(out, c)
+		page.Items = append(page.Items, c)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return CustomersPage{}, err
+	}
+	return page, nil
 }
 
 func shortID() string {
