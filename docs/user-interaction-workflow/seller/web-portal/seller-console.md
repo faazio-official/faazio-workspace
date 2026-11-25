@@ -1,7 +1,8 @@
 # Seller console + portal auth
 
-**App / route:** `client/web/platform` · `/login` → role home (`/seller`, `/admin/district`,
-`/admin/super`)
+**App / route:** `client/web/platform` · `/` → `/login` → role home (`/seller`, `/admin/district`,
+`/admin/super`). There is no role picker: `/` server-redirects to `/login`, and the login page
+identifies the role (on sign-in or on session restore) and sends the user to `homeFor(role)`.
 **Status:** Partial (auth shell shipped; local-only surfaces remain)
 **Trigger:** Browser login, seller app WebView, or a session restore on page load. A seller's
 `SELLER` credential is auto-provisioned on application approval (see
@@ -19,8 +20,9 @@
    `faazio:auth-resolved` (a signed-out restore), or after a 5 s fallback
    (`PORTAL_AUTH_RESOLVE_TIMEOUT_MS`; `SPLASH_MIN_DISPLAY_MS` 1.2 s floor). A returning seller
    therefore sees splash → dashboard, never the login page flashing first.
-2. `middleware.ts` checks for the refresh cookie (`faazio_prt` / `__Host-faazio_prt`) on
-   `/seller/*` and `/admin/*`; absent → redirect to `/login?next=…`.
+2. `app/page.tsx` redirects `/` to `/login`. `middleware.ts` checks for the refresh cookie
+   (`faazio_prt` / `__Host-faazio_prt`) on `/seller/*` and `/admin/*`; absent → redirect to
+   `/login?next=…`.
 3. `/login` calls `signIn` → `POST /api/auth/portal/login` → gateway `POST /auth/portal/login`.
 4. The gateway verifies credentials (`admins.portal_users`) and mints a portal HS256 JWT
    (`iss=faazio-portal`, `aud=portal`) + rotating refresh session.

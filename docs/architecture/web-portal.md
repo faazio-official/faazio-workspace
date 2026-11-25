@@ -39,8 +39,8 @@ Vite reference (all 3 consoles).
 
 | Route | Page |
 | --- | --- |
-| `/` | root redirect/landing → `app/page.tsx` |
-| `/login` | gateway-native portal sign-in (any role) |
+| `/` | redirect → `/login` (no role picker; the portal has one sign-in entry) |
+| `/login` | gateway-native portal sign-in (any role); identifies the role on sign-in/restore and redirects to `homeFor(role)` |
 | `/security` | password rotation for any portal role (forced when `mustChange`, i.e. scoped roles only) |
 | `/accept-invite/admin` | **public** — a district admin accepts their invite and sets their own password (token in `?token=…`); no session required |
 | `/admin/super/security` | superadmin shortcut to the same password rotation |
@@ -357,7 +357,8 @@ metadata + `src/styles.css`) plus `app/providers.tsx`
 `errorComponent` become `app/not-found.tsx` / `app/error.tsx`. Their "Go home" action is
 context-aware via `homeFor` / `homeForPath` (`src/lib/auth/permissions.ts`): a seller lands on
 `/seller/orders` (the console default), admins on their district/super dashboard, and only public
-routes fall back to the marketing `/` — never the landing page from inside the seller console.
+routes fall back to `/`, which redirects to `/login` — never the marketing landing page from inside
+the seller console.
 
 ## Help system (contextual "i" guidance)
 
