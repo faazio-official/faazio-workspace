@@ -27,14 +27,23 @@ deliberate choice; while it is set, proximity auto-select stands down.
    starts in `request`.
 2. **Primer (pre-permission):** the `request` step shows a benefit card ("Find stores delivering
    near you") plus "Allow location access" and "Enter location manually".
-   - **Allow:** calls `requestAndRefreshLocation()` — high-accuracy fix + reverse geocode, then
+   - **Allow:** calls `requestAndRefreshLocation()` in strict order — runtime permission first, then
+     the device Location master switch, then a high-accuracy fix + reverse geocode, then
      `adoptDeviceAsActive()` (an explicit "follow me" clears any override) and proximity auto-select.
+     - On Android, if the master switch is off it opens the system "Turn on location" dialog
+       (Play Services resolution) and, when accepted, runs the fix without another tap. Cancelling
+       it returns no inline error; the next tap explains via the instructional sheet.
+     - On iOS the global switch has no in-app prompt, so the screen opens the instructional sheet
+       (`App-Prefs:Privacy&path=LOCATION`, falling back to `Linking.openSettings()`) and auto-resumes
+       on `AppState` → `active`.
    - **Enter location manually:** skips the OS dialog entirely and goes to `manual`.
    - **First denial (Android):** inline error; the manual path stays available and a later tap can
      show the OS dialog again.
-   - **Blocked (iOS "Don't Allow", Android "Don't ask again", Location Services off):** the OS will
-     never show the permission dialog again. The screen shows a Settings instruction, opens the
-     Settings app via `Linking.openSettings()`, and the manual path stays available.
+   - **Services off:** an instructional bottom sheet ("Turn on Device Location") with Continue and
+     "Enter address manually"; no premature red text.
+   - **Blocked (iOS "Don't Allow", Android "Don't ask again"):** the OS will never show the
+     permission dialog again. The screen shows a Settings instruction, opens the Settings app via
+     `Linking.openSettings()`, and the manual path stays available.
 3. **Manual:** `usePlaceAutocomplete` searches places; `resolvePlaceLocation(placeId)` resolves the
    selected suggestion to coordinates + address.
 4. Selecting a place or a confirmed fix calls `useLocationStore.setActiveLocation(...)` —
@@ -101,8 +110,10 @@ stays `ready`, so nearby sorting keeps working from it even with GPS denied.
 
 - Places availability depends on a valid API key; see `docs/RUNBOOKS/TROUBLESHOOTING.md`.
 - Permission and services state are read through the local `FaazioGeocoder` native module
-  (`getLocationAuthorizationStatus`, `isLocationServicesEnabled`, `geocodeAddress`,
-  `reverseGeocode`). A native rebuild (CI) is required when this module changes.
+  (`getLocationAuthorizationStatus`, `isLocationServicesEnabled`, `requestEnableLocation`,
+  `geocodeAddress`, `reverseGeocode`). `requestEnableLocation` uses `com.google.android.gms:play-services-location`
+  on Android for the system "Turn on location" dialog. A native rebuild (CI) is required when this
+  module changes.
 
 ## Linked docs
 

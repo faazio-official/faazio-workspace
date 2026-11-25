@@ -60,6 +60,22 @@ class FaazioGeocoder: NSObject {
   }
 
   /**
+   * iOS has no "turn on Location Services" dialog an app can open — only the system Settings app
+   * exposes that master switch. Report the current state so JS can direct the user to Settings
+   * instead of pretending the app can flip it. On Android this shows the OS resolution dialog.
+   *
+   * Resolves `"enabled"` when the switch is on, `"unavailable"` when it is off (never `"cancelled"`
+   * because no system dialog was shown).
+   */
+  @objc(requestEnableLocation:rejecter:)
+  func requestEnableLocation(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    rejecter _: @escaping RCTPromiseRejectBlock
+  ) {
+    resolve(CLLocationManager.locationServicesEnabled() ? "enabled" : "unavailable")
+  }
+
+  /**
    * Forward geocoding for a saved address (the address book stores text, not coordinates), so a
    * selected saved address can become the live nearby-feed origin. Resolves `nil` when the text
    * cannot be resolved — callers must not invent coordinates.

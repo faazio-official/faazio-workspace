@@ -1,23 +1,47 @@
 package com.faazio.customer
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.location.Geocoder
 import android.location.LocationManager
+import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
+import com.google.android.gms.common.api.ResolvableApiException
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.LocationSettingsRequest
+import com.google.android.gms.location.Priority
 import java.util.Locale
 
 /**
- * Reverse geocoding via the platform Geocoder. Coordinates are resolved on
- * device and never sent to a third party.
+ * Reverse geocoding via the platform Geocoder plus the OS location master-switch helpers.
+ * Coordinates are resolved on device and never sent to a third party.
  */
 class FaazioGeocoderModule(reactContext: ReactApplicationContext) :
-  ReactContextBaseJavaModule(reactContext) {
+  ReactContextBaseJavaModule(reactContext), ActivityEventListener {
+
+  /** The JS promise awaiting the "turn on location" system dialog, if any. */
+  private var pendingEnableLocation: Promise? = null
+
+  init {
+    reactApplicationContext.addActivityEventListener(this)
+  }
 
   override fun getName(): String = "FaazioGeocoder"
+
+  private fun locationServicesEnabled(): Boolean {
+    val manager =
+      reactApplicationContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+      ?: return false
+    @Suppress("DEPRECATION")
+    return manager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+      manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+  }
 
   /**
    * OS-level "Location" master switch. Distinct from this app's runtime grant: when it is off no
@@ -26,18 +50,88 @@ class FaazioGeocoderModule(reactContext: ReactApplicationContext) :
   @ReactMethod
   fun isLocationServicesEnabled(promise: Promise) {
     try {
-      val manager =
-        reactApplicationContext.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
-      if (manager == null) {
-        promise.resolve(false)
-        return
-      }
-      @Suppress("DEPRECATION")
-      promise.resolve(manager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
-        manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER))
+      promise.resolve(locationServicesEnabled())
     } catch (error: Exception) {
       promise.resolve(false)
     }
+  }
+
+  /**
+   * When the OS Location master switch is off, show Android's own "Turn on location" dialog
+   * (Play Services resolution, not a permission prompt). Resolves:
+   * - `"enabled"` — location is on afterwards;
+   * - `"cancelled"` — the user dismissed the system dialog and it is still off;
+   * - `"unavailable"` — no Activity / the dialog could not be launched.
+   *
+   * The app's runtime permission is requested separately by JS first, so by the time this runs the
+   * grant is settled and Play Services is never permission-ambiguous.
+   */
+  @ReactMethod
+  fun requestEnableLocation(promise: Promise) {
+    if (locationServicesEnabled()) {
+      promise.resolve("enabled")
+      return
+    }
+    val activity = reactApplicationContext.currentActivity
+    if (activity == null) {
+      promise.resolve("unavailable")
+      return
+    }
+    // Ignore a duplicate tap while the system dialog is already up.
+    if (pendingEnableLocation != null) {
+      promise.resolve("cancelled")
+      return
+    }
+
+    pendingEnableLocation = promise
+
+    val settingsRequest =
+      LocationSettingsRequest.Builder()
+        .addLocationRequest(
+          LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 10_000L).build(),
+        )
+        .setAlwaysShow(true)
+        .build()
+
+    LocationServices.getSettingsClient(reactApplicationContext)
+      .checkLocationSettings(settingsRequest)
+      .addOnSuccessListener { resolveEnableLocation("enabled") }
+      .addOnFailureListener { error ->
+        if (error is ResolvableApiException) {
+          try {
+            error.startResolutionForResult(activity, ENABLE_LOCATION_REQUEST)
+            return@addOnFailureListener
+          } catch (ignored: Exception) {
+            // Fall through: no resolvable activity, report the current state.
+          }
+        }
+        resolveEnableLocation(if (locationServicesEnabled()) "enabled" else "unavailable")
+      }
+  }
+
+  private fun resolveEnableLocation(status: String) {
+    val promise = pendingEnableLocation ?: return
+    pendingEnableLocation = null
+    promise.resolve(status)
+  }
+
+  override fun onActivityResult(
+    activity: Activity,
+    requestCode: Int,
+    resultCode: Int,
+    data: Intent?,
+  ) {
+    if (requestCode != ENABLE_LOCATION_REQUEST) return
+    // The dialog's result code is not authoritative; read the provider state directly.
+    resolveEnableLocation(if (locationServicesEnabled()) "enabled" else "cancelled")
+  }
+
+  override fun onNewIntent(intent: Intent) = Unit
+
+  override fun invalidate() {
+    resolveEnableLocation("cancelled")
+    reactApplicationContext.removeActivityEventListener(this)
+    super.invalidate()
   }
 
   /**
@@ -113,5 +207,9 @@ class FaazioGeocoderModule(reactContext: ReactApplicationContext) :
         promise.resolve(null)
       }
     }.start()
+  }
+
+  private companion object {
+    const val ENABLE_LOCATION_REQUEST = 0x4A21
   }
 }

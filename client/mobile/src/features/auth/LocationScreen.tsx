@@ -1,12 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { neutral } from '@/theme/brandTokens';
 import { semanticTint } from '@/theme/brandTokens';
-import { SHADOW_COLOR } from '@/theme/tokens';
-import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing, Linking, ActivityIndicator } from 'react-native';
+import { SHADOW_COLOR, TOUCH } from '@/theme/tokens';
+import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing, Linking, ActivityIndicator, AppState } from 'react-native';
 import { hs, vs, ms, wp, hp } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/shared';
+import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/AppNavigator';
 import {
@@ -32,6 +33,7 @@ import {
   type PlaceSuggestion,
 } from '@/hooks/usePlaceAutocomplete';
 import { requestAndRefreshLocation, useLiveOrigin } from '@/hooks/useLiveLocation';
+import { isLocationServicesEnabled } from '@/services/location';
 import { useLocationStore } from '@/state/locationStore';
 import { useServiceabilityStore } from '@/state/serviceabilityStore';
 import { parentRamp } from '@/theme/brandTokens';
@@ -225,6 +227,9 @@ export function LocationScreen({ navigation }: Props) {
   const [permissionError, setPermissionError] = useState('');
   const [manualError, setManualError] = useState('');
   const [placesRetry, setPlacesRetry] = useState(0);
+  const [hasDismissedSystemLocationDialog, setHasDismissedSystemLocationDialog] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [awaitingSettingsReturn, setAwaitingSettingsReturn] = useState(false);
   const checkServiceability = useServiceabilityStore((s) => s.check);
   const liveOrigin = useLiveOrigin();
   const {
@@ -234,42 +239,107 @@ export function LocationScreen({ navigation }: Props) {
     error: placesError,
   } = usePlaceAutocomplete(searchQuery, liveOrigin, placesRetry);
 
-  const useMyLocation = async () => {
-    setPermissionError('');
-    setManualError('');
-    setRequested(true);
-    let result: Awaited<ReturnType<typeof requestAndRefreshLocation>>;
-    try {
-      result = await requestAndRefreshLocation();
-    } finally {
-      setRequested(false);
-    }
-    if (result === 'blocked') {
-      setPermissionError(
-        'Location access is off for Faazio. Enable it in Settings → Privacy & Security → Location Services, then tap “Use my current location” again.',
+  const useMyLocation = useCallback(
+    async (force = false) => {
+      setPermissionError('');
+      setManualError('');
+
+      // iOS's global Location Services switch has no in-app prompt — explain and send to Settings.
+      if (Platform.OS === 'ios' && !(await isLocationServicesEnabled())) {
+        setShowLocationModal(true);
+        return;
+      }
+
+      // Android: once the user has dismissed the system "turn on location" dialog, don't silently
+      // re-fire it from the primary button. Explain first; the modal's Continue forces a retry.
+      if (
+        !force &&
+        Platform.OS === 'android' &&
+        hasDismissedSystemLocationDialog &&
+        !(await isLocationServicesEnabled())
+      ) {
+        setShowLocationModal(true);
+        return;
+      }
+
+      setRequested(true);
+      let result: Awaited<ReturnType<typeof requestAndRefreshLocation>>;
+      try {
+        result = await requestAndRefreshLocation();
+      } finally {
+        setRequested(false);
+      }
+      if (result === 'services-off') {
+        // The OS enable dialog was cancelled. No red error — the next tap explains via the modal.
+        setHasDismissedSystemLocationDialog(true);
+        return;
+      }
+      if (result === 'blocked') {
+        setPermissionError(
+          'Location access is off for Faazio. Enable it in Settings → Privacy & Security → Location Services, then tap “Use my current location” again.',
+        );
+        // iOS (and Android "don't ask again") will not show the system dialog a second time.
+        // Taking the user straight to Settings is the only recovery.
+        void Linking.openSettings();
+        return;
+      }
+      if (result === 'denied') {
+        setPermissionError(
+          'Location permission is required to show nearby stores. You can still enter an area manually.',
+        );
+        return;
+      }
+      if (result === 'failed') {
+        setPermissionError(
+          'We could not get your location right now. Try again, or enter an area manually.',
+        );
+        return;
+      }
+      if (result !== 'ready') {
+        setPermissionError(
+          'Location permission is required to show nearby stores. You can still enter an area manually.',
+        );
+        return;
+      }
+      const state = useLocationStore.getState();
+      const active = state.activeLocation;
+      if (state.status !== 'ready' || !active) {
+        setPermissionError('We could not get your location. Try again, or enter an area manually.');
+        return;
+      }
+      setSelectedLocation(
+        active.address || `${active.latitude.toFixed(4)}, ${active.longitude.toFixed(4)}`,
       );
-      // iOS (and Android "don't ask again") will not show the system dialog a second time.
-      // Taking the user straight to Settings is the only recovery.
-      void Linking.openSettings();
+      setStep('loader');
+    },
+    [hasDismissedSystemLocationDialog],
+  );
+
+  /** Instructional modal primary CTA: retry the OS flow, or open Settings on iOS. */
+  const handleEnableLocationContinue = useCallback(async () => {
+    setShowLocationModal(false);
+    if (Platform.OS === 'ios') {
+      try {
+        await Linking.openURL('App-Prefs:Privacy&path=LOCATION');
+      } catch {
+        await Linking.openSettings();
+      }
+      setAwaitingSettingsReturn(true);
       return;
     }
-    if (result !== 'ready') {
-      setPermissionError(
-        'Location permission is required to show nearby stores. You can still enter an area manually.',
-      );
-      return;
-    }
-    const state = useLocationStore.getState();
-    const active = state.activeLocation;
-    if (state.status !== 'ready' || !active) {
-      setPermissionError('We could not get your location. Try again, or enter an area manually.');
-      return;
-    }
-    setSelectedLocation(
-      active.address || `${active.latitude.toFixed(4)}, ${active.longitude.toFixed(4)}`,
-    );
-    setStep('loader');
-  };
+    await useMyLocation(true);
+  }, [useMyLocation]);
+
+  // iOS: when the user comes back from Settings with the switch on, continue without another tap.
+  useEffect(() => {
+    if (!awaitingSettingsReturn) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      setAwaitingSettingsReturn(false);
+      void useMyLocation(true);
+    });
+    return () => sub.remove();
+  }, [awaitingSettingsReturn, useMyLocation]);
 
   /** Primer opt-out: skip the OS dialog entirely and go straight to manual entry. */
   const skipToManual = () => {
@@ -464,7 +534,7 @@ export function LocationScreen({ navigation }: Props) {
                 { transform: [{ scale: pressed ? 0.95 : 1 }] },
                 requested && styles.allowBtnDisabled,
               ]}
-              onPress={useMyLocation}
+              onPress={() => void useMyLocation()}
               disabled={requested}
               accessibilityRole="button"
               accessibilityLabel="Allow location access"
@@ -577,7 +647,7 @@ export function LocationScreen({ navigation }: Props) {
                   styles.currentLocationBtn,
                   pressed && { opacity: 0.7 },
                 ]}
-                onPress={useMyLocation}
+                onPress={() => void useMyLocation()}
                 accessibilityRole="button"
                 accessibilityLabel="Use my current location"
               >
@@ -713,6 +783,73 @@ export function LocationScreen({ navigation }: Props) {
           </View>
         </Animated.View>
       )}
+
+      <SlideUpSheet
+        visible={showLocationModal}
+        onRequestClose={() => setShowLocationModal(false)}
+      >
+        <View style={styles.locationModal}>
+          <View style={styles.locationModalIcon}>
+            <NavigationIcon
+              size={ms(26)}
+              color={parentRamp.base}
+              style={{ transform: [{ rotate: '135deg' }] }}
+            />
+          </View>
+          <AppText style={styles.locationModalTitle}>Turn on Device Location</AppText>
+          <AppText style={styles.locationModalBody}>
+            Faazio needs your device location to find nearby stores and deliver to your exact
+            doorstep. Your coordinates stay on this device.
+          </AppText>
+
+          <View style={styles.locationModalSteps}>
+            <View style={styles.locationModalStep}>
+              <View style={styles.locationModalStepNum}>
+                <AppText style={styles.locationModalStepNumText}>1</AppText>
+              </View>
+              <AppText style={styles.locationModalStepText}>
+                {Platform.OS === 'ios'
+                  ? 'Turn on Location Services in the Settings app.'
+                  : 'Tap “Turn on” in the system prompt.'}
+              </AppText>
+            </View>
+            <View style={styles.locationModalStep}>
+              <View style={styles.locationModalStepNum}>
+                <AppText style={styles.locationModalStepNumText}>2</AppText>
+              </View>
+              <AppText style={styles.locationModalStepText}>
+                Choose “While using the app” for Faazio.
+              </AppText>
+            </View>
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [
+              styles.locationModalPrimary,
+              pressed && { opacity: 0.85 },
+            ]}
+            onPress={() => void handleEnableLocationContinue()}
+            accessibilityRole="button"
+            accessibilityLabel="Continue enabling location"
+          >
+            <AppText style={styles.locationModalPrimaryText}>Continue</AppText>
+          </Pressable>
+          <Pressable
+            style={({ pressed }) => [
+              styles.locationModalGhost,
+              pressed && { opacity: 0.7 },
+            ]}
+            onPress={() => {
+              setShowLocationModal(false);
+              setStep('manual');
+            }}
+            accessibilityRole="button"
+            accessibilityLabel="Enter address manually"
+          >
+            <AppText style={styles.locationModalGhostText}>Enter address manually</AppText>
+          </Pressable>
+        </View>
+      </SlideUpSheet>
     </Screen>
   );
 }
@@ -1010,5 +1147,91 @@ resultsHeader: {
     fontWeight: '600',
     color: neutral.inkSubtle,
     marginTop: vs(4),
+  },
+  locationModal: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    paddingBottom: vs(8),
+  },
+  locationModalIcon: {
+    width: ms(52),
+    height: ms(52),
+    borderRadius: ms(26),
+    backgroundColor: parentRamp.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: vs(4),
+    marginBottom: vs(14),
+  },
+  locationModalTitle: {
+    fontSize: ms(19),
+    fontWeight: '600',
+    color: neutral.ink,
+    textAlign: 'center',
+    marginBottom: vs(8),
+  },
+  locationModalBody: {
+    fontSize: ms(13),
+    lineHeight: ms(19),
+    color: neutral.inkMuted,
+    textAlign: 'center',
+    marginBottom: vs(18),
+    paddingHorizontal: hs(4),
+  },
+  locationModalSteps: {
+    alignSelf: 'stretch',
+    gap: vs(10),
+    marginBottom: vs(22),
+  },
+  locationModalStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(12),
+  },
+  locationModalStepNum: {
+    width: ms(24),
+    height: ms(24),
+    borderRadius: ms(12),
+    backgroundColor: parentRamp.tint,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationModalStepNumText: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: parentRamp.base,
+  },
+  locationModalStepText: {
+    flex: 1,
+    fontSize: ms(13),
+    lineHeight: ms(18),
+    fontWeight: '600',
+    color: neutral.ink,
+  },
+  locationModalPrimary: {
+    alignSelf: 'stretch',
+    minHeight: TOUCH.min,
+    height: vs(50),
+    borderRadius: ms(14),
+    backgroundColor: parentRamp.base,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  locationModalPrimaryText: {
+    fontSize: ms(15),
+    fontWeight: '600',
+    color: neutral.card,
+  },
+  locationModalGhost: {
+    alignSelf: 'stretch',
+    minHeight: TOUCH.min,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: vs(6),
+  },
+  locationModalGhostText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: neutral.inkMuted,
   },
 });

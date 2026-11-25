@@ -58,6 +58,8 @@ interface NativeGeocoder {
   ): Promise<ReverseGeocodeResult | null>;
   getLocationAuthorizationStatus?: () => Promise<LocationAccess>;
   isLocationServicesEnabled?: () => Promise<boolean>;
+  /** Android: show the OS "Turn on location" dialog. iOS: resolves the current switch only. */
+  requestEnableLocation?: () => Promise<EnableLocationResult>;
   geocodeAddress?: (address: string) => Promise<Coordinates | null>;
 }
 
@@ -110,6 +112,30 @@ export async function isLocationServicesEnabled(): Promise<boolean> {
 
 /** How long a first-time iOS authorization prompt may stay unanswered before we stop waiting. */
 const IOS_AUTHORIZATION_TIMEOUT_MS = 60_000;
+
+/**
+ * Ask the OS to turn Location Services on. On Android this opens the system "Turn on location"
+ * dialog (Play Services resolution); on iOS the OS exposes no programmatic toggle, so it resolves
+ * the current switch and the caller must direct the user to Settings.
+ *
+ * - `enabled` — location is on afterwards;
+ * - `cancelled` — the user dismissed the Android system dialog and it is still off;
+ * - `unavailable` — no dialog could be shown (iOS, or no foreground Activity).
+ */
+export type EnableLocationResult = 'enabled' | 'cancelled' | 'unavailable';
+
+export async function requestEnableLocation(): Promise<EnableLocationResult> {
+  if (!nativeGeocoder?.requestEnableLocation) {
+    return (await isLocationServicesEnabled()) ? 'enabled' : 'unavailable';
+  }
+  try {
+    const status = await nativeGeocoder.requestEnableLocation();
+    if (status === 'enabled' || status === 'cancelled') return status;
+    return 'unavailable';
+  } catch {
+    return (await isLocationServicesEnabled()) ? 'enabled' : 'unavailable';
+  }
+}
 
 /**
  * Ask the OS for foreground location access and report why it could not be granted.

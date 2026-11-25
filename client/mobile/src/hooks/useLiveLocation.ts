@@ -1,11 +1,12 @@
 import { useEffect, useMemo } from 'react';
-import { AppState } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import {
   distanceMeters,
   getCoarsePosition,
   getHighAccuracyPosition,
   getLocationAuthorizationStatus,
   isLocationServicesEnabled,
+  requestEnableLocation,
   requestLocationAccess,
   reverseGeocode,
   type Coordinates,
@@ -68,6 +69,8 @@ export async function refreshLiveLocation(
     return false;
   }
   if (prompt) {
+    // Runtime permission first: the OS permission dialog is what a user expects to see, and a
+    // settled grant keeps the later Play Services settings check unambiguous.
     const access = await requestLocationAccess();
     if (access !== 'granted') {
       store.setPermissionStatus(
@@ -76,6 +79,14 @@ export async function refreshLiveLocation(
         await isLocationServicesEnabled(),
       );
       return false;
+    }
+    // Then the device Location master switch. Android shows its own "Turn on location" dialog.
+    if (!(await isLocationServicesEnabled())) {
+      const enableStatus = await requestEnableLocation();
+      if (enableStatus !== 'enabled') {
+        store.setPermissionStatus('idle', true, false);
+        return false;
+      }
     }
   }
   store.setLoading();
@@ -112,12 +123,25 @@ export async function refreshLiveLocation(
  * Outcome of an explicit "use my location" request. `blocked` means the OS will
  * not show the permission dialog again (iOS denial / Android "don't ask again");
  * the caller must send the user to Settings instead of retrying the prompt.
+ * `services-off` means the device Location master switch is off, so no fix is
+ * possible until the user turns it on.
  */
-export type LocationRequestResult = 'ready' | 'denied' | 'blocked' | 'failed';
+export type LocationRequestResult =
+  | 'ready'
+  | 'denied'
+  | 'blocked'
+  | 'services-off'
+  | 'failed';
 
 /**
  * Explicit consent + fix for onboarding/manual location. Requests the OS
  * permission and, when granted, resolves a high-accuracy fix and address.
+ *
+ * Strict order: runtime permission first, then the device Location master
+ * switch. On Android an off switch shows the system "Turn on location" dialog
+ * and, if accepted, the fix runs without another tap. On iOS the master switch
+ * cannot be prompted, so it returns `services-off` for the screen's instructional
+ * modal.
  *
  * This is also the "follow me again" action: it clears any saved/pinned override so the origin
  * tracks the device from here on.
@@ -125,6 +149,14 @@ export type LocationRequestResult = 'ready' | 'denied' | 'blocked' | 'failed';
 export async function requestAndRefreshLocation(): Promise<LocationRequestResult> {
   const store = useLocationStore.getState();
   store.setLoading();
+
+  // iOS's global Location Services switch has no in-app prompt; send the user to the modal that
+  // explains Settings. (Android is handled after the permission grant below.)
+  if (Platform.OS === 'ios' && !(await isLocationServicesEnabled())) {
+    return 'services-off';
+  }
+
+  // Step A — runtime permission first.
   const access = await requestLocationAccess();
   if (access !== 'granted') {
     store.setPermissionStatus(
@@ -134,6 +166,16 @@ export async function requestAndRefreshLocation(): Promise<LocationRequestResult
     );
     return access === 'blocked' ? 'blocked' : 'denied';
   }
+
+  // Step B — device Location master switch.
+  if (!(await isLocationServicesEnabled())) {
+    const enableStatus = await requestEnableLocation();
+    if (enableStatus !== 'enabled') {
+      store.setPermissionStatus('idle', true, false);
+      return 'services-off';
+    }
+  }
+
   try {
     const coordinates = await getHighAccuracyPosition();
     const place = await reverseGeocode(
