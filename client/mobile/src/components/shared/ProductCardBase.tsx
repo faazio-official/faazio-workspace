@@ -4,7 +4,8 @@ import { AppImage } from './AppImage';
 import { Star, Plus, Minus, Check, Heart, Zap } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
-import { brandTokens } from '@/theme/brandTokens';
+import { brandTokens, neutral } from '@/theme/brandTokens';
+import { categorical } from '@/theme/categorical';
 import { resolveBadgeBg, formatRating } from './format';
 import AdLabelBadge from './AdLabelBadge';
 import type { Product, AppBrand } from '@data/types';
@@ -130,7 +131,7 @@ const ProductCardBase = memo(function ProductCardBase({
         )}
         {ratingOnImage && showRating && product.rating !== undefined ? (
           <View style={styles.imageRating}>
-            <Star size={ms(10)} color="#f59e0b" fill="#f59e0b" />
+            <Star size={ms(10)} color={categorical.amber} fill={categorical.amber} />
             <AppText style={styles.imageRatingText}>{formatRating(product.rating)}</AppText>
           </View>
         ) : null}
@@ -229,7 +230,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: hs(6),
     paddingVertical: vs(2),
   },
-  imageRatingText: { fontSize: ms(10), fontWeight: '700', color: '#0f172a' },
+  imageRatingText: { fontSize: ms(11), fontWeight: '600', color: neutral.ink },
   heartBtn: { position: 'absolute', top: vs(2), right: hs(2), width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   heartCircle: { width: ms(28), height: ms(28), borderRadius: ms(14), backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
   body: { padding: hs(8) },
