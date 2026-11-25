@@ -32,10 +32,10 @@ deliberate choice; while it is set, proximity auto-select stands down.
      `adoptDeviceAsActive()` (an explicit "follow me" clears any override) and proximity auto-select.
      - On Android, two native OS dialogs are chained: first `PermissionsAndroid.request(ACCESS_FINE_LOCATION)`
        shows the system "Allow" / "Don't allow" app-permission dialog, then — if the device-wide
-       toggle is off — `react-native-android-location-enabler`
-       (`promptForEnableLocationIfNeeded`, Play Services `SettingsClient` resolution) shows the
-       Google-Maps-style "Turn on" / "No thanks" device-location dialog. No custom turn-on sheet is
-       used. Accepting either path runs the fix without another tap.
+       toggle is off — the native `FaazioGeocoder.requestEnableLocation` (Play Services
+       `SettingsClient.checkLocationSettings` + `ResolvableApiException.startResolutionForResult`)
+       shows the Google-Maps-style "Turn on" / "No thanks" device-location dialog. No custom
+       turn-on sheet is used. Accepting either path runs the fix without another tap.
      - On iOS the global switch has no in-app prompt; the screen shows an inline Settings hint and
        the "Open settings" link (`Linking.openSettings()`).
    - **Enter location manually:** skips the OS dialog entirely and goes to `manual`.
@@ -134,10 +134,11 @@ stays `ready`, so nearby sorting keeps working from it even with GPS denied.
 
 - Places availability depends on a valid API key; see `docs/RUNBOOKS/TROUBLESHOOTING.md`.
 - Permission and services state are read through the local `FaazioGeocoder` native module
-  (`getLocationAuthorizationStatus`, `isLocationServicesEnabled`, `geocodeAddress`,
-  `reverseGeocode`). On Android, enabling the device-wide toggle uses
-  `react-native-android-location-enabler` (`promptForEnableLocationIfNeeded`). A native rebuild (CI)
-  is required when a native module or dependency changes.
+  (`getLocationAuthorizationStatus`, `isLocationServicesEnabled`, `requestEnableLocation`,
+  `geocodeAddress`, `reverseGeocode`). On Android, `requestEnableLocation` uses
+  `com.google.android.gms:play-services-location` for the system "Turn on location" dialog and falls
+  back to `Settings.ACTION_LOCATION_SOURCE_SETTINGS` when an OEM build cannot show that dialog. A
+  native rebuild (CI) is required when this module changes.
 
 ## Linked docs
 

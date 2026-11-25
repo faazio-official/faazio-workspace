@@ -58,7 +58,6 @@
     "lucide-react-native": "^1.27.0",
     "react": "19.2.3",
     "react-native": "0.86.3",
-    "react-native-android-location-enabler": "^3.0.1",
     "react-native-callkeep": "^4.6.1",
     "react-native-gesture-handler": "~2.32.0",
     "react-native-image-picker": "^8.3.0",
