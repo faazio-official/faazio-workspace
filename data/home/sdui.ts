@@ -98,6 +98,16 @@ function chipProductIds(chipId: string): string[] {
   }
 }
 
+/**
+ * Curated "Today's Special" dish order, shared by the Home rail (`diningSpecials`) and the Food
+ * rail (`foodSpecials`). Raw `sp-*` ids so the seed generator fails loudly on a typo (all exist
+ * in `catalogIndex`); prices are joined at compile time by the gateway.
+ */
+const TODAYS_SPECIAL_PRODUCT_IDS = [
+  'sp-1', 'sp-2', 'sp-3', 'sp-4', 'sp-5', 'sp-6', 'sp-7', 'sp-8',
+  'sp-9', 'sp-10', 'sp-11', 'sp-12', 'sp-13', 'sp-14', 'sp-15', 'sp-16',
+];
+
 export const homeSdui: SduiSection[] = [
   // Mart-only sections live in the same Home doc so the Mart feed has one merchandising owner
   // (super-admin SDUI editor) and the mock/remote shapes match exactly. `HomeView` skips unknown
@@ -128,7 +138,9 @@ export const homeSdui: SduiSection[] = [
       { id: 'hbh-3', title: 'Order Food in Minutes', subtitle: 'LOCAL FAVOURITES', accent: '#FFF3E0', imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?fm=jpg&fit=crop&q=80&w=800&h=450' },
     ],
   },
-  { id: 'diningSpecials', title: "Today's Special", accent: '#1E5D44', productIds: [], storeIds: resolveStoreIds('FOOD') },
+  // Home "Today's Special" — the same dish order Food curates, joined by the gateway so the rail
+  // renders real catalog rows (no price on the card; the app shows image + 1-line name only).
+  { id: 'diningSpecials', title: "Today's Special", accent: '#1E5D44', productIds: TODAYS_SPECIAL_PRODUCT_IDS, storeIds: resolveStoreIds('FOOD') },
   {
     id: 'hotBrandDeals',
     title: 'Deals of the day',
@@ -173,10 +185,7 @@ export const homeSdui: SduiSection[] = [
     id: 'foodSpecials',
     title: "Today's Special",
     accent: '#1E5D44',
-    productIds: [
-      'sp-1', 'sp-2', 'sp-3', 'sp-4', 'sp-5', 'sp-6', 'sp-7', 'sp-8',
-      'sp-9', 'sp-10', 'sp-11', 'sp-12', 'sp-13', 'sp-14', 'sp-15', 'sp-16',
-    ],
+    productIds: TODAYS_SPECIAL_PRODUCT_IDS,
   },
   // Pharma-only sections. Same pattern as Mart/Food: they live in the Home doc so Pharma has one
   // merchandising owner (super-admin SDUI editor) and the mock/remote shapes match. Served on the

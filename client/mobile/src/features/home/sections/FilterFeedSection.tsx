@@ -10,7 +10,12 @@ import type { Product } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import FilterChipsRail from '@/features/home/cards/FilterChipsRail';
-import { SectionHeader, usePricedProducts } from './common';
+import {
+  SectionHeader,
+  usePricedProducts,
+  HOME_GRID_CARD_WIDTH,
+  HOME_GRID_GAP,
+} from './common';
 import type { SectionProps } from './common';
 import { useBatchedFeed } from '@/hooks/useBatchedFeed';
 import AppText from '@/components/AppText';
@@ -29,7 +34,7 @@ interface FilterFeedSectionProps extends SectionProps {
   viewportH: SharedValue<number>;
 }
 
-// Filter-chip carousel + batched 2-column feed. Auto-loads the next batch when
+// Filter-chip carousel + batched 3-column feed. Auto-loads the next batch when
 // the user has scrolled through ~60% of the currently visible grid, and
 // prefetches the next batch's images (AppImage) so they decode ahead of the
 // fold. The grid is a plain flexWrap View (NOT a nested FlatList) because the
@@ -150,6 +155,9 @@ function FilterFeedSection({
               <UniversalFeedCard
                 key={product.id}
                 product={product}
+                width={HOME_GRID_CARD_WIDTH}
+                imageAspect={1}
+                nameLines={1}
                 showAddButton={false}
                 onPress={handlePress}
               />
@@ -172,7 +180,7 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    columnGap: HOME_GRID_GAP,
     paddingHorizontal: hs(16),
   },
   stateWrap: {

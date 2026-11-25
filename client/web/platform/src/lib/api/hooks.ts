@@ -483,6 +483,39 @@ export function useAdminDistricts(stateCode?: string) {
   return { items, loading, error, reload };
 }
 
+/** Trashed districts (GET /admin/districts/trash) still inside the 7-day restore window. */
+export function useDeletedDistricts(stateCode?: string) {
+  const [items, setItems] = useState<api.AdminDistrictRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(() => {
+    if (!remoteConfigured()) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    api
+      .listDeletedDistricts(stateCode)
+      .then((rows) => {
+        setItems(rows);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        setItems([]);
+        setError(err instanceof Error ? err.message : "Could not load deleted districts.");
+      })
+      .finally(() => setLoading(false));
+  }, [stateCode]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  return { items, loading, error, reload };
+}
+
 /** Ad placements from `ads.placements` via GET /ads/placements (the DB is the authority). */
 export function usePlacements(): api.PlacementSummary[] {
   const [items, setItems] = useState<api.PlacementSummary[]>([]);

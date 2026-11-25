@@ -32,6 +32,7 @@ import { gateway } from '@/services/api/GatewayClient';
 import FoodHouseHero from '../components/FoodHouseHero';
 import type { StoreProfile } from '@data/types';
 import Button from '@/components/Button';
+import { driveNavBarFromDelta } from '@/hooks/useAutoHideNavBar';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
 
@@ -49,7 +50,11 @@ export function FoodHomeScreen({ navigation }: Props) {
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      scrollY.value = e.nativeEvent.contentOffset.y;
+      const y = e.nativeEvent.contentOffset.y;
+      const dy = y - scrollY.value;
+      scrollY.value = y;
+      // Hide/show the Food bottom nav on the same gesture, like the other sub-apps.
+      driveNavBarFromDelta(dy, y);
     },
     [scrollY],
   );

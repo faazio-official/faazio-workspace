@@ -21,19 +21,33 @@
    "Electronics") carries `treeApp: 'MAIN_APP_HEADER'`: the drill-in walks that header's own
    sub-categories while the vendor body searches the Mart pool. Header-only sub-categories are never
    chips themselves — they are reached through the parent's drill-in.
-7. Pull-to-refresh (`AppRefreshControl`) on the body re-fetches the feed and bumps the shared
+7. The Home header is a collapsing overlay: while the feed scrolls, the **Mart/Food/Pharma sector
+   row, the search bar and the category rail stay pinned**; only the logo/location row (and the
+   location nudge) above them slide up and fade out. The Mart sub-app header pins its rail the same
+   way. On the same gesture the floating **bottom nav slides down on scroll-down and back in on
+   scroll-up** (`hooks/useAutoHideNavBar.ts`); the sub-app (Mart/Pharma/Food) navs do the same, and
+   every nav re-shows on mount/focus/tab change.
+8. The rail's slot is **not** reserved when the superadmin has curated zero chips: after the first
+   fetch settles with no chips, `HeaderCategoryRail` renders nothing and reports
+   `onAvailabilityChange(false)`, so the Home header (and the Mart sub-app header) closes the rail
+   band instead of leaving a blank strip. During the first fetch the slot is reserved to avoid a
+   layout jump when chips arrive.
+9. Pull-to-refresh (`AppRefreshControl`) on the body re-fetches the feed and bumps the shared
    `refreshStore` `home` counter, which also re-fetches the sibling header category rail
    (`HeaderCategoryRail` → `usePagedRail`). Stale rows stay visible while the spinner runs; a failed
    rail fetch keeps the already-loaded chips (only an `app` scope change clears them) and logs the
    failure in dev.
-8. If the rail has never loaded and the fetch fails, `HeaderCategoryRail` renders a single **Retry**
-   chip (instead of a silent blank strip) that re-runs `usePagedRail().refresh`.
+10. If the rail has never loaded and the fetch fails, `HeaderCategoryRail` renders a single **Retry**
+    chip (instead of a silent blank strip) that re-runs `usePagedRail().refresh`; the rail slot stays
+    reserved while the retry affordance is shown.
 
 ## State
 
 - `useLocationStore` — nearby origin for geo rails.
 - Home product cards are **tap-to-view only**: every Home section passes `showAddButton={false}`, so a
   card opens `ProductDetail` and the shopper adds from there — no card-level add control on Home.
+- Home grids (Men/Women/Kids, Hair & Skin Care, Discover) render as a compact **3-column** layout
+  with square images; every Home section uses one-line product names (`nameLines={1}`).
 - `useRefreshStore` — cross-component pull signal (`home` counter) shared by the feed and the
   header rail, which are siblings in the collapsing header.
 - `useHomeFeed` returns `{ feed, loading, error, refreshing, refresh, reload }`; `refresh` sets
@@ -79,6 +93,9 @@
   loaded for the current scope (the shared `home` pull does not clear them) and, when it has no
   chips, renders a Retry chip. The failure is logged in dev with the error (e.g.
   `GatewayHttpError 401 unauthorized`).
+- **Rail empty:** zero curated chips (superadmin deactivated every rail category) collapse the rail
+  slot entirely — the header shrinks and no blank band/margin is left. Only a failed fetch keeps the
+  slot (Retry chip).
 - **Empty:** a section with no rows is omitted or shows an honest empty note.
 
 ## Known gaps

@@ -176,8 +176,9 @@ missing (a fixture id is never rendered as a server row), and `NearbyRequestCard
 
 **Home "Deals of the day" vendor-campaign zone** (`features/home/sections/BrandCampaignsSection.tsx`,
 section id `hotBrandDeals`): the section (was "Hot Brand Deals") renders **two stacked,
-auto-playing paging carousels** on the purple `#EDE9FE` container. The in-container title is not
-rendered — the block opens directly on the first carousel. Each carousel item is a white
+auto-playing paging carousels** at the same full Home width as every other section — no tinted
+container card. The in-container title is not rendered — the block opens directly on the first
+carousel. Each carousel item is a white
 `BrandCampaignCard` (`features/home/cards/BrandCampaignCard.tsx`) — a bold **vendor-name title**
 with a "View all →" action, a computed **"Up to X% off"** discount label below (derived from the
 campaign products' max discount — no `offerTag`/EMI text), and a 2-product row of bigger minimal ad
@@ -205,6 +206,13 @@ and the Home sponsored rail pass `showAddButton={false}`, so a tap opens `Produc
 shopper adds from there. Home therefore owns no cart write; `addToCart` is no longer threaded
 through `HomeView`/`SectionProps`. The shared `ProductCardBase` keeps its add button for the
 sub-app catalogues (Mart/Food/Pharma).
+
+**Home grid layout.** The three product-grid sections — Men/Women/Kids (`AudienceGridSection`),
+Hair & Skin Care, and Discover/FilterFeed — are a compact **3-column** layout
+(`HOME_GRID_COLUMNS`/`HOME_GRID_CARD_WIDTH`/`HOME_GRID_GAP` in `sections/common.tsx`): square
+(`imageAspect={1}`) images, a fixed `hs(8)` column gap, and **one-line** product names. Every Home
+section passes `nameLines={1}` so no card reserves a second name line (`ProductCardBase` keeps its
+2-line default for the sub-app catalogues).
 
 **Home sponsored rail** (`features/home/sections/SponsoredRailSection.tsx`, section id
 `sponsoredRail`, titled "Sponsored picks", placed after `dealsOfDay`): a **paid, separately-labelled**
@@ -558,6 +566,17 @@ off by an opaque band. `HubTabBar` therefore reports its measured height through
 `BottomTabBarHeightContext` and returns `0` outside a tab navigator, so the same presentational
 component works unchanged on a pushed route.
 
+**Scroll auto-hide:** every bottom navbar slides out on scroll-down and back in on scroll-up,
+mirroring the Home header collapse. `hooks/useAutoHideNavBar.ts` owns a single module-level
+Reanimated `navBarHide` shared value (0 shown → 1 hidden); scroll surfaces drive it with
+`driveNavBarFromDelta` (UI-thread inside `HomeView`'s animated handler, JS-thread
+`useNavBarScrollHandler` for plain `ScrollView`/`FlatList`s in Mart, Pharma, Food, Favourites,
+Cart and Account), and each nav applies `useNavBarHideStyle(hideDistance)` to its dock
+(`HubTabBar`, `SubAppWrapper`, `FoodBottomNav`). Each nav calls `revealNavBar()` on mount / focus /
+tab change so a new surface never starts hidden. The shared value is safe because only one bottom
+nav is visible at a time; the clearance from `useTabBarClearance()` is unchanged so hiding never
+reflows the list.
+
 Every visible bottom navbar also exposes the shared `components/shared/NavbarHomeShortcut`: a
 Faazio-blue circular Home button centered over the first tab, with three quarters of the circle
 above the bar. It appears on Favourites/You in `MainTabs`, on Mart/Pharma wrapper tabs, and on both
@@ -630,27 +649,30 @@ Startup
   wide wordmark centered on Faazio blue (the canonical brand colour — see
   `docs/UI_DESIGN_SYSTEM.md` §5) with no spinner, and stays up for at least
   `SPLASH_MIN_DISPLAY_MS` (3 s) via `App.tsx` before the app UI renders.
-  **Leaf-first wordmark reveal.** The `royal` layer draws the wordmark from the brand SVG glyph
-  paths (`src/components/SplashWordmarkReveal.tsx`) instead of the flat raster, so the single
-  continuous "F" ribbon can be split with clip rects and each piece animated. The rounded top
-  stroke of the "F" scales up from the centre and fades in (0–500 ms); the rest of the "F" (neck +
-  arm + stem) then drops into place while the remaining letters ("aazio") slide out from behind the
-  "F" with a subtle fade (500–1500 ms). The letters render behind the "F" and the a/o counters are
-  punched with `fillRule="evenodd"` (no baked background colour). One native-driven `Animated.Value`
-  interpolates every stagger (rather than a sequence of parallel timings), so the timeline is
-  continuous and immune to JS-thread stalls during hydration; each layer sets
+  **"Fa"-first slide reveal.** The `royal` layer draws the wordmark from the brand SVG glyph
+  paths (`src/components/SplashWordmarkReveal.tsx`) instead of the flat raster, so it can be split
+  into the leading **"Fa"** (F + first "a") and the trailing **"azio"** (a, z, i, o) and each group
+  animated. Layer 2 opens in the native layer-1 state — the "Fa" centred on screen — holds it for
+  ~28% of the clock, then slides the whole wordmark left to its resting (box-centred) position while
+  "azio" fades in to its right, forming **"Faazio"**. Both groups share one `translateX` so the
+  wordmark never deforms; the offset that centres "Fa" is derived from the glyph geometry (the "Fa"
+  ink centre sits left of the 2171-unit box centre), scaled to the rendered width. The a/o counters
+  are punched with `fillRule="evenodd"` (no baked background colour). One native-driven
+  `Animated.Value` interpolates the hold/slide/reveal (rather than a sequence of parallel timings),
+  so the timeline is continuous and immune to JS-thread stalls during hydration; each layer sets
   `renderToHardwareTextureAndroid` / `shouldRasterizeIOS` so the static SVG rasterizes once and the
-  transform/opacity reveal composites on the GPU. The bottom credit line is not
-  animated. The raster `src/assets/logo-wordmark-transparent.png` (same 2171×724 ink layout) is
-  still used by `FaazioLogo`'s `wordmark` variant (e.g. the Home header); its white field matches
-  the SVG ink so both render identically at rest.
-  **Layer-2 wordmark size is derived from layer 1, not chosen.** The native canvas is 288dp on
-  Android and 288pt on iOS (the storyboard's explicit width, matched to Android) with the ink
-  fitted inside the 192dp mask circle at 92% fill = 170.1dp of visible ink. `SplashFallback`
-  reproduces that ink width on the 2171×724 asset, so the native→JS handoff no longer jumps
-  (measured ~510px of ink on a 1080px screen, matching the native layer; the previous 1.22×
-  oversize — 625px vs 507px — and the older iOS 200pt box were fixed). Changing the mask constants
-  in `generate-splash-logo.py` requires updating the mirrored constants in `SplashFallback.tsx`.
+  transform/opacity reveal composites on the GPU. The bottom credit line is not animated. The raster
+  `src/assets/logo-wordmark-transparent.png` (same 2171×724 ink layout) is still used by
+  `FaazioLogo`'s `wordmark` variant (e.g. the Home header); its white field matches the SVG ink so
+  both render identically at rest.
+  **Both layers centre the same-size "Fa".** The native splash (layer 1) draws the square "Fa"
+  brand mark (`src/assets/adaptive-icon.png`, the launcher mark) on the 288dp canvas
+  (Android 288dp / iOS 288pt storyboard), not the wordmark. Layer 2 renders the wordmark at the
+  pre-reveal **220dp** width; its 2171×724 viewBox makes the "F" glyph ~57.5dp tall. The native
+  mark is generated at exactly that cap-height (`scripts/generate-splash-logo.py`,
+  `NATIVE_FA_MARK_HEIGHT_DP`), so both layers centre the same-size "Fa" and the handoff does not
+  jump. Changing `ROYAL_LOGO_W` in `SplashFallback.tsx` requires updating `WORDMARK_BOX_W_DP` in
+  the script.
 - **Splash credit line** — the bottom credit **"Product of FA CREATORS"** is drawn in all three
   mobile products (customer, delivery, seller) by the **iOS storyboard label** and the **JS layer-2
   `SplashFallback`**, both as real text. It is deliberately **not** drawn on the Android native
@@ -666,8 +688,8 @@ Startup
     horizontally, stretched vertically). Real text cannot distort, so the credit is owned solely by
     the layers that draw text.
   - **A quiet caption, sized to the wordmark ink.** The credit is 10pt medium at 0.3 tracking, so
-    it measures ~121dp — about **0.71× the 170dp wordmark ink**, clearly narrower than the logo. The
-    earlier 12pt run measured ~144dp (0.85× the ink) and a wide baked-font native layer ran ~198dp
+    it measures ~121dp — about **0.58× the 208dp wordmark ink**, clearly narrower than the logo. The
+    earlier 12pt run measured ~144dp (0.69× the ink) and a wide baked-font native layer ran ~198dp
     (wider than the logo itself), which read as a logo/credit size mismatch.
   - **iOS** — a `UILabel` in `SplashScreen.storyboard`, **10pt** medium white @ 90% opacity, centred
     and bottom-anchored 56pt above the container's bottom edge.
@@ -677,30 +699,28 @@ Startup
     and 60pt on Android API 31+ (the platform branding margin), so it sits where a native credit
     would have. Customer (`App.tsx`), delivery (`DeliveryPartnerApp`) and seller
     (`SellerPartnerApp`, which holds the splash over the WebView until the portal paints) all show it.
-- **Splash assets** — the layers (Android native, iOS native, JS fallback) all derive from
-  `src/assets/logo.png`. Generated copies are never hand-edited:
-  `python3 scripts/generate-splash-logo.py` (add `--check` to verify without writing). The script
-  emits the native drawables/imageset **and** the JS
+- **Splash assets** — layer 1 (Android/iOS native) derives from `src/assets/adaptive-icon.png` (the
+  square "Fa" mark); the JS transparent wordmark derives from `src/assets/logo.png`. Generated
+  copies are never hand-edited: `python3 scripts/generate-splash-logo.py` (add `--check` to verify
+  without writing). The script emits the native drawables/imageset (the "Fa" mark) **and** the JS
   `src/assets/logo-wordmark-transparent.png` (same 2171×724 canvas with the blue field keyed out
   and the wordmark pasted back at its original offset, so JS sizing/position is unchanged). It
   encodes these constraints that are easy to get wrong by hand:
+  - **Shared cap-height.** The "Fa" mark is scaled to `WORDMARK_BOX_W_DP × F_CAP_SPAN / VIEW_W`
+    ≈ 57.5dp on the 288dp canvas, matching the leading "Fa" of the layer-2 wordmark, so the two
+    layers hand off without a size jump.
   - **Android 12+ masks the splash icon to a circle.** From `core-splashscreen:1.0.1`,
     `splashscreen_icon_size_no_background` is 288dp and the platform clips to a 192dp circle
-    (radius 96dp). A 3:1 wordmark spanning the full canvas would lose ~39% of its width, so the
-    script fits the wordmark *inside* the mask circle at 92% fill. Verified: every density lands
-    at ~88dp max radius against the 96dp mask.
-  - **The iOS storyboard sizes the image view from the asset.** `SplashScreen.storyboard` sets
-    `translatesAutoresizingMaskIntoConstraints="false"` on the image view, so without explicit
-    constraints Auto Layout uses the asset's *intrinsic* size. The iOS splash now mirrors Android:
-    the imageset carries the same square 288dp canvas at 1x/2x/3x (288/576/864 px, mapped to
-    Android mdpi/xhdpi/xxhdpi), and the storyboard carries an explicit `width = 288` (matching the
-    Android 288dp canvas; the older `200` box shrank the iOS ink to ~118pt) plus a
-    `width:height = 1.0` square constraint. The iOS app shares the Faazio Blue splash
-    background (see `docs/UI_DESIGN_SYSTEM.md` §5).
+    (radius 96dp). The ~57dp-tall mark sits well inside that mask, so nothing is clipped on API 31+,
+    and the API 24-30 compat drawable (full 288dp canvas) draws it identically.
+  - **The iOS storyboard sizes the image view explicitly.** `SplashScreen.storyboard` carries an
+    explicit `width = 288` (the same square 288dp canvas as Android) plus a `width:height = 1.0`
+    constraint; the imageset carries 1x/2x/3x (288/576/864 px, mapped to Android
+    mdpi/xhdpi/xxhdpi). The iOS app shares the Faazio Blue splash background (see
+    `docs/UI_DESIGN_SYSTEM.md` §5).
   `src/assets/logo.png` is a flat `#1627E9` field carrying the white wordmark, derived from
   `client/mobile/assets/brand/logo-rectangle.png`. The script keys the field out to transparency
-  (luma key with a dead zone) and keeps only the white wordmark, so the native assets are
-  background-independent on both platforms; the same key produces the JS transparent wordmark.
+  (luma key with a dead zone) and keeps only the white wordmark for the JS transparent asset.
 - **Store upload assets** — `client/mobile/store-assets/` is a separate, generated bundle for the
   consoles, not the in-app launcher/adaptive set: Play 512×512 RGBA icon + 1024×500 no-alpha feature
   graphic, App Store 1024×1024 opaque icon, and the web/PWA favicon set, per app variant. Regenerate

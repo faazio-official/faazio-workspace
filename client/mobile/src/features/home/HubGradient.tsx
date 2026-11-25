@@ -7,20 +7,25 @@ import { HEADER_ROW_GAP, HEADER_RAIL_H, HEADER_BOTTOM_PAD, HEADER_SEARCH_H } fro
 interface HubGradientProps {
   /** Measured height of the Home hub header — enables the bottom fade into the content bg. */
   height?: number;
+  /** Whether the category rail is present — moves the slate tail up past its slot when it is gone. */
+  hasRail?: boolean;
 }
 
 // Blend from light blue -> slate: starts mid-search-bar, completes just below it
-// (+ HEADER_BOTTOM_PAD). Below that point the gradient is pure #f1f5f9, so the
-// collapsed header reads as "search bar + slate padding" -- the faded rail zone
-// merges seamlessly with the list background instead of reading as header chrome.
-const BLEND_START_FROM_BOTTOM =
-  HEADER_SEARCH_H / 2 + HEADER_ROW_GAP + HEADER_RAIL_H + HEADER_BOTTOM_PAD;
-const BLEND_END_FROM_BOTTOM = HEADER_ROW_GAP + HEADER_RAIL_H;
+// (spanning the rail slot + HEADER_BOTTOM_PAD when the rail is present). Below that
+// point the gradient is pure #f1f5f9, so the collapsed header reads as "search bar +
+// slate padding" -- the pinned rail zone merges into the list background instead of
+// reading as header chrome. With no curated rail chips the slate tail moves up so no
+// empty rail band is left behind.
+const TAIL_FROM_BOTTOM = (hasRail: boolean) => (hasRail ? HEADER_ROW_GAP + HEADER_RAIL_H : HEADER_BOTTOM_PAD);
 
-export function HubGradient({ height }: HubGradientProps) {
+export function HubGradient({ height, hasRail = true }: HubGradientProps) {
+  const tailFromBottom = TAIL_FROM_BOTTOM(hasRail);
+  const blendStartFromBottom = HEADER_SEARCH_H / 2 + tailFromBottom;
+  const blendEndFromBottom = tailFromBottom;
   const hasFade = typeof height === 'number' && height > 0;
-  const fadeStartPct = hasFade ? Math.max(0, ((height - BLEND_START_FROM_BOTTOM) / height) * 100) : 100;
-  const fadeEndPct = hasFade ? Math.max(0, ((height - BLEND_END_FROM_BOTTOM) / height) * 100) : 100;
+  const fadeStartPct = hasFade ? Math.max(0, ((height - blendStartFromBottom) / height) * 100) : 100;
+  const fadeEndPct = hasFade ? Math.max(0, ((height - blendEndFromBottom) / height) * 100) : 100;
   const tailColor = hasFade ? '#f1f5f9' : parentRamp.base;
 
   return (

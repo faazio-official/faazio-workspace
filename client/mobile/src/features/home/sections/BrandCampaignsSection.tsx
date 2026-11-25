@@ -121,8 +121,9 @@ const CampaignCarousel = memo(function CampaignCarousel({
 
 /**
  * Home "Deals of the day" vendor-campaign section. Renders two stacked, auto-playing
- * paging carousels of vendor campaign cards on the purple `#EDE9FE` container. Each
- * card's "View all" opens the `DealsLanding` page in campaign mode.
+ * paging carousels of vendor campaign cards at the same full width as every other
+ * Home section (no tinted container card). Each card's "View all" opens the
+ * `DealsLanding` page in campaign mode.
  */
 function BrandCampaignsSection({ onProductClick, onOpenDeals, campaigns }: SectionProps) {
   const handleViewAll = (campaign: AdCampaign) =>
@@ -215,10 +216,7 @@ export default memo(BrandCampaignsSection);
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: hs(8),
-    borderRadius: ms(16),
-    backgroundColor: '#EDE9FE',
-    padding: hs(10),
+    marginHorizontal: hs(16),
     marginTop: SPACE.SECTION,
     marginBottom: SPACE.BLOCK,
   },

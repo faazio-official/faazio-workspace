@@ -1,29 +1,34 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
-import Svg, { ClipPath, Defs, G, Path, Rect } from 'react-native-svg';
+import Svg, { Path } from 'react-native-svg';
 
 /**
- * "Leaf-first" brand reveal for the cold-start splash (layer 2, JS only).
+ * "Fa"-first brand reveal for the cold-start splash (layer 2, JS only).
+ *
+ * Layer 1 (native) shows the square "Fa" mark centred on screen. Layer 2 must
+ * start in exactly that state — the same "Fa" at the same size and position —
+ * then move the "Fa" left into its place in the wordmark while "azio" is
+ * revealed to its right:
+ *
+ *   0-420ms   "Fa" holds centred (matching the native handoff).
+ *   420-1500ms "Fa" slides left to its wordmark position and "azio" fades in
+ *              behind/to the right of it, forming "Faazio" centred at rest.
  *
  * The wordmark is drawn from the brand SVG glyph paths (not the flat raster) so
- * the single continuous "F" ribbon can be split with clip rects and each piece
- * animated independently:
- *
- *   0-500ms    the rounded top stroke of the "F" scales up from the centre,
- *              fading in.
- *   500-1500ms the rest of the "F" (neck + arm + stem) drops down into place and
- *              the remaining letters ("aazio") slide out from behind the "F"
- *              with a subtle fade.
- *
- * `aazio` is rendered *behind* the "F" so the slide reads as emerging from it;
- * the a/o counters are punched with `fillRule="evenodd"` so no background
- * colour is baked into the mark.
+ * it can be split into the leading "Fa" (F + first "a") and the trailing "azio"
+ * (a, z, i, o) and each group animated independently. The offset that centres
+ * "Fa" is derived from the glyph geometry (the "Fa" ink centre sits left of the
+ * 2171-unit box centre), scaled to the rendered box width. The a/o counters are
+ * punched with `fillRule="evenodd"` so no background colour is baked into the mark.
  */
 const VIEW_W = 2171;
 const VIEW_H = 724;
-/** Y where the rounded top stroke of the "F" meets the stem (brand SVG units). */
-const CUT_Y = 266;
 const INK = '#FDFDFD';
+
+/** Horizontal extent of the leading "Fa" ink inside the 2171-unit viewBox. */
+const FA_LEFT = 23.24;
+const FA_RIGHT = 766.0;
+const FA_CENTER_X = (FA_LEFT + FA_RIGHT) / 2;
 
 const F_PATH =
   'M206.588 70.3949C235.39 68.0797 282.149 69.6642 312.26 69.6634L509.593 69.6597C509.156 81.0066 508.324 91.6633 506.397 102.882C493.113 184.476 430.493 249.205 349.384 265.184C329.951 268.928 314.9 268.171 295.667 269.03C269.274 270.209 240.032 280.77 218.684 296.398C175.632 327.912 152.772 369.847 143.98 421.526C172.217 410.395 196.451 412.946 226.088 412.947L319.858 413.071C319.074 423.209 318.221 429.652 315.554 439.392C306.907 472.987 274.351 501.37 241.114 506.084C211.412 510.296 191.195 505.919 166.559 530.799C137.569 560.077 141.632 597.3 141.862 635.107L23.7365 635.202L23.4835 378.542L23.2422 305.602C23.1329 279.89 22.1135 255.817 27.1618 230.434C33.2818 198.888 47.0926 169.34 67.3692 144.411C103.203 100.026 150.444 76.4024 206.588 70.3949Z';
@@ -46,13 +51,11 @@ interface SplashWordmarkRevealProps {
 
 export const SplashWordmarkReveal = React.memo(function SplashWordmarkReveal({
   width,
-  height,
 }: SplashWordmarkRevealProps) {
-  // One native-driven clock drives the whole reveal. A single Animated.Value —
-  // rather than a sequence of six parallel timings — keeps the timeline
-  // continuous (no stop/restart between phases) and hands the native driver one
-  // value to schedule, so the 60 fps curve is immune to the JS-thread bus, which
-  // is busy hydrating stores right as the splash mounts on cold start.
+  // One native-driven clock drives the reveal: "Fa" holds centred, then slides
+  // left while "azio" fades in. A single Animated.Value keeps the timeline
+  // continuous and hands the native driver one value to schedule, so the 60 fps
+  // curve is immune to the JS-thread bus (busy hydrating stores on cold start).
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -71,32 +74,20 @@ export const SplashWordmarkReveal = React.memo(function SplashWordmarkReveal({
     return () => cancelAnimationFrame(frame);
   }, [progress]);
 
-  // Staggered, overlapping sub-ranges on the shared eased clock: the "F" top
-  // leads, the stem drops and "aazio" slides in behind it, and every tail holds
-  // at its resting value so the phases cross-fade instead of pausing.
-  const topOpacity = progress.interpolate({
-    inputRange: [0, 0.3, 1],
-    outputRange: [0, 1, 1],
+  // Offset (dp) that moves the box right so the leading "Fa" ink centre lands on
+  // the box/screen centre — the state shown by the native layer-1 mark.
+  const faCenterOffset = ((VIEW_W / 2 - FA_CENTER_X) / VIEW_W) * width;
+
+  // Hold "Fa" centred for the first ~28% of the eased clock, then slide the
+  // whole wordmark left to its resting (centred) position.
+  const slideX = progress.interpolate({
+    inputRange: [0, 0.28, 0.9, 1],
+    outputRange: [faCenterOffset, faCenterOffset, 0, 0],
   });
-  const topScale = progress.interpolate({
-    inputRange: [0, 0.33, 1],
-    outputRange: [0.86, 1, 1],
-  });
-  const stemOpacity = progress.interpolate({
-    inputRange: [0.3, 0.55, 1],
-    outputRange: [0, 1, 1],
-  });
-  const stemTranslateY = progress.interpolate({
-    inputRange: [0.3, 0.85, 1],
-    outputRange: [-0.18 * height, 0, 0],
-  });
-  const restOpacity = progress.interpolate({
-    inputRange: [0.3, 0.65, 1],
-    outputRange: [0, 1, 1],
-  });
-  const restTranslateX = progress.interpolate({
-    inputRange: [0.33, 0.8, 1],
-    outputRange: [-0.09 * width, 0, 0],
+  // "azio" stays hidden behind the held "Fa" and fades in as it slides in.
+  const azioOpacity = progress.interpolate({
+    inputRange: [0, 0.34, 0.8, 1],
+    outputRange: [0, 0, 1, 1],
   });
 
   return (
@@ -104,13 +95,9 @@ export const SplashWordmarkReveal = React.memo(function SplashWordmarkReveal({
       <Animated.View
         renderToHardwareTextureAndroid
         shouldRasterizeIOS
-        style={[
-          styles.layer,
-          { opacity: restOpacity, transform: [{ translateX: restTranslateX }] },
-        ]}
+        style={[styles.layer, { opacity: azioOpacity, transform: [{ translateX: slideX }] }]}
       >
         <Svg width="100%" height="100%" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}>
-          <Path d={`${A1_PATH} ${A1_HOLE}`} fill={INK} fillRule="evenodd" />
           <Path d={`${A2_PATH} ${A2_HOLE}`} fill={INK} fillRule="evenodd" />
           <Path d={Z_PATH} fill={INK} />
           <Path d={I_PATH} fill={INK} />
@@ -122,40 +109,11 @@ export const SplashWordmarkReveal = React.memo(function SplashWordmarkReveal({
       <Animated.View
         renderToHardwareTextureAndroid
         shouldRasterizeIOS
-        style={[
-          styles.layer,
-          { opacity: stemOpacity, transform: [{ translateY: stemTranslateY }] },
-        ]}
+        style={[styles.layer, { transform: [{ translateX: slideX }] }]}
       >
         <Svg width="100%" height="100%" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}>
-          <Defs>
-            <ClipPath id="splashFStem">
-              <Rect x={0} y={CUT_Y} width={VIEW_W} height={VIEW_H - CUT_Y} />
-            </ClipPath>
-          </Defs>
-          <G clipPath="url(#splashFStem)">
-            <Path d={F_PATH} fill={INK} />
-          </G>
-        </Svg>
-      </Animated.View>
-
-      <Animated.View
-        renderToHardwareTextureAndroid
-        shouldRasterizeIOS
-        style={[
-          styles.layer,
-          { opacity: topOpacity, transform: [{ scale: topScale }] },
-        ]}
-      >
-        <Svg width="100%" height="100%" viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}>
-          <Defs>
-            <ClipPath id="splashFTop">
-              <Rect x={0} y={0} width={VIEW_W} height={CUT_Y} />
-            </ClipPath>
-          </Defs>
-          <G clipPath="url(#splashFTop)">
-            <Path d={F_PATH} fill={INK} />
-          </G>
+          <Path d={F_PATH} fill={INK} />
+          <Path d={`${A1_PATH} ${A1_HOLE}`} fill={INK} fillRule="evenodd" />
         </Svg>
       </Animated.View>
     </View>

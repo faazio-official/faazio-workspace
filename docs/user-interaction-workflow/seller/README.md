@@ -52,6 +52,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Web portal | Console shell + auth | `/seller/*` | [web-portal/index.md](./web-portal/index.md) · [seller-console.md](./web-portal/seller-console.md) |
 | Web portal | Notifications inbox | `/seller/notifications` | [web-portal/notifications.md](./web-portal/notifications.md) |
 | Web portal | Settings (profile, bank, notifications, sub-users, security) | portal `/seller/settings` | [web-portal/settings.md](./web-portal/settings.md) |
+| Growth | Shop page ads (per-shop STORE_TOP playlist: draft/play/order/click target) | portal `/seller/ads` | [web-portal/shop-page-ads.md](./web-portal/shop-page-ads.md) |
 | Web portal | Team invite acceptance | portal `/accept-invite?token=…` | [web-portal/accept-invite.md](./web-portal/accept-invite.md) |
 | Web portal | District admins (roster, vertical scope, invite hand-over) | portal `/admin/super/district-admins`, `/admin/super/districts/[code]` | [web-portal/district-admin-roster.md](./web-portal/district-admin-roster.md) |
 | Web portal | District admin invite acceptance (set own password) | portal `/accept-invite/admin?token=…` | [web-portal/district-admin-invite-accept.md](./web-portal/district-admin-invite-accept.md) |

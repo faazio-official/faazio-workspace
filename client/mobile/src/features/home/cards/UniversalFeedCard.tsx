@@ -22,6 +22,7 @@ interface UniversalFeedCardProps {
   originalPrice?: number;
   width?: number;
   imageAspect?: number;
+  nameLines?: number;
   showRating?: boolean;
   showPrice?: boolean;
   showAddButton?: boolean;

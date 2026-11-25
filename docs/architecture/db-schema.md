@@ -1758,6 +1758,17 @@ round-trip). The target must be an item the seller owns (handler-enforced agains
 deep-link another seller's product. RLS: a seller reads their own rows; admins read by scope (mirrors
 `0015`). Endpoints: caching doc §5, `mvp-backend.md` §3 and `monolith-breakdown.md` §1 (`ads` row).
 
+**`0135` — per-shop storefront playlist (additive).** `ad_status` gains `DRAFT` (saved in the seller
+console, never served by `GET /ads/hero`) and `ads.campaigns` gains `sort_order INT NOT NULL DEFAULT 0`
+(lower plays first). A shop's `STORE_TOP` rows form an explicit ordered carousel: `GET /ads/hero`
+returns LIVE rows `ORDER BY sort_order ASC, requested_at DESC`, capped at 8 LIVE rows per
+(seller, store) rather than the 3-per-placement global cap. `POST /ads/campaigns` accepts
+`status` (`DRAFT`/`LIVE`) + `sortOrder`; `PUT /ads/campaigns/{id}` edits a creative/target and
+pauses/plays it (placement + seller immutable, a seller cannot restore an admin `REJECTED` row);
+`DELETE /ads/campaigns/{id}` removes an own row; `POST /ads/campaigns/reorder` writes the ordered
+`ids`. Every mutation purges the `faazio:v1:ads:hero:` namespace. Index:
+`campaigns_storefront_playlist_idx (store_id, placement, status, sort_order, requested_at DESC)`.
+
 ### 12.18 Portal auth — gateway-native credentials + rotating refresh (migrations `0032` + `0033` + `0034` + `0038`; invite state `0131`)
 
 The Partner Portal sign-in is gateway-native: `0032` adds the durable credential + session store,
@@ -3280,3 +3291,44 @@ can reuse the code. `GET /customers` gains `district`, `offset` and a paged enve
 (`items/total/totalOrders/totalSpendPaisa/limit/offset`), and its search also matches `customer_code`
 and `pincode`. Idempotent and re-runnable.
 
+
+### 12.48 District master soft delete + 7-day trash (migration `0134`)
+
+**Authority:** `monolith-breakdown.md` §1 (districts row),
+`user-interaction-workflow/seller/web-portal/super-admin-district-coverage.md`,
+`server-gateway-plan.md` (district write API).
+
+The coverage board's delete was an immediate hard delete: no undo, no audit-visible trash. `0134`
+gives a district the same 7-day undo window as credentials (`0128`) and catalogue products (`0089`).
+A trashed district is hidden from the picker, the admin live list and the `internal/platform/geo`
+mirror, but it remains a valid FK target for rows already pointing at it.
+
+```sql
+alter table admins.district_master
+  add column if not exists deleted_at timestamptz,
+  add column if not exists delete_reason text not null default ''
+    check (octet_length(delete_reason) <= 500);
+create index district_master_deleted_idx
+  on admins.district_master (deleted_at) where deleted_at is not null;
+
+-- Purge skips rows still referenced by the RESTRICT FKs (0047/0048/0055).
+create or replace function admins.purge_deleted_districts(max_age interval default '7 days')
+returns integer language plpgsql as $$ ... delete ... where deleted_at < now() - max_age
+  and not exists (sellers.sellers / admins.district_admins / admins.portal_users /
+  delivery.delivery_orders) ... $$;
+```
+
+- **Delete is soft:** `DELETE /admin/districts/{code}?reason=` sets `deleted_at = now()`,
+  `delete_reason`, `is_active = false`. A district still referenced by sellers, district admins,
+  portal logins or delivery orders is refused (`409 district_in_use`) — deactivate it instead.
+- **Trash + restore:** `GET /admin/districts/trash` lists trashed rows newest-first with `deletedAt`,
+  `deleteReason`, `purgeAt`; `POST /admin/districts/{code}/restore` clears the flag and leaves the
+  row deactivated. A restore after the window is `410 trash_expired`.
+- **Permanent delete:** `DELETE /admin/districts/{code}/permanent` removes one trashed, unreferenced
+  row now (the console's "Delete forever"). It is refused with `409 district_in_use` otherwise.
+- **Purge:** the hourly `districts.Purger` (gateway worker) runs `PurgeDeleted` with the 7-day
+  window; the optional `admins.purge_deleted_districts` pg_cron function is the out-of-band
+  alternative. Referenced trashed rows are skipped until their references go away.
+- **Reads:** `GET /geo/districts` and `GET /admin/districts` both filter `deleted_at is null`; the
+  geo mirror's `Reload` does too, so a new seller cannot select a trashed district.
+- **Audit:** `DISTRICT_DELETE`, `DISTRICT_RESTORE` and `DISTRICT_PURGE` on `admins.district_master`.

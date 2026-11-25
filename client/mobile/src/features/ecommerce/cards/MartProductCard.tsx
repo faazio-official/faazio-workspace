@@ -18,11 +18,13 @@ interface Props {
   originalPrice?: number;
   width?: number;
   imageAspect?: number;
+  nameLines?: number;
   showPrice?: boolean;
   showAddButton?: boolean;
   showRating?: boolean;
   showBadge?: boolean;
   showHeart?: boolean;
+  ratingOnImage?: boolean;
 }
 
 const MartProductCard = memo(function MartProductCard({

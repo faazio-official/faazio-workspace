@@ -1,7 +1,7 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, RotateCcw, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
@@ -43,7 +43,14 @@ import {
 } from "@/components/ui/table";
 import { formatDate, formatINR, formatNumber } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { deleteProduct, setProductStatus } from "@/lib/api";
+import {
+  deleteProduct,
+  fetchProductTrash,
+  purgeDeletedProduct,
+  restoreDeletedProduct,
+  setProductStatus,
+  type TrashProduct,
+} from "@/lib/api";
 import { useLiveProducts, useProduct, useSeller } from "@/lib/api/hooks";
 import type { ProductRecord, Sector } from "@/data/types";
 import { ProductThumb } from "@/components/patterns/ProductThumb";
@@ -51,11 +58,12 @@ import { ProductThumb } from "@/components/patterns/ProductThumb";
 const SECTORS: (Sector | "ALL")[] = ["ALL", "MART", "FOOD", "PHARMA"];
 const MAX_REASON = 500;
 
-type ViewMode = "LISTED" | "REQUESTED";
+type ViewMode = "LISTED" | "REQUESTED" | "DELETED";
 
 const VIEW_LABEL: Record<ViewMode, string> = {
   LISTED: "Listed products",
   REQUESTED: "Requested products",
+  DELETED: "Deleted",
 };
 
 function DetailRow({ label, value }: { label: string; value: string }) {
@@ -204,6 +212,10 @@ function SuperProducts() {
   const [rejecting, setRejecting] = useState<ProductRecord | null>(null);
   const [reason, setReason] = useState("");
 
+  const [trashed, setTrashed] = useState<TrashProduct[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [purgeIds, setPurgeIds] = useState<string[] | null>(null);
+
   // Authoritative read: the hydration slice is written once per login and persisted, so a newly
   // submitted request (or another admin's decision) would never show here without a fresh fetch.
   const all = useLiveProducts({ sector, query });
@@ -213,9 +225,36 @@ function SuperProducts() {
   const needsChangesCount = all.data.filter((p) => p.status === "CHANGES_REQUESTED").length;
   const products = useMemo(
     () =>
-      all.data.filter((p) => p.status === (viewMode === "LISTED" ? "ACTIVE" : "PENDING_REVIEW")),
+      all.data.filter((p) =>
+        viewMode === "REQUESTED" ? p.status === "PENDING_REVIEW" : p.status === "ACTIVE",
+      ),
     [all.data, viewMode],
   );
+
+  const loadTrash = useCallback(() => {
+    setTrashLoading(true);
+    fetchProductTrash()
+      .then((rows) => setTrashed(rows))
+      .catch(() => setTrashed([]))
+      .finally(() => setTrashLoading(false));
+  }, []);
+
+  useEffect(() => {
+    if (viewMode === "DELETED") loadTrash();
+  }, [viewMode, loadTrash]);
+
+  const deletedRows = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return trashed.filter((p) => {
+      if (sector !== "ALL" && p.app !== sector) return false;
+      if (!q) return true;
+      return (
+        p.name.toLowerCase().includes(q) ||
+        p.id.toLowerCase().includes(q) ||
+        (p.sellerId ?? "").toLowerCase().includes(q)
+      );
+    });
+  }, [trashed, sector, query]);
 
   function toggle(id: string) {
     setSelected((list) => (list.includes(id) ? list.filter((x) => x !== id) : [...list, id]));
@@ -254,6 +293,41 @@ function SuperProducts() {
     all.refresh();
   }
 
+  async function restoreOne(id: string) {
+    try {
+      await restoreDeletedProduct(id);
+      toast.success("Listing restored", { description: "It returns to its previous status." });
+      setSelected((list) => list.filter((x) => x !== id));
+      loadTrash();
+      all.refresh();
+    } catch (err) {
+      toast.error("Could not restore the listing", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+      loadTrash();
+    }
+  }
+
+  async function confirmPurge(ids: string[]) {
+    if (ids.length === 0) return;
+    try {
+      for (const id of ids) {
+        await purgeDeletedProduct(id);
+      }
+      toast.success(
+        ids.length === 1 ? "Listing permanently deleted" : `${ids.length} listings permanently deleted`,
+      );
+      setPurgeIds(null);
+      setSelected([]);
+      loadTrash();
+    } catch (err) {
+      toast.error("Could not permanently delete the listing", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+      loadTrash();
+    }
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -266,7 +340,10 @@ function SuperProducts() {
           { label: "Active listings", value: formatNumber(activeCount) },
           { label: "Pending review", value: formatNumber(pendingCount) },
           { label: "Needs changes", value: formatNumber(needsChangesCount) },
-          { label: "Showing", value: formatNumber(products.length) },
+          {
+            label: "Showing",
+            value: formatNumber(viewMode === "DELETED" ? deletedRows.length : products.length),
+          },
           { label: "Selected", value: formatNumber(selected.length) },
         ]}
       />
@@ -290,7 +367,15 @@ function SuperProducts() {
                 setSelected([]);
               }}
             />
-            <ComponentHelp id="view-mode-toggle" label="About the listed/requested switch" />
+            <FilterChip
+              label={`${VIEW_LABEL.DELETED}${trashed.length ? ` · ${trashed.length}` : ""}`}
+              active={viewMode === "DELETED"}
+              onClick={() => {
+                setViewMode("DELETED");
+                setSelected([]);
+              }}
+            />
+            <ComponentHelp id="view-mode-toggle" label="About the listed/requested/deleted switch" />
           </div>
           <div className="flex items-center gap-1.5">
             <Input
@@ -321,66 +406,159 @@ function SuperProducts() {
           <ComponentHelp id="sector-filter" label="About the sector filter" />
           {selected.length > 0 ? (
             <div className="ml-auto flex items-center gap-1.5">
-              <ComponentHelp id="approve-selected" label="About bulk approving" />
-              <Button
-                size="sm"
-                onClick={() => {
-                  const ids = [...selected];
-                  ids.forEach((id) => setProductStatus(id, "ACTIVE", "Bulk approved"));
-                  toast.success(`${ids.length} listings approved`);
-                  setSelected([]);
-                  all.refresh();
-                }}
-              >
-                Approve selected
-              </Button>
-              <ComponentHelp id="delete-selected" label="About bulk deleting" />
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button size="sm" variant="destructive">
-                    Delete selected
+              {viewMode === "DELETED" ? (
+                <Button
+                  size="sm"
+                  variant="destructive"
+                  className="gap-1.5"
+                  onClick={() => setPurgeIds([...selected])}
+                >
+                  <Trash2 className="size-3.5" /> Delete forever ({selected.length})
+                </Button>
+              ) : (
+                <>
+                  <ComponentHelp id="approve-selected" label="About bulk approving" />
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      const ids = [...selected];
+                      ids.forEach((id) => setProductStatus(id, "ACTIVE", "Bulk approved"));
+                      toast.success(`${ids.length} listings approved`);
+                      setSelected([]);
+                      all.refresh();
+                    }}
+                  >
+                    Approve selected
                   </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Delete {selected.length} listings?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      They disappear from the consumer app immediately. The deletion is logged.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={() => {
-                        const ids = [...selected];
-                        deleteMany(ids);
-                        toast.success(`${ids.length} listings removed`);
-                      }}
-                    >
-                      Delete listings
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                  <ComponentHelp id="delete-selected" label="About bulk deleting" />
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button size="sm" variant="destructive">
+                        Delete selected
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Delete {selected.length} listings?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          They disappear from the consumer app immediately and move to Deleted for 7
+                          days, where they can be restored or permanently removed.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction
+                          onClick={() => {
+                            const ids = [...selected];
+                            deleteMany(ids);
+                            toast.success(`${ids.length} listings moved to Deleted`);
+                          }}
+                        >
+                          Delete listings
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              )}
             </div>
           ) : null}
         </div>
         <DataShell
-          loading={loading}
-          isEmpty={products.length === 0}
+          loading={viewMode === "DELETED" ? trashLoading : loading}
+          isEmpty={viewMode === "DELETED" ? deletedRows.length === 0 : products.length === 0}
           empty={
             <EmptyState
               title={
-                viewMode === "LISTED" ? "No listed products match" : "No pending requests match"
+                viewMode === "LISTED"
+                  ? "No listed products match"
+                  : viewMode === "REQUESTED"
+                    ? "No pending requests match"
+                    : "Nothing deleted"
               }
               description={
                 viewMode === "LISTED"
                   ? "Clear the filters to see the full catalog."
-                  : "No seller requests are waiting for a decision right now."
+                  : viewMode === "REQUESTED"
+                    ? "No seller requests are waiting for a decision right now."
+                    : "Deleted listings appear here for 7 days, then they are purged."
               }
             />
           }
         >
+          {viewMode === "DELETED" ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-10">
+                    <Checkbox
+                      checked={deletedRows.length > 0 && selected.length === deletedRows.length}
+                      onCheckedChange={(checked) =>
+                        setSelected(checked === true ? deletedRows.map((p) => p.id) : [])
+                      }
+                      aria-label="Select all deleted listings"
+                    />
+                  </TableHead>
+                  <TableHead>Product</TableHead>
+                  <TableHead>Sector</TableHead>
+                  <TableHead>Seller</TableHead>
+                  <TableHead className="text-right">Price</TableHead>
+                  <TableHead>Deleted</TableHead>
+                  <TableHead>Purge at</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {deletedRows.map((p) => (
+                  <TableRow key={p.id} className="h-12">
+                    <TableCell>
+                      <Checkbox
+                        checked={selected.includes(p.id)}
+                        onCheckedChange={() => toggle(p.id)}
+                        aria-label={`Select ${p.name}`}
+                      />
+                    </TableCell>
+                    <TableCell className="text-[13px] font-medium">{p.name}</TableCell>
+                    <TableCell>
+                      <SectorPill sector={p.app} />
+                    </TableCell>
+                    <TableCell className="num text-[12px] text-muted-foreground">
+                      {p.sellerId ?? "—"}
+                    </TableCell>
+                    <TableCell className="num text-right">
+                      {formatINR(Math.round(p.price * 100))}
+                    </TableCell>
+                    <TableCell className="num text-[12px] text-muted-foreground">
+                      {p.deletedAt ? formatDate(p.deletedAt) : "—"}
+                    </TableCell>
+                    <TableCell className="num text-[12px] text-muted-foreground">
+                      {p.purgeAt ? formatDate(p.purgeAt) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={() => void restoreOne(p.id)}
+                        >
+                          <RotateCcw className="size-3.5" /> Restore
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5 text-destructive hover:text-destructive"
+                          onClick={() => setPurgeIds([p.id])}
+                        >
+                          <Trash2 className="size-3.5" /> Delete forever
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          ) : (
           <Table>
             <TableHeader>
               <TableRow>
@@ -458,6 +636,7 @@ function SuperProducts() {
               ))}
             </TableBody>
           </Table>
+          )}
         </DataShell>
       </SectionCard>
 
@@ -526,6 +705,35 @@ function SuperProducts() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog
+        open={purgeIds !== null}
+        onOpenChange={(open) => !open && setPurgeIds(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Permanently delete {purgeIds?.length ?? 0} listing
+              {purgeIds?.length === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This removes the row and its stock from the database now. It cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={(e) => {
+                e.preventDefault();
+                void confirmPurge(purgeIds ?? []);
+              }}
+            >
+              Delete forever
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

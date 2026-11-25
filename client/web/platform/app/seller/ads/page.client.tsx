@@ -7,10 +7,12 @@ import { useAdSlots, useHeroCampaigns, usePortalLoading, usePlacements, useSelle
 import { useSession } from "@/lib/hooks/useSession";
 import { placementLabel } from "@/lib/api/reference";
 import { CampaignWizard } from "./components/CampaignWizard";
+import { StorefrontPlaylist } from "./components/StorefrontPlaylist";
 import { cn } from "@/lib/utils";
 import type { AdStatus } from "@/data/types";
 
 const AD_PILL: Record<AdStatus, string> = {
+  DRAFT: "bg-warning-soft text-warning",
   REQUESTED: "bg-info-soft text-info",
   APPROVED: "bg-info-soft text-info",
   REJECTED: "bg-brand-soft text-brand",
@@ -52,6 +54,8 @@ function SellerAds() {
             </Card>
           ))}
         </div>
+
+        <StorefrontPlaylist sellerId={sellerId} stateCode={session?.stateCode} />
 
         <CampaignWizard sellerId={sellerId} stateCode={session?.stateCode} />
 

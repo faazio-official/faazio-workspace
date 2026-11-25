@@ -836,6 +836,12 @@ export async function restoreDeletedProduct(productId: string): Promise<void> {
   await remote.post(`/seller/products/${encodeURIComponent(productId)}/restore`);
 }
 
+/** Permanently deletes one trashed listing now (DELETE /seller/products/{id}/permanent). */
+export async function purgeDeletedProduct(productId: string): Promise<void> {
+  if (!remoteConfigured()) return;
+  await remote.delete(`/seller/products/${encodeURIComponent(productId)}/permanent`);
+}
+
 export function setProductStatus(productId: string, status: ProductStatus, reason?: string): void {
   const before = getProduct(productId);
   const note = (reason ?? "").trim();
@@ -2084,8 +2090,13 @@ export async function fetchDistricts(): Promise<DistrictInfo[]> {
  * including deactivated ones, with its lifecycle timestamps. */
 export interface AdminDistrictRow extends DistrictInfo {
   isActive: boolean;
+  /** True when a seller, admin, login or delivery order still references the code. */
+  inUse: boolean;
   createdAt: string;
   updatedAt: string;
+  deletedAt?: string | undefined;
+  deleteReason?: string | undefined;
+  purgeAt?: string | undefined;
 }
 
 /** Create/update payload for the district coverage API. `districtCode` is read only on create —
@@ -2123,10 +2134,29 @@ export async function toggleDistrict(code: string, isActive: boolean): Promise<A
   });
 }
 
-/** Superadmin-only: delete a district. Blocked with `district_in_use` when sellers, admins or
- * payouts still reference it — deactivate instead. */
-export async function deleteDistrict(code: string): Promise<void> {
-  await remote.delete(`/admin/districts/${encodeURIComponent(code)}`);
+/**
+ * Superadmin-only: move a district to the trash. Blocked with `district_in_use` when sellers,
+ * admins or payouts still reference it — deactivate instead. Restorable for 7 days, then purged.
+ */
+export async function deleteDistrict(code: string, reason = ""): Promise<AdminDistrictRow | null> {
+  const q = reason.trim() ? `?reason=${encodeURIComponent(reason.trim())}` : "";
+  return remote.delete<AdminDistrictRow>(`/admin/districts/${encodeURIComponent(code)}${q}`);
+}
+
+/** Superadmin-only: trashed districts still inside the 7-day restore window. */
+export async function listDeletedDistricts(stateCode?: string): Promise<AdminDistrictRow[]> {
+  const q = stateCode ? `?state=${encodeURIComponent(stateCode)}` : "";
+  return remote.get<AdminDistrictRow[]>(`/admin/districts/trash${q}`);
+}
+
+/** Superadmin-only: restore a trashed district (it comes back deactivated). */
+export async function restoreDistrict(code: string): Promise<AdminDistrictRow> {
+  return remote.post<AdminDistrictRow>(`/admin/districts/${encodeURIComponent(code)}/restore`);
+}
+
+/** Superadmin-only: permanently delete one trashed, unreferenced district now. */
+export async function purgeDistrict(code: string): Promise<void> {
+  await remote.delete(`/admin/districts/${encodeURIComponent(code)}/permanent`);
 }
 
 export async function fetchApps(): Promise<AppBrandSummary[]> {
@@ -2546,6 +2576,9 @@ export interface HeroCampaignInput {
   stateCode?: string | undefined;
   startsAt?: string | undefined;
   endsAt?: string | undefined;
+  /** DRAFT (saved, hidden) or LIVE (served). Defaults to LIVE for the buy-a-hero wizard. */
+  status?: AdStatus | undefined;
+  sortOrder?: number | undefined;
 }
 
 /**
@@ -2558,6 +2591,7 @@ export function requestHeroCampaign(dto: HeroCampaignInput): void {
   const before = state().heroCampaigns;
   const campaignId = `cmp-${Date.now()}`;
   const requestedAt = nowIso();
+  const status: AdStatus = dto.status ?? "LIVE";
   const created: HeroCampaign[] = dto.placements.map((placement, i) => ({
     placementId: `ad-cmp-${Date.now()}-${i}`,
     campaignId,
@@ -2574,11 +2608,12 @@ export function requestHeroCampaign(dto: HeroCampaignInput): void {
     imageUrl: dto.imageUrl,
     cta: dto.cta,
     stateCode: dto.stateCode,
-    status: "LIVE",
+    status,
     reports: 0,
     impressions: 0,
     clicks: 0,
     ordersAttributed: 0,
+    sortOrder: dto.sortOrder ?? 0,
     startsAt: dto.startsAt ?? requestedAt,
     endsAt: dto.endsAt ?? "",
     requestedAt,
@@ -2603,10 +2638,104 @@ export function requestHeroCampaign(dto: HeroCampaignInput): void {
       stateCode: dto.stateCode,
       startsAt: dto.startsAt,
       endsAt: dto.endsAt,
+      status,
+      sortOrder: dto.sortOrder ?? 0,
     },
     () => state().set(() => ({ heroCampaigns: before })),
   );
-  audit({ action: "AD_CAMPAIGN_PUBLISH", entity: "ads.campaigns", entityId: campaignId, after: created });
+  audit({
+    action: status === "DRAFT" ? "AD_CAMPAIGN_DRAFT" : "AD_CAMPAIGN_PUBLISH",
+    entity: "ads.campaigns",
+    entityId: campaignId,
+    after: created,
+  });
+}
+
+/** Re-reads the caller's campaign rows into the store (after a playlist write). */
+export async function refreshHeroCampaigns(): Promise<HeroCampaign[]> {
+  if (!remoteConfigured()) return state().heroCampaigns;
+  const rows = await remote.get<HeroCampaign[]>("/ads/campaigns").then(toCamel);
+  state().set(() => ({ heroCampaigns: rows }));
+  return rows;
+}
+
+/** One storefront (STORE_TOP) creative: the seller's own item + poster + call to action. */
+export interface ShopAdInput {
+  sellerId: string;
+  storeId: string;
+  stateCode?: string | undefined;
+  targetType: AdTargetType;
+  targetId: string;
+  title: string;
+  subtitle?: string | undefined;
+  imageUrl: string;
+  cta: string;
+  status: AdStatus;
+  sortOrder: number;
+  startsAt?: string | undefined;
+  endsAt?: string | undefined;
+}
+
+export type ShopAdPatch = Omit<ShopAdInput, "sellerId" | "stateCode">;
+
+function shopAdBody(dto: Omit<ShopAdInput, "sellerId">) {
+  return {
+    placements: ["STORE_TOP"],
+    targetType: dto.targetType,
+    targetId: dto.targetId,
+    targetApp: "MART",
+    storeId: dto.storeId,
+    title: dto.title,
+    subtitle: dto.subtitle,
+    imageUrl: dto.imageUrl,
+    cta: dto.cta,
+    stateCode: dto.stateCode,
+    startsAt: dto.startsAt,
+    endsAt: dto.endsAt,
+    status: dto.status,
+    sortOrder: dto.sortOrder,
+  };
+}
+
+/**
+ * Saves one shop-page creative as DRAFT or LIVE. Awaited (not optimistic) so the freshly minted
+ * server row replaces the local list before the seller edits or reorders it.
+ */
+export async function saveShopAd(dto: ShopAdInput): Promise<void> {
+  await writeAwaited("post", "/ads/campaigns", { sellerId: dto.sellerId, ...shopAdBody(dto) });
+  await refreshHeroCampaigns();
+  audit({
+    action: dto.status === "DRAFT" ? "AD_CAMPAIGN_DRAFT" : "AD_CAMPAIGN_PUBLISH",
+    entity: "ads.campaigns",
+    entityId: dto.storeId,
+    after: dto,
+  });
+}
+
+/** Edits a shop-page creative (save, pause LIVE→DRAFT, play DRAFT→LIVE). */
+export async function updateShopAd(placementId: string, patch: ShopAdPatch): Promise<void> {
+  await writeAwaited("put", `/ads/campaigns/${encodeURIComponent(placementId)}`, shopAdBody(patch));
+  await refreshHeroCampaigns();
+  audit({
+    action: patch.status === "DRAFT" ? "AD_CAMPAIGN_PAUSE" : "AD_CAMPAIGN_EDIT",
+    entity: "ads.campaigns",
+    entityId: placementId,
+    after: patch,
+  });
+}
+
+/** Deletes one shop-page creative. */
+export async function deleteShopAd(placementId: string): Promise<void> {
+  await writeAwaited("delete", `/ads/campaigns/${encodeURIComponent(placementId)}`);
+  await refreshHeroCampaigns();
+  audit({ action: "AD_CAMPAIGN_DELETE", entity: "ads.campaigns", entityId: placementId });
+}
+
+/** Persists the explicit STORE_TOP play order for one shop. */
+export async function reorderShopAds(sellerId: string, storeId: string, ids: string[]): Promise<void> {
+  await writeAwaited("post", "/ads/campaigns/reorder", { sellerId, storeId, ids });
+  await refreshHeroCampaigns();
+  audit({ action: "AD_CAMPAIGN_REORDER", entity: "ads.campaigns", entityId: storeId, after: { ids } });
 }
 
 /** Reports an abusive hero ad (`POST /ads/campaigns/{id}/report`): optimistic + awaited with rollback. */

@@ -4,6 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import { neutral } from '@/theme/brandTokens';
 import AppText from '@/components/AppText';
 import { useCartStore } from '@/state/store';
@@ -14,6 +15,7 @@ import { openCatalogTarget, openHeroTarget } from '@/services/adsTarget';
 import { useActiveDiscounts } from '@/services/pricing';
 import { trackProductView } from '@/services/productViews';
 import { useViewableTracking } from '@/hooks/useViewableTracking';
+import { useNavBarScrollHandler } from '@/hooks/useAutoHideNavBar';
 import { useVendorProducts } from '@/features/catalog/hooks/useVendorProducts';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 
@@ -69,6 +71,8 @@ export function FaMartScreen({
   const addToCart = useCartStore((s) => s.addToCart);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  // Hide the Mart sub-app bottom nav while its feed scrolls, mirroring the hub header.
+  const onNavScroll = useNavBarScrollHandler();
 
   const normalizedSearch = searchQuery.trim().toLowerCase();
 
@@ -214,6 +218,20 @@ export function FaMartScreen({
     [onProductClick, onVendorPress],
   );
 
+  // STORE_TOP tap-through on the vendor drill-in: a promo for this same shop is a no-op (already
+  // here), a product opens its detail, another shop swaps the drill-in.
+  const handleVendorAdPress = useCallback(
+    (ad: HeroAd) => {
+      void openHeroTarget(ad, {
+        onProduct: (product) => onProductClick?.(product),
+        onStore: (store) => {
+          if (store.id !== vendor?.id) onVendorPress?.(store);
+        },
+      });
+    },
+    [onProductClick, onVendorPress, vendor?.id],
+  );
+
   // Passive impressions for the two Mart feed rails (deduped per session by trackProductView).
   const handleDealView = useCallback((deal: MartDeal) => trackProductView(deal.id), []);
   const handleEssentialView = useCallback((item: MartEssential) => trackProductView(item.id), []);
@@ -260,8 +278,9 @@ export function FaMartScreen({
           <MartProductCard
             key={product.id}
             product={product as unknown as Product}
-            width={CARD_W}
+            width={PRODUCT_CARD_WIDTH}
             variant="rail"
+            imageAspect={1}
             showAdLabel
             isAdded={h.isAdded}
             onPress={h.onPress}
@@ -326,6 +345,7 @@ export function FaMartScreen({
         onCartPress={() => navigation.navigate('Cart', {})}
         onViewAllDiscounts={onViewAllDiscounts ? () => onViewAllDiscounts(vendor) : undefined}
         onRateVendor={handleRateVendor}
+        onAdPress={handleVendorAdPress}
         onViewableItemsChanged={onViewableItemsChanged}
         viewabilityConfig={viewabilityConfig}
         loading={vendorProductsLoading}
@@ -347,6 +367,8 @@ export function FaMartScreen({
           renderItem={renderProductItem}
           onViewableItemsChanged={onViewableItemsChanged}
           viewabilityConfig={viewabilityConfig}
+          onScroll={onNavScroll}
+          scrollEventThrottle={16}
           ListEmptyComponent={
             <View style={styles.emptyWrap}>
               {searchLoading ? (
@@ -387,6 +409,8 @@ export function FaMartScreen({
       contentContainerStyle={styles.feedContent}
       refreshing={refreshing}
       onRefresh={refresh}
+      onScroll={onNavScroll}
+      scrollEventThrottle={16}
       ListFooterComponent={
         <LocalVendorRail vendors={feed.localVendors} onVendorPress={handleVendorPress} />
       }

@@ -122,6 +122,7 @@ func Reload(ctx context.Context, pool *db.Pool) error {
 	rows, err := pool.Query(ctx, `
 		select district_code, district_name, state_code::text, coalesce(google_place_id, ''), is_active
 		  from admins.district_master
+		 where deleted_at is null
 		 order by (state_code <> 'TN'), state_code, district_name`)
 	if err != nil {
 		return err

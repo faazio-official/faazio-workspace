@@ -1,7 +1,6 @@
 import React, { memo, useCallback } from 'react';
 import { StyleSheet } from 'react-native';
 import { hs, vs } from '@/utils/responsive';
-import { SPACE } from '@/theme/spacing';
 import CampaignHero from '@/components/shared/CampaignHero';
 import HomeHouseHero from '@/features/home/components/HomeHouseHero';
 import { openHeroTarget } from '@/services/adsTarget';
@@ -48,6 +47,5 @@ const styles = StyleSheet.create({
   carousel: {
     marginHorizontal: hs(16),
     marginTop: vs(4),
-    marginBottom: SPACE.BLOCK,
   },
 });

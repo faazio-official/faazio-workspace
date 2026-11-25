@@ -8,6 +8,7 @@ import {
 } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { useNavBarScrollHandler } from '@/hooks/useAutoHideNavBar';
 import PharmaProductCard from '@/features/pharma/cards/PharmaProductCard';
 import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
@@ -115,6 +116,8 @@ export function PharmaScreen({
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const { feed, refreshing, refresh } = usePharmaFeed();
   const { stores, source: storesSource } = usePharmaStores();
+  // Hide the Pharma sub-app bottom nav while its feeds scroll, mirroring the hub header.
+  const onNavScroll = useNavBarScrollHandler();
 
   // History tab: real orders (in-session + durable `GET /orders`) filtered to Pharma, newest first.
   // The `@data` fixture is only a mock-mode stand-in so an offline demo never blanks.
@@ -317,6 +320,8 @@ export function PharmaScreen({
         <ScrollView
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.searchContent}
+          onScroll={onNavScroll}
+          scrollEventThrottle={16}
         >
           <View style={styles.productsGrid}>
             {searchedProducts.map(product => {
@@ -345,6 +350,8 @@ export function PharmaScreen({
       <ScrollView
         showsVerticalScrollIndicator={false}
         bounces={false}
+        onScroll={onNavScroll}
+        scrollEventThrottle={16}
         refreshControl={
           <AppRefreshControl refreshing={refreshing} onRefresh={refresh} />
         }

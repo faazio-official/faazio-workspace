@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { StyleSheet, View, TouchableOpacity, ScrollView, BackHandler } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { TextInput } from 'react-native';
 import {
@@ -40,6 +41,7 @@ import { gateway } from '@/services/api/GatewayClient';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import { brandRamp } from '@/theme/brandTokens';
 import { parentRamp } from '@/theme/brandTokens';
+import { revealNavBar, useNavBarHideStyle } from '@/hooks/useAutoHideNavBar';
 
 type SubAppKey = 'FA_MART' | 'FOOD' | 'PHARMA';
 
@@ -129,6 +131,9 @@ export default function SubAppWrapper({
   const [activeTab, setActiveTab] = useState<string>('Home');
   const [searchQuery, setSearchQuery] = useState('');
   const [martVendor, setMartVendor] = useState<StoreProfile | null>(null);
+  // Whether the Mart header category rail has chips — an empty rail (no superadmin-curated
+  // categories) closes its band instead of leaving a blank strip. Optimistic until it settles.
+  const [martRailAvailable, setMartRailAvailable] = useState(true);
   const searchInputRef = useRef<TextInput | null>(null);
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
@@ -176,6 +181,7 @@ export default function SubAppWrapper({
 
   useFocusEffect(
     useCallback(() => {
+      revealNavBar();
       const onBackPress = () => {
         handleBack();
         return true;
@@ -195,6 +201,9 @@ export default function SubAppWrapper({
   const adaptiveTabWidth = tabCount > 0 ? capsuleInnerW / tabCount : 0;
 
   const compactHeader = subAppId === 'FA_MART' || subAppId === 'PHARMA';
+
+  // The Mart search header carries the category rail; drop its band when the rail is empty.
+  const subHeaderWithRail = subAppId === 'FA_MART' && martRailAvailable;
 
   // The pinned Mart category rail below the searchbar opens the category drill-in
   // page for the tapped main category (same behaviour as the Home hub header's rail).
@@ -223,6 +232,12 @@ export default function SubAppWrapper({
   // `FLOATING_NAV.GAP` above the bottom edge, so content clearance must include
   // the gap as well as the bar itself.
   const navBarClearance = navBarH + FLOATING_NAV.GAP;
+  // Slide the floating nav away on scroll-down; clear the raised Home shortcut too.
+  const navBarHideStyle = useNavBarHideStyle(navBarH + FLOATING_NAV.GAP + ms(56));
+  // Switching sub-app tabs always starts with the nav shown.
+  useEffect(() => {
+    revealNavBar();
+  }, [activeTab]);
 
   // Registered-donor dashboard (Pharma Donor tab) renders in-wrapper WITH the
   // pharma bottom navbar but its own "Hi, …" header — so header hiding is
@@ -362,11 +377,13 @@ export default function SubAppWrapper({
           searchPlaceholder={searchPlaceholder}
           inputRef={searchInputRef}
           hideBrandRow={compactHeader}
+          withRail={subHeaderWithRail}
           belowSearchSlot={
             subAppId === 'FA_MART' ? (
               <HeaderCategoryRail
                 app="FA_MART"
                 onCategoryPress={handleRailCategoryPress}
+                onAvailabilityChange={setMartRailAvailable}
               />
             ) : undefined
           }
@@ -379,7 +396,7 @@ export default function SubAppWrapper({
           {
             paddingTop: hideAppHeader
               ? 0
-              : subAppHeaderH(insets.top, compactHeader, subAppId === 'FA_MART'),
+              : subAppHeaderH(insets.top, compactHeader, subHeaderWithRail),
             paddingBottom: isChromeHidden ? 0 : navBarClearance,
           },
         ]}
@@ -388,7 +405,7 @@ export default function SubAppWrapper({
       </View>
 
       {!isChromeHidden && (
-        <View style={styles.tabBarDock} pointerEvents="box-none">
+        <Animated.View style={[styles.tabBarDock, navBarHideStyle]} pointerEvents="box-none">
           <View style={[styles.tabBar, { height: navBarH }]}>
             {tabs.map((tab, idx) => {
               const isCurrent = activeTab === tab.name;
@@ -435,7 +452,7 @@ export default function SubAppWrapper({
               onPress={() => navigation.navigate('MainTabs', { screen: 'Home' })}
             />
           </View>
-        </View>
+        </Animated.View>
       )}
     </View>
   );

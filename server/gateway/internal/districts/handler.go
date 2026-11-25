@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/contracts"
 	"github.com/faazio/server/gateway/internal/platform/auth"
@@ -52,10 +53,13 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
 		g.Get("/admin/districts", h.adminList)
+		g.Get("/admin/districts/trash", h.adminTrash)
 		g.Post("/admin/districts", h.create)
 		g.Put("/admin/districts/{code}", h.update)
 		g.Patch("/admin/districts/{code}/toggle", h.toggle)
 		g.Delete("/admin/districts/{code}", h.remove)
+		g.Post("/admin/districts/{code}/restore", h.restore)
+		g.Delete("/admin/districts/{code}/permanent", h.permanentRemove)
 	})
 }
 
@@ -177,23 +181,123 @@ func (h *Handler) toggle(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, item)
 }
 
-func (h *Handler) remove(w http.ResponseWriter, r *http.Request) {
-	code := geo.Normalise(chi.URLParam(r, "code"))
-	before, _ := h.repo.Get(r.Context(), code)
-	err := h.repo.Delete(r.Context(), code)
-	if err != nil {
-		switch {
-		case errors.Is(err, ErrNotFound):
-			httpx.Fail(w, http.StatusNotFound, "not_found", "district not found")
-		case errors.Is(err, ErrReferenced):
-			httpx.Fail(w, http.StatusConflict, "district_in_use",
-				"this district still has sellers, admins or payouts — deactivate it instead")
-		default:
-			httpx.Fail(w, http.StatusInternalServerError, "district_write_failed", "could not delete district")
-		}
+// adminTrash lists trashed districts still inside the undo window (GET /admin/districts/trash). It
+// runs the expiry purge first so an expired row never appears as restorable.
+func (h *Handler) adminTrash(w http.ResponseWriter, r *http.Request) {
+	stateCode := strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("state")))
+	if len(stateCode) > 2 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "state must be a 2-letter code")
 		return
 	}
-	h.persisted(r, "DISTRICT_DELETE", nil, before)
+	_, _ = h.repo.PurgeDeleted(r.Context(), DistrictTrashWindow)
+	items, err := h.repo.ListDeleted(r.Context(), stateCode)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "districts_unavailable", "districts unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+// remove moves a district to the trash (DELETE /admin/districts/{code}?reason=...). It is restorable
+// for 7 days, then the purger removes it for good. A district still referenced by sellers, admins,
+// portal logins or delivery orders is refused — deactivate it instead.
+func (h *Handler) remove(w http.ResponseWriter, r *http.Request) {
+	code := geo.Normalise(chi.URLParam(r, "code"))
+	reason := strings.TrimSpace(r.URL.Query().Get("reason"))
+	if len(reason) > 500 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "delete reason is too long")
+		return
+	}
+	before, err := h.repo.Get(r.Context(), code)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			httpx.Fail(w, http.StatusNotFound, "not_found", "district not found")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "district_write_failed", "could not delete district")
+		return
+	}
+	if before.DeletedAt != "" {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "district not found")
+		return
+	}
+	if before.InUse {
+		httpx.Fail(w, http.StatusConflict, "district_in_use",
+			"this district still has sellers, admins or payouts — deactivate it instead")
+		return
+	}
+	item, ok, err := h.repo.SoftDelete(r.Context(), code, reason)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "district_write_failed", "could not delete district")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusConflict, "district_in_use",
+			"this district still has sellers, admins or payouts — deactivate it instead")
+		return
+	}
+	h.persisted(r, "DISTRICT_DELETE", item, before)
+	httpx.JSON(w, http.StatusOK, item)
+}
+
+// restore clears the trash flag (POST /admin/districts/{code}/restore). The row comes back
+// deactivated so the operator re-enables it deliberately.
+func (h *Handler) restore(w http.ResponseWriter, r *http.Request) {
+	code := geo.Normalise(chi.URLParam(r, "code"))
+	before, err := h.repo.Get(r.Context(), code)
+	if err != nil {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "district not found")
+		return
+	}
+	if before.DeletedAt == "" {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "district not found in trash")
+		return
+	}
+	if deletedAt, parseErr := time.Parse(time.RFC3339, before.DeletedAt); parseErr == nil &&
+		time.Since(deletedAt) > DistrictTrashWindow {
+		_, _ = h.repo.PurgeOne(r.Context(), code)
+		httpx.Fail(w, http.StatusGone, "trash_expired",
+			"the restore window has closed; this district was permanently deleted")
+		return
+	}
+	item, ok, err := h.repo.Restore(r.Context(), code)
+	if err != nil || !ok {
+		httpx.Fail(w, http.StatusInternalServerError, "district_write_failed", "could not restore district")
+		return
+	}
+	h.persisted(r, "DISTRICT_RESTORE", item, before)
+	httpx.JSON(w, http.StatusOK, item)
+}
+
+// permanentRemove hard-deletes one trashed, unreferenced district now (DELETE
+// /admin/districts/{code}/permanent). Referenced rows are refused; the row is otherwise unrecoverable.
+func (h *Handler) permanentRemove(w http.ResponseWriter, r *http.Request) {
+	code := geo.Normalise(chi.URLParam(r, "code"))
+	before, err := h.repo.Get(r.Context(), code)
+	if err != nil {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "district not found")
+		return
+	}
+	if before.DeletedAt == "" {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "district not found in trash")
+		return
+	}
+	if before.InUse {
+		httpx.Fail(w, http.StatusConflict, "district_in_use",
+			"this district still has sellers, admins or payouts — it cannot be permanently deleted")
+		return
+	}
+	ok, err := h.repo.PurgeOne(r.Context(), code)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "district_write_failed", "could not delete district")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusConflict, "district_in_use",
+			"this district still has sellers, admins or payouts — it cannot be permanently deleted")
+		return
+	}
+	h.persisted(r, "DISTRICT_PURGE", nil, before)
 	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "deleted": code})
 }
 

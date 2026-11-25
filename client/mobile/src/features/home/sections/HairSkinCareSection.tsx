@@ -4,7 +4,12 @@ import { hs } from '@/utils/responsive';
 import { hairSkinPicks } from '@data/home/demographics';
 import type { Product } from '@data/types';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
-import { SectionHeader, usePricedProducts } from './common';
+import {
+  SectionHeader,
+  usePricedProducts,
+  HOME_GRID_CARD_WIDTH,
+  HOME_GRID_GAP,
+} from './common';
 import type { SectionProps } from './common';
 
 interface HairSkinCareSectionProps extends SectionProps {
@@ -24,6 +29,9 @@ function HairSkinCareSection({ products = hairSkinPicks, onProductClick }: HairS
           <UniversalFeedCard
             key={product.id}
             product={product}
+            width={HOME_GRID_CARD_WIDTH}
+            imageAspect={1}
+            nameLines={1}
             showAddButton={false}
             onPress={() => onProductClick?.(product)}
           />
@@ -39,7 +47,7 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    columnGap: HOME_GRID_GAP,
     paddingHorizontal: hs(16),
   },
 });

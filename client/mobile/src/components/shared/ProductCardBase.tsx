@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppImage } from './AppImage';
 import { Star, Plus, Minus, Check, Heart, Zap } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import { brandTokens } from '@/theme/brandTokens';
 import { resolveBadgeBg, formatRating } from './format';
 import AdLabelBadge from './AdLabelBadge';
@@ -38,6 +39,10 @@ interface ProductCardBaseProps {
   roundedImageBottom?: boolean;
   /** Image aspect ratio for grid2/rail/flash variants. Default 3/4 portrait. */
   imageAspect?: number;
+  /** Product name lines before truncating. Default 2. */
+  nameLines?: number;
+  /** Render the rating pill over the image (bottom-left) instead of in the body. */
+  ratingOnImage?: boolean;
 }
 
 const ProductCardBase = memo(function ProductCardBase({
@@ -46,8 +51,8 @@ const ProductCardBase = memo(function ProductCardBase({
   onIncrement, onDecrement, onFavorite,
   width, showRating = true, showDescription = false,
   showHeart = false, showBadge = true, showAdLabel = false, originalPrice,
-  roundedImageBottom = false, imageAspect = 3 / 4,
-  showPrice = true, showAddButton = true,
+  roundedImageBottom = false, imageAspect = 3 / 4, nameLines = 2,
+  showPrice = true, showAddButton = true, ratingOnImage = false,
 }: ProductCardBaseProps) {
   const tokens = brandTokens[appBrand];
   const language = useLanguageStore((s) => s.language);
@@ -57,7 +62,7 @@ const ProductCardBase = memo(function ProductCardBase({
   const isGrid2 = variant === 'grid2';
 
   const cardStyle = {
-    width: width || (isRail ? hs(150) : ((SCREEN_W - hs(32) - hs(12)) / 2) as any),
+    width: width || (isRail ? PRODUCT_CARD_WIDTH : ((SCREEN_W - hs(32) - hs(12)) / 2) as any),
     borderRadius: ms(16),
     backgroundColor: '#ffffff',
     borderWidth: 1,
@@ -123,15 +128,26 @@ const ProductCardBase = memo(function ProductCardBase({
             <AdLabelBadge />
           </View>
         )}
+        {ratingOnImage && showRating && product.rating !== undefined ? (
+          <View style={styles.imageRating}>
+            <Star size={ms(10)} color="#f59e0b" fill="#f59e0b" />
+            <AppText style={styles.imageRatingText}>{formatRating(product.rating)}</AppText>
+          </View>
+        ) : null}
       </View>
       <View style={styles.body}>
-        {product.rating !== undefined && showRating && (
+        {!ratingOnImage && product.rating !== undefined && showRating && (
           <View style={styles.ratingRow}>
             <Star size={ms(11)} color="#f59e0b" fill="#f59e0b" />
             <AppText style={styles.ratingText}>{formatRating(product.rating)}</AppText>
           </View>
         )}
-        <AppText style={styles.name} numberOfLines={2}>{displayName}</AppText>
+        <AppText
+          style={[styles.name, nameLines === 1 && styles.nameSingleLine]}
+          numberOfLines={nameLines}
+        >
+          {displayName}
+        </AppText>
         {showDescription && displayDesc ? (
           <AppText style={styles.desc} numberOfLines={1}>{displayDesc}</AppText>
         ) : null}
@@ -201,12 +217,26 @@ const styles = StyleSheet.create({
   flashBadge: { position: 'absolute', top: vs(6), right: hs(6), backgroundColor: '#ef4444', paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(4), flexDirection: 'row', alignItems: 'center', gap: 2 },
   flashText: { fontSize: ms(11), fontWeight: '600', color: '#ffffff' },
   adLabelWrap: { position: 'absolute', bottom: vs(4), right: hs(4) },
+  imageRating: {
+    position: 'absolute',
+    bottom: vs(6),
+    left: hs(6),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(3),
+    backgroundColor: 'rgba(255,255,255,0.92)',
+    borderRadius: ms(6),
+    paddingHorizontal: hs(6),
+    paddingVertical: vs(2),
+  },
+  imageRatingText: { fontSize: ms(10), fontWeight: '700', color: '#0f172a' },
   heartBtn: { position: 'absolute', top: vs(2), right: hs(2), width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   heartCircle: { width: ms(28), height: ms(28), borderRadius: ms(14), backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
   body: { padding: hs(8) },
   ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: vs(2) },
   ratingText: { fontSize: ms(11), fontWeight: '500', color: '#64748b', marginLeft: hs(3) },
   name: { fontSize: ms(12), fontWeight: '500', color: '#0f172a', minHeight: ms(32) },
+  nameSingleLine: { minHeight: 0 },
   desc: { fontSize: ms(11), fontWeight: '400', color: '#94a3b8', marginTop: vs(2) },
   priceRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(4) },
   price: { fontSize: ms(13), fontWeight: '600' },

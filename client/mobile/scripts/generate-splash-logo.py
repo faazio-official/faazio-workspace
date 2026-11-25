@@ -1,36 +1,35 @@
 #!/usr/bin/env python3
 """
-Generate native splash-screen logos from the single source of truth
-`src/assets/logo.png` (the wide Faazio wordmark used by the JS SplashFallback).
+Generate the native splash-screen logo (layer 1) from the "Fa" brand mark
+`src/assets/adaptive-icon.png`, and the transparent wordmark used by the JS
+layer-2 splash / `FaazioLogo` from `src/assets/logo.png`.
 
 Why this script exists
 ----------------------
-The native splash assets are not a naive resize of the source. Two platform
-constraints force a deliberate treatment, both verified against the real
-toolchain rather than assumed:
+The native splash (layer 1) and the JS wordmark reveal (layer 2,
+`src/components/SplashWordmarkReveal.tsx`) must hand off without a visible jump,
+so both centre the same brand mark at the same optical size:
 
-1. Android 12+ masks `windowSplashScreenAnimatedIcon` to a CIRCLE.
-   From androidx.core:core-splashscreen:1.0.1 (res/values/values.xml):
-       splashscreen_icon_size_no_background      = 288dp   (icon canvas)
-       splashscreen_icon_mask_size_no_background = 410dp   (compat ring)
-       splashscreen_icon_mask_stroke_no_background = 109dp
-   On API 31+ the platform draws the 288dp canvas inside a 192dp circle
-   (radius 96dp). A 3:1 wordmark spanning the full canvas has a half-diagonal
-   of ~149dp, so only ~61% of its width would survive. We therefore fit the
-   wordmark INSIDE the mask circle with margin so nothing is clipped.
-   On API 24-30 the compat drawable draws the icon at the full 288dp with the
-   ring starting at radius ~150.5dp, so the fitted wordmark is fully visible
-   there too. One asset satisfies both paths.
+* Layer 1 shows the square "Fa" mark (`adaptive-icon.png`, the same mark as the
+  launcher icon).
+* Layer 2 animates the full "Faazio" wordmark, whose leading "Fa" is the same
+  glyph pair as the mark.
+* Both are sized so the "Fa" cap-height is identical. Layer 2 renders the
+  wordmark at `ROYAL_LOGO_W` = 220dp (the pre-reveal size), so its cap-height is
+  `220 * F_CAP_SPAN / VIEW_W` ≈ 57.5dp. The native mark is scaled to exactly
+  that height on the 288dp splash canvas, which keeps the two layers optically
+  continuous and independent of platform density.
 
-2. The source PNG is opaque RGB (no alpha) with a flat #1627E9 field. We key
-   the field out to transparency and keep only the white wordmark, so the asset
-   is background-independent and works on any splash colour, on both platforms.
+Android 12+ masks `windowSplashScreenAnimatedIcon` to a CIRCLE of 192dp radius
+96dp on a 288dp canvas (androidx.core:core-splashscreen:1.0.1
+`splashscreen_icon_size_no_background`). The "Fa" mark at ~57dp cap-height sits
+well inside that mask, so it is never clipped on API 31+, and the API 24-30
+compat drawable (which shows the full 288dp canvas) draws it identically.
 
 The JS layer-2 splash (`src/components/SplashFallback.tsx`, `royal` variant)
-must be background-independent too. It previously drew the raw opaque
-`logo.png` and relied on the asset field matching the hardcoded Faazio Blue
-background exactly; any colour drift made the opaque field visible and the
-wordmark look cropped. It now uses the generated transparent wordmark below.
+must be background-independent. It uses the generated transparent wordmark
+below, whose opaque #1627E9 field has been keyed out, so it works on any splash
+colour on both platforms.
 
 The splash credit line "Product of FA CREATORS" is owned by the JS layer-2
 splash (`src/components/SplashFallback.tsx`, `royal` variant) and the iOS
@@ -42,8 +41,8 @@ vertically) on real devices.
 
 Outputs
 -------
-  android/app/src/main/res/drawable-{m,h,xh,xxh,xxxh}dpi/splashscreen_logo.png
-  ios/Faazio/Images.xcassets/SplashScreenLogo.imageset/image{,@2x,@3x}.png
+  android/app/src/main/res/drawable-{m,h,xh,xxh,xxxh}dpi/splashscreen_logo.png  ("Fa" mark)
+  ios/Faazio/Images.xcassets/SplashScreenLogo.imageset/image{,@2x,@3x}.png      ("Fa" mark)
   src/assets/logo-wordmark-transparent.png   (same canvas/position as logo.png)
 
 Usage
@@ -61,6 +60,9 @@ from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parent.parent
+# Layer 1 native splash source: the square "Fa" mark.
+MARK_SOURCE = ROOT / "src" / "assets" / "adaptive-icon.png"
+# Layer 2 JS wordmark source (also feeds `FaazioLogo`'s wordmark variant).
 SOURCE = ROOT / "src" / "assets" / "logo.png"
 
 ANDROID_RES = ROOT / "android" / "app" / "src" / "main" / "res"
@@ -78,10 +80,15 @@ ANDROID_DENSITIES = {
 
 # Android 12+ circular mask: 192dp diameter on a 288dp canvas.
 ANDROID_CANVAS_DP = 288.0
-ANDROID_MASK_RADIUS_DP = 96.0
-# Fraction of the mask diameter the wordmark may occupy. <1 leaves a margin so
-# antialiased edges never touch the clip boundary.
-ANDROID_INK_FILL = 0.92
+
+# Shared optical size with layer 2 (`SplashFallback.tsx`). The JS wordmark box is
+# ROYAL_LOGO_W=220dp wide over a 2171x724 viewBox; the "F" path spans y
+# 68.08..635.20 (567.12 units), so the leading "Fa" cap-height is
+# 220 * 567.12 / 2171 ≈ 57.5dp. The native "Fa" mark is scaled to that height.
+WORDMARK_BOX_W_DP = 220.0
+WORDMARK_VIEW_W = 2171.0
+F_CAP_SPAN = 567.1223
+NATIVE_FA_MARK_HEIGHT_DP = WORDMARK_BOX_W_DP * (F_CAP_SPAN / WORDMARK_VIEW_W)
 
 # iOS uses the same square 288dp canvas as Android. The iOS 1x/2x/3x slices
 # map exactly to Android mdpi/xhdpi/xxhdpi (288/576/864 px), so the storyboard
@@ -146,18 +153,21 @@ def load_wordmark() -> tuple[Image.Image, tuple[int, int, int, int], tuple[int, 
     return out.crop(bbox), bbox, (w, h)
 
 
-def render_android(ink: Image.Image, density: float) -> Image.Image:
-    """Fit the wordmark inside the Android 12+ mask circle on a 288dp canvas."""
+def load_mark() -> Image.Image:
+    """Return the "Fa" mark cropped to its ink (transparent canvas, no keying)."""
+    src = Image.open(MARK_SOURCE).convert("RGBA")
+    bbox = src.getchannel("A").getbbox()
+    if bbox is None:
+        raise SystemExit(f"ERROR: {MARK_SOURCE} has no opaque ink")
+    return src.crop(bbox)
+
+
+def render_native_mark(mark: Image.Image, density: float) -> Image.Image:
+    """Centre the "Fa" mark at the shared cap-height on a 288dp canvas."""
     canvas = round(ANDROID_CANVAS_DP * density)
-    radius = ANDROID_MASK_RADIUS_DP * density
-    aspect = ink.width / ink.height
-
-    # Largest ink width whose bounding box still fits inside the circle.
-    max_w = 2 * radius / (1 + 1 / (aspect ** 2)) ** 0.5
-    target_w = max_w * ANDROID_INK_FILL
-    target_h = target_w / aspect
-
-    scaled = ink.resize((round(target_w), round(target_h)), Image.LANCZOS)
+    target_h = NATIVE_FA_MARK_HEIGHT_DP * density
+    target_w = target_h * (mark.width / mark.height)
+    scaled = mark.resize((round(target_w), round(target_h)), Image.LANCZOS)
     out = Image.new("RGBA", (canvas, canvas), (0, 0, 0, 0))
     out.paste(scaled, ((canvas - scaled.width) // 2, (canvas - scaled.height) // 2), scaled)
     return out
@@ -184,10 +194,15 @@ def main() -> int:
 
     if not SOURCE.exists():
         raise SystemExit(f"ERROR: source not found: {SOURCE}")
+    if not MARK_SOURCE.exists():
+        raise SystemExit(f"ERROR: source not found: {MARK_SOURCE}")
 
     ink, bbox, canvas_size = load_wordmark()
-    print(f"source      {SOURCE.relative_to(ROOT)}")
+    print(f"wordmark    {SOURCE.relative_to(ROOT)}")
     print(f"ink bbox    {bbox}  ->  {ink.width}x{ink.height}  aspect {ink.width / ink.height:.3f}")
+    mark = load_mark()
+    print(f"mark        {MARK_SOURCE.relative_to(ROOT)}  {mark.width}x{mark.height}")
+    print(f"cap-height  native mark {NATIVE_FA_MARK_HEIGHT_DP:.2f}dp on {ANDROID_CANVAS_DP:.0f}dp canvas")
 
     written = 0
 
@@ -199,7 +214,7 @@ def main() -> int:
     print(f"js          {JS_WORDMARK.relative_to(ROOT)}  {js_img.width}x{js_img.height}")
 
     for name, density in ANDROID_DENSITIES.items():
-        img = render_android(ink, density)
+        img = render_native_mark(mark, density)
         path = ANDROID_RES / f"drawable-{name}" / "splashscreen_logo.png"
         if not args.check:
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -208,7 +223,7 @@ def main() -> int:
         print(f"android     {path.relative_to(ROOT)}  {img.width}x{img.height}")
 
     for suffix, scale in IOS_SCALES.items():
-        img = render_android(ink, scale)
+        img = render_native_mark(mark, scale)
         path = IOS_IMAGESET / f"image{suffix}.png"
         if not args.check:
             path.parent.mkdir(parents=True, exist_ok=True)

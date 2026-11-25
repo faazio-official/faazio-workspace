@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import MartImage from './MartImage';
 import { formatRating } from '@/components/shared/format';
 
@@ -79,7 +80,7 @@ export default MartDealCard;
 
 const styles = StyleSheet.create({
   card: {
-    width: hs(150),
+    width: PRODUCT_CARD_WIDTH,
     marginRight: hs(8),
     backgroundColor: '#FFFFFF',
     borderRadius: ms(16),

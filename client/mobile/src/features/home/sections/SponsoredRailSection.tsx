@@ -3,6 +3,7 @@ import type { Product } from '@data/types';
 import type { SponsoredProduct } from '@/services/api/GatewayClient';
 import SponsoredRail from '@/components/shared/SponsoredRail';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 
 interface SponsoredRailSectionProps {
   /** The placement this rail reads (`GET /ads/live?slot=…`). Defaults to the Home rail. */
@@ -24,8 +25,11 @@ function SponsoredRailSection({ placement = 'HOME_TOP', onProductClick }: Sponso
           key={product.id}
           product={product as unknown as Product}
           variant="rail"
+          width={PRODUCT_CARD_WIDTH}
+          imageAspect={1}
           showAdLabel
           showAddButton={false}
+          nameLines={1}
           onPress={h.onPress}
         />
       )}

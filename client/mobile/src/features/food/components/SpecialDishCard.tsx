@@ -1,10 +1,10 @@
 import React, { memo } from 'react';
-import { hs } from '@/utils/responsive';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import FoodProductCard from '../cards/FoodProductCard';
 import { dishToProduct } from '@data/food/specials';
 import type { SpecialDish } from '../types';
 
-export const SPECIAL_CARD_W = hs(116);
+export const SPECIAL_CARD_W = PRODUCT_CARD_WIDTH;
 
 interface SpecialDishCardProps {
   dish: SpecialDish;
@@ -12,9 +12,10 @@ interface SpecialDishCardProps {
 }
 
 /**
- * Adapter that renders a "Today's Special" dish with the exact card the Home
- * "Today's Special" rail uses (ProductCardBase via FoodProductCard): hs(116)
- * wide, 1:1 rounded image, name-only body — so Home and Food can't drift.
+ * Adapter that renders a "Today's Special" dish with the exact card sizing the
+ * 3-up grid and the Home "Today's Special" rail use (ProductCardBase via
+ * FoodProductCard): PRODUCT_CARD_WIDTH wide, 1:1 rounded image, name-only body —
+ * so Home and Food can't drift.
  */
 const SpecialDishCard = memo(function SpecialDishCard({ dish, onPress }: SpecialDishCardProps) {
   return (

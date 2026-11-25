@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { neutral } from '@/theme/brandTokens';
 import { categorical } from '@/theme/categorical';
 import { StyleSheet, View, TouchableOpacity, StatusBar, Linking } from 'react-native';
@@ -36,6 +36,7 @@ import type { SubAppId } from '@/state/uiStore';
 import HeaderCategoryRail from '@/components/shared/HeaderCategoryRail';
 import type { CategoryRailItem } from '@/services/categoryRail';
 import { useLocationStore } from '@/state/locationStore';
+import { revealNavBar } from '@/hooks/useAutoHideNavBar';
 
 type Props = CompositeScreenProps<
   BottomTabScreenProps<MainTabParamList, 'Home'>,
@@ -73,6 +74,8 @@ export function HomeTabScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       const entry = StatusBar.pushStackEntry({ barStyle: 'light-content' });
+      // Freshly-focused Home starts with the bottom nav shown.
+      revealNavBar();
       return () => StatusBar.popStackEntry(entry);
     }, []),
   );
@@ -117,7 +120,11 @@ export function HomeTabScreen({ navigation }: Props) {
   const scrollY = useSharedValue(0);
   const clamp = useSharedValue(0);
   const collapseCap = useSharedValue(0);
-  const [stackH, setStackH] = useState(expandedHeaderH(insets.top));
+  // Whether the superadmin category rail has chips — drives whether its slot is reserved. Starts
+  // optimistic so the header does not jump open when the first page of chips arrives; flips false
+  // once the rail settles with zero curated chips (see HeaderCategoryRail).
+  const [hasRail, setHasRail] = useState(true);
+  const [stackH, setStackH] = useState(expandedHeaderH(insets.top, true));
   const viewportH = useSharedValue(0);
 
   const headerSlideStyle = useAnimatedStyle(() => ({
@@ -131,30 +138,36 @@ export function HomeTabScreen({ navigation }: Props) {
     return Math.max(0, Math.min(1, clamp.value / cap));
   });
 
-  // Logo/location + sectors block dissolves by half-collapse (also hides the
-  // clipped sectors-row remnant that would otherwise poke under the status bar).
+  // Only the logo/location row dissolves; the Mart/Food/Pharma sectors, the search bar and the
+  // category rail stay pinned.
   const fadeTopBlockStyle = useAnimatedStyle(() => ({
     opacity:
       1 - interpolate(clampProgress.value, [0, 0.5], [0, 1], Extrapolation.CLAMP),
   }));
 
-  const onStackLayout = useCallback(
-    (e: any) => {
-      const h = e.nativeEvent.layout.height;
-      setStackH((prev) => (Math.abs(prev - h) > 1 ? h : prev));
-      collapseCap.value = Math.max(0, h - collapsedVisibleHeaderH(insets.top));
-    },
-    [collapseCap, insets.top],
-  );
+  // The collapsed window depends on the actual (measured) header height and whether the rail slot
+  // exists, so recompute whenever either changes (an empty rail shrinks the header).
+  useEffect(() => {
+    collapseCap.value = Math.max(0, stackH - collapsedVisibleHeaderH(insets.top, hasRail));
+  }, [stackH, hasRail, insets.top, collapseCap]);
+
+  const handleRailAvailability = useCallback((available: boolean) => {
+    setHasRail((prev) => (prev === available ? prev : available));
+  }, []);
+
+  const onStackLayout = useCallback((e: any) => {
+    const h = e.nativeEvent.layout.height;
+    setStackH((prev) => (Math.abs(prev - h) > 1 ? h : prev));
+  }, []);
 
   return (
     <View style={styles.container} onLayout={(e) => { viewportH.value = e.nativeEvent.layout.height; }}>
       <Animated.View style={[styles.headerOuter, { height: stackH }]} collapsable={false} pointerEvents="box-none">
         <Animated.View style={[styles.headerSlid, { height: stackH }, headerSlideStyle]} collapsable={false}>
-          <HubGradient height={stackH} />
+          <HubGradient height={stackH} hasRail={hasRail} />
           <View style={[styles.headerStack, { paddingTop: headerTopInset(insets.top) }]} onLayout={onStackLayout}>
             <Animated.View style={[styles.fadeBlock, fadeTopBlockStyle]} renderToHardwareTextureAndroid>
-              <View>
+              <View style={styles.topBlock}>
                 <View style={styles.headerTopRow}>
                   <FaazioLogo size={ms(28)} variant="wordmark" />
 
@@ -175,58 +188,58 @@ export function HomeTabScreen({ navigation }: Props) {
                   </View>
                 </View>
 
-                <View style={styles.sectorsRow}>
-                  <ExploreSectorsSection
-                    onLaunchSubApp={handleLaunchSubApp}
-                  />
-                </View>
+                {showLocationNudge ? (
+                  <View
+                    style={styles.locationNudge}
+                    accessibilityRole="alert"
+                  >
+                    <View style={styles.nudgeCopy}>
+                      <AppText style={styles.nudgeTitle}>Location following is off</AppText>
+                      <AppText style={styles.nudgeBody} numberOfLines={2}>
+                        {locationStatus === 'blocked'
+                          ? 'Nearby stores may be wrong. Enable location in Settings or set an address.'
+                          : 'Nearby stores may be wrong. Allow location or set an address.'}
+                      </AppText>
+                      <View style={styles.nudgeActions}>
+                        <TouchableOpacity
+                          onPress={() => void Linking.openSettings()}
+                          style={styles.nudgeAction}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                          accessibilityLabel="Open device settings"
+                        >
+                          <AppText style={styles.nudgeActionText}>Open Settings</AppText>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          onPress={() => navigation.navigate('Location')}
+                          style={styles.nudgeAction}
+                          activeOpacity={0.7}
+                          accessibilityRole="button"
+                          accessibilityLabel="Enter an address"
+                        >
+                          <AppText style={styles.nudgeActionText}>Enter address</AppText>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                    <TouchableOpacity
+                      onPress={() => setNudgeDismissed(true)}
+                      style={styles.nudgeDismiss}
+                      activeOpacity={0.7}
+                      accessibilityRole="button"
+                      accessibilityLabel="Dismiss location notice"
+                    >
+                      <X size={ms(13)} color="rgba(255,255,255,0.85)" />
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
               </View>
             </Animated.View>
 
-            {showLocationNudge ? (
-              <View
-                style={styles.locationNudge}
-                accessibilityRole="alert"
-              >
-                <View style={styles.nudgeCopy}>
-                  <AppText style={styles.nudgeTitle}>Location following is off</AppText>
-                  <AppText style={styles.nudgeBody} numberOfLines={2}>
-                    {locationStatus === 'blocked'
-                      ? 'Nearby stores may be wrong. Enable location in Settings or set an address.'
-                      : 'Nearby stores may be wrong. Allow location or set an address.'}
-                  </AppText>
-                  <View style={styles.nudgeActions}>
-                    <TouchableOpacity
-                      onPress={() => void Linking.openSettings()}
-                      style={styles.nudgeAction}
-                      activeOpacity={0.7}
-                      accessibilityRole="button"
-                      accessibilityLabel="Open device settings"
-                    >
-                      <AppText style={styles.nudgeActionText}>Open Settings</AppText>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      onPress={() => navigation.navigate('Location')}
-                      style={styles.nudgeAction}
-                      activeOpacity={0.7}
-                      accessibilityRole="button"
-                      accessibilityLabel="Enter an address"
-                    >
-                      <AppText style={styles.nudgeActionText}>Enter address</AppText>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-                <TouchableOpacity
-                  onPress={() => setNudgeDismissed(true)}
-                  style={styles.nudgeDismiss}
-                  activeOpacity={0.7}
-                  accessibilityRole="button"
-                  accessibilityLabel="Dismiss location notice"
-                >
-                  <X size={ms(13)} color="rgba(255,255,255,0.85)" />
-                </TouchableOpacity>
-              </View>
-            ) : null}
+            <View style={styles.sectorsRow}>
+              <ExploreSectorsSection
+                onLaunchSubApp={handleLaunchSubApp}
+              />
+            </View>
 
             <TouchableOpacity
               style={styles.searchBar}
@@ -241,11 +254,10 @@ export function HomeTabScreen({ navigation }: Props) {
               </AppText>
             </TouchableOpacity>
 
-            <View style={styles.fadeBlock}>
-              <HeaderCategoryRail
-                onCategoryPress={handleRailCategoryPress}
-              />
-            </View>
+            <HeaderCategoryRail
+              onCategoryPress={handleRailCategoryPress}
+              onAvailabilityChange={handleRailAvailability}
+            />
           </View>
         </Animated.View>
       </Animated.View>
@@ -291,6 +303,10 @@ const styles = StyleSheet.create({
   },
   fadeBlock: {
     width: '100%',
+  },
+  topBlock: {
+    width: '100%',
+    gap: HEADER_ROW_GAP,
   },
   sectorsRow: {
     width: '100%',

@@ -2,6 +2,7 @@ import React, { memo, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
 import { hs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import { nearbyOffers } from '@data/home/nearbyOffers';
 import type { Product } from '@data/types';
 import { gateway, type ProductView } from '@/services/api/GatewayClient';
@@ -91,8 +92,11 @@ function NearbyOffersSection({
             key={product.id}
             product={product}
             variant="rail"
+            width={PRODUCT_CARD_WIDTH}
+            imageAspect={1}
             showDescription
             showAddButton={false}
+            nameLines={1}
             onPress={() => onProductClick?.(product)}
           />
         ))}

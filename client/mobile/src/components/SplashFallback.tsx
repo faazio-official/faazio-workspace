@@ -12,34 +12,21 @@ import { parentRamp } from '@/theme/brandTokens';
 import { useThemeMode } from '@/hooks/useThemeMode';
 
 /**
- * Layer-2 must render the wordmark at the same size as the native layer-1
- * splash, or the handoff visibly jumps.
+ * Layer-2 must render the wordmark at the same optical size as the native
+ * layer-1 splash, or the handoff visibly jumps.
  *
- * Layer 1 draws a square canvas — Android 288dp and iOS 288pt (the storyboard's
- * explicit width, matched to Android) — with the wordmark fitted inside the
- * Android 12+ 192dp mask circle at 92% fill, per
- * `scripts/generate-splash-logo.py`. That is 170.1dp of visible ink. Reproducing
- * that ink width on the wide 2171×724 asset makes the two layers optically
- * identical: both now measure ~510px of ink on a 1080px screen, where the
- * previous arbitrary 220dp canvas drew ~625px (1.23× too big) and, when the
- * Image fell back to its intrinsic 2171px width, center-cropped the wordmark
- * down to just "az".
+ * Layer 1 shows the square "Fa" brand mark (`adaptive-icon.png`) on a 288dp
+ * canvas, scaled so its cap-height matches the leading "Fa" of the wordmark
+ * below (`scripts/generate-splash-logo.py`). Layer 2 therefore renders the
+ * wordmark at the pre-reveal 220dp width: its viewBox is 2171×724, so the box is
+ * ~73.4dp tall and the "F" glyph spans 567.1/724 of that → a ~57.5dp cap-height,
+ * identical to the native mark. Both layers centre the same-size "Fa".
  */
-const MASK_RADIUS_DP = 96;
-const MASK_FILL = 0.92;
-const CANVAS_W = 2171;
-const CANVAS_H = 724;
-const INK_W = 2055;
-const INK_H = 573;
-/** Native layer-1 canvas width in dp/pt for the running platform. */
-const NATIVE_CANVAS = 288;
-
-const inkAspect = INK_W / INK_H;
-const inkOnNativeCanvas =
-  (2 * MASK_RADIUS_DP) / Math.sqrt(1 + 1 / inkAspect ** 2) * MASK_FILL;
-/** Canvas width whose visible ink width matches layer 1. */
-const ROYAL_LOGO_W = ((NATIVE_CANVAS * inkOnNativeCanvas) / 288) * (CANVAS_W / INK_W);
-const ROYAL_LOGO_H = ROYAL_LOGO_W * (CANVAS_H / CANVAS_W);
+const WORDMARK_VIEW_W = 2171;
+const WORDMARK_VIEW_H = 724;
+/** Shared with `scripts/generate-splash-logo.py` (native "Fa" mark height). */
+const ROYAL_LOGO_W = 220;
+const ROYAL_LOGO_H = ROYAL_LOGO_W * (WORDMARK_VIEW_H / WORDMARK_VIEW_W);
 
 /**
  * Bottom credit line. This is the single owner of the "Product of FA CREATORS"

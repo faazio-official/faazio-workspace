@@ -45,8 +45,12 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/ads/slots/{id}", h.get)
 		g.Post("/ads/slots", h.request)
 		g.Get("/ads/campaigns", h.listCampaigns)
-		// Self-serve publish: machine-checked, inserts LIVE (no admin approval).
+		// Self-serve publish: machine-checked, inserts LIVE or a saved DRAFT (no admin approval).
 		g.Post("/ads/campaigns", h.publishCampaign)
+		// Storefront playlist: edit a creative/target, pause/play, delete, and persist play order.
+		g.Put("/ads/campaigns/{id}", h.updateCampaign)
+		g.Delete("/ads/campaigns/{id}", h.deleteCampaign)
+		g.Post("/ads/campaigns/reorder", h.reorderCampaigns)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleStateAdmin, auth.RoleSuperAdmin))

@@ -40,6 +40,10 @@ func TestHeroValidation(t *testing.T) {
 	if !validHeroModerationStatus("REJECTED") || !validHeroModerationStatus("LIVE") || validHeroModerationStatus("REQUESTED") {
 		t.Fatal("unexpected moderation-status validation")
 	}
+	// A seller may save a DRAFT (hidden) or play it LIVE; legacy queue states are never accepted.
+	if !validSellerAdStatus("DRAFT") || !validSellerAdStatus("LIVE") || validSellerAdStatus("REQUESTED") || validSellerAdStatus("APPROVED") {
+		t.Fatal("unexpected seller ad-status validation")
+	}
 	start, end, err := heroWindowStrict("", "")
 	if err != nil {
 		t.Fatalf("default window: %v", err)
@@ -291,4 +295,91 @@ func newAdsRouter(t *testing.T, repo *Repo, cdnBase string) http.Handler {
 	r.Use(authtest.Middleware())
 	NewHandler(repo, c, nil, cdnBase).Register(r)
 	return r
+}
+
+// TestStorefrontPlaylistRepo covers the per-shop playlist invariants: a DRAFT is hidden from the
+// anon hero read, playing it goes LIVE, explicit sort_order drives the carousel order, and delete
+// removes the row.
+func TestStorefrontPlaylistRepo(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := New(pool)
+	ctx := context.Background()
+	owner := seedHeroSeller(t, ctx, pool, "PLAYLIST")
+	start := time.Now().UTC()
+
+	mk := func(title, status string, order int) Campaign {
+		t.Helper()
+		rows, err := repo.CreateCampaigns(ctx, Campaign{
+			SellerID: owner.sellerID, TargetType: "PRODUCT", TargetID: owner.productID,
+			TargetApp: "MART", StoreID: owner.storeID, Title: title,
+			ImageURL: "https://img.test/hero.jpg", CTA: "Shop Now", Status: status, SortOrder: order,
+			StartsAt: start.Format(time.RFC3339),
+			EndsAt:   start.Add(24 * time.Hour).Format(time.RFC3339),
+		}, []string{"STORE_TOP"})
+		if err != nil {
+			t.Fatalf("CreateCampaigns(%s): %v", title, err)
+		}
+		return rows[0]
+	}
+	served := func(heroes []HeroAd, id string) bool {
+		for i := range heroes {
+			if heroes[i].PlacementID == id {
+				return true
+			}
+		}
+		return false
+	}
+
+	draft := mk("Draft creative", "DRAFT", 0)
+	if draft.Status != "DRAFT" {
+		t.Fatalf("draft status = %q, want DRAFT", draft.Status)
+	}
+	heroes, err := repo.Heroes(ctx, "STORE_TOP", "MART", "", owner.storeID)
+	if err != nil {
+		t.Fatalf("Heroes: %v", err)
+	}
+	if served(heroes, draft.PlacementID) {
+		t.Fatal("DRAFT must not be served by the anon hero read")
+	}
+
+	liveLate := mk("Live later", "LIVE", 1)
+	liveEarly := mk("Live first", "LIVE", 0)
+	heroes, err = repo.Heroes(ctx, "STORE_TOP", "MART", "", owner.storeID)
+	if err != nil {
+		t.Fatalf("Heroes: %v", err)
+	}
+	if len(heroes) < 2 || heroes[0].PlacementID != liveEarly.PlacementID || heroes[1].PlacementID != liveLate.PlacementID {
+		t.Fatalf("hero order must follow sort_order: %+v", heroes)
+	}
+
+	played, ok, err := repo.UpdateCampaign(ctx, draft.PlacementID, Campaign{
+		TargetType: "PRODUCT", TargetID: owner.productID, TargetApp: "MART", StoreID: owner.storeID,
+		Title: "Played creative", ImageURL: "https://img.test/hero.jpg", CTA: "Shop Now",
+		Status: "LIVE", SortOrder: 0,
+		StartsAt: start.Format(time.RFC3339), EndsAt: start.Add(24 * time.Hour).Format(time.RFC3339),
+	})
+	if err != nil || !ok || played.Status != "LIVE" || played.SortOrder != 0 {
+		t.Fatalf("play draft: ok=%v err=%v %+v", ok, err, played)
+	}
+
+	moved, err := repo.ReorderStorefront(ctx, owner.sellerID, owner.storeID,
+		[]string{liveLate.PlacementID, liveEarly.PlacementID, played.PlacementID})
+	if err != nil || moved != 3 {
+		t.Fatalf("ReorderStorefront: moved=%d err=%v", moved, err)
+	}
+	heroes, err = repo.Heroes(ctx, "STORE_TOP", "MART", "", owner.storeID)
+	if err != nil {
+		t.Fatalf("Heroes after reorder: %v", err)
+	}
+	if len(heroes) < 3 || heroes[0].PlacementID != liveLate.PlacementID ||
+		heroes[1].PlacementID != liveEarly.PlacementID || heroes[2].PlacementID != played.PlacementID {
+		t.Fatalf("hero order must follow the reordered playlist: %+v", heroes)
+	}
+
+	if ok, err := repo.DeleteCampaign(ctx, played.PlacementID); err != nil || !ok {
+		t.Fatalf("DeleteCampaign: ok=%v err=%v", ok, err)
+	}
+	if _, ok, _ := repo.CampaignByID(ctx, played.PlacementID); ok {
+		t.Fatal("deleted campaign still readable")
+	}
 }

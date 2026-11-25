@@ -54,9 +54,11 @@ type Campaign struct {
 	Impressions      int64  `json:"impressions"`
 	Clicks           int64  `json:"clicks"`
 	OrdersAttributed int64  `json:"ordersAttributed"`
-	StartsAt         string `json:"startsAt"`
-	EndsAt           string `json:"endsAt"`
-	RequestedAt      string `json:"requestedAt"`
+	// SortOrder is the explicit play order within a store's STORE_TOP carousel (lower plays first).
+	SortOrder   int    `json:"sortOrder"`
+	StartsAt    string `json:"startsAt"`
+	EndsAt      string `json:"endsAt"`
+	RequestedAt string `json:"requestedAt"`
 }
 
 // ResolvedTarget is the server-authoritative owner + app of a hero's deep-link target, read from the
@@ -76,7 +78,7 @@ const campaignCols = `placement_id, campaign_id, seller_id, creative_type::text,
 	       target_type::text, target_id, target_app::text, coalesce(category,''), coalesce(store_id,''),
 	       title, subtitle, image_url, cta, coalesce(state_code,''), status::text,
 	       reports, coalesce(takedown_reason,''), impressions, clicks, orders_attributed,
-	       starts_at, ends_at, requested_at`
+	       sort_order, starts_at, ends_at, requested_at`
 
 const campaignSelect = `select ` + campaignCols + ` from ads.campaigns`
 
@@ -96,7 +98,7 @@ func (r *Repo) Heroes(ctx context.Context, placement, app, category, storeID str
 		   and ($3 = '' or coalesce(category,'') = $3)
 		   and ($4 = '' or coalesce(store_id,'') = $4)
 		   and now() between starts_at and ends_at
-		 order by requested_at desc
+		 order by sort_order asc, requested_at desc
 		 limit $5`, placement, app, category, storeID, maxHeroFill)
 	if err != nil {
 		return nil, err
@@ -152,12 +154,17 @@ func (r *Repo) CampaignByID(ctx context.Context, id string) (Campaign, bool, err
 	return c, true, nil
 }
 
-// CreateCampaigns inserts one LIVE row per placement sharing a campaign_id. Self-serve: the handler
-// has already machine-checked ownership, placement fit, creative bounds and the per-seller cap, so a
-// verified seller publishes straight to LIVE (no admin approval queue). REQUESTED is never minted.
+// CreateCampaigns inserts one row per placement sharing a campaign_id. Self-serve: the handler has
+// already machine-checked ownership, placement fit, creative bounds and (for LIVE) the per-seller
+// cap. A verified seller publishes straight to LIVE; the storefront playlist can also save DRAFT rows
+// (hidden from `GET /ads/hero`). REQUESTED is never minted.
 func (r *Repo) CreateCampaigns(ctx context.Context, c Campaign, placements []string) ([]Campaign, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("ads: database not configured")
+	}
+	status := strings.ToUpper(strings.TrimSpace(c.Status))
+	if status == "" {
+		status = "LIVE"
 	}
 	campaignID := "cmp-" + shortID()
 	out := make([]Campaign, 0, len(placements))
@@ -166,18 +173,85 @@ func (r *Repo) CreateCampaigns(ctx context.Context, c Campaign, placements []str
 		row, err := r.scanCampaign(r.pool.QueryRow(ctx, `
 			insert into ads.campaigns (placement_id, campaign_id, seller_id, placement, target_type,
 			                           target_id, target_app, category, store_id, title, subtitle, image_url,
-			                           cta, state_code, starts_at, ends_at, status)
-			values ($1,$2,$3,$4::ad_placement,$5::ad_target_type,$6,$7::app_brand,$8,$9,$10,$11,$12,$13,$14,$15,$16,'LIVE')
+			                           cta, state_code, starts_at, ends_at, status, sort_order)
+			values ($1,$2,$3,$4::ad_placement,$5::ad_target_type,$6,$7::app_brand,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17::ad_status,$18)
 			returning `+campaignCols,
 			placementID, campaignID, c.SellerID, placement, c.TargetType, c.TargetID, c.TargetApp,
 			nullIfEmpty(c.Category), nullIfEmpty(c.StoreID), c.Title, c.Subtitle, c.ImageURL, c.CTA,
-			nullIfEmpty(c.StateCode), c.StartsAt, c.EndsAt))
+			nullIfEmpty(c.StateCode), c.StartsAt, c.EndsAt, status, c.SortOrder))
 		if err != nil {
 			return nil, err
 		}
 		out = append(out, row)
 	}
 	return out, nil
+}
+
+// UpdateCampaign replaces the editable fields of one row. Ownership, placement fit, creative bounds
+// and (on a DRAFT→LIVE transition) the live cap are validated by the handler first. Placement and
+// seller stay immutable; only the creative, target, schedule, status and play order change.
+func (r *Repo) UpdateCampaign(ctx context.Context, id string, c Campaign) (Campaign, bool, error) {
+	if r.pool == nil {
+		return Campaign{}, false, fmt.Errorf("ads: database not configured")
+	}
+	updated, err := r.scanCampaign(r.pool.QueryRow(ctx, `
+		update ads.campaigns
+		   set target_type = $2::ad_target_type, target_id = $3, target_app = $4::app_brand,
+		       category = $5, store_id = $6, title = $7, subtitle = $8, image_url = $9,
+		       cta = $10, status = $11::ad_status, starts_at = $12, ends_at = $13,
+		       sort_order = $14
+		 where placement_id = $1
+		 returning `+campaignCols,
+		id, c.TargetType, c.TargetID, c.TargetApp, nullIfEmpty(c.Category), nullIfEmpty(c.StoreID),
+		c.Title, c.Subtitle, c.ImageURL, c.CTA, c.Status, c.StartsAt, c.EndsAt, c.SortOrder))
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Campaign{}, false, nil
+		}
+		return Campaign{}, false, err
+	}
+	return updated, true, nil
+}
+
+// DeleteCampaign removes one row the handler has already authorised for the caller.
+func (r *Repo) DeleteCampaign(ctx context.Context, id string) (bool, error) {
+	if r.pool == nil {
+		return false, fmt.Errorf("ads: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `delete from ads.campaigns where placement_id = $1`, id)
+	if err != nil {
+		return false, err
+	}
+	return tag.RowsAffected() > 0, nil
+}
+
+// ReorderStorefront writes the explicit STORE_TOP play order for one of a seller's stores. `ids` is
+// the full ordered playlist; only rows that belong to the seller and store are touched. The handler
+// validates ownership before calling, and this returns the number of rows actually reordered.
+func (r *Repo) ReorderStorefront(ctx context.Context, sellerID, storeID string, ids []string) (int64, error) {
+	if r.pool == nil {
+		return 0, fmt.Errorf("ads: database not configured")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var moved int64
+	for i, id := range ids {
+		tag, err := tx.Exec(ctx, `
+			update ads.campaigns set sort_order = $3
+			 where placement_id = $1 and seller_id = $2 and store_id = $4 and placement = 'STORE_TOP'`,
+			id, sellerID, i, storeID)
+		if err != nil {
+			return 0, err
+		}
+		moved += tag.RowsAffected()
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return 0, err
+	}
+	return moved, nil
 }
 
 // CountLiveBySellerPlacement counts a seller's currently LIVE rows on one placement (cap guard).
@@ -189,6 +263,20 @@ func (r *Repo) CountLiveBySellerPlacement(ctx context.Context, sellerID, placeme
 	err := r.pool.QueryRow(ctx, `
 		select count(*) from ads.campaigns
 		 where seller_id = $1 and placement = $2::ad_placement and status = 'LIVE'`, sellerID, placement).Scan(&n)
+	return n, err
+}
+
+// CountLiveBySellerStorePlacement counts a seller's LIVE rows on one placement for one store (the
+// STORE_TOP playlist cap is per shop, so a seller with several shops gets a full playlist on each).
+func (r *Repo) CountLiveBySellerStorePlacement(ctx context.Context, sellerID, storeID, placement string) (int, error) {
+	if r.pool == nil {
+		return 0, fmt.Errorf("ads: database not configured")
+	}
+	var n int
+	err := r.pool.QueryRow(ctx, `
+		select count(*) from ads.campaigns
+		 where seller_id = $1 and coalesce(store_id,'') = $2
+		   and placement = $3::ad_placement and status = 'LIVE'`, sellerID, storeID, placement).Scan(&n)
 	return n, err
 }
 
@@ -307,7 +395,7 @@ func (r *Repo) scanCampaign(row interface{ Scan(...any) error }) (Campaign, erro
 	if err := row.Scan(&c.PlacementID, &c.CampaignID, &c.SellerID, &c.CreativeType, &c.Placement,
 		&c.TargetType, &c.TargetID, &c.TargetApp, &c.Category, &c.StoreID, &c.Title, &c.Subtitle,
 		&c.ImageURL, &c.CTA, &c.StateCode, &c.Status, &c.Reports, &c.TakedownReason,
-		&c.Impressions, &c.Clicks, &c.OrdersAttributed, &startsAt, &endsAt, &requestedAt); err != nil {
+		&c.Impressions, &c.Clicks, &c.OrdersAttributed, &c.SortOrder, &startsAt, &endsAt, &requestedAt); err != nil {
 		return Campaign{}, err
 	}
 	c.StartsAt = startsAt.UTC().Format(time.RFC3339)

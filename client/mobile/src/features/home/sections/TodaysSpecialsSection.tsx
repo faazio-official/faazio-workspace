@@ -1,16 +1,19 @@
 import React, { memo, useMemo } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
-import { hs, vs } from '@/utils/responsive';
+import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { TODAYS_SPECIALS, dishToProduct } from '@data/food/specials';
 import { recentlyViewedMart, recentlyViewedPharma, hotBrandDeals } from '@data/home/rails';
 import type { Product } from '@data/types';
+import AppText from '@/components/AppText';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import { SectionHeader } from './common';
 import type { SectionProps } from './common';
 import { gateway } from '@/services/api/GatewayClient';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
+import { neutral } from '@/theme/brandTokens';
 
-const DEAL_CARD_W = hs(116);
+const DEAL_CARD_W = PRODUCT_CARD_WIDTH;
 const CARDS_PER_RAIL = 10;
 
 // Deterministic PRNG (mulberry32) so the two rails keep the same order across
@@ -64,9 +67,6 @@ function TodaysSpecialsSection({ products, onProductClick, onLaunchSubApp }: Tod
 
   const [railA, railB] = useMemo(() => planRails(pool), [pool]);
 
-  // Online with no server rows: omit the section entirely (honest empty, never fixtures).
-  if (!offline && pool.length === 0) return null;
-
   const renderRail = (rail: Product[]) => (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
       {rail.map((product) => (
@@ -80,6 +80,7 @@ function TodaysSpecialsSection({ products, onProductClick, onLaunchSubApp }: Tod
           showRating={false}
           showPrice={false}
           showAddButton={false}
+          nameLines={1}
           showBadge={false}
           showHeart={false}
           onPress={() => onProductClick?.(product)}
@@ -95,8 +96,16 @@ function TodaysSpecialsSection({ products, onProductClick, onLaunchSubApp }: Tod
         actionLabel="View all"
         onAction={() => onLaunchSubApp('FA_MART')}
       />
-      {renderRail(railA)}
-      <View style={styles.secondRail}>{renderRail(railB)}</View>
+      {pool.length === 0 ? (
+        <AppText style={styles.emptyText}>No specials available right now.</AppText>
+      ) : (
+        <>
+          {renderRail(railA)}
+          {railB.length > 0 ? (
+            <View style={styles.secondRail}>{renderRail(railB)}</View>
+          ) : null}
+        </>
+      )}
     </>
   );
 }
@@ -111,5 +120,13 @@ const styles = StyleSheet.create({
   },
   secondRail: {
     marginTop: vs(4),
+  },
+  emptyText: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: neutral.inkMuted,
+    textAlign: 'center',
+    paddingHorizontal: hs(16),
+    paddingBottom: vs(8),
   },
 });

@@ -16,6 +16,7 @@ import type { SortOption, SearchToggleOption } from '@/features/search/types';
 import SearchProductRowCard from '@/components/shared/SearchProductRowCard';
 import type { Product } from '@data/types';
 import { parentRamp } from '@/theme/brandTokens';
+import { useNavBarScrollHandler } from '@/hooks/useAutoHideNavBar';
 
 interface FavouritesPageViewProps {
   onBack: () => void;
@@ -58,6 +59,7 @@ const FavouritesPageView = memo(function FavouritesPageView({
   const insets = useSafeAreaInsets();
   const favorites = useFavoriteStore((s) => s.favorites);
   const toggleFavorite = useFavoriteStore((s) => s.toggleFavorite);
+  const onScroll = useNavBarScrollHandler();
 
   const [activeKey, setActiveKey] = useState('ALL');
   const [activeSortId, setActiveSortId] = useState('relevance');
@@ -177,6 +179,8 @@ const FavouritesPageView = memo(function FavouritesPageView({
         renderItem={renderItem}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
         ListEmptyComponent={
           <View style={styles.emptyCard}>
             <View style={styles.emptyIconCircle}>

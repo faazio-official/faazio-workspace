@@ -142,7 +142,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | Active festival discounts (anon `GET /promo/active-discounts?ids=`, per product) | 300 s | — | opt-in approve/reject or campaign status change (invalidated per product; `none` sentinel cached) |
 | Ad slots (partner) | 300 s | **never** | ad status/stat write |
 | Live ads (anon `GET /ads/live?slot=`) | 600 s | — | ad status write (invalidated on `LIVE`) |
-| Live hero campaigns (anon `GET /ads/hero?placement=&app=&category=&storeId=`, `faazio:v1:ads:hero:{placement}:{app}:{category}:{store}`) | 300 s | — | publish or takedown/restore write (whole `faazio:v1:ads:hero:` namespace purged by prefix) |
+| Live hero campaigns (anon `GET /ads/hero?placement=&app=&category=&storeId=`, `faazio:v1:ads:hero:{placement}:{app}:{category}:{store}`) | 300 s | — | publish, draft/play edit, delete, playlist reorder or takedown/restore write (whole `faazio:v1:ads:hero:` namespace purged by prefix; STORE_TOP rows are served `ORDER BY sort_order ASC`) |
 | Ad impression de-dupe lock (`faazio:v1:ads:seen:{userId}:{slotId}`, `POST /ads/events`) | 300 s (`NX EX`) | **never** | auto-expire (one impression per user per slot) |
 | Ad abuse-report de-dupe lock (`faazio:v1:ads:report:{userId}:{placementId}`, `POST /ads/campaigns/{id}/report`) | 86400 s (`NX EX`) | **never** | auto-expire (one report per user per placement) |
 | Self-serve publish rate counter (`faazio:v1:ads:publish:{sellerId}:{yyyymmdd}`, `POST /ads/campaigns`) | 86400 s (`INCR`+`EXPIRE`) | **never** | auto-expire (≤10 publishes/seller/UTC day; fail-open when Valkey is off) |
@@ -193,7 +193,7 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 
 | Event | Valkey keys affected | Cloudflare purge |
 |---|---|---|
-| `catalog.updated` (product edit / status change / soft delete / restore) | `product:{id}`, `stock:{productId}`, `catalog:store-products:{storeId}`, `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the product's store pin (3×3 block, all `radiusKm`/`app` variants) — `search:q:*` is TTL-bounded (600 s), deliberately not purged per edit. `DELETE /seller/products/{id}` and `POST /seller/products/{id}/restore` purge the same set so a trashed listing leaves nearby/store reads immediately | `/search?*`, product URL |
+| `catalog.updated` (product edit / status change / soft delete / restore) | `product:{id}`, `stock:{productId}`, `catalog:store-products:{storeId}`, `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the product's store pin (3×3 block, all `radiusKm`/`app` variants) — `search:q:*` is TTL-bounded (600 s), deliberately not purged per edit. `DELETE /seller/products/{id}`, `DELETE /seller/products/{id}/permanent` and `POST /seller/products/{id}/restore` purge the same set so a trashed (or permanently deleted) listing leaves nearby/store reads immediately | `/search?*`, product URL |
 | `stock.updated` | `stock:{productId}` | — |
 | `order.placed` | `checkout:orders:{userId}`, `product:{id}` (embedded stock; purged per line item), `reco:{userIdHash}` | — |
 | customer payment confirmed/failed (`POST /razorpay/customer/orders` when Razorpay reports `paid`, or the `POST /webhooks/razorpay/payments` webhook) | `checkout:orders:{userId}` (the cached order status reflects the payment) | — |

@@ -123,10 +123,23 @@ func TestWriteLifecycle(t *testing.T) {
 	if _, err := repo.Get(ctx, code); err != nil {
 		t.Fatalf("a deactivated district must still be readable: %v", err)
 	}
-	if err := repo.Delete(ctx, code); err != nil {
-		t.Fatalf("delete unused district: %v", err)
+	trashed, ok, err := repo.SoftDelete(ctx, code, "test removal")
+	if err != nil || !ok {
+		t.Fatalf("soft delete unused district: ok=%v err=%v", ok, err)
 	}
-	if err := repo.Delete(ctx, code); err != ErrNotFound {
-		t.Fatalf("second delete: got %v, want ErrNotFound", err)
+	if trashed.DeletedAt == "" || trashed.PurgeAt == "" {
+		t.Fatalf("trashed district missing lifedates: %+v", trashed)
+	}
+	if _, ok, err := repo.SoftDelete(ctx, code, "again"); err != nil || ok {
+		t.Fatalf("second soft delete: ok=%v err=%v (want false/nil)", ok, err)
+	}
+	if _, err := repo.Get(ctx, code); err != nil {
+		t.Fatalf("a trashed district must still resolve for references: %v", err)
+	}
+	if ok, err := repo.PurgeOne(ctx, code); err != nil || !ok {
+		t.Fatalf("purge trashed district: ok=%v err=%v", ok, err)
+	}
+	if _, err := repo.Get(ctx, code); err != ErrNotFound {
+		t.Fatalf("after purge: got %v, want ErrNotFound", err)
 	}
 }

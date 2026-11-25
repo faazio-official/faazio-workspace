@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import { View, ScrollView, StyleSheet } from 'react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import UniversalFeedCard from '@/features/home/cards/UniversalFeedCard';
 import { usePricedProducts } from './common';
 import type { SectionProps } from './common';
@@ -34,7 +35,10 @@ function RecentlyViewedRailSection({
             key={product.id}
             product={product}
             variant="rail"
+            width={PRODUCT_CARD_WIDTH}
+            imageAspect={1}
             showAddButton={false}
+            nameLines={1}
             onPress={() => onProductClick?.(product)}
           />
         ))}

@@ -59,6 +59,10 @@ type campaignBody struct {
 	StateCode  string   `json:"stateCode"`
 	StartsAt   string   `json:"startsAt"`
 	EndsAt     string   `json:"endsAt"`
+	// Status is DRAFT (saved, hidden from the app) or LIVE (served). Empty defaults to LIVE.
+	Status string `json:"status"`
+	// SortOrder positions the creative in a store's STORE_TOP playlist (lower plays first).
+	SortOrder int `json:"sortOrder"`
 }
 
 // Bounds mirror the SDUI banner (title ≤40, image ≤512) so a creative can never grow unbounded.
@@ -71,6 +75,7 @@ const (
 	maxHeroCategory           = 64
 	maxHeroWindowDays         = 90
 	maxLivePerSellerPlacement = 3
+	maxStorefrontPlaylist     = 8
 	maxHeroPublishesPerDay    = 10
 )
 
@@ -97,11 +102,15 @@ func (h *Handler) publishCampaign(w http.ResponseWriter, r *http.Request) {
 	subtitle := strings.TrimSpace(req.Subtitle)
 	imageURL := strings.TrimSpace(req.ImageURL)
 	cta := strings.TrimSpace(req.CTA)
+	status := strings.ToUpper(strings.TrimSpace(req.Status))
+	if status == "" {
+		status = "LIVE"
+	}
 
 	placements := dedupePlacements(req.Placements)
 	if sellerID == "" || targetID == "" || len(targetID) > 64 || title == "" ||
-		!validTargetType(targetType) || len(placements) == 0 ||
-		len(title) > maxHeroTitle || len(subtitle) > maxHeroSubtitle ||
+		!validTargetType(targetType) || !validSellerAdStatus(status) || len(placements) == 0 ||
+		req.SortOrder < 0 || len(title) > maxHeroTitle || len(subtitle) > maxHeroSubtitle ||
 		len(imageURL) > maxHeroImageLen || len(cta) > maxHeroCTALen || len(category) > maxHeroCategory {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid campaign request")
 		return
@@ -164,6 +173,12 @@ func (h *Handler) publishCampaign(w http.ResponseWriter, r *http.Request) {
 				httpx.Fail(w, http.StatusForbidden, "store_not_owned", "you can only use your own store header")
 				return
 			}
+			// A storefront creative must point at an item ON that shop (product/dish/store), so a
+			// playlist entry can never deep-link a sibling shop's item.
+			if resolved.StoreID != "" && resolved.StoreID != storeID {
+				httpx.Fail(w, http.StatusBadRequest, "store_mismatch", "that item belongs to another store")
+				return
+			}
 		}
 	}
 
@@ -180,30 +195,44 @@ func (h *Handler) publishCampaign(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// -------- cap: one seller cannot fill a placement (max 3 LIVE rows per placement).
-	for _, p := range placements {
-		n, err := h.repo.CountLiveBySellerPlacement(r.Context(), sellerID, p)
-		if err != nil {
-			httpx.Fail(w, http.StatusInternalServerError, "ads_unavailable", "ads unavailable")
-			return
+	// -------- cap + rate: only LIVE rows consume placement capacity / the daily publish budget.
+	// A DRAFT is saved work, not a served ad, so it may exceed the live cap.
+	if status == "LIVE" {
+		// One seller cannot fill a placement (max 3 LIVE rows per placement); STORE_TOP uses the
+		// playlist cap (up to 8) because that surface is an explicit ordered carousel.
+		for _, p := range placements {
+			maxPerPlacement := maxLivePerSellerPlacement
+			var n int
+			var err error
+			if p == "STORE_TOP" {
+				maxPerPlacement = maxStorefrontPlaylist
+				n, err = h.repo.CountLiveBySellerStorePlacement(r.Context(), sellerID, storeID, p)
+			} else {
+				n, err = h.repo.CountLiveBySellerPlacement(r.Context(), sellerID, p)
+			}
+			if err != nil {
+				httpx.Fail(w, http.StatusInternalServerError, "ads_unavailable", "ads unavailable")
+				return
+			}
+			if n >= maxPerPlacement {
+				httpx.Fail(w, http.StatusTooManyRequests, "placement_cap_reached", "you already have the maximum live ads on this placement")
+				return
+			}
 		}
-		if n >= maxLivePerSellerPlacement {
-			httpx.Fail(w, http.StatusTooManyRequests, "placement_cap_reached", "you already have the maximum live ads on this placement")
-			return
-		}
-	}
 
-	// -------- rate limit: per-seller publishes per UTC day (best-effort; fail-open without Valkey).
-	day := time.Now().UTC().Format("20060102")
-	if n, err := h.cache.Incr(r.Context(), cache.AdsPublishRate(sellerID, day), cache.TTLAdsPublishRate); err == nil && n > maxHeroPublishesPerDay {
-		httpx.Fail(w, http.StatusTooManyRequests, "rate_limited", "daily publish limit reached — try again tomorrow")
-		return
+		// rate limit: per-seller publishes per UTC day (best-effort; fail-open without Valkey).
+		day := time.Now().UTC().Format("20060102")
+		if n, err := h.cache.Incr(r.Context(), cache.AdsPublishRate(sellerID, day), cache.TTLAdsPublishRate); err == nil && n > maxHeroPublishesPerDay {
+			httpx.Fail(w, http.StatusTooManyRequests, "rate_limited", "daily publish limit reached — try again tomorrow")
+			return
+		}
 	}
 
 	created, err := h.repo.CreateCampaigns(r.Context(), Campaign{
 		SellerID: sellerID, TargetType: targetType, TargetID: targetID, TargetApp: targetApp,
 		Category: category, StoreID: storeID, Title: title, Subtitle: subtitle, ImageURL: imageURL,
 		CTA: cta, StateCode: stateCode, StartsAt: startsAt, EndsAt: endsAt,
+		Status: status, SortOrder: req.SortOrder,
 	}, placements)
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "ad_publish_failed", "could not publish campaign")
@@ -212,6 +241,215 @@ func (h *Handler) publishCampaign(w http.ResponseWriter, r *http.Request) {
 	h.cache.DelPrefix(r.Context(), cache.AdsHeroPrefix())
 	h.logEntity(r, "AD_CAMPAIGN_PUBLISH", "ads.campaigns", created[0].CampaignID, nil, created)
 	httpx.JSON(w, http.StatusCreated, created)
+}
+
+// updateCampaign edits one campaign row the caller may act for. The storefront playlist uses it to
+// save a draft, edit a creative/target, pause (LIVE→DRAFT) and play (DRAFT→LIVE). Placement and
+// seller are immutable; a DRAFT→LIVE transition re-checks the live cap. A seller cannot resurrect a
+// row an admin took down (REJECTED). Every change purges the hero cache.
+func (h *Handler) updateCampaign(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	before, ok, err := h.repo.CampaignByID(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "ads_unavailable", "ads unavailable")
+		return
+	}
+	if !ok || !auth.CanActForSeller(r.Context(), before.SellerID, before.StateCode) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "campaign not found")
+		return
+	}
+	if before.Status == "REJECTED" && auth.Role(r.Context()) == auth.RoleSeller {
+		httpx.Fail(w, http.StatusForbidden, "campaign_rejected", "this ad was taken down by an admin")
+		return
+	}
+
+	var req campaignBody
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	targetType := strings.ToUpper(strings.TrimSpace(req.TargetType))
+	targetID := strings.TrimSpace(req.TargetID)
+	category := strings.TrimSpace(req.Category)
+	storeID := strings.TrimSpace(req.StoreID)
+	title := strings.TrimSpace(req.Title)
+	subtitle := strings.TrimSpace(req.Subtitle)
+	imageURL := strings.TrimSpace(req.ImageURL)
+	cta := strings.TrimSpace(req.CTA)
+	status := strings.ToUpper(strings.TrimSpace(req.Status))
+	if status == "" {
+		status = before.Status
+	}
+	if targetID == "" || len(targetID) > 64 || title == "" || !validTargetType(targetType) ||
+		!validSellerAdStatus(status) || req.SortOrder < 0 || len(title) > maxHeroTitle ||
+		len(subtitle) > maxHeroSubtitle || len(imageURL) > maxHeroImageLen ||
+		len(cta) > maxHeroCTALen || len(category) > maxHeroCategory {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid campaign request")
+		return
+	}
+
+	// Ownership + app always derive from the owning row's seller, never the request.
+	resolved, found, err := h.repo.ResolveOwnedTarget(r.Context(), before.SellerID, targetType, targetID, storeID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "ads_unavailable", "ads unavailable")
+		return
+	}
+	if !found || resolved.SellerID == "" || resolved.SellerID != before.SellerID {
+		httpx.Fail(w, http.StatusForbidden, "not_owner", "you can only promote your own items")
+		return
+	}
+	if !placementFitsApp(before.Placement, resolved.App) {
+		httpx.Fail(w, http.StatusBadRequest, "placement_app_mismatch", "that placement does not fit this item's app")
+		return
+	}
+	if storeID == "" {
+		storeID = resolved.StoreID
+	}
+	if before.Placement == "CATEGORY_TOP" && category == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category required for CATEGORY_TOP")
+		return
+	}
+	if before.Placement == "STORE_TOP" {
+		if storeID == "" {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "storeId required for STORE_TOP")
+			return
+		}
+		// The storefront playlist belongs to one shop — a row may never be repointed to another store.
+		if storeID != before.StoreID {
+			httpx.Fail(w, http.StatusBadRequest, "store_mismatch", "a shop ad cannot move to another store")
+			return
+		}
+		if resolved.StoreID != "" && resolved.StoreID != storeID {
+			httpx.Fail(w, http.StatusBadRequest, "store_mismatch", "that item belongs to another store")
+			return
+		}
+	}
+	if imageURL == "" || !h.validImageHost(imageURL) {
+		httpx.Fail(w, http.StatusBadRequest, "image_host_not_allowed", "upload the poster to Faazio — external image links are not allowed")
+		return
+	}
+	startsAt, endsAt, err := heroWindowStrict(req.StartsAt, req.EndsAt)
+	if err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "invalid_window", "schedule must end after it starts and run at most 90 days")
+		return
+	}
+	if status == "LIVE" && before.Status != "LIVE" {
+		maxPerPlacement := maxLivePerSellerPlacement
+		var n int
+		var err error
+		if before.Placement == "STORE_TOP" {
+			maxPerPlacement = maxStorefrontPlaylist
+			n, err = h.repo.CountLiveBySellerStorePlacement(r.Context(), before.SellerID, storeID, before.Placement)
+		} else {
+			n, err = h.repo.CountLiveBySellerPlacement(r.Context(), before.SellerID, before.Placement)
+		}
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "ads_unavailable", "ads unavailable")
+			return
+		}
+		if n >= maxPerPlacement {
+			httpx.Fail(w, http.StatusTooManyRequests, "placement_cap_reached", "you already have the maximum live ads on this placement")
+			return
+		}
+	}
+
+	after, found, err := h.repo.UpdateCampaign(r.Context(), id, Campaign{
+		TargetType: targetType, TargetID: targetID, TargetApp: resolved.App, Category: category,
+		StoreID: storeID, Title: title, Subtitle: subtitle, ImageURL: imageURL, CTA: cta,
+		Status: status, StartsAt: startsAt, EndsAt: endsAt, SortOrder: req.SortOrder,
+	})
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "ad_update_failed", "could not update campaign")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "campaign not found")
+		return
+	}
+	h.cache.DelPrefix(r.Context(), cache.AdsHeroPrefix())
+	h.cache.Del(r.Context(), cache.AdsLive(before.Placement))
+	h.logEntity(r, "AD_CAMPAIGN_EDIT", "ads.campaigns", id,
+		map[string]any{"status": before.Status, "sortOrder": before.SortOrder},
+		map[string]any{"status": after.Status, "sortOrder": after.SortOrder})
+	httpx.JSON(w, http.StatusOK, after)
+}
+
+// deleteCampaign removes one of the caller's own rows (drafts, or a live creative they no longer want).
+// An admin-taken-down row is kept as audit history; only an admin restores or clears it.
+func (h *Handler) deleteCampaign(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	before, ok, err := h.repo.CampaignByID(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "ads_unavailable", "ads unavailable")
+		return
+	}
+	if !ok || !auth.CanActForSeller(r.Context(), before.SellerID, before.StateCode) {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "campaign not found")
+		return
+	}
+	if before.Status == "REJECTED" && auth.Role(r.Context()) == auth.RoleSeller {
+		httpx.Fail(w, http.StatusForbidden, "campaign_rejected", "this ad was taken down by an admin")
+		return
+	}
+	deleted, err := h.repo.DeleteCampaign(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "ad_delete_failed", "could not delete campaign")
+		return
+	}
+	if !deleted {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "campaign not found")
+		return
+	}
+	h.cache.DelPrefix(r.Context(), cache.AdsHeroPrefix())
+	h.cache.Del(r.Context(), cache.AdsLive(before.Placement))
+	h.logEntity(r, "AD_CAMPAIGN_DELETE", "ads.campaigns", id,
+		map[string]any{"status": before.Status, "storeId": before.StoreID}, nil)
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true})
+}
+
+// reorderCampaigns persists the explicit STORE_TOP play order for one of the seller's stores.
+type reorderBody struct {
+	SellerID string   `json:"sellerId"`
+	StoreID  string   `json:"storeId"`
+	IDs      []string `json:"ids"`
+}
+
+func (h *Handler) reorderCampaigns(w http.ResponseWriter, r *http.Request) {
+	var req reorderBody
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	sellerID := strings.TrimSpace(req.SellerID)
+	if auth.Role(r.Context()) == auth.RoleSeller {
+		sellerID = auth.SellerID(r.Context())
+	}
+	storeID := strings.TrimSpace(req.StoreID)
+	ids := make([]string, 0, len(req.IDs))
+	seen := map[string]struct{}{}
+	for _, id := range req.IDs {
+		id = strings.TrimSpace(id)
+		if id == "" || len(id) > 64 {
+			continue
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+	if sellerID == "" || storeID == "" || len(ids) == 0 || len(ids) > maxStorefrontPlaylist {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "sellerId, storeId and 1–8 ordered ids required")
+		return
+	}
+	moved, err := h.repo.ReorderStorefront(r.Context(), sellerID, storeID, ids)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "ad_reorder_failed", "could not reorder ads")
+		return
+	}
+	h.cache.DelPrefix(r.Context(), cache.AdsHeroPrefix())
+	h.logEntity(r, "AD_CAMPAIGN_REORDER", "ads.campaigns", storeID, nil, map[string]any{"ids": ids, "moved": moved})
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "moved": moved})
 }
 
 // placementFitsApp reports whether a placement's surface can render a target of the given app.
@@ -406,6 +644,11 @@ func validHeroPlacement(p string) bool {
 // and restore (LIVE). REQUESTED/APPROVED are deprecated and never accepted.
 func validHeroModerationStatus(s string) bool {
 	return s == "REJECTED" || s == "LIVE"
+}
+
+// validSellerAdStatus is the set a seller may write: DRAFT (saved, hidden) or LIVE (served).
+func validSellerAdStatus(s string) bool {
+	return s == "DRAFT" || s == "LIVE"
 }
 
 func validTargetType(t string) bool {

@@ -2,6 +2,7 @@ import React, { memo, useCallback } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { FlashList } from '@shopify/flash-list';
 import { hs, vs } from '@/utils/responsive';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import { useViewableTracking } from '@/hooks/useViewableTracking';
 import type { MartEssential } from '../../types';
 import MartSectionHeader from './MartSectionHeader';
@@ -9,7 +10,7 @@ import MartDealCard from './MartDealCard';
 import { localizedName } from '@/lib/localizedText';
 import { useLanguageStore } from '@/state/languageStore';
 
-const SALE_CARD_W = hs(150);
+const SALE_CARD_W = PRODUCT_CARD_WIDTH;
 
 interface DailyEssentialsRailProps {
   items: MartEssential[];

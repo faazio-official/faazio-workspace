@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"github.com/faazio/server/gateway/internal/admins"
+	"github.com/faazio/server/gateway/internal/catalog"
+	"github.com/faazio/server/gateway/internal/districts"
 	"github.com/faazio/server/gateway/internal/media"
 	"github.com/faazio/server/gateway/internal/notifications"
 	"github.com/faazio/server/gateway/internal/platform/cache"
@@ -154,6 +156,14 @@ func main() {
 	// (0128). Runs only with a database; the console also sweeps on every list read.
 	if pool != nil {
 		go portal.NewPurger(portal.New(pool), nil).Run(workerCtx)
+	}
+
+	// Catalogue + district trash workers: hourly sweep of soft-deleted listings (0089) and districts
+	// (0134) past their 7-day undo window. The gateway is the scheduling authority; pg_cron remains an
+	// optional out-of-band scheduler, and both console lists also sweep on read.
+	if pool != nil {
+		go catalog.NewPurger(catalog.New(pool), nil).Run(workerCtx)
+		go districts.NewPurger(districts.NewRepo(pool), nil).Run(workerCtx)
 	}
 
 	handler := server.NewRouter(server.Deps{

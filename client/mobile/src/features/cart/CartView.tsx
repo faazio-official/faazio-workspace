@@ -25,6 +25,7 @@ import {
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { useTabBarClearance } from '@/hooks/useTabBarClearance';
+import { useNavBarScrollHandler } from '@/hooks/useAutoHideNavBar';
 import { semantic } from '@/theme/brandTokens';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import EnterpriseIcon from '@/components/EnterpriseIcon';
@@ -231,6 +232,15 @@ export default function CartView({
   // In tab mode the floating hub dock overlays this view, so the BAG footer is lifted
   // clear of the capsule. Pushed `Cart` screens have no tab ancestor → 0.
   const tabBarClearance = useTabBarClearance();
+  // Compose the hub nav auto-hide with any caller-provided scroll observer.
+  const navBarScroll = useNavBarScrollHandler();
+  const handleScroll = useCallback(
+    (e: Parameters<typeof navBarScroll>[0]) => {
+      navBarScroll(e);
+      onScroll?.(e.nativeEvent.contentOffset.y);
+    },
+    [navBarScroll, onScroll],
+  );
 
   // The order's origin is the ACTIVE location (a saved address or a dropped pin included), not a
   // fresh GPS read: a customer ordering to a saved Chennai address from Trichy must be charged and
@@ -913,7 +923,7 @@ export default function CartView({
           style={styles.bagScroll}
           contentContainerStyle={styles.bagScrollContent}
           showsVerticalScrollIndicator={false}
-          onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+          onScroll={handleScroll}
           scrollEventThrottle={16}
         >
           {cartItems.length === 0 ? (
@@ -1265,7 +1275,7 @@ export default function CartView({
   // RECEIPT VIEW
   return (
     <ScrollView style={styles.container} contentContainerStyle={[styles.scrollContent, { paddingTop: contentInset, paddingBottom: SPACE.LIST_BOTTOM + tabBarClearance }]} showsVerticalScrollIndicator={false}
-      onScroll={onScroll ? (e) => onScroll(e.nativeEvent.contentOffset.y) : undefined}
+      onScroll={handleScroll}
       scrollEventThrottle={16}>
       <View style={styles.cardBox}>
         {/* Receipt Success */}

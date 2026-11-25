@@ -33,9 +33,9 @@ export type OrderStatus =
   | "RETURNED";
 export type CampaignStatus = "DRAFT" | "SCHEDULED" | "LIVE" | "ENDED";
 export type CampaignScope = "GLOBAL" | "STATE";
-/** Ad lifecycle. Self-serve hero campaigns publish straight to `LIVE`; `REJECTED` = taken down for
- * abuse (admin only). `REQUESTED`/`APPROVED` are deprecated (kept for old rows, never created). */
-export type AdStatus = "REQUESTED" | "APPROVED" | "REJECTED" | "LIVE";
+/** Ad lifecycle. `DRAFT` = saved in the seller console, never served; `LIVE` = served. `REJECTED` =
+ * taken down for abuse (admin only). `REQUESTED`/`APPROVED` are deprecated (kept for old rows). */
+export type AdStatus = "DRAFT" | "REQUESTED" | "APPROVED" | "REJECTED" | "LIVE";
 
 /** auth.accounts */
 export interface AuthUser {
@@ -441,6 +441,8 @@ export interface HeroCampaign {
   impressions: number;
   clicks: number;
   ordersAttributed: number;
+  /** Play order within a store's STORE_TOP carousel (lower plays first, 0134). */
+  sortOrder: number;
   startsAt: string;
   endsAt: string;
   requestedAt: string;

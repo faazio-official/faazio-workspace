@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from 'react';
 import { StyleSheet, View, TouchableOpacity } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { Home, Heart, ShoppingBag, User } from 'lucide-react-native';
 import { createBottomTabNavigator, type BottomTabBarProps, BottomTabBarHeightCallbackContext } from '@react-navigation/bottom-tabs';
@@ -13,6 +14,7 @@ import { neutral, parentRamp, semantic } from '@/theme/brandTokens';
 import { ICON } from '@/theme/tokens';
 import { FLOATING_NAV } from '@/theme/spacing';
 import { useThemeMode } from '@/hooks/useThemeMode';
+import { revealNavBar, useNavBarHideStyle } from '@/hooks/useAutoHideNavBar';
 
 const lazyNamed = <T extends { [K in string]: unknown }>(
   loader: () => Promise<T>,
@@ -46,10 +48,18 @@ function HubTabBar({ state, navigation }: BottomTabBarProps) {
   const reportHeight = React.useContext(BottomTabBarHeightCallbackContext);
   const tabBarH = TAB_BAR_H;
   const totalCartQty = useCartStore((s) => s.cart).reduce((acc, curr) => acc + curr.quantity, 0);
+  // Slide the capsule away on scroll-down (the same gesture that collapses the Home header).
+  // Clear the raised Home shortcut (~ms(48)) so it hides fully too.
+  const hideStyle = useNavBarHideStyle(tabBarH + FLOATING_NAV.GAP + ms(56));
+
+  // A fresh tab starts with the nav shown, never inherited-hidden from the previous tab.
+  React.useEffect(() => {
+    revealNavBar();
+  }, [state.index]);
 
   return (
-    <View
-      style={[styles.tabBarDock, { paddingBottom: FLOATING_NAV.GAP }]}
+    <Animated.View
+      style={[styles.tabBarDock, { paddingBottom: FLOATING_NAV.GAP }, hideStyle]}
       pointerEvents="box-none"
       onLayout={(event) => reportHeight?.(event.nativeEvent.layout.height)}
     >
@@ -107,7 +117,7 @@ function HubTabBar({ state, navigation }: BottomTabBarProps) {
           />
         ) : null}
       </View>
-    </View>
+    </Animated.View>
   );
 }
 

@@ -12,6 +12,7 @@ import type { SubAppId } from '@/state/uiStore';
 import { gateway } from '@/services/api/GatewayClient';
 import { useHomeFeed } from './hooks/useHomeFeed';
 import { useTabBarClearance } from '@/hooks/useTabBarClearance';
+import { driveNavBarFromDelta } from '@/hooks/useAutoHideNavBar';
 import {
   mensPicks,
   womensPicks,
@@ -121,6 +122,9 @@ export default function HomeView({
         collapseCap.value,
         Math.max(0, clamp.value + dy * DAMPING),
       );
+
+      // Slide the bottom nav with the same gesture: down hides, up reveals, top shows.
+      driveNavBarFromDelta(dy, y);
     },
   });
 

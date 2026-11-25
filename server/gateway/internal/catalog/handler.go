@@ -55,6 +55,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/seller/products", h.sellerProducts)
 		g.Get("/seller/products/trash", h.sellerTrash)
 		g.Delete("/seller/products/{id}", h.deleteProduct)
+		g.Delete("/seller/products/{id}/permanent", h.permanentDeleteProduct)
 		g.Post("/seller/products/{id}/restore", h.restoreProduct)
 		g.Put("/seller/products/{id}/status", h.setProductStatus)
 		g.Put("/seller/products/{id}", h.updateProduct)
@@ -337,6 +338,31 @@ func (h *Handler) restoreProduct(w http.ResponseWriter, r *http.Request) {
 	h.purgeNearbyProductTiles(r, p.StoreID)
 	h.log(r, "PRODUCT_RESTORE", id, nil)
 	httpx.JSON(w, http.StatusOK, p)
+}
+
+// permanentDeleteProduct hard-deletes one trashed listing now (DELETE
+// /seller/products/{id}/permanent). Scope matches the soft delete. A live row is 404 so the console's
+// "delete forever" can only ever remove something already in the trash.
+func (h *Handler) permanentDeleteProduct(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	sellerID, district, scopeOK := managementScope(r)
+	if !scopeOK {
+		httpx.Fail(w, http.StatusForbidden, "forbidden", "no product scope on this account")
+		return
+	}
+	storeID, found, err := h.repo.PurgeProduct(r.Context(), id, sellerID, district)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "catalog_unavailable", "catalog unavailable")
+		return
+	}
+	if !found {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found in trash")
+		return
+	}
+	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(storeID))
+	h.purgeNearbyProductTiles(r, storeID)
+	h.log(r, "PRODUCT_PURGE", id, nil)
+	httpx.JSON(w, http.StatusOK, map[string]any{"ok": true, "deleted": id})
 }
 
 // resolveImageLink turns optional imageAssetId/imageKey body fields into (key, assetID) pointers for

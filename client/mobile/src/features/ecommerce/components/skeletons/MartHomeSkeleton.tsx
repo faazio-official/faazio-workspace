@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { SkeletonBlock } from '@/components/shared/Skeleton';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 
 /**
  * Mart home loading skeleton — mirrors the Mart feed layout (hero carousel,
@@ -15,15 +16,15 @@ const MartHomeSkeleton = memo(function MartHomeSkeleton() {
 
       <SkeletonBlock width="40%" height={vs(16)} radius={ms(6)} style={styles.title} />
       <View style={styles.railRow}>
-        <SkeletonBlock width={hs(150)} height={vs(180)} radius={ms(16)} />
-        <SkeletonBlock width={hs(150)} height={vs(180)} radius={ms(16)} />
+        <SkeletonBlock width={PRODUCT_CARD_WIDTH} height={PRODUCT_CARD_WIDTH + vs(70)} radius={ms(16)} />
+        <SkeletonBlock width={PRODUCT_CARD_WIDTH} height={PRODUCT_CARD_WIDTH + vs(70)} radius={ms(16)} />
       </View>
 
       <SkeletonBlock width="42%" height={vs(16)} radius={ms(6)} style={styles.title} />
       <View style={styles.railRow}>
-        <SkeletonBlock width={hs(130)} height={vs(150)} radius={ms(16)} />
-        <SkeletonBlock width={hs(130)} height={vs(150)} radius={ms(16)} />
-        <SkeletonBlock width={hs(130)} height={vs(150)} radius={ms(16)} />
+        <SkeletonBlock width={PRODUCT_CARD_WIDTH} height={PRODUCT_CARD_WIDTH + vs(70)} radius={ms(16)} />
+        <SkeletonBlock width={PRODUCT_CARD_WIDTH} height={PRODUCT_CARD_WIDTH + vs(70)} radius={ms(16)} />
+        <SkeletonBlock width={PRODUCT_CARD_WIDTH} height={PRODUCT_CARD_WIDTH + vs(70)} radius={ms(16)} />
       </View>
     </View>
   );

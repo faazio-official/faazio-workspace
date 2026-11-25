@@ -35,6 +35,9 @@
 2. Restore calls `POST /seller/products/{id}/restore`, which clears `deleted_at`/`delete_reason`,
    purges the caches, and the listing returns to its previous lifecycle status.
 3. The page shows a days-left badge (`Nd left` / `Today`) and reloads the store on success.
+4. A super admin on `/admin/super/products` sees the same trash platform-wide and can also **Delete
+   forever** (`DELETE /seller/products/{id}/permanent`) or bulk-purge selected rows; the endpoint
+   only ever accepts an already-trashed, in-scope listing.
 
 ## State
 
@@ -47,7 +50,10 @@
 - `DELETE /seller/products/{id}` → `catalog.products.deleted_at` / `delete_reason` (`0089`).
 - `POST /seller/products/{id}/restore` → clears the soft delete.
 - `GET /seller/products/trash` → `catalog.products where deleted_at is not null`.
-- Purge: `catalog.purge_deleted_products('7 days')` → deletes product + `inventory.stock`.
+- `DELETE /seller/products/{id}/permanent` → immediate hard delete of one trashed, in-scope listing +
+  `inventory.stock` (the console's "delete forever").
+- Purge: `catalog.purge_deleted_products('7 days')` + the hourly `catalog.Purger` → deletes product +
+  `inventory.stock`.
 
 ## Success / error / empty
 

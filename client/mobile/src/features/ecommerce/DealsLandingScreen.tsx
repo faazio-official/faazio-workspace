@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import AppText from '@/components/AppText';
 import type { Product } from '@data/types';
 import { gateway, type HomeCampaignDetail } from '@/services/api/GatewayClient';
@@ -268,8 +269,9 @@ export function DealsLandingScreen({ navigation, route }: Props) {
         <MartProductCard
           key={product.id}
           product={product as unknown as Product}
-          width={GRID_CARD_W}
+          width={PRODUCT_CARD_WIDTH}
           variant="rail"
+          imageAspect={1}
           showAdLabel
           isAdded={h.isAdded}
           onPress={h.onPress}

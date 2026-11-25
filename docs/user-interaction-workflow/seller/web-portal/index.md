@@ -14,6 +14,7 @@
 | Product-first festival offers (Mart/Pharmacy) | [../catalog/offers.md](../catalog/offers.md) |
 | Restaurant dish creation + publish (section → leaf sub-category, photo, Publish/Draft) | [menu-creation.md](./menu-creation.md) |
 | Dish add-ons (create, link, review) | [addons.md](./addons.md) |
+| Shop page ads (per-shop STORE_TOP playlist: draft/play/order/target) | [shop-page-ads.md](./shop-page-ads.md) |
 | Seller notifications inbox | [notifications.md](./notifications.md) |
 | Seller settings (profile, bank, notifications, sub-users, security) | [settings.md](./settings.md) |
 | Platform-fee change request + own history | [fee-change-requests.md](./fee-change-requests.md) |

@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useRef } from 'react';
+import React, { memo, useCallback, useEffect, useRef } from 'react';
 import {
   View,
   TouchableOpacity,
@@ -22,6 +22,12 @@ interface HeaderCategoryRailProps {
   onCategoryPress: (item: CategoryRailItem) => void;
   /** Scope the rail to one sub-app (set in a sub-app header); omit on the Home hub. */
   app?: VendorApp;
+  /**
+   * Reports whether the rail currently occupies vertical space, so the collapsing header can drop
+   * the rail slot (and its gap) when the superadmin has no curated chips — no blank band is left.
+   * `true` while the first fetch is in flight (the slot is reserved to avoid a layout jump).
+   */
+  onAvailabilityChange?: (available: boolean) => void;
 }
 
 /**
@@ -41,8 +47,9 @@ interface HeaderCategoryRailProps {
 const HeaderCategoryRail = memo(function HeaderCategoryRail({
   onCategoryPress,
   app,
+  onAvailabilityChange,
 }: HeaderCategoryRailProps) {
-  const { items, loadMore, hasMore, error, refreshing, refresh } = usePagedRail(
+  const { items, loadMore, hasMore, loaded, error, refreshing, refresh } = usePagedRail(
     HEADER_RAIL_PAGE_SIZE,
     app,
   );
@@ -85,25 +92,42 @@ const HeaderCategoryRail = memo(function HeaderCategoryRail({
     [growIfNotScrollable],
   );
 
-  // A failed rail with no chips advertises a retry instead of silently rendering a blank strip
-  // (the fetch failure is otherwise indistinguishable from "no curated categories").
-  if (items.length === 0 && error && !refreshing) {
-    return (
-      <View style={styles.content}>
-        <TouchableOpacity
-          style={styles.chip}
-          onPress={refresh}
-          activeOpacity={0.8}
-          accessibilityRole="button"
-          accessibilityLabel="Retry loading categories"
-        >
-          <RefreshCw size={ms(14)} color={neutral.ink} strokeWidth={2.2} />
-          <AppText style={styles.chipLabel} numberOfLines={1}>
-            Retry
-          </AppText>
-        </TouchableOpacity>
-      </View>
-    );
+  // While the first fetch is in flight the rail reserves its slot (no layout jump when chips
+  // arrive). Once settled, zero curated chips report unavailable so the header closes the empty
+  // band; an error with no chips keeps the Retry affordance and stays "available".
+  const available = !loaded || items.length > 0 || (error && !refreshing);
+  useEffect(() => {
+    onAvailabilityChange?.(available);
+  }, [available, onAvailabilityChange]);
+
+  if (!loaded) {
+    // Reserve the rail height through the first fetch so the header does not jump open.
+    return <View style={styles.scroll} />;
+  }
+
+  if (items.length === 0) {
+    // A failed rail with no chips advertises a retry instead of silently rendering a blank strip
+    // (the fetch failure is otherwise indistinguishable from "no curated categories").
+    if (error && !refreshing) {
+      return (
+        <View style={styles.content}>
+          <TouchableOpacity
+            style={styles.chip}
+            onPress={refresh}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Retry loading categories"
+          >
+            <RefreshCw size={ms(14)} color={neutral.ink} strokeWidth={2.2} />
+            <AppText style={styles.chipLabel} numberOfLines={1}>
+              Retry
+            </AppText>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+    // Loaded with no curated chips — collapse the header slot instead of leaving a blank band.
+    return null;
   }
 
   return (

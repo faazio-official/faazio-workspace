@@ -43,6 +43,7 @@ import { isPartnerAdmin, useAuthStore } from '@/state/authStore';
 import { openTrustedUrl } from '@/lib/externalLinks';
 import { COOKIES_URL, DISCLAIMER_URL, PRIVACY_URL, REFUNDS_URL, TERMS_URL } from '@/lib/site';
 import { useThemeMode } from '@/hooks/useThemeMode';
+import { useNavBarScrollHandler } from '@/hooks/useAutoHideNavBar';
 import type { AppPalette } from '@/theme/theme';
 
 const NAV_ICONS: Record<string, React.ComponentType<any>> = {
@@ -114,6 +115,7 @@ export function AccountView({
   const insets = useSafeAreaInsets();
   const { themeMode, effectiveMode, palette } = useThemeMode();
   const language = useLanguageStore((s) => s.language);
+  const onScroll = useNavBarScrollHandler();
   const styles = useMemo(() => createStyles(palette), [palette]);
   const appearanceLabel =
     themeMode === 'auto'
@@ -214,6 +216,8 @@ export function AccountView({
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         bounces={false}
+        onScroll={onScroll}
+        scrollEventThrottle={16}
       >
         {/* FaazioCoins streak card */}
         <TouchableOpacity

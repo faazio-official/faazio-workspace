@@ -1,5 +1,6 @@
-import React, { memo, useState } from 'react';
+import React, { memo, useEffect, useState } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
+import Animated from 'react-native-reanimated';
 import { Home, Search, ShoppingCart, User } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs, SCREEN_W } from '@/utils/responsive';
@@ -7,6 +8,7 @@ import { useCartStore } from '@/state/store';
 import { FLOATING_NAV } from '@/theme/spacing';
 import { foodTheme } from '../constants/theme';
 import NavbarHomeShortcut from '@/components/shared/NavbarHomeShortcut';
+import { revealNavBar, useNavBarHideStyle } from '@/hooks/useAutoHideNavBar';
 
 export type FoodTab = 'Home' | 'Search';
 
@@ -42,9 +44,16 @@ const FoodBottomNav = memo(function FoodBottomNav({
   const cartCount = useCartStore((s) =>
     s.cart.reduce((acc, curr) => acc + curr.quantity, 0),
   );
+  // Slide the dock away on scroll-down; clear the raised Home shortcut so it hides fully too.
+  const hideStyle = useNavBarHideStyle(barHeight + FLOATING_NAV.GAP + ms(56));
+
+  // A freshly-mounted Food surface starts with its nav shown.
+  useEffect(() => {
+    revealNavBar();
+  }, [activeTab]);
 
   return (
-    <View style={styles.dock} pointerEvents="box-none">
+    <Animated.View style={[styles.dock, hideStyle]} pointerEvents="box-none">
       <View
         style={styles.bar}
         onLayout={(event) => setBarHeight(event.nativeEvent.layout.height)}
@@ -105,7 +114,7 @@ const FoodBottomNav = memo(function FoodBottomNav({
           />
         ) : null}
       </View>
-    </View>
+    </Animated.View>
   );
 });
 

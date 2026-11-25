@@ -15,10 +15,13 @@ import { ArrowLeft, MapPin, ShieldCheck, ShoppingCart, ChevronRight } from 'luci
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AppText from '@/components/AppText';
 import { VendorReviewsSection } from '@/components/shared';
+import CampaignHero from '@/components/shared/CampaignHero';
+import type { HeroAd } from '@/services/api/GatewayClient';
 import MartImage from '../mart-home/MartImage';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import type { CartItem } from '@/state/cartStore';
 import type { Product, StoreProfile } from '@data/types';
 import VendorHighlights from './VendorHighlights';
@@ -30,7 +33,7 @@ import { formatRating } from '@/components/shared/format';
 const SCREEN_W = Dimensions.get('window').width;
 const CARD_GAP = hs(12);
 const CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
-const CARD_W_RAIL = hs(150);
+const CARD_W_RAIL = PRODUCT_CARD_WIDTH;
 
 interface VendorProfileViewProps {
   vendor: StoreProfile;
@@ -51,6 +54,8 @@ interface VendorProfileViewProps {
   viewabilityConfig?: ViewabilityConfig;
   /** True while the vendor inventory is still loading — suppresses the empty state. */
   loading?: boolean;
+  /** Tap handler for the shop-page ad band (host resolves the deep link). */
+  onAdPress?: (ad: HeroAd) => void;
 }
 
 const ALL = 'All';
@@ -70,6 +75,7 @@ export function VendorProfileView({
   onViewableItemsChanged,
   viewabilityConfig,
   loading = false,
+  onAdPress,
 }: VendorProfileViewProps) {
   const insets = useSafeAreaInsets();
   const [activeCategory, setActiveCategory] = useState<string>(ALL);
@@ -183,6 +189,14 @@ export function VendorProfileView({
             </View>
           </View>
 
+          <CampaignHero
+            placement="STORE_TOP"
+            app="MART"
+            storeId={vendor.id}
+            onPress={onAdPress}
+            style={styles.storeHero}
+          />
+
           <VendorHighlights vendor={vendor} />
 
           <VendorReviewsSection
@@ -223,6 +237,7 @@ export function VendorProfileView({
                   originalPrice={p.originalPrice}
                   variant="rail"
                   width={CARD_W_RAIL}
+                  imageAspect={1}
                   showDescription
                   quantity={qty}
                   isAdded={qty > 0}
@@ -396,6 +411,10 @@ const styles = StyleSheet.create({
   closeText: {
     fontSize: ms(12),
     color: TEXT_LIGHT,
+  },
+  storeHero: {
+    marginHorizontal: hs(16),
+    marginBottom: SPACE.SECTION,
   },
   reviewsSection: {
     paddingHorizontal: hs(16),

@@ -913,6 +913,48 @@ func (r *Repo) PurgeDeletedProducts(ctx context.Context, maxAge time.Duration) (
 	return tag.RowsAffected(), nil
 }
 
+// PurgeProduct permanently removes one trashed listing and its stock row now (the console's
+// "delete forever"). Scope matches RestoreProduct: seller, strict district, or super admin. Returns
+// the store id for the caller's cache purge; ok=false when the row is missing, live, or out of scope.
+func (r *Repo) PurgeProduct(ctx context.Context, id, sellerID, district string) (string, bool, error) {
+	if r.pool == nil {
+		return "", false, fmt.Errorf("catalog: database not configured")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return "", false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	var storeID string
+	err = tx.QueryRow(ctx, `
+		select p.store_id
+		  from catalog.products p
+		  join directory.stores st on st.id = p.store_id
+		 where p.id = $1 and p.deleted_at is not null and (
+		       ($2 <> '' and st.seller_id = $2) or
+		       ($3 <> '' and exists (
+		          select 1 from sellers.sellers se
+		           where se.seller_id = st.seller_id and se.district_code = $3)) or
+		       ($2 = '' and $3 = ''))`, id, sellerID, district).Scan(&storeID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return "", false, nil
+		}
+		return "", false, err
+	}
+	if _, err := tx.Exec(ctx, `delete from inventory.stock where product_id = $1`, id); err != nil {
+		return "", false, err
+	}
+	tag, err := tx.Exec(ctx, `delete from catalog.products where id = $1 and deleted_at is not null`, id)
+	if err != nil {
+		return "", false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return "", false, err
+	}
+	return storeID, tag.RowsAffected() == 1, nil
+}
+
 func (r *Repo) sellerProductByID(ctx context.Context, id string) (SellerProduct, bool, error) {
 	p, err := scanSellerProduct(r.pool.QueryRow(ctx, sellerProductSelect+` where p.id = $1`, id))
 	if err != nil {

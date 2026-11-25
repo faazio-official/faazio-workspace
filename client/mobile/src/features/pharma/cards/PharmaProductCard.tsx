@@ -20,6 +20,7 @@ interface Props {
   originalPrice?: number;
   width?: number;
   imageAspect?: number;
+  nameLines?: number;
   showPrice?: boolean; // default hidden
   showAddButton?: boolean;
   showRating?: boolean;

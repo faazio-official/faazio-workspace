@@ -14,6 +14,8 @@ export interface PagedRail {
   hasMore: boolean;
   page: number;
   refreshing: boolean;
+  /** False until the first fetch settles — the rail reserves its slot during this window. */
+  loaded: boolean;
   /** True when the last fetch failed. The rail decides whether to advertise a retry. */
   error: boolean;
   /** Re-fetch the rail (header affordance). No-op while one is in flight. */
@@ -39,6 +41,7 @@ export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE, app?: VendorApp):
   const [all, setAll] = useState<CategoryRailItem[]>([]);
   const [page, setPage] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
   const homeTick = useRefreshStore((s) => s.home);
   const bump = useRefreshStore((s) => s.bump);
@@ -81,7 +84,10 @@ export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE, app?: VendorApp):
         if (scopeChanged) setAll([]);
       })
       .finally(() => {
-        if (active) setRefreshing(false);
+        if (active) {
+          setRefreshing(false);
+          setLoaded(true);
+        }
       });
     return () => {
       active = false;
@@ -102,5 +108,5 @@ export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE, app?: VendorApp):
 
   const hasMore = (page + 1) * pageSize < all.length;
 
-  return { items, loadMore, hasMore, page, refreshing, error, refresh };
+  return { items, loadMore, hasMore, page, refreshing, loaded, error, refresh };
 }

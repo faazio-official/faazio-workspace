@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { ChevronRight } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
+import { PRODUCT_CARD_COLUMNS, PRODUCT_CARD_GAP, PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import { SPACE } from '@/theme/spacing';
 import { neutral, parentRamp } from '@/theme/brandTokens';
 import { ICON } from '@/theme/tokens';
@@ -10,6 +11,11 @@ import type { AppBrand, Product, StoreProfile } from '@data/types';
 import type { SduiCampaign } from '@data/home/sdui';
 import { applyActiveDiscounts, useActiveDiscounts } from '@/services/pricing';
 import AppText from '@/components/AppText';
+
+/** Home grids are a compact 3-up layout: square images, 1-line names. */
+export const HOME_GRID_COLUMNS = PRODUCT_CARD_COLUMNS;
+export const HOME_GRID_GAP = PRODUCT_CARD_GAP;
+export const HOME_GRID_CARD_WIDTH = PRODUCT_CARD_WIDTH;
 
 export interface SectionProps {
   onLaunchSubApp: (subAppId: SubAppId) => void;

@@ -70,7 +70,7 @@ caller) and are event-purged on store live toggle and product edit/status change
   its percent once and clears it after the order commits — + ad attribution + optional live drop fix
   for auto-dispatch + dynamic delivery fee),
   `POST /checkout/validate-coupon`, `GET /checkout/delivery-fee?storeId=&lat=&lng=` (auth-scoped,
-  server-authoritative road-distance delivery-fee quote), `POST /ads/events`, `PUT /vendors/:id/rating`, `POST /events`,
+  server-authoritative road-distance delivery-fee quote), `POST /ads/events`, self-serve campaign writes (`POST /ads/campaigns` for LIVE or a saved `DRAFT`, `PUT /ads/campaigns/{id}` edit/pause/play, `DELETE /ads/campaigns/{id}`, `POST /ads/campaigns/reorder` for the ordered storefront playlist), `PUT /vendors/:id/rating`, `POST /events`,
   `POST /errors` (client crash/error sink, optional-auth, non-PII, capped + throttle-limited, best-effort
   `ops.error_events` insert — migration 0062 — and always a structured `error_event` log line),
   `PUT /admin/sdui/home` (super-admin, publishes the Home layout: version bump + cache purge),
@@ -95,8 +95,9 @@ caller) and are event-purged on store live toggle and product edit/status change
   (weight B), so `GET /products/search` answers a Tamil query through the same
   `websearch_to_tsquery('simple', …)` path. `search_tokens` (the Tantivy source) stays English. `DELETE /seller/products/{id}` soft-deletes to a 7-day trash
   (`catalog.products.deleted_at`, `0089`), `GET /seller/products/trash` lists it and `POST
-  /seller/products/{id}/restore` restores it; `catalog.purge_deleted_products` removes the product +
-  stock after the window. Dish add-ons share the same moderation lifecycle: `GET/POST /seller/addons`,
+  /seller/products/{id}/restore` restores it and `DELETE /seller/products/{id}/permanent` hard-deletes
+  one trashed row now (console "delete forever", trash-only); `catalog.purge_deleted_products` (and the
+  hourly `catalog.Purger`) removes the product + stock after the window. Dish add-ons share the same moderation lifecycle: `GET/POST /seller/addons`,
   `GET/PUT/DELETE /seller/addons/{addonId}`, `POST /seller/addons/{addonId}/submit-for-review`
   (DRAFT→PENDING_REVIEW), admin `POST /seller/addons/{addonId}/approve` (→ACTIVE) and
   `POST /seller/addons/{addonId}/reject` (→DRAFT + `review_reason`), plus dish links
@@ -284,11 +285,15 @@ caller) and are event-purged on store live toggle and product edit/status change
 - **District master (`internal/districts`, `0046` + `0114` + `0127`):** `GET /geo/districts?state=TN`
   serves the active `admins.district_master` rows as camelCase `{districtCode,name,stateCode}` to any
   signed-in account (the seller-onboarding picker); `?state=` is an optional 2-letter filter (400 on a
-  longer value). The DB is the single source of truth, and since `0114` it is writable through the
-  SUPER_ADMIN API: `GET /admin/districts` (all rows incl. deactivated + timestamps), `POST
-  /admin/districts`, `PUT /admin/districts/{code}`, `PATCH /admin/districts/{code}/toggle`, `DELETE
-  /admin/districts/{code}` (audited `DISTRICT_*`; `409 conflict` on a duplicate code, `409
-  district_in_use` when sellers/admins/payouts still reference it — deactivate instead). Every write
+  longer value). The DB is the   single source of truth, and since `0114` it is writable through the
+  SUPER_ADMIN API: `GET /admin/districts` (live rows incl. deactivated + timestamps + `inUse`),
+  `GET /admin/districts/trash` (7-day trash), `POST /admin/districts`, `PUT
+  /admin/districts/{code}`, `PATCH /admin/districts/{code}/toggle`, `DELETE
+  /admin/districts/{code}` (soft delete → trash, `?reason=`), `POST /admin/districts/{code}/restore`,
+  `DELETE /admin/districts/{code}/permanent` (audited `DISTRICT_CREATE|UPDATE|DELETE|RESTORE|PURGE|TOGGLE`;
+  `409 conflict` on a duplicate code, `409 district_in_use` when sellers/admins/payouts still reference
+  it — deactivate instead; `410 trash_expired` on a late restore). `0134` adds the trash columns and
+  `admins.purge_deleted_districts`; the hourly `districts.Purger` is the primary scheduler. Every write
   calls `geo.Reload`, so the in-process `internal/platform/geo` mirror (loaded at boot by `geo.Init`)
   accepts the new code immediately without a restart; the picker read stays uncached. `0127` seeded all
   777 districts of 36 states/UTs (TN+PY the only active rows) and added `google_place_id` (unique when

@@ -3,6 +3,7 @@ import { View, StyleSheet } from 'react-native';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { SkeletonBlock } from '@/components/shared/Skeleton';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import { foodTheme } from '../constants/theme';
 
 const LoadingSkeleton = memo(function LoadingSkeleton() {
@@ -30,9 +31,9 @@ const LoadingSkeleton = memo(function LoadingSkeleton() {
       {/* Specials rail */}
       <SkeletonBlock width="46%" height={vs(16)} radius={ms(6)} style={styles.sectionTitle} />
       <View style={styles.railRow}>
-        <SkeletonBlock width={hs(168)} height={vs(250)} radius={ms(18)} />
-        <SkeletonBlock width={hs(168)} height={vs(250)} radius={ms(18)} />
-        <SkeletonBlock width={hs(168)} height={vs(250)} radius={ms(18)} />
+        <SkeletonBlock width={PRODUCT_CARD_WIDTH} height={PRODUCT_CARD_WIDTH + vs(52)} radius={ms(18)} />
+        <SkeletonBlock width={PRODUCT_CARD_WIDTH} height={PRODUCT_CARD_WIDTH + vs(52)} radius={ms(18)} />
+        <SkeletonBlock width={PRODUCT_CARD_WIDTH} height={PRODUCT_CARD_WIDTH + vs(52)} radius={ms(18)} />
       </View>
 
       {/* Restaurant grid */}

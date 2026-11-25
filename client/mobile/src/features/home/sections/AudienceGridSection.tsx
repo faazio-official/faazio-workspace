@@ -2,7 +2,12 @@ import React, { memo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { hs } from '@/utils/responsive';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
-import { SectionHeader, usePricedProducts } from './common';
+import {
+  SectionHeader,
+  usePricedProducts,
+  HOME_GRID_CARD_WIDTH,
+  HOME_GRID_GAP,
+} from './common';
 import type { SectionProps } from './common';
 import type { Product } from '@data/types';
 
@@ -11,7 +16,7 @@ interface AudienceGridSectionProps extends SectionProps {
   products: Product[];
 }
 
-// 2-column product grid for a single-brand curated audience (Men/Women/Children).
+// 3-column product grid for a single-brand curated audience (Men/Women/Children).
 function AudienceGridSection({
   title, products,
   onProductClick,
@@ -25,7 +30,12 @@ function AudienceGridSection({
           <MartProductCard
             key={product.id}
             product={product}
+            width={HOME_GRID_CARD_WIDTH}
+            imageAspect={1}
+            nameLines={1}
             showAddButton={false}
+            showBadge={false}
+            ratingOnImage
             onPress={() => onProductClick?.(product)}
           />
         ))}
@@ -40,7 +50,7 @@ const styles = StyleSheet.create({
   grid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    columnGap: HOME_GRID_GAP,
     paddingHorizontal: hs(16),
   },
 });

@@ -38,6 +38,12 @@ interface SubAppHeaderProps {
   hideBrandRow?: boolean;
   /** Rendered below the search row (e.g. the pinned Mart category rail). */
   belowSearchSlot?: React.ReactNode;
+  /**
+   * Whether `belowSearchSlot` actually occupies height. Defaults to inferring from the slot's
+   * presence; pass explicitly when the slot may render nothing (e.g. an empty category rail) so
+   * the header height drops its rail band.
+   */
+  withRail?: boolean;
 }
 
 export default function SubAppHeader({
@@ -52,12 +58,13 @@ export default function SubAppHeader({
   inputRef,
   hideBrandRow = false,
   belowSearchSlot,
+  withRail,
 }: SubAppHeaderProps) {
   const insets = useSafeAreaInsets();
   const topInset = insets.top;
-  const withRail = !!belowSearchSlot;
+  const hasRail = withRail ?? !!belowSearchSlot;
   return (
-    <View style={[styles.headerOuter, { height: subAppHeaderH(topInset, hideBrandRow, withRail) }]}>
+    <View style={[styles.headerOuter, { height: subAppHeaderH(topInset, hideBrandRow, hasRail) }]}>
       <Svg style={StyleSheet.absoluteFill}>
         <Defs>
           <SvgGrad id="subHeaderGrad" x1="0%" y1="0%" x2="0%" y2="100%">

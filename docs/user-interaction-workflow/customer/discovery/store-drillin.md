@@ -19,7 +19,9 @@
    `storeId` (`GET /search?q=&app=` + `GET /stores?app=`).
 4. Store tap → `VendorDetails`; `getStore` + `getStoreProducts` load the store profile and catalog.
    Store rating renders through `formatRating(store.rating)` (1 dp) — the gateway already rounds the
-   value; no raw float is printed.
+   value; no raw float is printed. The Mart in-wrapper drill-in (`VendorProfileView`) renders the same
+   profile, with the paid `STORE_TOP` ad band between the store name block and the
+   Verified/Fast/Top rail.
 5. Product tap → `ProductDetail`.
 6. Pull-to-refresh is available on the drill-in body (`AppRefreshControl`): one pull re-runs both
    `useCategoryTree` (taxonomy/chips) and `useCategoryVendors` (store-grouped body). Category chips
@@ -44,8 +46,11 @@
 - `gateway.getStoreProducts(storeId)` → `GET /stores/{id}/products` → `catalog.products` +
   `inventory.stock`.
 - Store page paid band: `gateway.getHeroAds('STORE_TOP', { app, storeId })` → `GET /ads/hero` →
-  `ads.campaigns`. Every shop carries 2 seeded LIVE `STORE_TOP` campaigns (migration `0094`), so the
-  band has fill out of the box; an empty read drops the band rather than showing a placeholder.
+  `ads.campaigns`. Both store surfaces use it (`VendorDetailScreen` below the profile block and the
+  Mart `VendorProfileView` between the name block and the trust rail). Every shop carries 2 seeded
+  LIVE `STORE_TOP` campaigns (migration `0094`); the seller can reorder/play them in the portal
+  (`docs/user-interaction-workflow/seller/web-portal/shop-page-ads.md`), and `/ads/hero` serves LIVE
+  rows in `sort_order`. An empty read drops the band rather than showing a placeholder.
 - `gateway.fetchStores('FOOD')` → `GET /stores?app=FOOD` → `directory.stores` (seller-owned FOOD
   delivery kitchens, `is_live`-filtered) — the Food grid's store half.
 - `gateway.fetchVenues(app?)` / `fetchMenu(venueId)` → `GET /venues`, `/venues/{id}/menu` →

@@ -2,6 +2,7 @@ import React, { memo, useEffect, useState } from 'react';
 import { ScrollView, StyleSheet, View, TouchableOpacity } from 'react-native';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import { MART_DEALS, dealToProduct } from '@data/mart/deals';
 import type { Product } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
@@ -11,7 +12,7 @@ import type { SectionProps } from './common';
 import AppText from '@/components/AppText';
 import { neutral } from '@/theme/brandTokens';
 
-const DEAL_CARD_W = hs(150);
+const DEAL_CARD_W = PRODUCT_CARD_WIDTH;
 
 /** The authored projection is the offline shell only — never rendered as live data online. */
 const FIXTURE_PRODUCTS: Product[] = MART_DEALS.map(dealToProduct);
@@ -81,8 +82,10 @@ function DealsOfDaySection({ products, onProductClick }: DealsOfDaySectionProps)
               originalPrice={product.originalPrice}
               variant="rail"
               width={DEAL_CARD_W}
+              imageAspect={1}
               showDescription
               showAddButton={false}
+              nameLines={1}
               onPress={() => onProductClick?.(product)}
             />
           ))}
