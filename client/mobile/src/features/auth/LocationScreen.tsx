@@ -1,13 +1,12 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { neutral } from '@/theme/brandTokens';
 import { semanticTint } from '@/theme/brandTokens';
-import { SHADOW_COLOR, TOUCH } from '@/theme/tokens';
-import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing, Linking, ActivityIndicator, AppState } from 'react-native';
+import { SHADOW_COLOR } from '@/theme/tokens';
+import { View, StyleSheet, Pressable, Image, ScrollView, Platform, KeyboardAvoidingView, Animated, Easing, Linking, ActivityIndicator } from 'react-native';
 import { hs, vs, ms, wp, hp } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Screen } from '@/components/shared';
-import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { RootStackParamList } from '@/navigation/AppNavigator';
 import {
@@ -227,8 +226,6 @@ export function LocationScreen({ navigation }: Props) {
   const [permissionError, setPermissionError] = useState('');
   const [manualError, setManualError] = useState('');
   const [placesRetry, setPlacesRetry] = useState(0);
-  const [showLocationModal, setShowLocationModal] = useState(false);
-  const [awaitingSettingsReturn, setAwaitingSettingsReturn] = useState(false);
   const checkServiceability = useServiceabilityStore((s) => s.check);
   const liveOrigin = useLiveOrigin();
   const {
@@ -243,9 +240,12 @@ export function LocationScreen({ navigation }: Props) {
       setPermissionError('');
       setManualError('');
 
-      // iOS's global Location Services switch has no in-app prompt — explain and send to Settings.
+      // iOS's global Location Services switch has no in-app prompt; show the inline Settings hint
+      // (its "Open settings" link is rendered under the error).
       if (Platform.OS === 'ios' && !(await isLocationServicesEnabled())) {
-        setShowLocationModal(true);
+        setPermissionError(
+          'Turn on Location Services in Settings → Privacy & Security → Location Services, then tap “Allow location access” again.',
+        );
         return;
       }
 
@@ -257,8 +257,8 @@ export function LocationScreen({ navigation }: Props) {
         setRequested(false);
       }
       if (result === 'services-off') {
-        // Android's native flow already showed the system "Turn on location" dialog (or opened the
-        // Location screen). Still off means the user dismissed it — keep a short inline hint only.
+        // The native "Turn on location" dialog ran and the user dismissed it. Keep a short inline
+        // hint only — never a custom turn-on sheet.
         setPermissionError(
           'Device location is off. Turn it on to show nearby stores, or enter your area manually.',
         );
@@ -304,32 +304,6 @@ export function LocationScreen({ navigation }: Props) {
     },
     [],
   );
-
-  /** Instructional modal primary CTA: retry the OS flow, or open Settings on iOS. */
-  const handleEnableLocationContinue = useCallback(async () => {
-    setShowLocationModal(false);
-    if (Platform.OS === 'ios') {
-      try {
-        await Linking.openURL('App-Prefs:Privacy&path=LOCATION');
-      } catch {
-        await Linking.openSettings();
-      }
-      setAwaitingSettingsReturn(true);
-      return;
-    }
-    await useMyLocation();
-  }, [useMyLocation]);
-
-  // iOS: when the user comes back from Settings with the switch on, continue without another tap.
-  useEffect(() => {
-    if (!awaitingSettingsReturn) return;
-    const sub = AppState.addEventListener('change', (next) => {
-      if (next !== 'active') return;
-      setAwaitingSettingsReturn(false);
-      void useMyLocation();
-    });
-    return () => sub.remove();
-  }, [awaitingSettingsReturn, useMyLocation]);
 
   /** Primer opt-out: skip the OS dialog entirely and go straight to manual entry. */
   const skipToManual = () => {
@@ -779,73 +753,6 @@ export function LocationScreen({ navigation }: Props) {
           </View>
         </Animated.View>
       )}
-
-      <SlideUpSheet
-        visible={showLocationModal}
-        onRequestClose={() => setShowLocationModal(false)}
-      >
-        <View style={styles.locationModal}>
-          <View style={styles.locationModalIcon}>
-            <NavigationIcon
-              size={ms(26)}
-              color={parentRamp.base}
-              style={{ transform: [{ rotate: '135deg' }] }}
-            />
-          </View>
-          <AppText style={styles.locationModalTitle}>Turn on Device Location</AppText>
-          <AppText style={styles.locationModalBody}>
-            Faazio needs your device location to find nearby stores and deliver to your exact
-            doorstep. Your coordinates stay on this device.
-          </AppText>
-
-          <View style={styles.locationModalSteps}>
-            <View style={styles.locationModalStep}>
-              <View style={styles.locationModalStepNum}>
-                <AppText style={styles.locationModalStepNumText}>1</AppText>
-              </View>
-              <AppText style={styles.locationModalStepText}>
-                {Platform.OS === 'ios'
-                  ? 'Turn on Location Services in the Settings app.'
-                  : 'Tap “Turn on” in the system prompt.'}
-              </AppText>
-            </View>
-            <View style={styles.locationModalStep}>
-              <View style={styles.locationModalStepNum}>
-                <AppText style={styles.locationModalStepNumText}>2</AppText>
-              </View>
-              <AppText style={styles.locationModalStepText}>
-                Choose “While using the app” for Faazio.
-              </AppText>
-            </View>
-          </View>
-
-          <Pressable
-            style={({ pressed }) => [
-              styles.locationModalPrimary,
-              pressed && { opacity: 0.85 },
-            ]}
-            onPress={() => void handleEnableLocationContinue()}
-            accessibilityRole="button"
-            accessibilityLabel="Continue enabling location"
-          >
-            <AppText style={styles.locationModalPrimaryText}>Continue</AppText>
-          </Pressable>
-          <Pressable
-            style={({ pressed }) => [
-              styles.locationModalGhost,
-              pressed && { opacity: 0.7 },
-            ]}
-            onPress={() => {
-              setShowLocationModal(false);
-              setStep('manual');
-            }}
-            accessibilityRole="button"
-            accessibilityLabel="Enter address manually"
-          >
-            <AppText style={styles.locationModalGhostText}>Enter address manually</AppText>
-          </Pressable>
-        </View>
-      </SlideUpSheet>
     </Screen>
   );
 }
@@ -1143,91 +1050,5 @@ resultsHeader: {
     fontWeight: '600',
     color: neutral.inkSubtle,
     marginTop: vs(4),
-  },
-  locationModal: {
-    alignSelf: 'stretch',
-    alignItems: 'center',
-    paddingBottom: vs(8),
-  },
-  locationModalIcon: {
-    width: ms(52),
-    height: ms(52),
-    borderRadius: ms(26),
-    backgroundColor: parentRamp.tint,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: vs(4),
-    marginBottom: vs(14),
-  },
-  locationModalTitle: {
-    fontSize: ms(19),
-    fontWeight: '600',
-    color: neutral.ink,
-    textAlign: 'center',
-    marginBottom: vs(8),
-  },
-  locationModalBody: {
-    fontSize: ms(13),
-    lineHeight: ms(19),
-    color: neutral.inkMuted,
-    textAlign: 'center',
-    marginBottom: vs(18),
-    paddingHorizontal: hs(4),
-  },
-  locationModalSteps: {
-    alignSelf: 'stretch',
-    gap: vs(10),
-    marginBottom: vs(22),
-  },
-  locationModalStep: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(12),
-  },
-  locationModalStepNum: {
-    width: ms(24),
-    height: ms(24),
-    borderRadius: ms(12),
-    backgroundColor: parentRamp.tint,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  locationModalStepNumText: {
-    fontSize: ms(12),
-    fontWeight: '600',
-    color: parentRamp.base,
-  },
-  locationModalStepText: {
-    flex: 1,
-    fontSize: ms(13),
-    lineHeight: ms(18),
-    fontWeight: '600',
-    color: neutral.ink,
-  },
-  locationModalPrimary: {
-    alignSelf: 'stretch',
-    minHeight: TOUCH.min,
-    height: vs(50),
-    borderRadius: ms(14),
-    backgroundColor: parentRamp.base,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  locationModalPrimaryText: {
-    fontSize: ms(15),
-    fontWeight: '600',
-    color: neutral.card,
-  },
-  locationModalGhost: {
-    alignSelf: 'stretch',
-    minHeight: TOUCH.min,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: vs(6),
-  },
-  locationModalGhostText: {
-    fontSize: ms(13),
-    fontWeight: '600',
-    color: neutral.inkMuted,
   },
 });

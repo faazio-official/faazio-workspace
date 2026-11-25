@@ -30,20 +30,20 @@ deliberate choice; while it is set, proximity auto-select stands down.
    - **Allow:** calls `requestAndRefreshLocation()` in strict order — runtime permission first, then
      the device Location master switch, then a high-accuracy fix + reverse geocode, then
      `adoptDeviceAsActive()` (an explicit "follow me" clears any override) and proximity auto-select.
-     - On Android, if the master switch is off it fires the native Google-Maps-style "Turn on
-       location" prompt (Play Services `SettingsClient` resolution). If the OEM build cannot show
-       that dialog (e.g. Huawei/EMUI), it immediately opens the system Location screen instead, and
-       the pending request resolves automatically when the user returns. Accepting either path runs
-       the fix without another tap.
-     - On iOS the global switch has no in-app prompt, so the screen opens the instructional sheet
-       (`App-Prefs:Privacy&path=LOCATION`, falling back to `Linking.openSettings()`) and auto-resumes
-       on `AppState` → `active`.
+     - On Android, two native OS dialogs are chained: first `PermissionsAndroid.request(ACCESS_FINE_LOCATION)`
+       shows the system "Allow" / "Don't allow" app-permission dialog, then — if the device-wide
+       toggle is off — `react-native-android-location-enabler`
+       (`promptForEnableLocationIfNeeded`, Play Services `SettingsClient` resolution) shows the
+       Google-Maps-style "Turn on" / "No thanks" device-location dialog. No custom turn-on sheet is
+       used. Accepting either path runs the fix without another tap.
+     - On iOS the global switch has no in-app prompt; the screen shows an inline Settings hint and
+       the "Open settings" link (`Linking.openSettings()`).
    - **Enter location manually:** skips the OS dialog entirely and goes to `manual`.
    - **First denial (Android):** inline error; the manual path stays available and a later tap can
      show the OS dialog again.
-   - **Services off after the native prompt:** if the user dismisses the system prompt/screen, the
-     screen shows a short inline hint only (no instructional bottom sheet on Android); the manual
-     path stays available.
+   - **Services off after the native prompt:** if the user dismisses the system location dialog, the
+     screen shows a short inline hint only (no instructional bottom sheet); the manual path stays
+     available.
    - **Blocked (iOS "Don't Allow", Android "Don't ask again"):** the OS will never show the
      permission dialog again. The screen shows a Settings instruction, opens the Settings app via
      `Linking.openSettings()`, and the manual path stays available.
@@ -134,11 +134,10 @@ stays `ready`, so nearby sorting keeps working from it even with GPS denied.
 
 - Places availability depends on a valid API key; see `docs/RUNBOOKS/TROUBLESHOOTING.md`.
 - Permission and services state are read through the local `FaazioGeocoder` native module
-  (`getLocationAuthorizationStatus`, `isLocationServicesEnabled`, `requestEnableLocation`,
-  `geocodeAddress`, `reverseGeocode`). `requestEnableLocation` uses `com.google.android.gms:play-services-location`
-  on Android for the system "Turn on location" dialog, and falls back to
-  `Settings.ACTION_LOCATION_SOURCE_SETTINGS` when Play Services cannot resolve it. A native rebuild
-  (CI) is required when this module changes.
+  (`getLocationAuthorizationStatus`, `isLocationServicesEnabled`, `geocodeAddress`,
+  `reverseGeocode`). On Android, enabling the device-wide toggle uses
+  `react-native-android-location-enabler` (`promptForEnableLocationIfNeeded`). A native rebuild (CI)
+  is required when a native module or dependency changes.
 
 ## Linked docs
 

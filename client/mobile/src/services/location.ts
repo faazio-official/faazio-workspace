@@ -125,6 +125,28 @@ const IOS_AUTHORIZATION_TIMEOUT_MS = 60_000;
 export type EnableLocationResult = 'enabled' | 'cancelled' | 'unavailable';
 
 export async function requestEnableLocation(): Promise<EnableLocationResult> {
+  // Android: fire the native Play Services "Turn on location" / "Cancel" dialog through
+  // react-native-android-location-enabler (SettingsClient + ResolvableApiException under the
+  // hood). Never import it on iOS — its TurboModule is Android-only and resolves eagerly.
+  if (Platform.OS === 'android') {
+    try {
+      const { promptForEnableLocationIfNeeded } = await import(
+        'react-native-android-location-enabler'
+      );
+      const result = await promptForEnableLocationIfNeeded({
+        interval: 10_000,
+        waitForAccurate: false,
+      });
+      return result === 'enabled' || result === 'already-enabled'
+        ? 'enabled'
+        : 'cancelled';
+    } catch {
+      // The user tapped "Cancel"/"No thanks", or this OEM build cannot show the Play Services
+      // dialog. Report the real provider state rather than guessing.
+      return (await isLocationServicesEnabled()) ? 'enabled' : 'cancelled';
+    }
+  }
+
   if (!nativeGeocoder?.requestEnableLocation) {
     return (await isLocationServicesEnabled()) ? 'enabled' : 'unavailable';
   }
