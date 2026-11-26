@@ -158,29 +158,22 @@ const matchMartCategory = (cats) => {
   if (cats.some((c) => /smart/i.test(c))) return 'cat_smart_gadgets';
   return null;
 };
-const FOOD_TOP_CATEGORIES = {
-  'North Indian': 'cat_north_indian',
-  'South Indian': 'cat_south_indian',
-  Chinese: 'cat_chinese',
-  Bakery: 'cat_bakery',
-  Desserts: 'cat_desserts',
-  Cafe: 'cat_cafe',
-  'Fast Food': 'cat_fast_food',
-  // Expansion roots (0091): cuisines the restaurant fixtures reference.
-  Biryani: 'cat_mughlai',
-  Mughlai: 'cat_mughlai',
-  Chaat: 'cat_chaat',
-  Healthy: 'cat_healthy',
-  Italian: 'cat_italian',
-  Korean: 'cat_korean',
-  Seafood: 'cat_seafood',
-  Tiffin: 'cat_tiffin',
-  // Breadth roots (0092).
-  Continental: 'cat_continental',
-  Thai: 'cat_thai',
-  Mexican: 'cat_mexican',
-  Beverages: 'cat_food_beverages',
-  Beverage: 'cat_food_beverages',
+// FOOD's primary category is the curated top-level tree owned by migrations 0139–0143, so it can
+// no longer map to the legacy `cat_*` ids (0140 deletes those). Mirror 0140's keyword remap exactly
+// (name + category labels) so a fresh seed lands a vendor on the same root an upgraded DB would.
+const foodTopCategory = (s) => {
+  const cats = (s.categories ?? []).map((c) => String(c));
+  const hay = `${s.name ?? ''} ${cats.join(' ')}`.toLowerCase();
+  if (/burger|sandwich|patty/.test(hay)) return 'cat-burger';
+  if (/dosa|dosai|idli|vada|uttapam|sambar|pongal|appam/.test(hay)) return 'cat-dosa';
+  if (/thali|meals|tiffin|combo|platter/.test(hay)) return 'cat-thali';
+  if (
+    /fried rice|biryani|pulao|rice|noodle|chow mein|chowmein|schezwan|manchurian|chinese|pasta|pizza/.test(
+      hay,
+    )
+  )
+    return 'cat-fried-rice';
+  return 'cat-chicken';
 };
 const topCategoryFor = (s) => {
   const cats = (s.categories ?? []).map((c) => String(c));
@@ -190,12 +183,7 @@ const topCategoryFor = (s) => {
     if (cats.some((c) => /skin|hair|care/i.test(c))) return 'cat_personal_care';
     return 'cat_medicines';
   }
-  if (s.app === 'FOOD') {
-    for (const name of Object.keys(FOOD_TOP_CATEGORIES)) {
-      if (cats.some((c) => c === name)) return FOOD_TOP_CATEGORIES[name];
-    }
-    return 'cat_fast_food';
-  }
+  if (s.app === 'FOOD') return foodTopCategory(s);
   return matchMartCategory(cats);
 };
 // The demo ad rail belongs to the account that owns the Mart flagship (store-m1).
@@ -611,8 +599,10 @@ sql.push(inserts(
 // ---------------------------------------------------------------- category taxonomy
 // The central superadmin-owned category tree (taxonomy.categories). Ids mirror the legacy
 // `@data/categories/masterCategories.ts` tree so CATEGORY_TOP ad targeting and drill-in deep links
-// stay stable; FOOD rows are new restaurant categories. The migration `0067_categories.sql` embeds
-// the same rows, so the seed is idempotent (`on conflict (id) do nothing`) and applied after it.
+// stay stable. This list is MART + PHARMA only: the FOOD tree is migration-owned (0139 → 0140 →
+// 0143), so seeding FOOD rows here would resurrect the legacy tree 0140 deletes. The migration
+// `0067_categories.sql` embeds the same rows, so the seed is idempotent (`on conflict (id) do
+// nothing`) and applied after it.
 sql.push(`-- taxonomy.categories (superadmin-owned, from server/supabase/seed/lib/taxonomy.mjs)
 insert into taxonomy.categories
   (id, app, name, slug, parent_id, icon_url, search_query, sort_order)

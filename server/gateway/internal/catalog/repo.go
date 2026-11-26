@@ -881,8 +881,8 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 		strings.TrimSpace(e.Emoji), strings.TrimSpace(e.ImageURL), e.ImageKey, e.ImageAssetID,
 		strings.TrimSpace(e.Desc), unit, storeID, e.IsPrescription, e.IsVeg,
 		attrJSON, taxonomyPtr, strings.TrimSpace(e.NameTA), strings.TrimSpace(e.DescTA),
-		mrpPaisa, strings.TrimSpace(e.Brand), strings.TrimSpace(e.PackType), e.NetQty,
-		strings.TrimSpace(e.NetUnit), galleryKeys,
+		mrpPaisa, strings.TrimSpace(e.Brand), nullIfEmpty(e.PackType), e.NetQty,
+		nullIfEmpty(e.NetUnit), galleryKeys,
 		nullIfEmpty(e.VariantGroupID), nullIfEmpty(e.VariantLabel), e.VariantOrder); err != nil {
 		return SellerProduct{}, false, err
 	}

@@ -134,7 +134,8 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 		           sin(radians($1)) * sin(radians(latitude)) +
 		           cos(radians($1)) * cos(radians(latitude)) * cos(radians(longitude) - radians($2))
 		       )))) as distance_km,
-		       coalesce(name_ta, ''), coalesce(desc_text_ta, ''), true as is_live
+		       coalesce(name_ta, ''), coalesce(desc_text_ta, ''), true as is_live,
+		       instant_delivery, accepts_scheduled_orders, schedule_lead_time_minutes, schedule_slots
 		from directory.stores
 		where is_live
 		  and latitude is not null and longitude is not null

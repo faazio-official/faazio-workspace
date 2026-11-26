@@ -1,11 +1,12 @@
 /**
  * Central category taxonomy seed data (superadmin-owned).
  *
- * The single source of truth for `taxonomy.categories` on a fresh deploy: the migration
- * `0067_categories.sql` embeds the same rows, and `generate.mjs` emits them into
+ * The source of truth for the MART + PHARMA `taxonomy.categories` rows on a fresh deploy: the
+ * migration `0067_categories.sql` embeds the same rows, and `generate.mjs` emits them into
  * `0001_seed.sql`. Ids are the legacy `@data/categories/masterCategories.ts` ids
  * (`cat_*` / `sg_*` / `sub_*`) so `CATEGORY_TOP` ad targeting and drill-in deep links stay
- * stable. FOOD rows are new (restaurant categories). See docs/architecture/db-schema.md.
+ * stable. FOOD is migration-owned (0139 → 0140 → 0143) and must not be listed here — see the
+ * note where the FOOD block used to be. See docs/architecture/db-schema.md §12.30.
  */
 export const TAXONOMY_CATEGORIES = [
   { id: "cat_smart_gadgets", app: "MART", name: "Smart Gadgets", slug: "seed-smart-gadgets", parentId: null, iconUrl: "https://img.icons8.com/color/96/apple-watch-apps.png", searchQuery: null, sortOrder: 0 },
@@ -154,13 +155,10 @@ export const TAXONOMY_CATEGORIES = [
   { id: "sub_sunscreen", app: "PHARMA", name: "Sunscreens", slug: "seed-sunscreens", parentId: "sg_skin", iconUrl: null, searchQuery: "Sunscreen", sortOrder: 143 },
   { id: "sub_handwash", app: "PHARMA", name: "Handwash", slug: "seed-handwash", parentId: "sg_skin", iconUrl: null, searchQuery: "Handwash", sortOrder: 144 },
   { id: "sub_oraltab", app: "PHARMA", name: "Oral Care", slug: "seed-oral-care", parentId: "sg_skin", iconUrl: null, searchQuery: "Toothpaste", sortOrder: 145 },
-  { id: "cat_north_indian", app: "FOOD", name: "North Indian", slug: "seed-north-indian", parentId: null, iconUrl: "🍛", searchQuery: null, sortOrder: 146 },
-  { id: "cat_south_indian", app: "FOOD", name: "South Indian", slug: "seed-south-indian", parentId: null, iconUrl: "🥘", searchQuery: null, sortOrder: 147 },
-  { id: "cat_chinese", app: "FOOD", name: "Chinese", slug: "seed-chinese", parentId: null, iconUrl: "🥡", searchQuery: null, sortOrder: 148 },
-  { id: "cat_bakery", app: "FOOD", name: "Bakery", slug: "seed-bakery", parentId: null, iconUrl: "🧁", searchQuery: null, sortOrder: 149 },
-  { id: "cat_cafe", app: "FOOD", name: "Cafe", slug: "seed-cafe", parentId: null, iconUrl: "☕", searchQuery: null, sortOrder: 150 },
-  { id: "cat_fast_food", app: "FOOD", name: "Fast Food", slug: "seed-fast-food", parentId: null, iconUrl: "🍔", searchQuery: null, sortOrder: 151 },
-  { id: "cat_desserts", app: "FOOD", name: "Desserts", slug: "seed-desserts", parentId: null, iconUrl: "🍰", searchQuery: null, sortOrder: 152 },
+  // NOTE: FOOD is no longer seeded from this file. The FOOD tree is migration-owned from 0139 on
+  // (0139 carousel roots → 0140 v2 curated tree → 0143 expansion), so a fresh deploy gets its FOOD
+  // categories from those migrations. Re-adding legacy FOOD `cat_*`/`sg_*` rows here would resurrect
+  // the tree 0140 deletes. See docs/architecture/db-schema.md §12.30.
   // ---------------------------------------------------------------- expansion (migration 0091)
   // Balanced 3-level expansion across all three app brands. Appended after the original 153 rows
   // (sort_order continues from 153) so existing ids/sorts never shift. Icons are null for new rows
@@ -226,29 +224,6 @@ export const TAXONOMY_CATEGORIES = [
   { id: "sub_sports_cricket", app: "MART", name: "Cricket", slug: "seed-cricket", parentId: "sg_sports_team", iconUrl: null, searchQuery: "Cricket Bat", sortOrder: 210 },
   { id: "sub_sports_football", app: "MART", name: "Football", slug: "seed-football", parentId: "sg_sports_team", iconUrl: null, searchQuery: "Football", sortOrder: 211 },
   { id: "sub_sports_badminton", app: "MART", name: "Badminton", slug: "seed-badminton", parentId: "sg_sports_team", iconUrl: null, searchQuery: "Badminton Racket", sortOrder: 212 },
-  // FOOD — level-2 subdivisions under the original 7 roots.
-  { id: "sg_ni_biryani", app: "FOOD", name: "Biryani", slug: "seed-biryani", parentId: "cat_north_indian", iconUrl: null, searchQuery: null, sortOrder: 213 },
-  { id: "sg_ni_tandoori", app: "FOOD", name: "Tandoori", slug: "seed-tandoori", parentId: "cat_north_indian", iconUrl: null, searchQuery: null, sortOrder: 214 },
-  { id: "sg_si_dosa", app: "FOOD", name: "Dosa", slug: "seed-dosa", parentId: "cat_south_indian", iconUrl: null, searchQuery: null, sortOrder: 215 },
-  { id: "sg_si_meals", app: "FOOD", name: "Meals", slug: "seed-meals", parentId: "cat_south_indian", iconUrl: null, searchQuery: null, sortOrder: 216 },
-  { id: "sg_ch_noodles", app: "FOOD", name: "Noodles", slug: "seed-noodles", parentId: "cat_chinese", iconUrl: null, searchQuery: null, sortOrder: 217 },
-  { id: "sg_ch_momos", app: "FOOD", name: "Momos", slug: "seed-momos", parentId: "cat_chinese", iconUrl: null, searchQuery: null, sortOrder: 218 },
-  { id: "sg_bk_cakes", app: "FOOD", name: "Cakes", slug: "seed-cakes", parentId: "cat_bakery", iconUrl: null, searchQuery: null, sortOrder: 219 },
-  { id: "sg_bk_breads", app: "FOOD", name: "Breads", slug: "seed-breads", parentId: "cat_bakery", iconUrl: null, searchQuery: null, sortOrder: 220 },
-  { id: "sg_cafe_coffee", app: "FOOD", name: "Coffee", slug: "seed-cafe-coffee", parentId: "cat_cafe", iconUrl: null, searchQuery: null, sortOrder: 221 },
-  { id: "sg_cafe_tea", app: "FOOD", name: "Tea", slug: "seed-cafe-tea", parentId: "cat_cafe", iconUrl: null, searchQuery: null, sortOrder: 222 },
-  { id: "sg_ff_burgers", app: "FOOD", name: "Burgers", slug: "seed-burgers", parentId: "cat_fast_food", iconUrl: null, searchQuery: null, sortOrder: 223 },
-  { id: "sg_ff_pizza", app: "FOOD", name: "Pizza", slug: "seed-pizza", parentId: "cat_fast_food", iconUrl: null, searchQuery: null, sortOrder: 224 },
-  { id: "sg_de_icecream", app: "FOOD", name: "Ice Cream", slug: "seed-ice-cream", parentId: "cat_desserts", iconUrl: null, searchQuery: null, sortOrder: 225 },
-  { id: "sg_de_sweets", app: "FOOD", name: "Indian Sweets", slug: "seed-indian-sweets", parentId: "cat_desserts", iconUrl: null, searchQuery: null, sortOrder: 226 },
-  // FOOD — cuisine roots referenced by the restaurant fixtures but missing from the original tree.
-  { id: "cat_mughlai", app: "FOOD", name: "Mughlai", slug: "seed-mughlai", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 227 },
-  { id: "cat_chaat", app: "FOOD", name: "Chaat", slug: "seed-chaat", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 228 },
-  { id: "cat_healthy", app: "FOOD", name: "Healthy", slug: "seed-healthy", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 229 },
-  { id: "cat_italian", app: "FOOD", name: "Italian", slug: "seed-italian", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 230 },
-  { id: "cat_korean", app: "FOOD", name: "Korean", slug: "seed-korean", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 231 },
-  { id: "cat_seafood", app: "FOOD", name: "Seafood", slug: "seed-seafood", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 232 },
-  { id: "cat_tiffin", app: "FOOD", name: "Tiffin", slug: "seed-tiffin", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 233 },
   // PHARMA — chronic-care + vaccine shelves the pharma product fixtures reference but the tree lacked.
   { id: "sg_chronic", app: "PHARMA", name: "Chronic Care", slug: "seed-chronic-care", parentId: "cat_medicines", iconUrl: null, searchQuery: null, sortOrder: 234 },
   { id: "sub_bp_medicine", app: "PHARMA", name: "Blood Pressure", slug: "seed-blood-pressure", parentId: "sg_chronic", iconUrl: null, searchQuery: "Blood Pressure Medicine", sortOrder: 235 },
@@ -261,7 +236,7 @@ export const TAXONOMY_CATEGORIES = [
   // ---------------------------------------------------------------- breadth expansion (migration 0092)
   // Departments that Amazon.in/Flipkart carry and a hyperlocal superapp plausibly stocks, mapped onto
   // the same 3-level tree. sort_order continues from 242; icons null (portal-owned). MART new
-  // departments first, then FOOD dish shelves + cuisine roots, then PHARMA wellness roots.
+  // departments first, then PHARMA wellness roots (FOOD moved to migrations 0139/0140/0143).
   { id: "cat_pet_supplies", app: "MART", name: "Pet Supplies", slug: "seed-pet-supplies", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 242 },
   { id: "sg_pet_food", app: "MART", name: "Pet Food", slug: "seed-pet-food", parentId: "cat_pet_supplies", iconUrl: null, searchQuery: null, sortOrder: 243 },
   { id: "sub_pet_dog_food", app: "MART", name: "Dog Food", slug: "seed-dog-food", parentId: "sg_pet_food", iconUrl: null, searchQuery: "Dog Food", sortOrder: 244 },
@@ -349,22 +324,6 @@ export const TAXONOMY_CATEGORIES = [
   { id: "sub_backpacks", app: "MART", name: "Backpacks", slug: "seed-backpacks", parentId: "sg_bags_luggage", iconUrl: null, searchQuery: "Backpack", sortOrder: 326 },
   { id: "sub_trolley_bags", app: "MART", name: "Trolley Bags", slug: "seed-trolley-bags", parentId: "sg_bags_luggage", iconUrl: null, searchQuery: "Trolley Bag", sortOrder: 327 },
   { id: "sub_wallets", app: "MART", name: "Wallets", slug: "seed-wallets", parentId: "sg_bags_luggage", iconUrl: null, searchQuery: "Wallet", sortOrder: 328 },
-  { id: "sg_mg_kebabs", app: "FOOD", name: "Kebabs", slug: "seed-kebabs", parentId: "cat_mughlai", iconUrl: null, searchQuery: null, sortOrder: 329 },
-  { id: "sg_mg_curries", app: "FOOD", name: "Curries", slug: "seed-mughlai-curries", parentId: "cat_mughlai", iconUrl: null, searchQuery: null, sortOrder: 330 },
-  { id: "sg_sf_fish", app: "FOOD", name: "Fish", slug: "seed-fish", parentId: "cat_seafood", iconUrl: null, searchQuery: null, sortOrder: 331 },
-  { id: "sg_sf_prawns", app: "FOOD", name: "Prawns", slug: "seed-prawns", parentId: "cat_seafood", iconUrl: null, searchQuery: null, sortOrder: 332 },
-  { id: "sg_it_pasta", app: "FOOD", name: "Pasta", slug: "seed-italian-pasta", parentId: "cat_italian", iconUrl: null, searchQuery: null, sortOrder: 333 },
-  { id: "sg_it_pizza", app: "FOOD", name: "Pizza", slug: "seed-italian-pizza", parentId: "cat_italian", iconUrl: null, searchQuery: null, sortOrder: 334 },
-  { id: "sg_kr_bbq", app: "FOOD", name: "Korean BBQ", slug: "seed-korean-bbq", parentId: "cat_korean", iconUrl: null, searchQuery: null, sortOrder: 335 },
-  { id: "sg_kr_ramen", app: "FOOD", name: "Ramen", slug: "seed-ramen", parentId: "cat_korean", iconUrl: null, searchQuery: null, sortOrder: 336 },
-  { id: "sg_hl_salads", app: "FOOD", name: "Salads", slug: "seed-salads", parentId: "cat_healthy", iconUrl: null, searchQuery: null, sortOrder: 337 },
-  { id: "sg_hl_bowls", app: "FOOD", name: "Protein Bowls", slug: "seed-protein-bowls", parentId: "cat_healthy", iconUrl: null, searchQuery: null, sortOrder: 338 },
-  { id: "sg_tf_meals", app: "FOOD", name: "Tiffin Meals", slug: "seed-tiffin-meals", parentId: "cat_tiffin", iconUrl: null, searchQuery: null, sortOrder: 339 },
-  { id: "sg_ct_chaat", app: "FOOD", name: "Chaat Counter", slug: "seed-chaat-counter", parentId: "cat_chaat", iconUrl: null, searchQuery: null, sortOrder: 340 },
-  { id: "cat_continental", app: "FOOD", name: "Continental", slug: "seed-continental", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 341 },
-  { id: "cat_thai", app: "FOOD", name: "Thai", slug: "seed-thai", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 342 },
-  { id: "cat_mexican", app: "FOOD", name: "Mexican", slug: "seed-mexican", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 343 },
-  { id: "cat_food_beverages", app: "FOOD", name: "Beverages & Shakes", slug: "seed-beverages-and-shakes", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 344 },
   { id: "cat_ayurveda", app: "PHARMA", name: "Ayurveda", slug: "seed-ayurveda", parentId: null, iconUrl: null, searchQuery: null, sortOrder: 345 },
   { id: "sg_ayurvedic_meds", app: "PHARMA", name: "Ayurvedic Medicines", slug: "seed-ayurvedic-medicines", parentId: "cat_ayurveda", iconUrl: null, searchQuery: null, sortOrder: 346 },
   { id: "sub_ayurvedic_tabs", app: "PHARMA", name: "Ayurvedic Tablets", slug: "seed-ayurvedic-tablets", parentId: "sg_ayurvedic_meds", iconUrl: null, searchQuery: "Ayurvedic Tablet", sortOrder: 347 },

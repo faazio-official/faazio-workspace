@@ -2595,10 +2595,10 @@ CREATE TABLE taxonomy.categories (
   (`0134`) and catalogue products (`0089`). `is_active` keeps its own meaning: a plain hide, set by the
   `PATCH /categories/{id}/toggle` switch, with no `deleted_at`.
 - **Seeded rows** (`0067` + `0091`, generated from `server/supabase/seed/lib/taxonomy.mjs`): the
-  former `@data/categories/masterCategories.ts` tree (Mart + Pharma) plus new FOOD restaurant
-  categories (North Indian, South Indian, Chinese, Bakery, Cafe, Fast Food, Desserts). Ids are the
+  former `@data/categories/masterCategories.ts` tree (**Mart + Pharma only**). Ids are the
   legacy `cat_*` / `sg_*` / `sub_*` ids so `CATEGORY_TOP` ad targeting and drill-in deep links stay
-  stable.
+  stable. FOOD is **not** seeded from `taxonomy.mjs` — it is migration-owned from `0139` on (see
+  below), so the seed never resurrects the legacy FOOD shelves `0140` deletes.
 - **Seed migration `0139` (FOOD carousel + facet master):** five top-level FOOD roots
   (`cat-burger`, `cat-dosa`, `cat-fried-rice`, `cat-chicken`, `cat-thali`) each with one listable leaf
   (`sub-<slug>`), `show_on_home_rail = false`, sequential `sort_order` 9700-9714, and
