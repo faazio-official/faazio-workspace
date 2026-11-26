@@ -1,6 +1,6 @@
 {
   "_comment": "Per-app release versions — the single source of truth for Android versionName/versionCode and the embedded APP_VERSION. Bump only the app you are releasing. versionCode must strictly increase per app (Play rejects a downgrade); a brand-new app starts at 1. Read by android/app/build.gradle, scripts/configure.js and the release workflows.",
-  "customer": { "version": "1.0.6", "versionCode": 10006 },
+  "customer": { "version": "1.0.7", "versionCode": 10007 },
   "delivery": { "version": "1.0.0", "versionCode": 1 },
   "seller": { "version": "1.0.6", "versionCode": 10006 }
 }
