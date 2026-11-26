@@ -5,8 +5,8 @@
 --
 -- Why: 0145 stored the 15 generated sample dishes as templates. This migration publishes them on a
 -- single, clearly-named demo venue so the customer Food feed, category drill-ins and dish detail can
--- show real DB-backed rows (no client fixture). It is a venue, not a seller store: `seller_id` stays
--- null so it never appears in a real seller's console or payouts.
+-- show real DB-backed rows (no client fixture). It is a dining venue, not a seller store: the table
+-- carries no seller ownership (0070), so it never appears in a real seller's console or payouts.
 --
 -- Idempotent: fixed ids + ON CONFLICT UPDATE; the venue's facet tags are rewritten each run. Delete
 -- the `venue-food-lab` row to remove the demo entirely.
@@ -14,14 +14,14 @@
 begin;
 
 insert into directory.dining_venues
-  (id, name, app, rating, cover_image, address, phone, hours, categories, seller_id,
+  (id, name, app, rating, cover_image, address, phone, hours, categories,
    latitude, longitude, name_ta, instant_delivery, accepts_scheduled_orders,
    schedule_lead_time_minutes, schedule_slots)
 values
   ('venue-food-lab', 'Faazio Food Lab', 'FOOD', 4.7, '', 'Karaikal, Puducherry', null,
    '10:00 AM – 11:00 PM',
    array['Ice Cream','Shake','Rolls','Burger','Dosa','Chicken Fried Rice','Chicken','Fries']::text[],
-   null, 10.9254, 79.8380, '', true, true, 45, array['11:00','13:00','19:00']::text[])
+   10.9254, 79.8380, '', true, true, 45, array['11:00','13:00','19:00']::text[])
 on conflict (id) do update
   set name = excluded.name,
       app = excluded.app,
@@ -31,7 +31,6 @@ on conflict (id) do update
       phone = excluded.phone,
       hours = excluded.hours,
       categories = excluded.categories,
-      seller_id = excluded.seller_id,
       latitude = excluded.latitude,
       longitude = excluded.longitude,
       name_ta = excluded.name_ta,
