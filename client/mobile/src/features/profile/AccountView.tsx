@@ -490,8 +490,8 @@ const createStyles = (palette: AppPalette) =>
     justifyContent: 'center',
   },
   bellBadgeText: {
-    fontSize: ms(9),
-    fontWeight: '900',
+    fontSize: ms(11),
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   coinsCard: {

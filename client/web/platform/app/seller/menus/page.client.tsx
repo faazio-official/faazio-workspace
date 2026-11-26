@@ -42,9 +42,16 @@ import {
   unlinkAddonFromDish,
   upsertMenu,
   type CategoryRow,
+  type MenuAttributeGroup,
   type MenuDto,
 } from "@/lib/api";
-import { useCategoryTree, useMenus, usePortalLoading, useSellerScope } from "@/lib/api/hooks";
+import {
+  useCategoryTree,
+  useMenus,
+  usePortalLoading,
+  useSellerScope,
+  useSubcategoryAttributes,
+} from "@/lib/api/hooks";
 import { cn } from "@/lib/utils";
 import type { AddonRecord, MenuAddonRecord, MenuItemRecord, ProductStatus } from "@/data/types";
 
@@ -143,6 +150,96 @@ function useFoodTaxonomy() {
     }
     return { sections, bySection };
   }, [rows]);
+}
+
+/**
+ * Lightweight auto-tagger: match the dish name against each option's label + keywords, scoped to the
+ * chosen sub-category's groups. This is the "auto-detected — tap to adjust" 80% time-saver; every
+ * match stays editable and nothing blocks saving.
+ */
+function detectAttributeOptions(name: string, groups: MenuAttributeGroup[]): string[] {
+  const hay = name.toLowerCase();
+  if (hay.trim().length < 3) return [];
+  const out: string[] = [];
+  const pickedGroups = new Set<string>();
+  for (const group of groups) {
+    for (const option of group.options) {
+      const needles = [option.label, ...(option.keywords ?? [])]
+        .map((s) => s.toLowerCase().trim())
+        .filter((s) => s.length >= 3);
+      if (!needles.some((n) => hay.includes(n))) continue;
+      if (group.inputType === "single_select" && pickedGroups.has(group.id)) continue;
+      out.push(option.id);
+      if (group.inputType === "single_select") pickedGroups.add(group.id);
+    }
+  }
+  return out;
+}
+
+/** One facet group rendered as multi/single-select pill chips with an optional in-list search. */
+function AttributeGroupPicker({
+  group,
+  selected,
+  suggested,
+  onToggle,
+}: {
+  group: MenuAttributeGroup;
+  selected: string[];
+  suggested: Set<string>;
+  onToggle: (group: MenuAttributeGroup, optionId: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const needle = q.trim().toLowerCase();
+  const options = needle
+    ? group.options.filter((o) => o.label.toLowerCase().includes(needle))
+    : group.options;
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[12px] font-semibold">{group.displayName}</p>
+        <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+          {group.inputType === "single_select" ? "Pick one" : "Any"} · optional
+        </span>
+      </div>
+      {group.options.length > 8 ? (
+        <input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder={`Search ${group.displayName.toLowerCase()}…`}
+          className="w-full rounded-lg border border-border bg-card px-2.5 py-1.5 text-[12px] outline-none focus:border-info"
+        />
+      ) : null}
+      <div className="flex flex-wrap gap-1.5">
+        {options.map((o) => {
+          const on = selected.includes(o.id);
+          return (
+            <button
+              key={o.id}
+              type="button"
+              aria-pressed={on}
+              onClick={() => onToggle(group, o.id)}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
+                on
+                  ? "border-foreground bg-foreground text-background"
+                  : "border-border bg-card text-foreground hover:border-foreground/40",
+              )}
+            >
+              {o.iconUrl ? (
+                <img src={o.iconUrl} alt="" className="h-3.5 w-3.5 rounded-full object-cover" />
+              ) : null}
+              {o.label}
+              {suggested.has(o.id) && on ? (
+                <span aria-hidden className="text-[8px] font-bold text-current/70">
+                  auto
+                </span>
+              ) : null}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 function SellerMenus() {

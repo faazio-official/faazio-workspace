@@ -1638,7 +1638,7 @@ const styles = StyleSheet.create({
     gap: hs(6),
     marginBottom: vs(10),
   },
-  draftNoteText: { fontSize: ms(10.5), color: neutral.inkSubtle, lineHeight: ms(15) },
+  draftNoteText: { fontSize: ms(11), color: neutral.inkSubtle, lineHeight: ms(15) },
   phoneRow: { flexDirection: 'row', alignItems: 'flex-end', gap: hs(8) },
   phoneInputWrap: { flex: 1 },
   statusLoading: { paddingVertical: vs(48), alignItems: 'center', justifyContent: 'center' },

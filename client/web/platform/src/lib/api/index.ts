@@ -3848,6 +3848,7 @@ export async function upsertMenu(dto: MenuDto): Promise<MenuItemRecord> {
     ...(dto.cuisine?.trim() ? { cuisine: dto.cuisine.trim() } : {}),
     ...(dto.rating != null ? { rating: dto.rating } : {}),
     ...(imageKey ? { imageKey } : {}),
+    attributeOptionIds: dto.attributeOptionIds ?? existing?.attributeOptionIds,
     sellerId: dto.sellerId ?? existing?.sellerId,
     status: (saved?.["status"] as ProductStatus | undefined) ?? existing?.status ?? dto.status ?? "DRAFT",
   };

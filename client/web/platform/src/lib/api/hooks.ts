@@ -692,6 +692,43 @@ export function useCategoryTree(app: import("@/data/types").Sector): api.Categor
 }
 
 /**
+ * Facet groups + options defined for a sub-category (`GET /categories/{id}/attribute-groups`). The
+ * seller dish form renders these dynamically and the chip auto-tagger matches option keywords against
+ * the dish name.
+ */
+export function useSubcategoryAttributes(subcategoryId: string | null | undefined): {
+  groups: api.MenuAttributeGroup[];
+  loading: boolean;
+} {
+  const [groups, setGroups] = useState<api.MenuAttributeGroup[]>([]);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!subcategoryId || !remoteConfigured()) {
+      setGroups([]);
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .fetchSubcategoryAttributes(subcategoryId)
+      .then((rows) => {
+        if (!cancelled) setGroups(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setGroups([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [subcategoryId]);
+  return { groups, loading };
+}
+
+/**
  * GST rate pick-list (`GET /admin/tax/gst-rate-categories`). `reload` re-fetches after a portal write
  * so the categories sheet and the GST rates page never show a stale slab.
  */

@@ -806,6 +806,8 @@ export interface MenuItemRecord {
   subCategoryName?: string | undefined;
   /** Dietary classification. */
   dietaryType?: "VEG" | "NON_VEG" | "EGG" | undefined;
+  /** Optional facet tags applied to the dish (superadmin-defined attribute options). */
+  attributeOptionIds?: string[] | undefined;
   sellerId?: string | undefined;
   status: ProductStatus;
 }

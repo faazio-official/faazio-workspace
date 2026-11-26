@@ -51,5 +51,5 @@ const styles = StyleSheet.create({
     borderLeftColor: 'transparent',
     borderRightColor: 'transparent',
   },
-  label: { fontSize: ms(8), fontWeight: '900' },
+  label: { fontSize: ms(11), fontWeight: '600' },
 });
