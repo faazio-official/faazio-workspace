@@ -97,7 +97,14 @@ function ListingQueue() {
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <ProductThumb product={product} />
-                      <span className="text-[13px] font-medium">{product.name}</span>
+                      <span className="min-w-0">
+                        <span className="block text-[13px] font-medium">{product.name}</span>
+                        {!product.mrpPaisa || !product.attributes?.legalMetrology?.countryOfOrigin ? (
+                          <span className="block text-[10px] font-semibold text-warning">
+                            Missing MRP / compliance
+                          </span>
+                        ) : null}
+                      </span>
                     </div>
                   </TableCell>
                   <TableCell>

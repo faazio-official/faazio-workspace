@@ -26,7 +26,6 @@ import { useLiveLocation } from './src/hooks/useLiveLocation';
 import { useCustomerLocationSync } from './src/hooks/useCustomerLocationSync';
 import { useServiceability } from './src/hooks/useServiceability';
 import { useLanguageStore } from './src/state/languageStore';
-import { useThemeStore } from './src/state/themeStore';
 import { useOnboardingStore } from './src/state/onboardingStore';
 import { hydrateUserStores } from './src/services/sessionStores';
 import { startCustomerPush } from './src/services/customerPush';
@@ -110,16 +109,11 @@ export default function App() {
   const hydrateAuth = useAuthStore((s) => s.hydrate);
   const hydrateLanguage = useLanguageStore((s) => s.hydrate);
   const hydrateOnboarding = useOnboardingStore((s) => s.hydrate);
-  const hydrateTheme = useThemeStore((s) => s.hydrate);
-  const { effectiveMode, palette, barStyle } = useThemeMode();
+  const { palette, barStyle } = useThemeMode();
   const language = useLanguageStore((s) => s.language);
   const navigationTheme = useMemo(
-    () =>
-      createNavigationTheme(
-        effectiveMode,
-        createNavigationFonts(language === 'ta') as Theme['fonts'],
-      ),
-    [effectiveMode, language],
+    () => createNavigationTheme(createNavigationFonts(language === 'ta') as Theme['fonts']),
+    [language],
   );
   const fetchRemoteConfig = useRemoteConfigStore((s) => s.fetchConfig);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -209,7 +203,6 @@ export default function App() {
           withTimeout(hydrateAuth(), 4000, 'hydrateAuth'),
           withTimeout(hydrateLanguage(), 4000, 'hydrateLanguage'),
           withTimeout(hydrateOnboarding(), 4000, 'hydrateOnboarding'),
-          withTimeout(hydrateTheme(), 4000, 'hydrateTheme'),
         ]);
       } catch (error) {
         // A hanging/failing storage module must not block startup or become a
@@ -224,7 +217,7 @@ export default function App() {
     return () => {
       active = false;
     };
-  }, [hydrateAuth, hydrateLanguage, hydrateOnboarding, hydrateTheme, fetchRemoteConfig]);
+  }, [hydrateAuth, hydrateLanguage, hydrateOnboarding, fetchRemoteConfig]);
 
   useEffect(() => {
     if (fontsLoaded && ready) {

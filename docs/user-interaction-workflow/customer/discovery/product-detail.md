@@ -10,9 +10,17 @@
 1. `ProductDetailScreen` receives a product from the caller and renders the shared
    `CommonProductDetailView` immediately.
 2. With the gateway enabled it refreshes canonical price/stock via `getProduct(id)`
-   (`GET /product/{id}` + `GET /product/{id}/reviews`); both the product and its `reviews` are
-   rendered. A failed read keeps the passed product, shows a retry banner, and re-runs the read.
-3. It loads the store context (`getStore`) and related rows (`getStoreProducts`).
+   (`GET /product/{id}` + `GET /product/{id}/reviews`), the ratings histogram via
+   `GET /product/{id}/reviews/summary`, and the approved festival discount overlay. A failed read keeps
+   the passed product, shows a retry banner, and re-runs the read.
+3. It loads the store context (`getStore`) and related rows (`getStoreProducts`). The PDP renders the
+   brand above the title, the seller below, tappable variant chips (siblings from the detail read),
+   MRP strike + % OFF (only when MRP > price), delivery ETA, an honest Offers card (`GET /coupons`,
+   `store.offerTag`, the live festival discount), the veg mark (Mart/Food) or Rx banner (Pharma),
+   description/highlights/ingredients, the legal-metrology **Product information** table from
+   `attributes`, and a 5-star histogram with an interactive "Tap to rate" empty state. Sections are
+   white `SurfaceCard`s over the `canvas` background; the sticky footer anchors the price on the left
+   and a solid brand CTA on the right (stepper + Go to Cart after add).
 4. `trackEvent('view')` records the view (`POST /events`).
 5. Add-to-cart calls `useCartStore.addToCart`, which writes the server cart. The action is gated on
    the canonical stock row: `available: false` (or `inStockQty: 0`) disables it, and the stepper
@@ -31,7 +39,9 @@
 
 - `gateway.getProduct(id)` → `GET /product/{id}` + `/product/{id}/reviews` → `catalog.products`,
   `inventory.stock`, `reviews.reviews`. The stock row gates the footer; the review rows feed the
-  "Ratings & Reviews" section.
+  "Ratings & Reviews" section. `getProductReviewSummary(id)` → `GET /product/{id}/reviews/summary`
+  feeds the histogram. `getCoupons(app)` + the store `offerTag` + `useActiveDiscounts` feed the Offers
+  card — all hide cleanly when the server has nothing.
 - `gateway.getStore(id)` → `GET /store/{id}` → `directory.stores`.
 - `gateway.getStoreProducts(storeId)` → `GET /stores/{id}/products`.
 - `gateway.trackEvent(productId, 'view')` → `POST /events` → Mongo `user_events` (ID-only).

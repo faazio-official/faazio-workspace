@@ -50,7 +50,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
-    paddingTop: SPACE.SECTION,
+    paddingTop: SPACE.BLOCK,
     paddingBottom: SPACE.BLOCK,
   },
   title: {

@@ -27,7 +27,7 @@ portal row are the same code path; only the entry point differs.
 | 2 | Admin reviews the application | Admin → seller requests | `POST /seller/requests/{id}/verify`, `…/reject` | [onboarding/index.md](docs/user-interaction-workflow/seller/onboarding/index.md) |
 | 3 | Create a shop / vendor | Portal → Stores → `Add shop` (`/seller/onboarding`) | `POST /seller/stores` | [store-setup.md](docs/user-interaction-workflow/seller/onboarding/store-setup.md) |
 | 4 | Take a shop live | Portal → Stores card → `Live` switch | `PUT /seller/stores/{id}/live` | [store-setup.md](docs/user-interaction-workflow/seller/onboarding/store-setup.md) |
-| 5 | Add a product | Portal → Products → `Add` (5-step wizard) | `POST /seller/products` | [add-product.md](docs/user-interaction-workflow/seller/catalog/add-product.md) |
+| 5 | Add a product | Portal → Products → `Add` (5-step wizard: category, basics, pack & price, compliance, review) | `POST /seller/products` | [add-product.md](docs/user-interaction-workflow/seller/catalog/add-product.md) |
 | 6 | Edit or delete a listing | Portal → Products → row / `Delete` | `PUT`/`DELETE /seller/products/{id}` | [product-trash.md](docs/user-interaction-workflow/seller/catalog/product-trash.md) |
 | 7 | Restore from Trash | Portal → Products → Trash → `Restore listing` | `POST /seller/products/{id}/restore` | [product-trash.md](docs/user-interaction-workflow/seller/catalog/product-trash.md) |
 | 8 | Reprice (single or mass %) | Portal → Pricing | `PUT /seller/pricing/{productId}` | [price-update.md](docs/user-interaction-workflow/seller/catalog/price-update.md) |

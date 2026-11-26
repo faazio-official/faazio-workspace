@@ -572,14 +572,6 @@ export const PAGE_HINTS: Record<string, PageHint> = {
     changesMade: "Read-only; rows are retained for 7 days then purged nightly.",
     app: ["portal"],
   },
-  "/admin/super/security": {
-    what: "Rotate your own portal password.",
-    how: "Enter the current password, then a new one — every other session is signed out.",
-    whyCreated: "So any portal user can change their password and revoke stale sessions.",
-    boundedWorkflow: "Account security: verify current password → set a new one.",
-    changesMade: "Changing the password revokes every other active session.",
-    app: ["portal"],
-  },
   "/admin/super/delivery-boys": {
     what: "All-India delivery-partner console: KYC queue, active riders and suspensions.",
     how: "Verify a rider, then activate (super-only) or suspend/blacklist.",
@@ -613,11 +605,11 @@ export const PAGE_HINTS: Record<string, PageHint> = {
     app: ["portal"],
   },
   "/admin/super/settings": {
-    what: "Platform-level switches: commission, tax, payout schedule and service levels.",
-    how: "Changes here apply to every state, so note the reason in the audit log.",
-    whyCreated: "So Faazio's global commercial and service rules live in one audited place.",
-    boundedWorkflow: "Platform settings: change a global rule → confirm.",
-    changesMade: "A change applies to every state and affects sellers and payouts platform-wide.",
+    what: "Platform-level switches (commission, tax, payout schedule, service levels), your account security, and the console theme.",
+    how: "Changes here apply to every state, so note the reason in the audit log. Account security rotates your own portal password and signs out every other device.",
+    whyCreated: "So Faazio's global commercial and service rules, and your own password, live in one place.",
+    boundedWorkflow: "Platform settings: change a global rule or your password → confirm.",
+    changesMade: "A settings change applies platform-wide; a password change revokes every other session.",
     app: ["portal", "consumer", "seller", "delivery"],
   },
   "/admin/super/credentials": {

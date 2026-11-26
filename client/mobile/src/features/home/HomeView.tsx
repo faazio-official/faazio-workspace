@@ -22,7 +22,6 @@ import {
 import { nearbyOffers } from '@data/home/nearbyOffers';
 
 import AdBannerSection from '@/features/home/sections/AdBannerSection';
-import TodaysSpecialsSection from '@/features/home/sections/TodaysSpecialsSection';
 import BrandCampaignsSection from '@/features/home/sections/BrandCampaignsSection';
 import DealsOfDaySection from '@/features/home/sections/DealsOfDaySection';
 import SponsoredRailSection from '@/features/home/sections/SponsoredRailSection';
@@ -136,7 +135,6 @@ export default function HomeView({
       const hasRail = (fallback: Product[]) => offline || (products?.length ?? 0) > 0;
       switch (id) {
         case 'adBanner': return <AdBannerSection {...sectionProps} banners={banners} />;
-        case 'diningSpecials': return <TodaysSpecialsSection {...sectionProps} products={products} />;
         case 'hotBrandDeals': return <BrandCampaignsSection {...sectionProps} campaigns={campaigns} />;
         case 'dealsOfDay': return <DealsOfDaySection {...sectionProps} products={products} />;
         case 'sponsoredRail': return <SponsoredRailSection {...sectionProps} />;

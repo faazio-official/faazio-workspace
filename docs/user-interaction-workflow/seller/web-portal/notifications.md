@@ -50,6 +50,28 @@ screen to fix and resubmit a rejected listing. The edit save persists the correc
 None for the inbox itself. Push delivery still depends on the outbox drain worker + FCM being
 configured (`docs/RUNBOOKS/TROUBLESHOOTING.md`); the in-app inbox works without push.
 
+## Unread badge
+
+The hub-header bell (`OutletHeader` in `src/components/sellers/shells.tsx`) renders an unread badge
+from `useUnreadNotifications()` → `GET /notifications/unread-count` (polled every 60 s + on tab
+visibility). The count excludes ephemeral `incoming_call` rows.
+
+## Seller onboarding notifications
+
+Approving/rejecting/suspending a seller (`PATCH /sellers/{id}/status` → `ACTIVE`/`REJECTED`/
+`SUSPENDED`, `POST /sellers/{id}/verify-kyc`, `POST /sellers/{id}/reject`) enqueues a
+`SELLER_APPROVED` / `SELLER_REJECTED` / `SELLER_SUSPENDED` notification to the applicant and the
+owner portal logins (`server/gateway/internal/sellers/handler.go` `notifyStatus`). The row deep-links
+to `/seller/hub` (approved) or `/seller/outlet-info` (rejected/suspended). The hub also renders the
+real `GET /sellers/me` status banner + a checklist derived from live data (no hardcoded "KYC
+verified" fixture).
+
+## Admin console
+
+District and super admins have a cross-user outbox console at `/admin/{district,super}/notifications`
+(`src/components/admin/AdminNotificationsConsole.tsx`) over `GET /admin/notifications`, filterable by
+delivery status (PENDING / SENT / FAILED). The admin header bell navigates there.
+
 ## Linked docs
 
 - `docs/architecture/web-portal.md`

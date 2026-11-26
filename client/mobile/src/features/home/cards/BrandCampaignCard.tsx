@@ -31,7 +31,7 @@ function maxDiscountPct(products: Product[]): number | null {
 /**
  * A single vendor campaign card inside the Home "Deals of the day" carousels.
  * Bold vendor-name title + "View all >", a computed **"Up to X% off"** discount
- * label below (no EMI / `offerTag` text), and a 2-product row of bigger minimal
+ * label below (no EMI / `offerTag` text), and a 3-product row of bigger minimal
  * `AdProductCard`s laid out flexibly (auto, not `space-between`). No logo icon,
  * tagline or trust chips — this is an ad zone, so product cards carry only an 'AD'
  * pill and square images.
@@ -48,7 +48,7 @@ const BrandCampaignCard = memo(function BrandCampaignCard({
   const products = (detail
     ? (detail.products as unknown as Product[])
     : getCampaignProducts(campaign)
-  ).slice(0, 2);
+  ).slice(0, 3);
   const name = store?.name ?? '';
   const maxPct = maxDiscountPct(products);
   if (!name && products.length === 0) return null;
@@ -101,7 +101,7 @@ const styles = StyleSheet.create({
     borderRadius: ms(16),
     borderWidth: 1,
     borderColor: 'rgba(0,0,0,0.05)',
-    padding: hs(12),
+    padding: hs(10),
     flex: 1,
   },
   titleRow: {
@@ -135,7 +135,7 @@ const styles = StyleSheet.create({
   },
   productRow: {
     flexDirection: 'row',
-    gap: hs(10),
-    marginTop: vs(10),
+    gap: hs(8),
+    marginTop: vs(8),
   },
 });

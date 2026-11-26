@@ -1,9 +1,8 @@
 import React from 'react';
-import { Appearance, StyleSheet, View, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { reportRenderError } from '@/services/crashReporting';
 import { parentRamp } from '@/theme/brandTokens';
-import { useThemeStore } from '@/state/themeStore';
-import { getPalette, resolveEffectiveMode } from '@/theme/theme';
+import { lightPalette } from '@/theme/theme';
 
 interface ErrorBoundaryProps {
   children: React.ReactNode;
@@ -53,9 +52,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       const { scope, onReset } = this.props;
       const error = this.state.error;
       const firstFrame = __DEV__ ? error?.stack?.split('\n')[1]?.trim() : undefined;
-      const palette = getPalette(
-        resolveEffectiveMode(useThemeStore.getState().themeMode, Appearance.getColorScheme()),
-      );
+      const palette = lightPalette;
 
       return (
         <View style={[styles.container, { backgroundColor: palette.background }]}>

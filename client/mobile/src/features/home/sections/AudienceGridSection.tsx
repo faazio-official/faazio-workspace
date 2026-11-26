@@ -32,10 +32,11 @@ function AudienceGridSection({
             product={product}
             width={HOME_GRID_CARD_WIDTH}
             imageAspect={1}
-            nameLines={1}
+            nameLines={2}
             showAddButton={false}
             showBadge={false}
-            ratingOnImage
+            showRating={false}
+            compactPrice
             onPress={() => onProductClick?.(product)}
           />
         ))}

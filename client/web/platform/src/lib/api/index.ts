@@ -45,6 +45,7 @@ import type {
   SellerDetail,
   InquiryStage,
   KycDocument,
+  LegalMetrology,
   ShopPhoto,
 
   SellerLoginCredential,
@@ -407,6 +408,51 @@ export type CategoryApp = "MART" | "FOOD" | "PHARMA" | "MAIN_APP_HEADER";
 
 export const CATEGORY_APPS: CategoryApp[] = ["MART", "FOOD", "PHARMA", "MAIN_APP_HEADER"];
 
+/** One selectable value in a facet group (Chicken, Cheddar, Brioche). */
+export interface MenuAttributeOption {
+  id: string;
+  label: string;
+  /** Optional visual tab inside a group (Patty → Chicken | Paneer | Vegetables). */
+  parentFilterTab?: string;
+  iconUrl?: string;
+  /** Lower-case keywords the seller form auto-tagger matches against a dish name. */
+  keywords?: string[];
+  displayOrder?: number;
+}
+
+/**
+ * One superadmin-authored facet group attached to a leaf sub-category (Burger → Patty, Cheese Type,
+ * Bun). Separate from the navigation/GST taxonomy tree so attribute permutations never become
+ * categories.
+ */
+export interface MenuAttributeGroup {
+  id: string;
+  subcategoryId: string;
+  slug: string;
+  displayName: string;
+  inputType: "single_select" | "multi_select";
+  displayOrder: number;
+  options: MenuAttributeOption[];
+}
+
+/** Writable shape for the superadmin replace-all attribute write. */
+export interface MenuAttributeGroupInput {
+  /** Supplied on edit so existing dish tags survive; omit to create. */
+  id?: string;
+  slug?: string;
+  displayName: string;
+  inputType: "single_select" | "multi_select";
+  displayOrder?: number;
+  options: {
+    id?: string;
+    label: string;
+    parentFilterTab?: string;
+    iconUrl?: string;
+    keywords?: string[];
+    displayOrder?: number;
+  }[];
+}
+
 /** One `taxonomy.categories` row (superadmin-owned parent/child tree shared by every sub-app). */
 export interface CategoryRow {
   id: string;
@@ -441,6 +487,12 @@ export interface CategoryRow {
    * or any descendant reports a non-zero count.
    */
   productCount?: number;
+  /** Set when the row is in the trash (soft deleted, `0136`). Restorable for 7 days. */
+  deletedAt?: string;
+  /** Why the row was deleted, from the superadmin confirmation. */
+  deleteReason?: string;
+  /** `deletedAt + 7 days` — the instant the purger removes the row for good. */
+  purgeAt?: string;
   sortOrder: number;
   createdAt?: string;
   updatedAt?: string;
@@ -524,9 +576,43 @@ export async function listCategories(app?: CategoryApp | "ALL"): Promise<Categor
   return remote.get<CategoryRow[]>(`/admin/categories${q}`);
 }
 
+/** Superadmin-only: the soft-deleted categories still inside the 7-day undo window. */
+export async function listDeletedCategories(app?: CategoryApp | "ALL"): Promise<CategoryRow[]> {
+  const q = app && app !== "ALL" ? `?app=${app}` : "";
+  return remote.get<CategoryRow[]>(`/admin/categories/trash${q}`);
+}
+
 /** Superadmin-only: one curated header list (`?header=`), e.g. the shared Main App Header table. */
 export async function listCategoriesByHeader(header: CategoryHeader): Promise<CategoryRow[]> {
   return remote.get<CategoryRow[]>(`/admin/categories?header=${header}`);
+}
+
+/**
+ * The facet groups + options defined for a sub-category (`GET /categories/{id}/attribute-groups`).
+ * Any signed-in portal account can read it: the seller dish form and the customer filter drawer use
+ * the same definition.
+ */
+export async function fetchSubcategoryAttributes(
+  subcategoryId: string,
+): Promise<MenuAttributeGroup[]> {
+  if (!subcategoryId) return [];
+  return remote.get<MenuAttributeGroup[]>(
+    `/categories/${encodeURIComponent(subcategoryId)}/attribute-groups`,
+  );
+}
+
+/**
+ * Superadmin-only: replace all facet groups for a sub-category. Group/option ids supplied by the
+ * portal are preserved (so existing dish tags survive); omitted ids are deleted.
+ */
+export async function replaceSubcategoryAttributes(
+  subcategoryId: string,
+  groups: MenuAttributeGroupInput[],
+): Promise<MenuAttributeGroup[]> {
+  return remote.put<MenuAttributeGroup[]>(
+    `/admin/categories/${encodeURIComponent(subcategoryId)}/attribute-groups`,
+    { groups },
+  );
 }
 
 /** Superadmin-only: create a category (audit-logged). */
@@ -539,12 +625,12 @@ export async function updateCategory(id: string, input: CategoryInput): Promise<
   return remote.put<CategoryRow>(`/categories/${encodeURIComponent(id)}`, input);
 }
 
-/** What one category delete hid and how many listings it re-linked to the destination leaf. */
+/** What one category delete trashed and how many listings it re-linked to the destination leaf. */
 export interface CategoryDeleteResult {
   ok: boolean;
   id: string;
-  /** Number of taxonomy rows hidden (the category plus its descendants). */
-  hidden: number;
+  /** Number of taxonomy rows moved to the trash (the category plus its descendants). */
+  trashed: number;
   /** Number of listings re-linked onto the destination's drill-in leaf. */
   movedProducts: number;
   targetId?: string;
@@ -552,16 +638,42 @@ export interface CategoryDeleteResult {
 }
 
 /**
- * Superadmin-only: delete a category and its subtree (soft delete — hidden in the app).
+ * Superadmin-only: delete a category and its subtree (soft delete — moves it to the trash).
  *
  * Listings inside the subtree are never orphaned: pass `moveTo` — a live category at the same tree
  * level (top-level→top-level, child→child) in the same app — and they are re-linked to that
  * destination's drill-in leaf. A delete that would orphan listings and names no target fails with
  * code `move_required`, which the caller should surface as "pick a category to move them to".
+ *
+ * The row is restorable for 7 days, then the gateway purger removes it for good.
  */
-export async function deleteCategory(id: string, moveTo?: string): Promise<CategoryDeleteResult> {
-  const query = moveTo ? `?moveTo=${encodeURIComponent(moveTo)}` : "";
-  return remote.delete<CategoryDeleteResult>(`/categories/${encodeURIComponent(id)}${query}`);
+export async function deleteCategory(
+  id: string,
+  moveTo?: string,
+  reason?: string,
+): Promise<CategoryDeleteResult> {
+  const params = new URLSearchParams();
+  if (moveTo) params.set("moveTo", moveTo);
+  if (reason) params.set("reason", reason);
+  const qs = params.toString();
+  return remote.delete<CategoryDeleteResult>(
+    `/categories/${encodeURIComponent(id)}${qs ? `?${qs}` : ""}`,
+  );
+}
+
+/** Superadmin-only: flip the plain Active/Inactive hide flag (never touches the trash). */
+export async function setCategoryActive(id: string, isActive: boolean): Promise<CategoryRow> {
+  return remote.patch<CategoryRow>(`/categories/${encodeURIComponent(id)}/toggle`, { isActive });
+}
+
+/** Superadmin-only: restore a trashed category and its subtree (it comes back deactivated). */
+export async function restoreCategory(id: string): Promise<CategoryRow> {
+  return remote.post<CategoryRow>(`/categories/${encodeURIComponent(id)}/restore`);
+}
+
+/** Superadmin-only: permanently delete one trashed, unreferenced category subtree now. */
+export async function purgeCategory(id: string): Promise<void> {
+  await remote.delete(`/categories/${encodeURIComponent(id)}/permanent`);
 }
 
 /* --------------------------------- GST rates ------------------------------- */
@@ -677,10 +789,22 @@ export async function createProduct(dto: CreateProductInput): Promise<ProductRec
       ...(dto.descriptionTa?.trim() ? { descriptionTa: dto.descriptionTa.trim() } : {}),
       // Gateway speaks whole rupees; the DB stores paisa.
       price: toRupees(dto.pricePaisa),
+      mrp: dto.mrpPaisa !== undefined ? toRupees(dto.mrpPaisa) : undefined,
+      brand: dto.brand?.trim() || undefined,
+      packType: dto.packType,
+      netQty: dto.netQty,
+      netUnit: dto.netUnit,
+      galleryKeys: (dto.galleryUrls ?? [])
+        .map((url) => (url.startsWith("r2:") ? url.slice(3) : ""))
+        .filter((key): key is string => key.length > 0),
+      variantGroupId: dto.variantGroupId,
+      variantLabel: dto.variantLabel,
+      variantOrder: dto.variantOrder,
       unit: dto.unit,
       emoji: dto.emoji,
       imageUrl: imageKey ? undefined : /^https?:\/\//.test(image) ? image : undefined,
       imageKey,
+      attributes: dto.attributes,
       isVeg: dto.isVeg,
       isPrescription: dto.isPrescription,
     });
@@ -725,6 +849,16 @@ export function updateProduct(productId: string, patch: Partial<ProductRecord>):
     category?: string;
     isVeg?: boolean;
     isPrescription?: boolean;
+    mrp?: number;
+    brand?: string;
+    packType?: ProductRecord["packType"];
+    netQty?: number;
+    netUnit?: ProductRecord["netUnit"];
+    galleryKeys?: string[];
+    variantGroupId?: string;
+    variantLabel?: string;
+    variantOrder?: number;
+    attributes?: ProductRecord["attributes"];
   } = {};
   if (patch.name !== undefined) body.name = patch.name;
   if (patch.description !== undefined) body.description = patch.description;
@@ -733,6 +867,19 @@ export function updateProduct(productId: string, patch: Partial<ProductRecord>):
   if (patch.category !== undefined) body.category = patch.category;
   if (patch.isVeg !== undefined) body.isVeg = patch.isVeg;
   if (patch.isPrescription !== undefined) body.isPrescription = patch.isPrescription;
+  if (patch.mrpPaisa !== undefined) body.mrp = toRupees(patch.mrpPaisa);
+  if (patch.brand !== undefined) body.brand = patch.brand;
+  if (patch.packType !== undefined) body.packType = patch.packType;
+  if (patch.netQty !== undefined) body.netQty = patch.netQty;
+  if (patch.netUnit !== undefined) body.netUnit = patch.netUnit;
+  if (patch.galleryUrls !== undefined)
+    body.galleryKeys = patch.galleryUrls
+      .map((url) => (url.startsWith("r2:") ? url.slice(3) : ""))
+      .filter((key): key is string => key.length > 0);
+  if (patch.variantGroupId !== undefined) body.variantGroupId = patch.variantGroupId;
+  if (patch.variantLabel !== undefined) body.variantLabel = patch.variantLabel;
+  if (patch.variantOrder !== undefined) body.variantOrder = patch.variantOrder;
+  if (patch.attributes !== undefined) body.attributes = patch.attributes;
   if (Object.keys(body).length > 0) {
     pushWrite(
       "Product update",
@@ -761,16 +908,16 @@ export function saveProductImage(productId: string, image: string | undefined): 
   pushWrite("Product image", "put", `/seller/products/${encodeURIComponent(productId)}`, body, () => {});
 }
 
-export function upsertPrice(productId: string, pricePaisa: number): void {
+export function upsertPrice(productId: string, pricePaisa: number, mrpPaisa?: number): void {
   const before = getProduct(productId);
-  patchProductLocal(productId, { pricePaisa });
+  patchProductLocal(productId, { pricePaisa, ...(mrpPaisa !== undefined ? { mrpPaisa } : {}) });
   // The gateway speaks whole rupees and writes price to catalog.products + inventory.stock in lockstep.
   // Awaited with rollback: a rejected price write must not leave a stale optimistic price on screen.
   pushWrite(
     "Price update",
     "put",
     `/seller/pricing/${encodeURIComponent(productId)}`,
-    { price: toRupees(pricePaisa) },
+    { price: toRupees(pricePaisa), ...(mrpPaisa !== undefined ? { mrp: toRupees(mrpPaisa) } : {}) },
     () => restoreProductSnapshot(before),
   );
   audit({
@@ -941,6 +1088,7 @@ export interface SellerConsoleRow {
   name: string;
   app: string;
   category: string;
+  taxonomyCategoryId?: string;
   status: ProductStatus;
   sellerId?: string;
   storeId?: string;
@@ -951,6 +1099,16 @@ export interface SellerConsoleRow {
   /** Tamil display description (0107). Empty → the app falls back to `description`. */
   descriptionTa?: string;
   unit?: string;
+  mrp?: number;
+  brand?: string;
+  packType?: ProductRecord["packType"];
+  netQty?: number;
+  netUnit?: ProductRecord["netUnit"];
+  galleryKeys?: string[];
+  variantGroupId?: string;
+  variantLabel?: string;
+  variantOrder?: number;
+  attributes?: ProductRecord["attributes"];
   emoji?: string;
   imageUrl?: string;
   imageKey?: string;
@@ -1454,6 +1612,21 @@ export async function fetchSellerDetail(sellerId: string): Promise<SellerDetail 
   return toCamel(detail);
 }
 
+/**
+ * The signed-in seller's own application row (`GET /sellers/me`, auth-scoped by the caller's
+ * identity). Returns null when the account has no seller application. Used to surface the real
+ * onboarding/moderation status (PENDING_REVIEW / ACTIVE / REJECTED / SUSPENDED) in the portal.
+ */
+export async function fetchSellerMe(): Promise<SellerRecord | null> {
+  if (!remoteConfigured()) return null;
+  try {
+    const row = await remote.get<SellerRecord>("/sellers/me");
+    return toCamel(row);
+  } catch {
+    return null;
+  }
+}
+
 function patchSellerLocal(sellerId: string, patch: Partial<SellerRecord>): void {
   state().set((s) => ({
     sellers: s.sellers.map((seller) =>
@@ -1802,6 +1975,8 @@ export interface SellerStoreSummary {
   /** Per-shop restock defaults (0123) applied when a retail SKU is turned back on. */
   restockQty: number;
   restockEtaMinutes: number;
+  /** Saved legal-metrology defaults used to prefill a new listing (0137). */
+  complianceDefaults?: LegalMetrology;
 }
 
 /**
@@ -1836,6 +2011,7 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
       longitude?: number | null;
       restockQty?: number;
       restockEtaMinutes?: number;
+      complianceDefaults?: LegalMetrology;
     }[]
   >("/seller/stores");
   return rows.map((row) => ({
@@ -1862,6 +2038,7 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
     ...(typeof row.longitude === "number" ? { longitude: row.longitude } : {}),
     restockQty: row.restockQty ?? 10,
     restockEtaMinutes: row.restockEtaMinutes ?? 30,
+    ...(row.complianceDefaults ? { complianceDefaults: row.complianceDefaults } : {}),
   }));
 }
 
@@ -1917,6 +2094,43 @@ export async function markNotificationRead(id: string): Promise<void> {
 export async function markAllNotificationsRead(): Promise<void> {
   if (!remoteConfigured()) return;
   await remote.post("/notifications/read-all");
+}
+
+/** Unread inbox badge count for the signed-in portal user (incoming-call rows excluded). */
+export async function fetchUnreadNotificationCount(): Promise<number> {
+  if (!remoteConfigured()) return 0;
+  try {
+    const res = await remote.get<{ count: number }>("/notifications/unread-count");
+    return res.count ?? 0;
+  } catch {
+    return 0;
+  }
+}
+
+/** One row from `GET /admin/notifications` (admin-only cross-user outbox view). */
+export interface AdminNotification extends PortalNotification {
+  /** Recipient user id (admin outbox only; never shown to end users). */
+  userId?: string;
+  attempts?: number;
+}
+
+/** Admin console outbox (`GET /admin/notifications`), optionally filtered by delivery status. */
+export async function fetchAdminNotifications(status?: string): Promise<AdminNotification[]> {
+  if (!remoteConfigured()) return [];
+  const qs = status && status !== "ALL" ? `?status=${encodeURIComponent(status)}` : "";
+  const rows = await remote.get<AdminNotification[]>(`/admin/notifications${qs}`);
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    body: row.body,
+    ...(row.data ? { data: row.data } : {}),
+    status: row.status,
+    createdAt: row.createdAt,
+    ...(row.readAt ? { readAt: row.readAt } : {}),
+    ...(row.userId ? { userId: row.userId } : {}),
+    ...(typeof row.attempts === "number" ? { attempts: row.attempts } : {}),
+  }));
 }
 
 export interface CreateVendorInput {
@@ -2032,6 +2246,8 @@ export async function updateSellerStore(
     /** Per-shop restock defaults (0123). Omitted keeps the current values. */
     restockQty?: number;
     restockEtaMinutes?: number;
+    /** Saved legal-metrology defaults (0137). Omitted keeps the stored profile. */
+    complianceDefaults?: LegalMetrology;
   },
 ): Promise<void> {
   if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
@@ -3553,6 +3769,11 @@ export interface MenuDto {
   /** Explicit publish intent: ACTIVE publishes the dish, DRAFT saves it unpublished. */
   status?: Extract<ProductStatus, "ACTIVE" | "DRAFT"> | undefined;
   sellerId?: string | undefined;
+  /**
+   * Optional facet tags (superadmin-defined attribute options) applied to the dish, e.g. Patty:
+   * Chicken, Bun: Brioche. Absent leaves an existing dish's tags unchanged; [] clears them.
+   */
+  attributeOptionIds?: string[] | undefined;
 }
 
 /**
@@ -3593,6 +3814,9 @@ export async function upsertMenu(dto: MenuDto): Promise<MenuItemRecord> {
     ...(dto.cuisine?.trim() ? { cuisine: dto.cuisine.trim() } : {}),
     ...(dto.rating != null ? { rating: dto.rating } : {}),
     ...(imageKey ? { imageKey } : {}),
+    ...(dto.attributeOptionIds !== undefined
+      ? { attributeOptionIds: dto.attributeOptionIds }
+      : {}),
   };
 
   const saved = remoteConfigured()

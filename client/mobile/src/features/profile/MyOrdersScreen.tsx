@@ -34,6 +34,7 @@ import type { OrderStatus, MyOrdersStatusFilter } from '@data/types';
 import type { AppBrand } from '@data/types';
 import type { RootStackParamList } from '@/navigation/types';
 import { useOrdersStore, type PlacedOrder } from '@/state/ordersStore';
+import { useNotificationsStore } from '@/state/notificationsStore';
 import { gateway } from '@/services/api/GatewayClient';
 import MyOrdersAppRail from './MyOrdersAppRail';
 import type { AppFilter } from './MyOrdersAppRail';
@@ -126,32 +127,24 @@ export function MyOrdersScreen({ navigation, route }: Props) {
   );
   const [filterSheetVisible, setFilterSheetVisible] = useState(false);
   const [stagedStatus, setStagedStatus] = useState<MyOrdersStatusFilter>(statusFilter);
-  const [notificationCount, setNotificationCount] = useState(0);
+  const notificationCount = useNotificationsStore((s) => s.unread);
+  const refreshNotifications = useNotificationsStore((s) => s.refreshUnread);
   const [invoiceNotice, setInvoiceNotice] = useState<string | null>(null);
 
-  // Badge = UNREAD notifications only (read_at is stamped when the inbox is opened).
-  const refreshNotifications = useCallback(() => {
-    void gateway
-      .getNotifications()
-      .then((items) => setNotificationCount(items.filter((item) => !item.readAt).length))
-      .catch(() => {
-        // Inbox is best-effort; the badge simply stays hidden on failure.
-      });
-  }, []);
-
+  // Badge = UNREAD notifications (server-authoritative count; incoming-call rows excluded).
   // Server history is authoritative: refresh on every focus (status changes while away).
   useFocusEffect(
     useCallback(() => {
       void refreshOrders();
-      refreshNotifications();
+      void refreshNotifications();
     }, [refreshOrders, refreshNotifications]),
   );
 
   useEffect(() => {
-    refreshNotifications();
+    void refreshNotifications();
     // Poll while the screen is mounted (production monitoring without FCM): Rx READY / order-status
     // notifications land in the in-app inbox and the badge updates within the poll window.
-    const timer = setInterval(refreshNotifications, 60_000);
+    const timer = setInterval(() => void refreshNotifications(), 60_000);
     return () => clearInterval(timer);
   }, [refreshNotifications]);
 

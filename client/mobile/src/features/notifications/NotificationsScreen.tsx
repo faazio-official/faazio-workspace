@@ -16,6 +16,7 @@ import { SPACE } from '@/theme/spacing';
 import { semantic } from '@/theme/brandTokens';
 import type { RootStackParamList } from '@/navigation/types';
 import { gateway, type NotificationRecord } from '@/services/api/GatewayClient';
+import { useNotificationsStore } from '@/state/notificationsStore';
 import { parentRamp } from '@/theme/brandTokens';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Notifications'>;
@@ -42,12 +43,14 @@ export function NotificationsScreen({ navigation }: Props) {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
+  const setUnread = useNotificationsStore((s) => s.setUnread);
 
   const load = useCallback(async (isRefresh = false) => {
     if (isRefresh) setRefreshing(true);
     try {
       const rows = await gateway.getNotifications();
       setItems(rows);
+      setUnread(rows.filter((item) => !item.readAt).length);
       setError(null);
     } catch {
       setError('Could not load notifications.');
@@ -55,9 +58,11 @@ export function NotificationsScreen({ navigation }: Props) {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [setUnread]);
 
   const unreadCount = items.filter((item) => !item.readAt).length;
+
+  // Tapping a notification marks it read and, when it refers to an order, opens the order in
 
   // Opening a notification marks it read (optimistic; reloaded on failure).
   const markRead = useCallback((id: string) => {
@@ -66,24 +71,40 @@ export function NotificationsScreen({ navigation }: Props) {
         item.id === id && !item.readAt ? { ...item, readAt: new Date().toISOString() } : item,
       ),
     );
+    setUnread(Math.max(0, useNotificationsStore.getState().unread - 1));
     void gateway.markNotificationRead(id).catch(() => void load());
-  }, [load]);
+  }, [load, setUnread]);
 
   const markAllRead = useCallback(() => {
     if (markingAll) return;
     setMarkingAll(true);
     const stamped = new Date().toISOString();
     setItems((prev) => prev.map((item) => (item.readAt ? item : { ...item, readAt: stamped })));
+    setUnread(0);
     void gateway
       .markAllNotificationsRead()
       .catch(() => void load())
       .finally(() => setMarkingAll(false));
-  }, [markingAll, load]);
+  }, [markingAll, load, setUnread]);
 
   useFocusEffect(
     useCallback(() => {
       void load();
     }, [load]),
+  );
+
+  // Tapping a notification marks it read and, when it refers to an order, opens the order in
+  // context. Other kinds (seller-onboarding, rewards) just open the inbox.
+  const openNotification = useCallback(
+    (item: NotificationRecord) => {
+      markRead(item.id);
+      const data = item.data as { orderId?: unknown } | undefined;
+      const orderId = typeof data?.orderId === 'string' ? data.orderId : undefined;
+      if (orderId) {
+        navigation.navigate('MyOrders', { highlightOrderId: orderId });
+      }
+    },
+    [markRead, navigation],
   );
 
   const empty = !loading && items.length === 0;
@@ -189,7 +210,7 @@ export function NotificationsScreen({ navigation }: Props) {
                 key={item.id}
                 style={[styles.card, unread && styles.cardUnread]}
                 activeOpacity={0.9}
-                onPress={() => markRead(item.id)}
+                onPress={() => openNotification(item)}
                 accessibilityRole="button"
                 accessibilityLabel={`${unread ? 'Unread' : 'Read'} notification: ${item.title}`}
               >

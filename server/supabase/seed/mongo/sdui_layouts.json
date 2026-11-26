@@ -69,47 +69,8 @@
       ]
     },
     {
-      "id": "diningSpecials",
-      "title": "Today's Special",
-      "subtitle": null,
-      "accent": "#1E5D44",
-      "productIds": [
-        "sp-1",
-        "sp-2",
-        "sp-3",
-        "sp-4",
-        "sp-5",
-        "sp-6",
-        "sp-7",
-        "sp-8",
-        "sp-9",
-        "sp-10",
-        "sp-11",
-        "sp-12",
-        "sp-13",
-        "sp-14",
-        "sp-15",
-        "sp-16"
-      ],
-      "storeIds": [
-        "store-f1",
-        "store-f2",
-        "store-f3",
-        "store-f4",
-        "store-f5",
-        "store-f6",
-        "store-f7",
-        "store-f8",
-        "store-f9",
-        "store-f10",
-        "store-f11",
-        "store-f12"
-      ],
-      "chips": []
-    },
-    {
       "id": "hotBrandDeals",
-      "title": "Deals of the day",
+      "title": "Hot Brand Deals",
       "subtitle": null,
       "accent": "#1627E9",
       "productIds": [

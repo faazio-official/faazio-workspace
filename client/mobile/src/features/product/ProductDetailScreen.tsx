@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import CommonProductDetailView from '@/features/product/CommonProductDetailView';
 import { gateway } from '@/services/api/GatewayClient';
-import type { ProductView } from '@/services/api/GatewayClient';
+import type { ProductView, ProductReviewSummary } from '@/services/api/GatewayClient';
 import { applyActiveDiscount, useActiveDiscounts } from '@/services/pricing';
 import { useCartStore } from '@/state/cartStore';
 import { useFavoriteStore } from '@/state/favoriteStore';
@@ -36,12 +36,14 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   // the passed product is used as-is.
   const [canonical, setCanonical] = useState<ProductView | undefined>(undefined);
   const [reviews, setReviews] = useState<ReviewRow[] | undefined>(undefined);
+  const [reviewSummary, setReviewSummary] = useState<ProductReviewSummary | undefined>(undefined);
   const [loadFailed, setLoadFailed] = useState(false);
   const [reloadToken, setReloadToken] = useState(0);
   useEffect(() => {
     if (!product?.id || !gateway.remoteEnabled) {
       setCanonical(undefined);
       setReviews(undefined);
+      setReviewSummary(undefined);
       setLoadFailed(false);
       return;
     }
@@ -53,6 +55,12 @@ export function ProductDetailScreen({ navigation, route }: Props) {
         if (!active || !r?.product) return;
         setCanonical(r.product);
         setReviews(r.reviews);
+        void gateway
+          .getProductReviewSummary(product.id)
+          .then((summary) => {
+            if (active) setReviewSummary(summary);
+          })
+          .catch(() => undefined);
       })
       .catch(() => {
         if (active) setLoadFailed(true);
@@ -69,8 +77,15 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     if (!product) return undefined;
     if (!canonical) return product;
     const priced = applyActiveDiscount(canonical, discounts[canonical.id]);
-    // Keep the richer passed object (storeId/shop/…) but take the server's price authority.
-    return { ...product, price: priced.price, originalPrice: priced.originalPrice };
+    // Canonical detail carries the richer PDP fields (brand, pack, gallery, variants, compliance).
+    // Keep the passed object as the base so a storeId/shop the rail already knows is never lost.
+    return {
+      ...product,
+      ...canonical,
+      price: priced.price,
+      originalPrice: priced.originalPrice,
+      storeId: product.storeId ?? canonical.storeId,
+    };
   }, [product, canonical, discounts]);
 
   const handleClose = useCallback(() => navigation.goBack(), [navigation]);
@@ -98,6 +113,13 @@ export function ProductDetailScreen({ navigation, route }: Props) {
   );
   const handleOpenProduct = useCallback(
     (p: Product) => navigation.push('ProductDetail', { product: p }),
+    [navigation],
+  );
+  const handleSelectVariant = useCallback(
+    async (variantId: string) => {
+      const result = await gateway.getProduct(variantId).catch(() => undefined);
+      if (result?.product) navigation.push('ProductDetail', { product: result.product });
+    },
     [navigation],
   );
 
@@ -136,11 +158,19 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       onViewVendor={handleViewVendor}
       onViewRestaurant={handleViewRestaurant}
       onOpenProduct={handleOpenProduct}
+      onSelectVariant={handleSelectVariant}
       restaurantId={restaurant?.id}
       reviews={reviews}
       onWriteReview={canReview ? handleWriteReview : undefined}
       stock={canonical?.stock}
       onRetry={loadFailed ? handleRetry : undefined}
+      reviewSummary={reviewSummary}
+      activeDiscountPercent={canonical ? discounts[canonical.id]?.discountPercent : undefined}
+      onUploadPrescription={
+        product.app === 'PHARMA'
+          ? () => navigation.navigate('PrescriptionFlow', { presetVendorId: product.storeId })
+          : undefined
+      }
     />
   );
 }

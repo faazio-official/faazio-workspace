@@ -24,6 +24,7 @@ interface Props {
   showRating?: boolean;
   showBadge?: boolean;
   showHeart?: boolean;
+  compactPrice?: boolean;
   ratingOnImage?: boolean;
 }
 

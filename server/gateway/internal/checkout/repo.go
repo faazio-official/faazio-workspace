@@ -2577,6 +2577,23 @@ func (r *Repo) OrderOwnedBy(ctx context.Context, orderID, userID string) (bool, 
 	return owner == userID, nil
 }
 
+// CustomerUserID returns the auth user_id that owns the checkout order (contracts.OrderOwnership),
+// or "" when the order does not exist. Used by delivery to notify the customer on completion.
+func (r *Repo) CustomerUserID(ctx context.Context, orderID string) (string, error) {
+	if r.pool == nil {
+		return "", fmt.Errorf("checkout: database not configured")
+	}
+	var owner string
+	err := r.pool.QueryRow(ctx, `select coalesce(user_id,'') from checkout.orders where order_id = $1`, orderID).Scan(&owner)
+	if err == pgx.ErrNoRows {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return owner, nil
+}
+
 // OrderDetail returns one order with line items when it belongs to userID.
 func (r *Repo) OrderDetail(ctx context.Context, orderID, userID string) (Order, bool, error) {
 	if r.pool == nil {

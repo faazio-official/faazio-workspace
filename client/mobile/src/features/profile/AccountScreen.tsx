@@ -1,11 +1,13 @@
 import React, { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { CompositeScreenProps } from '@react-navigation/native';
+import { useFocusEffect } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps, NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { logoutUser } from '@/services/logout';
 import { AccountView } from '@/features/profile/AccountView';
 import { useThemeMode } from '@/hooks/useThemeMode';
+import { useNotificationsStore } from '@/state/notificationsStore';
 import type { MainTabParamList, RootStackParamList } from '@/navigation/types';
 
 type Props = CompositeScreenProps<
@@ -20,6 +22,13 @@ type Props = CompositeScreenProps<
  */
 export function AccountScreen({ navigation }: Props) {
   const { palette } = useThemeMode();
+  const refreshUnread = useNotificationsStore((s) => s.refreshUnread);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshUnread();
+    }, [refreshUnread]),
+  );
 
   const handleLogout = useCallback(() => {
     void logoutUser()
@@ -46,6 +55,10 @@ export function AccountScreen({ navigation }: Props) {
     navigation.navigate('MyOrders');
   }, [navigation]);
 
+  const handleOpenNotifications = useCallback(() => {
+    navigation.navigate('Notifications');
+  }, [navigation]);
+
   const handleOpenDeleteAccount = useCallback(() => {
     navigation.navigate('DeleteAccount');
   }, [navigation]);
@@ -60,10 +73,6 @@ export function AccountScreen({ navigation }: Props) {
 
   const handleOpenRewards = useCallback(() => {
     navigation.navigate('FaazioRewards');
-  }, [navigation]);
-
-  const handleOpenAppearance = useCallback(() => {
-    navigation.navigate('Theme');
   }, [navigation]);
 
   const handleOpenLanguage = useCallback(() => {
@@ -94,9 +103,9 @@ export function AccountScreen({ navigation }: Props) {
         onOpenDeleteAccount={handleOpenDeleteAccount}
         onOpenRequestDataDeletion={handleOpenRequestDataDeletion}
         onOpenOrders={handleOpenOrders}
+        onOpenNotifications={handleOpenNotifications}
         onOpenFavourites={handleOpenFavourites}
         onOpenRewards={handleOpenRewards}
-        onOpenAppearance={handleOpenAppearance}
         onOpenLanguage={handleOpenLanguage}
         onOpenSellWithUs={handleOpenSellWithUs}
         onOpenSellerRequests={handleOpenSellerRequests}

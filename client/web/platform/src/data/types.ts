@@ -199,6 +199,8 @@ export interface SellerVendorRecord {
   photoAssetIds?: string[] | undefined;
   /** CDN URLs resolved from photoKeys by the gateway on read. */
   photoUrls?: string[] | undefined;
+  /** Saved legal-metrology defaults used to prefill a new listing (0137). */
+  complianceDefaults?: LegalMetrology | undefined;
 }
 
 /** One-time SELLER portal login minted when an application is approved (never persisted client-side). */
@@ -239,6 +241,42 @@ export interface StoreRecord {
   rating: number;
 }
 
+export type PackType =
+  | "PIECE"
+  | "PACKET"
+  | "BUNDLE"
+  | "BOX"
+  | "KG"
+  | "G"
+  | "L"
+  | "ML"
+  | "STRIP"
+  | "DOZEN"
+  | "SET";
+
+export type NetUnit = "g" | "kg" | "ml" | "l" | "piece" | "tablet" | "sheet" | "pack";
+
+export interface LegalMetrology {
+  countryOfOrigin?: string;
+  manufacturerName?: string;
+  manufacturerAddress?: string;
+  packerName?: string;
+  packerAddress?: string;
+  shelfLifeDays?: number;
+  storage?: string;
+  returnPolicy?: string;
+}
+
+/** Vertical-specific product depth rendered on the PDP (0137). Sparse by design. */
+export interface ProductAttributes {
+  brand?: string;
+  highlights?: string[];
+  ingredients?: string;
+  saltComposition?: string;
+  legalMetrology?: LegalMetrology;
+  [key: string]: unknown;
+}
+
 /** catalog.products */
 export interface ProductRecord {
   productId: string;
@@ -252,6 +290,8 @@ export interface ProductRecord {
   descriptionTa?: string;
   sector: Sector;
   category: string;
+  /** Active taxonomy leaf the listing is filed under (0137 seller projection). */
+  taxonomyCategoryId?: string;
   emoji: string;
   /** Primary photo: seeded placeholder, remote URL, or seller-uploaded data URL. */
   imageUrl: string;
@@ -259,6 +299,20 @@ export interface ProductRecord {
   galleryUrls?: string[];
   unit: string;
   pricePaisa: number;
+  /** Seller-declared list price (MRP) in paisa (0137). A discount renders only when > pricePaisa. */
+  mrpPaisa?: number;
+  /** Actual product brand shown above the PDP title (0137). */
+  brand?: string;
+  /** Structured pack size (0137). `unit` remains the derived display string. */
+  packType?: PackType;
+  netQty?: number;
+  netUnit?: NetUnit;
+  /** Grouped sibling SKUs (sizes/shades); siblings remain separate products (0137). */
+  variantGroupId?: string;
+  variantLabel?: string;
+  variantOrder?: number;
+  /** Vertical-specific + legal-metrology attributes stored as JSONB (0137). */
+  attributes?: ProductAttributes;
   isVeg: boolean;
   isPrescription: boolean;
   status: ProductStatus;

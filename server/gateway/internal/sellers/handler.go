@@ -40,6 +40,9 @@ type Handler struct {
 	// photoURL turns a stored object key into a browser-usable URL for a public shop photo. nil (test
 	// wiring) leaves the keys only; the portal then renders a placeholder instead of a broken image.
 	photoURL func(key string) string
+	// notifier tells the applicant when their onboarding status changes (approve/reject/suspend).
+	// nil disables it (unit/test wiring); a notification failure never fails the status change.
+	notifier contracts.Notifier
 }
 
 // NewHandler builds the sellers handler.
@@ -72,6 +75,13 @@ func (h *Handler) WithPhotos(p contracts.PhotoClaimer) *Handler {
 // reads carry the object key but no `url`, so the portal cannot preview a gallery.
 func (h *Handler) WithPhotoURLs(fn func(key string) string) *Handler {
 	h.photoURL = fn
+	return h
+}
+
+// WithNotifier wires the notification outbox so a seller is told in-app when their onboarding status
+// changes (approved / rejected / suspended). nil leaves the status change silent (test wiring).
+func (h *Handler) WithNotifier(n contracts.Notifier) *Handler {
+	h.notifier = n
 	return h
 }
 
@@ -672,6 +682,7 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 	if after.Status == "ACTIVE" {
 		resp.Credential = h.provisionLogin(r.Context(), after)
 	}
+	h.notifyStatus(r.Context(), after.SellerID, after.Status, req.Reason)
 	httpx.JSON(w, http.StatusOK, resp)
 }
 
@@ -765,6 +776,7 @@ func (h *Handler) verifyKYC(w http.ResponseWriter, r *http.Request) {
 	h.log(r, "SELLER_VERIFY_KYC", s.SellerID,
 		map[string]string{"status": s.Status},
 		map[string]string{"status": after.Status})
+	h.notifyStatus(r.Context(), after.SellerID, after.Status, "")
 	detail, _, _ := h.repo.DetailByID(r.Context(), after.SellerID)
 	httpx.JSON(w, http.StatusOK, sellerDetailResponse{
 		Detail:     detail,
@@ -859,7 +871,45 @@ func (h *Handler) reject(w http.ResponseWriter, r *http.Request) {
 	}
 	h.log(r, "SELLER_REJECTED", s.SellerID, map[string]string{"status": s.Status},
 		map[string]string{"status": after.Status, "reason": req.Reason})
+	h.notifyStatus(r.Context(), after.SellerID, after.Status, req.Reason)
 	httpx.JSON(w, http.StatusOK, after)
+}
+
+// notifyStatus tells the applicant in-app when their onboarding status changes. It targets the auth
+// user that owns the application (the account that applied from the app) AND the seller's owner
+// portal logins (once provisioned), so the approval/rejection reaches whichever surface they use.
+// Best-effort: the status is already committed, so a notification hiccup must never fail the action.
+func (h *Handler) notifyStatus(ctx context.Context, sellerID, status, reason string) {
+	if h.notifier == nil {
+		return
+	}
+	var title, body string
+	switch status {
+	case "ACTIVE":
+		title = "Your seller account is approved"
+		body = "You can now start listing products and receiving orders."
+	case "REJECTED":
+		title = "Your seller application needs attention"
+		body = "Your application was not approved."
+		if reason != "" {
+			body += " Reason: " + reason
+		}
+	case "SUSPENDED":
+		title = "Your seller account is suspended"
+		body = "Contact support for details."
+	default:
+		return
+	}
+	data := map[string]any{"status": status}
+	// The applicant's own auth identity gets the durable inbox row.
+	if userID, err := h.repo.UserID(ctx, sellerID); err == nil && userID != "" {
+		_ = h.notifier.Enqueue(ctx, userID, "SELLER_"+status, title, body, data)
+	}
+	// The seller's provisioned portal login(s) (the seller app signs in with a portal JWT) get the
+	// same alert via EnqueueSeller, keyed by the shops the account owns.
+	if storeIDs, err := h.repo.StoreIDs(ctx, sellerID); err == nil && len(storeIDs) > 0 {
+		_ = h.notifier.EnqueueSeller(ctx, storeIDs, "SELLER_"+status, title, body, data)
+	}
 }
 
 type editSellerRequest struct {

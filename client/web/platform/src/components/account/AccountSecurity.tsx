@@ -28,7 +28,7 @@ function changePasswordErrorMessage(err: unknown): string {
   return err instanceof Error ? err.message : "Could not change the password.";
 }
 
-export function AccountSecurity() {
+export function AccountSecurity({ embedded = false }: { embedded?: boolean }) {
   const router = useRouter();
   const session = useSession();
   const [currentPassword, setCurrentPassword] = useState("");
@@ -78,10 +78,12 @@ export function AccountSecurity() {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        title="Account security"
-        description="Change your portal password. Changing it signs out every other device."
-      />
+      {embedded ? null : (
+        <PageHeader
+          title="Account security"
+          description="Change your portal password. Changing it signs out every other device."
+        />
+      )}
 
       {session?.mustChange && session.role !== "SUPER_ADMIN" ? (
         <div className="rounded-lg border border-warning/40 bg-warning/10 px-4 py-3 text-[13px] text-warning">

@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -222,7 +223,10 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 		       m.description, m.emoji, m.delivery_time,
 		       coalesce(m.name_ta, ''), coalesce(m.description_ta, ''),
 		       coalesce(m.section_id, ''), coalesce(m.sub_category_id, ''),
-		       coalesce(sec.name, ''), coalesce(sub.name, ''), coalesce(m.dietary_type, '')
+		       coalesce(sec.name, ''), coalesce(sub.name, ''), coalesce(m.dietary_type, ''),
+		       coalesce((select array_agg(a.option_id order by a.option_id)
+		                   from directory.menu_item_attributes a
+		                  where a.venue_id = m.venue_id and a.dish_id = m.dish_id), '{}'::text[])
 		  from directory.menus m
 		  left join taxonomy.categories sub on sub.id = m.sub_category_id
 		  left join taxonomy.categories sec on sec.id = coalesce(m.section_id, sub.parent_id)
@@ -250,7 +254,8 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 		)
 		if err := rows.Scan(&d.ID, &d.Name, &d.Price, &mrp, &isVeg, &cuisine, &rating, &d.Image, &imageKey, &desc, &emoji, &delivery,
 			&d.NameTA, &d.DescriptionTA,
-			&d.SectionID, &d.SubCategoryID, &d.SectionName, &d.SubCategoryName, &d.DietaryType); err != nil {
+			&d.SectionID, &d.SubCategoryID, &d.SectionName, &d.SubCategoryName, &d.DietaryType,
+			&d.AttributeOptionIDs); err != nil {
 			return nil, err
 		}
 		if imageKey != nil && *imageKey != "" && r.cdnBase != "" {
@@ -444,6 +449,9 @@ type SellerStore struct {
 	// share a unit count, so these belong to the shop rather than the client bundle.
 	RestockQty        int `json:"restockQty"`
 	RestockEtaMinutes int `json:"restockEtaMinutes"`
+	// ComplianceDefaults is the seller's saved legal-metrology profile (0137): country of origin,
+	// manufacturer/packer, return policy. Used to prefill a new listing.
+	ComplianceDefaults json.RawMessage `json:"complianceDefaults,omitempty"`
 }
 
 // MenuOrVenueSeller resolves the seller that owns a menu row's venue. Ownership derives through the
@@ -597,7 +605,7 @@ const sellerStoreColumns = `s.id, s.name, s.app::text, coalesce(s.seller_id,''),
 	coalesce(s.fssai_number,''), coalesce(s.fssai_cert_key,''), coalesce(s.fssai_cert_asset_id,''),
 	coalesce(s.drug_license_number,''), coalesce(s.drug_license_cert_key,''), coalesce(s.drug_license_cert_asset_id,''),
 	coalesce(s.name_ta,''), coalesce(s.desc_text_ta,''), s.latitude, s.longitude,
-	s.restock_qty, s.restock_eta_minutes`
+	s.restock_qty, s.restock_eta_minutes, s.compliance_defaults`
 
 func scanSellerStore(row pgx.Row) (SellerStore, error) {
 	var (
@@ -609,7 +617,7 @@ func scanSellerStore(row pgx.Row) (SellerStore, error) {
 		&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID,
 		&s.DrugLicenseNumber, &s.DrugLicenseCertKey, &s.DrugLicenseCertAssetID,
 		&s.NameTA, &s.DescTA, &s.Latitude, &s.Longitude,
-		&s.RestockQty, &s.RestockEtaMinutes); err != nil {
+		&s.RestockQty, &s.RestockEtaMinutes, &s.ComplianceDefaults); err != nil {
 		return SellerStore{}, err
 	}
 	s.Rating = math.Round(s.Rating*10) / 10
@@ -651,6 +659,8 @@ type VendorInput struct {
 	// a real value ("ready now"), so it cannot double as the "keep" sentinel.
 	RestockQty        int
 	RestockEtaMinutes int
+	// ComplianceDefaults replaces the saved profile when non-nil (nil keeps the stored value).
+	ComplianceDefaults json.RawMessage
 }
 
 // CreateStore inserts a vendor owned by sellerID under the caller's scope. stateCode is the owning
@@ -716,6 +726,7 @@ func (r *Repo) UpdateStore(ctx context.Context, id, sellerID, district string, i
 		  desc_text_ta = coalesce($20, s.desc_text_ta),
 		  restock_qty = case when $23 = 0 then s.restock_qty else $23 end,
 		  restock_eta_minutes = case when $24 < 0 then s.restock_eta_minutes else $24 end,
+		  compliance_defaults = coalesce($25, s.compliance_defaults),
 		  updated_at = now()
 		 where s.id = $1 and (
 		       ($2 <> '' and s.seller_id = $2) or
@@ -727,7 +738,7 @@ func (r *Repo) UpdateStore(ctx context.Context, id, sellerID, district string, i
 		id, sellerID, in.Name, in.Address, in.Phone, in.Hours, in.Latitude, in.Longitude,
 		in.PlatformFeePct, in.SellerCategoryID, in.FSSAINumber, in.FSSAICertKey, in.FSSAICertAssetID,
 		in.DrugLicenseNumber, in.DrugLicenseCertKey, in.DrugLicenseCertAssetID, in.IsLive, district,
-		in.NameTA, in.DescTA, in.IsVeg, in.RestockQty, in.RestockEtaMinutes))
+		in.NameTA, in.DescTA, in.IsVeg, in.RestockQty, in.RestockEtaMinutes, in.ComplianceDefaults))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerStore{}, false, nil
@@ -853,28 +864,31 @@ func storeID() string {
 
 // SellerMenu is the portal-facing menu-management projection (includes seller scope + status).
 type SellerMenu struct {
-	VenueID       string   `json:"venueId"`
-	DishID        string   `json:"dishId"`
-	Name          string   `json:"name"`
-	NameTA        string   `json:"nameTa,omitempty"`
-	DescriptionTA string   `json:"descriptionTa,omitempty"`
-	Description   string   `json:"description,omitempty"`
-	SectionID     string   `json:"sectionId,omitempty"`
-	SubCategoryID string   `json:"subCategoryId,omitempty"`
-	DietaryType   string   `json:"dietaryType,omitempty"`
+	VenueID       string `json:"venueId"`
+	DishID        string `json:"dishId"`
+	Name          string `json:"name"`
+	NameTA        string `json:"nameTa,omitempty"`
+	DescriptionTA string `json:"descriptionTa,omitempty"`
+	Description   string `json:"description,omitempty"`
+	SectionID     string `json:"sectionId,omitempty"`
+	SubCategoryID string `json:"subCategoryId,omitempty"`
+	DietaryType   string `json:"dietaryType,omitempty"`
 	// Display names resolved from the taxonomy tree, so the portal groups the list without a 2nd read.
-	SectionName     string `json:"sectionName,omitempty"`
-	SubCategoryName string `json:"subCategoryName,omitempty"`
-	Price         int64    `json:"price"`         // rupees
-	MRP           *int64   `json:"mrp,omitempty"` // rupees; list price (strike), never below price
-	IsVeg         *bool    `json:"isVeg,omitempty"`
-	Cuisine       string   `json:"cuisine,omitempty"`
-	Rating        *float64 `json:"rating,omitempty"`
-	Image         string   `json:"image,omitempty"`
-	ImageAssetID  string   `json:"imageAssetId,omitempty"`
-	ImageKey      string   `json:"imageKey,omitempty"`
-	SellerID      string   `json:"sellerId,omitempty"`
-	Status        string   `json:"status"`
+	SectionName     string   `json:"sectionName,omitempty"`
+	SubCategoryName string   `json:"subCategoryName,omitempty"`
+	Price           int64    `json:"price"`         // rupees
+	MRP             *int64   `json:"mrp,omitempty"` // rupees; list price (strike), never below price
+	IsVeg           *bool    `json:"isVeg,omitempty"`
+	Cuisine         string   `json:"cuisine,omitempty"`
+	Rating          *float64 `json:"rating,omitempty"`
+	Image           string   `json:"image,omitempty"`
+	ImageAssetID    string   `json:"imageAssetId,omitempty"`
+	ImageKey        string   `json:"imageKey,omitempty"`
+	SellerID        string   `json:"sellerId,omitempty"`
+	Status          string   `json:"status"`
+	// AttributeOptionIDs are the superadmin-defined facet options the seller applied to this dish
+	// (Patty: Chicken, Bun: Brioche, …). Optional; nil on a write means "leave unchanged".
+	AttributeOptionIDs []string `json:"attributeOptionIds"`
 }
 
 // sellerMenuSelect projects a menu row with its owner derived through the vendor store, plus the
@@ -886,7 +900,10 @@ select m.venue_id, m.dish_id, m.name, coalesce(m.description, ''), coalesce(m.se
        coalesce(sec.name, ''), coalesce(sub.name, ''),
        m.price_paisa, m.mrp_paisa, m.is_veg, m.cuisine, m.rating,
        m.image, m.image_key, coalesce(st.seller_id,''), m.status::text,
-       coalesce(m.name_ta, ''), coalesce(m.description_ta, '')
+       coalesce(m.name_ta, ''), coalesce(m.description_ta, ''),
+       coalesce((select array_agg(a.option_id order by a.option_id)
+                   from directory.menu_item_attributes a
+                  where a.venue_id = m.venue_id and a.dish_id = m.dish_id), '{}'::text[])
 from directory.menus m
 left join directory.stores st on st.id = m.venue_id
 left join taxonomy.categories sub on sub.id = m.sub_category_id
@@ -968,7 +985,7 @@ func (r *Repo) SellerMenus(ctx context.Context, sellerID, district, venueID stri
 		if err := rows.Scan(&m.VenueID, &m.DishID, &m.Name, &m.Description, &m.SectionID, &m.SubCategoryID,
 			&m.DietaryType, &m.SectionName, &m.SubCategoryName,
 			&m.Price, &mrp, &isVeg, &cuisine, &rating, &m.Image, &imageKey, &m.SellerID, &m.Status,
-			&m.NameTA, &m.DescriptionTA); err != nil {
+			&m.NameTA, &m.DescriptionTA, &m.AttributeOptionIDs); err != nil {
 			return nil, err
 		}
 		if imageKey != nil {
@@ -1021,10 +1038,15 @@ func (r *Repo) UpsertMenu(ctx context.Context, m SellerMenu, sellerID string, al
 		rating   *float64
 		imageKey *string
 	)
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return SellerMenu{}, false, err
+	}
+	defer func() { _ = tx.Rollback(context.Background()) }()
 	// The `leaf` CTE resolves the picked sub-category once and the insert/update guards require it to
 	// be an active FOOD-app category that has a parent. A dish can never be written onto a parent
 	// category (a section header) — enforced here at the DB boundary, not only in the handler.
-	err := r.pool.QueryRow(ctx, `
+	err = tx.QueryRow(ctx, `
 			with leaf as (
 				select c.id from taxonomy.categories c
 				 where c.id = $18 and c.parent_id is not null and c.is_active and c.app::text = 'FOOD')
@@ -1068,6 +1090,20 @@ on conflict (venue_id, dish_id) do update
 		}
 		return SellerMenu{}, false, err
 	}
+	// Persist facet tags in the same transaction. A nil slice means "leave unchanged" (an edit that
+	// did not touch facets); an explicit list (including empty) replaces the dish's tags.
+	if m.AttributeOptionIDs != nil {
+		if err := replaceMenuAttributes(ctx, tx, out.VenueID, out.DishID, out.SubCategoryID, m.AttributeOptionIDs); err != nil {
+			return SellerMenu{}, false, err
+		}
+	}
+	out.AttributeOptionIDs, err = menuAttributeIDs(ctx, tx, out.VenueID, out.DishID)
+	if err != nil {
+		return SellerMenu{}, false, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return SellerMenu{}, false, err
+	}
 	if imageKey != nil {
 		out.ImageKey = *imageKey
 	}
@@ -1079,6 +1115,71 @@ on conflict (venue_id, dish_id) do update
 		out.Cuisine = *cuisine
 	}
 	return out, true, nil
+}
+
+// ErrInvalidMenuAttribute is returned when a dish is tagged with an option that is not defined for its
+// own sub-category (e.g. a Patty option on a Dosa). The handler maps it to a 400.
+var ErrInvalidMenuAttribute = errors.New("directory: attribute option not valid for this sub-category")
+
+// replaceMenuAttributes rewrites one dish's facet tags. Every option must belong to a group whose
+// sub-category is the dish's own sub-category — enforced in a single count query before the replace,
+// inside the caller's transaction.
+func replaceMenuAttributes(ctx context.Context, tx pgx.Tx, venueID, dishID, subCategoryID string, optionIDs []string) error {
+	ids := uniqueNonEmpty(optionIDs)
+	if len(ids) > 0 {
+		var valid int
+		if err := tx.QueryRow(ctx, `
+			select count(*)
+			  from taxonomy.attribute_options o
+			  join taxonomy.subcategory_attribute_groups g on g.id = o.group_id
+			 where o.id = any($1::text[]) and g.subcategory_id = $2`, ids, subCategoryID).Scan(&valid); err != nil {
+			return err
+		}
+		if valid != len(ids) {
+			return ErrInvalidMenuAttribute
+		}
+	}
+	if _, err := tx.Exec(ctx,
+		`delete from directory.menu_item_attributes where venue_id = $1 and dish_id = $2`,
+		venueID, dishID); err != nil {
+		return err
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	_, err := tx.Exec(ctx, `
+		insert into directory.menu_item_attributes (venue_id, dish_id, option_id)
+		select $1, $2, unnest($3::text[])
+		on conflict (venue_id, dish_id, option_id) do nothing`, venueID, dishID, ids)
+	return err
+}
+
+// menuAttributeIDs returns the sorted option ids currently applied to a dish.
+func menuAttributeIDs(ctx context.Context, q interface {
+	QueryRow(context.Context, string, ...any) pgx.Row
+}, venueID, dishID string) ([]string, error) {
+	ids := []string{}
+	if err := q.QueryRow(ctx, `
+		select coalesce(array_agg(option_id order by option_id), '{}'::text[])
+		  from directory.menu_item_attributes
+		 where venue_id = $1 and dish_id = $2`, venueID, dishID).Scan(&ids); err != nil {
+		return nil, err
+	}
+	return ids, nil
+}
+
+func uniqueNonEmpty(in []string) []string {
+	out := make([]string, 0, len(in))
+	seen := map[string]bool{}
+	for _, raw := range in {
+		v := strings.TrimSpace(raw)
+		if v == "" || seen[v] {
+			continue
+		}
+		seen[v] = true
+		out = append(out, v)
+	}
+	return out
 }
 
 // SetMenuStatus updates a dish's moderation status, scoped like UpsertMenu.

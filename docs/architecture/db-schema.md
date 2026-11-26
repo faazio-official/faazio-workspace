@@ -207,8 +207,13 @@ CREATE TABLE catalog.products (
 | `emoji` / `image_url` | TEXT | var | display | — |
 | `desc_text` | TEXT | var | detail page (Tantivy NOT-stored) — **not fetched by list/search reads** | — |
 | `desc_text_ta` | TEXT | var | Tamil display description (`0107`); `''` when untranslated. Detail reads only; list/search reads send `''`. Folded into `search_vec` at weight B (`0108`) | — |
-| `badge`/`shop`/`unit` | TEXT | var | display | — |
-| `attributes` | JSONB | var | facets — **not fetched by list/search reads** | GIN |
+| `badge`/`shop`/`unit` | TEXT | var | display; `unit` is the derived display string (0137) | — |
+| `mrp_paisa` | INT8 | 8 | seller-declared list price (`0137`); a strike-through renders only when `mrp_paisa > price_paisa`. Go validates `mrp >= price` on auth writes; legacy rows may be null | partial |
+| `brand` | TEXT | var | actual product brand above the PDP title (`0137`); empty → store name, never the platform name | — |
+| `pack_type` / `net_qty` / `net_unit` | TEXT / NUMERIC / TEXT | var | structured pack size (`0137`); the gateway derives `unit` from these. KG/G/L/ML/PIECE lock their net unit | — |
+| `variant_group_id` / `variant_label` / `variant_order` | TEXT / TEXT / INT | var | grouped sibling SKUs (`0137`); siblings stay independent rows with their own price/stock | partial (`variant_group_id IS NOT NULL`) |
+| `gallery_keys` | TEXT[] | var | ordered extra image keys for the PDP carousel (`0137`); primary stays `image_key` | — |
+| `attributes` | JSONB | var | facets + PDP depth (`highlights`, `ingredients`, `legalMetrology`, `saltComposition`) — **not fetched by list/search reads** | GIN |
 | `review_reason` | TEXT | var | admin moderation note on a `REJECTED` listing, bounded to 500 bytes; cleared on approve/delist (`0087`) | — |
 | `deleted_at` | TIMESTAMPTZ | 8 | soft-delete tombstone (`0089`); every shopper read filters `deleted_at IS NULL`; `catalog.purge_deleted_products` removes the row + stock after 7 days | partial (`deleted_at IS NOT NULL`) |
 | `delete_reason` | TEXT | var | free-text delete note, bounded to 500 bytes (`0089`) | — |
@@ -244,11 +249,13 @@ historical product snapshot.
 > respectively — the doc samples `fm-f1`/`gr-p7`/`fm-m1` exactly; the remaining two are placeholders
 > pointing to their fixture files (values stable there, not repeated here to avoid drift).
 
-> **Product MRP is retired (`0079`).** `catalog.products.mrp_paisa` and `inventory.stock.mrp_paisa`
-> were dropped; the API now exposes only the selling `price_paisa`, and seller pricing writes are
-> price-only. `catalog.products_search` was recreated without the column. Authored list prices remain
-> only where a discount is explicitly authored: `directory.menus.mrp_paisa` (`0022`) and
-> `pharma.quote_items.mrp_paisa` (`0023`).
+> **Product MRP is part of the PDP contract again (`0137`, reversing `0079`).** `0079` dropped
+> `catalog.products.mrp_paisa`/`inventory.stock.mrp_paisa` because the selling price was meant to be
+> the single authored price. A conversion-led PDP needs an honest list price to strike through, so
+> `catalog.products.mrp_paisa` returned as an **optional** list price (no `inventory.stock` copy).
+> The gateway enforces `mrp >= price` on seller writes and the app renders the strike only when
+> `mrp > price` — a discount is never synthesized. Food menu MRP (`directory.menus.mrp_paisa`, `0022`)
+> and pharma quote MRP (`pharma.quote_items.mrp_paisa`, `0023`) remain separate domains.
 
 ### 5.2 Tantivy index (the actual search engine)
 
@@ -609,6 +616,11 @@ display-only translations authored by the seller portal (`POST /seller/stores`,
 `PUT /seller/stores/{id}`) and validated Tamil-only by `locale.IsTamilText`. The public
 `GET /stores` projection and the seller list both carry them; `''` → the app renders `name`.
 
+**Compliance defaults (`0137`):** `directory.stores.compliance_defaults jsonb` stores the saved
+legal-metrology profile (country of origin, manufacturer/packer, shelf life, storage, return policy)
+used to prefill a new listing. Per shop because the legal seller entity and FSSAI/drug licence are per
+shop; the seller portal reads/writes it through `GET /seller/stores` / `PUT /seller/stores/{id}`.
+
 **Vendor ownership (0068–0076):** `directory.stores` is the VENDOR (the real shop). It now also carries
  `seller_id` (TEXT NOT NULL, FK `stores_seller_fk` → `sellers.sellers(id)` ON DELETE RESTRICT — 0069/0071),
  `state_code`, `is_live`, and the per-shop commercial fields `platform_fee_pct SMALLINT NOT NULL DEFAULT 10
@@ -824,7 +836,7 @@ itself is the Faazio Blue token defined in `docs/UI_DESIGN_SYSTEM.md` §5.
       storeIds: ['store-f1','store-f2','store-f3'] },                         // Home store rail (directory.stores)
     { id: 'mostRatedVenues', title: 'Top Rated Restaurants', accent: '#1E5D44', productIds: [],
       storeIds: ['tr-1','tr-2','tr-3'] },                                     // venue catalogue (retained; Food home no longer renders it)
-    { id: 'hotBrandDeals', title: 'Deals of the day', accent: 'brand-accent',
+    { id: 'hotBrandDeals', title: 'Hot Brand Deals', accent: 'brand-accent',
       productIds: ['hbd-1','hbd-2','hbd-3','hbd-4','hbd-5'],
       campaigns: [{ id: 'camp-darling-mobiles', storeId: 'store-m1',
                     productIds: ['fm-m1','fm-m2'], carousel: 1 }] },         // editorial vendor campaigns
@@ -2465,7 +2477,7 @@ UPDATE directory.menus m SET seller_id = s.seller_id
 - Seller/app and admin RLS (`0050`) keeps its legacy state fallback; strict scoping is enforced in the
   gateway service layer. Media moderation and `admins` audit/customer reads are unchanged.
 
-### 12.30 Central category taxonomy — superadmin-owned tree (migrations `0067` + `0091` + `0096` + `0115`)
+### 12.30 Central category taxonomy — superadmin-owned tree (migrations `0067` + `0091` + `0096` + `0115` + `0136`)
 
 The single source of truth for every sub-app category (Mart, Food, Pharma): one parent/child tree
 owned by the superadmin (portal-only writes; the Go gateway, `service_role`, is the only writer).
@@ -2492,10 +2504,24 @@ CREATE TABLE taxonomy.categories (
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   created_by   TEXT NOT NULL DEFAULT 'system',
-  updated_by   TEXT
+  updated_by   TEXT,
+  deleted_at   TIMESTAMPTZ,               -- soft delete (0136); non-null = in the trash
+  delete_reason TEXT NOT NULL DEFAULT ''  -- why it was deleted (<= 500 chars), kept until purge
 );
 ```
 
+- **Trash / soft delete (`0136`, 7-day undo):** deleting a category sets `deleted_at = now()` +
+  `is_active = false` + `delete_reason` for the node **and its whole subtree** in one transaction.
+  A trashed row is excluded from every read — `GET /categories` (app rail/tree), the drill-in, the
+  seller pickers and `GET /admin/categories` — but a live child is never left behind (the whole
+  subtree goes together). It stays a valid FK target for listings, stores and menus that already point
+  at it. `GET /admin/categories/trash` lists the trashed rows; `POST /categories/{id}/restore` clears
+  `deleted_at` down the subtree (which comes back **deactivated**); `DELETE /categories/{id}/permanent`
+  (or the bulk endpoint, one call per id) hard-deletes a trashed, unreferenced subtree. The gateway
+  `categories.Purger` sweeps hourly and removes rows older than `CategoryTrashWindow` (7 days) that no
+  listing/store/menu references — same window and worker shape as credentials (`0128`), districts
+  (`0134`) and catalogue products (`0089`). `is_active` keeps its own meaning: a plain hide, set by the
+  `PATCH /categories/{id}/toggle` switch, with no `deleted_at`.
 - **Seeded rows** (`0067` + `0091`, generated from `server/supabase/seed/lib/taxonomy.mjs`): the
   former `@data/categories/masterCategories.ts` tree (Mart + Pharma) plus new FOOD restaurant
   categories (North Indian, South Indian, Chinese, Bakery, Cafe, Fast Food, Desserts). Ids are the

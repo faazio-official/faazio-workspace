@@ -74,7 +74,7 @@ func (r *Repo) Enqueue(ctx context.Context, userID, kind, title, body string, da
 	}
 	// The user's cached inbox is now stale (TTLNotifications); invalidate on enqueue.
 	if r.cache != nil {
-		r.cache.Del(ctx, cache.Notifications(userID))
+		r.cache.Del(ctx, cache.Notifications(userID), cache.NotificationsUnread(userID))
 	}
 	return nil
 }
@@ -126,9 +126,9 @@ func (r *Repo) EnqueueMany(ctx context.Context, userIDs []string, kind, title, b
 	}
 	// Every recipient's cached inbox is now stale (TTLNotifications); drop them in one call.
 	if r.cache != nil {
-		keys := make([]string, 0, len(recipients))
+		keys := make([]string, 0, len(recipients)*2)
 		for _, userID := range recipients {
-			keys = append(keys, cache.Notifications(userID))
+			keys = append(keys, cache.Notifications(userID), cache.NotificationsUnread(userID))
 		}
 		r.cache.Del(ctx, keys...)
 	}
@@ -183,7 +183,13 @@ func (r *Repo) EnqueueSeller(ctx context.Context, storeIDs []string, kind, title
 	return errors.Join(errs...)
 }
 
-// Inbox returns a user's notifications, newest first.
+// inboxExcludedKinds are outbox kinds that are delivered as a live push (an incoming call rings
+// through the call surface) but are NOT part of the durable in-app inbox. They are filtered out of
+// both the inbox list and the unread badge so a call never shows up as an unread inbox row.
+const inboxExcludedKinds = `('incoming_call')`
+
+// Inbox returns a user's durable in-app notifications, newest first. Ephemeral ring pushes
+// (`incoming_call`) are excluded — they are consumed by the call surface, not the inbox.
 func (r *Repo) Inbox(ctx context.Context, userID string, limit int) ([]Notification, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("notifications: database not configured")
@@ -194,8 +200,25 @@ func (r *Repo) Inbox(ctx context.Context, userID string, limit int) ([]Notificat
 	return r.scan(ctx, `
 		select id, coalesce(user_id,''), kind, title, body, data, status, attempts, created_at, sent_at, read_at
 		  from notifications.outbox
-		 where user_id = $1
+		 where user_id = $1 and kind not in `+inboxExcludedKinds+`
 		 order by created_at desc limit $2`, userID, limit)
+}
+
+// UnreadCount returns the number of unread inbox notifications for a user (the badge count).
+// `incoming_call` rows are excluded for the same reason as Inbox — a ring is not an inbox item.
+func (r *Repo) UnreadCount(ctx context.Context, userID string) (int, error) {
+	if r.pool == nil {
+		return 0, fmt.Errorf("notifications: database not configured")
+	}
+	var n int
+	if err := r.pool.QueryRow(ctx, `
+		select count(*)
+		  from notifications.outbox
+		 where user_id = $1 and read_at is null and kind not in `+inboxExcludedKinds,
+		userID).Scan(&n); err != nil {
+		return 0, err
+	}
+	return n, nil
 }
 
 // MarkRead stamps one of the caller's notifications as read. A foreign/unknown id is a no-op.
@@ -211,7 +234,7 @@ func (r *Repo) MarkRead(ctx context.Context, userID, id string) error {
 		return err
 	}
 	if r.cache != nil {
-		r.cache.Del(ctx, cache.Notifications(userID))
+		r.cache.Del(ctx, cache.Notifications(userID), cache.NotificationsUnread(userID))
 	}
 	return nil
 }
@@ -229,7 +252,7 @@ func (r *Repo) MarkAllRead(ctx context.Context, userID string) error {
 		return err
 	}
 	if r.cache != nil {
-		r.cache.Del(ctx, cache.Notifications(userID))
+		r.cache.Del(ctx, cache.Notifications(userID), cache.NotificationsUnread(userID))
 	}
 	return nil
 }

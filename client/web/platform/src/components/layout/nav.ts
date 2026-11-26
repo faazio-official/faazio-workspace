@@ -139,7 +139,6 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "App config", to: "/admin/super/app-config", icon: SlidersHorizontal, group: "Governance" },
   { label: "Users", to: "/admin/super/users", icon: Users, group: "Governance" },
   { label: "District coverage", to: "/admin/super/districts", icon: Grid2x2, group: "Governance" },
-  { label: "Security", to: "/admin/super/security", icon: ShieldCheck, group: "Governance" },
   { label: "Sellers", to: "/admin/super/sellers", icon: Users, group: "Supply" },
   { label: "Seller enquiries", to: "/admin/super/seller-inquiries", icon: Inbox, group: "Supply" },
   { label: "Fee change requests", to: "/admin/super/fee-change-requests", icon: Receipt, group: "Supply" },

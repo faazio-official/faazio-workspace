@@ -157,6 +157,39 @@ func (r *Repo) VendorSummary(ctx context.Context, vendorID string) (Summary, err
 	return s, nil
 }
 
+// ProductSummary is the product rating aggregate shown on the PDP. Derived from the same
+// reviews.reviews rows the list endpoint pages, so the histogram can never disagree with the list.
+type ProductSummary struct {
+	ProductID string  `json:"productId"`
+	Average   float64 `json:"average"`
+	Count     int64   `json:"count"`
+	// Distribution[i] = count of (i+1)-star ratings, i.e. index 0 = 1 star.
+	Distribution [5]int64 `json:"distribution"`
+}
+
+// ProductSummary aggregates one product's live reviews by star bucket.
+func (r *Repo) ProductSummary(ctx context.Context, productID string) (ProductSummary, error) {
+	if r.pool == nil {
+		return ProductSummary{}, fmt.Errorf("reviews: database not configured")
+	}
+	s := ProductSummary{ProductID: productID}
+	err := r.pool.QueryRow(ctx, `
+		select coalesce(avg(rating), 0), count(*),
+		       count(*) filter (where rating = 1),
+		       count(*) filter (where rating = 2),
+		       count(*) filter (where rating = 3),
+		       count(*) filter (where rating = 4),
+		       count(*) filter (where rating = 5)
+		  from reviews.reviews where product_id = $1`, productID).
+		Scan(&s.Average, &s.Count,
+			&s.Distribution[0], &s.Distribution[1], &s.Distribution[2], &s.Distribution[3], &s.Distribution[4])
+	if err != nil {
+		return ProductSummary{}, err
+	}
+	s.Average = math.Round(s.Average*10) / 10
+	return s, nil
+}
+
 // UserName returns the display name for a user (public-safe).
 func (r *Repo) UserName(ctx context.Context, userID string) (string, error) {
 	if r.pool == nil {

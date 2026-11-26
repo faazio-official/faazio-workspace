@@ -1,9 +1,11 @@
 import React, { useCallback } from 'react';
 import { StyleSheet, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { useFocusEffect } from '@react-navigation/native';
 import { logoutUser } from '@/services/logout';
 import { AccountView } from '@/features/profile/AccountView';
 import { useThemeMode } from '@/hooks/useThemeMode';
+import { useNotificationsStore } from '@/state/notificationsStore';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'You'>;
@@ -15,6 +17,13 @@ type Props = NativeStackScreenProps<RootStackParamList, 'You'>;
  */
 export function YouScreen({ navigation }: Props) {
   const { palette } = useThemeMode();
+  const refreshUnread = useNotificationsStore((s) => s.refreshUnread);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshUnread();
+    }, [refreshUnread]),
+  );
 
   const handleLogout = useCallback(() => {
     void logoutUser()
@@ -41,6 +50,10 @@ export function YouScreen({ navigation }: Props) {
     navigation.navigate('MyOrders');
   }, [navigation]);
 
+  const handleOpenNotifications = useCallback(() => {
+    navigation.navigate('Notifications');
+  }, [navigation]);
+
   const handleOpenDeleteAccount = useCallback(() => {
     navigation.navigate('DeleteAccount');
   }, [navigation]);
@@ -55,10 +68,6 @@ export function YouScreen({ navigation }: Props) {
 
   const handleOpenRewards = useCallback(() => {
     navigation.navigate('FaazioRewards');
-  }, [navigation]);
-
-  const handleOpenAppearance = useCallback(() => {
-    navigation.navigate('Theme');
   }, [navigation]);
 
   const handleOpenLanguage = useCallback(() => {
@@ -90,9 +99,9 @@ export function YouScreen({ navigation }: Props) {
         onOpenDeleteAccount={handleOpenDeleteAccount}
         onOpenRequestDataDeletion={handleOpenRequestDataDeletion}
         onOpenOrders={handleOpenOrders}
+        onOpenNotifications={handleOpenNotifications}
         onOpenFavourites={handleOpenFavourites}
         onOpenRewards={handleOpenRewards}
-        onOpenAppearance={handleOpenAppearance}
         onOpenLanguage={handleOpenLanguage}
         onOpenSellWithUs={handleOpenSellWithUs}
         onOpenSellerRequests={handleOpenSellerRequests}

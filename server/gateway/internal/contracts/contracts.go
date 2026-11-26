@@ -105,25 +105,54 @@ type Product struct {
 	Name         string   `json:"name"`
 	SearchTokens []string `json:"searchTokens"`
 	Price        int64    `json:"price"` // rupees
-	Rating       float64  `json:"rating"`
-	Emoji        string   `json:"emoji"`
-	Image        string   `json:"image"`
-	Desc         string   `json:"desc"`
+	// OriginalPrice is the seller-declared list price (MRP) in rupees. Present only when authored;
+	// a discount renders only when OriginalPrice > Price. Never synthesized.
+	OriginalPrice *int64  `json:"originalPrice,omitempty"`
+	Rating        float64 `json:"rating"`
+	Emoji         string  `json:"emoji"`
+	Image         string  `json:"image"`
+	// Gallery is the ordered extra-image list for the PDP carousel (primary Image stays first).
+	Gallery []string `json:"gallery,omitempty"`
+	Desc    string   `json:"desc"`
 	// Tamil display copy (0107). Empty means "not translated" → the app falls back to English.
-	NameTA       string         `json:"nameTa,omitempty"`
-	DescTA       string         `json:"descTa,omitempty"`
-	Badge        string         `json:"badge,omitempty"`
-	Shop         string         `json:"shop,omitempty"`
-	StoreID      string         `json:"storeId,omitempty"`
+	NameTA string `json:"nameTa,omitempty"`
+	DescTA string `json:"descTa,omitempty"`
+	Badge  string `json:"badge,omitempty"`
+	Shop   string `json:"shop,omitempty"`
+	// Brand is the actual product brand (0137). Empty → the app falls back to the store name.
+	Brand   string `json:"brand,omitempty"`
+	StoreID string `json:"storeId,omitempty"`
+	// Structured pack size (0137). Unit is the derived display string kept for legacy readers.
+	PackType     string         `json:"packType,omitempty"`
+	NetQty       *float64       `json:"netQty,omitempty"`
+	NetUnit      string         `json:"netUnit,omitempty"`
 	ReviewsCount *int64         `json:"reviewsCount,omitempty"`
 	Unit         string         `json:"unit,omitempty"`
 	Attributes   map[string]any `json:"attributes,omitempty"`
 	Stock        *Stock         `json:"stock,omitempty"`
+	// IsPrescription is the product-level Rx flag (stock mirrors it for availability reads).
+	IsPrescription bool `json:"isPrescription,omitempty"`
+	// Variants is populated on the product-detail read only: sibling SKUs in the same variant group
+	// (sizes/shades). Empty for a single-SKU listing.
+	Variants []ProductVariant `json:"variants,omitempty"`
 	// DistanceKm is set only by GET /products/nearby (straight-line km from the caller).
 	DistanceKm *float64 `json:"distanceKm,omitempty"`
 	// RatingRaw is the unrounded column value (`catalog.products.rating` is `real`). Keyset
 	// pagination must compare against it exactly; the rounded Rating is display-only. Never serialized.
 	RatingRaw float64 `json:"-"`
+	// VariantGroupID is internal: it drives the sibling lookup. Never serialized.
+	VariantGroupID string `json:"-"`
+}
+
+// ProductVariant is one sibling SKU in a variant group. Selecting it opens that product's PDP.
+type ProductVariant struct {
+	ID            string `json:"id"`
+	Label         string `json:"label"`
+	Price         int64  `json:"price"` // rupees
+	OriginalPrice *int64 `json:"originalPrice,omitempty"`
+	Unit          string `json:"unit,omitempty"`
+	Available     bool   `json:"available"`
+	Order         int    `json:"order"`
 }
 
 // Store is a directory.stores row, JSON shaped for StoreRecord.
@@ -199,6 +228,9 @@ type MenuDish struct {
 	// Tamil display copy (0108). Empty means "not translated" → the app falls back to English.
 	NameTA        string `json:"nameTa,omitempty"`
 	DescriptionTA string `json:"descTa,omitempty"`
+	// AttributeOptionIDs are the superadmin-defined facet options the seller applied (0138): Patty,
+	// Cheese Type, Bun, Dosa Style, etc. The customer filter drawer reads these; optional on a dish.
+	AttributeOptionIDs []string `json:"attributeOptionIds,omitempty"`
 }
 
 // Venue is a directory.dining_venues row (a pure dining room / food venue). Public list reads use
@@ -591,9 +623,13 @@ type HomeSection struct {
 }
 
 // OrderOwnership reports whether a checkout order belongs to a user (implemented by checkout.Repo).
-// The delivery context uses it to refuse cross-user delivery ratings.
+// The delivery context uses it to refuse cross-user delivery ratings and to notify the customer when
+// their delivery completes.
 type OrderOwnership interface {
 	OrderOwnedBy(ctx context.Context, orderID, userID string) (bool, error)
+	// CustomerUserID returns the auth user_id that owns the checkout order, or "" when unknown. The
+	// delivery context uses it to enqueue an ORDER_DELIVERED notification to the customer.
+	CustomerUserID(ctx context.Context, orderID string) (string, error)
 }
 
 // PrescriptionQuoteLine is one priced line of a seller's prescription quote (money in whole rupees).

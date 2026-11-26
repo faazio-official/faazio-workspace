@@ -229,46 +229,73 @@ function SellerProducts() {
 }
 
 function ProductRow({ product }: { product: ProductRecord }) {
+  const discount =
+    product.mrpPaisa && product.mrpPaisa > product.pricePaisa
+      ? Math.round(((product.mrpPaisa - product.pricePaisa) / product.mrpPaisa) * 100)
+      : 0;
+  const hasCompliance = Boolean(product.attributes?.legalMetrology?.countryOfOrigin);
   return (
-    <Link href={`/seller/products/${product.productId}/edit`} className="block min-w-0 max-w-full">
-      <Card className="flex min-w-0 max-w-full items-center gap-2.5 overflow-hidden p-3 sm:gap-3">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-xl sm:h-14 sm:w-14 sm:text-2xl">
-          {product.imageUrl ? (
-            <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
-          ) : (
-            product.emoji
-          )}
-        </div>
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-center gap-1.5">
-            <p className="min-w-0 truncate text-sm font-semibold">{product.name}</p>
-            <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-              {product.sector}
-            </span>
+    <div className="min-w-0 max-w-full">
+      <Link href={`/seller/products/${product.productId}/edit`} className="block min-w-0 max-w-full">
+        <Card className="flex min-w-0 max-w-full items-center gap-2.5 overflow-hidden p-3 sm:gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted text-xl sm:h-14 sm:w-14 sm:text-2xl">
+            {product.imageUrl ? (
+              <img src={product.imageUrl} alt={product.name} className="h-full w-full object-cover" />
+            ) : (
+              product.emoji
+            )}
           </div>
-          <p className="min-w-0 truncate text-[11px] text-muted-foreground">
-            {product.category} · {product.productId}
-          </p>
-          <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
-            <b className="min-w-0 truncate">{formatINR(product.pricePaisa)}</b>
-            <span
-              className={cn(
-                "ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
-                STATUS_PILL[product.status],
-              )}
-            >
-              {product.status.replace(/_/g, " ")}
-            </span>
-          </div>
-          {product.status === "REJECTED" && product.reviewReason ? (
-            <p className="mt-1 rounded bg-brand-soft px-2 py-1 text-[11px] break-words text-brand">
-              {product.reviewReason}
+          <div className="min-w-0 flex-1">
+            <div className="flex min-w-0 items-center gap-1.5">
+              <p className="min-w-0 truncate text-sm font-semibold">{product.name}</p>
+              <span className="shrink-0 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                {product.sector}
+              </span>
+            </div>
+            <p className="min-w-0 truncate text-[11px] text-muted-foreground">
+              {product.brand ? `${product.brand} · ` : ""}
+              {product.category} · {product.productId}
             </p>
-          ) : null}
-        </div>
-        <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
-      </Card>
-    </Link>
+            <div className="mt-1 flex min-w-0 items-center gap-2 text-xs">
+              <b className="min-w-0 truncate">{formatINR(product.pricePaisa)}</b>
+              {discount > 0 ? (
+                <>
+                  <span className="shrink-0 text-[10px] text-muted-foreground line-through">
+                    {formatINR(product.mrpPaisa ?? 0)}
+                  </span>
+                  <span className="shrink-0 rounded bg-success-soft px-1.5 py-0.5 text-[9px] font-bold text-success">
+                    {discount}% OFF
+                  </span>
+                </>
+              ) : null}
+              <span
+                className={cn(
+                  "ml-auto shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase",
+                  STATUS_PILL[product.status],
+                )}
+              >
+                {product.status.replace(/_/g, " ")}
+              </span>
+            </div>
+            {!hasCompliance ? (
+              <p className="mt-1 text-[10px] font-semibold text-warning">Compliance profile missing — add it before approval.</p>
+            ) : null}
+            {product.status === "REJECTED" && product.reviewReason ? (
+              <p className="mt-1 rounded bg-brand-soft px-2 py-1 text-[11px] break-words text-brand">
+                {product.reviewReason}
+              </p>
+            ) : null}
+          </div>
+          <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+        </Card>
+      </Link>
+      <Link
+        href={`/seller/products/new?variantOf=${encodeURIComponent(product.productId)}`}
+        className="mt-1 block text-right text-[11px] font-semibold text-info"
+      >
+        Add another size / shade
+      </Link>
+    </div>
   );
 }
 

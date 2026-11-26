@@ -27,13 +27,21 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.Require)
 		g.Get("/categories", h.list)
 		g.Get("/categories/rail", h.rail)
+		// Facet read: the seller form and the customer filter drawer read the same definition.
+		g.Get("/categories/{id}/attribute-groups", h.listAttributeGroups)
 	})
 	r.Group(func(g chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
 		g.Get("/admin/categories", h.adminList)
+		g.Get("/admin/categories/trash", h.adminTrash)
+		g.Get("/admin/categories/{id}/attribute-groups", h.listAttributeGroups)
+		g.Put("/admin/categories/{id}/attribute-groups", h.replaceAttributeGroups)
 		g.Post("/categories", h.create)
 		g.Put("/categories/{id}", h.update)
+		g.Patch("/categories/{id}/toggle", h.toggle)
 		g.Delete("/categories/{id}", h.remove)
+		g.Post("/categories/{id}/restore", h.restore)
+		g.Delete("/categories/{id}/permanent", h.permanentRemove)
 	})
 }
 
@@ -97,12 +105,26 @@ func (h *Handler) rail(w http.ResponseWriter, r *http.Request) {
 	h.respond(w, r, opts)
 }
 
-// adminList returns every category (including deactivated) for the portal.
+// adminList returns every category for the portal. `?trash=true` returns the soft-deleted ones
+// instead (the Deleted tab); a live list never includes a trashed row.
 func (h *Handler) adminList(w http.ResponseWriter, r *http.Request) {
 	opts, ok := readListFilters(w, r)
 	if !ok {
 		return
 	}
+	opts.Trash = r.URL.Query().Get("trash") == "true"
+	h.respond(w, r, opts)
+}
+
+// adminTrash lists the soft-deleted categories still inside the 7-day undo window. It runs the
+// expiry purge first so an expired row never appears as restorable.
+func (h *Handler) adminTrash(w http.ResponseWriter, r *http.Request) {
+	opts, ok := readListFilters(w, r)
+	if !ok {
+		return
+	}
+	opts.Trash = true
+	_, _ = h.repo.PurgeDeleted(r.Context(), CategoryTrashWindow)
 	h.respond(w, r, opts)
 }
 
@@ -231,14 +253,43 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	httpx.JSON(w, http.StatusOK, item)
 }
 
-// remove soft-deletes a category and its subtree. Listings inside the subtree are never dropped: the
-// caller must name `?moveTo=<category id>` (a live sibling-level category) and they are re-linked to
-// that destination's drill-in leaf. A delete that would orphan listings and names no destination
-// fails with 409 `move_required` so the portal can prompt for one.
+// toggle flips the plain Active/Inactive flag (PATCH /categories/{id}/toggle) — a hide, not a delete.
+// The row keeps its place in the admin list and existing references keep resolving.
+func (h *Handler) toggle(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		IsActive *bool `json:"isActive"`
+	}
+	if err := httpx.Decode(r, &req); err != nil || req.IsActive == nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "isActive is required")
+		return
+	}
+	item, err := h.repo.SetActive(r.Context(), chi.URLParam(r, "id"), *req.IsActive, auth.UserID(r.Context()))
+	if err != nil {
+		if errors.Is(err, ErrCategoryNotFound) {
+			httpx.Fail(w, http.StatusNotFound, "not_found", "category not found")
+			return
+		}
+		httpx.Fail(w, http.StatusInternalServerError, "categories_write_failed", "could not update category")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, item)
+}
+
+// remove moves a category and its subtree to the trash (DELETE /categories/{id}?moveTo=&reason=).
+// Listings inside the subtree are never dropped: the caller must name `?moveTo=<category id>` (a live
+// sibling-level category) and they are re-linked to that destination's drill-in leaf. A delete that
+// would orphan listings and names no destination fails with 409 `move_required` so the portal can
+// prompt for one. The row is restorable for 7 days, then the purger removes it for good.
 func (h *Handler) remove(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
-	moveTo := strings.TrimSpace(r.URL.Query().Get("moveTo"))
-	res, err := h.repo.Delete(r.Context(), id, moveTo, auth.UserID(r.Context()))
+	q := r.URL.Query()
+	moveTo := strings.TrimSpace(q.Get("moveTo"))
+	reason := strings.TrimSpace(q.Get("reason"))
+	if len(reason) > 500 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "delete reason is too long")
+		return
+	}
+	res, err := h.repo.Delete(r.Context(), id, moveTo, reason, auth.UserID(r.Context()))
 	switch {
 	case errors.Is(err, ErrCategoryNotFound):
 		httpx.Fail(w, http.StatusNotFound, "not_found", "category not found")
@@ -257,13 +308,118 @@ func (h *Handler) remove(w http.ResponseWriter, r *http.Request) {
 	}
 	httpx.JSON(w, http.StatusOK, map[string]any{
 		"ok":            true,
-		"deactivated":   true,
 		"id":            res.ID,
-		"hidden":        res.Deactivated,
+		"trashed":       res.Trashed,
 		"movedProducts": res.MovedProducts,
 		"targetId":      res.TargetID,
 		"targetName":    res.TargetName,
 	})
+}
+
+// restore brings a trashed category and its subtree back (POST /categories/{id}/restore). The subtree
+// returns deactivated so the operator re-enables it deliberately. A row past the window is purged and
+// reported as 410 `trash_expired`.
+func (h *Handler) restore(w http.ResponseWriter, r *http.Request) {
+	item, err := h.repo.Restore(r.Context(), chi.URLParam(r, "id"), auth.UserID(r.Context()))
+	switch {
+	case errors.Is(err, ErrCategoryNotFound):
+		httpx.Fail(w, http.StatusNotFound, "not_found", "category not found in trash")
+		return
+	case errors.Is(err, ErrTrashExpired):
+		httpx.Fail(w, http.StatusGone, "trash_expired",
+			"the restore window has closed; this category was permanently deleted")
+		return
+	case err != nil:
+		httpx.Fail(w, http.StatusInternalServerError, "categories_write_failed", "could not restore category")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, item)
+}
+
+// permanentRemove hard-deletes one trashed, unreferenced subtree now (DELETE
+// /categories/{id}/permanent). A row still referenced by a listing, store or menu is refused.
+func (h *Handler) permanentRemove(w http.ResponseWriter, r *http.Request) {
+	res, err := h.repo.PurgeOne(r.Context(), chi.URLParam(r, "id"))
+	switch {
+	case errors.Is(err, ErrCategoryNotFound):
+		httpx.Fail(w, http.StatusNotFound, "not_found", "category not found in trash")
+		return
+	case errors.Is(err, ErrStillReferenced):
+		httpx.Fail(w, http.StatusConflict, "category_in_use",
+			"listings, stores or menus still point at this category — it cannot be permanently deleted")
+		return
+	case err != nil:
+		httpx.Fail(w, http.StatusInternalServerError, "categories_write_failed", "could not delete category")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, map[string]any{
+		"ok":     true,
+		"id":     res.ID,
+		"purged": res.Purged,
+	})
+}
+
+// listAttributeGroups returns the superadmin-authored facet groups + options for one sub-category.
+// It is available to any signed-in account (the seller dish form and customer filter drawer read it).
+func (h *Handler) listAttributeGroups(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category id is required")
+		return
+	}
+	groups, err := h.repo.ListAttributeGroups(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "categories_unavailable", "attributes unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, groups)
+}
+
+// replaceAttributeGroups rewrites a sub-category's facet groups (superadmin only). Group/option ids
+// supplied by the portal are preserved so existing dish tags survive a reorder; omitted ids are
+// deleted. Everything is optional for the seller — a dish may publish with no facet tags.
+func (h *Handler) replaceAttributeGroups(w http.ResponseWriter, r *http.Request) {
+	id := strings.TrimSpace(chi.URLParam(r, "id"))
+	if id == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "category id is required")
+		return
+	}
+	var req struct {
+		Groups []AttributeGroupInput `json:"groups"`
+	}
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	if len(req.Groups) > 40 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "too many attribute groups (max 40)")
+		return
+	}
+	total := 0
+	for _, g := range req.Groups {
+		total += len(g.Options)
+	}
+	if total > 1000 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "too many attribute options (max 1000)")
+		return
+	}
+	groups, err := h.repo.ReplaceAttributeGroups(r.Context(), id, req.Groups, auth.UserID(r.Context()))
+	switch {
+	case errors.Is(err, ErrNotFound):
+		httpx.Fail(w, http.StatusNotFound, "not_found", "category not found")
+		return
+	case errors.Is(err, ErrDuplicate):
+		httpx.Fail(w, http.StatusConflict, "conflict",
+			"a group slug or option label is duplicated within this sub-category")
+		return
+	case errors.Is(err, ErrInvalidAttribute):
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid attribute group or option")
+		return
+	case err != nil:
+		httpx.Fail(w, http.StatusInternalServerError, "categories_write_failed", "could not save attributes")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, groups)
 }
 
 // normalizeHeaderLabels upper-cases, trims and de-duplicates an explicit header label list so the repo

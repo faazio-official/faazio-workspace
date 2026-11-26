@@ -35,6 +35,9 @@
    "Load more" keeps working.
 7. While a refresh is in flight a Faazio Blue (`text-brand`) `Loader2` spinner + "Refreshing…" shows
    at the bottom of the list.
+8. Rows show `price · struck MRP · % OFF` when `mrp > price` (0137), a "Compliance profile missing"
+   hint when the listing has no country of origin, and an **Add another size / shade** link that opens
+   the create wizard with `?variantOf=<id>` to add a sibling SKU.
 
 ## State
 

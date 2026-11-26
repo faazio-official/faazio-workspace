@@ -45,6 +45,15 @@ import DocumentCapture from '@/components/shared/DocumentCapture';
 import SellerLocationPicker from './SellerLocationPicker';
 import { neutral, parentRamp, semantic, semanticTint } from '@/theme/brandTokens';
 import ShopCard, { newVendorDraft, type VendorDraft } from './components/ShopCard';
+import {
+  buildDraft,
+  clearSellerDraft,
+  hasDraftContent,
+  readSellerDraft,
+  restoreVendor,
+  writeSellerDraft,
+  type SellerDraft,
+} from './sellerDraft';
 import { DocumentRow, TextInputField } from './components/FormControls';
 import {
   ContractSummary,
@@ -253,6 +262,11 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const autoSubmittedRef = useRef<string | null>(null);
   const consentArmedRef = useRef(false);
   const statusCheckedRef = useRef(false);
+  // Autosave draft: `draftHydratedRef` blocks the first writes until the stored draft has been read
+  // (so the initial empty state never clobbers it); `draftDisabledRef` stops writes once the gate is
+  // gone (submitted, or an application already exists on the server).
+  const draftHydratedRef = useRef(false);
+  const draftDisabledRef = useRef(false);
 
   const update = (key: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -448,7 +462,15 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     gateway
       .getMySellerApplication()
       .then((app) => {
-        if (alive) setResult(app);
+        if (!alive) return;
+        setResult(app);
+        const status = (app?.status ?? '').toUpperCase();
+        // An application already on the server makes the local draft meaningless — drop it so a
+        // later open never restores a stale form underneath the review screen.
+        if (status === 'PENDING_REVIEW' || status === 'ACTIVE') {
+          draftDisabledRef.current = true;
+          void clearSellerDraft(user?.id ?? '');
+        }
       })
       .catch(() => {
         // No application (404), offline, or transient failure: keep the onboarding form.
@@ -458,6 +480,85 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       });
     return () => {
       alive = false;
+    };
+  }, []);
+
+  // Restore a locally autosaved draft on open (per account). This runs regardless of the server
+  // status check; if the account already has an in-flight/active application, the status effect
+  // below clears the draft and disables further autosaves. Keyed on `user?.id` so a session that
+  // hydrates a tick after mount still restores the correct account's draft (never another's).
+  useEffect(() => {
+    const userKey = user?.id ?? '';
+    let alive = true;
+    void readSellerDraft(userKey)
+      .then((draft) => {
+        if (!alive || !draft || draftDisabledRef.current) return;
+        setForm((prev) => ({ ...prev, ...draft.form }));
+        if (draft.phoneCountry) setPhoneCountry(draft.phoneCountry);
+        const restored =
+          draft.vendors.length > 0 ? draft.vendors.map(restoreVendor) : [newVendorDraft()];
+        setVendors(restored);
+        setPassbookUri(draft.passbookUri);
+        setTierCode(draft.tierCode);
+        setTermsAccepted(draft.termsAccepted);
+        setPartnerAccepted(draft.partnerAccepted);
+        setIpGranted(draft.ipGranted);
+        // Category options are server-owned and never persisted: reload them for each restored shop.
+        restored.forEach((v) => loadCategoriesFor(v.key, v.app));
+      })
+      .finally(() => {
+        if (alive) draftHydratedRef.current = true;
+      });
+    return () => {
+      alive = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
+
+  // Autosave the draft on every change (debounced). No separate Save button: the form is always
+  // persisted, and an emptied form removes its draft. Never writes while submitting or once the
+  // gate is gone.
+  const latestDraftRef = useRef<{ userKey: string; draft: SellerDraft } | null>(null);
+  useEffect(() => {
+    if (!draftHydratedRef.current || draftDisabledRef.current || submitting) return;
+    const userKey = user?.id ?? '';
+    const draft = buildDraft({
+      form,
+      vendors,
+      passbookUri,
+      tierCode,
+      phoneCountry,
+      termsAccepted,
+      partnerAccepted,
+      ipGranted,
+    });
+    latestDraftRef.current = { userKey, draft };
+    const timer = setTimeout(() => {
+      if (draftDisabledRef.current) return;
+      if (hasDraftContent(draft)) void writeSellerDraft(userKey, draft);
+      else void clearSellerDraft(userKey);
+    }, 600);
+    return () => clearTimeout(timer);
+  }, [
+    form,
+    vendors,
+    passbookUri,
+    tierCode,
+    phoneCountry,
+    termsAccepted,
+    partnerAccepted,
+    ipGranted,
+    submitting,
+    user?.id,
+  ]);
+
+  // Flush the newest draft when the screen unmounts, so backing out inside the debounce window (or
+  // right after a capture) never loses the last edit.
+  useEffect(() => {
+    return () => {
+      const latest = latestDraftRef.current;
+      if (!latest || draftDisabledRef.current) return;
+      if (hasDraftContent(latest.draft)) void writeSellerDraft(latest.userKey, latest.draft);
     };
   }, []);
 
@@ -741,6 +842,9 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       });
       setResult(res);
       setSubmittedApps(vendorPayload.map((v) => v.app).filter(Boolean));
+      // The application is on the server now — the local autosaved draft is no longer needed.
+      draftDisabledRef.current = true;
+      void clearSellerDraft(user?.id ?? '');
     } catch (err) {
       setError(describeSubmitError(err));
     } finally {
@@ -1247,6 +1351,13 @@ export function SellerRegistrationScreen({ navigation }: Props) {
 
             {error ? <AppText style={styles.errorText}>{error}</AppText> : null}
 
+            <View style={styles.draftNote}>
+              <ShieldCheck size={ms(12)} color={neutral.inkSubtle} strokeWidth={2.2} />
+              <AppText style={styles.draftNoteText}>
+                Saved automatically on this device — your progress is here when you come back.
+              </AppText>
+            </View>
+
             <TouchableOpacity
               style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
               activeOpacity={0.85}
@@ -1520,6 +1631,14 @@ const styles = StyleSheet.create({
     gap: hs(6),
   },
   secureNoteText: { fontSize: ms(10.5), color: neutral.inkSubtle, lineHeight: ms(15), flex: 1 },
+  draftNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: hs(6),
+    marginBottom: vs(10),
+  },
+  draftNoteText: { fontSize: ms(10.5), color: neutral.inkSubtle, lineHeight: ms(15) },
   phoneRow: { flexDirection: 'row', alignItems: 'flex-end', gap: hs(8) },
   phoneInputWrap: { flex: 1 },
   statusLoading: { paddingVertical: vs(48), alignItems: 'center', justifyContent: 'center' },

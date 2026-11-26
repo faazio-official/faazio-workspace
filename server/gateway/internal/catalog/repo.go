@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -42,7 +43,9 @@ select p.id, p.app::text, p.category, p.name, p.search_tokens,
        p.unit, p.attributes,
        (s.available and (s.expiry_date is null or s.expiry_date >= current_date)) as available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
        coalesce(s.batch_no, ''), s.expiry_date,
-       null::float8 as distance_km, coalesce(p.name_ta, ''), coalesce(p.desc_text_ta, '')
+       null::float8 as distance_km, coalesce(p.name_ta, ''), coalesce(p.desc_text_ta, ''),
+       p.mrp_paisa, coalesce(p.brand,''), coalesce(p.pack_type,''), p.net_qty, coalesce(p.net_unit,''),
+       p.gallery_keys, p.is_prescription, coalesce(p.variant_group_id,'')
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
 
@@ -58,7 +61,9 @@ select p.id, p.app::text, p.category, p.name, p.search_tokens,
        coalesce(p.store_id,''), p.unit, null::jsonb as attributes,
        (s.available and (s.expiry_date is null or s.expiry_date >= current_date)) as available, s.in_stock_qty, s.price_paisa, s.eta, s.is_prescription,
        coalesce(s.batch_no, ''), s.expiry_date,
-       null::float8 as distance_km, coalesce(p.name_ta, ''), ''::text as desc_text_ta
+       null::float8 as distance_km, coalesce(p.name_ta, ''), ''::text as desc_text_ta,
+       p.mrp_paisa, coalesce(p.brand,''), coalesce(p.pack_type,''), p.net_qty, coalesce(p.net_unit,''),
+       null::text[] as gallery_keys, p.is_prescription, ''::text as variant_group_id
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id`
 
@@ -82,7 +87,13 @@ func (r *Repo) ByID(ctx context.Context, id string) (contracts.Product, bool, er
 	if len(products) == 0 {
 		return contracts.Product{}, false, nil
 	}
-	return products[0], true, nil
+	p := products[0]
+	if p.VariantGroupID != "" {
+		if siblings, err := r.VariantSiblings(ctx, p.VariantGroupID); err == nil && len(siblings) > 1 {
+			p.Variants = siblings
+		}
+	}
+	return p, true, nil
 }
 
 // Nearby returns ACTIVE products sold by live stores within radiusKm of (lat, lng), nearest first.
@@ -113,7 +124,9 @@ func (r *Repo) Nearby(ctx context.Context, app string, lat, lng, radiusKm float6
 		       (6371.0088 * acos(least(1, greatest(-1,
 		           sin(radians($1)) * sin(radians(d.latitude)) +
 		           cos(radians($1)) * cos(radians(d.latitude)) * cos(radians(d.longitude) - radians($2))
-		       )))) as distance_km, coalesce(p.name_ta, ''), ''::text as desc_text_ta
+		       )))) as distance_km, coalesce(p.name_ta, ''), ''::text as desc_text_ta,
+		       p.mrp_paisa, coalesce(p.brand,''), coalesce(p.pack_type,''), p.net_qty, coalesce(p.net_unit,''),
+		       null::text[] as gallery_keys, p.is_prescription, ''::text as variant_group_id
 		from catalog.products p
 		left join inventory.stock s on s.product_id = p.id
 		join directory.stores d on d.id = p.store_id
@@ -253,10 +266,17 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 		var (
 			p                      contracts.Product
 			pricePaisa, stockPrice *int64
+			mrpPaisa               *int64
 			rating                 float64
 			reviewsCount           *int64
 			attrsRaw               []byte
 			badge, shop, unit      *string
+			brand, packType        string
+			netQty                 *float64
+			netUnit                string
+			galleryKeys            []string
+			productRx              bool
+			variantGroupID         string
 			imageKey               *string
 			sAvail                 *bool
 			sQty                   *int64
@@ -272,6 +292,8 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 			&p.Emoji, &p.Image, &imageKey, &p.Desc, &badge, &shop, &p.StoreID, &unit, &attrsRaw,
 			&sAvail, &sQty, &stockPrice, &sETA, &sRx, &sBatch, &sExpiry,
 			&distance, &p.NameTA, &p.DescTA,
+			&mrpPaisa, &brand, &packType, &netQty, &netUnit,
+			&galleryKeys, &productRx, &variantGroupID,
 		); err != nil {
 			return nil, err
 		}
@@ -284,10 +306,18 @@ func scanProducts(rows pgx.Rows, cdnBase string) ([]contracts.Product, error) {
 		p.RatingRaw = rating
 		p.Rating = math.Round(rating*10) / 10
 		p.Price = toRupees(pricePaisa)
+		p.OriginalPrice = toRupeesPtr(mrpPaisa)
 		p.ReviewsCount = reviewsCount
 		p.Badge = deref(badge)
 		p.Shop = deref(shop)
 		p.Unit = deref(unit)
+		p.Brand = brand
+		p.PackType = packType
+		p.NetQty = netQty
+		p.NetUnit = netUnit
+		p.IsPrescription = productRx
+		p.VariantGroupID = variantGroupID
+		p.Gallery = resolveGallery(galleryKeys, cdnBase)
 		p.DistanceKm = distance
 		if len(attrsRaw) > 0 {
 			_ = json.Unmarshal(attrsRaw, &p.Attributes)
@@ -321,6 +351,208 @@ func toRupees(paisa *int64) int64 {
 	return *paisa / 100
 }
 
+func toRupeesPtr(paisa *int64) *int64 {
+	if paisa == nil {
+		return nil
+	}
+	v := *paisa / 100
+	return &v
+}
+
+// resolveGallery turns stored image keys into browser-usable CDN URLs (primary image uses the same
+// rule). A legacy absolute URL is kept verbatim; with no CDN configured the keys are returned so the
+// caller can still resolve them.
+func resolveGallery(keys []string, cdnBase string) []string {
+	if len(keys) == 0 {
+		return nil
+	}
+	out := make([]string, 0, len(keys))
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if strings.HasPrefix(key, "http://") || strings.HasPrefix(key, "https://") || cdnBase == "" {
+			out = append(out, key)
+			continue
+		}
+		out = append(out, cdnBase+"/"+key)
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+// packUnitLocks maps a packaging form to its mandatory net unit. KG/G/L/ML/PIECE carry the unit in
+// the form itself, so a conflicting net_unit is a data error rather than a seller choice.
+func packUnitLocks(packType string) (string, bool) {
+	switch packType {
+	case "KG":
+		return "kg", true
+	case "G":
+		return "g", true
+	case "L":
+		return "l", true
+	case "ML":
+		return "ml", true
+	case "PIECE":
+		return "piece", true
+	default:
+		return "", false
+	}
+}
+
+// ValidPackType reports whether the packaging form is one the catalog accepts.
+func ValidPackType(packType string) bool {
+	switch packType {
+	case "PIECE", "PACKET", "BUNDLE", "BOX", "KG", "G", "L", "ML", "STRIP", "DOZEN", "SET":
+		return true
+	default:
+		return false
+	}
+}
+
+// ValidNetUnit reports whether the net unit is one the catalog accepts.
+func ValidNetUnit(netUnit string) bool {
+	switch netUnit {
+	case "g", "kg", "ml", "l", "piece", "tablet", "sheet", "pack":
+		return true
+	default:
+		return false
+	}
+}
+
+// deriveUnit is the single source of the legacy display `unit` string. The structured pack fields
+// are canonical; every reader that still shows "Pack size" reads this derived value.
+func deriveUnit(packType string, netQty *float64, netUnit string) string {
+	if packType == "" || netQty == nil || *netQty <= 0 {
+		return ""
+	}
+	q := formatQty(*netQty)
+	switch packType {
+	case "KG", "G", "L", "ML":
+		return q + " " + netUnit
+	case "PIECE":
+		if *netQty == 1 {
+			return "1 piece"
+		}
+		return q + " pieces"
+	case "PACKET":
+		return "Pack of " + q
+	case "BOX":
+		return "Box of " + q
+	case "BUNDLE":
+		return "Bundle of " + q
+	case "DOZEN":
+		return "Dozen (" + q + ")"
+	case "SET":
+		return "Set of " + q
+	case "STRIP":
+		unit := "tablets"
+		if *netQty == 1 {
+			unit = "tablet"
+		}
+		return "Strip of " + q + " " + unit
+	default:
+		return ""
+	}
+}
+
+func formatQty(v float64) string {
+	return strconv.FormatFloat(v, 'f', -1, 64)
+}
+
+// normalizeGalleryKeys trims, drops blanks, caps at 5 and de-duplicates the extra image keys.
+func normalizeGalleryKeys(keys []string) []string {
+	out := make([]string, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
+	for _, key := range keys {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		out = append(out, key)
+		if len(out) == 5 {
+			break
+		}
+	}
+	return out
+}
+
+func nullIfEmpty(v string) *string {
+	v = strings.TrimSpace(v)
+	if v == "" {
+		return nil
+	}
+	return &v
+}
+
+// VariantSiblings returns the ACTIVE sibling SKUs in a variant group, current product included.
+func (r *Repo) VariantSiblings(ctx context.Context, groupID string) ([]contracts.ProductVariant, error) {
+	if r.pool == nil || strings.TrimSpace(groupID) == "" {
+		return nil, nil
+	}
+	rows, err := r.pool.Query(ctx, `
+		select p.id, coalesce(p.variant_label,''), p.price_paisa, p.mrp_paisa, coalesce(p.unit,''),
+		       coalesce(p.variant_order, 0),
+		       coalesce(s.in_stock_qty, 0) > 0
+		         and coalesce(s.available, true)
+		         and (s.expiry_date is null or s.expiry_date >= current_date)
+		  from catalog.products p
+		  left join inventory.stock s on s.product_id = p.id
+		 where p.variant_group_id = $1 and p.status = 'ACTIVE' and p.deleted_at is null
+		 order by coalesce(p.variant_order,0) asc, p.price_paisa asc`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []contracts.ProductVariant{}
+	for rows.Next() {
+		var (
+			v        contracts.ProductVariant
+			mrpPaisa *int64
+			price    int64
+		)
+		if err := rows.Scan(&v.ID, &v.Label, &price, &mrpPaisa, &v.Unit, &v.Order, &v.Available); err != nil {
+			return nil, err
+		}
+		v.Price = price / 100
+		v.OriginalPrice = toRupeesPtr(mrpPaisa)
+		if v.Label == "" {
+			v.Label = v.Unit
+		}
+		out = append(out, v)
+	}
+	return out, rows.Err()
+}
+
+// VariantGroupIDs returns every product id in a variant group so a write can purge all cached
+// detail rows (each embeds its siblings).
+func (r *Repo) VariantGroupIDs(ctx context.Context, groupID string) ([]string, error) {
+	if r.pool == nil || strings.TrimSpace(groupID) == "" {
+		return nil, nil
+	}
+	rows, err := r.pool.Query(ctx, `select id from catalog.products where variant_group_id = $1`, groupID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		out = append(out, id)
+	}
+	return out, rows.Err()
+}
+
 func derefInt(v *int64) int64 {
 	if v == nil {
 		return 0
@@ -339,26 +571,37 @@ func deref(v *string) string {
 // It carries the catalog identity plus the inventory.stock fields the seller inventory/pricing
 // console needs, so one read hydrates the products + stock slices.
 type SellerProduct struct {
-	ID             string `json:"id"`
-	Name           string `json:"name"`
-	App            string `json:"app"`
-	Category       string `json:"category"`
-	Status         string `json:"status"`
-	SellerID       string `json:"sellerId,omitempty"`
-	StoreID        string `json:"storeId,omitempty"`
-	Price          int64  `json:"price"` // rupees
-	Description    string `json:"description,omitempty"`
-	NameTA         string `json:"nameTa,omitempty"`
-	DescriptionTA  string `json:"descriptionTa,omitempty"`
-	Unit           string `json:"unit,omitempty"`
-	Emoji          string `json:"emoji,omitempty"`
-	ImageURL       string `json:"imageUrl,omitempty"`
-	ImageKey       string `json:"imageKey,omitempty"`
-	IsVeg          *bool  `json:"isVeg,omitempty"`
-	IsPrescription bool   `json:"isPrescription"`
-	InStockQty     int64  `json:"inStockQty"`
-	Available      bool   `json:"available"`
-	Eta            string `json:"eta,omitempty"` // free-text ETA carried from inventory.stock
+	ID                 string         `json:"id"`
+	Name               string         `json:"name"`
+	App                string         `json:"app"`
+	Category           string         `json:"category"`
+	Status             string         `json:"status"`
+	SellerID           string         `json:"sellerId,omitempty"`
+	StoreID            string         `json:"storeId,omitempty"`
+	Price              int64          `json:"price"`         // rupees
+	Mrp                int64          `json:"mrp,omitempty"` // rupees; 0 = no declared list price
+	Brand              string         `json:"brand,omitempty"`
+	PackType           string         `json:"packType,omitempty"`
+	NetQty             *float64       `json:"netQty,omitempty"`
+	NetUnit            string         `json:"netUnit,omitempty"`
+	GalleryKeys        []string       `json:"galleryKeys,omitempty"`
+	VariantGroupID     string         `json:"variantGroupId,omitempty"`
+	VariantLabel       string         `json:"variantLabel,omitempty"`
+	VariantOrder       int            `json:"variantOrder,omitempty"`
+	Attributes         map[string]any `json:"attributes,omitempty"`
+	TaxonomyCategoryID string         `json:"taxonomyCategoryId,omitempty"`
+	Description        string         `json:"description,omitempty"`
+	NameTA             string         `json:"nameTa,omitempty"`
+	DescriptionTA      string         `json:"descriptionTa,omitempty"`
+	Unit               string         `json:"unit,omitempty"`
+	Emoji              string         `json:"emoji,omitempty"`
+	ImageURL           string         `json:"imageUrl,omitempty"`
+	ImageKey           string         `json:"imageKey,omitempty"`
+	IsVeg              *bool          `json:"isVeg,omitempty"`
+	IsPrescription     bool           `json:"isPrescription"`
+	InStockQty         int64          `json:"inStockQty"`
+	Available          bool           `json:"available"`
+	Eta                string         `json:"eta,omitempty"` // free-text ETA carried from inventory.stock
 	// BatchNo/ExpiryDate are the regulated/perishable lot (0123). Empty when the SKU carries none;
 	// a past expiry makes Available false on every read.
 	BatchNo    string `json:"batchNo,omitempty"`
@@ -385,7 +628,10 @@ select p.id, p.name, p.app::text, p.category, p.status::text, coalesce(st.seller
        coalesce(s.available, true) and (s.expiry_date is null or s.expiry_date >= current_date),
        coalesce(s.eta, ''), coalesce(s.batch_no, ''), s.expiry_date,
        coalesce(p.review_reason, ''), p.updated_at, p.deleted_at, coalesce(p.delete_reason, ''),
-       coalesce(p.name_ta, ''), coalesce(p.desc_text_ta, '')
+       coalesce(p.name_ta, ''), coalesce(p.desc_text_ta, ''),
+       p.mrp_paisa, coalesce(p.brand,''), coalesce(p.pack_type,''), p.net_qty, coalesce(p.net_unit,''),
+       p.gallery_keys, coalesce(p.variant_group_id,''), coalesce(p.variant_label,''), coalesce(p.variant_order,0),
+       p.attributes, coalesce(p.taxonomy_category_id,'')
 from catalog.products p
 left join inventory.stock s on s.product_id = p.id
 left join directory.stores st on st.id = p.store_id`
@@ -460,7 +706,16 @@ type ProductCreateInput struct {
 	Desc               string
 	NameTA             string
 	DescTA             string
-	Price              int64 // rupees
+	Price              int64  // rupees
+	Mrp                *int64 // rupees; nil means "same as price"
+	Brand              string
+	PackType           string
+	NetQty             *float64
+	NetUnit            string
+	GalleryKeys        []string
+	VariantGroupID     string
+	VariantLabel       string
+	VariantOrder       int
 	Unit               string
 	Emoji              string
 	ImageURL           string
@@ -580,20 +835,55 @@ func (r *Repo) CreateProduct(ctx context.Context, sellerID, district string, e P
 
 	id := newProductID(app)
 	pricePaisa := e.Price * 100
+	mrpRupees := e.Price
+	if e.Mrp != nil {
+		mrpRupees = *e.Mrp
+	}
+	if mrpRupees < 0 || mrpRupees > 10_000_000 || mrpRupees < e.Price {
+		return SellerProduct{}, false, fmt.Errorf("catalog: invalid mrp")
+	}
+	mrpPaisa := mrpRupees * 100
+	unit := strings.TrimSpace(e.Unit)
+	if e.PackType != "" {
+		if !ValidPackType(e.PackType) {
+			return SellerProduct{}, false, fmt.Errorf("catalog: invalid pack type")
+		}
+		if lock, ok := packUnitLocks(e.PackType); ok {
+			e.NetUnit = lock
+		} else {
+			if e.NetUnit == "" {
+				e.NetUnit = "piece"
+			}
+			if !ValidNetUnit(e.NetUnit) {
+				return SellerProduct{}, false, fmt.Errorf("catalog: invalid net unit")
+			}
+		}
+		if e.NetQty == nil || *e.NetQty <= 0 {
+			return SellerProduct{}, false, fmt.Errorf("catalog: net quantity is required")
+		}
+		unit = deriveUnit(e.PackType, e.NetQty, e.NetUnit)
+	}
+	galleryKeys := normalizeGalleryKeys(e.GalleryKeys)
 	// Ownership is not written here: the product's owner is its store's owner (0070).
 	if _, err := tx.Exec(ctx, `
 		insert into catalog.products
 		  (id, app, category, name, search_tokens, price_paisa, rating, reviews_count,
 		   emoji, image_url, image_key, image_asset_id, desc_text, unit, store_id, is_prescription,
-		   is_veg, attributes, taxonomy_category_id, status, name_ta, desc_text_ta)
+		   is_veg, attributes, taxonomy_category_id, status, name_ta, desc_text_ta,
+		   mrp_paisa, brand, pack_type, net_qty, net_unit, gallery_keys,
+		   variant_group_id, variant_label, variant_order)
 		values ($1, $2::app_brand, $3, $4, $5, $6, 0, 0,
 		        $7, $8, $9, $10, $11, $12, $13, $14,
-		        $15, $16, $17, 'PENDING_REVIEW'::product_status, $18, $19)`,
+		        $15, $16, $17, 'PENDING_REVIEW'::product_status, $18, $19,
+		        $20, $21, $22, $23, $24, $25, $26, $27, $28)`,
 		id, app, category, name,
 		searchTokens(name, category, e.Desc, taxonomyName, taxonomyQuery), pricePaisa,
 		strings.TrimSpace(e.Emoji), strings.TrimSpace(e.ImageURL), e.ImageKey, e.ImageAssetID,
-		strings.TrimSpace(e.Desc), strings.TrimSpace(e.Unit), storeID, e.IsPrescription, e.IsVeg,
-		attrJSON, taxonomyPtr, strings.TrimSpace(e.NameTA), strings.TrimSpace(e.DescTA)); err != nil {
+		strings.TrimSpace(e.Desc), unit, storeID, e.IsPrescription, e.IsVeg,
+		attrJSON, taxonomyPtr, strings.TrimSpace(e.NameTA), strings.TrimSpace(e.DescTA),
+		mrpPaisa, strings.TrimSpace(e.Brand), strings.TrimSpace(e.PackType), e.NetQty,
+		strings.TrimSpace(e.NetUnit), galleryKeys,
+		nullIfEmpty(e.VariantGroupID), nullIfEmpty(e.VariantLabel), e.VariantOrder); err != nil {
 		return SellerProduct{}, false, err
 	}
 	if _, err := tx.Exec(ctx, `
@@ -656,6 +946,16 @@ type ProductEdit struct {
 	TaxonomyCategoryID *string
 	IsVeg              *bool
 	IsPrescription     *bool
+	// Rich PDP attributes (0137). Nil = leave unchanged; a pointer to "" clears a text column.
+	Mrp            *int64 // rupees
+	Brand          *string
+	PackType       *string
+	NetQty         *float64
+	NetUnit        *string
+	GalleryKeys    *[]string
+	VariantGroupID *string
+	VariantLabel   *string
+	VariantOrder   *int
 	// BatchNo/ExpiryDate are the lot metadata (0123). nil keeps the current value; a pointer to an
 	// empty string clears the column. ExpiryDate is a YYYY-MM-DD string ("" clears it).
 	BatchNo    *string
@@ -684,15 +984,21 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 		curDesc       string
 		curCategory   string
 		curTaxonomy   string
+		curPackType   string
+		curNetQty     *float64
+		curNetUnit    string
+		curMrpPaisa   *int64
 	)
 	if err := tx.QueryRow(ctx, `
 		select st.seller_id, coalesce(se.district_code, ''), st.app::text, p.name,
-		       coalesce(p.desc_text,''), p.category, coalesce(p.taxonomy_category_id, '')
+		       coalesce(p.desc_text,''), p.category, coalesce(p.taxonomy_category_id, ''),
+		       coalesce(p.pack_type,''), p.net_qty, coalesce(p.net_unit,''), p.mrp_paisa
 		  from catalog.products p
 		  join directory.stores st on st.id = p.store_id
 		  left join sellers.sellers se on se.seller_id = st.seller_id
 		 where p.id = $1 and p.deleted_at is null
-		 for update of p`, id).Scan(&owner, &ownerDistrict, &app, &curName, &curDesc, &curCategory, &curTaxonomy); err != nil {
+		 for update of p`, id).Scan(&owner, &ownerDistrict, &app, &curName, &curDesc, &curCategory, &curTaxonomy,
+		&curPackType, &curNetQty, &curNetUnit, &curMrpPaisa); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerProduct{}, false, nil
 		}
@@ -760,6 +1066,89 @@ func (r *Repo) UpdateProduct(ctx context.Context, id, sellerID, district string,
 			update catalog.products
 			   set price_paisa = coalesce($2, price_paisa)
 			 where id = $1`, id, mul100(e.Price)); err != nil {
+			return SellerProduct{}, false, err
+		}
+	}
+	if e.Mrp != nil {
+		if *e.Mrp < 0 || *e.Mrp > 10_000_000 {
+			return SellerProduct{}, false, fmt.Errorf("catalog: invalid mrp")
+		}
+		if _, err := tx.Exec(ctx, `
+			update catalog.products
+			   set mrp_paisa = case when $2 <= 0 then null else $2 end
+			 where id = $1`, id, *e.Mrp*100); err != nil {
+			return SellerProduct{}, false, err
+		}
+	}
+	if e.Brand != nil {
+		if _, err := tx.Exec(ctx, `
+			update catalog.products
+			   set brand = nullif($2, '')
+			 where id = $1`, id, strings.TrimSpace(*e.Brand)); err != nil {
+			return SellerProduct{}, false, err
+		}
+	}
+	if e.PackType != nil || e.NetQty != nil || e.NetUnit != nil {
+		packType := curPackType
+		netQty := curNetQty
+		netUnit := curNetUnit
+		if e.PackType != nil {
+			packType = strings.TrimSpace(*e.PackType)
+		}
+		if e.NetQty != nil {
+			netQty = e.NetQty
+		}
+		if e.NetUnit != nil {
+			netUnit = strings.TrimSpace(*e.NetUnit)
+		}
+		if packType != "" {
+			if !ValidPackType(packType) {
+				return SellerProduct{}, false, fmt.Errorf("catalog: invalid pack type")
+			}
+			if lock, ok := packUnitLocks(packType); ok {
+				netUnit = lock
+			} else {
+				if netUnit == "" {
+					netUnit = "piece"
+				}
+				if !ValidNetUnit(netUnit) {
+					return SellerProduct{}, false, fmt.Errorf("catalog: invalid net unit")
+				}
+			}
+			if netQty == nil || *netQty <= 0 {
+				return SellerProduct{}, false, fmt.Errorf("catalog: net quantity is required")
+			}
+		}
+		derived := deriveUnit(packType, netQty, netUnit)
+		if _, err := tx.Exec(ctx, `
+			update catalog.products
+			   set pack_type = nullif($2, ''),
+			       net_qty   = $3,
+			       net_unit  = nullif($4, ''),
+			       unit      = nullif($5, '')
+			 where id = $1`, id, packType, netQty, netUnit, derived); err != nil {
+			return SellerProduct{}, false, err
+		}
+	}
+	if e.GalleryKeys != nil {
+		if _, err := tx.Exec(ctx, `
+			update catalog.products
+			   set gallery_keys = $2
+			 where id = $1`, id, normalizeGalleryKeys(*e.GalleryKeys)); err != nil {
+			return SellerProduct{}, false, err
+		}
+	}
+	if e.VariantGroupID != nil || e.VariantLabel != nil || e.VariantOrder != nil {
+		if _, err := tx.Exec(ctx, `
+			update catalog.products
+			   set variant_group_id = case when $2::bool then nullif($3,'') else variant_group_id end,
+			       variant_label    = case when $4::bool then nullif($5,'') else variant_label end,
+			       variant_order    = coalesce($6, variant_order)
+			 where id = $1`,
+			id,
+			e.VariantGroupID != nil, trimPtr(e.VariantGroupID),
+			e.VariantLabel != nil, trimPtr(e.VariantLabel),
+			e.VariantOrder); err != nil {
 			return SellerProduct{}, false, err
 		}
 	}
@@ -991,16 +1380,26 @@ func scanSellerProduct(row sellerProductScanner) (SellerProduct, error) {
 		updatedAt time.Time
 		deletedAt *time.Time
 		expiry    *time.Time
+		mrpPaisa  *int64
+		attrsRaw  []byte
 	)
 	if err := row.Scan(&p.ID, &p.Name, &p.App, &p.Category, &p.Status, &p.SellerID, &p.StoreID,
 		&p.Price, &p.Description, &p.Unit, &p.Emoji, &p.ImageURL, &p.ImageKey,
 		&p.IsVeg, &p.IsPrescription, &p.InStockQty, &p.Available, &p.Eta, &p.BatchNo,
 		&expiry, &p.ReviewReason, &updatedAt, &deletedAt, &p.DeleteReason,
-		&p.NameTA, &p.DescriptionTA); err != nil {
+		&p.NameTA, &p.DescriptionTA,
+		&mrpPaisa, &p.Brand, &p.PackType, &p.NetQty, &p.NetUnit,
+		&p.GalleryKeys, &p.VariantGroupID, &p.VariantLabel, &p.VariantOrder, &attrsRaw, &p.TaxonomyCategoryID); err != nil {
 		return SellerProduct{}, err
+	}
+	if len(attrsRaw) > 0 {
+		_ = json.Unmarshal(attrsRaw, &p.Attributes)
 	}
 	if expiry != nil {
 		p.ExpiryDate = expiry.Format("2006-01-02")
+	}
+	if mrpPaisa != nil {
+		p.Mrp = *mrpPaisa / 100
 	}
 	p.Price /= 100
 	p.UpdatedAt = updatedAt.UTC().Format(time.RFC3339)

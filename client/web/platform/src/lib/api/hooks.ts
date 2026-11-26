@@ -407,6 +407,119 @@ export function useNotifications(): {
   return { items, loading, markRead, markAllRead, reload };
 }
 
+/**
+ * The signed-in seller's own application status (`GET /sellers/me`). Drives the real onboarding
+ * checklist + status banner so the portal never claims "KYC verified" for an unapproved account.
+ */
+export function useSellerMe(): { me: SellerRecord | null; loading: boolean } {
+  const [me, setMe] = useState<SellerRecord | null>(null);
+  const [loading, setLoading] = useState(false);
+  useEffect(() => {
+    if (!remoteConfigured()) {
+      setMe(null);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    api
+      .fetchSellerMe()
+      .then((row) => {
+        if (!cancelled) setMe(row);
+      })
+      .catch(() => {
+        if (!cancelled) setMe(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return { me, loading };
+}
+
+/**
+ * Unread badge count for the seller console bell (`GET /notifications/unread-count`). Polls every
+ * 60s while mounted so the bell reflects new order/moderation alerts without a socket, and refetches
+ * when the tab regains visibility. Returns 0 (no badge) when the gateway is unconfigured.
+ */
+export function useUnreadNotifications(): { unread: number } {
+  const [unread, setUnread] = useState(0);
+  useEffect(() => {
+    if (!remoteConfigured()) return;
+    let cancelled = false;
+    const tick = () => {
+      api
+        .fetchUnreadNotificationCount()
+        .then((n) => {
+          if (!cancelled) setUnread(n);
+        })
+        .catch(() => {
+          /* keep the last known count; the badge simply doesn't update */
+        });
+    };
+    tick();
+    const timer = setInterval(tick, 60_000);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
+  }, []);
+  return { unread };
+}
+
+/**
+ * Admin console outbox (`GET /admin/notifications`). Cross-user view of the notification pipeline
+ * for delivery monitoring, polled every 30s while mounted. `status` filters by delivery state
+ * (PENDING / SENT / FAILED); "ALL" leaves it unfiltered.
+ */
+export function useAdminNotifications(status: string): {
+  items: api.AdminNotification[];
+  loading: boolean;
+  reload: () => void;
+} {
+  const [items, setItems] = useState<api.AdminNotification[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [version, setVersion] = useState(0);
+  const reload = useCallback(() => setVersion((v) => v + 1), []);
+
+  useEffect(() => {
+    if (!remoteConfigured()) {
+      setItems([]);
+      return;
+    }
+    let cancelled = false;
+    const load = () => {
+      setLoading(true);
+      api
+        .fetchAdminNotifications(status)
+        .then((rows) => {
+          if (!cancelled) setItems(rows);
+        })
+        .catch(() => {
+          if (!cancelled) setItems([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    load();
+    const timer = setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, [status, version]);
+
+  return { items, loading, reload };
+}
+
 /** States/UTs from `admins.states` (the DB is the authority). */
 export function useStates(): api.StateSummary[] {
   const [items, setItems] = useState<api.StateSummary[]>([]);
@@ -483,8 +596,7 @@ export function useAdminDistricts(stateCode?: string) {
   return { items, loading, error, reload };
 }
 
-/** Trashed districts (GET /admin/districts/trash) still inside the 7-day restore window. */
-export function useDeletedDistricts(stateCode?: string) {
+/** Trashed districts (GET /admin/districts/trash) still inside the 7-day restore window. */export function useDeletedDistricts(stateCode?: string) {
   const [items, setItems] = useState<api.AdminDistrictRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -616,8 +728,43 @@ export function useGSTRateCategories() {
   return { items, loading, error, reload };
 }
 
-/** One IST-day analytics bucket (from checkout.orders via GET /analytics/series). */
-type AnalyticsDailyPoint = import("@/data/types").DailyPoint;
+/**
+ * Trashed categories (`GET /admin/categories/trash`) still inside the 7-day restore window. Mirrors
+ * `useDeletedDistricts` so both admin trash tabs share one shape.
+ */
+export function useDeletedCategories(app?: api.CategoryApp | "ALL") {
+  const [items, setItems] = useState<api.CategoryRow[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const reload = useCallback(() => {
+    if (!remoteConfigured()) {
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    api
+      .listDeletedCategories(app)
+      .then((rows) => {
+        setItems(rows);
+        setError(null);
+      })
+      .catch((err: unknown) => {
+        setItems([]);
+        setError(err instanceof Error ? err.message : "Could not load deleted categories.");
+      })
+      .finally(() => setLoading(false));
+  }, [app]);
+
+  useEffect(() => {
+    reload();
+  }, [reload]);
+
+  return { items, loading, error, reload };
+}
+
+/** One IST-day analytics bucket (from checkout.orders via GET /analytics/series). */type AnalyticsDailyPoint = import("@/data/types").DailyPoint;
 
 /** Live daily GMV/orders for a scope (global | seller | state | product) — the DB is the source. */
 export function useAnalyticsSeries(

@@ -9,6 +9,8 @@ import { updateSellerStore } from "@/lib/api";
 import { useSellerStores } from "@/lib/api/hooks";
 import { uploadPrivateDocument } from "@/lib/media/kyc";
 import { tamilFieldError } from "@/lib/tamil";
+import { RETURN_POLICIES } from "@/lib/productOptions";
+import type { LegalMetrology } from "@/data/types";
 
 type VendorDraft = {
   hours: string;
@@ -20,6 +22,15 @@ type VendorDraft = {
   /** Restock defaults (0123) — retail only; kept as strings so a half-typed field is not a 0. */
   restockQty: string;
   restockEtaMinutes: string;
+  /** Saved legal-metrology profile (0137). */
+  countryOfOrigin: string;
+  manufacturerName: string;
+  manufacturerAddress: string;
+  packerName: string;
+  packerAddress: string;
+  shelfLifeDays: string;
+  storage: string;
+  returnPolicy: string;
 };
 
 function draftFor(store: {
@@ -31,7 +42,9 @@ function draftFor(store: {
   drugLicenseCertAssetId?: string | undefined;
   restockQty: number;
   restockEtaMinutes: number;
+  complianceDefaults?: LegalMetrology | undefined;
 }): VendorDraft {
+  const lm = store.complianceDefaults;
   return {
     hours: store.hours ?? "",
     nameTa: store.nameTa ?? "",
@@ -41,6 +54,14 @@ function draftFor(store: {
     drugLicenseAssetId: store.drugLicenseCertAssetId ?? "",
     restockQty: String(store.restockQty),
     restockEtaMinutes: String(store.restockEtaMinutes),
+    countryOfOrigin: lm?.countryOfOrigin ?? "India",
+    manufacturerName: lm?.manufacturerName ?? "",
+    manufacturerAddress: lm?.manufacturerAddress ?? "",
+    packerName: lm?.packerName ?? "",
+    packerAddress: lm?.packerAddress ?? "",
+    shelfLifeDays: lm?.shelfLifeDays ? String(lm.shelfLifeDays) : "",
+    storage: lm?.storage ?? "",
+    returnPolicy: lm?.returnPolicy ?? RETURN_POLICIES[0]!.value,
   };
 }
 
@@ -78,6 +99,7 @@ function SellerStores() {
       longitude?: number;
       restockQty?: number;
       restockEtaMinutes?: number;
+      complianceDefaults?: LegalMetrology;
     },
   ) => {
     try {
@@ -267,6 +289,78 @@ function SellerStores() {
                       </button>
                     </div>
                   )}
+                  <div className="border-t border-border pt-3">
+                    <p className="text-[11px] font-semibold">Compliance defaults</p>
+                    <p className="mb-2 text-[11px] text-muted-foreground">
+                      Prefilled into every new listing so you are not retyping legal metrology.
+                    </p>
+                    <TextField
+                      label="Country of origin"
+                      value={draft.countryOfOrigin}
+                      onChange={(v) => updateDraft(store.storeId, { countryOfOrigin: v })}
+                    />
+                    <TextField
+                      label="Manufacturer name"
+                      value={draft.manufacturerName}
+                      onChange={(v) => updateDraft(store.storeId, { manufacturerName: v })}
+                    />
+                    <TextField
+                      label="Manufacturer address"
+                      value={draft.manufacturerAddress}
+                      onChange={(v) => updateDraft(store.storeId, { manufacturerAddress: v })}
+                    />
+                    <TextField
+                      label="Packer name"
+                      value={draft.packerName}
+                      onChange={(v) => updateDraft(store.storeId, { packerName: v })}
+                    />
+                    <TextField
+                      label="Packer address"
+                      value={draft.packerAddress}
+                      onChange={(v) => updateDraft(store.storeId, { packerAddress: v })}
+                    />
+                    <div className="flex gap-2">
+                      <TextField
+                        label="Shelf life (days)"
+                        value={draft.shelfLifeDays}
+                        onChange={(v) => updateDraft(store.storeId, { shelfLifeDays: v.replace(/[^0-9]/g, "") })}
+                      />
+                      <TextField
+                        label="Return policy"
+                        value={draft.returnPolicy}
+                        onChange={(v) => updateDraft(store.storeId, { returnPolicy: v })}
+                      />
+                    </div>
+                    <TextField
+                      label="Storage instructions"
+                      value={draft.storage}
+                      onChange={(v) => updateDraft(store.storeId, { storage: v })}
+                    />
+                    <button
+                      onClick={() => {
+                        const days = draft.shelfLifeDays ? Number(draft.shelfLifeDays) : undefined;
+                        if (days !== undefined && (!Number.isInteger(days) || days < 1 || days > 3650)) {
+                          toast.error("Shelf life must be between 1 and 3650 days");
+                          return;
+                        }
+                        void save(store.storeId, {
+                          complianceDefaults: {
+                            countryOfOrigin: draft.countryOfOrigin.trim(),
+                            ...(draft.manufacturerName.trim() ? { manufacturerName: draft.manufacturerName.trim() } : {}),
+                            ...(draft.manufacturerAddress.trim() ? { manufacturerAddress: draft.manufacturerAddress.trim() } : {}),
+                            ...(draft.packerName.trim() ? { packerName: draft.packerName.trim() } : {}),
+                            ...(draft.packerAddress.trim() ? { packerAddress: draft.packerAddress.trim() } : {}),
+                            ...(days ? { shelfLifeDays: days } : {}),
+                            ...(draft.storage.trim() ? { storage: draft.storage.trim() } : {}),
+                            returnPolicy: draft.returnPolicy,
+                          },
+                        });
+                      }}
+                      className="mt-1 w-full rounded-xl border border-border bg-card px-4 py-2 text-sm font-semibold"
+                    >
+                      Save compliance defaults
+                    </button>
+                  </div>
                   <button
                     onClick={() => {
                       const nameTaError = tamilFieldError(draft.nameTa, 160, "Tamil shop name");

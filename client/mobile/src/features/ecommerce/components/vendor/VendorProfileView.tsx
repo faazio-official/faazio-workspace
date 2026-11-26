@@ -6,7 +6,6 @@ import {
   FlatList,
   TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
   type ListRenderItemInfo,
   type ViewToken,
   type ViewabilityConfig,
@@ -21,7 +20,7 @@ import MartImage from '../mart-home/MartImage';
 import MartProductCard from '@/features/ecommerce/cards/MartProductCard';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
+import { PRODUCT_CARD_COLUMNS, PRODUCT_CARD_GAP, PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import type { CartItem } from '@/state/cartStore';
 import type { Product, StoreProfile } from '@data/types';
 import VendorHighlights from './VendorHighlights';
@@ -30,9 +29,7 @@ import { VENDOR_YELLOW, GREEN, TEXT_DARK, TEXT_LIGHT } from './theme';
 import { neutral, semantic, semanticTint } from '@/theme/brandTokens';
 import { formatRating } from '@/components/shared/format';
 
-const SCREEN_W = Dimensions.get('window').width;
-const CARD_GAP = hs(12);
-const CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
+const CARD_W = PRODUCT_CARD_WIDTH;
 const CARD_W_RAIL = PRODUCT_CARD_WIDTH;
 
 interface VendorProfileViewProps {
@@ -152,7 +149,7 @@ export function VendorProfileView({
       <FlatList
         data={filteredProducts}
         keyExtractor={(item) => item.id}
-        numColumns={2}
+        numColumns={PRODUCT_CARD_COLUMNS}
         columnWrapperStyle={styles.productRow}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
@@ -321,7 +318,7 @@ const styles = StyleSheet.create({
   },
   productRow: {
     paddingHorizontal: hs(16),
-    justifyContent: 'space-between',
+    gap: PRODUCT_CARD_GAP,
   },
   board: {
     backgroundColor: neutral.card,

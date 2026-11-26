@@ -83,9 +83,12 @@ caller) and are event-purged on store live toggle and product edit/status change
   inventory.stock in one transaction; created rows surface in the public nearby reads once ACTIVE).
   The seller console reads stock/pricing via `GET /seller/inventory` + `GET /seller/pricing` and writes
   them via `PUT /seller/inventory/{productId}` (qty + ETA) and `PUT /seller/pricing/{productId}`
-  (price-only; MRP was retired by `0079`), and edits descriptive fields via `PUT
-  /seller/products/{id}` (name/description/category/isVeg/isPrescription; re-tokenizes search), all
-  seller-scoped and audit-logged. Both create and edit also accept the optional display-only Tamil
+  (selling price + optional MRP; `0137` restored `catalog.products.mrp_paisa` after `0079`), and edits
+  descriptive fields via `PUT /seller/products/{id}` (name/description/category/isVeg/isPrescription,
+  plus `mrp`, `brand`, `packType`/`netQty`/`netUnit`, `galleryKeys`, variant group/label and
+  `attributes`; re-tokenizes search), all seller-scoped and audit-logged. Create/edit validate every
+  gallery key against the media registry (PUBLIC + ACTIVE + owned), lock the net unit for KG/G/L/ML/
+  PIECE, derive the legacy `unit` display string server-side, and `mrp >= price`. Both create and edit also accept the optional display-only Tamil
   translations `nameTa`/`descriptionTa` (`0107`), validated Tamil-only by
   `internal/platform/locale.IsTamilText` (Latin/other scripts → `400`); the same rule guards
   `POST/PUT /categories` (`nameTa`/`descriptionTa`), `POST /seller/stores` + `PUT /seller/stores/{id}`
@@ -597,8 +600,9 @@ Two additional write surfaces share the derived-gate pattern but tighten the pur
 - **Product review** — `PUT /products/{id}/review` (auth) upserts one live review per
   `(user, product)` in `reviews.reviews` (`0090` adds `user_id`/`order_ids`/`updated_at` + a
   partial unique index). Eligibility: a `checkout.orders` row with `status = 'Delivered'` joined to
-  `checkout.order_items.product_id` (`ProductPurchaseProof`). Read: `GET /product/{id}/reviews`;
-  write purges `faazio:v1:reviews:product:{id}`.
+  `checkout.order_items.product_id` (`ProductPurchaseProof`). Read: `GET /product/{id}/reviews` +
+  `GET /product/{id}/reviews/summary` (average/count/5-star distribution for the PDP histogram, cached
+  under `faazio:v1:reviews:product-summary:{id}`); write purges both keys.
 - **Order feedback** — `GET` / `PUT /orders/{id}/feedback` (auth) reads/upserts one row per order in
   `reviews.order_feedback`. Eligibility: the caller's order must be `Delivered`
   (`OrderDeliveredProof`).

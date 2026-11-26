@@ -67,8 +67,6 @@ export type RootStackParamList = {
   PaymentCallback: { orderId?: string; status?: 'PAID' | 'FAILED' | 'PENDING' } | undefined;
   /** "My Profile" — personal info, preferences, security (pushed from Account). */
   UserDetails: undefined;
-  /** Appearance setting — light / dark / auto, device-local (pushed from Account). */
-  Theme: undefined;
   /** Language setting — English / Tamil, device-local (pushed from Account). */
   Language: undefined;
   /** "Saved Addresses" — manage, select, add delivery locations (pushed from Account). */

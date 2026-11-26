@@ -23,6 +23,8 @@ import { boardForNotificationKind, refreshBoards } from './pushRefresh';
 import { handleIncomingCall } from '@/features/customer/calling/callController';
 import { INCOMING_CALL_TYPE } from '@/features/call/incoming';
 import { getVoipToken, subscribeVoipToken } from '@/features/call/callkeep';
+import { navigationRef } from '@/navigation/navigationRef';
+import { useNotificationsStore } from '@/state/notificationsStore';
 
 const platform: 'android' | 'ios' = Platform.OS === 'ios' ? 'ios' : 'android';
 
@@ -50,7 +52,7 @@ async function syncVoipToken(): Promise<void> {
   if (token) await gateway.registerPushToken(token, 'ios', 'voip');
 }
 
-function handleMessage(message: RemoteMessage, onNotification?: () => void): void {
+function handleMessage(message: RemoteMessage, tapped: boolean, onNotification?: () => void): void {
   const data = message.data as Record<string, unknown> | undefined;
   // Call pushes are handled by the calling surface, never treated as an inbox notification.
   if (data?.type === INCOMING_CALL_TYPE) {
@@ -61,6 +63,14 @@ function handleMessage(message: RemoteMessage, onNotification?: () => void): voi
   // in place; the fetch — not the push — remains the source of truth for what is shown.
   const board = boardForNotificationKind(data?.kind);
   if (board) refreshBoards(board);
+  // Keep the unread badge warm for any push (foreground or background).
+  void useNotificationsStore.getState().refreshUnread();
+  // A tap on a non-call alert opens the durable inbox so the customer sees it in context.
+  if (tapped) {
+    if (navigationRef.isReady()) {
+      navigationRef.navigate('Notifications');
+    }
+  }
   onNotification?.();
 }
 
@@ -90,15 +100,15 @@ export async function startCustomerPush(onNotification?: () => void): Promise<()
     const unsubToken = onTokenRefresh(messaging, (token) => {
       void gateway.registerPushToken(token, platform).catch(() => undefined);
     });
-    const unsubMessage = onMessage(messaging, (message) => handleMessage(message, onNotification));
+    const unsubMessage = onMessage(messaging, (message) => handleMessage(message, false, onNotification));
     const unsubOpen = onNotificationOpenedApp(messaging, (message) =>
-      handleMessage(message, onNotification),
+      handleMessage(message, true, onNotification),
     );
 
     // Cold-start notification: report it once so the inbox can refresh on mount.
     void getInitialNotification(messaging)
       .then((initial) => {
-        if (initial) handleMessage(initial, onNotification);
+        if (initial) handleMessage(initial, true, onNotification);
       })
       .catch(() => undefined);
 

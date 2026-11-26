@@ -162,19 +162,28 @@ func (h *Handler) purgeNearbyProductTiles(r *http.Request, storeID string) {
 func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	var body struct {
-		Price              *int64  `json:"price"`
-		InStockQty         *int64  `json:"inStockQty"`
-		Available          *bool   `json:"available"`
-		ImageAssetID       *string `json:"imageAssetId"`
-		ImageKey           *string `json:"imageKey"`
-		Name               *string `json:"name"`
-		Description        *string `json:"description"`
-		NameTA             *string `json:"nameTa"`
-		DescriptionTA      *string `json:"descriptionTa"`
-		Category           *string `json:"category"`
-		TaxonomyCategoryID *string `json:"taxonomyCategoryId"`
-		IsVeg              *bool   `json:"isVeg"`
-		IsPrescription     *bool   `json:"isPrescription"`
+		Price              *int64    `json:"price"`
+		InStockQty         *int64    `json:"inStockQty"`
+		Available          *bool     `json:"available"`
+		ImageAssetID       *string   `json:"imageAssetId"`
+		ImageKey           *string   `json:"imageKey"`
+		Name               *string   `json:"name"`
+		Description        *string   `json:"description"`
+		NameTA             *string   `json:"nameTa"`
+		DescriptionTA      *string   `json:"descriptionTa"`
+		Category           *string   `json:"category"`
+		TaxonomyCategoryID *string   `json:"taxonomyCategoryId"`
+		IsVeg              *bool     `json:"isVeg"`
+		IsPrescription     *bool     `json:"isPrescription"`
+		Mrp                *int64    `json:"mrp"`
+		Brand              *string   `json:"brand"`
+		PackType           *string   `json:"packType"`
+		NetQty             *float64  `json:"netQty"`
+		NetUnit            *string   `json:"netUnit"`
+		GalleryKeys        *[]string `json:"galleryKeys"`
+		VariantGroupID     *string   `json:"variantGroupId"`
+		VariantLabel       *string   `json:"variantLabel"`
+		VariantOrder       *int      `json:"variantOrder"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
@@ -187,6 +196,62 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	if body.InStockQty != nil && (*body.InStockQty < 0 || *body.InStockQty > 1_000_000) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid stock quantity")
 		return
+	}
+	if body.Mrp != nil {
+		if *body.Mrp < 0 || *body.Mrp > 10_000_000 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid mrp")
+			return
+		}
+		if body.Price != nil && *body.Mrp < *body.Price {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be greater than or equal to the selling price")
+			return
+		}
+	}
+	if body.Brand != nil {
+		brand := strings.TrimSpace(*body.Brand)
+		if len(brand) > 120 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "brand is too long")
+			return
+		}
+		body.Brand = &brand
+	}
+	if body.PackType != nil {
+		packType := strings.TrimSpace(*body.PackType)
+		if packType != "" && !ValidPackType(packType) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid pack type")
+			return
+		}
+		body.PackType = &packType
+	}
+	if body.NetUnit != nil {
+		netUnit := strings.TrimSpace(*body.NetUnit)
+		if netUnit != "" && !ValidNetUnit(netUnit) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid net unit")
+			return
+		}
+		body.NetUnit = &netUnit
+	}
+	if body.PackType != nil && *body.PackType != "" {
+		if lock, ok := packUnitLocks(*body.PackType); ok {
+			if body.NetUnit != nil && *body.NetUnit != "" && *body.NetUnit != lock {
+				httpx.Fail(w, http.StatusBadRequest, "invalid_pack_unit", "pack type fixes its net unit")
+				return
+			}
+			lockCopy := lock
+			body.NetUnit = &lockCopy
+		}
+	}
+	if body.VariantGroupID != nil {
+		v := strings.TrimSpace(*body.VariantGroupID)
+		body.VariantGroupID = &v
+	}
+	if body.VariantLabel != nil {
+		v := strings.TrimSpace(*body.VariantLabel)
+		if len(v) > 60 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "variant label is too long")
+			return
+		}
+		body.VariantLabel = &v
 	}
 	if body.Name != nil {
 		name := strings.TrimSpace(*body.Name)
@@ -241,6 +306,13 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return // resolveImageLink already wrote the error
 	}
+	if body.GalleryKeys != nil {
+		galleryKeys, galleryOK := h.resolveGalleryKeys(w, r, *body.GalleryKeys, auth.IsAdmin(r.Context()))
+		if !galleryOK {
+			return
+		}
+		body.GalleryKeys = &galleryKeys
+	}
 	p, found, err := h.repo.UpdateProduct(r.Context(), id, sellerID, district, ProductEdit{
 		Price: body.Price, InStockQty: body.InStockQty, Available: body.Available,
 		ImageKey: imageKey, ImageAssetID: imageAssetID,
@@ -248,6 +320,9 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		NameTA: body.NameTA, DescriptionTA: body.DescriptionTA,
 		TaxonomyCategoryID: body.TaxonomyCategoryID,
 		IsVeg:              body.IsVeg, IsPrescription: body.IsPrescription,
+		Mrp: body.Mrp, Brand: body.Brand, PackType: body.PackType, NetQty: body.NetQty,
+		NetUnit: body.NetUnit, GalleryKeys: body.GalleryKeys,
+		VariantGroupID: body.VariantGroupID, VariantLabel: body.VariantLabel, VariantOrder: body.VariantOrder,
 	})
 	if err != nil {
 		if errors.Is(err, ErrInvalidTaxonomy) {
@@ -261,7 +336,7 @@ func (h *Handler) updateProduct(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found")
 		return
 	}
-	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(p.StoreID))
+	h.purgeProductCaches(r.Context(), p)
 	h.purgeNearbyProductTiles(r, p.StoreID)
 	h.log(r, "PRODUCT_EDIT", id, map[string]any{"price": p.Price})
 	httpx.JSON(w, http.StatusOK, p)
@@ -291,7 +366,7 @@ func (h *Handler) deleteProduct(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found")
 		return
 	}
-	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(p.StoreID))
+	h.purgeProductCaches(r.Context(), p)
 	h.purgeNearbyProductTiles(r, p.StoreID)
 	h.log(r, "PRODUCT_DELETE", id, map[string]any{"reason": reason})
 	httpx.JSON(w, http.StatusOK, p)
@@ -334,7 +409,7 @@ func (h *Handler) restoreProduct(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found in trash")
 		return
 	}
-	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(p.StoreID))
+	h.purgeProductCaches(r.Context(), p)
 	h.purgeNearbyProductTiles(r, p.StoreID)
 	h.log(r, "PRODUCT_RESTORE", id, nil)
 	httpx.JSON(w, http.StatusOK, p)
@@ -412,6 +487,48 @@ func (h *Handler) resolveImageLink(w http.ResponseWriter, r *http.Request, asset
 	}
 	key, id := asset.Key, asset.ID
 	return &key, &id, true
+}
+
+// resolveGalleryKeys validates every extra image key against the media registry (PUBLIC, ACTIVE,
+// owned by the caller) so a seller cannot hotlink another seller's asset. Caps at 5 and de-dupes.
+func (h *Handler) resolveGalleryKeys(w http.ResponseWriter, r *http.Request, keys []string, admin bool) ([]string, bool) {
+	if len(keys) == 0 {
+		return nil, true
+	}
+	if h.media == nil {
+		httpx.Fail(w, http.StatusServiceUnavailable, "media_unavailable", "media registry not configured")
+		return nil, false
+	}
+	actor := auth.UserID(r.Context())
+	if actor == "" {
+		actor = auth.SellerID(r.Context())
+	}
+	out := make([]string, 0, len(keys))
+	seen := make(map[string]struct{}, len(keys))
+	for _, raw := range keys {
+		key := strings.TrimPrefix(strings.TrimSpace(raw), "r2:")
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		asset, found, err := h.media.ByKey(r.Context(), key)
+		if err != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "media_unavailable", "media unavailable")
+			return nil, false
+		}
+		if !found || asset.Kind != "PUBLIC" || asset.Status != "ACTIVE" || (!admin && asset.CreatedBy != actor) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid or unowned gallery image")
+			return nil, false
+		}
+		seen[key] = struct{}{}
+		out = append(out, asset.Key)
+		if len(out) == 5 {
+			break
+		}
+	}
+	return out, true
 }
 
 func (h *Handler) getProduct(w http.ResponseWriter, r *http.Request) {
@@ -521,6 +638,15 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		DescTA             string         `json:"descTa"`
 		DescriptionTA      string         `json:"descriptionTa"`
 		Price              int64          `json:"price"`
+		Mrp                *int64         `json:"mrp"`
+		Brand              string         `json:"brand"`
+		PackType           string         `json:"packType"`
+		NetQty             *float64       `json:"netQty"`
+		NetUnit            string         `json:"netUnit"`
+		GalleryKeys        []string       `json:"galleryKeys"`
+		VariantGroupID     string         `json:"variantGroupId"`
+		VariantLabel       string         `json:"variantLabel"`
+		VariantOrder       int            `json:"variantOrder"`
 		Unit               string         `json:"unit"`
 		Emoji              string         `json:"emoji"`
 		ImageURL           string         `json:"imageUrl"`
@@ -536,6 +662,48 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.Price < 0 || body.Price > 10_000_000 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid price")
+		return
+	}
+	if body.Mrp != nil && (*body.Mrp < 0 || *body.Mrp > 10_000_000 || *body.Mrp < body.Price) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be greater than or equal to the selling price")
+		return
+	}
+	body.Brand = strings.TrimSpace(body.Brand)
+	if len(body.Brand) > 120 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "brand is too long")
+		return
+	}
+	body.PackType = strings.TrimSpace(body.PackType)
+	body.NetUnit = strings.TrimSpace(body.NetUnit)
+	if body.PackType != "" {
+		if !ValidPackType(body.PackType) {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid pack type")
+			return
+		}
+		if lock, ok := packUnitLocks(body.PackType); ok {
+			if body.NetUnit != "" && body.NetUnit != lock {
+				httpx.Fail(w, http.StatusBadRequest, "invalid_pack_unit", "pack type fixes its net unit")
+				return
+			}
+			body.NetUnit = lock
+		} else {
+			if body.NetUnit == "" {
+				body.NetUnit = "piece"
+			}
+			if !ValidNetUnit(body.NetUnit) {
+				httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid net unit")
+				return
+			}
+		}
+		if body.NetQty == nil || *body.NetQty <= 0 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "net quantity is required for a pack size")
+			return
+		}
+	}
+	body.VariantGroupID = strings.TrimSpace(body.VariantGroupID)
+	body.VariantLabel = strings.TrimSpace(body.VariantLabel)
+	if len(body.VariantLabel) > 60 || len(body.VariantGroupID) > 120 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "variant fields are too long")
 		return
 	}
 	storeID := strings.TrimSpace(body.StoreID)
@@ -592,10 +760,19 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 	if imageKey != nil && *imageKey != "" {
 		imageURL = ""
 	}
+	galleryKeys, galleryOK := h.resolveGalleryKeys(w, r, body.GalleryKeys, auth.IsAdmin(r.Context()))
+	if !galleryOK {
+		return
+	}
+	body.GalleryKeys = galleryKeys
 	p, found, err := h.repo.CreateProduct(r.Context(), sellerID, district, ProductCreateInput{
 		StoreID: storeID, Name: name, Category: category, TaxonomyCategoryID: taxonomyCategoryID, Desc: desc,
 		NameTA: nameTA, DescTA: descTA,
-		Price: body.Price, Unit: body.Unit, Emoji: body.Emoji,
+		Price: body.Price, Mrp: body.Mrp, Brand: body.Brand,
+		PackType: body.PackType, NetQty: body.NetQty, NetUnit: body.NetUnit,
+		GalleryKeys:    body.GalleryKeys,
+		VariantGroupID: body.VariantGroupID, VariantLabel: body.VariantLabel, VariantOrder: body.VariantOrder,
+		Unit: body.Unit, Emoji: body.Emoji,
 		ImageURL: imageURL, ImageKey: imageKey, ImageAssetID: imageAssetID,
 		IsVeg: body.IsVeg, IsPrescription: body.IsPrescription, Attributes: body.Attributes,
 	})
@@ -611,7 +788,7 @@ func (h *Handler) createProduct(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "store not found or not owned")
 		return
 	}
-	h.cache.Del(r.Context(), cache.Product(p.ID), cache.Stock(p.ID), cache.StoreProducts(p.StoreID))
+	h.purgeProductCaches(r.Context(), p)
 	h.purgeNearbyProductTiles(r, p.StoreID)
 	h.log(r, "PRODUCT_CREATE", p.ID, map[string]any{
 		"storeId": p.StoreID, "status": p.Status, "price": p.Price,
@@ -710,21 +887,48 @@ func (h *Handler) setSellerPricing(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "productId")
 	var body struct {
 		Price *int64 `json:"price"`
+		Mrp   *int64 `json:"mrp"`
 	}
 	if err := httpx.Decode(r, &body); err != nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid body")
 		return
 	}
-	if body.Price == nil {
+	if body.Price == nil && body.Mrp == nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "nothing to update")
 		return
 	}
-	if *body.Price < 0 || *body.Price > 10_000_000 {
+	if body.Price != nil && (*body.Price < 0 || *body.Price > 10_000_000) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid price")
 		return
 	}
-	h.applyProductEdit(w, r, id, ProductEdit{Price: body.Price}, "PRICE_UPDATE",
-		map[string]any{"price": body.Price})
+	if body.Mrp != nil {
+		if *body.Mrp < 0 || *body.Mrp > 10_000_000 {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid mrp")
+			return
+		}
+		if body.Price != nil && *body.Mrp < *body.Price {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "mrp must be greater than or equal to the selling price")
+			return
+		}
+	}
+	h.applyProductEdit(w, r, id, ProductEdit{Price: body.Price, Mrp: body.Mrp}, "PRICE_UPDATE",
+		map[string]any{"price": body.Price, "mrp": body.Mrp})
+}
+
+// purgeProductCaches drops the detail/stock/store rows for a product and every sibling in its
+// variant group. The product detail read embeds variants, so editing one size must refresh them all.
+func (h *Handler) purgeProductCaches(ctx context.Context, p SellerProduct) {
+	h.cache.Del(ctx, cache.Product(p.ID), cache.Stock(p.ID), cache.StoreProducts(p.StoreID))
+	if p.VariantGroupID == "" {
+		return
+	}
+	ids, err := h.repo.VariantGroupIDs(ctx, p.VariantGroupID)
+	if err != nil {
+		return
+	}
+	for _, id := range ids {
+		h.cache.Del(ctx, cache.Product(id), cache.Stock(id))
+	}
 }
 
 // applyProductEdit runs a scoped catalog/inventory edit, invalidates the product/stock/store caches
@@ -744,7 +948,7 @@ func (h *Handler) applyProductEdit(w http.ResponseWriter, r *http.Request, id st
 		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found")
 		return
 	}
-	h.cache.Del(r.Context(), cache.Product(id), cache.Stock(id), cache.StoreProducts(p.StoreID))
+	h.purgeProductCaches(r.Context(), p)
 	h.purgeNearbyProductTiles(r, p.StoreID)
 	h.log(r, action, id, after)
 	httpx.JSON(w, http.StatusOK, p)
@@ -798,7 +1002,7 @@ func (h *Handler) setProductStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusNotFound, "not_found", "product not found")
 		return
 	}
-	h.cache.Del(r.Context(), cache.Product(id), cache.StoreProducts(p.StoreID))
+	h.purgeProductCaches(r.Context(), p)
 	h.purgeNearbyProductTiles(r, p.StoreID)
 	after := map[string]string{"status": status}
 	if status == "REJECTED" {

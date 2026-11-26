@@ -6,6 +6,7 @@ import { usePharmaStore } from '@/state/pharmaStore';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import { useRewardsStore } from '@/state/rewardsStore';
 import { useOrdersStore } from '@/state/ordersStore';
+import { useNotificationsStore } from '@/state/notificationsStore';
 import { useVendorRatingStore } from '@/state/vendorRatingStore';
 import { clearSavedCards } from '@/features/cart/payment/cardStorage';
 import { gateway } from './api/GatewayClient';
@@ -26,6 +27,7 @@ export async function resetLocalUserState(): Promise<void> {
   usePharmaStore.setState({ prescriptions: [] });
   useBloodDonorStore.getState().reset();
   useRewardsStore.getState().reset();
+  useNotificationsStore.getState().reset();
   useVendorRatingStore.getState().reset();
   resetProductViews();
   await clearSavedCards();

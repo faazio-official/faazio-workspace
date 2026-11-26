@@ -21,7 +21,8 @@
 | Team invite acceptance | [accept-invite.md](./accept-invite.md) |
 | District admins (roster, vertical scope, invite hand-over) | [district-admin-roster.md](./district-admin-roster.md) |
 | District admin invite acceptance (set own password) | [district-admin-invite-accept.md](./district-admin-invite-accept.md) |
-| Super admin category taxonomy + mandatory GST + inline sub-categories + header labels / main app header | [super-admin-categories.md](./super-admin-categories.md) |
+| Super admin category taxonomy + mandatory GST + inline sub-categories + header labels / main app header + 7-day trash (soft delete, restore, bulk delete forever) | [super-admin-categories.md](./super-admin-categories.md) |
+| Super admin platform settings (TCS %, FaazioCoins, SLA) + embedded account security + appearance | [super-admin-settings.md](./super-admin-settings.md) |
 | Super admin GST rate slab master | [super-admin-gst-rates.md](./super-admin-gst-rates.md) |
 | Super admin district coverage (district master CRUD) | [super-admin-district-coverage.md](./super-admin-district-coverage.md) |
 | Super admin global catalog + seller product requests | [super-admin-products.md](./super-admin-products.md) |
@@ -35,7 +36,7 @@
 |---|---|
 | Seller console | `/seller` → `/seller/orders`, `hub`, `products`, `products/new`, `products/[id]/edit`, `inventory`, `menus`, `pricing`, `orders`, `orders/[id]`, `order-history`, `returns`, `prescriptions`, `payments`, `promotions`, `offers`, `ads`, `analytics`, `stores`, `fee-change-request`, `fee-history`, `reviews`, `settings`, `support`, `notifications`, `onboarding`, `outlet-info`, `restaurant-status`, `rush-hour`, `explore` |
 | District admin | `/admin/district` + analytics, addons/queue, audit, blood, content, coupons, customers, delivery-boys, delivery/manual-allocation, delivery/payouts, fee-change-requests, festival, orders, pricing-audit, products, products/queue, sellers, sellers/[id], settings, support |
-| Super admin | `/admin/super` + ads, analytics, app-config, audit, categories, coupons, coverage, credentials, delivery-boys, delivery/manual-allocation, delivery/payouts, district-admins, districts, districts/[code], fee-change-requests, festival, gst-rates, orders, orders/[id], payouts, products, rewards, sdui, security, sellers, settings, users |
+| Super admin | `/admin/super` + ads, analytics, app-config, audit, categories, coupons, coverage, credentials, delivery-boys, delivery/manual-allocation, delivery/payouts, district-admins, districts, districts/[code], fee-change-requests, festival, gst-rates, orders, orders/[id], payouts, products, rewards, sdui, sellers, settings, users |
 
 ## State
 

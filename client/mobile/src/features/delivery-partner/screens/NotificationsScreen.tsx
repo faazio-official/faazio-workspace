@@ -16,6 +16,7 @@ import {
 } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { gateway, type NotificationRecord } from '@/services/api/GatewayClient';
+import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
 import { hs, ms, vs } from '@/utils/responsive';
 import { DeliveryHeader } from '../components/DeliveryHeader';
 
@@ -35,17 +36,20 @@ export function NotificationsScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [markingAll, setMarkingAll] = useState(false);
+  const setUnread = useDeliveryPartnerStore((s) => s.setUnread);
 
   const load = useCallback(async () => {
     try {
-      setItems(await gateway.getNotifications());
+      const rows = await gateway.getNotifications();
+      setItems(rows);
+      setUnread(rows.filter((item) => !item.readAt).length);
       setError(null);
     } catch {
       setError('Could not load notifications.');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [setUnread]);
 
   useFocusEffect(
     useCallback(() => {
@@ -60,9 +64,10 @@ export function NotificationsScreen() {
       setItems((prev) =>
         prev.map((item) => (item.id === id && !item.readAt ? { ...item, readAt: new Date().toISOString() } : item)),
       );
+      setUnread(Math.max(0, useDeliveryPartnerStore.getState().unread - 1));
       void gateway.markNotificationRead(id).catch(() => void load());
     },
-    [load],
+    [load, setUnread],
   );
 
   const markAllRead = useCallback(() => {
@@ -70,11 +75,12 @@ export function NotificationsScreen() {
     setMarkingAll(true);
     const stamped = new Date().toISOString();
     setItems((prev) => prev.map((item) => (item.readAt ? item : { ...item, readAt: stamped })));
+    setUnread(0);
     void gateway
       .markAllNotificationsRead()
       .catch(() => void load())
       .finally(() => setMarkingAll(false));
-  }, [load, markingAll]);
+  }, [load, markingAll, setUnread]);
 
   return (
     <DPPage

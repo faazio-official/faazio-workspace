@@ -29,6 +29,7 @@ func (h *Handler) Register(r chi.Router) {
 	r.Group(func(g chi.Router) {
 		g.Use(auth.Require)
 		g.Get("/notifications", h.inbox)
+		g.Get("/notifications/unread-count", h.unreadCount)
 		g.Post("/notifications/register", h.register)
 		g.Delete("/notifications/register", h.unregister)
 		// Per-notification and bulk in-app read state (auth-scoped; a foreign id is a no-op).
@@ -57,6 +58,22 @@ func (h *Handler) inbox(w http.ResponseWriter, r *http.Request) {
 	}
 	h.cache.SetJSON(r.Context(), cache.Notifications(userID), items, cache.TTLNotifications)
 	httpx.JSON(w, http.StatusOK, items)
+}
+
+func (h *Handler) unreadCount(w http.ResponseWriter, r *http.Request) {
+	userID := auth.UserID(r.Context())
+	var n int
+	if h.cache.GetJSON(r.Context(), cache.NotificationsUnread(userID), &n) {
+		httpx.JSON(w, http.StatusOK, map[string]any{"count": n})
+		return
+	}
+	count, err := h.repo.UnreadCount(r.Context(), userID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "notifications_unavailable", "notifications unavailable")
+		return
+	}
+	h.cache.SetJSON(r.Context(), cache.NotificationsUnread(userID), count, cache.TTLNotifications)
+	httpx.JSON(w, http.StatusOK, map[string]any{"count": count})
 }
 
 func (h *Handler) markRead(w http.ResponseWriter, r *http.Request) {

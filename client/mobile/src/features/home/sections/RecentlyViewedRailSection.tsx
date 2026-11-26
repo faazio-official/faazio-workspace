@@ -38,7 +38,10 @@ function RecentlyViewedRailSection({
             width={PRODUCT_CARD_WIDTH}
             imageAspect={1}
             showAddButton={false}
-            nameLines={1}
+            showRating={false}
+            showBadge={false}
+            nameLines={2}
+            compactPrice
             onPress={() => onProductClick?.(product)}
           />
         ))}
@@ -55,7 +58,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: hs(16),
-    marginTop: SPACE.SECTION,
+    marginTop: SPACE.BLOCK,
     marginBottom: SPACE.BLOCK,
   },
   titleGroup: {

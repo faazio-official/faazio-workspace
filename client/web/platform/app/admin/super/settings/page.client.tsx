@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
+import { AccountSecurity } from "@/components/account/AccountSecurity";
 import { ThemeSegmentedControl } from "@/components/layout/ThemeToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,8 +22,8 @@ function PlatformSettings() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title="Platform settings"
-        description="These values drive settlement maths, price floors and SLA gates everywhere in the portal."
+        title="Settings"
+        description="Platform-wide commercial values, your account security, and how the console looks on this device."
       />
 
       <SectionCard title="Tax & statutory">
@@ -93,6 +94,8 @@ function PlatformSettings() {
           </Button>
         </div>
       </SectionCard>
+
+      <AccountSecurity embedded />
 
       <SectionCard
         title="Appearance"

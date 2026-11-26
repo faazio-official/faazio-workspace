@@ -1,7 +1,7 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppImage } from './AppImage';
-import { Star, Plus, Minus, Check, Heart, Zap } from 'lucide-react-native';
+import { Star, Plus, Minus, Check, Heart, Zap, Package } from 'lucide-react-native';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import { brandTokens, neutral } from '@/theme/brandTokens';
@@ -44,6 +44,8 @@ interface ProductCardBaseProps {
   nameLines?: number;
   /** Render the rating pill over the image (bottom-left) instead of in the body. */
   ratingOnImage?: boolean;
+  /** Home feed cards: smaller, ink-black price (no brand price colour). */
+  compactPrice?: boolean;
 }
 
 const ProductCardBase = memo(function ProductCardBase({
@@ -53,7 +55,7 @@ const ProductCardBase = memo(function ProductCardBase({
   width, showRating = true, showDescription = false,
   showHeart = false, showBadge = true, showAdLabel = false, originalPrice,
   roundedImageBottom = false, imageAspect = 3 / 4, nameLines = 2,
-  showPrice = true, showAddButton = true, ratingOnImage = false,
+  showPrice = true, showAddButton = true, ratingOnImage = false, compactPrice = false,
 }: ProductCardBaseProps) {
   const tokens = brandTokens[appBrand];
   const language = useLanguageStore((s) => s.language);
@@ -87,13 +89,26 @@ const ProductCardBase = memo(function ProductCardBase({
       accessibilityHint={onPress ? 'Opens product details' : undefined}
     >
       <View style={styles.imageWrap}>
-        <AppImage
-          source={{ uri: product.image }}
-          contentFit="cover"
-          cachePolicy="memory-disk"
-          transition={120}
-          style={[styles.image, isGrid2 || isRail ? { aspectRatio: imageAspect } : { height: imageH }, roundedImageBottom && { borderBottomLeftRadius: ms(16), borderBottomRightRadius: ms(16) }]}
-        />
+        {product.image ? (
+          <AppImage
+            source={{ uri: product.image }}
+            contentFit="cover"
+            cachePolicy="memory-disk"
+            transition={120}
+            style={[styles.image, isGrid2 || isRail ? { aspectRatio: imageAspect } : { height: imageH }, roundedImageBottom && { borderBottomLeftRadius: ms(16), borderBottomRightRadius: ms(16) }]}
+          />
+        ) : (
+          <View
+            style={[
+              styles.image,
+              styles.imageFallback,
+              isGrid2 || isRail ? { aspectRatio: imageAspect } : { height: imageH },
+              roundedImageBottom && { borderBottomLeftRadius: ms(16), borderBottomRightRadius: ms(16) },
+            ]}
+          >
+            <Package size={ms(22)} color={neutral.inkSubtle} strokeWidth={1.5} />
+          </View>
+        )}
         {showBadge && product.badge && (
           <View style={[styles.badge, { backgroundColor: resolveBadgeBg(product.badgeBg) }]}>
             <AppText style={styles.badgeText}>{product.badge}</AppText>
@@ -156,7 +171,7 @@ const ProductCardBase = memo(function ProductCardBase({
           <View style={styles.priceRow}>
             {showPrice && (
               <>
-                <AppText style={[styles.price, { color: tokens.priceColor }]}>₹{product.price}</AppText>
+                <AppText style={[styles.price, compactPrice ? styles.priceCompact : { color: tokens.priceColor }]}>₹{product.price}</AppText>
                 {originalPrice !== undefined && originalPrice > product.price && (
                   <AppText style={styles.originalPrice}>₹{originalPrice}</AppText>
                 )}
@@ -213,6 +228,7 @@ export default ProductCardBase;
 const styles = StyleSheet.create({
   imageWrap: { position: 'relative' },
   image: { width: '100%', backgroundColor: '#e2e8f0' },
+  imageFallback: { alignItems: 'center', justifyContent: 'center' },
   badge: { position: 'absolute', top: vs(6), left: hs(6), paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(4) },
   badgeText: { fontSize: ms(11), fontWeight: '600', color: '#ffffff' },
   flashBadge: { position: 'absolute', top: vs(6), right: hs(6), backgroundColor: '#ef4444', paddingHorizontal: hs(6), paddingVertical: vs(2), borderRadius: ms(4), flexDirection: 'row', alignItems: 'center', gap: 2 },
@@ -241,6 +257,7 @@ const styles = StyleSheet.create({
   desc: { fontSize: ms(11), fontWeight: '400', color: '#94a3b8', marginTop: vs(2) },
   priceRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(4) },
   price: { fontSize: ms(13), fontWeight: '600' },
+  priceCompact: { fontSize: ms(12), fontWeight: '600', color: neutral.ink },
   originalPrice: { fontSize: ms(11), fontWeight: '400', color: '#94a3b8', textDecorationLine: 'line-through', marginLeft: hs(4) },
   addBtn: { width: Math.max(32, ms(32)), height: Math.max(32, ms(32)), borderRadius: ms(16), alignItems: 'center', justifyContent: 'center' },
   stepper: { flexDirection: 'row', alignItems: 'center', borderRadius: ms(16), paddingHorizontal: hs(6), height: Math.max(32, ms(32)) },

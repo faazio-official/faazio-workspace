@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/faazio/server/gateway/internal/platform/taxmath"
@@ -49,7 +50,17 @@ type Category struct {
 	// ProductCount is how many live listings link directly to this node. A delete needs a move
 	// target as soon as this node or any descendant reports a non-zero count.
 	ProductCount int64 `json:"productCount"`
+	// DeletedAt/DeleteReason/PurgeAt describe a row in the trash (0136). Empty on a live row.
+	// A delete moves the node and its whole subtree here; it is restorable for CategoryTrashWindow.
+	DeletedAt    string `json:"deletedAt,omitempty"`
+	DeleteReason string `json:"deleteReason,omitempty"`
+	PurgeAt      string `json:"purgeAt,omitempty"`
 }
+
+// CategoryTrashWindow is how long a deleted category stays restorable before the purger removes it
+// for good. It mirrors the credential trash (0128), the district trash (0134) and the catalogue
+// product trash (0089).
+const CategoryTrashWindow = 7 * 24 * time.Hour
 
 // SubCategoryInput is one inline sub-category created/updated with its parent in the portal sheet.
 type SubCategoryInput struct {
@@ -104,6 +115,9 @@ type ListOptions struct {
 	// MAIN_APP_HEADER | MART | FOOD | PHARMA. Empty → no header filter.
 	Header     string
 	ActiveOnly bool
+	// Trash restricts the result to soft-deleted rows (the portal's Deleted tab) when true, and
+	// excludes them when false — a live read never sees a trashed row.
+	Trash bool
 	// HomeRailOnly restricts the result to the shared main app header list. FOOD is excluded here as
 	// well as on write, so a legacy row flagged before the rule existed can never surface a FOOD chip.
 	HomeRailOnly bool
@@ -168,22 +182,29 @@ const rowSelect = `select id, app::text, name, slug, coalesce(description, ''), 
 	created_at::text, updated_at::text, created_by, coalesce(updated_by, ''),
 	coalesce(name_ta, ''), coalesce(description_ta, ''), ` + headerLabelsSelect + `, ` + gstSelect + `,
 	(select count(*) from catalog.products p
-	  where p.deleted_at is null and p.taxonomy_category_id = taxonomy.categories.id)`
+	  where p.deleted_at is null and p.taxonomy_category_id = taxonomy.categories.id),
+	deleted_at, delete_reason`
 
 func scanCategory(row pgx.Row) (Category, error) {
 	var c Category
+	var deletedAt *time.Time
 	err := row.Scan(&c.ID, &c.App, &c.Name, &c.Slug, &c.Description, &c.IconURL,
 		&c.ParentID, &c.SearchQuery, &c.IsActive, &c.ShowOnHomeRail, &c.SortOrder,
 		&c.CreatedAt, &c.UpdatedAt, &c.CreatedBy, &c.UpdatedBy, &c.NameTA, &c.DescriptionTA,
 		&c.HeaderLabels, &c.GSTRatePct, &c.GSTRateCategoryID, &c.GSTRateCategoryName,
-		&c.ProductCount)
+		&c.ProductCount, &deletedAt, &c.DeleteReason)
 	if c.HeaderLabels == nil {
 		c.HeaderLabels = []string{}
+	}
+	if deletedAt != nil {
+		c.DeletedAt = deletedAt.UTC().Format(time.RFC3339)
+		c.PurgeAt = deletedAt.Add(CategoryTrashWindow).UTC().Format(time.RFC3339)
 	}
 	return c, err
 }
 
-// List returns categories matching opts, ordered top-level-first by sort_order.
+// List returns categories matching opts, ordered top-level-first by sort_order. A trashed row is
+// excluded unless opts.Trash asks for the trash listing.
 func (r *Repo) List(ctx context.Context, opts ListOptions) ([]Category, error) {
 	if r.pool == nil {
 		return nil, fmt.Errorf("categories: database not configured")
@@ -205,8 +226,17 @@ func (r *Repo) List(ctx context.Context, opts ListOptions) ([]Category, error) {
 		         -- A header-only sub-category is reached through its parent's drill-in, never as a
 		         -- sibling chip on the rail.
 		         and not (app::text = 'MAIN_APP_HEADER' and parent_id is not null)))
+		   and (case when $7 then
+		         deleted_at is not null
+		         -- Only the root of each trashed subtree is listed (its parent is live or null), so a
+		         -- restore/purge always acts on one coherent subtree and bulk selection never overlaps.
+		         and not exists (
+		               select 1 from taxonomy.categories p
+		                where p.id = taxonomy.categories.parent_id and p.deleted_at is not null)
+		        else deleted_at is null end)
 		 order by app, sort_order, lower(name)`,
-		opts.App, opts.ParentID, opts.TopLevel, opts.ActiveOnly, opts.Header, opts.HomeRailOnly)
+		opts.App, opts.ParentID, opts.TopLevel, opts.ActiveOnly, opts.Header, opts.HomeRailOnly,
+		opts.Trash)
 	if err != nil {
 		return nil, err
 	}
@@ -505,9 +535,10 @@ func replaceSubCategories(ctx context.Context, tx pgx.Tx, parentID, app string, 
 	return err
 }
 
-// Deactivate soft-deletes a category (is_active = false) so existing sellers/products that reference
-// it are never orphaned. Idempotent: a repeat deactivate of a live-or-already-hidden row still
-// returns true; false only when the id does not exist at all.
+// Deactivate soft-hides a category (is_active = false) so existing sellers/products that reference
+// it are never orphaned. It never touches the trash: a deactivated row stays live. Idempotent: a
+// repeat deactivate of a live-or-already-hidden row still returns true; false only when the id does
+// not exist at all.
 func (r *Repo) Deactivate(ctx context.Context, id, actor string) (bool, error) {
 	if r.pool == nil {
 		return false, fmt.Errorf("categories: database not configured")
@@ -515,32 +546,58 @@ func (r *Repo) Deactivate(ctx context.Context, id, actor string) (bool, error) {
 	tag, err := r.pool.Exec(ctx, `
 		update taxonomy.categories
 		   set is_active = false, updated_by = $2, updated_at = now()
-		 where id = $1`, id, actor)
+		 where id = $1 and deleted_at is null`, id, actor)
 	if err != nil {
 		return false, err
 	}
 	return tag.RowsAffected() > 0, nil
 }
 
-// Category delete contract. A delete always soft-deactivates the row **and its whole subtree** (a
-// hidden parent must never leave live children behind). Listings that point at a node in that
-// subtree are never orphaned: the caller must name a `moveTo` sibling-level category, and every
-// affected listing is re-linked to that destination's drill-in leaf in the same transaction.
+// SetActive flips the plain hide flag (is_active) without touching the trash or descendants. It is
+// the table's inline Active/Inactive switch: a hidden row stays visible in the admin list and keeps
+// resolving for existing sellers/products. A trashed row is refused (restore it first).
+func (r *Repo) SetActive(ctx context.Context, id string, active bool, actor string) (Category, error) {
+	if r.pool == nil {
+		return Category{}, fmt.Errorf("categories: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		update taxonomy.categories
+		   set is_active = $2, updated_by = $3, updated_at = now()
+		 where id = $1 and deleted_at is null`, id, active, actor)
+	if err != nil {
+		return Category{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return Category{}, ErrCategoryNotFound
+	}
+	return r.Get(ctx, id)
+}
+
+// Category delete contract. A delete moves the row **and its whole subtree** to the trash
+// (deleted_at + is_active = false), so a hidden parent never leaves a live child behind and the whole
+// subtree comes back on restore. Listings that point at a node in that subtree are never orphaned:
+// the caller must name a `moveTo` sibling-level category, and every affected listing is re-linked to
+// that destination's drill-in leaf in the same transaction.
 var (
-	// ErrCategoryNotFound means the id does not exist.
+	// ErrCategoryNotFound means the id does not exist (or is not in the trash for a restore/purge).
 	ErrCategoryNotFound = errors.New("categories: not found")
 	// ErrCategoryHasProducts means listings still live in the subtree and no move target was given.
 	ErrCategoryHasProducts = errors.New("categories: listings must be moved first")
 	// ErrInvalidMoveTarget means the destination is absent, inactive, another app, inside the
 	// subtree being deleted, or at a different tree level than the category being deleted.
 	ErrInvalidMoveTarget = errors.New("categories: invalid move target")
+	// ErrTrashExpired means the 7-day undo window has closed (the row is purged instead).
+	ErrTrashExpired = errors.New("categories: restore window closed")
+	// ErrStillReferenced means a purge was refused because listings, stores or menus still point at
+	// the trashed subtree.
+	ErrStillReferenced = errors.New("categories: still referenced")
 )
 
-// DeleteResult reports what one category deletion hid and re-linked.
+// DeleteResult reports what one category deletion trashed and re-linked.
 type DeleteResult struct {
 	ID string `json:"id"`
-	// Deactivated is the number of taxonomy rows hidden (the category plus its descendants).
-	Deactivated int64 `json:"deactivated"`
+	// Trashed is the number of taxonomy rows moved to the trash (the category plus its descendants).
+	Trashed int64 `json:"trashed"`
 	// MovedProducts is the number of listings re-linked to the destination leaf.
 	MovedProducts int64 `json:"movedProducts"`
 	// TargetID / TargetName identify the drill-in leaf the listings moved onto (empty when none).
@@ -561,9 +618,9 @@ const subtreeSQL = `
 	)
 	select id, parent_id, name, sort_order from sub`
 
-// Delete soft-deactivates one category plus everything under it. When listings point at any node in
-// that subtree the caller must pass moveTo — a live sibling-level category — and each listing is
-// re-linked (and re-labelled) onto that destination's drill-in leaf.
+// Delete moves one category plus everything under it to the trash (0136). When listings point at any
+// node in that subtree the caller must pass moveTo — a live sibling-level category — and each listing
+// is re-linked (and re-labelled) onto that destination's drill-in leaf.
 //
 // Level discipline: a top-level category may only be merged into another top-level category, and a
 // child may only be merged into another child, so a deletion can never push products across tree
@@ -573,7 +630,7 @@ const subtreeSQL = `
 //
 // Returns ErrCategoryHasProducts when listings remain and moveTo is empty, so the portal can prompt
 // for a destination instead of silently dropping the mapping.
-func (r *Repo) Delete(ctx context.Context, id, moveTo, actor string) (DeleteResult, error) {
+func (r *Repo) Delete(ctx context.Context, id, moveTo, reason, actor string) (DeleteResult, error) {
 	var out DeleteResult
 	if r.pool == nil {
 		return out, fmt.Errorf("categories: database not configured")
@@ -588,17 +645,22 @@ func (r *Repo) Delete(ctx context.Context, id, moveTo, actor string) (DeleteResu
 	var (
 		app      string
 		parentID *string
-		name     string
+		deleted  *time.Time
 	)
 	if err := tx.QueryRow(ctx, `
-		select app::text, parent_id, name
+		select app::text, parent_id, deleted_at
 		  from taxonomy.categories
 		 where id = $1
-		 for update`, id).Scan(&app, &parentID, &name); err != nil {
+		 for update`, id).Scan(&app, &parentID, &deleted); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return out, ErrCategoryNotFound
 		}
 		return out, err
+	}
+	// An already-trashed row is never trashed twice: the portal lists it under Deleted, where the
+	// only actions are restore and delete-forever.
+	if deleted != nil {
+		return out, ErrCategoryNotFound
 	}
 
 	// 2. The subtree ids, used for both the product sweep and the deactivation.
@@ -687,21 +749,212 @@ func (r *Repo) Delete(ctx context.Context, id, moveTo, actor string) (DeleteResu
 		out.TargetName = leafName
 	}
 
-	// 6. Hide the node and everything beneath it in one statement.
+	// 6. Move the node and everything beneath it to the trash in one statement. is_active is cleared
+	// too so a row trashed before 0136 (or a leftover reference) never reads as live.
 	tag, err := tx.Exec(ctx, `
 		update taxonomy.categories
-		   set is_active = false, updated_by = $2, updated_at = now()
-		 where id = any($1)`, subtree, actor)
+		   set is_active = false, deleted_at = now(), delete_reason = $3,
+		       updated_by = $2, updated_at = now()
+		 where id = any($1)`, subtree, actor, strings.TrimSpace(reason))
 	if err != nil {
 		return out, err
 	}
 	out.ID = id
-	out.Deactivated = tag.RowsAffected()
+	out.Trashed = tag.RowsAffected()
 
 	if err := tx.Commit(ctx); err != nil {
 		return out, err
 	}
 	return out, nil
+}
+
+// Restore clears the trash flag of one node and every descendant trashed with it. The subtree comes
+// back DEACTIVATED (is_active stays false), so the operator re-enables it deliberately — the same
+// contract as a restored credential or district. When the id is a descendant of a trashed row the
+// topmost trashed ancestor is restored instead, so a child can never come back under a trashed
+// parent. A row past the undo window is purged instead and reported as ErrTrashExpired.
+func (r *Repo) Restore(ctx context.Context, id, actor string) (Category, error) {
+	if r.pool == nil {
+		return Category{}, fmt.Errorf("categories: database not configured")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return Category{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var deletedAt *time.Time
+	var root string
+	// Walk up from the row: the trashed rows form a contiguous run, so the topmost trashed ancestor
+	// (largest depth) is the restore root. A live parent ends the run.
+	if err := tx.QueryRow(ctx, `
+		with recursive chain as (
+		  select c.id, c.parent_id, c.deleted_at, 0 as depth
+		    from taxonomy.categories c where c.id = $1
+		  union all
+		  select c.id, c.parent_id, c.deleted_at, chain.depth + 1
+		    from taxonomy.categories c join chain on chain.parent_id = c.id
+		)
+		select coalesce((select ch.id from chain ch
+		                  where ch.deleted_at is not null
+		                  order by ch.depth desc limit 1), ''),
+		       (select ch.deleted_at from chain ch where ch.depth = 0)`, id).
+		Scan(&root, &deletedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return Category{}, ErrCategoryNotFound
+		}
+		return Category{}, err
+	}
+	if deletedAt == nil || root == "" {
+		return Category{}, ErrCategoryNotFound
+	}
+	if time.Since(*deletedAt) > CategoryTrashWindow {
+		if _, err := purgeTrashedSubtree(ctx, tx, root); err != nil {
+			return Category{}, err
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return Category{}, err
+		}
+		return Category{}, ErrTrashExpired
+	}
+
+	if _, err := tx.Exec(ctx, `
+		with recursive sub as (
+		  select c.id from taxonomy.categories c where c.id = $1
+		  union all
+		  select c.id from taxonomy.categories c join sub on c.parent_id = sub.id
+		)
+		update taxonomy.categories
+		   set deleted_at = null, delete_reason = '', updated_by = $2, updated_at = now()
+		 where id in (select id from sub)`, root, actor); err != nil {
+		return Category{}, err
+	}
+	c, err := getCategory(ctx, tx, root)
+	if err != nil {
+		return Category{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return Category{}, err
+	}
+	return c, nil
+}
+
+// PurgeResult reports what one permanent delete removed.
+type PurgeResult struct {
+	ID       string `json:"id"`
+	Purged   int64  `json:"purged"`
+	PurgeAll bool   `json:"purgeAll"`
+}
+
+// PurgeOne permanently removes one trashed subtree now (the console's "delete forever"). A live row,
+// a row still inside the window acted on by an operator, or a subtree still referenced by a listing,
+// store or menu is refused with ErrCategoryNotFound / ErrStillReferenced. ErrTrashExpired is never
+// returned here: an operator may purge early.
+func (r *Repo) PurgeOne(ctx context.Context, id string) (PurgeResult, error) {
+	var out PurgeResult
+	if r.pool == nil {
+		return out, fmt.Errorf("categories: database not configured")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return out, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var deletedAt *time.Time
+	if err := tx.QueryRow(ctx, `
+		select deleted_at from taxonomy.categories where id = $1 for update`, id).
+		Scan(&deletedAt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return out, ErrCategoryNotFound
+		}
+		return out, err
+	}
+	if deletedAt == nil {
+		return out, ErrCategoryNotFound
+	}
+	n, err := purgeTrashedSubtree(ctx, tx, id)
+	if err != nil {
+		return out, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return out, err
+	}
+	return PurgeResult{ID: id, Purged: n}, nil
+}
+
+// purgeTrashedSubtree hard-deletes a trashed subtree bottom-up inside tx. Every row must be trashed
+// and unreferenced: a listing, store or menu still pointing at any node refuses the whole purge so a
+// "delete forever" can never orphan a reference. Rows are removed children-first so the self-FK on
+// parent_id is satisfied. Returns the number of rows removed.
+func purgeTrashedSubtree(ctx context.Context, tx pgx.Tx, id string) (int64, error) {
+	var live, referenced int64
+	if err := tx.QueryRow(ctx, `
+		with recursive sub as (
+		  select c.id, c.deleted_at from taxonomy.categories c where c.id = $1
+		  union all
+		  select c.id, c.deleted_at from taxonomy.categories c join sub on c.parent_id = sub.id
+		)
+		select count(*) filter (where deleted_at is null),
+		       count(*) filter (where exists (select 1 from catalog.products p where p.taxonomy_category_id = sub.id)
+		                          or exists (select 1 from directory.stores s where s.seller_category_id = sub.id)
+		                          or exists (select 1 from directory.menus m
+		                                      where m.sub_category_id = sub.id or m.section_id = sub.id))
+		  from sub`, id).Scan(&live, &referenced); err != nil {
+		return 0, err
+	}
+	if live > 0 {
+		return 0, ErrCategoryNotFound
+	}
+	if referenced > 0 {
+		return 0, ErrStillReferenced
+	}
+	var total int64
+	// The self-FK on parent_id means a statement can only remove current leaves, so sweep level by
+	// level until the whole subtree is gone (the recursive CTE stops yielding once the root is gone).
+	for {
+		tag, err := tx.Exec(ctx, `
+			with recursive sub as (
+			  select c.id from taxonomy.categories c where c.id = $1
+			  union all
+			  select c.id from taxonomy.categories c join sub on c.parent_id = sub.id
+			)
+			delete from taxonomy.categories
+			 where id in (select id from sub)
+			   and not exists (
+			         select 1 from taxonomy.categories k where k.parent_id = taxonomy.categories.id)`,
+			id)
+		if err != nil {
+			return 0, err
+		}
+		n := tag.RowsAffected()
+		if n == 0 {
+			return total, nil
+		}
+		total += n
+	}
+}
+
+// PurgeDeleted removes trashed, unreferenced categories older than maxAge (the hourly worker). A row
+// with a trashed child is skipped in that pass — the next pass removes it after the child goes.
+func (r *Repo) PurgeDeleted(ctx context.Context, maxAge time.Duration) (int64, error) {
+	if r.pool == nil {
+		return 0, fmt.Errorf("categories: database not configured")
+	}
+	tag, err := r.pool.Exec(ctx, `
+		delete from taxonomy.categories c
+		 where c.deleted_at is not null
+		   and c.deleted_at < $1
+		   and not exists (select 1 from taxonomy.categories k where k.parent_id = c.id)
+		   and not exists (select 1 from catalog.products p where p.taxonomy_category_id = c.id)
+		   and not exists (select 1 from directory.stores s where s.seller_category_id = c.id)
+		   and not exists (select 1 from directory.menus m
+		                    where m.sub_category_id = c.id or m.section_id = c.id)`,
+		time.Now().Add(-maxAge))
+	if err != nil {
+		return 0, err
+	}
+	return tag.RowsAffected(), nil
 }
 
 // resolveLeaf returns the ACTIVE leaf a listing may be linked to: the id itself when it has no active

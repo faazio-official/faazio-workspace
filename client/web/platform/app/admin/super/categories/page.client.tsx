@@ -1,13 +1,14 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { FilterChip } from "@/components/patterns/FilterChip";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
@@ -50,6 +51,10 @@ import {
   deleteCategory,
   listCategories,
   listCategoriesByHeader,
+  listDeletedCategories,
+  purgeCategory,
+  restoreCategory,
+  setCategoryActive,
   updateCategory,
 } from "@/lib/api";
 import { ApiError } from "@/lib/api/http";
@@ -169,9 +174,20 @@ export function CategoriesPage() {
   const [mainError, setMainError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  // Trash (0136): soft-deleted rows, restorable for 7 days. `showTrash` swaps the tree table for
+  // the Deleted list; row selection there drives the bulk "delete forever".
+  const [showTrash, setShowTrash] = useState(false);
+  const [trashed, setTrashed] = useState<CategoryRow[]>([]);
+  const [trashLoading, setTrashLoading] = useState(false);
+  const [trashError, setTrashError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [confirmPurge, setConfirmPurge] = useState(false);
+
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<CategoryRow | null>(null);
   const [deleting, setDeleting] = useState<CategoryRow | null>(null);
+  // Why the row is being deleted — kept with the trashed row for the next operator.
+  const [deleteReason, setDeleteReason] = useState("");
   // Where a delete moves the listings that live in the deleted subtree. Mandatory as soon as the
   // subtree owns any listing, and always at the same tree level as the category being deleted.
   const [deleteTarget, setDeleteTarget] = useState("");
@@ -240,6 +256,25 @@ export function CategoriesPage() {
     }
   }, []);
 
+  const loadTrash = useCallback(async () => {
+    setTrashLoading(true);
+    setTrashError(null);
+    try {
+      const items = await listDeletedCategories(tab);
+      setTrashed(items);
+      // Drop selections whose row was purged or restored elsewhere.
+      setSelected((prev) => {
+        const live = new Set(items.map((r) => r.id));
+        const next = new Set([...prev].filter((id) => live.has(id)));
+        return next.size === prev.size ? prev : next;
+      });
+    } catch (err) {
+      setTrashError(err instanceof Error ? err.message : "Could not load deleted categories.");
+    } finally {
+      setTrashLoading(false);
+    }
+  }, [tab]);
+
   useEffect(() => {
     void load();
   }, [load]);
@@ -247,6 +282,10 @@ export function CategoriesPage() {
   useEffect(() => {
     void loadMain();
   }, [loadMain]);
+
+  useEffect(() => {
+    if (showTrash) void loadTrash();
+  }, [showTrash, loadTrash]);
 
   /** Keep the GST pick valid for the chosen app (a slab from another sector is never submittable). */
   const gstFor = useCallback(
@@ -448,17 +487,23 @@ export function CategoriesPage() {
     }
     setBusy(true);
     try {
-      const result = await deleteCategory(deleting.id, deleteTarget || undefined);
-      toast.success(`Deleted ${deleting.name}`, {
+      const result = await deleteCategory(
+        deleting.id,
+        deleteTarget || undefined,
+        deleteReason.trim() || undefined,
+      );
+      toast.success(`Moved ${deleting.name} to Deleted`, {
         description:
           result.movedProducts > 0
-            ? `${result.movedProducts} listing${result.movedProducts === 1 ? "" : "s"} moved to ${result.targetName ?? "the chosen category"}.`
-            : "It is hidden in the apps.",
+            ? `${result.movedProducts} listing${result.movedProducts === 1 ? "" : "s"} moved to ${result.targetName ?? "the chosen category"}. Restorable for 7 days.`
+            : "Restorable for 7 days, then removed permanently.",
       });
       setDeleting(null);
       setDeleteTarget("");
+      setDeleteReason("");
       void load();
       void loadMain();
+      if (showTrash) void loadTrash();
     } catch (err) {
       const code = err instanceof ApiError ? err.code : "";
       if (code === "move_required") {
@@ -472,6 +517,69 @@ export function CategoriesPage() {
       } else {
         toast.error("Could not delete the category", {
           description: err instanceof Error ? err.message : undefined,
+        });
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  /** Flip the plain Active/Inactive flag — a hide, never a delete. */
+  async function toggleActive(row: CategoryRow) {
+    const next = !row.isActive;
+    try {
+      const saved = await setCategoryActive(row.id, next);
+      setRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...saved } : r)));
+      setMainRows((prev) => prev.map((r) => (r.id === row.id ? { ...r, ...saved } : r)));
+      toast.success(next ? `${row.name} activated` : `${row.name} deactivated`);
+    } catch (err) {
+      toast.error("Could not update the category", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
+
+  async function restoreRow(row: CategoryRow) {
+    try {
+      await restoreCategory(row.id);
+      setTrashed((prev) => prev.filter((r) => r.id !== row.id));
+      setSelected((prev) => {
+        const next = new Set(prev);
+        next.delete(row.id);
+        return next;
+      });
+      toast.success(`${row.name} restored`, {
+        description: "It is deactivated — activate it when it should appear in the apps.",
+      });
+      void load();
+      void loadMain();
+    } catch (err) {
+      if (err instanceof ApiError && err.code === "trash_expired") {
+        setTrashed((prev) => prev.filter((r) => r.id !== row.id));
+      }
+      toast.error("Could not restore the category", {
+        description: err instanceof Error ? err.message : undefined,
+      });
+    }
+  }
+
+  /** Permanently delete every selected trashed subtree (bulk "delete forever"). */
+  async function purgeSelected() {
+    const ids = [...selected];
+    if (ids.length === 0) return;
+    setBusy(true);
+    try {
+      const results = await Promise.allSettled(ids.map((id) => purgeCategory(id)));
+      const failed = results.filter((r) => r.status === "rejected").length;
+      const removed = ids.length - failed;
+      setConfirmPurge(false);
+      setSelected(new Set());
+      void loadTrash();
+      if (failed === 0) {
+        toast.success(`Deleted ${removed} categor${removed === 1 ? "y" : "ies"} permanently`);
+      } else {
+        toast.error("Some categories could not be deleted", {
+          description: `${removed} removed, ${failed} still referenced by a listing, store or menu — delete those references first.`,
         });
       }
     } finally {
@@ -548,6 +656,7 @@ export function CategoriesPage() {
   function askDelete(row: CategoryRow) {
     setDeleting(row);
     setDeleteTarget("");
+    setDeleteReason("");
   }
 
   function rowActions(row: CategoryRow) {
@@ -560,7 +669,6 @@ export function CategoriesPage() {
           size="sm"
           variant="outline"
           className="text-destructive"
-          disabled={!row.isActive}
           onClick={() => askDelete(row)}
         >
           <Trash2 className="size-3.5" />
@@ -573,7 +681,7 @@ export function CategoriesPage() {
     <div className="space-y-4">
       <PageHeader
         title="Categories"
-        description="The central category taxonomy. Every category has one primary pool — Mart, Food, Pharma, or the main app header (a header-only pool such as Electronics that drills into Android / iPhone). Each category and sub-category carries a mandatory GST rate. Sellers and apps pick from this list; delete hides a category without breaking existing references."
+        description="The central category taxonomy. Every category has one primary pool — Mart, Food, Pharma, or the main app header (a header-only pool such as Electronics that drills into Android / iPhone). Each category and sub-category carries a mandatory GST rate. Sellers and apps pick from this list; deactivate hides a category in place, delete moves it to Deleted for 7 days so a mistake can be undone."
         actions={
           <Button size="sm" className="gap-2" onClick={openCreate}>
             <Plus className="size-4" /> New category
@@ -634,7 +742,11 @@ export function CategoriesPage() {
                     {parentName(row.parentId)}
                   </TableCell>
                   <TableCell>
-                    <StatusPill status={row.isActive ? "ACTIVE" : "INACTIVE"} />
+                    <Switch
+                      checked={row.isActive}
+                      onCheckedChange={() => void toggleActive(row)}
+                      aria-label={`${row.isActive ? "Deactivate" : "Activate"} ${row.name}`}
+                    />
                   </TableCell>
                   <TableCell className="num text-[12px] text-muted-foreground">
                     {row.sortOrder}
@@ -647,78 +759,215 @@ export function CategoriesPage() {
         </DataShell>
       </SectionCard>
 
-      <SectionCard title="Category tree" bodyClassName="p-0">
-        <div className="flex flex-wrap gap-1.5 border-b border-border px-3 py-2">
+      <SectionCard title={showTrash ? "Deleted categories" : "Category tree"} bodyClassName="p-0">
+        <div className="flex flex-wrap items-center gap-1.5 border-b border-border px-3 py-2">
           {TABS.map((t) => (
             <FilterChip
               key={t}
               label={TAB_LABEL[t]}
               active={tab === t}
-              onClick={() => setTab(t)}
+              onClick={() => {
+                setTab(t);
+                setSelected(new Set());
+              }}
             />
           ))}
+          <span aria-hidden className="mx-1 h-4 w-px bg-border" />
+          <FilterChip
+            label="Deleted"
+            active={showTrash}
+            onClick={() => {
+              setShowTrash((v) => !v);
+              setSelected(new Set());
+            }}
+          />
+          <span className="ml-auto text-[11px] text-muted-foreground">
+            {showTrash
+              ? "Deleted categories are restorable for 7 days, then removed permanently."
+              : "Deleting a category moves it and its sub-categories to Deleted for 7 days."}
+          </span>
         </div>
 
-        <DataShell
-          loading={loading}
-          error={error ?? undefined}
-          isEmpty={rows.length === 0}
-          empty={
-            <EmptyState
-              title="No categories yet"
-              description="Create a top-level category, then add its sub-categories."
-            />
-          }
-        >
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>App</TableHead>
-                <TableHead>GST</TableHead>
-                <TableHead>Header labels</TableHead>
-                <TableHead>Parent</TableHead>
-                <TableHead>Active</TableHead>
-                <TableHead>Sort</TableHead>
-                <TableHead>Updated</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {rows.map((row) => (
-                <TableRow key={row.id} className="h-12">
-                  <TableCell className="text-[13px] font-medium">
-                    {row.name}
-                    {row.nameTa ? (
-                      <span className="block text-[12px] text-muted-foreground">{row.nameTa}</span>
-                    ) : null}
-                    <span className="num block text-[11px] text-muted-foreground">{row.id}</span>
-                  </TableCell>
-                  <TableCell className="text-[12px] text-muted-foreground">{row.app}</TableCell>
-                  <TableCell>
-                    <GstCell row={row} />
-                  </TableCell>
-                  <TableCell>
-                    <HeaderTags labels={row.headerLabels} />
-                  </TableCell>
-                  <TableCell className="text-[12px] text-muted-foreground">
-                    {parentName(row.parentId)}
-                  </TableCell>
-                  <TableCell>
-                    <StatusPill status={row.isActive ? "ACTIVE" : "INACTIVE"} />
-                  </TableCell>
-                  <TableCell className="num text-[12px] text-muted-foreground">
-                    {row.sortOrder}
-                  </TableCell>
-                  <TableCell className="num text-[12px] text-muted-foreground">
-                    {row.updatedAt ? formatDateTime(row.updatedAt) : "—"}
-                  </TableCell>
-                  <TableCell className="text-right">{rowActions(row)}</TableCell>
+        {showTrash ? (
+          <>
+            {selected.size > 0 ? (
+              <div className="flex items-center justify-between gap-2 border-b border-border bg-muted/40 px-3 py-2">
+                <span className="text-[12px] text-muted-foreground">
+                  {selected.size} selected
+                </span>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>
+                    Clear
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1.5 text-destructive hover:text-destructive"
+                    onClick={() => setConfirmPurge(true)}
+                  >
+                    <Trash2 className="size-3.5" /> Delete forever
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+            <DataShell
+              loading={trashLoading}
+              error={trashError ?? undefined}
+              isEmpty={trashed.length === 0}
+              empty={
+                <EmptyState
+                  title="Nothing deleted"
+                  description="Deleted categories appear here for 7 days so a mistake can be undone."
+                />
+              }
+            >
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="w-10">
+                      <Checkbox
+                        aria-label="Select all deleted categories"
+                        checked={
+                          trashed.length > 0 && trashed.every((r) => selected.has(r.id))
+                            ? true
+                            : trashed.some((r) => selected.has(r.id))
+                              ? "indeterminate"
+                              : false
+                        }
+                        onCheckedChange={(v) =>
+                          setSelected(v ? new Set(trashed.map((r) => r.id)) : new Set())
+                        }
+                      />
+                    </TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>App</TableHead>
+                    <TableHead>Parent</TableHead>
+                    <TableHead>Deleted</TableHead>
+                    <TableHead>Reason</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {trashed.map((row) => (
+                    <TableRow key={row.id} className="h-12">
+                      <TableCell>
+                        <Checkbox
+                          aria-label={`Select ${row.name}`}
+                          checked={selected.has(row.id)}
+                          onCheckedChange={(v) =>
+                            setSelected((prev) => {
+                              const next = new Set(prev);
+                              if (v) next.add(row.id);
+                              else next.delete(row.id);
+                              return next;
+                            })
+                          }
+                        />
+                      </TableCell>
+                      <TableCell className="text-[13px] font-medium">
+                        {row.name}
+                        <span className="num block text-[11px] text-muted-foreground">{row.id}</span>
+                      </TableCell>
+                      <TableCell className="text-[12px] text-muted-foreground">{row.app}</TableCell>
+                      <TableCell className="text-[12px] text-muted-foreground">
+                        {parentName(row.parentId)}
+                      </TableCell>
+                      <TableCell className="num text-[12px] text-muted-foreground">
+                        <StatusPill status="DELETED" />
+                        <span className="block">
+                          {row.deletedAt ? formatDateTime(row.deletedAt) : "—"}
+                        </span>
+                        {row.purgeAt ? (
+                          <span className="block text-[11px]">
+                            purge {formatDateTime(row.purgeAt)}
+                          </span>
+                        ) : null}
+                      </TableCell>
+                      <TableCell className="max-w-56 truncate text-[12px] text-muted-foreground">
+                        {row.deleteReason || "—"}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="gap-1.5"
+                          onClick={() => void restoreRow(row)}
+                        >
+                          <RotateCcw className="size-3.5" /> Restore
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </DataShell>
+          </>
+        ) : (
+          <DataShell
+            loading={loading}
+            error={error ?? undefined}
+            isEmpty={rows.length === 0}
+            empty={
+              <EmptyState
+                title="No categories yet"
+                description="Create a top-level category, then add its sub-categories."
+              />
+            }
+          >
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Name</TableHead>
+                  <TableHead>App</TableHead>
+                  <TableHead>GST</TableHead>
+                  <TableHead>Header labels</TableHead>
+                  <TableHead>Parent</TableHead>
+                  <TableHead>Active</TableHead>
+                  <TableHead>Sort</TableHead>
+                  <TableHead>Updated</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </DataShell>
+              </TableHeader>
+              <TableBody>
+                {rows.map((row) => (
+                  <TableRow key={row.id} className="h-12">
+                    <TableCell className="text-[13px] font-medium">
+                      {row.name}
+                      {row.nameTa ? (
+                        <span className="block text-[12px] text-muted-foreground">{row.nameTa}</span>
+                      ) : null}
+                      <span className="num block text-[11px] text-muted-foreground">{row.id}</span>
+                    </TableCell>
+                    <TableCell className="text-[12px] text-muted-foreground">{row.app}</TableCell>
+                    <TableCell>
+                      <GstCell row={row} />
+                    </TableCell>
+                    <TableCell>
+                      <HeaderTags labels={row.headerLabels} />
+                    </TableCell>
+                    <TableCell className="text-[12px] text-muted-foreground">
+                      {parentName(row.parentId)}
+                    </TableCell>
+                    <TableCell>
+                      <Switch
+                        checked={row.isActive}
+                        onCheckedChange={() => void toggleActive(row)}
+                        aria-label={`${row.isActive ? "Deactivate" : "Activate"} ${row.name}`}
+                      />
+                    </TableCell>
+                    <TableCell className="num text-[12px] text-muted-foreground">
+                      {row.sortOrder}
+                    </TableCell>
+                    <TableCell className="num text-[12px] text-muted-foreground">
+                      {row.updatedAt ? formatDateTime(row.updatedAt) : "—"}
+                    </TableCell>
+                    <TableCell className="text-right">{rowActions(row)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </DataShell>
+        )}
       </SectionCard>
 
       <Sheet
@@ -1046,7 +1295,7 @@ export function CategoriesPage() {
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleting?.name}?</AlertDialogTitle>
+            <AlertDialogTitle>Move {deleting?.name} to Deleted?</AlertDialogTitle>
             <AlertDialogDescription>
               {deleting ? (
                 <>
@@ -1054,7 +1303,8 @@ export function CategoriesPage() {
                   {deleteImpact(deleting).categories > 1
                     ? ` (${deleteImpact(deleting).categories} categories)`
                     : ""}{" "}
-                  are hidden in the apps immediately.
+                  leave the apps immediately and sit in Deleted for 7 days, then are removed
+                  permanently.
                   {deleteImpact(deleting).products > 0
                     ? ` ${deleteImpact(deleting).products} listing${deleteImpact(deleting).products === 1 ? "" : "s"} must move to another ${deleting.parentId === null ? "category" : "sub-category"} first.`
                     : " No listings are attached, so nothing needs to move."}
@@ -1092,13 +1342,45 @@ export function CategoriesPage() {
             </div>
           ) : null}
 
+          <div className="space-y-1.5">
+            <Label htmlFor="delete-reason">Reason (optional)</Label>
+            <Input
+              id="delete-reason"
+              value={deleteReason}
+              maxLength={500}
+              onChange={(e) => setDeleteReason(e.target.value)}
+              placeholder="Why is this being deleted?"
+            />
+          </div>
+
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               disabled={busy || (deleting !== null && deleteImpact(deleting).products > 0 && !deleteTarget)}
               onClick={() => void confirmDelete()}
             >
-              {busy ? "Deleting..." : "Delete"}
+              Move to Deleted
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={confirmPurge} onOpenChange={setConfirmPurge}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Delete {selected.size} categor{selected.size === 1 ? "y" : "ies"} forever?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This permanently removes the selected categories and everything under them. A category
+              still referenced by a listing, store or menu is kept and reported — it cannot be purged
+              until those references are gone. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction disabled={busy} onClick={() => void purgeSelected()}>
+              Delete forever
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -168,7 +168,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: hs(16),
-    marginTop: SPACE.SECTION,
+    marginTop: SPACE.BLOCK,
     marginBottom: SPACE.BLOCK,
   },
   titleGroup: {

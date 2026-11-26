@@ -27,8 +27,8 @@ import {
   Percent,
   Trash2,
   ShieldCheck,
-  Palette,
   Languages,
+  Bell,
 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
@@ -44,6 +44,7 @@ import { openTrustedUrl } from '@/lib/externalLinks';
 import { COOKIES_URL, DISCLAIMER_URL, PRIVACY_URL, REFUNDS_URL, TERMS_URL } from '@/lib/site';
 import { useThemeMode } from '@/hooks/useThemeMode';
 import { useNavBarScrollHandler } from '@/hooks/useAutoHideNavBar';
+import { useNotificationsStore } from '@/state/notificationsStore';
 import type { AppPalette } from '@/theme/theme';
 
 const NAV_ICONS: Record<string, React.ComponentType<any>> = {
@@ -78,9 +79,9 @@ export interface AccountViewProps {
   onOpenDeleteAccount?: () => void;
   onOpenRequestDataDeletion?: () => void;
   onOpenOrders: () => void;
+  onOpenNotifications?: () => void;
   onOpenFavourites?: () => void;
   onOpenRewards?: () => void;
-  onOpenAppearance?: () => void;
   onOpenLanguage?: () => void;
   onOpenSellWithUs?: () => void;
   onOpenSellerRequests?: () => void;
@@ -102,9 +103,9 @@ export function AccountView({
   onOpenDeleteAccount,
   onOpenRequestDataDeletion,
   onOpenOrders,
+  onOpenNotifications,
   onOpenFavourites,
   onOpenRewards,
-  onOpenAppearance,
   onOpenLanguage,
   onOpenSellWithUs,
   onOpenSellerRequests,
@@ -113,18 +114,13 @@ export function AccountView({
   onLogout,
 }: AccountViewProps) {
   const insets = useSafeAreaInsets();
-  const { themeMode, effectiveMode, palette } = useThemeMode();
+  const { palette } = useThemeMode();
   const language = useLanguageStore((s) => s.language);
   const onScroll = useNavBarScrollHandler();
   const styles = useMemo(() => createStyles(palette), [palette]);
-  const appearanceLabel =
-    themeMode === 'auto'
-      ? `Auto — ${effectiveMode === 'dark' ? 'Dark' : 'Light'}`
-      : themeMode === 'dark'
-        ? 'Dark'
-        : 'Light';
   const coinBalance = useRewardsStore((s) => s.coinBalance);
   const streakCount = useRewardsStore((s) => s.streakCount);
+  const unread = useNotificationsStore((s) => s.unread);
   const authUser = useAuthStore((s) => s.user);
   // Nav groups: server-authoritative (DB catalog + per-user overrides). Groups with no real rows are
   // omitted so a stale/empty projection can never render as a blank titled card.
@@ -184,8 +180,7 @@ export function AccountView({
       onOpenSellWithUs,
       onOpenDetails,
       onOpenAddresses,
-      onOpenAppearance,
-      onOpenLanguage,
+          onOpenLanguage,
       onOpenDeleteAccount,
       onOpenRequestDataDeletion,
     ]
@@ -209,6 +204,22 @@ export function AccountView({
         <View style={styles.headerText}>
           <AppText style={styles.headerTitle}>My Account</AppText>
         </View>
+        {onOpenNotifications ? (
+          <TouchableOpacity
+            onPress={onOpenNotifications}
+            style={styles.bellButton}
+            activeOpacity={0.7}
+            accessibilityRole="button"
+            accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+          >
+            <Bell size={ms(22)} color={palette.text} strokeWidth={2.2} />
+            {unread > 0 ? (
+              <View style={styles.bellBadge}>
+                <AppText style={styles.bellBadgeText}>{unread > 99 ? '99+' : unread}</AppText>
+              </View>
+            ) : null}
+          </TouchableOpacity>
+        ) : null}
       </View>
 
       <ScrollView
@@ -336,23 +347,6 @@ export function AccountView({
           <AppText style={styles.navGroupTitle}>Preferences</AppText>
           <View style={styles.navCard}>
             <TouchableOpacity
-              style={styles.navRow}
-              activeOpacity={0.7}
-              onPress={onOpenAppearance}
-              disabled={!onOpenAppearance}
-              accessibilityRole="button"
-              accessibilityLabel={`Appearance. ${appearanceLabel}`}
-            >
-              <View style={styles.navIconBox}>
-                <Palette size={ms(18)} color={palette.accent} strokeWidth={2.2} />
-              </View>
-              <View style={styles.navText}>
-                <AppText style={styles.navTitle}>Appearance</AppText>
-                <AppText style={styles.navSubtitle}>{appearanceLabel}</AppText>
-              </View>
-              <ChevronRight size={ms(18)} color={palette.accent} strokeWidth={2.2} />
-            </TouchableOpacity>
-            <TouchableOpacity
               style={[styles.navRow, styles.navRowLast]}
               activeOpacity={0.7}
               onPress={onOpenLanguage}
@@ -478,6 +472,27 @@ const createStyles = (palette: AppPalette) =>
     fontSize: ms(22),
     fontWeight: '900',
     color: palette.text,
+  },
+  bellButton: {
+    paddingVertical: vs(2),
+    paddingLeft: hs(8),
+  },
+  bellBadge: {
+    position: 'absolute',
+    top: vs(0),
+    right: hs(-6),
+    minWidth: ms(16),
+    height: ms(16),
+    borderRadius: ms(8),
+    paddingHorizontal: hs(3),
+    backgroundColor: palette.danger,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  bellBadgeText: {
+    fontSize: ms(9),
+    fontWeight: '900',
+    color: '#FFFFFF',
   },
   coinsCard: {
     backgroundColor: palette.card,

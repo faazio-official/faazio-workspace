@@ -13,6 +13,7 @@ import type { AdCampaign, Product } from '@data/types';
 import { adCampaigns } from '@data/home/campaigns';
 import { gateway, type HomeCampaignDetail } from '@/services/api/GatewayClient';
 import BrandCampaignCard from '@/features/home/cards/BrandCampaignCard';
+import { SectionHeader } from './common';
 import type { SectionProps } from './common';
 import AppText from '@/components/AppText';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -120,7 +121,7 @@ const CampaignCarousel = memo(function CampaignCarousel({
 });
 
 /**
- * Home "Deals of the day" vendor-campaign section. Renders two stacked, auto-playing
+ * Home "Hot Brand Deals" vendor-campaign section. Renders two stacked, auto-playing
  * paging carousels of vendor campaign cards at the same full width as every other
  * Home section (no tinted container card). Each card's "View all" opens the
  * `DealsLanding` page in campaign mode.
@@ -185,6 +186,7 @@ function BrandCampaignsSection({ onProductClick, onOpenDeals, campaigns }: Secti
 
   return (
     <View style={styles.container}>
+      <SectionHeader title="Hot Brand Deals" />
       {loading ? (
         <AppText style={styles.stateText}>Loading deals…</AppText>
       ) : !offline && error ? (
@@ -216,8 +218,6 @@ export default memo(BrandCampaignsSection);
 
 const styles = StyleSheet.create({
   container: {
-    marginHorizontal: hs(16),
-    marginTop: SPACE.SECTION,
     marginBottom: SPACE.BLOCK,
   },
   stateText: {
@@ -228,6 +228,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACE.BLOCK,
   },
   viewport: {
+    marginHorizontal: hs(16),
     borderRadius: ms(16),
     overflow: 'hidden',
     position: 'relative',

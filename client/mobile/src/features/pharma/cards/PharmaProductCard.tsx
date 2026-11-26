@@ -26,6 +26,7 @@ interface Props {
   showRating?: boolean;
   showBadge?: boolean;
   showHeart?: boolean;
+  compactPrice?: boolean;
 }
 
 const PharmaProductCard = memo(function PharmaProductCard({

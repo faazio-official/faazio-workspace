@@ -52,11 +52,23 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
    shop's pin and gallery (not just its fee).
 8. A rejected application can be edited with `POST /sellers/{id}/edit` (REJECTED only; currently
    seller-role-gated, so the customer-app applicant cannot use it — see Known gaps).
+9. **Local autosave draft (no Save button):** every change — account fields, shop cards, captured
+   document/shop-photo URIs, the selected tier and the three clickwrap booleans — is debounced
+   (~600 ms) into an AsyncStorage draft keyed per account
+   (`faazio:seller-onboarding:draft:v1:<userId>`, `features/seller-onboarding/sellerDraft.ts`) and
+   restored on the next open, so a half-filled application survives leaving the screen, backgrounding
+   or an app restart. The OTP signature is deliberately **not** persisted (it is a live Firebase
+   confirmation, re-verified on a fresh open); the phone number is kept. The draft is cleared on a
+   successful submit and whenever `GET /sellers/me` reports `PENDING_REVIEW`/`ACTIVE`. Captured image
+   URIs point at the app's local cache — if the OS purged a file, only that field needs a re-capture;
+   KYC bytes are never copied or uploaded to persist a draft.
 
 ## State
 
 - `useAuthStore` — applicant identity (customer-app session).
 - Local form state (including the selected tier and three acceptance booleans).
+- `sellerDraft.ts` — device-local autosave draft (AsyncStorage, per-account key), restored on mount and
+  reconciled with `GET /sellers/me` (cleared when an application is already in flight/active).
 
 ## Data path
 
@@ -70,6 +82,8 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
   `media.assets` (`owner_type = 'SHOP'`, PUBLIC, claimed by `POST /sellers`) →
   `directory.stores.photo_keys`/`photo_asset_ids`.
 - `gateway.resubmitSellerApplication` → `POST /sellers/{id}/edit`.
+- Local autosave only: AsyncStorage key `faazio:seller-onboarding:draft:v1:<userId>` (never sent to the
+  gateway; no KYC bytes, no OTP stored).
 - No fixture seller rows or local rate cards are presented as live.
 
 ## Success / error / empty

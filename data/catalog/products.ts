@@ -24,6 +24,13 @@ export interface CatalogEntry {
   searchTokens: string[];
   price: number;
   originalPrice?: number;
+  brand?: string;
+  packType?: string;
+  netQty?: number;
+  netUnit?: string;
+  gallery?: string[];
+  isPrescription?: boolean;
+  variants?: import('../types').ProductVariant[];
   rating: number;
   emoji: string;
   image: string;
@@ -70,6 +77,13 @@ function fromProduct(p: Product): CatalogEntry {
     searchTokens: tokenize(p.name, p.desc, p.category, p.shop),
     price: p.price,
     originalPrice: p.originalPrice,
+    brand: p.brand,
+    packType: p.packType,
+    netQty: p.netQty,
+    netUnit: p.netUnit,
+    gallery: p.gallery,
+    isPrescription: p.isPrescription,
+    variants: p.variants,
     rating: p.rating,
     emoji: p.emoji,
     image: p.image,

@@ -118,15 +118,15 @@ export function DashboardScreen({ navigation }: Props) {
         rootNavigation()?.replace('SubmissionSuccess');
         return;
       }
-      const [nextOrders, inbox, shift] = await Promise.all([
+      const [nextOrders, unreadCount, shift] = await Promise.all([
         gateway.getActiveDeliveryOrders(),
         // Best-effort: the inbox badge is a courtesy; a failure must not block the shift.
-        gateway.getNotifications().catch(() => []),
+        gateway.getUnreadNotificationCount().catch(() => 0),
         // Best-effort: a shift-summary failure shows "—", never a fabricated figure.
         gateway.getDeliveryShiftSummary().catch(() => null),
       ]);
       setOrders(nextOrders);
-      setUnread(inbox.filter((item) => !item.readAt).length);
+      setUnread(unreadCount);
       setActiveOrder(activeOrderFrom(nextOrders));
       setShiftSummary(shift);
     } catch (err) {

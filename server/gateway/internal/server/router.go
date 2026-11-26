@@ -229,7 +229,8 @@ func NewRouter(d Deps) http.Handler {
 		portal.NewSellerLoginProvisioner(portalRepo, portalHasher)).
 		WithSubUsers(portal.NewSubUserLoginProvisioner(portalRepo, portalHasher)).
 		WithPhotos(mediaRepo).
-		WithPhotoURLs(d.Signer.PublicURL).Register(r)
+		WithPhotoURLs(d.Signer.PublicURL).
+		WithNotifier(notificationsRepo).Register(r)
 	promo.NewHandler(promoRepo, d.Cache, adminsRepo).Register(r)
 	ads.NewHandler(adsRepo, d.Cache, adminsRepo, d.Signer.PublicOrigin()).Register(r)
 	// Manual seller payouts: super/state board + seller-read ledger. Razorpay Route/settlement was

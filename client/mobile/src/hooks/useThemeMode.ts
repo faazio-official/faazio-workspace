@@ -1,47 +1,19 @@
-import { useEffect } from 'react';
-import { Appearance, useColorScheme } from 'react-native';
-import { useThemeStore } from '@/state/themeStore';
-import {
-  getPalette,
-  getStatusBarBarStyle,
-  resolveEffectiveMode,
-  type AppPalette,
-  type EffectiveTheme,
-  type ThemeMode,
-} from '@/theme/theme';
+import { getStatusBarBarStyle, lightPalette, type AppPalette } from '@/theme/theme';
 
 export interface UseThemeModeResult {
-  /** Stored preference: light | dark | auto. */
-  themeMode: ThemeMode;
-  /** Painted scheme after resolving `auto` against the device. */
-  effectiveMode: EffectiveTheme;
-  /** Semantic colour roles for the painted scheme. */
+  /** Semantic colour roles for the fixed light palette. */
   palette: AppPalette;
-  /** Status-bar icon style for the painted scheme. */
-  barStyle: 'light-content' | 'dark-content';
-  setThemeMode: (mode: ThemeMode) => void;
+  /** Status-bar icon style (always dark icons on the light background). */
+  barStyle: 'dark-content';
 }
 
 /**
- * Single read path for the appearance preference. Subscribes to the device
- * scheme for `auto`, and keeps the native surface (alerts, keyboards, Android
- * DayNight) aligned with the chosen preference via Appearance.setColorScheme.
+ * Single read path for the app palette. The customer app has no dark mode or
+ * appearance preference: every screen paints the fixed light palette.
  */
 export function useThemeMode(): UseThemeModeResult {
-  const themeMode = useThemeStore((s) => s.themeMode);
-  const setThemeMode = useThemeStore((s) => s.setThemeMode);
-  const systemScheme = useColorScheme();
-  const effectiveMode = resolveEffectiveMode(themeMode, systemScheme);
-
-  useEffect(() => {
-    Appearance.setColorScheme(themeMode === 'auto' ? 'unspecified' : themeMode);
-  }, [themeMode]);
-
   return {
-    themeMode,
-    effectiveMode,
-    palette: getPalette(effectiveMode),
-    barStyle: getStatusBarBarStyle(effectiveMode),
-    setThemeMode,
+    palette: lightPalette,
+    barStyle: getStatusBarBarStyle(),
   };
 }

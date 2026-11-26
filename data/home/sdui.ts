@@ -99,9 +99,9 @@ function chipProductIds(chipId: string): string[] {
 }
 
 /**
- * Curated "Today's Special" dish order, shared by the Home rail (`diningSpecials`) and the Food
- * rail (`foodSpecials`). Raw `sp-*` ids so the seed generator fails loudly on a typo (all exist
- * in `catalogIndex`); prices are joined at compile time by the gateway.
+ * Curated "Today's Special" dish order, used by the Food rail (`foodSpecials`). Raw `sp-*` ids so
+ * the seed generator fails loudly on a typo (all exist in `catalogIndex`); prices are joined at
+ * compile time by the gateway.
  */
 const TODAYS_SPECIAL_PRODUCT_IDS = [
   'sp-1', 'sp-2', 'sp-3', 'sp-4', 'sp-5', 'sp-6', 'sp-7', 'sp-8',
@@ -138,12 +138,12 @@ export const homeSdui: SduiSection[] = [
       { id: 'hbh-3', title: 'Order Food in Minutes', subtitle: 'LOCAL FAVOURITES', accent: '#FFF3E0', imageUrl: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?fm=jpg&fit=crop&q=80&w=800&h=450' },
     ],
   },
-  // Home "Today's Special" — the same dish order Food curates, joined by the gateway so the rail
-  // renders real catalog rows (no price on the card; the app shows image + 1-line name only).
-  { id: 'diningSpecials', title: "Today's Special", accent: '#1E5D44', productIds: TODAYS_SPECIAL_PRODUCT_IDS, storeIds: resolveStoreIds('FOOD') },
+  // Home "Hot Brand Deals" — the section itself is a portal-owned container for the vendor
+  // campaigns the app renders in the two Home carousels; its own productIds are unused by
+  // `BrandCampaignsSection` (kept for shape parity).
   {
     id: 'hotBrandDeals',
-    title: 'Deals of the day',
+    title: 'Hot Brand Deals',
     accent: '#1627E9',
     // The section is a portal-owned container for the vendor campaigns the app renders in the two
     // Home carousels; its own productIds are unused by `BrandCampaignsSection` (kept for shape parity).
@@ -178,8 +178,7 @@ export const homeSdui: SduiSection[] = [
   },
   // Food-only dish rail: the super-admin SDUI editor owns "Today's Special Near You" order
   // (ID-only, money joined). Served on `GET /sdui/food` and read by
-  // `restaurantFeedService.fetchRestaurantFeed`; `HomeView` skips the id (`default → null`), so
-  // Home's own `diningSpecials` rail is unaffected.
+  // `restaurantFeedService.fetchRestaurantFeed`; `HomeView` skips the id (`default → null`).
   // Raw `sp-*` ids so the seed generator fails loudly on a typo (all exist in `catalogIndex`).
   {
     id: 'foodSpecials',

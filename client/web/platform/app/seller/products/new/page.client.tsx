@@ -1,24 +1,57 @@
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader, Card, Sheet, RadioRow, TextField, Toggle, EmptyState, FixedActionBar } from "@/components/sellers/kit";
 import { formatINR, parseRupeesToPaisa } from "@/lib/format";
 import { createProduct, updateStock } from "@/lib/api";
-import { useCategoryTree, useSellerScope } from "@/lib/api/hooks";
+import { useCategoryTree, useProduct, useSellerScope } from "@/lib/api/hooks";
 import { sectorLabel } from "@/lib/sector";
 import { cn } from "@/lib/utils";
 import { ImageUploader } from "@/components/patterns/ImageUploader";
 import { tamilFieldError } from "@/lib/tamil";
-import type { Sector } from "@/data/types";
+import {
+  NET_UNITS,
+  PACK_TYPES,
+  RETURN_POLICIES,
+  complianceFromStore,
+  deriveUnit,
+  lockedNetUnit,
+} from "@/lib/productOptions";
+import type { NetUnit, PackType, Sector } from "@/data/types";
 
-const STEPS = ["Category", "Details", "Pricing", "Inventory", "Review"];
+const STEPS = ["Category", "Basics", "Pack & price", "Compliance", "Review"];
 
 /** Statutory rates mirrored from tax.platform_settings; the gateway remains authoritative. */
 const PLATFORM_GST_PCT = 18;
 const TCS_PCT = 1;
 const TDS_PCT = 0.1;
+
+function Chip({
+  active,
+  children,
+  onClick,
+}: {
+  active: boolean;
+  children: React.ReactNode;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "rounded-full border px-3 py-1.5 text-xs font-semibold",
+        active
+          ? "border-foreground bg-foreground text-background"
+          : "border-border bg-card text-foreground",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
 
 function NewProduct() {
   const router = useRouter();
@@ -32,11 +65,8 @@ function NewProduct() {
   const [taxonomyCategoryId, setTaxonomyCategoryId] = useState("");
   const [taxonomyName, setTaxonomyName] = useState("");
 
-  // Sector follows the picked store — a seller can own Mart + Food + Pharma shops, so the listing
-  // must carry the picked store's sector (productId prefix, category list, veg/Rx toggles).
   const pickedStore = storeId ? stores.find((s) => s.storeId === storeId) : undefined;
   const sector: Sector = pickedStore?.sector ?? activeStore?.sector ?? "MART";
-  // Discovery category: the active taxonomy leaf the home rail / drill-in reads. App-scoped.
   const tree = useCategoryTree(sector);
   const leaves = useMemo(() => {
     const parents = new Set(tree.map((c) => c.parentId).filter((id): id is string => Boolean(id)));
@@ -45,7 +75,6 @@ function NewProduct() {
   const taxonomyParentName = (id: string | null) =>
     id ? tree.find((c) => c.id === id)?.name ?? "" : "";
 
-  // If the chosen store belongs to another sector, the previously picked category no longer exists.
   const [sectorForCategory, setSectorForCategory] = useState("");
   useEffect(() => {
     if (sectorForCategory && sectorForCategory !== sector) {
@@ -57,11 +86,11 @@ function NewProduct() {
 
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  // Optional Tamil translations (0107). Tamil letters only; blank = not translated.
   const [nameTa, setNameTa] = useState("");
   const [descriptionTa, setDescriptionTa] = useState("");
   const nameTaError = tamilFieldError(nameTa, 200);
   const descriptionTaError = tamilFieldError(descriptionTa, 4000);
+  const [brand, setBrand] = useState("");
   const [unit, setUnit] = useState("1 unit");
   const [images, setImages] = useState<string[]>([]);
   const [isVeg, setIsVeg] = useState(true);
@@ -69,17 +98,94 @@ function NewProduct() {
   const [price, setPrice] = useState("");
   const [quantity, setQuantity] = useState("0");
 
+  const [packType, setPackType] = useState<PackType | "">("");
+  const [netQty, setNetQty] = useState("");
+  const [netUnit, setNetUnit] = useState<NetUnit | "">("");
+  const locked = lockedNetUnit(packType);
+  useEffect(() => {
+    if (locked) setNetUnit(locked);
+  }, [locked]);
+  const derivedUnit = deriveUnit(packType, Number(netQty) || undefined, netUnit);
+
+  const [sameAsPrice, setSameAsPrice] = useState(true);
+  const [mrp, setMrp] = useState("");
+
+  const [countryOfOrigin, setCountryOfOrigin] = useState("India");
+  const [manufacturerName, setManufacturerName] = useState("");
+  const [manufacturerAddress, setManufacturerAddress] = useState("");
+  const [packerName, setPackerName] = useState("");
+  const [packerAddress, setPackerAddress] = useState("");
+  const [shelfLifeDays, setShelfLifeDays] = useState("");
+  const [storage, setStorage] = useState("");
+  const [returnPolicy, setReturnPolicy] = useState(RETURN_POLICIES[0]!.value);
+  const [highlights, setHighlights] = useState("");
+  const [ingredients, setIngredients] = useState("");
+  const [saltComposition, setSaltComposition] = useState("");
+
+  const [variantOf, setVariantOf] = useState("");
+  const [variantLabel, setVariantLabel] = useState("");
+  const sourceProduct = useProduct(variantOf);
+  const prefilledStore = useRef(false);
+  const prefilledVariant = useRef(false);
+
+  // Read `?variantOf=` without useSearchParams (keeps this page a plain client component).
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("variantOf") ?? "";
+    setVariantOf(id);
+  }, []);
+
+  // Prefill the shop's saved compliance profile once.
+  useEffect(() => {
+    if (!activeStore || prefilledStore.current) return;
+    prefilledStore.current = true;
+    const defaults = complianceFromStore(
+      activeStore.name,
+      activeStore.address ?? "",
+      activeStore.complianceDefaults,
+    );
+    setCountryOfOrigin(defaults.countryOfOrigin ?? "India");
+    setManufacturerName(defaults.manufacturerName ?? "");
+    setManufacturerAddress(defaults.manufacturerAddress ?? "");
+    setPackerName(defaults.packerName ?? "");
+    setPackerAddress(defaults.packerAddress ?? "");
+    setReturnPolicy(defaults.returnPolicy ?? RETURN_POLICIES[0]!.value);
+    if (defaults.shelfLifeDays) setShelfLifeDays(String(defaults.shelfLifeDays));
+    if (defaults.storage) setStorage(defaults.storage);
+    if (activeStore.sector === "MART") setBrand((b) => b || activeStore.name);
+  }, [activeStore]);
+
+  // Prefill from the product the seller chose to duplicate as a variant.
+  useEffect(() => {
+    if (!sourceProduct || prefilledVariant.current) return;
+    prefilledVariant.current = true;
+    setStoreId(sourceProduct.storeId || storeId);
+    setTaxonomyCategoryId(sourceProduct.taxonomyCategoryId ?? "");
+    setTaxonomyName(sourceProduct.category ?? "");
+    setName(sourceProduct.name);
+    setDescription(sourceProduct.description ?? "");
+    setBrand(sourceProduct.brand ?? "");
+    setPackType(sourceProduct.packType ?? "");
+    setNetQty(sourceProduct.netQty ? String(sourceProduct.netQty) : "");
+    setNetUnit(sourceProduct.netUnit ?? "");
+    setSameAsPrice(!sourceProduct.mrpPaisa);
+    setMrp(sourceProduct.mrpPaisa ? String(sourceProduct.mrpPaisa / 100) : "");
+    setIsVeg(sourceProduct.isVeg);
+    setIsPrescription(sourceProduct.isPrescription);
+    setVariantLabel(sourceProduct.variantLabel ?? "");
+    setUnit(sourceProduct.unit);
+  }, [sourceProduct, storeId]);
+
   const [storePicker, setStorePicker] = useState(false);
   const [taxPicker, setTaxPicker] = useState(false);
+  const [packPicker, setPackPicker] = useState(false);
+  const [unitPicker, setUnitPicker] = useState(false);
+  const [returnPicker, setReturnPicker] = useState(false);
 
   const pricePaisa = parseRupeesToPaisa(price);
-  // The leaf's own mandatory GST (`tax.category_gst_rates`) — the seller never picks a rate, and the
-  // server resolves checkout from `taxonomyCategoryId`.
+  const mrpPaisa = sameAsPrice ? pricePaisa : parseRupeesToPaisa(mrp);
   const taxRatePct = leaves.find((c) => c.id === taxonomyCategoryId)?.gstRatePct ?? 5;
   const feePct = pickedStore?.platformFeePct ?? 0;
 
-  // Transparency preview of what the payout withholds. Same integer rounding as the gateway:
-  // price is GST-inclusive, the platform fee is charged on the gross, TCS/TDS are statutory.
   const taxablePaisa =
     taxRatePct > 0 ? Math.round((pricePaisa * 100) / (100 + taxRatePct)) : pricePaisa;
   const productTaxPaisa = pricePaisa - taxablePaisa;
@@ -88,23 +194,26 @@ function NewProduct() {
   const tcsPaisa = Math.round((pricePaisa * TCS_PCT) / 100);
   const tdsPaisa = Math.round((pricePaisa * TDS_PCT) / 100);
   const sellerNetPaisa = pricePaisa - commissionPaisa - tcsPaisa - tdsPaisa;
+  const discountPct = mrpPaisa > pricePaisa ? Math.round(((mrpPaisa - pricePaisa) / mrpPaisa) * 100) : 0;
+  const complianceReady = Boolean(countryOfOrigin.trim() && (manufacturerName.trim() || packerName.trim()));
 
   const stepValid = [
     Boolean(sector && storeId && taxonomyCategoryId),
-    name.trim().length > 2 &&
-      description.trim().length > 5 &&
-      images.length > 0 &&
-      !nameTaError &&
-      !descriptionTaError,
-    pricePaisa > 0,
-    Number(quantity) >= 0,
+    name.trim().length > 2 && description.trim().length > 5 && images.length > 0 && !nameTaError && !descriptionTaError,
+    pricePaisa > 0 && mrpPaisa >= pricePaisa && (!packType || Number(netQty) > 0),
+    complianceReady && Number(quantity) >= 0,
     true,
   ];
 
   async function submit() {
     if (submitting) return;
+    if (mrpPaisa < pricePaisa) {
+      toast.error("MRP cannot be lower than the selling price");
+      return;
+    }
     setSubmitting(true);
     try {
+      const variantGroupId = variantOf ? sourceProduct?.variantGroupId || variantOf : undefined;
       const created = await createProduct({
         sellerId,
         storeId,
@@ -118,9 +227,31 @@ function NewProduct() {
         emoji: "",
         imageUrl: images[0] ?? "",
         galleryUrls: images.slice(1),
-        unit,
+        unit: derivedUnit || unit,
         pricePaisa,
-        isVeg: sector === "FOOD" ? isVeg : false,
+        mrpPaisa,
+        brand: brand.trim(),
+        ...(packType ? { packType, netQty: Number(netQty), netUnit: (netUnit || "piece") as NetUnit } : {}),
+        ...(variantGroupId ? { variantGroupId, variantLabel: variantLabel.trim() || derivedUnit } : {}),
+        attributes: {
+          highlights: highlights
+            .split("\n")
+            .map((line) => line.trim())
+            .filter(Boolean),
+          ...(ingredients.trim() ? { ingredients: ingredients.trim() } : {}),
+          ...(sector === "PHARMA" && saltComposition.trim() ? { saltComposition: saltComposition.trim() } : {}),
+          legalMetrology: {
+            countryOfOrigin: countryOfOrigin.trim(),
+            ...(manufacturerName.trim() ? { manufacturerName: manufacturerName.trim() } : {}),
+            ...(manufacturerAddress.trim() ? { manufacturerAddress: manufacturerAddress.trim() } : {}),
+            ...(packerName.trim() ? { packerName: packerName.trim() } : {}),
+            ...(packerAddress.trim() ? { packerAddress: packerAddress.trim() } : {}),
+            ...(shelfLifeDays ? { shelfLifeDays: Number(shelfLifeDays) } : {}),
+            ...(storage.trim() ? { storage: storage.trim() } : {}),
+            returnPolicy,
+          },
+        },
+        isVeg: sector === "PHARMA" ? false : isVeg,
         isPrescription: sector === "PHARMA" ? isPrescription : false,
         status: "PENDING_REVIEW",
       });
@@ -169,12 +300,7 @@ function NewProduct() {
         <div className="flex items-center gap-1.5">
           {STEPS.map((label, index) => (
             <div key={label} className="flex-1">
-              <div
-                className={cn(
-                  "h-1.5 rounded-full",
-                  index <= step ? "bg-foreground" : "bg-muted",
-                )}
-              />
+              <div className={cn("h-1.5 rounded-full", index <= step ? "bg-foreground" : "bg-muted")} />
               <p
                 className={cn(
                   "mt-1.5 hidden text-center text-[9px] font-semibold uppercase tracking-wide sm:block",
@@ -187,6 +313,9 @@ function NewProduct() {
           ))}
         </div>
         <p className="px-1 pt-2 text-sm font-bold">{STEPS[step]}</p>
+        {variantOf ? (
+          <p className="px-1 pt-1 text-[11px] text-info">Adding a variant of {sourceProduct?.name ?? "an existing listing"}</p>
+        ) : null}
       </div>
 
       <div className="space-y-3 px-4 pt-3 pb-36">
@@ -196,9 +325,7 @@ function NewProduct() {
               <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Sector</p>
               <p className="mt-1 text-sm">
                 {sectorLabel(sector)}
-                <span className="ml-2 text-[11px] text-muted-foreground">
-                  Fixed by your registration.
-                </span>
+                <span className="ml-2 text-[11px] text-muted-foreground">Fixed by your registration.</span>
               </p>
             </Card>
             <Card onClick={() => setStorePicker(true)} className="cursor-pointer">
@@ -209,9 +336,7 @@ function NewProduct() {
             </Card>
             <Card onClick={() => setTaxPicker(true)} className="cursor-pointer">
               <p className="text-xs font-medium text-muted-foreground">Category</p>
-              <p className="mt-1 text-sm font-semibold">
-                {taxonomyName || "Pick an approved category"}
-              </p>
+              <p className="mt-1 text-sm font-semibold">{taxonomyName || "Pick an approved category"}</p>
               <p className="mt-0.5 text-[11px] text-muted-foreground">
                 Sets the home rail / drill-in leaf and its mandatory GST ({taxRatePct}%).
               </p>
@@ -222,14 +347,9 @@ function NewProduct() {
         {step === 1 && (
           <Card>
             <TextField label="Product name" value={name} onChange={setName} />
+            <TextField label="Brand" value={brand} onChange={setBrand} placeholder="e.g. Clinique" />
             <TextField label="Description" value={description} onChange={setDescription} />
-            <TextField
-              label="Product name (Tamil)"
-              lang="ta"
-              value={nameTa}
-              onChange={setNameTa}
-              placeholder="தமிழில் மட்டும்"
-            />
+            <TextField label="Product name (Tamil)" lang="ta" value={nameTa} onChange={setNameTa} placeholder="தமிழில் மட்டும்" />
             {nameTaError ? <p className="text-[11px] text-destructive">{nameTaError}</p> : null}
             <TextField
               label="Description (Tamil)"
@@ -238,19 +358,19 @@ function NewProduct() {
               onChange={setDescriptionTa}
               placeholder="தமிழில் மட்டும்"
             />
-            {descriptionTaError ? (
-              <p className="text-[11px] text-destructive">{descriptionTaError}</p>
-            ) : null}
-            <TextField label="Unit" value={unit} onChange={setUnit} />
+            {descriptionTaError ? <p className="text-[11px] text-destructive">{descriptionTaError}</p> : null}
             <div className="rounded-xl border border-dashed border-border p-3">
               <ImageUploader images={images} onChange={setImages} />
               {images.length === 0 && (
-                <p className="mt-2 text-[11px] text-brand">
-                  At least one photo is required before this listing can go live.
+                <p className="mt-2 text-[11px] text-brand">At least one photo is required before this listing can go live.</p>
+              )}
+              {images.length === 1 && (
+                <p className="mt-1 text-[11px] text-muted-foreground">
+                  Add 1–4 more photos so shoppers can see the product from every side.
                 </p>
               )}
             </div>
-            {sector === "FOOD" && (
+            {sector !== "PHARMA" && (
               <div className="flex items-center justify-between border-t border-border py-3">
                 <span className="text-sm font-medium">Vegetarian</span>
                 <Toggle label="Vegetarian" checked={isVeg} onChange={setIsVeg} />
@@ -266,50 +386,161 @@ function NewProduct() {
         )}
 
         {step === 2 && (
-          <Card>
-            <TextField
-              label="Selling price (₹, GST included)"
-              type="number"
-              value={price}
-              onChange={setPrice}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Shoppers pay this final price. GST is included, not added on top.
-            </p>
-            <div className="mt-3 rounded-xl border border-border bg-muted/40 px-3 py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                GST rate
+          <>
+            <Card>
+              <p className="mb-2 text-sm font-bold">Pack size</p>
+              <p className="mb-3 text-[11px] text-muted-foreground">
+                Pick the form, then the amount. This is what shoppers see as “500 g”, “1 kg” or “Pack of 6”.
               </p>
-              <p className="mt-1 text-sm font-bold">{taxRatePct}%</p>
-            </div>
-            {pricePaisa > 0 && (
-              <DeductionsCard
-                pricePaisa={pricePaisa}
-                taxablePaisa={taxablePaisa}
-                productTaxPaisa={productTaxPaisa}
-                commissionPaisa={commissionPaisa}
-                platformGstPaisa={platformGstPaisa}
-                tcsPaisa={tcsPaisa}
-                tdsPaisa={tdsPaisa}
-                sellerNetPaisa={sellerNetPaisa}
-                feePct={feePct}
-              />
-            )}
-          </Card>
+              <div className="flex flex-wrap gap-2">
+                <Chip active={packType === ""} onClick={() => { setPackType(""); setNetQty(""); setNetUnit(""); }}>
+                  No pack size
+                </Chip>
+                {PACK_TYPES.map((p) => (
+                  <Chip
+                    key={p.value}
+                    active={packType === p.value}
+                    onClick={() => {
+                      setPackType(p.value);
+                      const lock = lockedNetUnit(p.value);
+                      setNetUnit(lock ?? "piece");
+                    }}
+                  >
+                    {p.label}
+                  </Chip>
+                ))}
+              </div>
+              {packType ? (
+                <div className="mt-3 space-y-3">
+                  <TextField
+                    label={packType === "KG" || packType === "G" ? "Weight" : packType === "L" || packType === "ML" ? "Volume" : "Quantity in pack"}
+                    type="number"
+                    value={netQty}
+                    onChange={setNetQty}
+                    placeholder={packType === "G" ? "500" : packType === "ML" ? "30" : "1"}
+                  />
+                  {locked ? (
+                    <div className="rounded-xl border border-border bg-muted/40 px-3 py-2 text-sm">
+                      Net unit: <b>{locked}</b>
+                      <span className="ml-2 text-[11px] text-muted-foreground">Fixed by the pack type.</span>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="mb-1 text-xs font-medium text-muted-foreground">Each item is a</p>
+                      <div className="flex flex-wrap gap-2">
+                        {NET_UNITS.slice(0, 4).map((u) => (
+                          <Chip key={u.value} active={netUnit === u.value} onClick={() => setNetUnit(u.value)}>
+                            {u.label}
+                          </Chip>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {derivedUnit ? (
+                    <p className="text-[12px] font-semibold text-success">Shoppers see: {derivedUnit}</p>
+                  ) : null}
+                  <TextField
+                    label="Variant label (optional)"
+                    value={variantLabel}
+                    onChange={setVariantLabel}
+                    placeholder={derivedUnit || "e.g. Shade 04"}
+                  />
+                </div>
+              ) : null}
+            </Card>
+
+            <Card>
+              <TextField label="Selling price (₹, GST included)" type="number" value={price} onChange={setPrice} />
+              <p className="text-[11px] text-muted-foreground">Shoppers pay this final price. GST is included, not added on top.</p>
+              <div className="mt-3 flex items-center justify-between border-t border-border py-3">
+                <div>
+                  <p className="text-sm font-medium">Same as selling price</p>
+                  <p className="text-[11px] text-muted-foreground">Turn off to declare a higher MRP and show a discount.</p>
+                </div>
+                <Toggle label="Same as selling price" checked={sameAsPrice} onChange={setSameAsPrice} />
+              </div>
+              {!sameAsPrice && (
+                <>
+                  <TextField label="MRP (₹)" type="number" value={mrp} onChange={setMrp} />
+                  {mrpPaisa > 0 && pricePaisa > 0 && mrpPaisa < pricePaisa ? (
+                    <p className="text-[11px] text-brand">MRP cannot be lower than the selling price.</p>
+                  ) : null}
+                  {discountPct > 0 ? (
+                    <p className="text-[12px] font-semibold text-success">
+                      Shoppers see ₹{mrpPaisa / 100} struck through, ₹{pricePaisa / 100} and {discountPct}% OFF.
+                    </p>
+                  ) : null}
+                </>
+              )}
+              <div className="mt-3 rounded-xl border border-border bg-muted/40 px-3 py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">GST rate</p>
+                <p className="mt-1 text-sm font-bold">{taxRatePct}%</p>
+              </div>
+              {pricePaisa > 0 && (
+                <DeductionsCard
+                  pricePaisa={pricePaisa}
+                  taxablePaisa={taxablePaisa}
+                  productTaxPaisa={productTaxPaisa}
+                  commissionPaisa={commissionPaisa}
+                  platformGstPaisa={platformGstPaisa}
+                  tcsPaisa={tcsPaisa}
+                  tdsPaisa={tdsPaisa}
+                  sellerNetPaisa={sellerNetPaisa}
+                  feePct={feePct}
+                />
+              )}
+            </Card>
+          </>
         )}
 
         {step === 3 && (
-          <Card>
-            <TextField
-              label="Stock quantity"
-              type="number"
-              value={quantity}
-              onChange={setQuantity}
-            />
-            <p className="text-[11px] text-muted-foreground">
-              Delivery ETA is platform-owned (30 minutes by default).
-            </p>
-          </Card>
+          <>
+            <Card>
+              <p className="mb-2 text-sm font-bold">Compliance profile</p>
+              <p className="mb-3 text-[11px] text-muted-foreground">
+                Required for Indian e-commerce. We prefill your shop defaults — edit only when this product differs.
+              </p>
+              <TextField label="Country of origin" value={countryOfOrigin} onChange={setCountryOfOrigin} />
+              <TextField label="Manufacturer name" value={manufacturerName} onChange={setManufacturerName} />
+              <TextField label="Manufacturer address" value={manufacturerAddress} onChange={setManufacturerAddress} />
+              <TextField label="Packer name" value={packerName} onChange={setPackerName} />
+              <TextField label="Packer address" value={packerAddress} onChange={setPackerAddress} />
+              <TextField label="Shelf life (days)" type="number" value={shelfLifeDays} onChange={setShelfLifeDays} />
+              <TextField label="Storage instructions" value={storage} onChange={setStorage} />
+              <Card onClick={() => setReturnPicker(true)} className="mt-1 cursor-pointer border-border shadow-none">
+                <p className="text-xs font-medium text-muted-foreground">Return policy</p>
+                <p className="mt-1 text-sm font-semibold">
+                  {RETURN_POLICIES.find((p) => p.value === returnPolicy)?.label ?? "Pick a policy"}
+                </p>
+              </Card>
+              <div className="mt-3 border-t border-border pt-3">
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Highlights (one per line)</p>
+                <textarea
+                  value={highlights}
+                  onChange={(e) => setHighlights(e.target.value)}
+                  rows={3}
+                  placeholder={"Dermatologist tested\nFragrance free"}
+                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                />
+              </div>
+              <div className="mt-3">
+                <p className="mb-1 text-xs font-medium text-muted-foreground">Ingredients</p>
+                <textarea
+                  value={ingredients}
+                  onChange={(e) => setIngredients(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-lg border border-border px-3 py-2 text-sm"
+                />
+              </div>
+              {sector === "PHARMA" && (
+                <TextField label="Salt composition" value={saltComposition} onChange={setSaltComposition} />
+              )}
+            </Card>
+            <Card>
+              <TextField label="Stock quantity" type="number" value={quantity} onChange={setQuantity} />
+              <p className="text-[11px] text-muted-foreground">Delivery ETA is platform-owned (30 minutes by default).</p>
+            </Card>
+          </>
         )}
 
         {step === 4 && (
@@ -327,14 +558,17 @@ function NewProduct() {
             <dl className="divide-y divide-border text-sm">
               <Row label="Sector / category" value={`${sectorLabel(sector)} · ${taxonomyName}`} />
               <Row label="Name" value={name} />
-              {nameTa.trim() ? <Row label="Name (Tamil)" value={nameTa.trim()} /> : null}
-              <Row label="Unit" value={unit} />
+              <Row label="Brand" value={brand} />
+              <Row label="Pack size" value={derivedUnit || unit} />
+              <Row label="MRP" value={formatINR(mrpPaisa)} />
               <Row label="Price (GST incl.)" value={formatINR(pricePaisa)} />
+              <Row label="Discount" value={discountPct > 0 ? `${discountPct}% OFF` : "None"} />
               <Row label="GST rate" value={`${taxRatePct}%`} />
               <Row label="Stock" value={`${quantity} units`} />
-              {sector === "PHARMA" && (
-                <Row label="Prescription" value={isPrescription ? "Required" : "Not required"} />
-              )}
+              <Row label="Country of origin" value={countryOfOrigin} />
+              <Row label="Manufacturer" value={manufacturerName || "—"} />
+              <Row label="Return policy" value={RETURN_POLICIES.find((p) => p.value === returnPolicy)?.label ?? "—"} />
+              {sector === "PHARMA" && <Row label="Prescription" value={isPrescription ? "Required" : "Not required"} />}
               <Row label="Status on submit" value="PENDING_REVIEW" />
             </dl>
             {pricePaisa > 0 && (
@@ -417,6 +651,20 @@ function NewProduct() {
           ))
         )}
       </Sheet>
+
+      <Sheet open={returnPicker} onClose={() => setReturnPicker(false)} title="Return policy">
+        {RETURN_POLICIES.map((p) => (
+          <RadioRow
+            key={p.value}
+            label={p.label}
+            checked={returnPolicy === p.value}
+            onClick={() => {
+              setReturnPolicy(p.value);
+              setReturnPicker(false);
+            }}
+          />
+        ))}
+      </Sheet>
     </>
   );
 }
@@ -456,18 +704,14 @@ function DeductionsCard({
   return (
     <div className="mt-3 rounded-xl border border-border">
       <div className="border-b border-border px-3 py-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-          What you keep (per unit)
-        </p>
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">What you keep (per unit)</p>
       </div>
       <dl className="divide-y divide-border">
         {rows.map(([label, value, hint]) => (
           <div key={label} className="flex items-center justify-between gap-3 px-3 py-2 text-[13px]">
             <dt>
               {label}
-              {hint ? (
-                <span className="ml-1 text-[11px] text-muted-foreground">({hint})</span>
-              ) : null}
+              {hint ? <span className="ml-1 text-[11px] text-muted-foreground">({hint})</span> : null}
             </dt>
             <dd className="num font-medium">{value}</dd>
           </div>
@@ -478,8 +722,7 @@ function DeductionsCard({
         </div>
       </dl>
       <p className="px-3 py-2 text-[11px] text-muted-foreground">
-        Estimate using your shop&apos;s fee and the approved GST rate. The gateway recomputes the
-        final split at settlement.
+        Estimate using your shop&apos;s fee and the approved GST rate. The gateway recomputes the final split at settlement.
       </p>
     </div>
   );

@@ -42,12 +42,24 @@ func Prescriptions(userID string) string {
 func Notifications(userID string) string {
 	return fmt.Sprintf("faazio:v1:notifications:inbox:%s", userID)
 }
+
+// NotificationsUnread is the unread badge count for one user's inbox. Separate from the inbox key so
+// a badge poll never downloads the whole list; invalidated alongside the inbox on enqueue/read.
+func NotificationsUnread(userID string) string {
+	return fmt.Sprintf("faazio:v1:notifications:unread:%s", userID)
+}
 func Stock(id string) string { return fmt.Sprintf("faazio:v1:stock:%s", id) }
 func StoreProducts(storeID string) string {
 	return fmt.Sprintf("faazio:v1:catalog:store-products:%s", storeID)
 }
 func VendorReviews(id string) string  { return fmt.Sprintf("faazio:v1:reviews:vendor:%s", id) }
 func ProductReviews(id string) string { return fmt.Sprintf("faazio:v1:reviews:product:%s", id) }
+
+// ProductReviewSummary is the product rating histogram (average/count/5-star distribution) shown
+// on the PDP. Separate from the review-list key so a page read never has to aggregate.
+func ProductReviewSummary(id string) string {
+	return fmt.Sprintf("faazio:v1:reviews:product-summary:%s", id)
+}
 func Orders(userID string) string     { return fmt.Sprintf("faazio:v1:checkout:orders:%s", userID) }
 func Favourites(userID string) string { return fmt.Sprintf("faazio:v1:favourites:items:%s", userID) }
 func Rewards(userID string) string    { return fmt.Sprintf("faazio:v1:rewards:view:%s", userID) }

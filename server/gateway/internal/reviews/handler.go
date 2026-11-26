@@ -34,6 +34,7 @@ func NewHandler(repo *Repo, service *Service, c *cache.Cache, audit contracts.Au
 // Register mounts review endpoints onto the shared router.
 func (h *Handler) Register(r chi.Router) {
 	r.Get("/product/{id}/reviews", h.productReviews)
+	r.Get("/product/{id}/reviews/summary", h.productSummary)
 	r.Get("/vendors/{id}/reviews", h.vendorReviews)
 	r.Get("/vendors/{id}/reviews/summary", h.vendorSummary)
 	r.Group(func(g chi.Router) {
@@ -170,6 +171,24 @@ func (h *Handler) vendorReviews(w http.ResponseWriter, r *http.Request) {
 		httpx.SetNextCursor(w, httpx.EncodeCursor(lastCreated.UTC().Format(time.RFC3339Nano), lastID))
 	}
 	httpx.JSON(w, http.StatusOK, rows)
+}
+
+// productSummary serves the PDP rating histogram (average/count/5-star buckets). Cached separately
+// from the review list; a new review purges both keys in the service layer.
+func (h *Handler) productSummary(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	var cached ProductSummary
+	if h.cache.GetJSON(r.Context(), cache.ProductReviewSummary(id), &cached) {
+		httpx.JSON(w, http.StatusOK, cached)
+		return
+	}
+	summary, err := h.repo.ProductSummary(r.Context(), id)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "reviews_unavailable", "reviews unavailable")
+		return
+	}
+	h.cache.SetJSON(r.Context(), cache.ProductReviewSummary(id), summary, cache.TTLReviews)
+	httpx.JSON(w, http.StatusOK, summary)
 }
 
 func (h *Handler) vendorSummary(w http.ResponseWriter, r *http.Request) {

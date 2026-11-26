@@ -258,7 +258,7 @@ func TestDeleteWithMove(t *testing.T) {
 	mkProduct("zzdel-c", child.Name, child.ID)
 
 	// 1. Listings in the subtree and no move target → refused, nothing hidden.
-	if _, err := repo.Delete(ctx, parent.ID, "", "test"); !errors.Is(err, ErrCategoryHasProducts) {
+	if _, err := repo.Delete(ctx, parent.ID, "", "", "test"); !errors.Is(err, ErrCategoryHasProducts) {
 		t.Fatalf("delete without moveTo err = %v, want ErrCategoryHasProducts", err)
 	}
 	if got, err := repo.Get(ctx, parent.ID); err != nil || !got.IsActive {
@@ -266,24 +266,24 @@ func TestDeleteWithMove(t *testing.T) {
 	}
 
 	// 2. A same-level but different-level target (leaf child) is rejected: parent→child mixes levels.
-	if _, err := repo.Delete(ctx, parent.ID, child.ID, "test"); !errors.Is(err, ErrInvalidMoveTarget) {
+	if _, err := repo.Delete(ctx, parent.ID, child.ID, "", "test"); !errors.Is(err, ErrInvalidMoveTarget) {
 		t.Fatalf("cross-level target err = %v, want ErrInvalidMoveTarget", err)
 	}
 	// A target inside the subtree is rejected too.
-	if _, err := repo.Delete(ctx, parent.ID, parent.ID, "test"); !errors.Is(err, ErrInvalidMoveTarget) {
+	if _, err := repo.Delete(ctx, parent.ID, parent.ID, "", "test"); !errors.Is(err, ErrInvalidMoveTarget) {
 		t.Fatalf("self target err = %v, want ErrInvalidMoveTarget", err)
 	}
 
 	// 3. A valid top-level target moves every listing onto its active leaf and hides the subtree.
-	res, err := repo.Delete(ctx, parent.ID, keep.ID, "test")
+	res, err := repo.Delete(ctx, parent.ID, keep.ID, "", "test")
 	if err != nil {
 		t.Fatalf("delete with moveTo: %v", err)
 	}
 	if res.MovedProducts != 3 {
 		t.Fatalf("movedProducts = %d, want 3", res.MovedProducts)
 	}
-	if res.Deactivated != 3 {
-		t.Fatalf("deactivated = %d, want 3 (parent+child+grandchild)", res.Deactivated)
+	if res.Trashed != 3 {
+		t.Fatalf("deactivated = %d, want 3 (parent+child+grandchild)", res.Trashed)
 	}
 	if res.TargetID != keepLeaf.ID || res.TargetName != keepLeaf.Name {
 		t.Fatalf("target = %s/%s, want the destination's active leaf %s/%s",
@@ -304,8 +304,8 @@ func TestDeleteWithMove(t *testing.T) {
 		if err != nil {
 			t.Fatalf("get %s: %v", id, err)
 		}
-		if got.IsActive {
-			t.Fatalf("category %s must be hidden after delete", id)
+		if got.IsActive || got.DeletedAt == "" || got.PurgeAt == "" {
+			t.Fatalf("category %s must be trashed (inactive + deletedAt/purgeAt): %+v", id, got)
 		}
 	}
 	if got, err := repo.Get(ctx, keep.ID); err != nil || !got.IsActive {
@@ -321,16 +321,16 @@ func TestDeleteWithMove(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create empty child: %v", err)
 	}
-	if res, err := repo.Delete(ctx, empty.ID, "", "test"); err != nil {
+	if res, err := repo.Delete(ctx, empty.ID, "", "", "test"); err != nil {
 		t.Fatalf("delete without listings: %v", err)
-	} else if res.Deactivated != 2 || res.MovedProducts != 0 {
-		t.Fatalf("empty delete = hidden %d moved %d, want 2/0", res.Deactivated, res.MovedProducts)
+	} else if res.Trashed != 2 || res.MovedProducts != 0 {
+		t.Fatalf("empty delete = hidden %d moved %d, want 2/0", res.Trashed, res.MovedProducts)
 	}
-	if got, err := repo.Get(ctx, emptyChild.ID); err != nil || got.IsActive {
-		t.Fatalf("deleting a parent must cascade to its children: active=%v err=%v", got.IsActive, err)
+	if got, err := repo.Get(ctx, emptyChild.ID); err != nil || got.IsActive || got.DeletedAt == "" {
+		t.Fatalf("deleting a parent must cascade to its children: %+v err=%v", got, err)
 	}
 	// 5. A missing id reports ErrCategoryNotFound.
-	if _, err := repo.Delete(ctx, "cat-does-not-exist", "", "test"); !errors.Is(err, ErrCategoryNotFound) {
+	if _, err := repo.Delete(ctx, "cat-does-not-exist", "", "", "test"); !errors.Is(err, ErrCategoryNotFound) {
 		t.Fatalf("missing id err = %v, want ErrCategoryNotFound", err)
 	}
 }
@@ -372,6 +372,130 @@ func TestCategoryProductCount(t *testing.T) {
 	}
 	if got.ProductCount != 2 {
 		t.Fatalf("productCount = %d, want 2", got.ProductCount)
+	}
+}
+
+// TestCategoryTrashLifecycle pins the soft-delete contract: a delete moves the node and its subtree
+// to the trash (excluded from live reads, listed under Trash), restore brings the subtree back
+// deactivated, and a permanent delete removes only an unreferenced trashed subtree.
+func TestCategoryTrashLifecycle(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := NewRepo(pool)
+	ctx := context.Background()
+
+	parent, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Trash Parent", SortOrder: 9500, GSTRateCategoryID: "gst-mart-packaged"}, "test")
+	if err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Trash Child", ParentID: &parent.ID, SortOrder: 9501, GSTRateCategoryID: "gst-mart-packaged"}, "test")
+	if err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from taxonomy.categories where id = any($1)`,
+			[]string{child.ID, parent.ID})
+	})
+
+	if _, err := repo.Delete(ctx, parent.ID, "", "duplicate row", "test"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	// A trashed row is excluded from the live list, and listed only under Trash.
+	live, err := repo.List(ctx, ListOptions{App: "MART"})
+	if err != nil {
+		t.Fatalf("list live: %v", err)
+	}
+	for _, c := range live {
+		if c.ID == parent.ID || c.ID == child.ID {
+			t.Fatalf("a trashed row leaked into the live list: %s", c.ID)
+		}
+	}
+	trash, err := repo.List(ctx, ListOptions{App: "MART", Trash: true})
+	if err != nil {
+		t.Fatalf("list trash: %v", err)
+	}
+	seen := map[string]Category{}
+	for _, c := range trash {
+		seen[c.ID] = c
+	}
+	// Only the root of the trashed subtree is listed (the child's parent is trashed).
+	if _, ok := seen[child.ID]; ok {
+		t.Fatalf("a trashed descendant leaked into the trash list; only the subtree root should list")
+	}
+	c, ok := seen[parent.ID]
+	if !ok {
+		t.Fatalf("trashed root %s missing from the trash list", parent.ID)
+	}
+	if c.DeletedAt == "" || c.PurgeAt == "" || c.IsActive {
+		t.Fatalf("trashed row %s = %+v, want deletedAt/purgeAt set and inactive", parent.ID, c)
+	}
+	if c.DeleteReason != "duplicate row" {
+		t.Fatalf("delete reason = %q, want %q", c.DeleteReason, "duplicate row")
+	}
+
+	// Restore brings the whole subtree back, deactivated.
+	restored, err := repo.Restore(ctx, parent.ID, "test")
+	if err != nil {
+		t.Fatalf("restore: %v", err)
+	}
+	if restored.DeletedAt != "" || restored.IsActive {
+		t.Fatalf("restored row = %+v, want live but deactivated", restored)
+	}
+	if got, err := repo.Get(ctx, child.ID); err != nil || got.DeletedAt != "" {
+		t.Fatalf("restore must clear the child's trash flag too: %+v err=%v", got, err)
+	}
+
+	// Purge one subtree: trash it again, then delete forever.
+	if _, err := repo.Delete(ctx, parent.ID, "", "", "test"); err != nil {
+		t.Fatalf("delete again: %v", err)
+	}
+	res, err := repo.PurgeOne(ctx, parent.ID)
+	if err != nil {
+		t.Fatalf("purge: %v", err)
+	}
+	if res.Purged != 2 {
+		t.Fatalf("purged = %d, want 2 (parent+child)", res.Purged)
+	}
+	for _, id := range []string{parent.ID, child.ID} {
+		if _, err := repo.Get(ctx, id); !errors.Is(err, ErrNotFound) {
+			t.Fatalf("row %s still exists after purge: err=%v", id, err)
+		}
+	}
+}
+
+// TestCategoryPurgeRefusesReferences pins that a trashed subtree still referenced by a listing or a
+// store is never hard-deleted, so "delete forever" cannot orphan a reference.
+func TestCategoryPurgeRefusesReferences(t *testing.T) {
+	pool := testenv.Pool(t)
+	repo := NewRepo(pool)
+	ctx := context.Background()
+
+	cat, err := repo.Create(ctx, Input{App: "MART", Name: "ZZ Purge Ref", SortOrder: 9600, GSTRateCategoryID: "gst-mart-packaged"}, "test")
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	t.Cleanup(func() {
+		_, _ = pool.Exec(ctx, `delete from directory.stores where seller_category_id = $1`, cat.ID)
+		_, _ = pool.Exec(ctx, `delete from taxonomy.categories where id = $1`, cat.ID)
+	})
+	if _, err := repo.Delete(ctx, cat.ID, "", "", "test"); err != nil {
+		t.Fatalf("delete: %v", err)
+	}
+
+	var storeID string
+	if err := pool.QueryRow(ctx, `
+		select id from directory.stores where app = 'MART'::app_brand order by id limit 1`).Scan(&storeID); err != nil {
+		t.Skipf("no MART store to reference the category: %v", err)
+	}
+	if _, err := pool.Exec(ctx, `update directory.stores set seller_category_id = $1 where id = $2`, cat.ID, storeID); err != nil {
+		t.Fatalf("link store: %v", err)
+	}
+
+	if _, err := repo.PurgeOne(ctx, cat.ID); !errors.Is(err, ErrStillReferenced) {
+		t.Fatalf("purge with a store reference err = %v, want ErrStillReferenced", err)
+	}
+	if _, err := repo.Get(ctx, cat.ID); err != nil {
+		t.Fatalf("a refused purge must leave the trashed row in place: %v", err)
 	}
 }
 

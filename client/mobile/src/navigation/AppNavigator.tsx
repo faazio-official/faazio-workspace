@@ -43,7 +43,6 @@ const PaymentCallbackScreen = lazyNamed(() => import('@/features/cart/payment/Pa
 const CategoryDrillInScreen = lazyNamed(() => import('@/features/catalog/CategoryDrillInScreen'), 'CategoryDrillInScreen');
 const VendorDetailScreen = lazyNamed(() => import('@/features/catalog/VendorDetailScreen'), 'VendorDetailScreen');
 const UserDetailsScreen = lazyNamed(() => import('@/features/profile/UserDetailsScreen'), 'UserDetailsScreen');
-const ThemeScreen = lazyNamed(() => import('@/features/profile/ThemeScreen'), 'default');
 const LanguageScreen = lazyNamed(() => import('@/features/profile/LanguageScreen'), 'default');
 const SavedAddressesScreen = lazyNamed(() => import('@/features/profile/SavedAddressesScreen'), 'SavedAddressesScreen');
 const DeleteAccountScreen = lazyNamed(() => import('@/features/profile/DeleteAccountScreen'), 'DeleteAccountScreen');
@@ -190,11 +189,6 @@ export function AppNavigator() {
               name="UserDetails"
               component={UserDetailsScreen}
               options={{ animation: 'fade', animationDuration: 180 }}
-            />
-            <Stack.Screen
-              name="Theme"
-              component={ThemeScreen}
-              options={{ animation: 'slide_from_right', animationDuration: 220 }}
             />
             <Stack.Screen
               name="Language"

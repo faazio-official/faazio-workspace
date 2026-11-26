@@ -260,7 +260,7 @@ const styles = StyleSheet.create({
   },
   sectionHeaderWrap: {
     paddingHorizontal: hs(16),
-    marginTop: SPACE.SECTION,
+    marginTop: SPACE.BLOCK,
   },
   sectionEmpty: {
     paddingHorizontal: hs(16),

@@ -47,8 +47,8 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Profile | Saved addresses | `SavedAddresses` | [saved-addresses.md](./profile/saved-addresses.md) |
 | Profile | Rewards ledger | `FaazioRewards` | [rewards-ledger.md](./profile/rewards-ledger.md) |
 | Profile | Rate vendor | `RateVendor` | [rate-vendor.md](./profile/rate-vendor.md) |
-| Profile | Appearance (theme) | `Theme` (`features/profile/ThemeScreen.tsx`) | [profile/theme.md](./profile/theme.md) |
 | Profile | Language (English / Tamil) | `Language` (`features/profile/LanguageScreen.tsx`) | [profile/language.md](./profile/language.md) |
+| Notifications | In-app inbox + badge | `Notifications` (`features/notifications/NotificationsScreen.tsx`) | [profile/notifications.md](./profile/notifications.md) |
 | Pharma | Prescription upload | `PrescriptionFlow` | [pharma/index.md](./pharma/index.md) · [prescription-upload.md](./pharma/prescription-upload.md) |
 | Pharma | Blood donor | `BloodDonor` | [blood-donor.md](./pharma/blood-donor.md) |
 | Pharma | Blood donor detail / request description | `BloodDonorDetails`, `BloodRequestDescription` | [pharma/blood-donor-details.md](./pharma/blood-donor-details.md) |

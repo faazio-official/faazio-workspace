@@ -144,12 +144,30 @@ export interface ProductView extends CatalogEntry {
  * Seller create-listing payload. Money is **whole rupees** (the gateway converts to paisa at the
  * DB boundary) — never pass paisa here.
  */
+export interface ProductReviewSummary {
+  productId: string;
+  average: number;
+  count: number;
+  /** index 0 = 1 star … index 4 = 5 stars. */
+  distribution: [number, number, number, number, number];
+}
+
 export interface CreateProductInput {
   storeId: string;
   name: string;
   category: string;
   description: string;
   price: number;
+  /** Seller-declared list price (MRP) in whole rupees; >= price. */
+  mrp?: number;
+  brand?: string;
+  packType?: string;
+  netQty?: number;
+  netUnit?: string;
+  galleryKeys?: string[];
+  variantGroupId?: string;
+  variantLabel?: string;
+  variantOrder?: number;
   unit?: string;
   emoji?: string;
   /** `r2:<key>` media reference or an http(s) legacy URL. */
@@ -1062,6 +1080,15 @@ export class GatewayClient {
             category: input.category,
             description: input.description,
             price: Math.round(input.price),
+            mrp: input.mrp !== undefined ? Math.round(input.mrp) : undefined,
+            brand: input.brand,
+            packType: input.packType,
+            netQty: input.netQty,
+            netUnit: input.netUnit,
+            galleryKeys: input.galleryKeys,
+            variantGroupId: input.variantGroupId,
+            variantLabel: input.variantLabel,
+            variantOrder: input.variantOrder,
             unit: input.unit,
             emoji: input.emoji,
             imageUrl: input.imageUrl,
@@ -1198,6 +1225,13 @@ export class GatewayClient {
         return { product, reviews };
       },
     );
+  }
+
+  /** Product rating histogram for the PDP. A failed read is an honest empty histogram, never faked. */
+  async getProductReviewSummary(id: string): Promise<ProductReviewSummary | undefined> {
+    return this.serverOnly(
+      () => this.http<ProductReviewSummary>(`/product/${encodeURIComponent(id)}/reviews/summary`),
+    ).catch(() => undefined);
   }
 
   /** Batch catalog read (used by deals/home price overlays). Strict — prices are never fabricated. */
@@ -1578,6 +1612,17 @@ export class GatewayClient {
     return this.serverOnly(
       () => this.http<NotificationRecord[]>('/notifications'),
     );
+  }
+
+  /** Unread inbox badge count (excludes ephemeral incoming-call rows). 0 offline. */
+  async getUnreadNotificationCount(): Promise<number> {
+    if (!REMOTE_ENABLED) return 0;
+    try {
+      const res = await this.http<{ count: number }>('/notifications/unread-count');
+      return res.count ?? 0;
+    } catch {
+      return 0;
+    }
   }
 
   /** Mark one notification as read (idempotent; a foreign/unknown id is a no-op). */

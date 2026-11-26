@@ -5,6 +5,7 @@ import (
 	"crypto/sha1"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"math"
 	"net/http"
 	"sort"
@@ -374,6 +375,8 @@ type vendorRequest struct {
 	// console applies these when a retail SKU is turned back on.
 	RestockQty        *int `json:"restockQty"`
 	RestockEtaMinutes *int `json:"restockEtaMinutes"`
+	// Compliance profile defaults (0137). Raw JSON kept as-is; bounded below.
+	ComplianceDefaults json.RawMessage `json:"complianceDefaults"`
 }
 
 // restockInput normalises the optional restock defaults into the VendorInput sentinels: qty 0 means
@@ -479,6 +482,7 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 		IsLive:                 req.IsLive,
 		RestockQty:             restockQty,
 		RestockEtaMinutes:      restockEta,
+		ComplianceDefaults:     req.ComplianceDefaults,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "vendor_create_failed", "could not create vendor")
@@ -594,6 +598,7 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		IsLive:                 req.IsLive,
 		RestockQty:             restockQty,
 		RestockEtaMinutes:      restockEta,
+		ComplianceDefaults:     req.ComplianceDefaults,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "vendor_update_failed", "could not update vendor")
@@ -889,6 +894,9 @@ type menuRequest struct {
 	Image         string   `json:"image"`
 	ImageAssetID  string   `json:"imageAssetId"`
 	ImageKey      string   `json:"imageKey"`
+	// AttributeOptionIDs are the optional facet tags applied to the dish. Nil leaves an existing
+	// dish's tags unchanged; an explicit list (including []) replaces them.
+	AttributeOptionIDs []string `json:"attributeOptionIds"`
 }
 
 func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
@@ -993,8 +1001,14 @@ func (h *Handler) upsertMenu(w http.ResponseWriter, r *http.Request) {
 		Price: req.Price, MRP: req.MRP,
 		IsVeg: req.IsVeg, Cuisine: req.Cuisine, Rating: req.Rating, Image: req.Image,
 		ImageKey: imageKey, ImageAssetID: imageAssetID,
+		AttributeOptionIDs: req.AttributeOptionIDs,
 	}, sellerID, all)
 	if err != nil {
+		if errors.Is(err, ErrInvalidMenuAttribute) {
+			httpx.Fail(w, http.StatusBadRequest, "invalid_attribute",
+				"one or more attribute tags do not belong to this dish's sub-category")
+			return
+		}
 		httpx.Fail(w, http.StatusInternalServerError, "directory_unavailable", "directory unavailable")
 		return
 	}

@@ -29,7 +29,10 @@ function SponsoredRailSection({ placement = 'HOME_TOP', onProductClick }: Sponso
           imageAspect={1}
           showAdLabel
           showAddButton={false}
-          nameLines={1}
+          showRating={false}
+          showBadge={false}
+          nameLines={2}
+          compactPrice
           onPress={h.onPress}
         />
       )}

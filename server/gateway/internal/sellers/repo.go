@@ -402,6 +402,47 @@ func (r *Repo) GetByUserID(ctx context.Context, userID string) (Seller, bool, er
 	return s, true, nil
 }
 
+// UserID returns the auth user_id that owns this seller application (the applicant's identity), or
+// "" when unlinked. Used to target an onboarding status notification at the applicant.
+func (r *Repo) UserID(ctx context.Context, sellerID string) (string, error) {
+	if r.pool == nil {
+		return "", fmt.Errorf("sellers: database not configured")
+	}
+	var userID string
+	err := r.pool.QueryRow(ctx,
+		`select coalesce(user_id,'') from sellers.sellers where seller_id = $1`, sellerID).Scan(&userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", err
+	}
+	return userID, nil
+}
+
+// StoreIDs returns the ids of the shops this seller owns. Used to fan an onboarding status
+// notification out to the seller's portal owner logins (EnqueueSeller targets by store).
+func (r *Repo) StoreIDs(ctx context.Context, sellerID string) ([]string, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("sellers: database not configured")
+	}
+	rows, err := r.pool.Query(ctx,
+		`select id from directory.stores where seller_id = $1`, sellerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	ids := []string{}
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		ids = append(ids, id)
+	}
+	return ids, rows.Err()
+}
+
 // ByID returns one seller.
 func (r *Repo) ByID(ctx context.Context, id string) (Seller, bool, error) {
 	if r.pool == nil {

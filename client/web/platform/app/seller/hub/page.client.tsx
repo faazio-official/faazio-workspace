@@ -18,6 +18,7 @@ import {
   useAnalyticsSeries,
   useOrders,
   useProducts,
+  useSellerMe,
   useSellerScope,
 } from "@/lib/api/hooks";
 import { useSellerUi } from "@/lib/sellerUi";
@@ -44,19 +45,42 @@ const TABS: { key: Tab; label: string }[] = [
 
 const STATUS_KEYS = ["NEW", "PACKED", "SHIPPED", "DELIVERED", "CANCELLED", "RETURNED"];
 
-const TASKS = [
-  { label: "Business KYC verified", done: true },
-  { label: "Bank account added", done: true },
-  { label: "First 5 products listed", done: false },
-  { label: "Store hours confirmed", done: true },
-  { label: "Festival opt-in submitted", done: false },
-];
+function sellerStatusLabel(status: string): string {
+  switch (status) {
+    case "PENDING_REVIEW":
+      return "Application under review";
+    case "REJECTED":
+      return "Application needs changes";
+    case "SUSPENDED":
+      return "Account suspended";
+    case "INQUIRY":
+      return "Enquiry received";
+    default:
+      return "Account status";
+  }
+}
+
+function sellerStatusHint(status: string): string {
+  switch (status) {
+    case "PENDING_REVIEW":
+      return "Our team is reviewing your KYC. You'll be notified here once approved.";
+    case "REJECTED":
+      return "Update the flagged details and resubmit from your profile.";
+    case "SUSPENDED":
+      return "Contact support to restore your selling access.";
+    case "INQUIRY":
+      return "Complete your application from the app to start selling.";
+    default:
+      return "";
+  }
+}
 
 function Hub() {
   const { sellerId, storeId, activeStore } = useSellerScope();
   const sector = activeStore?.sector;
   const orders = useOrders({ sellerId, storeId });
   const products = useProducts({ sellerId, storeId });
+  const { me } = useSellerMe();
   const series = useAnalyticsSeries("seller", sellerId, 30);
   const rush = useSellerUi((s) => s.rush);
   const [tab, setTab] = useState<Tab>("feed");
@@ -88,6 +112,16 @@ function Hub() {
     rating: 4.4,
     listingQuality: listingQuality(products),
   });
+  // Setup checklist is derived from the real application + catalogue state (no fixtures): KYC/
+  // approval from GET /sellers/me, listing progress from the live product count, and the published
+  // shop from the active store. Unknown values render as "not done" rather than optimistically done.
+  const activeProducts = products.filter((p) => p.status === "ACTIVE").length;
+  const TASKS = [
+    { label: "Business KYC verified", done: me?.status === "ACTIVE" },
+    { label: "First 5 products listed", done: activeProducts >= 5 },
+    { label: "Store hours confirmed", done: Boolean(activeStore?.hours) },
+    { label: "Shop published", done: activeStore?.isLive === true },
+  ];
   const doneCount = TASKS.filter((t) => t.done).length;
   const maxStatus = Math.max(1, ...statusRows.map((s) => orders.filter((o) => o.status === s.key).length));
 
@@ -106,6 +140,22 @@ function Hub() {
     <>
       {header}
       <div className="space-y-3 px-4 pt-3">
+        {me && me.status !== "ACTIVE" ? (
+          <Card>
+            <div className="flex items-start gap-2">
+              <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-warning" />
+              <div className="min-w-0">
+                <p className="text-sm font-bold">{sellerStatusLabel(me.status)}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {sellerStatusHint(me.status)}
+                  {me.status === "REJECTED" && me.rejectionReason
+                    ? ` Reason: ${me.rejectionReason}`
+                    : ""}
+                </p>
+              </div>
+            </div>
+          </Card>
+        ) : null}
         {tab === "feed" && (
           <>
             <Card>

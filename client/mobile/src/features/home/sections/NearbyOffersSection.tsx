@@ -96,7 +96,10 @@ function NearbyOffersSection({
             imageAspect={1}
             showDescription
             showAddButton={false}
-            nameLines={1}
+            showRating={false}
+            showBadge={false}
+            nameLines={2}
+            compactPrice
             onPress={() => onProductClick?.(product)}
           />
         ))}

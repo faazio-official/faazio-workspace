@@ -1136,6 +1136,32 @@ func (h *Handler) notifyCustomerOTP(ctx context.Context, userID, customerOrderID
 		map[string]any{"orderId": customerOrderID})
 }
 
+// notifyOrderDelivered enqueues ORDER_DELIVERED to the customer once a completed delivery route (no
+// failed drop) closes. Best-effort: the delivery state is already committed, and a notification
+// hiccup must never fail the rider's completion. The customer user is resolved from the checkout
+// order (cross-context by id) so the inbox row lands on the right account.
+func (h *Handler) notifyOrderDelivered(ctx context.Context, order Order) {
+	if h.notifier == nil || h.orders == nil || order.CustomerOrderID == "" {
+		return
+	}
+	if order.Status != OrderRouteComplete {
+		return
+	}
+	for i := range order.Stops {
+		if order.Stops[i].StopType == "DROP" && order.Stops[i].Status == StopFailed {
+			return // a failed drop is terminal but not a completed delivery — say nothing
+		}
+	}
+	userID, err := h.orders.CustomerUserID(ctx, order.CustomerOrderID)
+	if err != nil || userID == "" {
+		return
+	}
+	_ = h.notifier.Enqueue(ctx, userID, "ORDER_DELIVERED",
+		"Your order has been delivered",
+		"Your order "+order.CustomerOrderID+" has been delivered. Tap to view it.",
+		map[string]any{"orderId": order.CustomerOrderID, "status": "DELIVERED"})
+}
+
 func (h *Handler) acceptOrder(w http.ResponseWriter, r *http.Request) {
 	rider, err := h.currentRider(r.Context())
 	if err != nil {
@@ -1400,6 +1426,9 @@ func (h *Handler) updateStop(w http.ResponseWriter, r *http.Request) {
 		action = "DELIVERY_BOY_PICKUP"
 	}
 	h.auditEvent(r.Context(), action, order.OrderID, nil, map[string]any{"stopId": chi.URLParam(r, "stopId")})
+	if status == StopDelivered {
+		h.notifyOrderDelivered(r.Context(), order)
+	}
 	httpx.JSON(w, http.StatusOK, order)
 }
 
@@ -1529,6 +1558,7 @@ func (h *Handler) verifyOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.auditEvent(r.Context(), "DELIVERY_BOY_DELIVERED", order.OrderID, nil, map[string]any{"stopId": req.StopID, "otp": true})
+	h.notifyOrderDelivered(r.Context(), order)
 	httpx.JSON(w, http.StatusOK, order)
 }
 

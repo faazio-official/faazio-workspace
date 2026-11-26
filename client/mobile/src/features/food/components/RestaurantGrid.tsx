@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: hs(16),
     marginBottom: vs(4),
-    marginTop: SPACE.SECTION,
+    marginTop: SPACE.BLOCK,
   },
   sortChip: {
     flexDirection: 'row',

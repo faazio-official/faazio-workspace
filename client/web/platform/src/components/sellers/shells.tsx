@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSellerUi } from "@/lib/sellerUi";
-import { useActiveStore, useStoreSwitching } from "@/lib/api/hooks";
+import { useActiveStore, useStoreSwitching, useUnreadNotifications } from "@/lib/api/hooks";
 import { useSession } from "@/lib/hooks/useSession";
 import { RoleGate } from "@/components/layout/RoleGate";
 import { SellerPushBridge } from "@/components/layout/SellerPushBridge";
@@ -183,6 +183,7 @@ export function OutletHeader({
 }) {
   const { activeStore } = useActiveStore();
   const name = activeStore?.name ?? "Your shop";
+  const { unread } = useUnreadNotifications();
   return (
     <div className="min-w-0 flex-1">
       <div className="flex min-w-0 items-center gap-2">
@@ -191,10 +192,15 @@ export function OutletHeader({
         </StoreSwitcher>
         <Link
           href="/seller/notifications"
-          aria-label="Notifications"
-          className="shrink-0 rounded-full p-1.5 hover:bg-muted"
+          aria-label={unread > 0 ? `Notifications, ${unread} unread` : "Notifications"}
+          className="relative shrink-0 rounded-full p-1.5 hover:bg-muted"
         >
           <Bell className="h-5 w-5" />
+          {unread > 0 && (
+            <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] font-bold leading-none text-primary-foreground">
+              {unread > 99 ? "99+" : unread}
+            </span>
+          )}
         </Link>
         <Link
           href="/seller/outlet-info"

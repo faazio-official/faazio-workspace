@@ -8,7 +8,6 @@
 
 export type HomeSectionKind =
   | 'adBanner'
-  | 'diningSpecials'
   | 'hotBrandDeals'
   | 'dealsOfDay'
   | 'martHero'
@@ -38,7 +37,6 @@ export interface HomeSectionDescriptor {
 
 export const homeSections: HomeSectionDescriptor[] = [
   { id: 'adBanner' },
-  { id: 'diningSpecials' },
   { id: 'hotBrandDeals' },
   { id: 'dealsOfDay' },
   { id: 'sponsoredRail' },

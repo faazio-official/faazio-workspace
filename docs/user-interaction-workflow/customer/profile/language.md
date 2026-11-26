@@ -6,9 +6,9 @@
 
 ## Flow
 
-1. **Entry.** `AccountView` renders a client-side **Preferences → Language** row directly under the
-   **Appearance** row, after the server-driven `GET /account-nav` groups (the server catalog is not
-   modified). Its subtitle shows the current choice — `English` or `தமிழ் (Tamil)`.
+1. **Entry.** `AccountView` renders a client-side **Preferences → Language** row after the
+   server-driven `GET /account-nav` groups (the server catalog is not modified). Its subtitle shows
+   the current choice — `English` or `தமிழ் (Tamil)`.
 2. **Tap.** The row navigates to the typed root-stack route `Language`.
 3. **Select.** `LanguageScreen` shows the two shipped languages as radio rows (from
    `src/lib/languages.ts`, the single list shared with onboarding), the current one checked. Choosing
@@ -59,5 +59,4 @@
 ## Linked docs
 
 - `docs/architecture/mobile-app.md` → Localization — English + Tamil
-- [`theme.md`](./theme.md) — the sibling device-local preference (Appearance)
 - [`../onboarding/index.md`](../onboarding/index.md) — the first-run picker that sets the same store

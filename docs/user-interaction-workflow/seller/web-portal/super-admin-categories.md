@@ -59,24 +59,43 @@ links to a slab from that master.
    `PUT /categories/{id}`. A nil `isActive` / `showOnHomeRail` / `headerLabels` / `subCategories` /
    `parentId` leaves the stored value unchanged — the sheet never sends `parentId`, so an edit can
    never re-parent or detach the row; the primary app label always follows a changed App.
-8. **Delete:** the trash button opens a delete dialog. Deleting hides the category **and its whole
-   subtree** (`DELETE /categories/{id}?moveTo=`). Listings are never orphaned: when the subtree owns
-   any live listing, the dialog shows how many and requires a **move target** — a live category at
-   the same tree level (top-level→top-level, child→child) in the same app, never the node itself or
-   anything inside its subtree. The selected target's active leaf receives every affected listing
-   (`taxonomy_category_id` + `category` updated in the same transaction) and the toast reports
-   `N listings moved to <name>`. A subtree with no listings deletes without a prompt. The gateway
-   refuses a listing-owning delete that names no target (`409 move_required`) or a bad/absent/
-   cross-level/descendant target (`400 invalid_move_target`). The **Active** toggle in the sheet
-   remains a plain hide (`is_active = false`) that does not touch descendants or listings.
-9. **Share into the main app header:** toggle **Main app header** on a Mart or Pharma category (any
+8. **Delete → trash (soft delete, 7-day undo):** the trash button opens a confirm dialog with an
+   optional **Reason**. Deleting moves the category **and its whole subtree** to the trash
+   (`DELETE /categories/{id}?moveTo=&reason=`) — `deleted_at = now()`, `is_active = false` for the
+   node and every descendant (`0136`). The rows leave the app reads, the rail, seller pickers and the
+   admin list **immediately**, and appear under the **Deleted** chip. Listings are never orphaned:
+   when the subtree owns any live listing, the dialog shows how many and requires a **move target** —
+   a live category at the same tree level (top-level→top-level, child→child) in the same app, never
+   the node itself or anything inside its subtree. The selected target's active leaf receives every
+   affected listing (`taxonomy_category_id` + `category` updated in the same transaction) and the
+   toast reports `N listings moved to <name>`. A subtree with no listings trashes without a prompt.
+   The gateway refuses a listing-owning delete that names no target (`409 move_required`), a
+   bad/absent/cross-level/descendant target (`400 invalid_move_target`), and a row already in the trash
+   (`404 not_found`).
+9. **Active / Inactive toggle:** the **Active** column is an inline `Switch` that calls
+   `PATCH /categories/{id}/toggle` — a plain hide (`is_active`), not a delete. It never touches the
+   trash, descendants or listings, and the row stays in the admin list (inactive) while disappearing
+   from the rail/tree. It is refused on a trashed row (restore it first).
+10. **Deleted (trash) view:** the **Deleted** chip beside the app tabs swaps the tree table for the
+   soft-deleted list — Name, App, Parent, Deleted (`deletedAt` + `purgeAt`), Reason, and a **Restore**
+   button per row. Each row also has a checkbox, and the header checkbox selects all; with a selection
+   the toolbar shows **Delete forever**, which permanently removes every selected trashed subtree
+   (`DELETE /categories/{id}/permanent`, one call per row). A subtree still referenced by a listing,
+   store or menu is kept and reported (`409 category_in_use`) — it cannot be purged until those
+   references are gone. Restore (`POST /categories/{id}/restore`) brings the whole subtree back
+   **deactivated**, so the operator re-enables it deliberately; a row past the 7-day window is purged
+   and reported as `410 trash_expired`.
+11. **Auto-flush:** the gateway `categories.Purger` sweeps hourly, removing trashed rows older than
+   `CategoryTrashWindow` (7 days) that nothing references; the trash read also sweeps first, so an
+   expired row never shows as restorable. A trashed parent is skipped until its trashed children go.
+12. **Share into the main app header:** toggle **Main app header** on a Mart or Pharma category (any
    tree level). The header is **unbounded** — Mart and Pharma share one horizontally scrolled strip,
    so any number of active rows can be shared. A child row is a valid chip: the customer drill-in
    opens that node's subtree. FOOD is rejected.
-10. The customer app reads the curated chips from `GET /categories/rail` on the Home/Mart header (see
+13. The customer app reads the curated chips from `GET /categories/rail` on the Home/Mart header (see
     the Home category rail flow). Tap → `CategoryDrillIn` (that node's subtree + vendored products). A
     header-only `MAIN_APP_HEADER` chip walks its own tree while the body searches the Mart pool.
-11. **Seller product creation** (`/seller/products/new`) picks the active taxonomy **leaf** for the
+14. **Seller product creation** (`/seller/products/new`) picks the active taxonomy **leaf** for the
     chosen store's sector and submits `taxonomyCategoryId`; the charged GST now comes from that
     category's link row — see [../catalog/add-product.md](../catalog/add-product.md).
 
@@ -87,9 +106,14 @@ links to a slab from that master.
   `gstRateCategoryId`, `gstRateCategoryName`, `showOnHomeRail`, `headerLabels`, and `productCount` —
   the live listings linked directly to the node, summed over the subtree to decide whether a delete
   needs a move target).
-- `deleting` / `deleteTarget` — the row being deleted and the same-level category chosen to receive
-  its listings. `deleteImpact(row)` sums `productCount` over `subtreeOf(row)`; `moveTargets(row)`
-  offers only live, same-app, same-level rows outside that subtree.
+- `deleting` / `deleteTarget` / `deleteReason` — the row being deleted, the same-level category chosen
+  to receive its listings, and the optional reason kept with the trashed row. `deleteImpact(row)` sums
+  `productCount` over `subtreeOf(row)`; `moveTargets(row)` offers only live, same-app, same-level rows
+  outside that subtree.
+- `showTrash` / `trashed` / `trashLoading` / `trashError` — the Deleted view and its read
+  (`GET /admin/categories/trash`), shown instead of the tree when the Deleted chip is on.
+- `selected` — the set of trashed row ids ticked for the bulk "delete forever"; `confirmPurge` guards
+  the confirmation dialog.
 - `mainRows` — the shared main app header list (`GET /admin/categories?header=MAIN_APP_HEADER`).
 - `rateCategories` — the slab pick-list (`useGSTRateCategories`, shared with the GST rates page).
 - Sheet form state — App, GST pick, header-label pills, name, Tamil name, Tamil description, icon,
@@ -107,11 +131,19 @@ links to a slab from that master.
   `taxonomy.categories` + `taxonomy.category_headers` + `tax.category_gst_rates` (+ child rows) in one
   transaction (SUPER_ADMIN; audit-logged). `gst_rate_pct` is copied from the picked slab; the handler
   rejects a missing pick, an inactive slab, an unknown slab and any non-5% slab on FOOD.
-- `deleteCategory(id, moveTo?)` → `DELETE /categories/{id}?moveTo=` → one transaction: the subtree's
-  listings are re-linked to the destination's active leaf (`catalog.products.taxonomy_category_id` +
-  `category`), then `taxonomy.categories.is_active = false` for the node and every descendant. Returns
-  `{hidden, movedProducts, targetId, targetName}`. The destination leaf is the target itself when
+- `deleteCategory(id, moveTo?, reason?)` → `DELETE /categories/{id}?moveTo=&reason=` → one transaction:
+  the subtree's listings are re-linked to the destination's active leaf
+  (`catalog.products.taxonomy_category_id` + `category`), then the node and every descendant get
+  `deleted_at = now()` + `is_active = false` + `delete_reason` (`0136`). Returns
+  `{trashed, movedProducts, targetId, targetName}`. The destination leaf is the target itself when
   childless, else its first active descendant leaf by `(sort_order, id)`.
+- `setCategoryActive(id, isActive)` → `PATCH /categories/{id}/toggle` → `taxonomy.categories.is_active`
+  for one live row (a hide, no trash, no descendant change).
+- `listDeletedCategories(app?)` → `GET /admin/categories/trash` → `taxonomy.categories` where
+  `deleted_at is not null`; `restoreCategory(id)` → `POST /categories/{id}/restore` clears
+  `deleted_at` for the node **and every descendant** (subtree returns deactivated);
+  `purgeCategory(id)` → `DELETE /categories/{id}/permanent` hard-deletes one trashed, unreferenced
+  subtree. The gateway purger (`categories.Purger`, hourly) removes rows older than 7 days.
 - Home rail read → `GET /categories/rail` → active rows tagged `MAIN_APP_HEADER` (unbounded, Mart +
   Pharma combined, any tree level; header-only children excluded).
 - Product link → `catalog.products.taxonomy_category_id` → `taxonomy.categories(id)`; the gateway
@@ -122,7 +154,11 @@ links to a slab from that master.
 ## Success / error / empty
 
 - **Success:** row persists; toast *Category created/updated*; the next app boot / rail fetch sees it
-  (no taxonomy cache).
+  (no taxonomy cache). A delete moves the subtree to Deleted with a 7-day undo; a restore brings it
+  back deactivated.
+- **Trash errors:** `404 not_found` when deleting an already-trashed row or restoring a live one;
+  `410 trash_expired` when the restore window has closed (the row is purged); `409 category_in_use`
+  when a permanent delete is refused because a listing, store or menu still references the subtree.
 - **GST errors:** `400` when the pick is missing, the slab is inactive/unknown, or a FOOD row is given
   a non-5% slab. The portal blocks an unpicked row before sending.
 - **Sub-category errors:** `400` for a blank child name, a child with no Tamil name or Tamil
@@ -133,7 +169,8 @@ links to a slab from that master.
   the `0115` guard trigger also refuses it at the DB level.
 - **Deactivate:** row stays visible in the admin list (inactive) but disappears from the rail/tree;
   existing seller/product references are kept.
-- **Empty:** each section shows its own empty state ("No categories yet" / "Nothing shared yet").
+- **Empty:** each section shows its own empty state ("No categories yet" / "Nothing shared yet" /
+  "Nothing deleted").
 
 ## Known gaps
 

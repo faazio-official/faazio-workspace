@@ -88,6 +88,7 @@ func (s *Service) SubmitProductReview(ctx context.Context, userID, productID str
 		return err
 	}
 	s.cache.Del(ctx, cache.ProductReviews(productID))
+	s.cache.Del(ctx, cache.ProductReviewSummary(productID))
 	return nil
 }
 

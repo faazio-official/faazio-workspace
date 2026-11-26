@@ -28,6 +28,18 @@ export interface Product {
   unit?: string;
   /** Pre-discount / list price, if the item is on offer. Mirrors the backend MRP field. */
   originalPrice?: number;
+  /** Actual product brand (0137). Empty → fall back to the store name, never the platform name. */
+  brand?: string;
+  /** Structured pack size (0137); `unit` remains the derived display string. */
+  packType?: string;
+  netQty?: number;
+  netUnit?: string;
+  /** Ordered extra images for the PDP carousel (primary `image` stays first). */
+  gallery?: string[];
+  /** Product-level Rx flag (the stock row mirrors it for availability). */
+  isPrescription?: boolean;
+  /** Sibling SKUs in the same variant group (sizes/shades). Detail read only. */
+  variants?: ProductVariant[];
   /**
    * Facetable product attributes, e.g. `{ processor: 'Apple M2', ram: '16GB',
    * brand: 'Apple' }`. Search facets are derived from these attributes across
@@ -46,6 +58,17 @@ export interface Product {
    * Only present on `GET /products/nearby` (server-computed); absent elsewhere.
    */
   distanceKm?: number;
+}
+
+/** One sibling SKU in a variant group (catalog.products.variant_group_id, 0137). */
+export interface ProductVariant {
+  id: string;
+  label: string;
+  price: number;
+  originalPrice?: number;
+  unit?: string;
+  available: boolean;
+  order: number;
 }
 
 export interface MartProduct extends Product {

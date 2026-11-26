@@ -10,7 +10,14 @@ import { cn } from "@/lib/utils";
 const KIND_ROUTE: Record<string, string> = {
   PRODUCT_APPROVED: "/seller/products",
   PRODUCT_REJECTED: "/seller/products",
+  ADDON_APPROVED: "/seller/inventory?tab=addons",
+  ADDON_CHANGES_REQUESTED: "/seller/inventory?tab=addons",
+  ADDON_REJECTED: "/seller/inventory?tab=addons",
   SELLER_ORDER_NEW: "/seller/orders",
+  SELLER_SLA_BREACH: "/seller/orders",
+  SELLER_APPROVED: "/seller/hub",
+  SELLER_REJECTED: "/seller/outlet-info",
+  SELLER_SUSPENDED: "/seller/outlet-info",
   RX_READY: "/seller/prescriptions",
 };
 

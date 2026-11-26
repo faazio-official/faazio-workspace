@@ -22,5 +22,6 @@ export type { RewardLedgerEntry, RewardLedgerType } from './rewardsStore';
 export { useOrdersStore } from './ordersStore';
 export type { PlacedOrder, PlacedOrderItem, PlacedOrderKind } from './ordersStore';
 
-export { useThemeStore } from './themeStore';
+export { useNotificationsStore } from './notificationsStore';
+
 

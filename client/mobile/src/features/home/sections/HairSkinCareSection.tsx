@@ -31,8 +31,11 @@ function HairSkinCareSection({ products = hairSkinPicks, onProductClick }: HairS
             product={product}
             width={HOME_GRID_CARD_WIDTH}
             imageAspect={1}
-            nameLines={1}
+            nameLines={2}
+            showRating={false}
+            showBadge={false}
             showAddButton={false}
+            compactPrice
             onPress={() => onProductClick?.(product)}
           />
         ))}

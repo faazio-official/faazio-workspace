@@ -32,17 +32,18 @@ export function DeliveryHeader() {
         setOnline(me.isAvailable);
       })
       .catch(() => undefined);
-    void gateway
-      .getNotifications()
-      .then((items) => {
-        if (!active) return;
-        setUnread(items.filter((item) => !item.readAt).length);
-      })
-      .catch(() => undefined);
     return () => {
       active = false;
     };
-  }, [rider, setOnline, setRider, setUnread]);
+  }, [rider, setOnline, setRider]);
+
+  // Unread badge is the server count (incoming-call rows excluded) — never derived from the full list.
+  useEffect(() => {
+    void gateway
+      .getUnreadNotificationCount()
+      .then((n) => setUnread(n))
+      .catch(() => undefined);
+  }, [setUnread]);
 
   const onToggleOnline = useCallback(async () => {
     setBusy(true);

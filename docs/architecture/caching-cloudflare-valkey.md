@@ -199,9 +199,9 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 | customer payment confirmed/failed (`POST /razorpay/customer/orders` when Razorpay reports `paid`, or the `POST /webhooks/razorpay/payments` webhook) | `checkout:orders:{userId}` (the cached order status reflects the payment) | — |
 | `layout.updated` | `sdui:home:{version}` | `/sdui/home` |
 | `user_events.flush` | `reco:{userIdHash}` | — |
-| `store.updated` / store live toggle (portal `PUT /seller/stores/{id}/live`) / `review.moderated` | `directory:store:{id}`, `catalog:store-products:{id}`, `reviews:product:{id}`, `geo:nearby:stores:{lat3}:{lng3}:*` + `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the store's pin (3×3 block, all `radiusKm`/`app` variants; §5) | store/review URLs |
+| `store.updated` / store live toggle (portal `PUT /seller/stores/{id}/live`) / `review.moderated` | `directory:store:{id}`, `catalog:store-products:{id}`, `reviews:product:{id}`, `reviews:product-summary:{id}`, `geo:nearby:stores:{lat3}:{lng3}:*` + `geo:nearby:products:{lat3}:{lng3}:*` tile prefixes around the store's pin (3×3 block, all `radiusKm`/`app` variants; §5) | store/review URLs |
 | profile merge | `auth:uid:{sha256}` (delete) | — |
-| account deleted (`DELETE /users/me`) | `checkout:orders:{userId}`, `favourites:items:{userId}`, `rewards:view:{userId}`, `notifications:inbox:{userId}`, `pharma:prescriptions:{userId}`, `reviews:vendor:{vendorId}` for each vendor the user reviewed, `auth:uid:{sha256}` (delete) | — |
+| account deleted (`DELETE /users/me`) | `checkout:orders:{userId}`, `favourites:items:{userId}`, `rewards:view:{userId}`, `notifications:inbox:{userId}`, `notifications:unread:{userId}`, `pharma:prescriptions:{userId}`, `reviews:vendor:{vendorId}` for each vendor the user reviewed, `auth:uid:{sha256}` (delete) | — |
 | user data deleted (`POST /users/me/data-deletion`) | `favourites:items:{userId}`, `pharma:prescriptions:{userId}` (delete) | — |
 
 ---
@@ -248,7 +248,8 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
   `Repo.StorePin`) so a delist/re-price lands immediately for co-located shoppers; an `order.placed`
   stock decrement also purges `product:{id}` per line item because product detail embeds stock;
   `rateVendor` purges `directory:store:{id}` because the store card embeds rating/reviews_count; and
-  `submitProductReview` (`PUT /products/{id}/review`) purges `reviews:product:{id}` so the next PDP
+  `submitProductReview` (`PUT /products/{id}/review`) purges `reviews:product:{id}` and
+  `reviews:product-summary:{id}` (`0137`, PDP rating histogram) so the next PDP
   read includes the new review. `reviews.order_feedback` has no cache key (caller-scoped read).
 - **PII never enters the cache:** `GET /store/:id` caches only the redacted projection; authenticated
   reads bypass the cache (see §8).
@@ -321,9 +322,11 @@ pipelines; a placement with no LIVE fill collapses the surface to `null` (never 
 >
 > **Pharma quote + notify (W24, `0018`):** a quote save (`POST /seller/prescriptions/{id}/quotes`) or a
 > `READY` status change invalidates the owning user's `pharma:prescriptions:{userId}`. The notification
-> inbox key `faazio:v1:notifications:inbox:{userId}` (30 s) is invalidated when the outbox enqueues
-> (`RX_READY`, order status); the vendor projection is never cached (auth-scoped + PII-gated), and
-> `notifications.push_tokens` is never cached.
+> inbox key `faazio:v1:notifications:inbox:{userId}` (30 s) and the badge key
+> `faazio:v1:notifications:unread:{userId}` (30 s, `GET /notifications/unread-count`) are invalidated
+> together when the outbox enqueues (`RX_READY`, order status, seller onboarding approval/rejection,
+> delivery `ORDER_DELIVERED`) or a notification is marked read; the vendor projection is never cached
+> (auth-scoped + PII-gated), and `notifications.push_tokens` is never cached.
 >
 > **Partner completion (v3, `0017`):** a food-menu edit (`/seller/menus`) invalidates
 > `directory:menu:{venueId}`. Customer monitoring (`/customers`) reads the `checkout.users_admin`

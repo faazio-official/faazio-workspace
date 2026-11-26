@@ -205,7 +205,14 @@ export function AdminShell({
             </div>
             <div className="ml-auto flex items-center gap-1">
               <ThemeMenu />
-              <Button variant="ghost" size="icon" aria-label="Notifications">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Notifications"
+                onClick={() =>
+                  router.push(scope === "DISTRICT" ? "/admin/district/notifications" : "/admin/super/notifications")
+                }
+              >
                 <Bell className="size-4" />
               </Button>
               <DropdownMenu>
