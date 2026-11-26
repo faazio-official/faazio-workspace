@@ -153,14 +153,13 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	req.Name = strings.TrimSpace(req.Name)
 	req.ID = strings.TrimSpace(req.ID)
 	req.NameTA = strings.TrimSpace(req.NameTA)
-	req.DescriptionTA = strings.TrimSpace(req.DescriptionTA)
 	req.HeaderLabels = normalizeHeaderLabels(req.HeaderLabels)
 	if !validApp(req.App) || req.Name == "" || len(req.Name) > 120 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "app and name are required")
 		return
 	}
-	if !validTamil(req.NameTA, 120) || !validTamil(req.DescriptionTA, 2000) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
+	if !validTamil(req.NameTA, 120) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil name accepts Tamil letters only")
 		return
 	}
 	if req.ID != "" && !validID(req.ID) {
@@ -209,14 +208,13 @@ func (h *Handler) update(w http.ResponseWriter, r *http.Request) {
 	req.App = strings.ToUpper(strings.TrimSpace(req.App))
 	req.Name = strings.TrimSpace(req.Name)
 	req.NameTA = strings.TrimSpace(req.NameTA)
-	req.DescriptionTA = strings.TrimSpace(req.DescriptionTA)
 	req.HeaderLabels = normalizeHeaderLabels(req.HeaderLabels)
 	if !validApp(req.App) || req.Name == "" || len(req.Name) > 120 {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "app and name are required")
 		return
 	}
-	if !validTamil(req.NameTA, 120) || !validTamil(req.DescriptionTA, 2000) {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil fields accept Tamil letters only")
+	if !validTamil(req.NameTA, 120) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "Tamil name accepts Tamil letters only")
 		return
 	}
 	if req.ParentID != nil && *req.ParentID == id {
@@ -496,9 +494,9 @@ func gstError(app, rateCategoryID string) string {
 	return ""
 }
 
-// subCategoryError validates the inline child rows: each needs a name, a Tamil name, a Tamil
-// description and (outside FOOD) its own GST rate pick — Option B, every sub-category carries its own
-// mandatory rate. Tamil copy is mandatory because every child is a customer-facing drill-in label.
+// subCategoryError validates the inline child rows: each needs a name, a Tamil name and (outside
+// FOOD) its own GST rate pick — Option B, every sub-category carries its own mandatory rate. Tamil
+// copy is mandatory because every child is a customer-facing drill-in label.
 func subCategoryError(app string, subs *[]SubCategoryInput) string {
 	if subs == nil {
 		return ""
@@ -510,11 +508,8 @@ func subCategoryError(app string, subs *[]SubCategoryInput) string {
 		if strings.TrimSpace(sub.NameTA) == "" {
 			return "every sub-category needs a Tamil name"
 		}
-		if strings.TrimSpace(sub.DescriptionTA) == "" {
-			return "every sub-category needs a Tamil description"
-		}
-		if !validTamil(sub.NameTA, 120) || !validTamil(sub.DescriptionTA, 2000) {
-			return "sub-category Tamil fields accept Tamil letters only"
+		if !validTamil(sub.NameTA, 120) {
+			return "sub-category Tamil name accepts Tamil letters only"
 		}
 		childApp := strings.ToUpper(strings.TrimSpace(sub.App))
 		if childApp == "" {

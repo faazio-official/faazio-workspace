@@ -176,6 +176,11 @@ type Store struct {
 	Address  string `json:"address,omitempty"` // PII — auth-scoped only
 	Phone    string `json:"phone,omitempty"`   // PII
 	Hours    string `json:"hours,omitempty"`
+	// Advance-order availability (0142). A shop may offer instant delivery, pre-orders, or both.
+	InstantDelivery         bool     `json:"instantDelivery"`
+	AcceptsScheduledOrders  bool     `json:"acceptsScheduledOrders"`
+	ScheduleLeadTimeMinutes int      `json:"scheduleLeadTimeMinutes"`
+	ScheduleSlots           []string `json:"scheduleSlots"`
 	// StateCode scopes dispatch to riders in the store's state (2-letter code). Internal only.
 	StateCode string `json:"-"`
 	// Public coordinates. DistanceKm is set only by GET /stores/nearby.
@@ -250,6 +255,11 @@ type Venue struct {
 	Latitude   *float64 `json:"latitude,omitempty"`
 	Longitude  *float64 `json:"longitude,omitempty"`
 	DistanceKm *float64 `json:"distanceKm,omitempty"`
+	// Advance-order availability (0142), mirrored from the owning store when one exists.
+	InstantDelivery         bool     `json:"instantDelivery"`
+	AcceptsScheduledOrders  bool     `json:"acceptsScheduledOrders"`
+	ScheduleLeadTimeMinutes int      `json:"scheduleLeadTimeMinutes"`
+	ScheduleSlots           []string `json:"scheduleSlots"`
 }
 
 // Review is one product review row, JSON shaped for ReviewRow.

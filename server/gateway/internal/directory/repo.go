@@ -39,7 +39,8 @@ const storeSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
        cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, address, phone, hours,
        coalesce(state_code,''), latitude, longitude, null::float8 as distance_km,
-       coalesce(name_ta, ''), coalesce(desc_text_ta, ''), is_live
+       coalesce(name_ta, ''), coalesce(desc_text_ta, ''), is_live,
+       instant_delivery, accepts_scheduled_orders, schedule_lead_time_minutes, schedule_slots
 from directory.stores`
 
 // storeListSelect is the public list projection: it never fetches the PII columns (address/phone),
@@ -48,7 +49,8 @@ const storeListSelect = `
 select id, app::text, name, categories, rating, reviews_count, delivery_time, distance,
        cover_image, cover_image_key, emoji, desc_text, offer_tag, is_veg, null::text as address, null::text as phone, hours,
        coalesce(state_code,''), latitude, longitude, null::float8 as distance_km,
-       coalesce(name_ta, ''), coalesce(desc_text_ta, ''), is_live
+       coalesce(name_ta, ''), coalesce(desc_text_ta, ''), is_live,
+       instant_delivery, accepts_scheduled_orders, schedule_lead_time_minutes, schedule_slots
 from directory.stores`
 
 // ByApp returns stores for one app (empty app = all).
@@ -280,7 +282,8 @@ func (r *Repo) Menu(ctx context.Context, venueID string) ([]contracts.MenuDish, 
 // columns (address/phone), so an anonymous venue list cannot reach the wire or the edge cache.
 const venueListSelect = `
 select id, app::text, name, rating, cover_image, categories,
-       null::text as address, null::text as phone, hours, coalesce(name_ta, '')
+       null::text as address, null::text as phone, hours, coalesce(name_ta, ''),
+       instant_delivery, accepts_scheduled_orders, schedule_lead_time_minutes, schedule_slots
 from directory.dining_venues`
 
 // Venues returns dining venues for one app (empty app = all), best-rated first. This is the list
@@ -305,7 +308,8 @@ func (r *Repo) Venues(ctx context.Context, app string) ([]contracts.Venue, error
 			phone   *string
 			hours   *string
 		)
-		if err := rows.Scan(&v.ID, &v.App, &v.Name, &rating, &v.CoverImage, &v.Categories, &address, &phone, &hours, &v.NameTA); err != nil {
+		if err := rows.Scan(&v.ID, &v.App, &v.Name, &rating, &v.CoverImage, &v.Categories, &address, &phone, &hours, &v.NameTA,
+			&v.InstantDelivery, &v.AcceptsScheduledOrders, &v.ScheduleLeadTimeMinutes, &v.ScheduleSlots); err != nil {
 			return nil, err
 		}
 		v.Rating = rating
@@ -320,7 +324,8 @@ func (r *Repo) Venues(ctx context.Context, app string) ([]contracts.Venue, error
 // venueSelect is the full single-venue projection (authed reads). Public callers get the list
 // projection instead so PII is never fetched for an anon cache entry.
 const venueSelect = `
-select id, app::text, name, rating, cover_image, categories, address, phone, hours, coalesce(name_ta, '')
+select id, app::text, name, rating, cover_image, categories, address, phone, hours, coalesce(name_ta, ''),
+       instant_delivery, accepts_scheduled_orders, schedule_lead_time_minutes, schedule_slots
 from directory.dining_venues`
 
 // VenueByID returns one dining venue (full projection). Public callers must redact before caching.
@@ -342,7 +347,8 @@ func (r *Repo) VenueByID(ctx context.Context, id string) (contracts.Venue, bool,
 			phone   *string
 			hours   *string
 		)
-		if err := rows.Scan(&v.ID, &v.App, &v.Name, &rating, &v.CoverImage, &v.Categories, &address, &phone, &hours, &v.NameTA); err != nil {
+		if err := rows.Scan(&v.ID, &v.App, &v.Name, &rating, &v.CoverImage, &v.Categories, &address, &phone, &hours, &v.NameTA,
+			&v.InstantDelivery, &v.AcceptsScheduledOrders, &v.ScheduleLeadTimeMinutes, &v.ScheduleSlots); err != nil {
 			return contracts.Venue{}, false, err
 		}
 		v.Rating = rating
@@ -381,6 +387,7 @@ func scanStores(rows pgx.Rows, cdnBase string) ([]contracts.Store, error) {
 			&s.DeliveryTime, &s.Distance, &s.CoverImage, &coverKey, &s.Emoji, &s.Desc,
 			&offerTag, &isVeg, &address, &phone, &hours, &s.StateCode,
 			&lat, &lng, &distance, &s.NameTA, &s.DescTA, &s.IsLive,
+			&s.InstantDelivery, &s.AcceptsScheduledOrders, &s.ScheduleLeadTimeMinutes, &s.ScheduleSlots,
 		); err != nil {
 			return nil, err
 		}
@@ -415,19 +422,24 @@ type SellerStore struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 	// Tamil display copy (0108). Empty means "not translated" → the app falls back to English.
-	NameTA       string  `json:"nameTa,omitempty"`
-	DescTA       string  `json:"descTa,omitempty"`
-	App          string  `json:"app"`
-	SellerID     string  `json:"sellerId,omitempty"`
-	StateCode    string  `json:"stateCode,omitempty"`
-	Address      string  `json:"address,omitempty"`
-	Phone        string  `json:"phone,omitempty"`
-	Hours        string  `json:"hours,omitempty"`
-	DeliveryTime string  `json:"deliveryTime,omitempty"`
-	IsVeg        bool    `json:"isVeg"`
-	IsLive       bool    `json:"isLive"`
-	Rating       float64 `json:"rating"`
-	UpdatedAt    string  `json:"updatedAt"`
+	NameTA       string `json:"nameTa,omitempty"`
+	DescTA       string `json:"descTa,omitempty"`
+	App          string `json:"app"`
+	SellerID     string `json:"sellerId,omitempty"`
+	StateCode    string `json:"stateCode,omitempty"`
+	Address      string `json:"address,omitempty"`
+	Phone        string `json:"phone,omitempty"`
+	Hours        string `json:"hours,omitempty"`
+	DeliveryTime string `json:"deliveryTime,omitempty"`
+	// Advance-order availability (0142), set once on the store profile.
+	InstantDelivery         bool     `json:"instantDelivery"`
+	AcceptsScheduledOrders  bool     `json:"acceptsScheduledOrders"`
+	ScheduleLeadTimeMinutes int      `json:"scheduleLeadTimeMinutes"`
+	ScheduleSlots           []string `json:"scheduleSlots"`
+	IsVeg                   bool     `json:"isVeg"`
+	IsLive                  bool     `json:"isLive"`
+	Rating                  float64  `json:"rating"`
+	UpdatedAt               string   `json:"updatedAt"`
 	// Per-vendor commercial identity (0069): the fee is a property of the shop, not the account.
 	PlatformFeePct   int    `json:"platformFeePct"`
 	SellerCategoryID string `json:"sellerCategoryId,omitempty"`
@@ -520,7 +532,8 @@ func (r *Repo) SellerStores(ctx context.Context, sellerID, district string) ([]S
 			&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID,
 			&s.DrugLicenseNumber, &s.DrugLicenseCertKey, &s.DrugLicenseCertAssetID,
 			&s.NameTA, &s.DescTA, &s.Latitude, &s.Longitude,
-			&s.RestockQty, &s.RestockEtaMinutes); err != nil {
+			&s.RestockQty, &s.RestockEtaMinutes, &s.ComplianceDefaults,
+			&s.InstantDelivery, &s.AcceptsScheduledOrders, &s.ScheduleLeadTimeMinutes, &s.ScheduleSlots); err != nil {
 			return nil, err
 		}
 		s.Rating = math.Round(s.Rating*10) / 10
@@ -605,7 +618,8 @@ const sellerStoreColumns = `s.id, s.name, s.app::text, coalesce(s.seller_id,''),
 	coalesce(s.fssai_number,''), coalesce(s.fssai_cert_key,''), coalesce(s.fssai_cert_asset_id,''),
 	coalesce(s.drug_license_number,''), coalesce(s.drug_license_cert_key,''), coalesce(s.drug_license_cert_asset_id,''),
 	coalesce(s.name_ta,''), coalesce(s.desc_text_ta,''), s.latitude, s.longitude,
-	s.restock_qty, s.restock_eta_minutes, s.compliance_defaults`
+	s.restock_qty, s.restock_eta_minutes, s.compliance_defaults,
+	s.instant_delivery, s.accepts_scheduled_orders, s.schedule_lead_time_minutes, s.schedule_slots`
 
 func scanSellerStore(row pgx.Row) (SellerStore, error) {
 	var (
@@ -617,7 +631,8 @@ func scanSellerStore(row pgx.Row) (SellerStore, error) {
 		&s.FSSAINumber, &s.FSSAICertKey, &s.FSSAICertAssetID,
 		&s.DrugLicenseNumber, &s.DrugLicenseCertKey, &s.DrugLicenseCertAssetID,
 		&s.NameTA, &s.DescTA, &s.Latitude, &s.Longitude,
-		&s.RestockQty, &s.RestockEtaMinutes, &s.ComplianceDefaults); err != nil {
+		&s.RestockQty, &s.RestockEtaMinutes, &s.ComplianceDefaults,
+		&s.InstantDelivery, &s.AcceptsScheduledOrders, &s.ScheduleLeadTimeMinutes, &s.ScheduleSlots); err != nil {
 		return SellerStore{}, err
 	}
 	s.Rating = math.Round(s.Rating*10) / 10
@@ -659,6 +674,12 @@ type VendorInput struct {
 	// a real value ("ready now"), so it cannot double as the "keep" sentinel.
 	RestockQty        int
 	RestockEtaMinutes int
+	// Advance-order availability (0142). nil booleans/lead time keep the stored value; a nil slots
+	// slice keeps the stored slots, an empty slice clears them.
+	InstantDelivery         *bool
+	AcceptsScheduledOrders  *bool
+	ScheduleLeadTimeMinutes *int
+	ScheduleSlots           []string
 	// ComplianceDefaults replaces the saved profile when non-nil (nil keeps the stored value).
 	ComplianceDefaults json.RawMessage
 }
@@ -686,15 +707,18 @@ func (r *Repo) CreateStore(ctx context.Context, sellerID, stateCode string, in V
 		  (id, app, name, seller_id, state_code, address, phone, hours, latitude, longitude,
 		   platform_fee_pct, seller_category_id, fssai_number, fssai_cert_key, fssai_cert_asset_id,
 		   drug_license_number, drug_license_cert_key, drug_license_cert_asset_id, is_veg, is_live,
-		   name_ta, desc_text_ta, restock_qty, restock_eta_minutes)
+		   name_ta, desc_text_ta, restock_qty, restock_eta_minutes,
+		   instant_delivery, accepts_scheduled_orders, schedule_lead_time_minutes, schedule_slots)
 		values ($1, $2::app_brand, $3, $4, nullif($5,''), nullif($6,''), nullif($7,''), nullif($8,''),
 		        $9, $10, $11, nullif($12,''), $13, $14, $15, $16, $17, $18, $19, $20, $21, $22,
-		        coalesce(nullif($23,0), 10), case when $24 <= 0 then 30 else $24 end)
+		        coalesce(nullif($23,0), 10), case when $24 <= 0 then 30 else $24 end,
+		        coalesce($25, true), coalesce($26, false), coalesce($27, 60), coalesce($28, '{}'::text[]))
 		returning `+sellerStoreColumns,
 		"store-"+storeID(), in.App, in.Name, sellerID, stateCode, in.Address, in.Phone, in.Hours,
 		in.Latitude, in.Longitude, fee, in.SellerCategoryID, in.FSSAINumber, in.FSSAICertKey,
 		in.FSSAICertAssetID, in.DrugLicenseNumber, in.DrugLicenseCertKey, in.DrugLicenseCertAssetID,
-		veg, live, in.NameTA, in.DescTA, in.RestockQty, in.RestockEtaMinutes))
+		veg, live, in.NameTA, in.DescTA, in.RestockQty, in.RestockEtaMinutes,
+		in.InstantDelivery, in.AcceptsScheduledOrders, in.ScheduleLeadTimeMinutes, in.ScheduleSlots))
 }
 
 // UpdateStore edits a vendor, scoped to the caller's seller_id or district (strict) exactly like
@@ -727,6 +751,10 @@ func (r *Repo) UpdateStore(ctx context.Context, id, sellerID, district string, i
 		  restock_qty = case when $23 = 0 then s.restock_qty else $23 end,
 		  restock_eta_minutes = case when $24 < 0 then s.restock_eta_minutes else $24 end,
 		  compliance_defaults = coalesce($25, s.compliance_defaults),
+		  instant_delivery = coalesce($26, s.instant_delivery),
+		  accepts_scheduled_orders = coalesce($27, s.accepts_scheduled_orders),
+		  schedule_lead_time_minutes = coalesce($28, s.schedule_lead_time_minutes),
+		  schedule_slots = coalesce($29, s.schedule_slots),
 		  updated_at = now()
 		 where s.id = $1 and (
 		       ($2 <> '' and s.seller_id = $2) or
@@ -738,12 +766,27 @@ func (r *Repo) UpdateStore(ctx context.Context, id, sellerID, district string, i
 		id, sellerID, in.Name, in.Address, in.Phone, in.Hours, in.Latitude, in.Longitude,
 		in.PlatformFeePct, in.SellerCategoryID, in.FSSAINumber, in.FSSAICertKey, in.FSSAICertAssetID,
 		in.DrugLicenseNumber, in.DrugLicenseCertKey, in.DrugLicenseCertAssetID, in.IsLive, district,
-		in.NameTA, in.DescTA, in.IsVeg, in.RestockQty, in.RestockEtaMinutes, in.ComplianceDefaults))
+		in.NameTA, in.DescTA, in.IsVeg, in.RestockQty, in.RestockEtaMinutes, in.ComplianceDefaults,
+		in.InstantDelivery, in.AcceptsScheduledOrders, in.ScheduleLeadTimeMinutes, in.ScheduleSlots))
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return SellerStore{}, false, nil
 		}
 		return SellerStore{}, false, err
+	}
+	// The customer venue feed reads directory.dining_venues; keep the FOOD venue's availability in
+	// step with the store the seller just edited. Non-FOOD stores have no venue row.
+	if s.App == "FOOD" {
+		if _, syncErr := r.pool.Exec(ctx, `
+			update directory.dining_venues
+			   set instant_delivery = $2,
+			       accepts_scheduled_orders = $3,
+			       schedule_lead_time_minutes = $4,
+			       schedule_slots = $5
+			 where id = $1`,
+			id, s.InstantDelivery, s.AcceptsScheduledOrders, s.ScheduleLeadTimeMinutes, s.ScheduleSlots); syncErr != nil {
+			return SellerStore{}, false, syncErr
+		}
 	}
 	return s, true, nil
 }

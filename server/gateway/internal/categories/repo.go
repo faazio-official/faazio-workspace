@@ -25,7 +25,6 @@ type Category struct {
 	App            string  `json:"app"`
 	Name           string  `json:"name"`
 	Slug           string  `json:"slug"`
-	Description    string  `json:"description,omitempty"`
 	IconURL        string  `json:"iconUrl,omitempty"`
 	ParentID       *string `json:"parentId"`
 	SearchQuery    string  `json:"searchQuery,omitempty"`
@@ -36,9 +35,11 @@ type Category struct {
 	UpdatedAt      string  `json:"updatedAt"`
 	CreatedBy      string  `json:"createdBy"`
 	UpdatedBy      string  `json:"updatedBy,omitempty"`
-	// Tamil display copy (0107). Empty means "not translated" → the app falls back to English.
-	NameTA        string `json:"nameTa,omitempty"`
-	DescriptionTA string `json:"descriptionTa,omitempty"`
+	// Tamil display name (0107). Empty means "not translated" → the app falls back to English.
+	NameTA string `json:"nameTa,omitempty"`
+	// PriceTierSet selects the customer price-filter buckets for this category (0143):
+	// standard (100/200), premium (200/350) or snack (100/250).
+	PriceTierSet string `json:"priceTierSet,omitempty"`
 	// HeaderLabels are the curated header lists this row belongs to (0115):
 	// MAIN_APP_HEADER | MART | FOOD | PHARMA. `App` is always one of them.
 	HeaderLabels []string `json:"headerLabels"`
@@ -70,7 +71,6 @@ type SubCategoryInput struct {
 	App               string `json:"app"`
 	Name              string `json:"name"`
 	NameTA            string `json:"nameTa"`
-	DescriptionTA     string `json:"descriptionTa"`
 	SearchQuery       string `json:"searchQuery"`
 	IconURL           string `json:"iconUrl"`
 	SortOrder         int64  `json:"sortOrder"`
@@ -85,7 +85,6 @@ type Input struct {
 	App            string  `json:"app"`
 	Name           string  `json:"name"`
 	Slug           string  `json:"slug"`
-	Description    string  `json:"description"`
 	IconURL        string  `json:"iconUrl"`
 	ParentID       *string `json:"parentId"`
 	SearchQuery    string  `json:"searchQuery"`
@@ -93,7 +92,6 @@ type Input struct {
 	IsActive       *bool   `json:"isActive"`
 	ShowOnHomeRail *bool   `json:"showOnHomeRail"` // nil on update = unchanged
 	NameTA         string  `json:"nameTa"`
-	DescriptionTA  string  `json:"descriptionTa"`
 	// HeaderLabels replaces the curated header lists when non-nil (0115). nil on update = unchanged.
 	// MAIN_APP_HEADER is also mirrored onto taxonomy.categories.show_on_home_rail.
 	HeaderLabels *[]string `json:"headerLabels"`
@@ -177,10 +175,10 @@ const gstSelect = `coalesce((select g.gst_rate_pct from tax.category_gst_rates g
    join tax.gst_rate_categories r on r.id = g.gst_rate_category_id
    where g.category_id = taxonomy.categories.id), '')`
 
-const rowSelect = `select id, app::text, name, slug, coalesce(description, ''), coalesce(icon_url, ''),
+const rowSelect = `select id, app::text, name, slug, coalesce(icon_url, ''),
 	parent_id, coalesce(search_query, ''), is_active, show_on_home_rail, sort_order,
 	created_at::text, updated_at::text, created_by, coalesce(updated_by, ''),
-	coalesce(name_ta, ''), coalesce(description_ta, ''), ` + headerLabelsSelect + `, ` + gstSelect + `,
+	coalesce(name_ta, ''), coalesce(price_tier_set, 'standard'), ` + headerLabelsSelect + `, ` + gstSelect + `,
 	(select count(*) from catalog.products p
 	  where p.deleted_at is null and p.taxonomy_category_id = taxonomy.categories.id),
 	deleted_at, delete_reason`
@@ -188,9 +186,9 @@ const rowSelect = `select id, app::text, name, slug, coalesce(description, ''), 
 func scanCategory(row pgx.Row) (Category, error) {
 	var c Category
 	var deletedAt *time.Time
-	err := row.Scan(&c.ID, &c.App, &c.Name, &c.Slug, &c.Description, &c.IconURL,
+	err := row.Scan(&c.ID, &c.App, &c.Name, &c.Slug, &c.IconURL,
 		&c.ParentID, &c.SearchQuery, &c.IsActive, &c.ShowOnHomeRail, &c.SortOrder,
-		&c.CreatedAt, &c.UpdatedAt, &c.CreatedBy, &c.UpdatedBy, &c.NameTA, &c.DescriptionTA,
+		&c.CreatedAt, &c.UpdatedAt, &c.CreatedBy, &c.UpdatedBy, &c.NameTA, &c.PriceTierSet,
 		&c.HeaderLabels, &c.GSTRatePct, &c.GSTRateCategoryID, &c.GSTRateCategoryName,
 		&c.ProductCount, &deletedAt, &c.DeleteReason)
 	if c.HeaderLabels == nil {
@@ -304,12 +302,12 @@ func (r *Repo) Create(ctx context.Context, in Input, actor string) (Category, er
 
 	if _, err := tx.Exec(ctx, `
 		insert into taxonomy.categories
-		  (id, app, name, slug, description, icon_url, parent_id, search_query, is_active,
-		   show_on_home_rail, sort_order, created_by, updated_by, name_ta, description_ta)
-		values ($1, $2::app_brand, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $13, $14)`,
-		id, in.App, in.Name, slug, nullStr(in.Description), nullStr(in.IconURL),
+		  (id, app, name, slug, icon_url, parent_id, search_query, is_active,
+		   show_on_home_rail, sort_order, created_by, updated_by, name_ta)
+		values ($1, $2::app_brand, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $12)`,
+		id, in.App, in.Name, slug, nullStr(in.IconURL),
 		in.ParentID, nullStr(in.SearchQuery), active, showOnRail, in.SortOrder, actor,
-		strings.TrimSpace(in.NameTA), strings.TrimSpace(in.DescriptionTA)); err != nil {
+		strings.TrimSpace(in.NameTA)); err != nil {
 		if isUniqueViolation(err) {
 			return Category{}, ErrDuplicate
 		}
@@ -379,21 +377,19 @@ func (r *Repo) Update(ctx context.Context, id string, in Input, actor string) (C
 		   set app = $2::app_brand,
 		       name = $3,
 		       slug = $4,
-		       description = $5,
-		       icon_url = $6,
-		       parent_id = $7,
-		       search_query = $8,
-		       is_active = coalesce($9, is_active),
-		       show_on_home_rail = $10,
-		       sort_order = $11,
-		       updated_by = $12,
-		       name_ta = $13,
-		       description_ta = $14,
+		       icon_url = $5,
+		       parent_id = $6,
+		       search_query = $7,
+		       is_active = coalesce($8, is_active),
+		       show_on_home_rail = $9,
+		       sort_order = $10,
+		       updated_by = $11,
+		       name_ta = $12,
 		       updated_at = now()
 		 where id = $1`,
-		id, in.App, in.Name, slug, nullStr(in.Description), nullStr(in.IconURL),
+		id, in.App, in.Name, slug, nullStr(in.IconURL),
 		parentID, nullStr(in.SearchQuery), in.IsActive, showOnRail, in.SortOrder, actor,
-		strings.TrimSpace(in.NameTA), strings.TrimSpace(in.DescriptionTA))
+		strings.TrimSpace(in.NameTA))
 	if err != nil {
 		return Category{}, err
 	}
@@ -496,10 +492,10 @@ func replaceSubCategories(ctx context.Context, tx pgx.Tx, parentID, app string, 
 		labels := []string{childApp}
 		if _, err := tx.Exec(ctx, `
 			insert into taxonomy.categories
-			  (id, app, name, slug, description, icon_url, parent_id, search_query, is_active,
-			   show_on_home_rail, sort_order, created_by, updated_by, name_ta, description_ta)
-			values ($1, $2::app_brand, $3, $4, null, $5, $6, $7, $8,
-			        false, $9, $10, $10, $11, $12)
+			  (id, app, name, slug, icon_url, parent_id, search_query, is_active,
+			   show_on_home_rail, sort_order, created_by, updated_by, name_ta)
+			values ($1, $2::app_brand, $3, $4, $5, $6, $7, $8,
+			        false, $9, $10, $10, $11)
 			on conflict (id) do update
 			  set app = excluded.app,
 			      name = excluded.name,
@@ -511,11 +507,10 @@ func replaceSubCategories(ctx context.Context, tx pgx.Tx, parentID, app string, 
 			      sort_order = excluded.sort_order,
 			      updated_by = excluded.updated_by,
 			      name_ta = excluded.name_ta,
-			      description_ta = excluded.description_ta,
 			      updated_at = now()`,
 			id, childApp, name, slug, nullStr(strings.TrimSpace(sub.IconURL)), parentID,
 			nullStr(strings.TrimSpace(sub.SearchQuery)), active,
-			int64(i), actor, strings.TrimSpace(sub.NameTA), strings.TrimSpace(sub.DescriptionTA)); err != nil {
+			int64(i), actor, strings.TrimSpace(sub.NameTA)); err != nil {
 			return err
 		}
 		if err := replaceHeaderLabels(ctx, tx, id, labels); err != nil {

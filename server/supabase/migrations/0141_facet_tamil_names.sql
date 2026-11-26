@@ -1,0 +1,187 @@
+-- Faazio — Tamil names for the FOOD facet master (migration 0141).
+--
+-- Authority: docs/architecture/db-schema.md §12.4, super-admin-categories.md,
+-- server/gateway/internal/categories/attributes.go.
+--
+-- Adds `name_ta` to taxonomy.subcategory_attribute_groups + taxonomy.attribute_options and
+-- fills the superadmin-owned Tamil labels for every seeded facet group and option. The English
+-- label stays the canonical key; name_ta is display-only and falls back to English when ''.
+-- Idempotent: ADD COLUMN IF NOT EXISTS + label-keyed UPDATEs; safe to re-run.
+--
+
+begin;
+
+alter table taxonomy.subcategory_attribute_groups
+  add column if not exists name_ta text not null default '';
+alter table taxonomy.attribute_options
+  add column if not exists name_ta text not null default '';
+
+-- ---------------------------------------------------------------- groups
+with tr(display_name, name_ta) as (values
+  ('Dietary Preference', 'உணவு விருப்பம்'),
+  ('Patty', 'பேட்டி'),
+  ('Patty Type', 'பேட்டி வகை'),
+  ('Cheese Type', 'சீஸ் வகை'),
+  ('Dressing / Sauce', 'டிரெசிங் / சாஸ்'),
+  ('Toppings', 'டாப்பிங்ஸ்'),
+  ('Bun Type', 'பன் வகை'),
+  ('Region / Cuisine Origin', 'பிராந்தியம் / உணவு வகை')
+)
+update taxonomy.subcategory_attribute_groups g
+   set name_ta = tr.name_ta,
+       updated_at = now()
+  from tr
+ where g.display_name = tr.display_name;
+
+-- ---------------------------------------------------------------- options
+with tr(label, name_ta) as (values
+  ('Achari Paneer', 'அச்சாரி பனீர்'),
+  ('American', 'அமெரிக்கன்'),
+  ('American Cheese', 'அமெரிக்கன் சீஸ்'),
+  ('Bacon', 'பேகன்'),
+  ('Beans', 'பீன்ஸ்'),
+  ('Beef', 'பீஃப்'),
+  ('Beetroot', 'பீட்ரூட்'),
+  ('Black Beans', 'பிளாக் பீன்ஸ்'),
+  ('Brioche', 'ப்ரியோஷ்'),
+  ('Brown', 'பிரவுன்'),
+  ('Buff', 'பஃப்'),
+  ('Butter Chicken', 'பட்டர் சிக்கன்'),
+  ('Butter Paneer', 'பட்டர் பனீர்'),
+  ('Cheddar', 'செடார்'),
+  ('Cheese', 'சீஸ்'),
+  ('Cheese Sauce', 'சீஸ் சாஸ்'),
+  ('Chicken', 'சிக்கன்'),
+  ('Chicken 65', 'சிக்கன் 65'),
+  ('Chicken Barbeque', 'சிக்கன் பார்பிக்யூ'),
+  ('Chicken Breast', 'சிக்கன் பிரெஸ்ட்'),
+  ('Chicken Cafreal', 'சிக்கன் காஃப்ரியல்'),
+  ('Chicken Kebab', 'சிக்கன் கபாப்'),
+  ('Chicken Keema', 'சிக்கன் கீமா'),
+  ('Chicken Makhani', 'சிக்கன் மக்கானி'),
+  ('Chicken Momo', 'சிக்கன் மோமோ'),
+  ('Chicken Popcorn', 'சிக்கன் பாப்கார்ன்'),
+  ('Chicken Salami', 'சிக்கன் சலாமி'),
+  ('Chicken Sausage', 'சிக்கன் சாசேஜ்'),
+  ('Chicken Seekh', 'சிக்கன் சீக்'),
+  ('Chicken Shawarma', 'சிக்கன் ஷவர்மா'),
+  ('Chicken Steak', 'சிக்கன் ஸ்டீக்'),
+  ('Chicken Strip', 'சிக்கன் ஸ்ட்ரிப்'),
+  ('Chickpea', 'சிக்க்பீ'),
+  ('Corn', 'கார்ன்'),
+  ('Crab', 'கிராப்'),
+  ('Crispy', 'கிரிஸ்பி'),
+  ('Cutlet', 'கட்லெட்'),
+  ('Double Cheese', 'டபுள் சீஸ்'),
+  ('Double Patty', 'டபுள் பேட்டி'),
+  ('Egg', 'முட்டை'),
+  ('Falafel', 'ஃபலாஃபெல்'),
+  ('Feta', 'ஃபெட்டா'),
+  ('Fillet Chicken', 'ஃபில்லெட் சிக்கன்'),
+  ('Fillet Fish', 'ஃபில்லெட் ஃபிஷ்'),
+  ('Fish', 'ஃபிஷ்'),
+  ('Fried Chicken', 'ஃப்ரைடு சிக்கன்'),
+  ('Fried Egg', 'ஃப்ரைடு முட்டை'),
+  ('Gouda', 'கவுடா'),
+  ('Grilled', 'கிரில்டு'),
+  ('Grilled Chicken', 'கிரில்டு சிக்கன்'),
+  ('Grilled Mushroom', 'கிரில்டு மஷ்ரூம்'),
+  ('Grilled Paneer', 'கிரில்டு பனீர்'),
+  ('Ham', 'ஹாம்'),
+  ('Hash Brown', 'ஹாஷ் பிரவுன்'),
+  ('Indian', 'இந்தியன்'),
+  ('Italian', 'இத்தாலியன்'),
+  ('Jackfruit', 'ஜாக்ப்ரூட்'),
+  ('Jain', 'ஜைன்'),
+  ('Kadhai Paneer', 'கடாய் பனீர்'),
+  ('Kebab', 'கபாப்'),
+  ('Keema', 'கீமா'),
+  ('Korean', 'கொரியன்'),
+  ('Lamb', 'லாம்ப்'),
+  ('Malai Paneer', 'மலாய் பனீர்'),
+  ('Mayonnaise', 'மயோனைஸ்'),
+  ('Meat', 'மீட்'),
+  ('Mexican', 'மெக்சிகன்'),
+  ('Mix Vegetables', 'மிக்ஸ் வெஜிடபிள்'),
+  ('Mozzarella', 'மொஜாரெல்லா'),
+  ('Multigrain', 'மல்டிகிரெயின்'),
+  ('Mumbai', 'மும்பை'),
+  ('Mushroom', 'மஷ்ரூம்'),
+  ('Mushroom Barbeque', 'மஷ்ரூம் பார்பிக்யூ'),
+  ('Mushroom Makhani', 'மஷ்ரூம் மக்கானி'),
+  ('Mushroom Schezwan', 'மஷ்ரூம் ஷெஸ்வான்'),
+  ('Mushroom Tikka', 'மஷ்ரூம் டிக்கா'),
+  ('Mutton', 'மட்டன்'),
+  ('Mutton Kebab', 'மட்டன் கபாப்'),
+  ('Mutton Keema', 'மட்டன் கீமா'),
+  ('Mutton Sausage', 'மட்டன் சாசேஜ்'),
+  ('Mutton Seekh', 'மட்டன் சீக்'),
+  ('Mutton Steak', 'மட்டன் ஸ்டீக்'),
+  ('Mutton Tikka', 'மட்டன் டிக்கா'),
+  ('Non-Veg', 'அசைவம்'),
+  ('Noodles', 'நூடுல்ஸ்'),
+  ('Omelette', 'ஆம்லெட்'),
+  ('Paneer', 'பனீர்'),
+  ('Paneer 65', 'பனீர் 65'),
+  ('Paneer Barbeque', 'பனீர் பார்பிக்யூ'),
+  ('Paneer Butter Masala', 'பனீர் பட்டர் மசாலா'),
+  ('Paneer Keema', 'பனீர் கீமா'),
+  ('Paneer Makhani', 'பனீர் மக்கானி'),
+  ('Paneer Momo', 'பனீர் மோமோ'),
+  ('Paneer Shawarma', 'பனீர் ஷவர்மா'),
+  ('Paneer Steak', 'பனீர் ஸ்டீக்'),
+  ('Paneer Tikka', 'பனீர் டிக்கா'),
+  ('Paneer Tikka Butter Masala', 'பனீர் டிக்கா பட்டர் மசாலா'),
+  ('Pea', 'பீ'),
+  ('Peri Peri', 'பெரி பெரி'),
+  ('Peri Peri Chicken', 'பெரி பெரி சிக்கன்'),
+  ('Peri Peri Mushroom', 'பெரி பெரி மஷ்ரூம்'),
+  ('Peri Peri Paneer', 'பெரி பெரி பனீர்'),
+  ('Pork', 'போர்க்'),
+  ('Potato', 'பொட்டேட்டோ'),
+  ('Prawn', 'பிரான்'),
+  ('Pulled Chicken', 'புல்டு சிக்கன்'),
+  ('Pulled Mutton', 'புல்டு மட்டன்'),
+  ('Pulled Pork', 'புல்டு போர்க்'),
+  ('Punjabi', 'பஞ்சாபி'),
+  ('Quinoa', 'கினோவா'),
+  ('Railway Cutlet', 'ரயில்வே கட்லெட்'),
+  ('Roasted Chicken', 'ரோஸ்டடு சிக்கன்'),
+  ('Roasted Paneer', 'ரோஸ்டடு பனீர்'),
+  ('Salami', 'சலாமி'),
+  ('Sausage', 'சாசேஜ்'),
+  ('Schnitzel', 'ஷ்னிட்ஸல்'),
+  ('Shami Kebab', 'ஷமி கபாப்'),
+  ('Shawarma', 'ஷவர்மா'),
+  ('Smash', 'ஸ்மாஷ்'),
+  ('Smoked Chicken', 'ஸ்மோக்டு சிக்கன்'),
+  ('Smoked Mushroom', 'ஸ்மோக்டு மஷ்ரூம்'),
+  ('Smoked Paneer', 'ஸ்மோக்டு பனீர்'),
+  ('Soya', 'சோயா'),
+  ('Spinach', 'ஸ்பினச்'),
+  ('Steak', 'ஸ்டீக்'),
+  ('Tandoori', 'தந்தூரி'),
+  ('Tandoori Chicken', 'தந்தூரி சிக்கன்'),
+  ('Tandoori Mushroom', 'தந்தூரி மஷ்ரூம்'),
+  ('Tandoori Paneer', 'தந்தூரி பனீர்'),
+  ('Tangy', 'டேங்கி'),
+  ('Tenderloin', 'டெண்டர்லாயின்'),
+  ('Thousand Island', 'தவுசண்ட் ஐலண்ட்'),
+  ('Tofu', 'டோஃபு'),
+  ('Triple Patty', 'ட்ரிபிள் பேட்டி'),
+  ('Turkey', 'டர்க்கி'),
+  ('Veg', 'சைவம்'),
+  ('Vegan', 'வீகன்'),
+  ('Vegetable', 'வெஜிடபிள்'),
+  ('Vegetable Momo', 'வெஜிடபிள் மோமோ'),
+  ('Wheat', 'கோதுமை'),
+  ('White', 'வொயிட்'),
+  ('Whole Wheat', 'முழு கோதுமை')
+)
+update taxonomy.attribute_options o
+   set name_ta = tr.name_ta,
+       updated_at = now()
+  from tr
+ where lower(o.label) = lower(tr.label);
+
+commit;

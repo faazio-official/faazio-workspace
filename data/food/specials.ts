@@ -240,5 +240,6 @@ export const dishToProduct = (dish: SpecialDish): Product => ({
   desc: dish.description,
   image: dish.image,
   shop: dish.restaurant,
+  ...(dish.restaurantId ? { storeId: dish.restaurantId } : {}),
   attributes: { brand: dish.restaurant, dietary: dish.isVeg ? 'Vegetarian' : 'Non-Veg' },
 });

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/faazio/server/gateway/internal/platform/locale"
 	"github.com/jackc/pgx/v5"
 )
 
@@ -17,6 +18,7 @@ type AttributeGroup struct {
 	SubcategoryID string            `json:"subcategoryId"`
 	Slug          string            `json:"slug"`
 	DisplayName   string            `json:"displayName"`
+	NameTA        string            `json:"nameTa,omitempty"`
 	InputType     string            `json:"inputType"`
 	DisplayOrder  int               `json:"displayOrder"`
 	Options       []AttributeOption `json:"options"`
@@ -26,6 +28,7 @@ type AttributeGroup struct {
 type AttributeOption struct {
 	ID              string   `json:"id"`
 	Label           string   `json:"label"`
+	NameTA          string   `json:"nameTa,omitempty"`
 	ParentFilterTab string   `json:"parentFilterTab,omitempty"`
 	IconURL         string   `json:"iconUrl,omitempty"`
 	Keywords        []string `json:"keywords"`
@@ -38,6 +41,7 @@ type AttributeGroupInput struct {
 	ID           string                 `json:"id"`
 	Slug         string                 `json:"slug"`
 	DisplayName  string                 `json:"displayName"`
+	NameTA       string                 `json:"nameTa"`
 	InputType    string                 `json:"inputType"`
 	DisplayOrder int                    `json:"displayOrder"`
 	Options      []AttributeOptionInput `json:"options"`
@@ -47,6 +51,7 @@ type AttributeGroupInput struct {
 type AttributeOptionInput struct {
 	ID              string   `json:"id"`
 	Label           string   `json:"label"`
+	NameTA          string   `json:"nameTa"`
 	ParentFilterTab string   `json:"parentFilterTab"`
 	IconURL         string   `json:"iconUrl"`
 	Keywords        []string `json:"keywords"`
@@ -72,7 +77,7 @@ func (r *Repo) ListAttributeGroups(ctx context.Context, subcategoryID string) ([
 		return []AttributeGroup{}, nil
 	}
 	rows, err := r.pool.Query(ctx, `
-		select id, subcategory_id, slug, display_name, input_type, display_order
+		select id, subcategory_id, slug, display_name, coalesce(name_ta, ''), input_type, display_order
 		  from taxonomy.subcategory_attribute_groups
 		 where subcategory_id = $1
 		 order by display_order asc, lower(display_name) asc`, subcategoryID)
@@ -86,7 +91,7 @@ func (r *Repo) ListAttributeGroups(ctx context.Context, subcategoryID string) ([
 	for rows.Next() {
 		var g AttributeGroup
 		g.Options = []AttributeOption{}
-		if err := rows.Scan(&g.ID, &g.SubcategoryID, &g.Slug, &g.DisplayName, &g.InputType, &g.DisplayOrder); err != nil {
+		if err := rows.Scan(&g.ID, &g.SubcategoryID, &g.Slug, &g.DisplayName, &g.NameTA, &g.InputType, &g.DisplayOrder); err != nil {
 			return nil, err
 		}
 		index[g.ID] = len(groups)
@@ -100,8 +105,8 @@ func (r *Repo) ListAttributeGroups(ctx context.Context, subcategoryID string) ([
 	}
 
 	optRows, err := r.pool.Query(ctx, `
-		select o.id, o.group_id, coalesce(o.parent_filter_tab, ''), o.label, coalesce(o.icon_url, ''),
-		       o.keywords, o.display_order
+		select o.id, o.group_id, coalesce(o.parent_filter_tab, ''), o.label, coalesce(o.name_ta, ''),
+		       coalesce(o.icon_url, ''), o.keywords, o.display_order
 		  from taxonomy.attribute_options o
 		  join taxonomy.subcategory_attribute_groups g on g.id = o.group_id
 		 where g.subcategory_id = $1
@@ -115,7 +120,7 @@ func (r *Repo) ListAttributeGroups(ctx context.Context, subcategoryID string) ([
 			o       AttributeOption
 			groupID string
 		)
-		if err := optRows.Scan(&o.ID, &groupID, &o.ParentFilterTab, &o.Label, &o.IconURL, &o.Keywords, &o.DisplayOrder); err != nil {
+		if err := optRows.Scan(&o.ID, &groupID, &o.ParentFilterTab, &o.Label, &o.NameTA, &o.IconURL, &o.Keywords, &o.DisplayOrder); err != nil {
 			return nil, err
 		}
 		if o.Keywords == nil {
@@ -158,6 +163,10 @@ func (r *Repo) ReplaceAttributeGroups(ctx context.Context, subcategoryID string,
 		if display == "" || len(display) > 100 {
 			return nil, ErrInvalidAttribute
 		}
+		nameTA := strings.TrimSpace(g.NameTA)
+		if nameTA != "" && (!locale.IsTamilText(nameTA) || len([]rune(nameTA)) > 100) {
+			return nil, ErrInvalidAttribute
+		}
 		slug := strings.TrimSpace(g.Slug)
 		if slug == "" {
 			slug = slugify(display)
@@ -188,16 +197,17 @@ func (r *Repo) ReplaceAttributeGroups(ctx context.Context, subcategoryID string,
 		}
 		if _, err := tx.Exec(ctx, `
 			insert into taxonomy.subcategory_attribute_groups
-			  (id, subcategory_id, slug, display_name, input_type, display_order)
-			values ($1, $2, $3, $4, $5, $6)
+			  (id, subcategory_id, slug, display_name, name_ta, input_type, display_order)
+			values ($1, $2, $3, $4, $5, $6, $7)
 			on conflict (id) do update
 			  set subcategory_id = excluded.subcategory_id,
 			      slug = excluded.slug,
 			      display_name = excluded.display_name,
+			      name_ta = excluded.name_ta,
 			      input_type = excluded.input_type,
 			      display_order = excluded.display_order,
 			      updated_at = now()`,
-			id, subcategoryID, slug, display, inputType, i); err != nil {
+			id, subcategoryID, slug, display, nameTA, inputType, i); err != nil {
 			if isUniqueViolation(err) {
 				return nil, ErrDuplicate
 			}
@@ -208,6 +218,10 @@ func (r *Repo) ReplaceAttributeGroups(ctx context.Context, subcategoryID string,
 		for j, o := range g.Options {
 			label := strings.TrimSpace(o.Label)
 			if label == "" || len(label) > 100 {
+				return nil, ErrInvalidAttribute
+			}
+			nameTA := strings.TrimSpace(o.NameTA)
+			if nameTA != "" && (!locale.IsTamilText(nameTA) || len([]rune(nameTA)) > 100) {
 				return nil, ErrInvalidAttribute
 			}
 			tab := strings.TrimSpace(o.ParentFilterTab)
@@ -233,17 +247,18 @@ func (r *Repo) ReplaceAttributeGroups(ctx context.Context, subcategoryID string,
 			}
 			if _, err := tx.Exec(ctx, `
 				insert into taxonomy.attribute_options
-				  (id, group_id, parent_filter_tab, label, icon_url, keywords, display_order)
-				values ($1, $2, nullif($3, ''), $4, nullif($5, ''), $6, $7)
+				  (id, group_id, parent_filter_tab, label, name_ta, icon_url, keywords, display_order)
+				values ($1, $2, nullif($3, ''), $4, $5, nullif($6, ''), $7, $8)
 				on conflict (id) do update
 				  set group_id = excluded.group_id,
 				      parent_filter_tab = excluded.parent_filter_tab,
 				      label = excluded.label,
+				      name_ta = excluded.name_ta,
 				      icon_url = excluded.icon_url,
 				      keywords = excluded.keywords,
 				      display_order = excluded.display_order,
 				      updated_at = now()`,
-				oid, id, tab, label, strings.TrimSpace(o.IconURL), normalizeKeywords(o.Keywords), j); err != nil {
+				oid, id, tab, label, nameTA, strings.TrimSpace(o.IconURL), normalizeKeywords(o.Keywords), j); err != nil {
 				if isUniqueViolation(err) {
 					return nil, ErrDuplicate
 				}
@@ -283,7 +298,7 @@ func (r *Repo) ReplaceAttributeGroups(ctx context.Context, subcategoryID string,
 // persisted shape before commit.
 func listAttributeGroupsTx(ctx context.Context, tx pgx.Tx, subcategoryID string) ([]AttributeGroup, error) {
 	rows, err := tx.Query(ctx, `
-		select id, subcategory_id, slug, display_name, input_type, display_order
+		select id, subcategory_id, slug, display_name, coalesce(name_ta, ''), input_type, display_order
 		  from taxonomy.subcategory_attribute_groups
 		 where subcategory_id = $1
 		 order by display_order asc, lower(display_name) asc`, subcategoryID)
@@ -296,7 +311,7 @@ func listAttributeGroupsTx(ctx context.Context, tx pgx.Tx, subcategoryID string)
 	for rows.Next() {
 		var g AttributeGroup
 		g.Options = []AttributeOption{}
-		if err := rows.Scan(&g.ID, &g.SubcategoryID, &g.Slug, &g.DisplayName, &g.InputType, &g.DisplayOrder); err != nil {
+		if err := rows.Scan(&g.ID, &g.SubcategoryID, &g.Slug, &g.DisplayName, &g.NameTA, &g.InputType, &g.DisplayOrder); err != nil {
 			return nil, err
 		}
 		index[g.ID] = len(groups)
@@ -309,8 +324,8 @@ func listAttributeGroupsTx(ctx context.Context, tx pgx.Tx, subcategoryID string)
 		return groups, nil
 	}
 	optRows, err := tx.Query(ctx, `
-		select o.id, o.group_id, coalesce(o.parent_filter_tab, ''), o.label, coalesce(o.icon_url, ''),
-		       o.keywords, o.display_order
+		select o.id, o.group_id, coalesce(o.parent_filter_tab, ''), o.label, coalesce(o.name_ta, ''),
+		       coalesce(o.icon_url, ''), o.keywords, o.display_order
 		  from taxonomy.attribute_options o
 		  join taxonomy.subcategory_attribute_groups g on g.id = o.group_id
 		 where g.subcategory_id = $1
@@ -324,7 +339,7 @@ func listAttributeGroupsTx(ctx context.Context, tx pgx.Tx, subcategoryID string)
 			o       AttributeOption
 			groupID string
 		)
-		if err := optRows.Scan(&o.ID, &groupID, &o.ParentFilterTab, &o.Label, &o.IconURL, &o.Keywords, &o.DisplayOrder); err != nil {
+		if err := optRows.Scan(&o.ID, &groupID, &o.ParentFilterTab, &o.Label, &o.NameTA, &o.IconURL, &o.Keywords, &o.DisplayOrder); err != nil {
 			return nil, err
 		}
 		if o.Keywords == nil {

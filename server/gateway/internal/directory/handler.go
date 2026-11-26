@@ -375,8 +375,37 @@ type vendorRequest struct {
 	// console applies these when a retail SKU is turned back on.
 	RestockQty        *int `json:"restockQty"`
 	RestockEtaMinutes *int `json:"restockEtaMinutes"`
+	// Advance-order availability (0142). Omitted keeps the stored value; an empty slots list clears.
+	InstantDelivery         *bool    `json:"instantDelivery"`
+	AcceptsScheduledOrders  *bool    `json:"acceptsScheduledOrders"`
+	ScheduleLeadTimeMinutes *int     `json:"scheduleLeadTimeMinutes"`
+	ScheduleSlots           []string `json:"scheduleSlots"`
 	// Compliance profile defaults (0137). Raw JSON kept as-is; bounded below.
 	ComplianceDefaults json.RawMessage `json:"complianceDefaults"`
+}
+
+// validScheduleSlots accepts the seller's HH:MM labels (24-hour, 00:00–23:59) and caps the list.
+func validScheduleSlots(slots []string) bool {
+	if len(slots) > 48 {
+		return false
+	}
+	for _, raw := range slots {
+		s := strings.TrimSpace(raw)
+		if len(s) != 5 || s[2] != ':' {
+			return false
+		}
+		h, errH := strconv.Atoi(s[:2])
+		m, errM := strconv.Atoi(s[3:])
+		if errH != nil || errM != nil || h < 0 || h > 23 || m < 0 || m > 59 {
+			return false
+		}
+	}
+	return true
+}
+
+// scheduleLeadValid keeps the lead time in the DB's 0..1440 range.
+func scheduleLeadValid(minutes *int) bool {
+	return minutes == nil || (*minutes >= 0 && *minutes <= 1440)
 }
 
 // restockInput normalises the optional restock defaults into the VendorInput sentinels: qty 0 means
@@ -421,6 +450,10 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 	restockQty, restockEta, restockOK := restockInput(req.RestockQty, req.RestockEtaMinutes)
 	if !restockOK {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "restock defaults are out of range")
+		return
+	}
+	if !scheduleLeadValid(req.ScheduleLeadTimeMinutes) || !validScheduleSlots(req.ScheduleSlots) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "order schedule is invalid")
 		return
 	}
 	if !validTamilOpt(req.NameTA, 160) || !validTamilOpt(req.DescTA, 2000) {
@@ -477,12 +510,16 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 		SellerCategoryID: strings.TrimSpace(req.SellerCategoryID), FSSAINumber: req.FSSAINumber,
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
 		DrugLicenseNumber: req.DrugLicenseNumber, DrugLicenseCertKey: strings.TrimSpace(req.DrugLicenseFileKey),
-		DrugLicenseCertAssetID: strings.TrimSpace(req.DrugLicenseAssetID),
-		IsVeg:                  req.IsVeg,
-		IsLive:                 req.IsLive,
-		RestockQty:             restockQty,
-		RestockEtaMinutes:      restockEta,
-		ComplianceDefaults:     req.ComplianceDefaults,
+		DrugLicenseCertAssetID:  strings.TrimSpace(req.DrugLicenseAssetID),
+		IsVeg:                   req.IsVeg,
+		IsLive:                  req.IsLive,
+		RestockQty:              restockQty,
+		RestockEtaMinutes:       restockEta,
+		InstantDelivery:         req.InstantDelivery,
+		AcceptsScheduledOrders:  req.AcceptsScheduledOrders,
+		ScheduleLeadTimeMinutes: req.ScheduleLeadTimeMinutes,
+		ScheduleSlots:           req.ScheduleSlots,
+		ComplianceDefaults:      req.ComplianceDefaults,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "vendor_create_failed", "could not create vendor")
@@ -568,6 +605,10 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "restock defaults are out of range")
 		return
 	}
+	if !scheduleLeadValid(req.ScheduleLeadTimeMinutes) || !validScheduleSlots(req.ScheduleSlots) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "order schedule is invalid")
+		return
+	}
 	// Licences are optional and may be attached later; if supplied they must be paired (checked above).
 	// Sellers cannot edit the fee directly; they file a fee-change request. Admins may set it, but
 	// validation is keyed on the store's actual app (never a client-supplied one).
@@ -593,12 +634,16 @@ func (h *Handler) updateStore(w http.ResponseWriter, r *http.Request) {
 		SellerCategoryID: strings.TrimSpace(req.SellerCategoryID), FSSAINumber: strings.TrimSpace(req.FSSAINumber),
 		FSSAICertKey: strings.TrimSpace(req.FSSAIFileKey), FSSAICertAssetID: strings.TrimSpace(req.FSSAIAssetID),
 		DrugLicenseNumber: req.DrugLicenseNumber, DrugLicenseCertKey: strings.TrimSpace(req.DrugLicenseFileKey),
-		DrugLicenseCertAssetID: strings.TrimSpace(req.DrugLicenseAssetID),
-		IsVeg:                  req.IsVeg,
-		IsLive:                 req.IsLive,
-		RestockQty:             restockQty,
-		RestockEtaMinutes:      restockEta,
-		ComplianceDefaults:     req.ComplianceDefaults,
+		DrugLicenseCertAssetID:  strings.TrimSpace(req.DrugLicenseAssetID),
+		IsVeg:                   req.IsVeg,
+		IsLive:                  req.IsLive,
+		RestockQty:              restockQty,
+		RestockEtaMinutes:       restockEta,
+		InstantDelivery:         req.InstantDelivery,
+		AcceptsScheduledOrders:  req.AcceptsScheduledOrders,
+		ScheduleLeadTimeMinutes: req.ScheduleLeadTimeMinutes,
+		ScheduleSlots:           req.ScheduleSlots,
+		ComplianceDefaults:      req.ComplianceDefaults,
 	})
 	if err != nil {
 		httpx.Fail(w, http.StatusInternalServerError, "vendor_update_failed", "could not update vendor")

@@ -35,6 +35,11 @@ export interface StoreRecord {
   phone?: string;
   /** Pickup hours for the store. */
   hours?: string;
+  /** Advance-order availability (0142): instant delivery / scheduled pre-orders. */
+  instantDelivery?: boolean;
+  acceptsScheduledOrders?: boolean;
+  scheduleLeadTimeMinutes?: number;
+  scheduleSlots?: string[];
   /** Store location (public business data). */
   latitude?: number;
   longitude?: number;

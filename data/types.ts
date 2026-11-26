@@ -371,6 +371,11 @@ export interface SpecialDish {
   id: string;
   dishName: string;
   restaurant: string;
+  /**
+   * The restaurant/vendor id (`directory.stores` or `directory.dining_venues`) the dish belongs to.
+   * Set on server-backed dishes so the customer PDP can load "Recommended" dishes from the same menu.
+   */
+  restaurantId?: string;
   /** Tamil display copy (server translation, 0108). Empty → fall back to the English field. */
   dishNameTa?: string;
   descriptionTa?: string;
