@@ -905,6 +905,16 @@ runtime, not build time.
 - **KYC image upload rejected (`unsupported image type` / `image too large`)** — the allowlist is
   JPEG/PNG/WebP/AVIF up to 8 MiB. Re-capture at lower resolution; do not convert to PDF. Confirm
   `R2_PRIVATE_BUCKET` is set or `/media/upload-url` returns 503.
+- **Direct-to-R2 upload returns `403 SignatureDoesNotMatch`** — the presigned `PUT` (passbook, KYC,
+  product/ads posters, Rx) 403s with a SigV4 mismatch; the app surfaces it as `error 403` on the
+  "Sell with us" submit (shop photos then fail too via `POST /media/avif`). The hand-rolled signer
+  (`internal/platform/r2/r2.go`) must put the HTTP **method** on the first line of the canonical
+  request — `METHOD \n URI \n QUERY \n canonical-headers \n signed-headers \n UNSIGNED-PAYLOAD`.
+  Omitting it still produces a syntactically valid URL but R2 recomputes a different signature.
+  `TestPresignCanonicalRequestSignature` pins the exact hex so the regression cannot return; run the
+  live probe against the real bucket with `RUN_LIVE_R2=1 go test ./internal/platform/r2 -run
+  TestLivePresignPut` (reads `R2_*` from `server/gateway/.env`). Redeploy the gateway — the fix ships
+  server-side, so a rebuilt mobile app is not required.
 - **Seller's passbook link 404s for an admin** — admin access is role-based; the state admin must
   match the seller's `state_code` (super admin is global). A seller-created asset is also readable by
   its creator. Expired presigned GETs (300 s) must be re-minted by reopening the document.

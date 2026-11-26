@@ -270,11 +270,22 @@ func (s *Signer) presign(method, bucket, key string, expires time.Duration) (str
 	canonicalQuery := canonicalQueryString(params)
 
 	canonicalHeaders := "host:" + host + "\n"
+	// CanonicalRequest is METHOD \n URI \n QUERY \n canonical-headers \n signed-headers \n payload-hash.
+	// The HTTP method is the FIRST line — omitting it (a previous bug) makes every presigned URL fail
+	// with 403 SignatureDoesNotMatch, since R2 recomputes the signature over the full canonical request.
+	canonicalRequest := strings.Join([]string{
+		method,
+		canonicalURI,
+		canonicalQuery,
+		canonicalHeaders,
+		"host",
+		"UNSIGNED-PAYLOAD",
+	}, "\n")
 	stringToSign := strings.Join([]string{
 		"AWS4-HMAC-SHA256",
 		amzDate,
 		scope,
-		hashHex([]byte(canonicalURI + "\n" + canonicalQuery + "\n" + canonicalHeaders + "\n" + "host" + "\n" + "UNSIGNED-PAYLOAD")),
+		hashHex([]byte(canonicalRequest)),
 	}, "\n")
 
 	signature := hex.EncodeToString(hmacSHA256(s.signingKey(dateStamp), []byte(stringToSign)))

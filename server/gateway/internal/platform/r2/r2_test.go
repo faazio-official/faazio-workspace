@@ -126,6 +126,21 @@ func TestPresignPutShapeAndDeterminism(t *testing.T) {
 	}
 }
 
+// TestPresignCanonicalRequestSignature pins the exact X-Amz-Signature for a fixed clock/credential.
+// The sig must include the HTTP method on the first line of the canonical request; a regression that
+// drops it (the bug that made every presigned upload 403 SignatureDoesNotMatch) changes this value.
+func TestPresignCanonicalRequestSignature(t *testing.T) {
+	s := testSigner()
+	got, err := s.PresignPut(context.Background(), "faazio-public", "media/ab/abcd.jpg", time.Minute)
+	if err != nil {
+		t.Fatalf("PresignPut: %v", err)
+	}
+	const want = "X-Amz-Signature=ca367f817600ed342f852c60068d1ffd6be90ba9de2917dbfa819f1b74003800"
+	if !strings.HasSuffix(got, want) {
+		t.Fatalf("presign signature changed (canonical request regression?)\n got: %s\nwant suffix: %s", got, want)
+	}
+}
+
 func TestPresignExpiryCap(t *testing.T) {
 	s := testSigner()
 	got, _ := s.PresignGet(context.Background(), "faazio-private", "rx/1.jpg", time.Hour)
