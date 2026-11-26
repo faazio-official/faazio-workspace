@@ -412,6 +412,8 @@ export const CATEGORY_APPS: CategoryApp[] = ["MART", "FOOD", "PHARMA", "MAIN_APP
 export interface MenuAttributeOption {
   id: string;
   label: string;
+  /** Tamil display label (0141). Empty → fall back to `label`. */
+  nameTa?: string;
   /** Optional visual tab inside a group (Patty → Chicken | Paneer | Vegetables). */
   parentFilterTab?: string;
   iconUrl?: string;
@@ -430,6 +432,8 @@ export interface MenuAttributeGroup {
   subcategoryId: string;
   slug: string;
   displayName: string;
+  /** Tamil display name (0141). Empty → fall back to `displayName`. */
+  nameTa?: string;
   inputType: "single_select" | "multi_select";
   displayOrder: number;
   options: MenuAttributeOption[];
@@ -441,11 +445,13 @@ export interface MenuAttributeGroupInput {
   id?: string;
   slug?: string;
   displayName: string;
+  nameTa?: string;
   inputType: "single_select" | "multi_select";
   displayOrder?: number;
   options: {
     id?: string;
     label: string;
+    nameTa?: string;
     parentFilterTab?: string;
     iconUrl?: string;
     keywords?: string[];
@@ -459,11 +465,10 @@ export interface CategoryRow {
   app: string;
   name: string;
   slug: string;
-  description?: string;
   /** Tamil display name (0107). Empty → the app falls back to `name`. */
   nameTa?: string;
-  /** Tamil display description (0107). Empty → the app falls back to `description`. */
-  descriptionTa?: string;
+  /** Customer price-filter bucket set (0143): standard / premium / snack. */
+  priceTierSet?: "standard" | "premium" | "snack";
   iconUrl?: string;
   parentId: string | null;
   searchQuery?: string;
@@ -508,8 +513,6 @@ export interface SubCategoryInput {
   name: string;
   /** Mandatory Tamil name (0107) — every child is a customer-facing drill-in label. */
   nameTa: string;
-  /** Mandatory Tamil description (0107). */
-  descriptionTa: string;
   searchQuery?: string;
   iconUrl?: string;
   sortOrder?: number;
@@ -522,9 +525,7 @@ export interface CategoryInput {
   app: CategoryApp;
   name: string;
   slug?: string;
-  description?: string;
   nameTa?: string;
-  descriptionTa?: string;
   iconUrl?: string;
   parentId?: string | null;
   searchQuery?: string;
@@ -1953,6 +1954,11 @@ export interface SellerStoreSummary {
   phone?: string;
   hours?: string;
   deliveryTime?: string;
+  /** Advance-order availability (0142), configured once on the store profile. */
+  instantDelivery: boolean;
+  acceptsScheduledOrders: boolean;
+  scheduleLeadTimeMinutes: number;
+  scheduleSlots: string[];
   isVeg: boolean;
   isLive: boolean;
   /** Per-vendor platform fee (0069) — the fee is a property of the shop, not the account. */
@@ -1997,6 +2003,10 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
       phone?: string;
       hours?: string;
       deliveryTime?: string;
+      instantDelivery?: boolean;
+      acceptsScheduledOrders?: boolean;
+      scheduleLeadTimeMinutes?: number;
+      scheduleSlots?: string[];
       isVeg?: boolean;
       isLive?: boolean;
       platformFeePct?: number;
@@ -2024,6 +2034,10 @@ export async function fetchSellerStores(): Promise<SellerStoreSummary[]> {
     ...(row.phone ? { phone: row.phone } : {}),
     ...(row.hours ? { hours: row.hours } : {}),
     ...(row.deliveryTime ? { deliveryTime: row.deliveryTime } : {}),
+    instantDelivery: row.instantDelivery ?? true,
+    acceptsScheduledOrders: row.acceptsScheduledOrders ?? false,
+    scheduleLeadTimeMinutes: row.scheduleLeadTimeMinutes ?? 60,
+    scheduleSlots: row.scheduleSlots ?? [],
     isVeg: row.isVeg === true,
     isLive: row.isLive === true,
     platformFeePct: row.platformFeePct ?? 0,
@@ -2142,6 +2156,10 @@ export interface CreateVendorInput {
   address?: string;
   phone?: string;
   hours?: string;
+  instantDelivery?: boolean;
+  acceptsScheduledOrders?: boolean;
+  scheduleLeadTimeMinutes?: number;
+  scheduleSlots?: string[];
   isLive?: boolean;
   fssaiNumber?: string;
   fssaiFileKey?: string;
@@ -2164,6 +2182,10 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     address?: string;
     phone?: string;
     hours?: string;
+    instantDelivery?: boolean;
+    acceptsScheduledOrders?: boolean;
+    scheduleLeadTimeMinutes?: number;
+    scheduleSlots?: string[];
     isVeg?: boolean;
     isLive?: boolean;
     platformFeePct?: number;
@@ -2186,6 +2208,14 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     address: input.address ?? "",
     phone: input.phone ?? "",
     hours: input.hours ?? "",
+    ...(input.instantDelivery !== undefined ? { instantDelivery: input.instantDelivery } : {}),
+    ...(input.acceptsScheduledOrders !== undefined
+      ? { acceptsScheduledOrders: input.acceptsScheduledOrders }
+      : {}),
+    ...(input.scheduleLeadTimeMinutes !== undefined
+      ? { scheduleLeadTimeMinutes: input.scheduleLeadTimeMinutes }
+      : {}),
+    ...(input.scheduleSlots ? { scheduleSlots: input.scheduleSlots } : {}),
     ...(input.isLive !== undefined ? { isLive: input.isLive } : {}),
     ...(input.fssaiNumber ? { fssaiNumber: input.fssaiNumber } : {}),
     ...(input.fssaiFileKey ? { fssaiFileKey: input.fssaiFileKey } : {}),
@@ -2204,6 +2234,10 @@ export async function createSellerVendor(input: CreateVendorInput): Promise<Sell
     ...(row.address ? { address: row.address } : {}),
     ...(row.phone ? { phone: row.phone } : {}),
     ...(row.hours ? { hours: row.hours } : {}),
+    instantDelivery: row.instantDelivery ?? true,
+    acceptsScheduledOrders: row.acceptsScheduledOrders ?? false,
+    scheduleLeadTimeMinutes: row.scheduleLeadTimeMinutes ?? 60,
+    scheduleSlots: row.scheduleSlots ?? [],
     isVeg: row.isVeg === true,
     isLive: row.isLive === true,
     platformFeePct: row.platformFeePct ?? 0,
@@ -2232,6 +2266,11 @@ export async function updateSellerStore(
     address?: string;
     phone?: string;
     hours?: string;
+    /** Advance-order availability (0142). Omitted keeps the stored value. */
+    instantDelivery?: boolean;
+    acceptsScheduledOrders?: boolean;
+    scheduleLeadTimeMinutes?: number;
+    scheduleSlots?: string[];
     isLive?: boolean;
     isVeg?: boolean;
     fssaiNumber?: string;

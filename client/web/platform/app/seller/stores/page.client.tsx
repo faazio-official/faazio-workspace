@@ -14,6 +14,11 @@ import type { LegalMetrology } from "@/data/types";
 
 type VendorDraft = {
   hours: string;
+  /** Instant vs Schedule / pre-order availability (0142). */
+  instantDelivery: boolean;
+  acceptsScheduledOrders: boolean;
+  scheduleLeadTimeMinutes: string;
+  scheduleSlots: string;
   nameTa: string;
   descTa: string;
   drugLicenseNumber: string;
@@ -35,6 +40,10 @@ type VendorDraft = {
 
 function draftFor(store: {
   hours?: string | undefined;
+  instantDelivery?: boolean | undefined;
+  acceptsScheduledOrders?: boolean | undefined;
+  scheduleLeadTimeMinutes?: number | undefined;
+  scheduleSlots?: string[] | undefined;
   nameTa?: string | undefined;
   descTa?: string | undefined;
   drugLicenseNumber?: string | undefined;
@@ -47,6 +56,10 @@ function draftFor(store: {
   const lm = store.complianceDefaults;
   return {
     hours: store.hours ?? "",
+    instantDelivery: store.instantDelivery ?? true,
+    acceptsScheduledOrders: store.acceptsScheduledOrders ?? false,
+    scheduleLeadTimeMinutes: String(store.scheduleLeadTimeMinutes ?? 60),
+    scheduleSlots: (store.scheduleSlots ?? []).join(", "),
     nameTa: store.nameTa ?? "",
     descTa: store.descTa ?? "",
     drugLicenseNumber: store.drugLicenseNumber ?? "",
@@ -88,6 +101,10 @@ function SellerStores() {
     storeId: string,
     patch: {
       hours?: string;
+      instantDelivery?: boolean;
+      acceptsScheduledOrders?: boolean;
+      scheduleLeadTimeMinutes?: number;
+      scheduleSlots?: string[];
       nameTa?: string;
       descTa?: string;
       isLive?: boolean;
@@ -244,6 +261,50 @@ function SellerStores() {
                       placeholder="தமிழில் விவரம்"
                       onChange={(v) => updateDraft(store.storeId, { descTa: v })}
                     />
+                    {store.sector === "FOOD" ? (
+                      <div className="mt-3 space-y-1 rounded-xl border border-border p-3">
+                        <p className="text-[11px] font-semibold">Order availability</p>
+                        <div className="flex items-center justify-between border-b border-border py-2">
+                          <span className="text-sm">Instant delivery</span>
+                          <Toggle
+                            label="Instant delivery"
+                            checked={draft.instantDelivery}
+                            onChange={(v) =>
+                              updateDraft(store.storeId, { instantDelivery: v })
+                            }
+                          />
+                        </div>
+                        <div className="flex items-center justify-between py-2">
+                          <span className="text-sm">Accept scheduled / pre-orders</span>
+                          <Toggle
+                            label="Scheduled orders"
+                            checked={draft.acceptsScheduledOrders}
+                            onChange={(v) =>
+                              updateDraft(store.storeId, { acceptsScheduledOrders: v })
+                            }
+                          />
+                        </div>
+                        {draft.acceptsScheduledOrders ? (
+                          <>
+                            <TextField
+                              label="Minimum notice (minutes)"
+                              value={draft.scheduleLeadTimeMinutes}
+                              onChange={(v) =>
+                                updateDraft(store.storeId, { scheduleLeadTimeMinutes: v })
+                              }
+                            />
+                            <TextField
+                              label="Time slots (comma separated, HH:MM)"
+                              value={draft.scheduleSlots}
+                              placeholder="12:00, 12:30, 13:00"
+                              onChange={(v) =>
+                                updateDraft(store.storeId, { scheduleSlots: v })
+                              }
+                            />
+                          </>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   {store.sector !== "FOOD" && (
                     <div className="border-t border-border pt-3">
@@ -377,6 +438,18 @@ function SellerStores() {
                         hours: draft.hours,
                         nameTa: draft.nameTa.trim(),
                         descTa: draft.descTa.trim(),
+                        ...(store.sector === "FOOD"
+                          ? {
+                              instantDelivery: draft.instantDelivery,
+                              acceptsScheduledOrders: draft.acceptsScheduledOrders,
+                              scheduleLeadTimeMinutes:
+                                Number(draft.scheduleLeadTimeMinutes) || 0,
+                              scheduleSlots: draft.scheduleSlots
+                                .split(",")
+                                .map((s) => s.trim())
+                                .filter(Boolean),
+                            }
+                          : {}),
                       });
                     }}
                     className="w-full rounded-xl bg-foreground px-4 py-3 text-sm font-semibold text-background"

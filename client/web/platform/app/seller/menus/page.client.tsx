@@ -196,7 +196,12 @@ function AttributeGroupPicker({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between gap-2">
-        <p className="text-[12px] font-semibold">{group.displayName}</p>
+        <p className="text-[12px] font-semibold">
+          {group.displayName}
+          {group.nameTa ? (
+            <span className="ml-1 font-normal text-muted-foreground">· {group.nameTa}</span>
+          ) : null}
+        </p>
         <span className="text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
           {group.inputType === "single_select" ? "Pick one" : "Any"} · optional
         </span>
@@ -217,6 +222,7 @@ function AttributeGroupPicker({
               key={o.id}
               type="button"
               aria-pressed={on}
+              title={o.nameTa || undefined}
               onClick={() => onToggle(group, o.id)}
               className={cn(
                 "inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-[11px] font-medium transition-colors",
@@ -261,6 +267,19 @@ function SellerMenus() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Facet tags: groups come from the superadmin definition for the picked sub-category. Selections
+  // are optional, and the dish name auto-suggests matching chips ("auto-detected — tap to adjust").
+  const { groups: attrGroups, loading: attrLoading } = useSubcategoryAttributes(
+    form.subCategoryId || undefined,
+  );
+  const [attrSelected, setAttrSelected] = useState<string[]>([]);
+  const [attrTouched, setAttrTouched] = useState<Set<string>>(() => new Set());
+  const [attrSuppressed, setAttrSuppressed] = useState<Set<string>>(() => new Set());
+  const suggestedOptions = useMemo(
+    () => new Set(detectAttributeOptions(form.name, attrGroups)),
+    [form.name, attrGroups],
+  );
+
   const [addons, setAddons] = useState<AddonRecord[]>([]);
   const [links, setLinks] = useState<MenuAddonRecord[]>([]);
   const [addonsLoading, setAddonsLoading] = useState(false);
@@ -304,9 +323,50 @@ function SellerMenus() {
     void refreshAddons();
   }, [refreshAddons]);
 
+  // Rebuild the effective selection from manual picks + name-based suggestions. A chip the seller
+  // explicitly removed is suppressed until they re-pick it, so the auto-tagger never fights them.
+  useEffect(() => {
+    if (attrGroups.length === 0) return;
+    const valid = new Set(attrGroups.flatMap((g) => g.options.map((o) => o.id)));
+    setAttrSelected((prev) => {
+      const manual = prev.filter((id) => attrTouched.has(id) && valid.has(id));
+      const next = new Set(manual);
+      for (const id of suggestedOptions) {
+        if (!attrSuppressed.has(id) && valid.has(id)) next.add(id);
+      }
+      return [...next];
+    });
+  }, [attrGroups, attrTouched, attrSuppressed, suggestedOptions]);
+
+  function resetAttributes() {
+    setAttrSelected([]);
+    setAttrTouched(new Set());
+    setAttrSuppressed(new Set());
+  }
+
+  function toggleAttribute(group: MenuAttributeGroup, optionId: string) {
+    const groupIds = new Set(group.options.map((o) => o.id));
+    const wasSelected = attrSelected.includes(optionId);
+    setAttrSelected((prev) => {
+      if (group.inputType === "single_select") {
+        const cleared = prev.filter((id) => !groupIds.has(id));
+        return wasSelected ? cleared : [...cleared, optionId];
+      }
+      return wasSelected ? prev.filter((id) => id !== optionId) : [...prev, optionId];
+    });
+    setAttrTouched((prev) => new Set(prev).add(optionId));
+    setAttrSuppressed((prev) => {
+      const next = new Set(prev);
+      if (wasSelected) next.add(optionId);
+      else next.delete(optionId);
+      return next;
+    });
+  }
+
   function openCreate() {
     setEditing(null);
     setForm(emptyForm());
+    resetAttributes();
     setSelectedAddons([]);
     setTamilOpen(false);
     setAddonsOpen(false);
@@ -316,6 +376,9 @@ function SellerMenus() {
   function openEdit(m: MenuItemRecord) {
     setEditing(m);
     setForm(toForm(m));
+    setAttrSelected(m.attributeOptionIds ?? []);
+    setAttrTouched(new Set(m.attributeOptionIds ?? []));
+    setAttrSuppressed(new Set());
     setSelectedAddons(
       links.filter((l) => l.venueId === m.venueId && l.dishId === m.dishId).map((l) => l.addonId),
     );
@@ -393,6 +456,7 @@ function SellerMenus() {
       ...(form.descriptionTa.trim() ? { descriptionTa: form.descriptionTa.trim() } : {}),
       ...(form.imageKey ? { imageKey: form.imageKey } : {}),
       ...(form.imageFile ? { imageFile: form.imageFile } : {}),
+      attributeOptionIds: attrSelected,
       sellerId,
     };
 
@@ -845,9 +909,10 @@ function SellerMenus() {
             <span className="mb-1 block text-xs font-medium text-muted-foreground">Menu section</span>
             <select
               value={form.sectionId}
-              onChange={(e) =>
-                setForm({ ...form, sectionId: e.target.value, subCategoryId: "" })
-              }
+              onChange={(e) => {
+                setForm({ ...form, sectionId: e.target.value, subCategoryId: "" });
+                resetAttributes();
+              }}
               className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm outline-none focus:border-info"
             >
               <option value="">Select a section…</option>
@@ -867,7 +932,10 @@ function SellerMenus() {
             <select
               value={form.subCategoryId}
               disabled={!form.sectionId}
-              onChange={(e) => setForm({ ...form, subCategoryId: e.target.value })}
+              onChange={(e) => {
+                setForm({ ...form, subCategoryId: e.target.value });
+                resetAttributes();
+              }}
               className="w-full rounded-xl border border-border bg-card px-3 py-2.5 text-sm outline-none focus:border-info disabled:opacity-50"
             >
               <option value="">{form.sectionId ? "Select a sub-category…" : "Pick a section first"}</option>
@@ -883,6 +951,44 @@ function SellerMenus() {
               </span>
             ) : null}
           </label>
+
+          {/* Dynamic facet tags — the card swaps cleanly when the sub-category changes. */}
+          {form.subCategoryId ? (
+            <div className="mt-1 rounded-xl border border-border bg-muted/20 p-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-sm font-semibold">Dish details &amp; filter tags</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Optional — these power customer filters. Pick what fits this dish.
+                  </p>
+                </div>
+                {suggestedOptions.size > 0 ? (
+                  <span className="shrink-0 rounded-full bg-info-soft px-2 py-0.5 text-[9px] font-semibold text-info">
+                    Auto-detected — tap to adjust
+                  </span>
+                ) : null}
+              </div>
+              <div className="mt-2 space-y-3">
+                {attrLoading ? (
+                  <p className="text-[11px] text-muted-foreground">Loading tags…</p>
+                ) : attrGroups.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    No filter tags are defined for this sub-category yet.
+                  </p>
+                ) : (
+                  attrGroups.map((group) => (
+                    <AttributeGroupPicker
+                      key={group.id}
+                      group={group}
+                      selected={attrSelected}
+                      suggested={suggestedOptions}
+                      onToggle={toggleAttribute}
+                    />
+                  ))
+                )}
+              </div>
+            </div>
+          ) : null}
 
           {/* Cuisine (searchable suggestions) */}
           <label className="block py-2">

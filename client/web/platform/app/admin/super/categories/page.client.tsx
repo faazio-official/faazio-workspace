@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import { Pencil, Plus, RotateCcw, Tags, Trash2 } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { DataShell, EmptyState } from "@/components/patterns/DataState";
@@ -69,6 +69,7 @@ import type {
 import { useGSTRateCategories } from "@/lib/api/hooks";
 import { tamilFieldError } from "@/lib/tamil";
 import { cn } from "@/lib/utils";
+import { AttributeManagerSheet } from "./attribute-manager";
 
 const FOOD_GST_PCT = 5;
 
@@ -147,15 +148,13 @@ interface SubRow {
   name: string;
   /** Mandatory Tamil name (0107) — every child is a customer-facing drill-in label. */
   nameTa: string;
-  /** Mandatory Tamil description (0107). */
-  descriptionTa: string;
   gstRateCategoryId: string;
 }
 
 let subRowSeq = 0;
 function newSubRow(name = "", gstRateCategoryId = ""): SubRow {
   subRowSeq += 1;
-  return { key: `sub-${subRowSeq}`, name, nameTa: "", descriptionTa: "", gstRateCategoryId };
+  return { key: `sub-${subRowSeq}`, name, nameTa: "", gstRateCategoryId };
 }
 
 /** Required Tamil copy: blank is blocked here (tamilFieldError only checks script + length). */
@@ -186,6 +185,9 @@ export function CategoriesPage() {
   const [creating, setCreating] = useState(false);
   const [editing, setEditing] = useState<CategoryRow | null>(null);
   const [deleting, setDeleting] = useState<CategoryRow | null>(null);
+  // Facet tags live on a leaf sub-category and are managed in their own sheet (Category Tree vs.
+  // Facets split) so the category form itself stays about navigation + GST.
+  const [tagging, setTagging] = useState<CategoryRow | null>(null);
   // Why the row is being deleted — kept with the trashed row for the next operator.
   const [deleteReason, setDeleteReason] = useState("");
   // Where a delete moves the listings that live in the deleted subtree. Mandatory as soon as the
@@ -196,9 +198,8 @@ export function CategoriesPage() {
 
   const [formApp, setFormApp] = useState<CategoryApp>("MART");
   const [formName, setFormName] = useState("");
-  // Optional Tamil translations (0107). Tamil letters only; blank = not translated.
+  // Optional Tamil name (0107). Tamil letters only; blank = not translated.
   const [formNameTa, setFormNameTa] = useState("");
-  const [formDescriptionTa, setFormDescriptionTa] = useState("");
   const [formIconUrl, setFormIconUrl] = useState("");
   const [formSearchQuery, setFormSearchQuery] = useState("");
   const [formSortOrder, setFormSortOrder] = useState("0");
@@ -302,7 +303,6 @@ export function CategoriesPage() {
     setFormApp("MART");
     setFormName("");
     setFormNameTa("");
-    setFormDescriptionTa("");
     setFormIconUrl("");
     setFormSearchQuery("");
     setFormSortOrder("0");
@@ -323,7 +323,6 @@ export function CategoriesPage() {
     setFormApp(app);
     setFormName(row.name);
     setFormNameTa(row.nameTa ?? "");
-    setFormDescriptionTa(row.descriptionTa ?? "");
     setFormIconUrl(row.iconUrl ?? "");
     setFormSearchQuery(row.searchQuery ?? "");
     setFormSortOrder(String(row.sortOrder));
@@ -344,7 +343,6 @@ export function CategoriesPage() {
           id: r.id,
           name: r.name,
           nameTa: r.nameTa ?? "",
-          descriptionTa: r.descriptionTa ?? "",
           gstRateCategoryId: r.gstRateCategoryId ?? "",
         })),
     );
@@ -384,11 +382,8 @@ export function CategoriesPage() {
       return;
     }
     const nameTaError = tamilFieldError(formNameTa, 120);
-    const descriptionTaError = tamilFieldError(formDescriptionTa, 2000);
-    if (nameTaError || descriptionTaError) {
-      toast.error("Check the Tamil fields", {
-        description: nameTaError ?? descriptionTaError ?? undefined,
-      });
+    if (nameTaError) {
+      toast.error("Check the Tamil name", { description: nameTaError });
       return;
     }
     if (formMainHeader && formApp === "FOOD") {
@@ -410,17 +405,6 @@ export function CategoriesPage() {
       });
       return;
     }
-    const missingTaDescription = formSubs.find((s) =>
-      requiredTamilError(s.descriptionTa, 2000, "Tamil description"),
-    );
-    if (missingTaDescription) {
-      toast.error("Every sub-category needs a Tamil description.", {
-        description:
-          requiredTamilError(missingTaDescription.descriptionTa, 2000, "Tamil description") ??
-          undefined,
-      });
-      return;
-    }
     if (formApp !== "FOOD" && formSubs.some((s) => !s.gstRateCategoryId)) {
       toast.error("Every sub-category needs a GST rate.");
       return;
@@ -438,7 +422,6 @@ export function CategoriesPage() {
       app: formApp,
       name: s.name.trim(),
       nameTa: s.nameTa.trim(),
-      descriptionTa: s.descriptionTa.trim(),
       gstRateCategoryId: s.gstRateCategoryId,
       sortOrder: index,
       isActive: true,
@@ -447,7 +430,6 @@ export function CategoriesPage() {
       app: formApp,
       name: formName.trim(),
       ...(formNameTa.trim() ? { nameTa: formNameTa.trim() } : {}),
-      ...(formDescriptionTa.trim() ? { descriptionTa: formDescriptionTa.trim() } : {}),
       sortOrder: Number.isFinite(Number(formSortOrder)) ? Number(formSortOrder) : 0,
       isActive: formActive,
       headerLabels,
@@ -662,6 +644,11 @@ export function CategoriesPage() {
   function rowActions(row: CategoryRow) {
     return (
       <div className="flex justify-end gap-2">
+        {row.parentId ? (
+          <Button size="sm" variant="outline" className="gap-1.5" onClick={() => setTagging(row)}>
+            <Tags className="size-3.5" /> Tags
+          </Button>
+        ) : null}
         <Button size="sm" variant="outline" onClick={() => openEdit(row)}>
           <Pencil className="size-3.5" /> Edit
         </Button>
@@ -981,8 +968,7 @@ export function CategoriesPage() {
             <SheetTitle>{editing ? `Edit ${editing.name}` : "New category"}</SheetTitle>
             <SheetDescription>
               One primary pool, one GST rate, and optional sub-categories (each with its own GST, plus a
-              mandatory Tamil name and description). New categories are top-level — add children inline
-              below.
+              mandatory Tamil name). New categories are top-level — add children inline below.
             </SheetDescription>
           </SheetHeader>
           <div className="space-y-4 px-4 pb-6">
@@ -1113,22 +1099,6 @@ export function CategoriesPage() {
             </div>
 
             <div className="space-y-1.5">
-              <Label htmlFor="category-description-ta">Description (Tamil)</Label>
-              <Input
-                id="category-description-ta"
-                lang="ta"
-                value={formDescriptionTa}
-                onChange={(e) => setFormDescriptionTa(e.target.value)}
-                placeholder="தமிழில் மட்டும்"
-              />
-              {tamilFieldError(formDescriptionTa, 2000) ? (
-                <p className="text-[11px] text-destructive">
-                  {tamilFieldError(formDescriptionTa, 2000)}
-                </p>
-              ) : null}
-            </div>
-
-            <div className="space-y-1.5">
               <Label htmlFor="category-icon">Icon URL</Label>
               <Input
                 id="category-icon"
@@ -1163,8 +1133,8 @@ export function CategoriesPage() {
                 <div>
                   <p className="text-[13px] font-medium">Sub-categories</p>
                   <p className="text-[11px] text-muted-foreground">
-                    Each one appears inside this category&apos;s drill-in. Name, Tamil name, Tamil
-                    description and GST rate are all mandatory.
+                    Each one appears inside this category&apos;s drill-in. Name, Tamil name and GST
+                    rate are all mandatory.
                     {formApp === "MAIN_APP_HEADER"
                       ? " Main app header combines Mart + Pharma GST slabs."
                       : ""}
@@ -1180,7 +1150,6 @@ export function CategoriesPage() {
                 <div className="space-y-3">
                   {formSubs.map((sub) => {
                     const nameTaError = tamilFieldError(sub.nameTa, 120);
-                    const descriptionTaError = tamilFieldError(sub.descriptionTa, 2000);
                     return (
                       <div key={sub.key} className="space-y-2 rounded-lg border border-border p-3">
                         <div className="flex items-end gap-2">
@@ -1214,19 +1183,6 @@ export function CategoriesPage() {
                           />
                           {nameTaError ? (
                             <p className="text-[11px] text-destructive">{nameTaError}</p>
-                          ) : null}
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label htmlFor={`${sub.key}-description-ta`}>Description (Tamil)</Label>
-                          <Input
-                            id={`${sub.key}-description-ta`}
-                            lang="ta"
-                            value={sub.descriptionTa}
-                            onChange={(e) => updateSub(sub.key, { descriptionTa: e.target.value })}
-                            placeholder="தமிழில் மட்டும்"
-                          />
-                          {descriptionTaError ? (
-                            <p className="text-[11px] text-destructive">{descriptionTaError}</p>
                           ) : null}
                         </div>
                         <div className="space-y-1.5">
@@ -1385,6 +1341,8 @@ export function CategoriesPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AttributeManagerSheet category={tagging} onClose={() => setTagging(null)} />
     </div>
   );
 }

@@ -561,7 +561,7 @@ export async function hydrateFromGateway(): Promise<boolean> {
         rating: m["rating"] == null ? undefined : num(m["rating"]),
         ...(m["imageKey"] ? { imageKey: str(m["imageKey"]) } : {}),
         ...(Array.isArray(m["attributeOptionIds"])
-          ? { attributeOptionIds: (m["attributeOptionIds"] as unknown[]).map(str) }
+          ? { attributeOptionIds: (m["attributeOptionIds"] as unknown[]).map((v) => str(v)) }
           : {}),
         sellerId: m["sellerId"] ? str(m["sellerId"]) : undefined,
         status: str(m["status"], "DRAFT") as MenuItemRecord["status"],
