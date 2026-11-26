@@ -47,6 +47,9 @@ interface FilterFeedSectionProps extends SectionProps {
 function FilterFeedSection({
   chipProducts,
   onProductClick,
+  quantityOf,
+  onAddToCart,
+  onUpdateQuantity,
   scrollY,
   viewportH,
 }: FilterFeedSectionProps) {
@@ -151,20 +154,27 @@ function FilterFeedSection({
       ) : (
         <>
           <View style={styles.grid}>
-            {visibleItems.map((product) => (
-              <UniversalFeedCard
-                key={product.id}
-                product={product}
-                width={HOME_GRID_CARD_WIDTH}
-                imageAspect={1}
-                nameLines={2}
-                showRating={false}
-                showBadge={false}
-                showAddButton={false}
-                compactPrice
-                onPress={handlePress}
-              />
-            ))}
+            {visibleItems.map((product) => {
+              const quantity = quantityOf?.(product.id) ?? 0;
+              return (
+                <UniversalFeedCard
+                  key={product.id}
+                  product={product}
+                  width={HOME_GRID_CARD_WIDTH}
+                  imageAspect={1}
+                  nameLines={2}
+                  quantity={quantity}
+                  isAdded={quantity > 0}
+                  showRating={false}
+                  showBadge={false}
+                  compactPrice
+                  onPress={handlePress}
+                  onAdd={() => onAddToCart?.(product)}
+                  onIncrement={() => onUpdateQuantity?.(product.id, 1)}
+                  onDecrement={() => onUpdateQuantity?.(product.id, -1)}
+                />
+              );
+            })}
           </View>
           {total === 0 ? (
             <AppText style={styles.emptyState}>No items in this category yet.</AppText>

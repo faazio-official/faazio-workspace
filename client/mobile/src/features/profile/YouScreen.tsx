@@ -6,6 +6,7 @@ import { logoutUser } from '@/services/logout';
 import { AccountView } from '@/features/profile/AccountView';
 import { useThemeMode } from '@/hooks/useThemeMode';
 import { useNotificationsStore } from '@/state/notificationsStore';
+import { useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'You'>;
@@ -13,26 +14,33 @@ type Props = NativeStackScreenProps<RootStackParamList, 'You'>;
 /**
  * Pushed-mode wrapper for the shared "You" page. Rendered on the root stack
  * (same treatment as Cart) so the back arrow returns to whatever app pushed it.
- * This wrapper IS the root stack, so logout resets directly to Login.
+ * This wrapper IS the root stack, so logout resets directly to guest browsing (`MainTabs`).
  */
 export function YouScreen({ navigation }: Props) {
   const { palette } = useThemeMode();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const refreshUnread = useNotificationsStore((s) => s.refreshUnread);
 
   useFocusEffect(
     useCallback(() => {
-      void refreshUnread();
-    }, [refreshUnread]),
+      // `/notifications` is auth-scoped; a guest account page has no inbox to refresh.
+      if (isAuthenticated) void refreshUnread().catch(() => {});
+    }, [isAuthenticated, refreshUnread]),
   );
+
+  const handleSignIn = useCallback(() => {
+    navigation.navigate('Login', { resume: true });
+  }, [navigation]);
 
   const handleLogout = useCallback(() => {
     void logoutUser()
       .catch(() => {})
       .finally(() => {
         if (navigation.isFocused()) {
+          // Sign-out returns to guest browsing, never a forced login wall.
           navigation.reset({
             index: 0,
-            routes: [{ name: 'Login' }],
+            routes: [{ name: 'MainTabs' }],
           });
         }
       });
@@ -107,6 +115,7 @@ export function YouScreen({ navigation }: Props) {
         onOpenSellerRequests={handleOpenSellerRequests}
         onOpenFeeChangeRequests={handleOpenFeeChangeRequests}
         onOpenPlatformFeeRequest={handleOpenPlatformFeeRequest}
+        onSignIn={handleSignIn}
         onLogout={handleLogout}
       />
     </View>

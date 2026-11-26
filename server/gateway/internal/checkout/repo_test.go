@@ -406,6 +406,11 @@ func TestUpdateProfileNameWritesBothIdentityRows(t *testing.T) {
 		t.Fatalf("seed user: %v", err)
 	}
 
+	// The provisioning placeholder is not a chosen name: sign-in must still ask for one.
+	if before, ok, err := repo.ProfileByUser(ctx, userID); err != nil || !ok || before.HasName {
+		t.Fatalf("pre-update profile: %+v ok=%v err=%v, want hasName=false", before, ok, err)
+	}
+
 	// No accounts.profile row yet (pre-provision user): the write must create it, not only update.
 	p, ok, err := repo.UpdateProfileName(ctx, userID, "  Anitha R  ")
 	if err != nil || !ok {
@@ -413,6 +418,9 @@ func TestUpdateProfileNameWritesBothIdentityRows(t *testing.T) {
 	}
 	if p.Name != "Anitha R" {
 		t.Fatalf("name = %q, want the trimmed input", p.Name)
+	}
+	if !p.HasName {
+		t.Fatalf("update response hasName = false, want true for a chosen name")
 	}
 
 	var userName string
@@ -427,6 +435,9 @@ func TestUpdateProfileNameWritesBothIdentityRows(t *testing.T) {
 	got, ok, err := repo.ProfileByUser(ctx, userID)
 	if err != nil || !ok || got.Name != "Anitha R" {
 		t.Fatalf("profile read-back: %+v ok=%v err=%v", got, ok, err)
+	}
+	if !got.HasName {
+		t.Fatalf("profile read-back hasName = false, want true after a name write")
 	}
 
 	if _, _, err := repo.UpdateProfileName(ctx, userID, "   "); !errors.Is(err, ErrInvalidProfileName) {

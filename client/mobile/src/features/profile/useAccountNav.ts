@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { AccountNavGroup } from '@data/types';
 import { gateway } from '@/services/api/GatewayClient';
+import { useAuthStore } from '@/state/authStore';
 
 interface AccountNavState {
   groups: AccountNavGroup[];
@@ -17,12 +18,20 @@ interface AccountNavState {
  * had no rows.
  */
 export function useAccountNav(): AccountNavState {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const [serverGroups, setServerGroups] = useState<AccountNavGroup[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    // `/account-nav` is auth-scoped; a guest account page shows its own sign-in state instead.
+    if (!isAuthenticated) {
+      setServerGroups([]);
+      setLoading(false);
+      setError(false);
+      return;
+    }
     let alive = true;
     setLoading(true);
     setError(false);
@@ -43,7 +52,7 @@ export function useAccountNav(): AccountNavState {
     return () => {
       alive = false;
     };
-  }, [attempt]);
+  }, [attempt, isAuthenticated]);
 
   const retry = useCallback(() => setAttempt((n) => n + 1), []);
 

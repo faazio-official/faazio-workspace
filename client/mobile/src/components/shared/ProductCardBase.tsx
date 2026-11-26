@@ -1,7 +1,8 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { AppImage } from './AppImage';
-import { Star, Plus, Minus, Check, Heart, Zap, Package } from 'lucide-react-native';
+import { Star, Heart, Zap, Package } from 'lucide-react-native';
+import AddToCartControl from './AddToCartControl';
 import { hs, vs, ms, SCREEN_W } from '@/utils/responsive';
 import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import { brandTokens, neutral } from '@/theme/brandTokens';
@@ -46,16 +47,19 @@ interface ProductCardBaseProps {
   ratingOnImage?: boolean;
   /** Home feed cards: smaller, ink-black price (no brand price colour). */
   compactPrice?: boolean;
+  /** Render this instead of the numeric price (e.g. Pharma's "Price on prescription"). */
+  priceLabel?: string;
 }
 
 const ProductCardBase = memo(function ProductCardBase({
   product, appBrand, variant = 'grid2',
-  quantity = 0, isFavorite, isAdded, onPress, onAdd,
+  quantity = 0, isFavorite, onPress, onAdd,
   onIncrement, onDecrement, onFavorite,
   width, showRating = true, showDescription = false,
   showHeart = false, showBadge = true, showAdLabel = false, originalPrice,
   roundedImageBottom = false, imageAspect = 3 / 4, nameLines = 2,
   showPrice = true, showAddButton = true, ratingOnImage = false, compactPrice = false,
+  priceLabel,
 }: ProductCardBaseProps) {
   const tokens = brandTokens[appBrand];
   const language = useLanguageStore((s) => s.language);
@@ -63,6 +67,11 @@ const ProductCardBase = memo(function ProductCardBase({
   const displayDesc = localizedDesc(product, language);
   const isRail = variant === 'rail' || variant === 'flash';
   const isGrid2 = variant === 'grid2';
+  // Item cards share one body order: unit + Add under the image, then price, then name.
+  const usesUnderImageBody = isGrid2 || isRail;
+  const unitText =
+    product.unit?.trim() ||
+    (product.netQty !== undefined && product.netUnit ? `${product.netQty} ${product.netUnit}` : '');
 
   const cardStyle = {
     width: width || (isRail ? PRODUCT_CARD_WIDTH : ((SCREEN_W - hs(32) - hs(12)) / 2) as any),
@@ -84,7 +93,7 @@ const ProductCardBase = memo(function ProductCardBase({
       activeOpacity={0.9}
       accessibilityRole="button"
       accessibilityLabel={
-        showPrice ? `${displayName}, ₹${product.price}` : displayName
+        showPrice ? `${displayName}, ${priceLabel ?? `₹${product.price}`}` : displayName
       }
       accessibilityHint={onPress ? 'Opens product details' : undefined}
     >
@@ -152,71 +161,109 @@ const ProductCardBase = memo(function ProductCardBase({
         ) : null}
       </View>
       <View style={styles.body}>
-        {!ratingOnImage && product.rating !== undefined && showRating && (
-          <View style={styles.ratingRow}>
-            <Star size={ms(11)} color="#f59e0b" fill="#f59e0b" />
-            <AppText style={styles.ratingText}>{formatRating(product.rating)}</AppText>
-          </View>
-        )}
-        <AppText
-          style={[styles.name, nameLines === 1 && styles.nameSingleLine]}
-          numberOfLines={nameLines}
-        >
-          {displayName}
-        </AppText>
-        {showDescription && displayDesc ? (
-          <AppText style={styles.desc} numberOfLines={1}>{displayDesc}</AppText>
-        ) : null}
-        {(showPrice || showAddButton) && (
-          <View style={styles.priceRow}>
-            {showPrice && (
-              <>
-                <AppText style={[styles.price, compactPrice ? styles.priceCompact : { color: tokens.priceColor }]}>₹{product.price}</AppText>
-                {originalPrice !== undefined && originalPrice > product.price && (
-                  <AppText style={styles.originalPrice}>₹{originalPrice}</AppText>
+        {usesUnderImageBody ? (
+          <>
+            {(unitText.length > 0 || showAddButton) && (
+              <View style={styles.gridMetaRow}>
+                {unitText.length > 0 ? (
+                  <AppText style={styles.unitText} numberOfLines={1}>{unitText}</AppText>
+                ) : null}
+                {showAddButton && (
+                  <AddToCartControl
+                    quantity={quantity}
+                    onAdd={() => onAdd?.(product)}
+                    onIncrement={onIncrement}
+                    onDecrement={onDecrement}
+                    accent={tokens.btnBg}
+                    onAccent={tokens.btnText}
+                    addedAccent={tokens.btnAdded}
+                    compact
+                    label={displayName}
+                    style={styles.gridAdd}
+                  />
                 )}
-              </>
-            )}
-            {showAddButton && <View style={{ flex: 1 }} />}
-            {showAddButton && (quantity > 0 ? (
-              <View style={[styles.stepper, { backgroundColor: tokens.btnAdded }]}>
-                <TouchableOpacity
-                  onPress={onDecrement}
-                  style={styles.stepperBtn}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove one ${displayName}`}
-                >
-                  <Minus size={ms(12)} color="#ffffff" strokeWidth={3} />
-                </TouchableOpacity>
-                <AppText style={styles.stepperQty}>{quantity}</AppText>
-                <TouchableOpacity
-                  onPress={onIncrement}
-                  style={styles.stepperBtn}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Add one more ${displayName}`}
-                >
-                  <Plus size={ms(12)} color="#ffffff" strokeWidth={3} />
-                </TouchableOpacity>
               </View>
-            ) : (
-              <TouchableOpacity
-                style={[styles.addBtn, { backgroundColor: tokens.btnBg }]}
-                onPress={() => onAdd?.(product)}
-                activeOpacity={0.8}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                accessibilityRole="button"
-                accessibilityLabel={`Add ${displayName} to cart`}
-              >
-                {isAdded ? (
-                  <Check size={ms(12)} color="#ffffff" strokeWidth={3} />
+            )}
+            {showPrice && (
+              <View style={styles.gridPriceRow}>
+                {priceLabel ? (
+                  <AppText numberOfLines={1} style={[styles.price, compactPrice ? styles.priceCompact : { color: tokens.priceColor }]}>{priceLabel}</AppText>
                 ) : (
-                  <Plus size={ms(12)} color="#ffffff" strokeWidth={3} />
+                  <>
+                    <AppText numberOfLines={1} style={[styles.price, compactPrice ? styles.priceCompact : { color: tokens.priceColor }]}>₹{product.price}</AppText>
+                    {originalPrice !== undefined && originalPrice > product.price && (
+                      <AppText numberOfLines={1} style={styles.originalPrice}>₹{originalPrice}</AppText>
+                    )}
+                  </>
                 )}
-              </TouchableOpacity>
-            ))}
-          </View>
+              </View>
+            )}
+            <AppText
+              style={[styles.name, nameLines === 1 && styles.nameSingleLine]}
+              numberOfLines={nameLines}
+            >
+              {displayName}
+            </AppText>
+            {showDescription && displayDesc ? (
+              <AppText style={styles.desc} numberOfLines={1}>{displayDesc}</AppText>
+            ) : null}
+            {!ratingOnImage && product.rating !== undefined && showRating && (
+              <View style={styles.gridRatingRow}>
+                <Star size={ms(11)} color="#f59e0b" fill="#f59e0b" />
+                <AppText style={styles.ratingText}>{formatRating(product.rating)}</AppText>
+              </View>
+            )}
+          </>
+        ) : (
+          <>
+            {!ratingOnImage && product.rating !== undefined && showRating && (
+              <View style={styles.ratingRow}>
+                <Star size={ms(11)} color="#f59e0b" fill="#f59e0b" />
+                <AppText style={styles.ratingText}>{formatRating(product.rating)}</AppText>
+              </View>
+            )}
+            <AppText
+              style={[styles.name, nameLines === 1 && styles.nameSingleLine]}
+              numberOfLines={nameLines}
+            >
+              {displayName}
+            </AppText>
+            {showDescription && displayDesc ? (
+              <AppText style={styles.desc} numberOfLines={1}>{displayDesc}</AppText>
+            ) : null}
+            {(showPrice || showAddButton) && (
+              <View style={styles.priceRow}>
+                {showPrice && (
+                  <>
+                    {priceLabel ? (
+                      <AppText numberOfLines={1} style={[styles.price, compactPrice ? styles.priceCompact : { color: tokens.priceColor }]}>{priceLabel}</AppText>
+                    ) : (
+                      <>
+                        <AppText numberOfLines={1} style={[styles.price, compactPrice ? styles.priceCompact : { color: tokens.priceColor }]}>₹{product.price}</AppText>
+                        {originalPrice !== undefined && originalPrice > product.price && (
+                          <AppText numberOfLines={1} style={styles.originalPrice}>₹{originalPrice}</AppText>
+                        )}
+                      </>
+                    )}
+                  </>
+                )}
+                {showAddButton && <View style={{ flex: 1 }} />}
+                {showAddButton && (
+                  <AddToCartControl
+                    quantity={quantity}
+                    onAdd={() => onAdd?.(product)}
+                    onIncrement={onIncrement}
+                    onDecrement={onDecrement}
+                    accent={tokens.btnBg}
+                    onAccent={tokens.btnText}
+                    addedAccent={tokens.btnAdded}
+                    compact
+                    label={displayName}
+                  />
+                )}
+              </View>
+            )}
+          </>
         )}
       </View>
     </TouchableOpacity>
@@ -250,17 +297,30 @@ const styles = StyleSheet.create({
   heartBtn: { position: 'absolute', top: vs(2), right: hs(2), width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   heartCircle: { width: ms(28), height: ms(28), borderRadius: ms(14), backgroundColor: '#ffffff', alignItems: 'center', justifyContent: 'center' },
   body: { padding: hs(8) },
+  gridMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: ms(28),
+    marginBottom: vs(2),
+  },
+  unitText: {
+    flexShrink: 1,
+    marginRight: hs(6),
+    fontSize: ms(10.5),
+    fontWeight: '500',
+    color: neutral.inkMuted,
+  },
+  gridAdd: { marginLeft: 'auto' },
+  gridPriceRow: { flexDirection: 'row', alignItems: 'center', marginBottom: vs(2) },
+  gridRatingRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(2) },
   ratingRow: { flexDirection: 'row', alignItems: 'center', marginBottom: vs(2) },
   ratingText: { fontSize: ms(11), fontWeight: '500', color: '#64748b', marginLeft: hs(3) },
   name: { fontSize: ms(12), fontWeight: '500', color: '#0f172a', minHeight: ms(32) },
   nameSingleLine: { minHeight: 0 },
   desc: { fontSize: ms(11), fontWeight: '400', color: '#94a3b8', marginTop: vs(2) },
   priceRow: { flexDirection: 'row', alignItems: 'center', marginTop: vs(4) },
-  price: { fontSize: ms(13), fontWeight: '600' },
+  price: { fontSize: ms(13), fontWeight: '600', flexShrink: 1 },
   priceCompact: { fontSize: ms(12), fontWeight: '600', color: neutral.ink },
-  originalPrice: { fontSize: ms(11), fontWeight: '400', color: '#94a3b8', textDecorationLine: 'line-through', marginLeft: hs(4) },
-  addBtn: { width: Math.max(32, ms(32)), height: Math.max(32, ms(32)), borderRadius: ms(16), alignItems: 'center', justifyContent: 'center' },
-  stepper: { flexDirection: 'row', alignItems: 'center', borderRadius: ms(16), paddingHorizontal: hs(6), height: Math.max(32, ms(32)) },
-  stepperBtn: { width: Math.max(32, ms(32)), height: Math.max(32, ms(32)), alignItems: 'center', justifyContent: 'center' },
-  stepperQty: { fontSize: ms(12), fontWeight: '600', color: '#ffffff', marginHorizontal: hs(6), minWidth: ms(12), textAlign: 'center' },
+  originalPrice: { fontSize: ms(11), fontWeight: '400', color: '#94a3b8', textDecorationLine: 'line-through', marginLeft: hs(4), flexShrink: 1 },
 });

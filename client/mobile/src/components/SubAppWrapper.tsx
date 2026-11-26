@@ -41,7 +41,7 @@ import { gateway } from '@/services/api/GatewayClient';
 import { useBloodDonorStore } from '@/state/bloodDonorStore';
 import { brandRamp } from '@/theme/brandTokens';
 import { parentRamp } from '@/theme/brandTokens';
-import { revealNavBar, useNavBarHideStyle } from '@/hooks/useAutoHideNavBar';
+import { revealNavBar, useNavBarHideStyle, useNavBarReserveStyle } from '@/hooks/useAutoHideNavBar';
 
 type SubAppKey = 'FA_MART' | 'FOOD' | 'PHARMA';
 
@@ -234,6 +234,9 @@ export default function SubAppWrapper({
   const navBarClearance = navBarH + FLOATING_NAV.GAP;
   // Slide the floating nav away on scroll-down; clear the raised Home shortcut too.
   const navBarHideStyle = useNavBarHideStyle(navBarH + FLOATING_NAV.GAP + ms(56));
+  // Collapse the reserved bottom clearance as the nav slides away, so the hidden bar leaves no
+  // empty band behind it; restore it when the bar comes back.
+  const viewportReserveStyle = useNavBarReserveStyle(isChromeHidden ? 0 : navBarClearance);
   // Switching sub-app tabs always starts with the nav shown.
   useEffect(() => {
     revealNavBar();
@@ -390,19 +393,19 @@ export default function SubAppWrapper({
         />
       )}
 
-      <View
+      <Animated.View
         style={[
           styles.viewport,
           {
             paddingTop: hideAppHeader
               ? 0
               : subAppHeaderH(insets.top, compactHeader, subHeaderWithRail),
-            paddingBottom: isChromeHidden ? 0 : navBarClearance,
           },
+          viewportReserveStyle,
         ]}
       >
         {renderSubAppContent()}
-      </View>
+      </Animated.View>
 
       {!isChromeHidden && (
         <Animated.View style={[styles.tabBarDock, navBarHideStyle]} pointerEvents="box-none">

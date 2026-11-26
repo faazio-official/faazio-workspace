@@ -16,6 +16,10 @@ interface DailyEssentialsRailProps {
   items: MartEssential[];
   onItemPress?: (item: MartEssential) => void;
   onViewAll?: () => void;
+  quantityOf?: (id: string) => number;
+  onAdd?: (item: MartEssential) => void;
+  onIncrement?: (id: string) => void;
+  onDecrement?: (id: string) => void;
   /** Passive impression callback, fired once per card that scrolls into view (caller dedupes). */
   onItemView?: (item: MartEssential) => void;
 }
@@ -24,6 +28,10 @@ const DailyEssentialsRail = memo(function DailyEssentialsRail({
   items,
   onItemPress,
   onViewAll,
+  quantityOf,
+  onAdd,
+  onIncrement,
+  onDecrement,
   onItemView,
 }: DailyEssentialsRailProps) {
   const language = useLanguageStore((s) => s.language);
@@ -36,15 +44,18 @@ const DailyEssentialsRail = memo(function DailyEssentialsRail({
       <MartDealCard
         image={item.imageUrl}
         name={localizedName(item, language)}
-        rating={item.rating}
         price={item.price}
         originalPrice={item.originalPrice}
-        priceNote={item.priceNote}
+        unit={item.size}
         width={SALE_CARD_W}
+        quantity={quantityOf?.(item.id) ?? 0}
         onPress={() => onItemPress?.(item)}
+        onAdd={onAdd ? () => onAdd(item) : undefined}
+        onIncrement={onIncrement ? () => onIncrement(item.id) : undefined}
+        onDecrement={onDecrement ? () => onDecrement(item.id) : undefined}
       />
     ),
-    [onItemPress, language],
+    [onItemPress, language, quantityOf, onAdd, onIncrement, onDecrement],
   );
 
   return (

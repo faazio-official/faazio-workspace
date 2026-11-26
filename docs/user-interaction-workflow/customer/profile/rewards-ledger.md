@@ -2,7 +2,7 @@
 
 **App / route:** customer · `FaazioRewards` (`features/rewards/FaazioRewardsScreen.tsx`)
 **Status:** Shipped (server-authoritative)
-**Trigger:** Profile → Faazio Rewards, or post-checkout reconcile.
+**Trigger:** Profile → Faazio Rewards, or post-checkout reconcile. Account-bound: guests do not see the rewards entry point; the rewards card is hidden on the guest account page.
 
 ## Steps
 

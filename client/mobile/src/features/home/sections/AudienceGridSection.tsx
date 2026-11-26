@@ -19,27 +19,34 @@ interface AudienceGridSectionProps extends SectionProps {
 // 3-column product grid for a single-brand curated audience (Men/Women/Children).
 function AudienceGridSection({
   title, products,
-  onProductClick,
+  onProductClick, quantityOf, onAddToCart, onUpdateQuantity,
 }: AudienceGridSectionProps) {
   const priced = usePricedProducts(products);
   return (
     <>
       <SectionHeader title={title} />
       <View style={styles.grid}>
-        {priced.map((product) => (
-          <MartProductCard
-            key={product.id}
-            product={product}
-            width={HOME_GRID_CARD_WIDTH}
-            imageAspect={1}
-            nameLines={2}
-            showAddButton={false}
-            showBadge={false}
-            showRating={false}
-            compactPrice
-            onPress={() => onProductClick?.(product)}
-          />
-        ))}
+        {priced.map((product) => {
+          const quantity = quantityOf?.(product.id) ?? 0;
+          return (
+            <MartProductCard
+              key={product.id}
+              product={product}
+              width={HOME_GRID_CARD_WIDTH}
+              imageAspect={1}
+              nameLines={2}
+              quantity={quantity}
+              isAdded={quantity > 0}
+              showBadge={false}
+              showRating={false}
+              compactPrice
+              onPress={() => onProductClick?.(product)}
+              onAdd={() => onAddToCart?.(product)}
+              onIncrement={() => onUpdateQuantity?.(product.id, 1)}
+              onDecrement={() => onUpdateQuantity?.(product.id, -1)}
+            />
+          );
+        })}
       </View>
     </>
   );

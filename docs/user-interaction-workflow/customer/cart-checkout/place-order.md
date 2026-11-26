@@ -7,6 +7,9 @@
 
 ## Steps
 
+0. **Auth gate.** `handlePlaceOrder` refuses to run without a session (the BAG **Continue**
+   button already opens `Login` for a guest and remembers the payment step). After the resumed
+   sign-in the guest cart has been merged, so the order prices the same lines.
 1. `handlePlaceOrder` validates the delivery address (Delivery only) and builds a stable
    idempotency key.
 2. **Far-from-origin guardrail.** With both a device fix and an active origin known, it compares them

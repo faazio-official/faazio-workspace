@@ -26,6 +26,12 @@ export interface SectionProps {
   onOpenDeals?: (params: { mode: 'campaign' | 'discounts'; campaignId?: string; storeId?: string }) => void;
   /** Server-owned campaign definitions for this section (Home "Deals of the day"); fixture fallback. */
   campaigns?: SduiCampaign[];
+  /** Cart line quantity for a product (0 = not added). */
+  quantityOf?: (productId: string) => number;
+  /** Add a product to the cart from a 3-up grid card. */
+  onAddToCart?: (product: Product) => void;
+  /** Increment/decrement a cart line from a 3-up grid card. */
+  onUpdateQuantity?: (productId: string, delta: number) => void;
 }
 
 // Maps the data-layer AppBrand to the navigable SubAppId.

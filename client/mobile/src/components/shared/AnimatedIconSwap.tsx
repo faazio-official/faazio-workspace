@@ -6,7 +6,7 @@ import Animated, {
   useSharedValue,
   withTiming,
 } from 'react-native-reanimated';
-import { DURATION, EASE_ENTRANCE } from '@/theme/motion';
+import { DURATION, RE_EASE_ENTRANCE } from '@/theme/motion';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 interface AnimatedIconSwapProps {
@@ -47,7 +47,7 @@ export function AnimatedIconSwap({ iconKey, children, size = 24, style }: Animat
     progress.value = 0;
     progress.value = withTiming(1, {
       duration: DURATION.menu,
-      easing: EASE_ENTRANCE,
+      easing: RE_EASE_ENTRANCE,
     });
   }, [iconKey, children, reduceMotion, progress]);
 

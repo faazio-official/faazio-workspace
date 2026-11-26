@@ -10,7 +10,7 @@
 | Field | Value |
 |---|---|
 | Document | Faazio User Interaction Workflow — Visual Guide |
-| Version | 1.0 |
+| Version | 1.9 |
 | Date | 26 November 2026 |
 | Audience | Client stakeholders, product, design, QA, engineering, support |
 | Scope | Customer mobile app (`client/mobile`) + Partner Web Portal (`client/web/platform`) |
@@ -109,29 +109,33 @@ flowchart LR
 
 ## 2.1 App launch & routing
 
-On a cold start the app decides the first screen from two facts: **is the user signed in?** and **has the onboarding been seen?**
+On a cold start the app decides the first screen from two facts: **is the user signed in?** and **has the onboarding been seen?** A signed-out user is never forced to log in — they land on the catalogue as a guest.
 
 ```mermaid
 flowchart TD
   START(["App opened"]) --> AUTH{"Signed in?"}
   AUTH -->|"No"| SEEN{"Seen onboarding?"}
   SEEN -->|"No"| ONB["Onboarding"]
-  SEEN -->|"Yes"| LOGIN["Login"]
+  SEEN -->|"Yes"| TABS["Main Tabs — Home<br/>guest browsing"]
   AUTH -->|"Yes"| LOCCHK{"Saved location?"}
   LOCCHK -->|"No / unknown"| LOCATION["Location picker"]
-  LOCCHK -->|"Yes"| TABS["Main Tabs — Home"]
-  ONB -->|"Skip / Get Started"| LOGIN
-  LOGIN -->|"OTP verified"| LANG["Language selection"]
+  LOCCHK -->|"Yes"| TABS2["Main Tabs — Home"]
+  ONB -->|"Skip"| TABS
+  ONB -->|"Get Started"| LOGIN["Login"]
+  LOGIN -->|"Skip / Browse as guest"| TABS
+  LOGIN -->|"OTP verified (first run)"| LANG["Language selection"]
   LANG -->|"Continue"| LOCATION
-  LOCATION -->|"Location confirmed & serviceable"| TABS
-  TABS -.->|"Session revoked"| LOGIN
+  LOCATION -->|"Location confirmed & serviceable"| TABS2
+  LOGIN -->|"OTP verified (guest gate)"| RESUME["Back to the origin screen<br/>pending action resumed"]
+  TABS -.->|"Session revoked / signed out"| TABS
 ```
 
 **Notes verified in code**
 
 - While the saved location is still loading, a short splash is shown (with a 3-second safety timeout).
-- If a signed-in session is revoked or dies, the app resets to **Login** instead of showing an empty Home.
-- If the chosen address is outside a serviced district, an app-level coverage gate replaces the normal screens.
+- If a signed-in session is revoked or dies, the app clears local per-user caches and resets to **Main Tabs** as a guest — never a forced login wall.
+- If a signed-in chosen address is outside a serviced district, an app-level coverage gate replaces the normal screens. Guests are not coverage-gated; checkout is still validated server-side.
+- Guest location is optional: the Home header offers **Set your location**, and the picker has **Browse without a location**.
 
 ---
 
@@ -153,49 +157,60 @@ flowchart TD
   S3 -->|"Next"| S4
   S4 -->|"Next"| S5
   S5 -->|"Get Started"| LOGIN
-  S1 -.->|"Skip"| LOGIN
-  S3 -.->|"Skip"| LOGIN
+  S1 -.->|"Skip"| TABS["Main Tabs — Home<br/>guest browsing"]
+  S3 -.->|"Skip"| TABS
 ```
 
 | Screen | Button / control | Action |
 |---|---|---|
 | Onboarding slides | **Next** | Advance one slide |
-| Onboarding slides | **Skip** | Mark onboarding seen → Login |
-| Final slide | **Get Started** | Mark onboarding seen → Login |
+| Onboarding slides | **Skip** | Mark onboarding seen → Main Tabs as a guest |
+| Final slide | **Get Started** | Mark onboarding seen → Login (sign-in is optional) |
 | Onboarding slides | **Back** (where shown) | Return to the previous slide |
 
 ---
 
 ## 2.3 Sign in (phone + OTP)
 
-Passwordless sign-in in three small steps: name, mobile number, SMS code.
+Passwordless sign-in in three small steps: mobile number, SMS code, then a name **only when the
+account does not already have one**.
 
 ```mermaid
 flowchart TD
-  NAME["Enter your name"] -->|"Continue"| PHONE["Enter mobile number<br/>+91"]
-  PHONE -->|"Send code"| OTP["Enter 6-digit SMS code"]
+  PHONE["Enter mobile number<br/>+91"] -->|"Send code"| OTP["Enter 6-digit SMS code"]
   PHONE -.->|"Tap a recent number"| PHONE
+  PHONE -.->|"Skip / Browse as guest"| TABS["Main Tabs — Home<br/>guest browsing"]
   OTP -->|"Verify"| OK{"Correct code?"}
-  OK -->|"Yes"| LANG["Language selection"]
   OK -->|"No"| ERR["Verification Failed banner"]
   ERR -->|"Resend / Resend in Ns"| OTP
   OTP -.->|"Change number"| PHONE
+  OK -->|"Yes — name already on account"| ROUTE{"First run or guest gate?"}
+  OK -->|"Yes — new account"| NAME["Enter your name"]
+  NAME -->|"Continue"| ROUTE
+  ROUTE -->|"First run"| LANG["Language selection"]
+  ROUTE -->|"Opened from a guest gate"| RESUME["Back to origin screen<br/>action resumed"]
 ```
 
 | Screen | Button / control | Action |
 |---|---|---|
-| Name step | Name field + **Continue** | Validate name, go to phone step |
 | Phone step | Country code **+91**, number field + **Send code** | Send SMS OTP |
 | Phone step | Recent-number chip | Pre-fill a previously used number |
-| OTP step | 6-digit input + **Verify** | Verify code and sign in |
+| OTP step | 6-digit input + **Verify** | Verify code; existing name → sign in, new account → name step |
+| Name step (new accounts only) | Name field + **Continue** | Save the name and finish sign-in |
 | OTP step | **Resend / Resend in Ns** | Re-send the code after the cooldown |
-| Login | Back arrow | Go back a step / to Onboarding |
+| Login — phone | **Skip** (top-right) | Clear any pending gated action → Main Tabs as a guest |
+| Login — pushed over a screen | **X** (top-left) | Close sign-in and return to the origin screen |
+| Login | Back arrow | OTP → phone step; the post-verification name step is not skippable |
+
+> A send or verify that stalls (e.g. a blocked iOS reCAPTCHA sheet) times out after 20 s, shows
+> "Verification timed out…" and returns the button to its tappable state — it never spins forever.
+> The flow above is unchanged; only this recovery state was added.
 
 ---
 
 ## 2.4 Language & location
 
-After sign-in the user picks a language, then sets a delivery location. Location is required because everything (stores, fees, delivery time) depends on it.
+After first-run sign-in the user picks a language, then sets a delivery location. For a signed-in user location is required because stores, fees and delivery time depend on it. Guests can browse without a location and set one later from the Home header; the guest picker has **Browse without a location**.
 
 ### Language selection
 
@@ -273,13 +288,13 @@ flowchart TD
 |---|---|---|
 | Ad banner | Rotating promotional banners | Banner → sub-app |
 | Hot brand deals | Brand campaign cards | Campaign → Deals landing |
-| Deals of the day | Discounted products rail | Product → Product detail |
-| Sponsored rail | Paid placements | Product → Product detail |
+| Deals of the day | Discounted product rail (unit + **Add**, price, name) | **Add** → Cart; card → Product detail |
+| Sponsored rail | Paid placements (ad cards — exempt from the item-card body) | Product → Product detail |
 | Most rated dining | Top restaurants | Restaurant → Food profile |
-| Recently viewed — Mart / Food / Pharma | Continue-where-you-left-off rails | Product → Product detail |
-| Nearby offers | Local offers rail | Product → Product detail |
-| Men / Women / Children / Hair & skin | Category rails | Product → Product detail |
-| Filter feed | Chip-filtered product feed | Product → Product detail |
+| Recently viewed — Mart / Food / Pharma | Continue-where-you-left-off rails (unit + **Add**, price, name) | **Add** → Cart; card → Product detail |
+| Nearby offers | Local offers rail (unit + **Add**, price, name) | **Add** → Cart; card → Product detail |
+| Men / Women / Children / Hair & skin | 3-column product grids (unit + **Add** under the image, price, name) | **Add** → Cart; card → Product detail |
+| Filter feed | Chip-filtered 3-column product feed (unit + **Add** under the image, price, name) | **Add** → Cart; card → Product detail |
 
 ### Home header controls
 
@@ -322,10 +337,11 @@ flowchart TD
   MART_SEARCH -->|"View all deals"| DEALS["Deals landing"]
 
   FOOD --> FHOME["Food home"]
-  FHOME -->|"Category"| FCAT["Food category drill-in"]
+  FHOME -->|"Category chip<br/>(icon or food glyph)"| FCAT["Food category drill-in<br/>leaf chips + dishes"]
   FHOME -->|"Restaurant"| RPROF["Restaurant profile"]
   RPROF -->|"Menu"| RMENU["Restaurant menu"]
   RPROF -->|"Offers"| ROFF["Restaurant offers"]
+  FCAT -->|"Dish"| PD
   RMENU -->|"Dish"| PD
   ROFF -->|"Dish"| PD
 
@@ -376,6 +392,15 @@ flowchart TD
 |---|---|---|
 | Sub-category row | Open that sub-category's stores | Vendor details (pre-filtered) |
 
+### Food category rail & drill-in
+
+| Control | Action | Destination |
+|---|---|---|
+| Food home category chip (icon or rounded food glyph) | Show that category's leaf sub-categories + matching dishes | Food category drill-in |
+| Leaf sub-category pill | Re-filter the dish results on the page | Same screen |
+| Dish card **Add** → **− qty +** | Add or change quantity | Cart updated |
+| Dish card | Open the dish | Product detail |
+
 ### Vendor / store details
 
 | Control | Action | Destination |
@@ -391,7 +416,7 @@ flowchart TD
 |---|---|---|
 | Image gallery | Switch photos | Same screen |
 | Variant option | Choose size/pack | Same screen |
-| **Add to cart** / **+ / −** | Add or change quantity | Cart updated |
+| **Add** pill → **− qty +** | Add or change quantity (cross-fades in place) | Cart updated |
 | Heart icon | Add / remove favourite | Favourites |
 | **Write review** (eligible buyers) | Review form | Rate product |
 | **View vendor** | Open the store | Vendor details |
@@ -427,7 +452,10 @@ flowchart TD
   HOME["Home"]
   ORDERS["My Orders"]
 
-  BAG -->|"Continue"| PAY
+  BAG -->|"Continue"| GATE{"Signed in?"}
+  GATE -->|"Yes"| PAY
+  GATE -->|"No"| LOGIN["Login<br/>phone + OTP"]
+  LOGIN -->|"Verified"| PAY
   PAY -->|"Pay with UPI"| STATUS
   STATUS -->|"Payment confirmed"| RECEIPT
   STATUS -->|"Payment failed"| FAILED
@@ -451,7 +479,7 @@ flowchart TD
 | **Coupons** / coupon row | Open coupon sheet, apply a code |
 | Streak card | Apply the streak discount |
 | **Clear cart** | Empty the cart (scoped to a restaurant when opened there) |
-| **Continue** | Go to Payment (disabled until items are selected) |
+| **Continue** | Guest: open Login, then resume at Payment. Signed in: go to Payment (disabled until items are selected) |
 
 ### Step 2 — PAYMENT (Payment Options)
 
@@ -544,6 +572,8 @@ flowchart TD
 
 ## 2.10 Favourites
 
+> Guests: the Favourites tab (and every heart button) opens **Login**; the page is available after sign-in.
+
 | Control | Action |
 |---|---|
 | Tabs **All / Mart / Food / Pharma** | Filter favourites by surface |
@@ -557,6 +587,8 @@ flowchart TD
 ---
 
 ## 2.11 FaazioCoins & rewards
+
+> Guests do not see the rewards entry point; the guest account page shows a sign-in card instead.
 
 | Control | Action |
 |---|---|
@@ -582,7 +614,7 @@ The inbox is the durable notification outbox — the same events that power orde
 
 ## 2.13 Profile & settings
 
-"**My Account**" is built from a server-driven menu. The tree below reflects the current catalog.
+"**My Account**" is built from a server-driven menu. The tree below reflects the signed-in catalog. A guest sees a **Sign in to Faazio** card plus **Orders**, **Favourites** and **FaazioCoins** rows; tapping any of them opens Login and resumes at that screen after sign-in. Preferences (Language) stays available.
 
 ```mermaid
 flowchart TD
@@ -631,7 +663,7 @@ flowchart TD
 | Admin (district/super) | **Seller applications** | Seller request queue |
 | Admin (district/super) | **Fee change requests** | Fee-request review queue |
 | Seller role | **Request a fee change** | Platform-fee request form |
-| — | **Log out** | Confirm dialog → Login |
+| — | **Log out** | Confirm dialog → guest browsing (Main Tabs) |
 
 ### Sub-screens
 
@@ -754,10 +786,14 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  ONB["Onboarding"] --> LOGIN["Login<br/>phone + OTP"]
+  ONB["Onboarding"] --> GUEST["Guest browsing<br/>Home"]
+  ONB --> LOGIN["Login<br/>phone + OTP"]
   LOGIN --> LANG["Language"]
   LANG --> LOC["Location"]
   LOC --> HOME["Home"]
+  GUEST --> HOME
+  HOME -.->|"Checkout / Favourites /<br/>Orders / Rewards / Rx"| LOGIN
+  LOGIN -.->|"Resume"| HOME
   HOME --> DISC["Discover<br/>Mart / Food / Pharma"]
   DISC --> PROD["Product detail"]
   PROD --> CART["Cart<br/>BAG"]
@@ -1030,6 +1066,7 @@ flowchart TD
   SUP --> PRODS["Products"]
   SUP --> GST["GST rates"]
   SUP --> CATS["Categories"]
+  SUP --> FMASTER["Food master"]
 
   GR --> FEST["Festival"]
   GR --> COUP["Coupons"]
@@ -1062,6 +1099,7 @@ flowchart TD
 | Supply | **Products** | Global catalog + seller requests |
 | Supply | **GST rates** | Tax slab master |
 | Supply | **Categories** | Taxonomy + header labels |
+| Supply | **Food master** | Atomic cuisine taxonomy, carousel map, store rules, sample dishes |
 | Growth | **Festival / Coupons / Ads** | Global campaigns |
 | Growth | **App content (SDUI)** | Server-driven UI content |
 | Operations | **Analytics** | Platform analytics |
@@ -1146,10 +1184,10 @@ flowchart LR
 
 | # | Screen | Buttons / controls you can tap |
 |---|---|---|
-| 1 | Onboarding | Next, Skip, Get Started |
-| 2 | Login — name | Name field, Continue |
-| 3 | Login — phone | +91, number field, Send code, recent-number chip |
-| 4 | Login — OTP | 6-digit input, Verify, Resend |
+| 1 | Onboarding | Next, Skip (→ guest Home), Get Started (→ Login) |
+| 2 | Login — phone | +91, number field, Send code, recent-number chip, **Skip**, X (when pushed) |
+| 3 | Login — OTP | 6-digit input, Verify, Resend |
+| 4 | Login — name (new accounts only) | Name field, Continue |
 | 5 | Language | English, Tamil, Continue |
 | 6 | Location primer | Allow location access, Enter location manually, Open settings |
 | 7 | Location search | Search field, Use my current location, suggestion rows |
@@ -1172,7 +1210,7 @@ flowchart LR
 | 24 | Favourites | All/Mart/Food/Pharma, sort, heart, product |
 | 25 | FaazioRewards | How FaazioCoins work, ledger, discount card |
 | 26 | Notifications | Notification rows |
-| 27 | My Account | Coins card, bell, all menu rows, Log out |
+| 27 | My Account | Coins card, bell, all menu rows, Log out (guest: Sign in card + gated Orders/Favourites/Coins rows) |
 | 28 | My Profile | Profile rows / edit |
 | 29 | Addresses | Deliver here, Edit, Delete, tag, pin, default, Save |
 | 30 | Language (profile) | English, Tamil, Save |
@@ -1212,7 +1250,7 @@ Dashboard, Sellers, Seller enquiries, Customers, Delivery partners, Products, Li
 
 ## 5.4 Super admin — every sidebar page
 
-Command center, District admins, Credentials, App config, Users, District coverage, Sellers, Seller enquiries, Fee change requests, Delivery partners, Products, GST rates, Categories, Festival, Coupons, Ads, App content (SDUI), Analytics, All orders, Manual allocation, Manual payouts, Delivery payouts, Rewards, Audit log, Coverage, Settings.
+Command center, District admins, Credentials, App config, Users, District coverage, Sellers, Seller enquiries, Fee change requests, Delivery partners, Products, GST rates, Categories, Food master, Festival, Coupons, Ads, App content (SDUI), Analytics, All orders, Manual allocation, Manual payouts, Delivery payouts, Rewards, Audit log, Coverage, Settings.
 
 ---
 
@@ -1228,6 +1266,7 @@ A complete workflow includes what happens when things go wrong. These are the us
 | Location denied/blocked | Inline reason text | **Open settings** / **Enter manually** |
 | Location not serviceable | Coverage gate page | Change address |
 | OTP wrong | "Verification Failed" banner | **Resend** |
+| OTP send/verify times out (stuck iOS reCAPTCHA) | "Verification timed out…" under Send code / in the OTP banner | **Send code** / **Resend** |
 | Coupon invalid/expired | Inline coupon error | Change/remove coupon |
 | Payment pending | Payment status screen | Wait / check My Orders |
 | Payment failed | Payment failed screen | **Retry** |
@@ -1271,6 +1310,15 @@ Use this map if a flow changes and the diagram needs to be updated.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.9 | 26 Nov 2026 | Customer sign-in reordered to phone → OTP → name. After OTP, an existing account signs straight in with its stored name; only a first-time account is asked for a name (backed by `GET /profile` `hasName`). Skip stays on the phone step; the name step is not skippable. |
+| 1.8 | 26 Nov 2026 | Super admin **Supply → Food master** page: read-only atomic cuisine taxonomy (147 rows), carousel → cuisine map (24), store onboarding rules (11) and sample dish templates (15), all from migration `0145`. Seller dish form now shows the picked leaf’s cuisine; Food category drill-in shows a one-line cuisine subtitle. FOOD menus re-mapped off the over-loaded Chicken bucket. |
+| 1.7 | 26 Nov 2026 | Every non-ad item card (Mart, Mart home rails, Home grids + rails, Pharma) now shares the unit/price/name body: unit + **Add** on one line under the image, price below, name last. Paid ad cards are exempt. Pharma grid cards now show their price. Also fixed the Add-tap crash (Reanimated easing), and backfilled `unit` on all 822 catalogue rows (0144). |
+| 1.6 | 26 Nov 2026 | Food home category rail below the ad banner: FOOD taxonomy roots render as circular chips (server icon or rounded food-glyph fallback) and open a Food category drill-in with leaf pills + dish results. |
+| 1.5 | 26 Nov 2026 | 3-column item cards: body reordered to unit (left) + **Add** (right) directly under the image, then price, then item name. The Home 3-up grids and the Daily Essentials grid now mount the card-level Add control (previously tap-to-view only). |
+| 1.4 | 26 Nov 2026 | Mart product cards: removed the badge/tag labels (Best Seller, % OFF, price-claim notes); the paid-placement AD disclosure stays. Also fixed the Mart floating nav leaving a blank band behind it when auto-hidden. No navigation/button changes. |
+| 1.3 | 26 Nov 2026 | Mart item cards: product ratings removed from every Mart card, item names now 2 lines, and the Daily Essentials "View All" page is a 3-column tap-to-view Home-style grid (no rating, no card-level add). Navigation/buttons unchanged. |
+| 1.2 | 26 Nov 2026 | OTP send/verify hard timeout (20 s) — adds the "Verification timed out…" recovery state; no screen/button changes |
+| 1.1 | 26 Nov 2026 | Guest browsing (no forced login): Main Tabs as the signed-out default, Skip on onboarding/login, auth gates at checkout/favourites/rewards/prescription, guest cart merge on sign-in |
 | 1.0 | 26 Nov 2026 | First complete visual workflow guide for customer app + partner web portal |
 
 > This document is a living reference. If a screen, route, tab or button changes, update the matching diagram and the quick-reference table in the same change.

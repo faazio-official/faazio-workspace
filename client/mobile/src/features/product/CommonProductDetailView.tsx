@@ -707,6 +707,9 @@ export default function CommonProductDetailView({
                         variant="grid2"
                         width={CARD_WIDTH}
                         showDescription
+                        nameLines={2}
+                        showRating={product.app === 'PHARMA'}
+                        showBadge={product.app === 'PHARMA'}
                         originalPrice={p.originalPrice}
                         quantity={qty}
                         isAdded={qty > 0}
@@ -739,6 +742,9 @@ export default function CommonProductDetailView({
                     variant="grid2"
                     width={CARD_WIDTH}
                     showDescription
+                    nameLines={2}
+                    showRating={product.app === 'PHARMA'}
+                    showBadge={product.app === 'PHARMA'}
                     originalPrice={p.originalPrice}
                     quantity={qty}
                     isAdded={qty > 0}

@@ -35,6 +35,9 @@ const MartProductCard = memo(function MartProductCard({
   showDescription = false,
   imageAspect = 1,
   showHeart = false,
+  nameLines = 2,
+  showRating = false,
+  showBadge = false,
   ...props
 }: Props) {
   return (
@@ -48,6 +51,9 @@ const MartProductCard = memo(function MartProductCard({
       showAdLabel={showAdLabel}
       showDescription={showDescription}
       imageAspect={imageAspect}
+      nameLines={nameLines}
+      showRating={showRating}
+      showBadge={showBadge}
     />
   );
 });

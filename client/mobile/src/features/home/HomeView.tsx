@@ -11,6 +11,7 @@ import type { StoreRecord } from '@data/directory/stores';
 import type { SubAppId } from '@/state/uiStore';
 import { gateway } from '@/services/api/GatewayClient';
 import { useHomeFeed } from './hooks/useHomeFeed';
+import { useCartStore } from '@/state/cartStore';
 import { useTabBarClearance } from '@/hooks/useTabBarClearance';
 import { driveNavBarFromDelta } from '@/hooks/useAutoHideNavBar';
 import {
@@ -75,9 +76,38 @@ export default function HomeView({
   viewportH,
   contentPaddingTop,
 }: HomeViewProps) {
+  const cart = useCartStore((s) => s.cart);
+  const addToCart = useCartStore((s) => s.addToCart);
+  const updateQuantity = useCartStore((s) => s.updateQuantity);
+
+  const quantityOf = useCallback(
+    (productId: string) => cart.find((line) => line.id === productId)?.quantity ?? 0,
+    [cart],
+  );
+  const onAddToCart = useCallback(
+    (product: Product) => {
+      void addToCart(product.id, product.name, product.price, product.emoji);
+    },
+    [addToCart],
+  );
+  const onUpdateQuantity = useCallback(
+    (productId: string, delta: number) => {
+      void updateQuantity(productId, delta);
+    },
+    [updateQuantity],
+  );
+
   const sectionProps = useMemo(
-    () => ({ onLaunchSubApp, onProductClick, onStoreClick, onOpenDeals }),
-    [onLaunchSubApp, onProductClick, onStoreClick, onOpenDeals],
+    () => ({
+      onLaunchSubApp,
+      onProductClick,
+      onStoreClick,
+      onOpenDeals,
+      quantityOf,
+      onAddToCart,
+      onUpdateQuantity,
+    }),
+    [onLaunchSubApp, onProductClick, onStoreClick, onOpenDeals, quantityOf, onAddToCart, onUpdateQuantity],
   );
 
   // Server-driven SDUI registry: section order and joined product/store rows come from the

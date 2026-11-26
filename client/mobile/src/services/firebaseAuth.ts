@@ -288,15 +288,77 @@ function forceLegacyRecaptchaFlow(auth: Auth): boolean {
   return true;
 }
 
+/**
+ * Hard ceiling for a phone-auth send. `signInWithPhoneNumber` only settles once Firebase has
+ * dispatched the SMS — or, on the reCAPTCHA fallback, once the browser round-trip returns.
+ *
+ * The iOS fallback can deadlock silently: if APNs verification is unavailable (simulator, no
+ * APNs `.p8`, or a review device) and the reCAPTCHA presentation is blocked (iPad presenter
+ * already showing another controller, root view controller not ready), the native promise never
+ * settles. The SDK has no cancel API, so a timeout is the only client-side way to release the
+ * caller's spinner; `sendOtpForScope` still owns pending-state cleanup. Kept below the 30 s mark
+ * because the reCAPTCHA challenge is normally a single tap — a truly stuck sheet is what we are
+ * recovering from.
+ */
+const OTP_SEND_TIMEOUT_MS = 20_000;
+
+/** A code confirmation is a plain network round-trip; it must never pin the Verify button. */
+const OTP_VERIFY_TIMEOUT_MS = 20_000;
+
+/**
+ * Raised when Firebase's phone-auth promise exceeds its hard ceiling. Carries a stable `code` so
+ * `src/lib/otpError.ts` renders actionable copy instead of the raw SDK text.
+ */
+export class OtpTimeoutError extends Error {
+  readonly code = 'faazio/otp-timeout';
+
+  constructor() {
+    super('Verification timed out. Please try again.');
+    this.name = 'OtpTimeoutError';
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => reject(new OtpTimeoutError()), ms);
+    promise.then(
+      (value) => {
+        clearTimeout(timer);
+        resolve(value);
+      },
+      (err: unknown) => {
+        clearTimeout(timer);
+        reject(err);
+      },
+    );
+  });
+}
+
 async function requestSmsCode(auth: Auth, phone: string): Promise<ConfirmationResult> {
   try {
-    return await signInWithPhoneNumber(auth, phone);
+    return await withTimeout(signInWithPhoneNumber(auth, phone), OTP_SEND_TIMEOUT_MS);
   } catch (err) {
     if (!isAppVerificationFailure(err) || !forceLegacyRecaptchaFlow(auth)) throw err;
     if (__DEV__) {
       console.warn('[phone-auth] Play Integrity unavailable — retrying with reCAPTCHA v2');
     }
-    return signInWithPhoneNumber(auth, phone);
+    return withTimeout(signInWithPhoneNumber(auth, phone), OTP_SEND_TIMEOUT_MS);
+  }
+}
+
+/**
+ * A timed-out send can still be completed late by native auto-retrieval (the SDK keeps the
+ * underlying request alive). Drop a session that appeared during the wait so the next attempt
+ * starts from a clean Firebase identity instead of silently re-authenticating as that user.
+ * Never touches a pre-existing session or the seller signature's shopper session.
+ */
+async function dropPhantomAutoSession(auth: Auth, initialUid: string | null): Promise<void> {
+  const user = auth.currentUser;
+  if (!user || user.uid === initialUid) return;
+  try {
+    await signOut(auth);
+  } catch {
+    // best-effort: a leftover native session is recovered on the next send/verify round-trip
   }
 }
 
@@ -333,6 +395,11 @@ async function sendOtpForScope(phoneDigits: string, scope: OtpScope): Promise<vo
       pending = null;
       clearAutoWatch();
     }
+    // A timed-out request is not cancelled by the SDK; if native auto-retrieval signed a user in
+    // while we waited, sign it out so the abandoned attempt cannot leak into the next send.
+    if (scope === 'primary' && err instanceof OtpTimeoutError) {
+      await dropPhantomAutoSession(auth, current.initialUid);
+    }
     if (disposable && (!pending || pending.scope !== 'seller')) await disposeOtpApp();
     throw err;
   }
@@ -367,7 +434,10 @@ async function verifyOtpForScope(
   }
   current.manualVerifyStarted = true;
   try {
-    const credential = await current.confirmation.confirm(code);
+    const credential = await withTimeout(
+      current.confirmation.confirm(code),
+      OTP_VERIFY_TIMEOUT_MS,
+    );
     // Only clear this request; a resend that landed meanwhile owns the new pending state.
     if (pending === current) {
       pending = null;

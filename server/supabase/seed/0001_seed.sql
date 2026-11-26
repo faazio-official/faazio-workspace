@@ -1622,4 +1622,8 @@ select id, 'MAIN_APP_HEADER' from taxonomy.categories
  where show_on_home_rail and app <> 'FOOD'::app_brand
 on conflict (category_id, header) do nothing;
 
+-- 0144: give every freshly seeded row its display unit (fresh DBs run migrations before the seed,
+-- so the migration's own backfill sees an empty table).
+select catalog.backfill_product_units();
+
 commit;

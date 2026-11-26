@@ -9,7 +9,6 @@ export interface MartEssential {
   originalPrice: number;
   discountTag: string;
   rating?: number;
-  priceNote?: string;
   imageUrl: string;
   emoji: string;
 }

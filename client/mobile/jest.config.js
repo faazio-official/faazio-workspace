@@ -14,4 +14,7 @@ module.exports = {
   transformIgnorePatterns: [
     'node_modules/(?!(?:.pnpm/)?(@react-native|react-native|@react-native-community|@react-navigation|react-native-.*|@testing-library/react-native|react-native-svg)/)',
   ],
+  // Reanimated 4 / worklets ship `.native` modules that need the native runtime. Resolve the
+  // non-native Jest stub instead (the resolver is the one react-native-worklets ships for Jest).
+  resolver: '<rootDir>/node_modules/react-native-worklets/jest/resolver.js',
 };

@@ -25,6 +25,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Domain | Flow | Route(s) / screen | Doc |
 |---|---|---|---|
 | Onboarding | First-run carousel | `Onboarding` (`features/onboarding/OnboardingScreen.tsx`) | [onboarding/index.md](./onboarding/index.md) |
+| Onboarding | Guest browsing (no account) | `MainTabs` from Skip / signed-out cold start | [guest-browsing.md](./onboarding/guest-browsing.md) |
 | Onboarding | Phone OTP login | `Login` (`features/auth/LoginScreen.tsx`) | [phone-otp-login.md](./onboarding/phone-otp-login.md) |
 | Onboarding | Language selection | `LanguageSelection` | [onboarding/index.md](./onboarding/index.md) |
 | Onboarding | Location picker | `Location` (`features/auth/LocationScreen.tsx`) | [location-picker.md](./onboarding/location-picker.md) |
@@ -33,6 +34,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Home | Sponsored rail | Home sections | [sponsored-rail.md](./home/sponsored-rail.md) |
 | Discovery | Mart / Food / Pharma browse | `SubApp`, `FoodApp`, `CategoryDrillIn`, `VendorDetails` | [discovery/index.md](./discovery/index.md) · [store-drillin.md](./discovery/store-drillin.md) |
 | Discovery | Food search | `FoodApp` → `Search` (`FoodSearchScreen`) | [discovery/food-search.md](./discovery/food-search.md) |
+| Discovery | Food category rail + drill-in | `FoodApp` → `FoodHome` → `FoodCategoryDrillIn` | [discovery/food-categories.md](./discovery/food-categories.md) |
 | Discovery | Product detail | `ProductDetail` | [product-detail.md](./discovery/product-detail.md) |
 | Discovery | Product review | `ProductDetail` → `RateProduct` | [product-review.md](./discovery/product-review.md) |
 | Cart | Add to cart | Cart tab / product cards | [cart-checkout/index.md](./cart-checkout/index.md) · [add-to-cart.md](./cart-checkout/add-to-cart.md) |
@@ -56,9 +58,15 @@ Domain indexes are the entry point for each area; every flow page is linked from
 ## Cross-cutting rules
 
 - **Auth gate:** the root navigator starts at `MainTabs` when authenticated and the origin is in an
-  enabled coverage district, `Login` when onboarding was seen, else `Onboarding` (`AppNavigator.tsx`
-  initial route). An authenticated origin outside coverage renders the app-level
-  `ServiceAreaBlockedPage` instead of the navigator.
+  enabled coverage district. A signed-out cold start goes straight to `MainTabs` once onboarding has
+  been seen (guest browsing); only the first launch shows the skippable `Onboarding` carousel, and
+  its **Get Started** opens `Login`. An authenticated origin outside coverage renders the app-level
+  `ServiceAreaBlockedPage` instead of the navigator; guests are not coverage-gated.
+- **Guest gate:** account-bound actions call `runAuthGate` (`src/services/authGate.ts`): checkout
+  **Continue**, favourites (tab, pushed page, every heart), orders/rewards/wallet entry points, and
+  prescription upload open `Login` with the action remembered and resumed after sign-in. Browsing,
+  search, product detail and add-to-cart stay open; the guest cart is device-local and merges into
+  the account on sign-in.
 - **Offline:** `connectivityStore` probes `GET /health`; offline navigation is blocked/replayed by
   `navigation/offlineNavigationGuard.ts`. Offline is not a mock mode.
 - **No fabricated state:** empty carts, empty orders, and empty feeds render honest empty states.

@@ -19,26 +19,39 @@ interface HairSkinCareSectionProps extends SectionProps {
 
 // Hair & Skin Care pulls from BOTH the Mart Beauty catalog and Pharma OTC/wellness.
 // Items carry their own `app`, so UniversalFeedCard renders each with its native skin.
-function HairSkinCareSection({ products = hairSkinPicks, onProductClick }: HairSkinCareSectionProps) {
+function HairSkinCareSection({
+  products = hairSkinPicks,
+  onProductClick,
+  quantityOf,
+  onAddToCart,
+  onUpdateQuantity,
+}: HairSkinCareSectionProps) {
   const priced = usePricedProducts(products);
   return (
     <>
       <SectionHeader title="Hair & Skin Care" />
       <View style={styles.grid}>
-        {priced.map((product) => (
-          <UniversalFeedCard
-            key={product.id}
-            product={product}
-            width={HOME_GRID_CARD_WIDTH}
-            imageAspect={1}
-            nameLines={2}
-            showRating={false}
-            showBadge={false}
-            showAddButton={false}
-            compactPrice
-            onPress={() => onProductClick?.(product)}
-          />
-        ))}
+        {priced.map((product) => {
+          const quantity = quantityOf?.(product.id) ?? 0;
+          return (
+            <UniversalFeedCard
+              key={product.id}
+              product={product}
+              width={HOME_GRID_CARD_WIDTH}
+              imageAspect={1}
+              nameLines={2}
+              quantity={quantity}
+              isAdded={quantity > 0}
+              showRating={false}
+              showBadge={false}
+              compactPrice
+              onPress={() => onProductClick?.(product)}
+              onAdd={() => onAddToCart?.(product)}
+              onIncrement={() => onUpdateQuantity?.(product.id, 1)}
+              onDecrement={() => onUpdateQuantity?.(product.id, -1)}
+            />
+          );
+        })}
       </View>
     </>
   );

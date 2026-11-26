@@ -1,4 +1,5 @@
 import { Easing } from 'react-native';
+import { Easing as ReanimatedEasing } from 'react-native-reanimated';
 
 /**
  * Motion tokens — the single source of truth for timing across the app, so
@@ -41,6 +42,16 @@ export const STAGGER = 30;
 export const EASE_ENTRANCE = Easing.bezier(0.22, 1, 0.36, 1);
 /** `cubic-bezier(0.65, 0, 0.35, 1)` — ease-in-out. On-screen movement. */
 export const EASE_MOVE = Easing.bezier(0.65, 0, 0.35, 1);
+
+/**
+ * Reanimated-safe equivalents. `withTiming` validates that its easing is a
+ * worklet, and React Native's `Easing.bezier` is not one — passing it throws
+ * "[Reanimated] The easing function is not a worklet". Always use these two on
+ * `withTiming` / `withSequence`; use the plain `EASE_*` above only with RN
+ * `Animated.timing`.
+ */
+export const RE_EASE_ENTRANCE = ReanimatedEasing.bezier(0.22, 1, 0.36, 1);
+export const RE_EASE_MOVE = ReanimatedEasing.bezier(0.65, 0, 0.35, 1);
 
 /** @deprecated Use `EASE_ENTRANCE`. Kept so existing callers keep working. */
 export const EASING = EASE_ENTRANCE;

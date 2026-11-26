@@ -73,3 +73,17 @@ export function useNavBarHideStyle(hideDistance: number) {
     transform: [{ translateY: navBarHide.value * hideDistance }],
   }));
 }
+
+/**
+ * Animated bottom clearance that tracks the nav's hide progress: full `reserve` while the bar is
+ * shown, `0` once it has slid away. Use this instead of a static `paddingBottom` so a hidden
+ * floating nav leaves no empty background band behind it.
+ */
+export function useNavBarReserveStyle(reserve: number) {
+  return useAnimatedStyle(
+    () => ({
+      paddingBottom: (1 - navBarHide.value) * reserve,
+    }),
+    [reserve],
+  );
+}

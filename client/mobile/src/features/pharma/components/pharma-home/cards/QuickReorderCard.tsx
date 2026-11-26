@@ -1,10 +1,11 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Plus } from 'lucide-react-native';
 import AppText from '@/components/AppText';
+import AddToCartControl from '@/components/shared/AddToCartControl';
 import { hs, ms, vs } from '@/utils/responsive';
+import { brandRamp } from '@/theme/brandTokens';
 import type { PharmaQuickReorderItem } from '../../../types';
-import { PHARMA_GREY, PHARMA_INK, PHARMA_TEAL } from '@/theme/pharmaTokens';
+import { PHARMA_GREY, PHARMA_INK } from '@/theme/pharmaTokens';
 import { localizedName } from '@/lib/localizedText';
 import { useLanguageStore } from '@/state/languageStore';
 
@@ -13,6 +14,9 @@ interface QuickReorderCardProps {
   width: number;
   onPress?: () => void;
   onAdd?: () => void;
+  quantity?: number;
+  onIncrement?: () => void;
+  onDecrement?: () => void;
 }
 
 const QuickReorderCard = memo(function QuickReorderCard({
@@ -20,6 +24,9 @@ const QuickReorderCard = memo(function QuickReorderCard({
   width,
   onPress,
   onAdd,
+  quantity = 0,
+  onIncrement,
+  onDecrement,
 }: QuickReorderCardProps) {
   const language = useLanguageStore((s) => s.language);
   const name = localizedName(item, language);
@@ -29,12 +36,24 @@ const QuickReorderCard = memo(function QuickReorderCard({
       onPress={onPress}
       activeOpacity={0.9}
     >
-      <AppText style={styles.name} numberOfLines={2}>
-        {name}
-      </AppText>
-      <AppText style={styles.strip} numberOfLines={1}>
-        {item.stripDetails}
-      </AppText>
+      <View style={styles.metaRow}>
+        <AppText style={styles.strip} numberOfLines={1}>
+          {item.stripDetails}
+        </AppText>
+        {onAdd ? (
+          <AddToCartControl
+            quantity={quantity}
+            onAdd={onAdd}
+            onIncrement={onIncrement}
+            onDecrement={onDecrement}
+            accent={brandRamp.PHARMA.deep}
+            onAccent={brandRamp.PHARMA.onDeep}
+            compact
+            label={name}
+            style={styles.addControl}
+          />
+        ) : null}
+      </View>
       <View style={styles.bottomRow}>
         <View style={styles.priceWrap}>
           <AppText style={styles.price}>Price on prescription</AppText>
@@ -42,16 +61,10 @@ const QuickReorderCard = memo(function QuickReorderCard({
             <AppText style={styles.mrp}>₹{item.mrp}</AppText>
           ) : null}
         </View>
-        <TouchableOpacity
-          onPress={onAdd}
-          style={styles.addBtn}
-          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-          accessibilityRole="button"
-          accessibilityLabel={`Add ${name} to cart`}
-        >
-          <Plus size={ms(13)} color="#FFFFFF" strokeWidth={3} />
-        </TouchableOpacity>
       </View>
+      <AppText style={styles.name} numberOfLines={2}>
+        {name}
+      </AppText>
     </TouchableOpacity>
   );
 });
@@ -71,19 +84,27 @@ const styles = StyleSheet.create({
     fontSize: ms(12),
     fontWeight: '700',
     color: PHARMA_INK,
-    minHeight: vs(32),
+    marginTop: vs(4),
+  },
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: ms(28),
   },
   strip: {
+    flexShrink: 1,
+    marginRight: hs(6),
     fontSize: ms(10),
     fontWeight: '500',
     color: PHARMA_GREY,
-    marginTop: vs(4),
   },
+  addControl: { marginLeft: 'auto' },
   bottomRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginTop: vs(10),
+    marginTop: vs(6),
   },
   price: {
     fontSize: ms(14),
@@ -101,13 +122,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: PHARMA_GREY,
     textDecorationLine: 'line-through',
-  },
-  addBtn: {
-    width: ms(24),
-    height: ms(24),
-    borderRadius: ms(12),
-    backgroundColor: PHARMA_TEAL,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
 });

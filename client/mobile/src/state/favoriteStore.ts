@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { gateway } from '@/services/api/GatewayClient';
+import { useAuthStore } from '@/state/authStore';
 
 const SYNC_ERROR = 'Could not sync your favourites. Please try again.';
 
@@ -25,7 +26,7 @@ export const useFavoriteStore = create<FavoriteState>()((set, get) => ({
   syncing: false,
   syncError: null,
   hydrate: async () => {
-    if (!gateway.remoteEnabled) {
+    if (!gateway.remoteEnabled || !useAuthStore.getState().isAuthenticated) {
       set({ hydrated: true });
       return;
     }
@@ -38,6 +39,9 @@ export const useFavoriteStore = create<FavoriteState>()((set, get) => ({
     }
   },
   toggleFavorite: async (productId) => {
+    // Favourites are account-bound. Guest hearts are gated in the UI (`runAuthGate`); this is a
+    // defensive stop so no unauthenticated call can reach the auth-scoped endpoint.
+    if (!useAuthStore.getState().isAuthenticated) return;
     const prev = get().favorites;
     const has = prev.includes(productId);
     set({

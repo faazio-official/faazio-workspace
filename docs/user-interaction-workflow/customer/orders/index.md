@@ -3,7 +3,7 @@
 **Status:** Partial (invoice PDF + cancellation are gaps; see order-history.md)
 **Routes:** `MyOrders` (`features/profile/MyOrdersScreen.tsx`), `OrderDetails`
 (`features/profile/OrderDetailsScreen.tsx`), `Notifications`
-**Trigger:** Profile → My Orders, receipt, or order notification.
+**Trigger:** Profile → My Orders, receipt, or order notification. Account-bound: the guest account page does not render the Orders row; My Orders requires a session.
 
 ## Flows
 

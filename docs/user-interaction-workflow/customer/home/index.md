@@ -2,7 +2,7 @@
 
 **Status:** Shipped (server SDUI; rails are server-only while online)
 **Route:** `MainTabs` → `Home` (`src/features/home/HomeTabScreen.tsx` → `HomeView.tsx`)
-**Trigger:** App launch when authenticated, or tapping the Home tab.
+**Trigger:** App launch for a signed-in user or a guest (the signed-out default), or tapping the Home tab.
 
 ## Flows
 
@@ -25,6 +25,9 @@
 
 - **Chip:** the header shows `useLocationStore.address` (fallback "Set your location") as a tappable
   row that pushes the `Location` route — so a user can change area/saved address without logging out.
+- **Guest:** the feed is public (`GET /sdui/home`) and location-independent, so a signed-out user
+  sees the catalogue immediately. The header shows "Set your location"; the guest picker can be
+  closed with **Browse without a location**. Guests are not district-coverage-gated.
 - **Nudge banner:** shown while the origin is not GPS-backed and location is not deliberately manual
   — i.e. `status` is `denied`/`blocked`, or permission is missing without a manual origin. It reads
   "Location following is off", offers **Open Settings** (`Linking.openSettings()`) and **Enter
@@ -34,7 +37,8 @@
 ## State
 
 - `useLocationStore` — nearby origin.
-- No shared cart writes: every Home card is tap-to-view (add happens on the product detail screen).
+- Shared cart writes from every non-ad Home item card (3-up grids and rails); tapping the card
+  still opens ProductDetail.
 - Local section state for carousels and pagination.
 
 ## Data path

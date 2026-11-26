@@ -14,7 +14,9 @@ interface PopularMedicinesRailProps {
   items: PharmaPopularMedicine[];
   onPress?: (item: PharmaPopularMedicine) => void;
   onAdd?: (item: PharmaPopularMedicine) => void;
-  addedIds?: Set<string>;
+  quantityOf?: (id: string) => number;
+  onIncrement?: (item: PharmaPopularMedicine) => void;
+  onDecrement?: (item: PharmaPopularMedicine) => void;
   onViewAll?: () => void;
 }
 
@@ -22,7 +24,9 @@ const PopularMedicinesRail = memo(function PopularMedicinesRail({
   items,
   onPress,
   onAdd,
-  addedIds,
+  quantityOf,
+  onIncrement,
+  onDecrement,
   onViewAll,
 }: PopularMedicinesRailProps) {
   const renderItem = useCallback(
@@ -30,12 +34,14 @@ const PopularMedicinesRail = memo(function PopularMedicinesRail({
       <PopularMedicineCard
         item={item}
         width={MEDICINE_W}
-        added={addedIds?.has(item.id) ?? false}
+        quantity={quantityOf?.(item.id) ?? 0}
         onPress={() => onPress?.(item)}
         onAdd={() => onAdd?.(item)}
+        onIncrement={onIncrement ? () => onIncrement(item) : undefined}
+        onDecrement={onDecrement ? () => onDecrement(item) : undefined}
       />
     ),
-    [onPress, onAdd, addedIds],
+    [onPress, onAdd, quantityOf, onIncrement, onDecrement],
   );
 
   return (

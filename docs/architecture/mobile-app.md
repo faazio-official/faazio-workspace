@@ -40,7 +40,7 @@ src/
 ├── features/                   # vertical feature modules (20)
 ├── lib/                        # config, externalLinks, site, tokenClaims, smsUserConsent (Android SMS User Consent hook), recentPhones (device-local sign-in suggestions)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, offlineNavigationGuard, types
-├── services/                   # GatewayClient, logout, secureSession, categoryVendors, homeFeed, pricing
+├── services/                   # GatewayClient, authGate (guest gating), logout, secureSession, categoryVendors, homeFeed, pricing
 ├── state/                      # Zustand stores (incl. deliveryPartner + deliverySettings + shared callStore)
 ├── theme/                      # brandTokens, spacing (SPACE tokens), fonts, sectorVisuals
 └── utils/                      # responsive (hs/vs/ms/wp/hp)
@@ -127,6 +127,18 @@ showing a loading/error state instead of a silent empty grid; `campaign` mode st
 is codified in `features/ecommerce/services/martFeedSections.ts` (`MART_FEED_SECTIONS`, consumed by
 `FaMartScreen`); the full RN route registry is `PAGE_CATALOG.md` §2.
 
+**Mart item cards carry no ratings or label badges.** Every Mart product surface renders the item
+name on **two lines** and suppresses both the product rating and the badge/tag label (e.g. "Best
+Seller", "40% OFF", the green "Lowest price in 30 days" note): `MartProductCard` defaults to
+`nameLines={2}`, `showRating={false}`, `showBadge={false}`, the Mart home rails (`MartDealCard`)
+carry only image/name/price, the Mart search row (`SearchMartProductCard`) passes `nameLines={2}`,
+and the PDP "Recommended" grid hides ratings/badges for Mart rows (Pharma rows keep them). The
+required **AD disclosure pill on paid placements is not a product label and stays**. "View All"
+opens `DealsLanding`: the `martEssentials` mode now mirrors the compact Home grid (**3-up**, square
+images, 2-line names, no rating/badge, card-level add/stepper), while `martDeals` keeps
+its 2-up shopping grid with the add/stepper control. Store/vendor ratings (vendor header,
+`LocalVendorCard`, `StoreCardBase`) are unchanged.
+
 **Paid-ad measurement is auth-gated.** `POST /ads/events` sits behind `auth.Require`, satisfied by
 the real Firebase phone-OTP session (configured builds); local dev can still use `AUTH_DISABLED=true`
 + `user-1`. `recordAdEvent` returns `boolean` (confirmed-only, no fabricated fallback) and logs a
@@ -199,19 +211,27 @@ the **`DealsLanding`** route in `campaign` mode, which reads the server-joined s
 uses the SDUI `dealsOfDay` joined products (falling back to `getProductsByIds(MART_DEALS ids)` only
 when rendered without a join); the `MART_DEALS` fixture is the offline shell only.
 
-**Home cards are tap-to-view only.** No Home section renders a card-level add control: every rail
-(`dealsOfDay`, Men/Women/Kids, Recently Viewed, Nearby Offers, Hair & Skin Care, Discover/FilterFeed)
-and the Home sponsored rail pass `showAddButton={false}`, so a tap opens `ProductDetail` and the
-shopper adds from there. Home therefore owns no cart write; `addToCart` is no longer threaded
-through `HomeView`/`SectionProps`. The shared `ProductCardBase` keeps its add button for the
-sub-app catalogues (Mart/Food/Pharma).
+**Home item cards mount a card-level add control.** Every non-ad Home card — the 3-column sections
+(Men/Women/Kids via `AudienceGridSection`, Hair & Skin Care, Discover/FilterFeed) and the horizontal
+rails (Deals of the day, Recently viewed, Nearby offers) — uses the shared
+**`AddToCartControl`**; card body order is unit (left) + **Add** (right) directly under the image,
+then the price row, then the item name. Tapping the card body still opens `ProductDetail`.
+`HomeView` threads `quantityOf` / `onAddToCart` / `onUpdateQuantity` through `SectionProps`. Paid
+placements (`AdProductCard`, sponsored rail) are the only Home cards without the shopper add action.
+The sub-app catalogues (Mart/Food/Pharma) render the same
+**`AddToCartControl`** (`components/shared/AddToCartControl.tsx`): a sentence-case **Add** pill that
+cross-fades + scales into a **`− qty +`** stepper in the same footprint once the cart line exists
+(Reduce Motion swaps instantly). It replaces the old circular `+` / check control on product cards,
+the Mart sponsored shelf and deals landing, the Pharma popular / quick-reorder / category cards, the
+Food menu + search dish cards, and the dense search rows.
 
 **Home grid layout.** The three product-grid sections — Men/Women/Kids (`AudienceGridSection`),
 Hair & Skin Care, and Discover/FilterFeed — are a compact **3-column** layout
 (`HOME_GRID_COLUMNS`/`HOME_GRID_CARD_WIDTH`/`HOME_GRID_GAP` in `sections/common.tsx`): square
-(`imageAspect={1}`) images, a fixed `hs(8)` column gap, and **one-line** product names. Every Home
-section passes `nameLines={1}` so no card reserves a second name line (`ProductCardBase` keeps its
-2-line default for the sub-app catalogues).
+(`imageAspect={1}`) images, a fixed `hs(8)` column gap, and **two-line** product names with no
+rating badge. Every Home section passes `nameLines={2}` + `showRating={false}`, and
+`ProductCardBase` keeps the same 2-line default for the sub-app catalogues. Grid card body order:
+unit (left) + **Add** (right) under the image, price below, name last.
 
 **Home sponsored rail** (`features/home/sections/SponsoredRailSection.tsx`, section id
 `sponsoredRail`, titled "Sponsored picks", placed after `dealsOfDay`): a **paid, separately-labelled**
@@ -225,9 +245,11 @@ empty shelf. Editorial `hotBrandDeals` is served from the SDUI doc (`campaigns[]
 
 The rail itself lives in the boundary-safe **`components/shared/SponsoredRail.tsx`** (placement fill +
 `POST /ads/events` impression/click + last-click attribution + AD disclosure), with each sub-app
-supplying its own card. It is consumed at three placements: `HOME_TOP` (Home, above),
-`SPONSORED_SHOWCASE` (Mart home feed, `FaMartScreen`), and `SECTOR_RAIL` (vendor "Discounted Products"
-landing, `DealsLandingScreen`). See `caching-cloudflare-valkey.md` §5a.
+supplying its own card. Hosts may also pass `quantityOf` / `onIncrement` / `onDecrement` so the paid
+card's Add pill becomes a live `− qty +` stepper. It is a horizontal rail and is consumed at three
+placements: `HOME_TOP` (Home, above), `SPONSORED_SHOWCASE` (Mart home feed, `FaMartScreen`), and
+`SECTOR_RAIL` (vendor "Discounted Products" landing, `DealsLandingScreen`). See
+`caching-cloudflare-valkey.md` §5a.
 
 **Paid hero campaigns** (`components/shared/CampaignHero.tsx` + `hooks/useCampaignHero.ts`, **W41**;
 self-serve hosts **W42**): the top-of-surface counterpart to the rail — a labelled 16:9 carousel fed by
@@ -562,7 +584,10 @@ Cart and Account), and each nav applies `useNavBarHideStyle(hideDistance)` to it
 (`HubTabBar`, `SubAppWrapper`, `FoodBottomNav`). Each nav calls `revealNavBar()` on mount / focus /
 tab change so a new surface never starts hidden. The shared value is safe because only one bottom
 nav is visible at a time; the clearance from `useTabBarClearance()` is unchanged so hiding never
-reflows the list.
+reflows the hub-tab lists. The Mart/Pharma wrapper instead reserves the bar clearance on its
+viewport, so it uses `useNavBarReserveStyle(navBarClearance)`: the reserve collapses to `0` in step
+with the hide progress, preventing an empty background band from being left behind the hidden bar
+(it restores when the bar slides back in).
 
 Every visible bottom navbar also exposes the shared `components/shared/NavbarHomeShortcut`: a
 Faazio-blue circular Home button centered over the first tab, with three quarters of the circle
@@ -742,9 +767,9 @@ still separate files; consolidating them is tracked in `client/mobile/PENDING_WO
 
 | Store | Purpose |
 |---|---|
-| `authStore` | Session, login payload, auth state. `AuthUser` carries the decoded partner role/state claims (`role`, `stateCode`) read from the Firebase ID token (`lib/tokenClaims.ts`; legacy `STATE_ADMIN` is canonicalised to `DISTRICT_ADMIN` to match the gateway) so admin UI can gate client-side — the gateway re-verifies the token on every call. `expireSession()` drops the in-memory session after `GatewayClient` has cleared a dead Keychain session; the root navigators react by returning to Login (customer) / Phone entry (delivery). Irreversible actions re-auth by phone OTP (`sendReauthOtp`/`verifyReauthOtp`, the latter persisting the fresh ID token) and delete the Firebase identity (`deleteFirebaseIdentity` → native `user.delete()`), which requires that recent login |
-| `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?, addonIds?, addonPrice?, addonSummary?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); the optional add-on args carry selected extras (display hints stored on `inventory.carts`; checkout re-validates + re-prices them). `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item. **Server-authoritative:** every mutation optimistically updates the UI, awaits the durable `inventory.carts` write, and rolls back with `syncError` on failure. An existing line re-add sends its next absolute qty via `updateCartItem` because the gateway `POST/PUT` both **set** (not increment). `hydrate()` pulls + rejoins catalog details at login/cold start (remote mode, including add-on hints); `resetLocal()` drops the device cache on sign-out without deleting the server cart. The `seedCartItems` fixture is gone; mock mode degrades to device-local state |
-| `favoriteStore` | Favourites (ids), server-authoritative via `GET/POST/DELETE /favourites`; optimistic toggle with rollback + `syncError`, `hydrate()` at login/cold start, `reset()` on sign-out |
+| `authStore` | Session, login payload, auth state. `AuthUser` carries the decoded partner role/state claims (`role`, `stateCode`) read from the Firebase ID token (`lib/tokenClaims.ts`; legacy `STATE_ADMIN` is canonicalised to `DISTRICT_ADMIN` to match the gateway) so admin UI can gate client-side — the gateway re-verifies the token on every call. `expireSession()` drops the in-memory session after `GatewayClient` has cleared a dead Keychain session; the root navigators react by returning to guest browsing (`MainTabs`, customer) / Phone entry (delivery). Irreversible actions re-auth by phone OTP (`sendReauthOtp`/`verifyReauthOtp`, the latter persisting the fresh ID token) and delete the Firebase identity (`deleteFirebaseIdentity` → native `user.delete()`), which requires that recent login |
+| `cartStore` | Cart items, quantity, totals; `addToCart(id, name, price, emoji, restaurantId?, addonIds?, addonPrice?, addonSummary?)` — the optional 5th arg tags a line to a restaurant (adopts an untagged line on re-add); the optional add-on args carry selected extras (display hints stored on `inventory.carts`; checkout re-validates + re-prices them). `clearRestaurantCart(id)` removes only that restaurant's lines. Fulfilment is chosen order-level on the cart, not per item. **Server-authoritative for signed-in users:** every mutation optimistically updates the UI, awaits the durable `inventory.carts` write, and rolls back with `syncError` on failure. While signed out the cart is device-local: `canSyncCart()` skips the auth-scoped `/cart` calls, so a guest can add/remove lines without a 401 rollback; `hydrateUserStores()` merges those lines into the account (server qty + guest qty) before the signed-in hydrate. An existing line re-add sends its next absolute qty via `updateCartItem` because the gateway `POST/PUT` both **set** (not increment). `hydrate()` pulls + rejoins catalog details at login/cold start (remote mode, including add-on hints); `resetLocal()` drops the device cache on sign-out without deleting the server cart. The `seedCartItems` fixture is gone; mock mode degrades to device-local state |
+| `favoriteStore` | Favourites (ids), server-authoritative via `GET/POST/DELETE /favourites`; optimistic toggle with rollback + `syncError`, `hydrate()` at login/cold start, `reset()` on sign-out. Guest toggles are gated in the UI (and the store refuses unauthenticated writes), so no guest 401 is possible |
 | `pharmaStore` | Prescriptions |
 | `bloodDonorStore` | Blood Donor wizard draft + committed registration + outgoing targeted requests (`donorMatchRequests`) + server-hydrated incoming requests (`incomingMatchRequests`; recipient-scoped, `respondToMatch` accept/decline) + the offline write outbox (`pendingOps`; register/interest/match/match-status/request; flushed on hydration/foreground, server-wins reconcile) + `requestsReloadKey` (device-local, not persisted — bumped when a posted `request` op becomes `synced`; `useBloodRequests` subscribes to it so every mounted board refetches) |
 | `searchStore` | Search state/history |
@@ -785,7 +810,7 @@ fallback behavior). Detection is dependency-free (`connectivityStore`: `GET /hea
 `GET /health` (the seller app never starts `connectivityStore`).
 
 Auth/entry routes (`Login`/`Onboarding`/`LanguageSelection`/`Location`) are never blocked, so an
-offline session drop still lands on Login. `GatewayClient.serverOnly` remains server-only — an
+offline session drop still lands on guest browsing (`MainTabs`) or the entry chain, never a dead end. `GatewayClient.serverOnly` remains server-only — an
 offline read still throws `GatewayOfflineError` (the retired `_mock` lambdas/`withFallback`/
 `withStrict` guards were collapsed to it); the offline layer is additive, not a fixture fallback.
 
@@ -800,9 +825,11 @@ offline read still throws `GatewayOfflineError` (the retired `_mock` lambdas/`wi
   native config lives in `android/app/google-services.json` + `ios/Faazio/GoogleService-Info.plist`.
   The Android-only SMS autofill companion is `lib/smsUserConsent.ts` (see "Android SMS User Consent").
 - `secureSession.ts` — tokens via `react-native-keychain` (Android Keystore / iOS Keychain; never AsyncStorage for secrets). Single owner of the session with an in-memory mirror so `GatewayClient` can read `getAccessToken()` per request without a Keychain round-trip; `updateSessionTokens()` persists a rotated pair, and `getRefreshToken()` returns the portal refresh token for seller/admin sessions.
-- `sessionStores.ts` — `hydrateUserStores()` runs after authentication and in parallel pulls the
-  cart, favourites, orders (`refresh`) and rewards (`reconcile`); every leg is `allSettled` so one
-  failing module cannot block the rest.
+- `sessionStores.ts` — `hydrateUserStores()` runs after authentication. It first merges a
+  device-local guest cart into the account (`GET /cart` + one `PUT /cart/items` per line with
+  server qty + guest qty), then pulls the cart, favourites, orders (`refresh`) and rewards
+  (`reconcile`) in parallel; every leg is `allSettled` so one failing module cannot block the rest.
+  If the merge fails, the authoritative cart hydrate is skipped so the guest lines are not lost.
 - `customerPush.ts` — registers the customer FCM token (`POST /notifications/register`), re-registers
   on token refresh, and routes foreground/notification-tap events; the in-app inbox stays the
   durable record when push is unavailable.
@@ -918,11 +945,12 @@ AppNavigator (root native stack)
 ├── DealsLanding (deals page — four modes: `campaign` from the Home "Deals of the day" carousel
 │   (Home-owned `@data`), `discounts` from the Mart vendor profile "View All" (server pool),
 │   `martDeals`/`martEssentials` from the Mart rail "View All" (catalog-resolved `productIds`); the
-│   last three carry the paid `SECTOR_RAIL` header shelf)
+│   last three carry the paid `SECTOR_RAIL` header shelf; `martEssentials` is a 3-up
+│   Home-style grid with card-level add, `martDeals`/`discounts`/`campaign` stay 2-up)
 ├── You · UserDetails · SavedAddresses · MyOrders · Notifications · Favourites · OrderDetails · FaazioRewards · SellWithUs
 │   └── ActiveCall (full-screen masked call to the assigned delivery partner from OrderDetails;
 │        VOIP or PSTN_BRIDGING chosen by the gateway, light themed shared call surface)
-│   ├── DeleteAccount (Account → Privacy and security; OTP re-auth gate → erases PII + Firebase identity, clears session, returns to Login)
+│   ├── DeleteAccount (Account → Privacy and security; OTP re-auth gate → erases PII + Firebase identity, clears session, returns to MainTabs as a guest)
 │   ├── RequestDataDeletion (Account → Privacy and security; partial erasure, keeps the account)
 │   └── SellerRequests (admin application queue, role-gated) ── SellerRequestDetail (`{ sellerId }`; KYC verify/activate/reject)
 ├── RateVendor (verified-buyer rating form; every vendor surface + order screens link here)
@@ -937,13 +965,26 @@ AppNavigator (root native stack)
 │   optional `presetVendorId` skips the vendor step and opens fulfilment for that pharmacy)
 ```
 
-Entry is `Onboarding` on first launch, `Login` for a returning signed-out user
+Entry is `Onboarding` on first launch, `MainTabs` (guest browsing) for a returning signed-out user
 (`useOnboardingStore.hasSeenOnboarding`), or — when authenticated — `Location` if
 `useLocationStore.status === 'idle'` (never asked / no origin), otherwise `MainTabs`. The
 authenticated branch waits for the persisted location to hydrate (3 s bound) so a returning user
 with no origin is not stranded on an empty Home tab; `denied`/`blocked` still open `MainTabs` with
 the Home nudge banner. Decided in `AppNavigator.tsx` from `useAuthStore.isAuthenticated` + the
 hydrated onboarding and location stores.
+
+**Guest browsing (Guideline 5.1.1(v)).** Signed-out users are never forced through `Login`.
+`Onboarding` **Skip** and the `Login` screen's **Skip** reset to `MainTabs`; a returning signed-out
+cold start lands there directly. Browsing, search, product detail, store pages and add-to-cart are
+public. Account-bound actions call `runAuthGate` (`src/services/authGate.ts`), which remembers the
+triggering action and pushes `Login` with `{ resume: true }`; on success the screen closes back to
+the origin and the action resumes. Gated surfaces: checkout **Continue** / place order, favourites
+(tab, pushed page, every heart), prescription upload, and the guest account page's orders / rewards
+/ notifications / addresses entry points. A dead/revoked session resets to `MainTabs` (guest) and
+clears local per-user caches, never a forced login wall. Location is optional for guests — the
+`Location` screen has **Browse without a location** and skips the authenticated district check. A
+guest cart is device-local (`/cart` is auth-scoped) and is merged into the account by
+`hydrateUserStores()` before the authoritative cart hydrate after sign-in.
 
 ## Delivery Partner app (separate product)
 
@@ -1289,17 +1330,18 @@ instead of shipping a non-functional shell.
 
 ### Phone-auth flow (Login)
 
-`LoginScreen` is a three-step screen (`authStep`: **name → phone → OTP**; `otpState` is derived as
-`authStep === 'otp'`). Step 1 renders only the name field with a **Continue** CTA (empty name sets
-`nameError` and stays put; input capped at 80 chars); step 2 renders only the `+91` phone field with
-"Send code" and offers a chevron plus Android hardware back to step 1 (typed name preserved, step
-errors cleared); step 3 is the OTP screen below. The typed name is kept in the login payload
-(`name: <typed name>`, falling back to `displayName(session.user)`) and then written through by
+`LoginScreen` has three possible steps (`authStep`: **phone → OTP → name**; `otpState` is derived
+as `authStep === 'otp'`). Step 1 renders only the `+91` phone field with "Send code"; step 2 is the
+OTP screen below. After `verifyOtp`, `completeLogin` reads `GET /profile` with the freshly verified
+token (`GatewayClient.getProfile(accessToken)`): a returning customer (`hasName: true`) signs in
+with the stored name and never sees a name prompt; a first-time customer (`hasName: false`) gets
+step 3 — the name field with a **Continue** CTA (empty name sets `nameError` and stays put; input
+capped at 80 chars). The verified session is held in memory until the name is submitted, so
+abandoning the step leaves no signed-in, unnamed session. The chosen name is then written through by
 `GatewayClient.updateProfileName()` → `PUT /profile` (`{name}`, trimmed, 1–80 runes → 400
 `invalid_name`; 404 when the user row is missing), which updates both `checkout.users.name` and
-`accounts.profile.name`. That write is best-effort so it cannot block a successful sign-in.
-`requestOtp` lists `name` in its `useCallback` dependencies — omitting it froze the closure at the
-first render's `''` and made every "Send code" tap fail the name guard before `sendOtp`. The OTP is
+`accounts.profile.name`. That write is best-effort so it cannot block a successful sign-in. A
+failed profile read after OTP falls through to the name step (it never fabricates a name). The OTP is
 sent **only** on an explicit
 "Send code" tap (disabled until `isValidPhone`) — the customer screen no longer auto-sends after the
 10th digit, so a half-typed number cannot burn an SMS. The send arms **SMS User Consent**
@@ -1320,17 +1362,24 @@ until APNs is configured and uses `textContentType="oneTimeCode"` QuickType for 
 `docs/RUNBOOKS/FIREBASE_AUTH.md`). OTP submission is an explicit state machine, **not** a side effect of the 6th
 keystroke: a `useEffect` keyed on `otpCode` calls `submitOtp()` whenever the code reaches 6
 digits (covers typing, paste, and re-render races), guarded by a `submitRef` so it fires once.
-`submitOtp` dismisses the keyboard, **awaits** `firebaseAuth.verifyOtp()` → `authStore.login()`
-(Keychain), and only then `navigation.replace('LanguageSelection')` (guarded by
-`navigationRef.isReady()`). Without the native Firebase config a dev build keeps the offline mock
-login; release builds reject that at configure time. A
+`submitOtp` dismisses the keyboard, **awaits** `firebaseAuth.verifyOtp()`, then reads
+`GET /profile` with the fresh token: an existing name calls `authStore.login()` (Keychain) and
+navigates; a missing name shows the name step, whose **Continue** (`submitName`) persists the
+session and then navigates. A first-run login replaces to `LanguageSelection`; a login opened from
+a guest gate (`{ resume: true }`) closes back to the origin screen and runs the pending gated action
+(`consumePendingAuthAction`). Both paths are guarded by `navigationRef.isReady()`. A **Skip**
+action on the phone step (and an `X` when the screen was pushed) clears the pending action and
+returns to `MainTabs`; the unmount cleanup also drops a pending action so a hardware-back
+dismissal cannot replay a stale tap later. Without the native Firebase config a dev build keeps the offline mock
+login (which always shows the name step); release builds reject that at configure time. A
 failure sets `otpError`, which drives the shake + "Verification Failed" toast; `submitRef` resets
 so the user can retry. A always-present **Verify** CTA (enabled at 6 digits, spinner while
 awaiting) is the manual fallback, so the user can never be stranded. Back is two-step and wired to
 both the chevron and Android hardware back (`BackHandler` via `useFocusEffect`): first press closes
 the keyboard, second returns to the phone step with the typed number preserved; back is ignored
-while `isVerifying` so an in-flight `verifyOtp` cannot navigate after dismissal; on the phone step
-the hardware back returns to the name step, and on the name step it pops to Welcome. `replace` deliberately removes the consumed OTP screen so back from
+while `isVerifying` so an in-flight `verifyOtp` cannot navigate after dismissal. The
+post-verification name step is mandatory — it has no back control and consumes hardware back —
+because the session is only persisted after a name is submitted. `replace` deliberately removes the consumed OTP screen so back from
 Choose-language lands on Welcome, not a filled OTP form. The acceptance row under the phone field
 renders **Terms & Conditions** and **Privacy Policy** as tappable links (`TERMS_URL` / `PRIVACY_URL`
 in `lib/site.ts`) opened through `openTrustedUrl()` (`lib/externalLinks.ts`), which restricts
@@ -1728,7 +1777,17 @@ never lingers as stale, openable profiles. A `store-f*` profile resolves its men
 `GET /venues/{id}/menu` (the `directory.menus.venue_id` union resolves a store id) and its `STORE_TOP`
 band through the store id. The Food home has no organic Top Rated rail: the `FOOD_HERO` ad banner
 (`CampaignHero`) renders directly below `FoodHeader`, with no section title and an "Ad" pill
-bottom-right (gray pill, black text). The server-side `mostRatedVenues` SDUI section — Home's
+bottom-right (gray pill, black text). The Food category rail (`FoodCategoryRail`) renders directly
+below that hero. It reads the FOOD taxonomy roots (`fetchCategories('FOOD')` →
+`GET /categories?app=FOOD`, keeping `parentId === null`) — not the main-header
+`/categories/rail` pool, which still rejects FOOD. A root with an uploaded `iconUrl` shows it in a
+60 px circle; a root without one (the seeded tree ships `icon_url = null`) shows a rounded
+`UtensilsCrossed` glyph on the Food tint, so every category remains visible and tappable. Tapping a
+chip opens `FoodCategoryDrillIn`: the page resolves the node's leaf subtree, shows a leaf chip rail
+when there is more than one, and lists the active leaf's `searchQuery` (fallback: name) through the
+same `GET /search?app=FOOD` FTS as Food search, filtered client-side by the shared diet toggle. A
+live empty read is an honest empty state; a failed taxonomy/search read offers a retry and never
+falls back to fixture categories. The server-side `mostRatedVenues` SDUI section — Home's
 `mostRatedDining` uses `directory.stores` ids, joined by the gateway — is retained for the rail
 catalogue but no longer consumed by the Food feed. Venues without presentation data carry neutral
 defaults (`distance`/`priceForTwo` 0); the restaurant cards drop the `0.0 km` metric,

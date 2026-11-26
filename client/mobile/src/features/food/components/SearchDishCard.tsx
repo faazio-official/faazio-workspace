@@ -1,8 +1,9 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Star, Minus, Plus } from 'lucide-react-native';
+import { Star } from 'lucide-react-native';
 import { useCartStore } from '@/state/store';
 import AppText from '@/components/AppText';
+import AddToCartControl from '@/components/shared/AddToCartControl';
 import { localizedDishName } from '@/lib/localizedText';
 import { useLanguageStore } from '@/state/languageStore';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -28,8 +29,8 @@ const CART_ICON_KEY = 'dining';
 /**
  * Search result dish card — row layout per the Dishes view spec: square
  * thumbnail left, details right (title + price, source restaurant, rating)
- * with a "+ ADD" button that flips into a quantity stepper once the dish is in
- * the cart. Renders edge-to-edge (no horizontal gutter).
+ * with the shared "Add" pill that flips into a `− qty +` stepper once the dish
+ * is in the cart. Renders edge-to-edge (no horizontal gutter).
  */
 const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, restaurantId }: SearchDishCardProps) {
   const cart = useCartStore((s) => s.cart);
@@ -83,40 +84,17 @@ const SearchDishCard = memo(function SearchDishCard({ dish, onPress, oldPrice, r
         </View>
 
         <View style={styles.actionRow}>
-          {quantity > 0 ? (
-            <View style={styles.stepper}>
-              <TouchableOpacity
-                onPress={() => updateQuantity(dish.id, -1)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.stepperBtn}
-                accessibilityRole="button"
-                accessibilityLabel={`Decrease quantity of ${dishName}`}
-              >
-                <Minus size={ms(12)} color={foodTheme.primaryDeep} strokeWidth={2.6} />
-              </TouchableOpacity>
-              <AppText style={styles.stepperQty}>{quantity}</AppText>
-              <TouchableOpacity
-                onPress={() => updateQuantity(dish.id, 1)}
-                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                style={styles.stepperBtn}
-                accessibilityRole="button"
-                accessibilityLabel={`Increase quantity of ${dishName}`}
-              >
-                <Plus size={ms(12)} color={foodTheme.primaryDeep} strokeWidth={2.6} />
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <TouchableOpacity
-              onPress={handleAdd}
-              style={styles.addBtn}
-              activeOpacity={0.8}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel={`Add ${dishName} to cart`}
-            >
-              <AppText style={styles.addBtnText}>+ ADD</AppText>
-            </TouchableOpacity>
-          )}
+          <AddToCartControl
+            quantity={quantity}
+            onAdd={handleAdd}
+            onIncrement={() => updateQuantity(dish.id, 1)}
+            onDecrement={() => updateQuantity(dish.id, -1)}
+            accent={foodTheme.primaryDeep}
+            onAccent={foodTheme.white}
+            variant="outline"
+            compact
+            label={dishName}
+          />
         </View>
       </View>
     </TouchableOpacity>
@@ -207,41 +185,5 @@ const styles = StyleSheet.create({
   actionRow: {
     flexDirection: 'row',
     justifyContent: 'flex-end',
-  },
-  addBtn: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: ms(8),
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: hs(16),
-    paddingVertical: vs(6),
-    minWidth: hs(58),
-  },
-  addBtnText: {
-    fontSize: ms(12),
-    fontWeight: '800',
-    color: foodTheme.primaryDeep,
-  },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#E0E0E0',
-    borderRadius: ms(8),
-    backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
-  },
-  stepperBtn: {
-    paddingHorizontal: hs(10),
-    paddingVertical: vs(6),
-  },
-  stepperQty: {
-    fontSize: ms(12),
-    fontWeight: '800',
-    color: foodTheme.textPrimary,
-    minWidth: ms(20),
-    textAlign: 'center',
   },
 });

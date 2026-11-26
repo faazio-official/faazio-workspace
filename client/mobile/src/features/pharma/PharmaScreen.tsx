@@ -18,6 +18,7 @@ import type { PharmaDBItem } from '@data/pharma/products';
 import { PHARMA_RECENT_ORDERS } from '@data/pharma/recentOrders';
 import type { PharmaRecentOrder } from '@data/pharma/recentOrders';
 import type { RootStackParamList } from '@/navigation/types';
+import { runAuthGate } from '@/services/authGate';
 
 import type { PharmaPopularMedicine, PharmaQuickReorderItem } from './types';
 import { quickReorderToProduct } from './services/pharmaService';
@@ -108,7 +109,6 @@ export function PharmaScreen({
   const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
   const [categorySearchQuery, setCategorySearchQuery] = useState('');
   const [addedAnimationId, setAddedAnimationId] = useState<string | null>(null);
-  const [feedAddedIds, setFeedAddedIds] = useState<Set<string>>(new Set());
   const [categorySource, setCategorySource] = useState<'idle' | 'loading' | 'live' | 'error'>('idle');
   const [categoryServerById, setCategoryServerById] = useState<Record<string, ProductView> | null>(null);
   const [categoryReloadNonce, setCategoryReloadNonce] = useState(0);
@@ -255,8 +255,9 @@ export function PharmaScreen({
 
   const handleFeedAdd = (item: PharmaQuickReorderItem | PharmaPopularMedicine) => {
     if (addToCart) addToCart(item.id, item.name, item.price, 'pharma');
-    setFeedAddedIds(prev => new Set(prev).add(item.id));
   };
+
+  const quantityOf = (id: string) => cartItems?.find((i) => i.id === id)?.quantity ?? 0;
 
   const handlePopularPress = (item: PharmaPopularMedicine) => {
     onProductClick?.({
@@ -367,6 +368,9 @@ export function PharmaScreen({
             items={feed.quickReorder}
             onPress={handleQuickReorderPress}
             onAdd={handleFeedAdd}
+            quantityOf={quantityOf}
+            onIncrement={(item) => void updateCartQuantity?.(item.id, 1)}
+            onDecrement={(item) => void updateCartQuantity?.(item.id, -1)}
           />
         ) : null}
         {feed.topOffers.length > 0 ? (
@@ -374,9 +378,11 @@ export function PharmaScreen({
         ) : null}
         <PopularMedicinesRail
           items={feed.popularMedicines}
-          addedIds={feedAddedIds}
+          quantityOf={quantityOf}
           onPress={handlePopularPress}
           onAdd={handleFeedAdd}
+          onIncrement={(item) => void updateCartQuantity?.(item.id, 1)}
+          onDecrement={(item) => void updateCartQuantity?.(item.id, -1)}
         />
         <HealthEssentialsRail
           items={feed.healthEssentials}
@@ -401,7 +407,9 @@ export function PharmaScreen({
         ) : null}
         <LocalMedicalsRail stores={stores} onMedicalPress={handleMedicalPress} />
       </ScrollView>
-      <UploadPrescriptionFAB onPress={() => navigation.navigate('PrescriptionFlow')} />
+      <UploadPrescriptionFAB
+        onPress={() => runAuthGate(() => navigation.navigate('PrescriptionFlow'))}
+      />
     </View>
   ) : (
     <PharmaHomeSkeleton />
@@ -473,9 +481,12 @@ export function PharmaScreen({
                 key={product.id}
                 product={cardProduct}
                 originalPrice={displayOriginal(product)}
-                isAdded={addedAnimationId === product.id}
+                quantity={quantityOf(product.id)}
+                isAdded={quantityOf(product.id) > 0 || addedAnimationId === product.id}
                 onPress={() => onProductClick?.(cardProduct)}
                 onAdd={() => handleAddWithFeedback(product.id, product.name, displayPrice(product), product.emoji)}
+                onIncrement={() => void updateCartQuantity?.(product.id, 1)}
+                onDecrement={() => void updateCartQuantity?.(product.id, -1)}
               />
             );
           })}

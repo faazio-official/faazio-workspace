@@ -13,7 +13,13 @@ export type MainTabParamList = {
 
 export type RootStackParamList = {
   Onboarding: undefined;
-  Login: undefined;
+  /**
+   * Phone sign-in. `resume: true` means the screen was pushed over a browsing screen
+   * (guest checkout / account gate): after a successful sign-in it closes back to the
+   * origin (and runs the pending gated action) instead of starting the first-run
+   * language + location chain.
+   */
+  Login: { resume?: boolean } | undefined;
   LanguageSelection: undefined;
   Location: undefined;
   MainTabs: NavigatorScreenParams<MainTabParamList> | undefined;

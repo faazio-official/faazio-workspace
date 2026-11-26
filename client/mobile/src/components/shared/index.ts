@@ -1,4 +1,5 @@
 export { default as ProductCardBase } from './ProductCardBase';
+export { default as AddToCartControl } from './AddToCartControl';
 export { default as StoreCardBase } from './StoreCardBase';
 export { default as AdLabelBadge } from './AdLabelBadge';
 export { default as AppRefreshControl } from './AppRefreshControl';

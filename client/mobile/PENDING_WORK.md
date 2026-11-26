@@ -1,3 +1,30 @@
+# W108 — Guest browsing (no forced login, App Store 5.1.1(v))
+
+**Status:** 🟢 Shipped (JS-only; no gateway or native change). Remainder: persist the guest cart across app restarts (currently in-memory, merges on sign-in).
+
+- Signed-out returning users land on `MainTabs` (guest browsing); first launch keeps the skippable
+  onboarding carousel. **Skip** on onboarding and login returns to the catalogue.
+- Account-bound actions (checkout continue/place order, favourites tab + every heart, prescription
+  upload, orders/rewards/wallet entry points) call `runAuthGate` → root `Login` with the action
+  remembered and resumed after sign-in.
+- Guest cart is device-local (`canSyncCart()` skips auth-scoped `/cart` writes) and is merged into
+  the account by `hydrateUserStores()` before the signed-in hydrate.
+- Guest account tab shows a sign-in card + Preferences; sign-out and dead sessions reset to
+  `MainTabs` as a guest and clear local per-user caches.
+- Location is optional for guests (`Browse without a location`); the authenticated district gate
+  still runs after sign-in.
+
+**Verification:** `npm run ts:check` PASS; `npm run check:boundaries` PASS; Android + iOS Metro
+bundles built with `react-native bundle` (no native rebuild needed — shared JS).
+
+**Files impacted:**
+- `navigation/{AppNavigator,types}.tsx|ts`, `services/authGate.ts` (new)
+- `features/auth/{LoginScreen,LocationScreen}.tsx`, `features/onboarding/OnboardingScreen.tsx`
+- `state/{cartStore,favoriteStore}.ts`, `services/sessionStores.ts`
+- `features/cart/CartView.tsx`, `features/favourites/{FavouritesTabScreen,FavouritesScreen}.tsx`
+- `features/profile/{AccountView,AccountScreen,YouScreen,useAccountNav,DeleteAccountScreen}.tsx|ts`
+- `components/shared/GuestGate.tsx` (new), product/food favourite buttons + Pharma prescription FABs
+
 # W106 — Checkout, login, and UI cleanups per user complaints (audio 1-6)
 
 **Status:** 🟢 Shipped (W106: no DB migration, no gateway change; W107 adds `PUT /profile`, no DB migration).
@@ -30,17 +57,18 @@
 - Name stored in user object during completeLogin and passed to session
 - Tamil listed for removal from languages.ts and native font files
 
-### Login: two-step name → phone, name persisted server-side (W107)
-- `LoginScreen` is now three steps (`authStep`: `name` → `phone` → `otp`): name + **Continue**, then
-  the `+91` phone field + **Send code**, then the unchanged OTP screen. `otpState` is derived
-  (`authStep === 'otp'`).
-- **Fixed "Send code" doing nothing**: `requestOtp` was missing `name` in its `useCallback` deps, so
-  the closure always read the first render's `''` and hit the name guard before `sendOtp`.
-- Typed name is kept in the login payload (`displayName()` only as a fallback) **and** persisted by
-  `GatewayClient.updateProfileName()` → `PUT /profile` (`{name}`), a new checkout endpoint writing
-  `checkout.users.name` + `accounts.profile.name` in one transaction.
-- Back from phone → name preserves the typed name; OTP → phone unchanged; hardware back follows the
-  same steps.
+### Login: phone → OTP → conditional name (W107)
+- `LoginScreen` steps (`authStep`): `phone` → `otp` → `name`; `otpState` is derived
+  (`authStep === 'otp'`). The name step is conditional, not part of the happy path.
+- After `verifyOtp`, `completeLogin` reads `GET /profile` with the fresh token. A returning customer
+  (`hasName: true`) signs in with the stored name; a first-time customer (`hasName: false`) sees the
+  name step. `hasName` is a server-derived field (`name != 'Faazio User'`), not a client heuristic.
+- The verified session is held in memory until the name is submitted (`submitName`), so abandoning
+  the name step does not leave a signed-in, unnamed session. The chosen name is then persisted by
+  `GatewayClient.updateProfileName()` → `PUT /profile` (`{name}`), writing `checkout.users.name` +
+  `accounts.profile.name` in one transaction.
+- OTP → phone back is unchanged; the phone step keeps **Skip**/X; the post-verification name step
+  is mandatory (no back control, hardware back consumed).
 
 ### Verification
 -**Typecheck:** `npm run ts:check` PASS (0 errors)
@@ -48,9 +76,9 @@
 - Build via CI only (Gradle locally OOMs); deploy via `gh workflow run android-debug.yml`
 
 **Files impacted:**
-- `features/auth/LoginScreen.tsx` (three-step name/phone/OTP, stale-closure fix, name write-through)
-- `services/api/GatewayClient.ts` (`updateProfileName`)
-- `server/gateway/internal/checkout/{repo,handler}.go` (`UpdateProfileName`, `PUT /profile`)
+- `features/auth/LoginScreen.tsx` (phone/OTP/conditional-name flow, profile lookup, name write-through)
+- `services/api/GatewayClient.ts` (`getProfile(accessToken?)`, `updateProfileName`)
+- `server/gateway/internal/checkout/repo.go` (`Profile.hasName`, `ProfileByUser`, `UpdateProfileName`)
 - `features/cart/CartView.tsx` (checkout flow restructure)
 - `features/cart/utils.ts` (CheckoutStep type)
 - `features/cart/payment/PaymentOptionsScreen.tsx` (coupon field)

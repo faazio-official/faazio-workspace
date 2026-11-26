@@ -211,6 +211,14 @@ CREATE TABLE catalog.products (
 | `mrp_paisa` | INT8 | 8 | seller-declared list price (`0137`); a strike-through renders only when `mrp_paisa > price_paisa`. Go validates `mrp >= price` on auth writes; legacy rows may be null | partial |
 | `brand` | TEXT | var | actual product brand above the PDP title (`0137`); empty → store name, never the platform name | — |
 | `pack_type` / `net_qty` / `net_unit` | TEXT / NUMERIC / TEXT | var | structured pack size (`0137`); the gateway derives `unit` from these. KG/G/L/ML/PIECE lock their net unit | — |
+
+> **Pack-size coverage (live DB, 26 Nov 2026):** `0144_backfill_product_units.sql` populated every
+> row (822/822 now have `unit`). It parses explicit sizes/counts from the name (`500 g`, `1 L`,
+> `60 capsules`, `Pack of 4`, `Set of 3`, …) and otherwise writes a neutral fallback — `1 piece`
+> (MART/PHARMA) or `1 serving` (FOOD). Weight/volume parsing is gated to consumable categories so
+> appliance capacities (`5L air fryer`, `35L backpack`) stay `1 piece`. Count-only rows (capsules,
+> sachets, lozenges) carry the display `unit` but no partial `net_qty`. Sellers can refine any row
+> through the portal's Pack size step.
 | `variant_group_id` / `variant_label` / `variant_order` | TEXT / TEXT / INT | var | grouped sibling SKUs (`0137`); siblings stay independent rows with their own price/stock | partial (`variant_group_id IS NOT NULL`) |
 | `gallery_keys` | TEXT[] | var | ordered extra image keys for the PDP carousel (`0137`); primary stays `image_key` | — |
 | `attributes` | JSONB | var | facets + PDP depth (`highlights`, `ingredients`, `legalMetrology`, `saltComposition`) — **not fetched by list/search reads** | GIN |
@@ -413,11 +421,13 @@ CREATE TABLE checkout.users (
 | `deleted_at` | TIMESTAMPTZ | 8 | account-deletion tombstone (`0060`); PII blanked + `auth_uid` unlinked, financial rows retained | partial (`deleted_at IS NOT NULL`) |
 
 `ProvisionUserID` (first authenticated OTP call) upserts this row **and** forward-fills the matching
-`accounts.profile` row (`id = account_id = user_id`, real phone/email only) so the app never renders
-the `@data` profile fixture for a signed-in user. `GET /profile` also falls back to this row for
-users provisioned before that write existed. `PUT /profile` (`{name}`, trimmed, 1–80 runes) updates
-this row's `name` and upserts `accounts.profile.name` in the same transaction, so the name captured
-at sign-in is what the account screen and the seller/admin projections read.
+`accounts.profile` row (`id = account_id = user_id`, real phone/email only, name left as the
+`"Faazio User"` placeholder) so the app never renders the `@data` profile fixture for a signed-in
+user. `GET /profile` also falls back to this row for users provisioned before that write existed,
+and returns `hasName` (`false` while the name is still the placeholder) so the customer app asks
+for a name only on first sign-in. `PUT /profile` (`{name}`, trimmed, 1–80 runes) updates this
+row's `name` and upserts `accounts.profile.name` in the same transaction, so the name captured at
+sign-in is what the account screen and the seller/admin projections read.
 
 **Account deletion (`0060`):** `DELETE /users/me` does not hard-delete this row (the non-cascading
 `checkout.addresses`/`orders`/`payments` FKs and the legal-retention requirement forbid it). It
@@ -2626,6 +2636,24 @@ CREATE TABLE taxonomy.categories (
   for the customer price filter, plus the global Dietary Preference group on every new leaf and the
   Ice Cream / Shake / Rolls facet masters (28 groups, 190 options, Tamil labels). Idempotent; the
   superadmin facet sheet edits names/icons later. See §12.4 and `menu-creation.md`.
+- **FOOD master data import (`0145`, additive):** stores the rest of the approved catalogue workbook
+  as reference tables so the portal reads one authority instead of a spreadsheet:
+  `taxonomy.food_atomic_taxonomy` (147 Atomic Food Taxonomy v2 rows: app, record type, cuisine
+  category/sub-category, `gst-food-standard` @ 5%), `taxonomy.store_config_options` (11 store
+  onboarding rules — Schedule, Dietary Policy, Trust & Rating, Delivery & Offers), and
+  `taxonomy.food_sample_menu_items` (15 generated sample dishes; templates, **not** live
+  `directory.menus`). It adds `taxonomy.categories.atomic_category` / `atomic_subcategory` and maps
+  the 24 carousel roots + their leaves (e.g. Dosa → South Indian › Tamil Tiffin). It also splits the
+  Rolls **Sauce** group (Mayonnaise / Makhani) out of Ingredient, and re-maps live FOOD menus away
+  from the over-loaded `sub-chicken` default. Idempotent (`ON CONFLICT DO UPDATE`); no live menu row
+  is inserted. Exposed read-only at `GET /admin/food-master` (see §12.30 / `server-gateway-plan.md`).
+- **FOOD demo venue (`0146`, additive):** publishes the 15 `0145` sample templates on one
+  customer-visible venue, `directory.dining_venues.id = 'venue-food-lab'` (name "Faazio Food Lab",
+  Karaikal, rating 4.7, instant + scheduled). Its 15 `directory.menus` rows are `ACTIVE`, carry the
+  correct leaf `section_id`/`sub_category_id` + `dietary_type`, and 62
+  `directory.menu_item_attributes` facet tags (flavour/type/ingredient/sauce/base/region/patty).
+  `seller_id` stays null and there is **no** `directory.stores` row, so the venue is customer-facing
+  only and never appears in a seller console/payout. Idempotent; delete the venue to remove it.
 - **Expansion (`0091`, additive):** 89 rows appended at `sort_order` 153-241 (existing ids/sorts
   never shift) — the base tree is **153 rows** (MART 110, PHARMA 36, FOOD 7) and the expanded tree is
   **242 rows**:

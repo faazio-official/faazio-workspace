@@ -4,6 +4,9 @@ import type { CompositeScreenProps } from '@react-navigation/native';
 import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import FavouritesPageView from '@/features/favourites/FavouritesPageView';
+import { GuestGate } from '@/components/shared/GuestGate';
+import { useAuthStore } from '@/state/authStore';
+import { openSignIn } from '@/services/authGate';
 import type { CatalogEntry } from '@data/catalog/products';
 import type { MainTabParamList, RootStackParamList } from '@/navigation/types';
 
@@ -18,10 +21,22 @@ type Props = CompositeScreenProps<
  * `FavouritesView` duplicate has been removed.
  */
 export function FavouritesTabScreen({ navigation }: Props) {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const handleProductPress = useCallback(
     (product: CatalogEntry) => navigation.navigate('ProductDetail', { product }),
     [navigation],
   );
+
+  if (!isAuthenticated) {
+    return (
+      <GuestGate
+        title="Sign in to see your favourites"
+        message="Save products across Mart, Food and Pharma and find them here on any device."
+        onSignIn={openSignIn}
+        onBrowse={() => navigation.navigate('Home')}
+      />
+    );
+  }
 
   return (
     <View style={styles.container}>

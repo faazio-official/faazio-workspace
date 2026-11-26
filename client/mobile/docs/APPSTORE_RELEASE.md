@@ -246,6 +246,43 @@ data to track" and `NSPrivacyTracking` as `false`.
 > **Note:** `codemagic.yaml` always uploads on a successful build; beta review and App Store
 > submission stay manual.
 
+### 5b. App Review notes (sign-in + iPad)
+
+Paste the following into **App Store Connect → App Review Information → Notes** for every build
+that changes the login path. The review device is often an iPad; the customer app is a
+`UIRequiresFullScreen=false` iPhone/iPad app, and phone sign-in must work there without a real SMS.
+
+```
+Sign-in instructions
+
+The app is fully browsable as a guest. To test an account-bound flow, open Login.
+
+Phone number: +91 9000000001
+One-time code: 123456
+(Name can be any value; the name step is required before the phone step.)
+
+This is a Firebase test phone number: it skips SMS delivery (no real text is sent), so it works
+on both iPhone and iPad. Do not use a real phone number; it requires an SMS that a review
+environment cannot receive.
+
+If Firebase's reCAPTCHA sheet does appear, complete it or tap Send code again. The app times out
+a stuck verification after 20 seconds and returns to a tappable Send code button with an error
+message; it never freezes.
+```
+
+> **Before submitting:** (1) upload the APNs authentication key (`.p8`) in Firebase Console →
+> Project Settings → Cloud Messaging; (2) in Google Cloud Console → APIs & Services → Credentials,
+> make sure the **iOS** API key used by Firebase Auth is unrestricted or allows the HTTP referrer
+> `project-65696e12-8def-460e-b29.firebaseapp.com` (a bundle-ID-only restriction is not enough for
+> the reCAPTCHA web page). A test number alone is not enough on iOS: without the `.p8` the SDK waits
+> for a silent push that cannot arrive, and without the referrer allowlist the reCAPTCHA fallback
+> page can fail blank — both send the app into the browser flow that hangs on iPad. See
+> `docs/RUNBOOKS/FIREBASE_AUTH.md` §3.1.
+
+The canonical credentials and the "do not change while under review" rule live in
+`docs/TEST_ACCOUNTS.md`. The iOS reCAPTCHA/APNs behaviour and the hard-timeout implementation are
+documented in `docs/RUNBOOKS/FIREBASE_AUTH.md` §3.1.
+
 ---
 
 ## Guidelines and warnings

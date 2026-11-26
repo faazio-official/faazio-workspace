@@ -40,6 +40,11 @@ type Category struct {
 	// PriceTierSet selects the customer price-filter buckets for this category (0143):
 	// standard (100/200), premium (200/350) or snack (100/250).
 	PriceTierSet string `json:"priceTierSet,omitempty"`
+	// AtomicCategory/AtomicSubcategory map a FOOD carousel category onto the workbook's Atomic
+	// Food Taxonomy v2 layer (0145) — e.g. Dosa → South Indian / Tamil Tiffin. Empty on rows that
+	// are not part of the carousel.
+	AtomicCategory    string `json:"atomicCategory,omitempty"`
+	AtomicSubcategory string `json:"atomicSubcategory,omitempty"`
 	// HeaderLabels are the curated header lists this row belongs to (0115):
 	// MAIN_APP_HEADER | MART | FOOD | PHARMA. `App` is always one of them.
 	HeaderLabels []string `json:"headerLabels"`
@@ -181,7 +186,7 @@ const rowSelect = `select id, app::text, name, slug, coalesce(icon_url, ''),
 	coalesce(name_ta, ''), coalesce(price_tier_set, 'standard'), ` + headerLabelsSelect + `, ` + gstSelect + `,
 	(select count(*) from catalog.products p
 	  where p.deleted_at is null and p.taxonomy_category_id = taxonomy.categories.id),
-	deleted_at, delete_reason`
+	deleted_at, delete_reason, coalesce(atomic_category, ''), coalesce(atomic_subcategory, '')`
 
 func scanCategory(row pgx.Row) (Category, error) {
 	var c Category
@@ -190,7 +195,8 @@ func scanCategory(row pgx.Row) (Category, error) {
 		&c.ParentID, &c.SearchQuery, &c.IsActive, &c.ShowOnHomeRail, &c.SortOrder,
 		&c.CreatedAt, &c.UpdatedAt, &c.CreatedBy, &c.UpdatedBy, &c.NameTA, &c.PriceTierSet,
 		&c.HeaderLabels, &c.GSTRatePct, &c.GSTRateCategoryID, &c.GSTRateCategoryName,
-		&c.ProductCount, &deletedAt, &c.DeleteReason)
+		&c.ProductCount, &deletedAt, &c.DeleteReason,
+		&c.AtomicCategory, &c.AtomicSubcategory)
 	if c.HeaderLabels == nil {
 		c.HeaderLabels = []string{}
 	}

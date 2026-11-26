@@ -449,6 +449,9 @@ export interface Category {
   nameTa?: string;
   /** Customer price-filter bucket set (0143): standard / premium / snack. */
   priceTierSet?: 'standard' | 'premium' | 'snack';
+  /** Atomic Food Taxonomy v2 mapping (0145): e.g. Dosa → South Indian / Tamil Tiffin. */
+  atomicCategory?: string;
+  atomicSubcategory?: string;
   /** Tamil display description (server translation, 0107). Empty → fall back to `description`. */
   descriptionTa?: string;
   iconUrl?: string;
@@ -1423,9 +1426,20 @@ export class GatewayClient {
     return this.http<OrderInvoice>(`/orders/${encodeURIComponent(orderId)}/invoice`);
   }
 
-  async getProfile(userId = 'user-1'): Promise<ProfileRow | undefined> {
+  /**
+   * The caller's `accounts.profile` row. `hasName` tells sign-in whether the customer already has
+   * a chosen name. Pass the freshly verified OTP `accessToken` to read it *before* the session is
+   * persisted — the normal call uses the Keychain-stored bearer.
+   */
+  async getProfile(accessToken?: string): Promise<ProfileRow | undefined> {
     return this.serverOnly(
-      () => this.http<ProfileRow>('/profile'),
+      () =>
+        this.http<ProfileRow>(
+          '/profile',
+          accessToken
+            ? { headers: { Authorization: `Bearer ${accessToken}` } }
+            : undefined,
+        ),
     );
   }
 
@@ -2938,8 +2952,11 @@ export class GatewayClient {
     return this.http<DeliveryBoyLocation>(`/admin/delivery-boys/${encodeURIComponent(id)}/location`);
   }
 
-  /** Fire-and-forget behavior event (ID-only; offline is a silent no-op). */
+  /** Fire-and-forget behavior event (ID-only; offline/guest is a silent no-op). */
   async trackEvent(productId: string, event: TrackableEvent = 'view'): Promise<void> {
+    // `/events` is auth-scoped. A guest has no user to attribute a closed-loop ad event to, so do
+    // not fire a request that would 401 and trigger session recovery on every product view.
+    if (!useAuthStore.getState().isAuthenticated) return;
     await this.serverOnly(
       () =>
         this.http<{ ok: boolean }>('/events', { method: 'POST', body: JSON.stringify({ productId, event }) }).then(

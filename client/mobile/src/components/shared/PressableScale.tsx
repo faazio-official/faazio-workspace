@@ -2,7 +2,7 @@ import React from 'react';
 import { Pressable } from 'react-native';
 import type { GestureResponderEvent, PressableProps, StyleProp, ViewStyle } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
-import { DURATION, EASE_ENTRANCE, SCALE } from '@/theme/motion';
+import { DURATION, RE_EASE_ENTRANCE, SCALE } from '@/theme/motion';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 const AnimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -38,7 +38,7 @@ export function PressableScale({
     if (!reduceMotion) {
       scale.value = withTiming(pressScale, {
         duration: DURATION.press,
-        easing: EASE_ENTRANCE,
+        easing: RE_EASE_ENTRANCE,
       });
     }
     onPressIn?.(event);
@@ -48,7 +48,7 @@ export function PressableScale({
     if (!reduceMotion) {
       scale.value = withTiming(1, {
         duration: DURATION.press,
-        easing: EASE_ENTRANCE,
+        easing: RE_EASE_ENTRANCE,
       });
     }
     onPressOut?.(event);

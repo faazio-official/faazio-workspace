@@ -3,7 +3,7 @@ import { create } from 'zustand';
 
 /**
  * Whether the first-run onboarding carousel has been completed or skipped.
- * A logged-out returning user should land on Login, not the carousel again.
+ * A logged-out returning user lands on MainTabs (guest browsing), not the carousel again.
  */
 const STORAGE_KEY = 'faazio:onboarding:seen';
 

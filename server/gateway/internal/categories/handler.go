@@ -34,6 +34,7 @@ func (h *Handler) Register(r chi.Router) {
 		g.Use(auth.RequireRole(auth.RoleSuperAdmin))
 		g.Get("/admin/categories", h.adminList)
 		g.Get("/admin/categories/trash", h.adminTrash)
+		g.Get("/admin/food-master", h.foodMaster)
 		g.Get("/admin/categories/{id}/attribute-groups", h.listAttributeGroups)
 		g.Put("/admin/categories/{id}/attribute-groups", h.replaceAttributeGroups)
 		g.Post("/categories", h.create)

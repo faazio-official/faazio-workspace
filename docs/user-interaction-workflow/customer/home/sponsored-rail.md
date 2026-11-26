@@ -19,9 +19,13 @@
 ## State
 
 - Section-local state (no shared ad store).
+- The paid shelf is a **horizontal rail** (`SponsoredRail` → horizontal `ScrollView`, one card per
+  column). Hosts that own a cart can pass `quantityOf` / `onIncrement` / `onDecrement`, so each paid
+  card renders the shared **Add** pill → **`− qty +`** stepper in place (Mart `SPONSORED_SHOWCASE` and
+  the `SECTOR_RAIL` deals landing do; both share the live `useCartStore` quantity).
 - No card-level add on Home: the Home sponsored rail renders `UniversalFeedCard` with
-  `showAddButton={false}` (tap → PDP → add). The shared `SponsoredRail` still exposes `onAdd` for
-  hosts that keep a card-level add control (e.g. the Mart showcase).
+  `showAddButton={false}` (tap → PDP → add). The shared `SponsoredRail` still exposes the add
+  handlers for hosts that keep a card-level control.
 
 ## Data path
 

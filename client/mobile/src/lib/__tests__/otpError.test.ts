@@ -33,6 +33,10 @@ describe('otpErrorMessage', () => {
     );
   });
 
+  it('maps the local hard-timeout guard to actionable copy', () => {
+    expect(otpErrorMessage({ code: 'faazio/otp-timeout' }, 'fallback')).toContain('timed out');
+  });
+
   it('falls back for unknown codes', () => {
     expect(otpErrorMessage({ code: 'auth/something-new' }, 'fallback')).toBe('fallback');
   });

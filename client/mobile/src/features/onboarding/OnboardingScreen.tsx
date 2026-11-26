@@ -159,8 +159,10 @@ export function OnboardingScreen({ navigation }: Props) {
   };
 
   const handleSkip = () => {
+    // Guest browsing: skip straight to the catalogue. Sign-in is only asked when an
+    // account-bound action needs it (checkout, orders, favourites, rewards).
     markSeen();
-    navigation.navigate('Login');
+    navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
   };
 
   const currentData = ONBOARDING_DATA[currentStep];
@@ -192,7 +194,7 @@ export function OnboardingScreen({ navigation }: Props) {
           style={styles.skipButton}
           activeOpacity={0.8}
           accessibilityRole="button"
-          accessibilityLabel="Skip onboarding"
+          accessibilityLabel="Skip onboarding and browse as guest"
         >
           <AppText style={styles.skipText}>Skip</AppText>
         </TouchableOpacity>

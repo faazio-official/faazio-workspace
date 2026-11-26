@@ -52,7 +52,7 @@ starts; it reads the bundled `GoogleService-Info.plist` for the active product c
 Without it, `getApps()` is empty, `firebaseAuthConfigured()` is false, and `LoginScreen` silently
 takes its `__DEV__` placeholder path: no SMS is sent, any six digits "succeed" with a fake
 `placeholder.*` token, the gateway 401s, `recoverSession` finds no native user, `expireSession`
-clears the session and the navigator resets to `Login` — an apparent OTP → Login loop. Verify the
+clears the session and the navigator drops back to guest browsing (`MainTabs`) — an apparent failed sign-in. Verify the
 fix in the simulator by logging `getApps().length` (must be ≥ 1).
 
 ## 3. Flow
@@ -224,13 +224,15 @@ in `notifications.push_tokens` (`token_kind='voip'`, `0105`).
 ### 3.1 iOS: why a browser opens, and how to avoid it
 
 Firebase verifies the caller with a **silent APNs push**. When that cannot happen it opens an
-in-app `SFSafariViewController` asking for reCAPTCHA. Two triggers:
+in-app `SFSafariViewController` asking for reCAPTCHA. Triggers:
 
 | Situation | Result |
 |---|---|
 | iOS **simulator** (any build) | Always reCAPTCHA — the simulator has no APNs token. Expected. |
-| Physical iPhone, **Part 6 not done** (no APNs `.p8` uploaded / Push Notifications capability missing) | reCAPTCHA every time. Upload the `.p8` key to Firebase → Project Settings → Cloud Messaging to get silent verification. |
+| Physical iPhone/iPad, **Part 6 not done** (no APNs `.p8` uploaded / Push Notifications capability missing) | reCAPTCHA every time. Upload the `.p8` key to Firebase → Project Settings → Cloud Messaging to get silent verification. |
 | Physical iPhone, Part 6 done | Silent push; the browser is used only as a rare fallback. |
+| Any iOS device with a **Firebase test number** | The test number skips the **SMS** only. App verification still runs: silent APNs when configured, otherwise reCAPTCHA. Disabling verification (`appVerificationDisabledForTesting`) is for non-release tests and must never ship. |
+| Physical **iPad**, reCAPTCHA fallback | The sheet can be silently blocked when another controller is already presented or the root presenter is not ready; the native promise then never settles. Guarded client-side by the hard timeout below. |
 
 The app registers for remote notifications at launch
 (`ios/Faazio/AppDelegate.swift` → `application.registerForRemoteNotifications()`) so the silent
@@ -239,7 +241,47 @@ the callback URL scheme must still be present in the **built** `Info.plist`
 (`app-<GOOGLE_APP_ID with : → ->`). `ios/scripts/firebase-url-scheme.sh` (run by the
 `Firebase URL scheme` build phase) reads `GOOGLE_APP_ID` from the bundled
 `GoogleService-Info.plist` and injects the matching scheme. No manual plist
-edit is needed; the customer scheme is also committed in `Info.plist` as a fallback.
+edit is needed; the customer scheme is also committed in `Info.plist` as a fallback. This app
+does **not** use Google Sign-In, so `REVERSED_CLIENT_ID` is absent from
+`GoogleService-Info.plist` and there is no separate reversed scheme to add; the derived
+`app-<GOOGLE_APP_ID>` scheme is the one Phone Auth needs.
+
+`AppDelegate.application(_:open:options:)` forwards URLs to `RCTLinkingManager`; FirebaseAuth
+swizzles that delegate so it consumes its own callback first. Keep swizzling enabled (the default)
+— only call `Auth.auth().canHandle(url)` explicitly if swizzling is ever disabled.
+
+> **API-key allowlist (silent reCAPTCHA failure).** Firebase's iOS reCAPTCHA page loads from
+> `https://<project-id>.firebaseapp.com` and calls Identity Toolkit with the **iOS API key**. The
+> iOS key (`GoogleService-Info.plist` → `API_KEY`) must therefore be **unrestricted or allowlisted
+> for the HTTP referrer `project-65696e12-8def-460e-b29.firebaseapp.com`** in Google Cloud Console
+> → APIs & Services → Credentials → API key. A key whose only application restriction is the iOS
+> bundle ID is not sufficient for the web reCAPTCHA page: it fails or sits blank — which looks
+> exactly like the iPad "freeze". Verify the restriction and adjust it (e.g. an auth-specific key
+> with the referrer allowlist) before every App Review submission. This is a console action, not
+> code.
+
+> **Presentation contract (iPad):** `LoginScreen` is a normal React Navigation
+> `Stack.Screen` (`presentation: 'card'`, not a React Native `<Modal>`/transparent overlay). Do not
+> wrap phone sign-in in a `Modal` — on iPadOS `SFSafariViewController` can fail to present over
+> another modal, which is one way the reCAPTCHA fallback hangs.
+
+**Hard timeout (client safety net).** `src/services/firebaseAuth.ts` wraps every
+`signInWithPhoneNumber` and `confirmation.confirm()` call in a 20 s `withTimeout`
+(`OTP_SEND_TIMEOUT_MS` / `OTP_VERIFY_TIMEOUT_MS`). The native SDK has no cancel API, so this does
+not abort Firebase; it guarantees the screen leaves its spinner, clears the dead pending request,
+and shows `Verification timed out. Check your connection and try again.` (`faazio/otp-timeout` in
+`src/lib/otpError.ts`). A late native auto-retrieval from a timed-out send is signed out so it
+cannot leak into the next attempt.
+
+> **What actually fixes App Review.** A Firebase **test phone number skips the SMS, not app
+> verification**. On iOS the SDK still calls `verifyClient` first: it waits ~5 s for the silent
+> APNs push and then falls back to reCAPTCHA (the 1 s notification-forwarding probe runs before
+> that, so the 20 s ceiling includes this prelude). Therefore **upload the APNs `.p8` to Firebase
+> before resubmitting** — with it, a physical iPad gets silent verification and the test number
+> signs in without any browser. The test number in App Review Notes remains mandatory (the
+> reviewer cannot receive a real SMS), but it is not a reCAPTCHA bypass by itself. Setting
+> `appVerificationDisabledForTesting` in a release build is **not** an acceptable shortcut: it
+> disables verification for every real number and is a production security hole.
 
 **Browser-free simulator development:** do not disable verification for real numbers.
 
@@ -314,6 +356,11 @@ edit is needed; the customer scheme is also committed in `Info.plist` as a fallb
       `123456` (see "Test phone numbers (Play Store review)" above; the seller app uses email/password).
       Use them for Metro + CI; real SMS for device tests.
 - [x] API keys restricted to the Android/iOS apps + Identity Toolkit API.
+- [ ] **iOS reCAPTCHA API-key allowlist.** The iOS key in `GoogleService-Info.plist` must be
+      unrestricted or allow the HTTP referrer `project-65696e12-8def-460e-b29.firebaseapp.com`.
+      A bundle-ID-only restriction is not enough for the reCAPTCHA web page; it can fail/blank and
+      make phone auth look hung on iPad. Check Google Cloud Console → APIs & Services →
+      Credentials. See §3.1.
 - [x] Server FCM service-account key generated (`firebase-adminsdk-fbsvc@project-65696e12-8def-460e-b29`).
 - [ ] **Part 6 — anti-abuse (blocked): Firebase project is not linked to Google Cloud.**
   - [ ] Enable **Play Integrity API** in the linked GCP project.
@@ -368,7 +415,13 @@ receive a real SMS, so the review accounts must be **Firebase test phone numbers
 > Do not delete or change a test number while an app is under review.
 
 Test numbers also enable browser-free simulator development when
-`FIREBASE_APP_VERIFICATION_DISABLED=true` is set (see §3.1).
+`FIREBASE_APP_VERIFICATION_DISABLED=true` is set (see §3.1) — that flag is what disables the
+reCAPTCHA fallback for testing; the test number alone only removes the SMS.
+
+> **iOS App Review:** a test number does **not** bypass APNs/reCAPTCHA on iOS by itself. Upload
+> the APNs `.p8` (so silent verification succeeds on the physical iPad) **and** put the customer
+> test number in App Review Notes. If the reviewer still sees a reCAPTCHA sheet, it must present
+> and complete; the 20 s client timeout returns the Send code button if it is blocked. See §3.1.
 
 ## 5. Server configuration
 
@@ -413,6 +466,9 @@ Device smoke test (CI debug APK):
 | OTP screen shows `[auth/session-expired] The sms code has expired…` | The verification session died before `confirm()` (code too old, or the Play-Integrity→reCAPTCHA retry superseded the verification id — common on a sideloaded debug APK). The client maps Firebase codes through `src/lib/otpError.ts` and now shows "That code has expired. Tap Resend OTP to get a new one." while clearing the dead pending request; tap **Resend OTP** to get a fresh one. Confirm the APK is a current build (`gh run download`), and complete Part 6 / install from Play to remove the retry entirely. |
 | `auth/missing-client-identifier` (`missing-client-identifier`, native `17093`) on Android | App verification was **disabled for testing** (`FIREBASE_APP_VERIFICATION_DISABLED=true`, usually leaked from `.env.ios` into a platform-agnostic Metro run), so Firebase accepted only console **test numbers** — real numbers were rejected. This is not a fingerprint problem (a real SHA mismatch surfaces as `invalid-app-credential`, `18002`, or `INVALID_CERT_HASH 400`). Fixed by defaulting the flag to `false` and gating it to iOS in `src/services/firebaseAuth.ts`; Android now always runs verification and falls back to reCAPTCHA. See §3.1. |
 | Send always fails on iOS | Part 6 APNs not configured; reCAPTCHA fallback should still open. Add the `.p8` key. |
+| **Send code** spins forever on iPad (or iPhone) during App Review | The reCAPTCHA fallback could not present and the native promise never settled (old build). Current builds hard-timeout after 20 s, clear the pending request and show "Verification timed out…". For review, use the registered Firebase test number (`+91 9000000001` / `123456`) in App Review Notes — it skips the SMS — and upload the APNs `.p8` so app verification uses silent push instead of reCAPTCHA. See §3.1. |
+| iOS reCAPTCHA sheet is blank / "Cannot contact reCAPTCHA" | The iOS API key is not allowlisted for `project-65696e12-8def-460e-b29.firebaseapp.com` (HTTP referrer). Add that referrer in Google Cloud Console → APIs & Services → Credentials, or leave the key unrestricted. See §3.1. |
+| App hangs after a late reCAPTCHA completes | The send already timed out; the response is intentionally ignored. Treat it as a failed attempt and tap **Send code** again (or **Resend** on the code step). A native session created by the late auto-retrieval is signed out automatically. |
 | App crashes (SIGTRAP, `PhoneAuthProvider.swift` `fatalError`) when sending OTP on iOS | FirebaseAuth `verifyPhoneNumber` fatals when its callback URL scheme (`app-<GOOGLE_APP_ID with : → ->`) is missing from the built `Info.plist`; it trips before any network call. `ios/scripts/firebase-url-scheme.sh` (the `Firebase URL scheme` phase) injects it from the bundled `GoogleService-Info.plist`. If it recurs, the build predates that phase or the bundled Firebase plist has no `GOOGLE_APP_ID`: clean build, confirm the phase ran (look for the `note: added Firebase Auth URL scheme …` log line), and check the active `GoogleService-Info*.plist`. If `CLIENT_ID` exists, its reversed value is the equivalent scheme. With swizzling enabled (default) FirebaseAuth consumes the redirect itself; only forward URLs to `Auth.auth().canHandle(url)` in `AppDelegate.application(_:open:options:)` if swizzling is disabled. |
 | `401` from the gateway after login | The gateway builds the Firebase verifier only when `FIREBASE_PROJECT_ID` is non-empty (`config.Config.FirebaseProjectID`); if empty it verifies only portal/legacy HS256 tokens, so every Firebase ID token (RS256) 401s. Check: a valid token whose `iss` = `https://securetoken.google.com/project-65696e12-8def-460e-b29` and `aud` = `project-65696e12-8def-460e-b29` still gets `{"code":"unauthorized"}` from `https://api.faazio.com/categories/rail`, while a legacy HS256 token works. Fix: set `FIREBASE_PROJECT_ID` (and `FCM_PROJECT_ID`) on the Render service to `project-65696e12-8def-460e-b29` and redeploy; a `render.yaml` Blueprint deploy syncs these, a manually-created service does not. Client symptom: the Home/Mart category rail shows a **Retry** chip and logs `[rail] fetchCategoryRail failed ... GatewayHttpError status: 401` in dev. |
 | `401` from the gateway after login (config present) | `FIREBASE_PROJECT_ID` value mismatch (wrong/rotated project or a stray quote/space), or the container cannot reach `googleapis.com` to fetch the signing certs. Confirm the project id matches the client `google-services.json`. |

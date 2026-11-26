@@ -10,6 +10,7 @@
 | Flow | Doc |
 |---|---|
 | Store/category drill-in | [store-drillin.md](./store-drillin.md) |
+| Food category rail + drill-in | [food-categories.md](./food-categories.md) |
 | Product detail | [product-detail.md](./product-detail.md) |
 | Product review | [product-review.md](./product-review.md) |
 | Food search | [food-search.md](./food-search.md) |

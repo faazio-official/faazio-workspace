@@ -3,7 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { MapPin } from 'lucide-react-native';
 import { hs, ms, vs } from '@/utils/responsive';
-import { DURATION, EASE_ENTRANCE, SCALE } from '@/theme/motion';
+import { DURATION, RE_EASE_ENTRANCE, SCALE } from '@/theme/motion';
 import AppText from '@/components/AppText';
 import { localizedName } from '@/lib/localizedText';
 import { useLanguageStore } from '@/state/languageStore';
@@ -33,10 +33,10 @@ const RestaurantCard = memo(function RestaurantCard({ restaurant, onPress }: Res
   }));
 
   const onPressIn = () => {
-    scale.value = withTiming(SCALE.press, { duration: DURATION.press, easing: EASE_ENTRANCE });
+    scale.value = withTiming(SCALE.press, { duration: DURATION.press, easing: RE_EASE_ENTRANCE });
   };
   const onPressOut = () => {
-    scale.value = withTiming(1, { duration: DURATION.press, easing: EASE_ENTRANCE });
+    scale.value = withTiming(1, { duration: DURATION.press, easing: RE_EASE_ENTRANCE });
   };
 
   return (

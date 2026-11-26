@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
+import { PRODUCT_CARD_COLUMNS, PRODUCT_CARD_GAP, PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import AppText from '@/components/AppText';
 import type { Product } from '@data/types';
 import { gateway, type HomeCampaignDetail } from '@/services/api/GatewayClient';
@@ -24,7 +24,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'DealsLanding'>;
 const CARD_GAP = hs(12);
 const SCREEN_W = Dimensions.get('window').width;
 const GRID_CARD_W = (SCREEN_W - hs(32) - CARD_GAP) / 2;
-
 /**
  * Deals landing page — one page, four entry modes:
  * - `campaign`: a brand campaign's full product grid (from the Home "Deals of the
@@ -42,6 +41,12 @@ export function DealsLandingScreen({ navigation, route }: Props) {
   const updateQuantity = useCartStore((s) => s.updateQuantity);
 
   const isListMode = mode === 'martDeals' || mode === 'martEssentials';
+  // Daily Essentials mirrors the compact Home grid: 3-up, square images, 2-line
+  // names, no rating badge, no add control. Deals keeps its 2-up shopping grid.
+  const isEssentialsGrid = mode === 'martEssentials';
+  const columns = isEssentialsGrid ? PRODUCT_CARD_COLUMNS : 2;
+  const gridGap = isEssentialsGrid ? PRODUCT_CARD_GAP : CARD_GAP;
+  const gridCardW = isEssentialsGrid ? PRODUCT_CARD_WIDTH : GRID_CARD_W;
 
   // Local campaign fixture is the explicit offline shell only; while the gateway is enabled the
   // server-backed drill-in below is the sole origin. It is never used as an error fallback.
@@ -219,10 +224,31 @@ export function DealsLandingScreen({ navigation, route }: Props) {
   const renderItem = useCallback(
     ({ item }: ListRenderItemInfo<Product>) => {
       const qty = qtyOf(item.id);
+      if (isEssentialsGrid) {
+        return (
+          <MartProductCard
+            product={item}
+            width={gridCardW}
+            imageAspect={1}
+            nameLines={2}
+            showRating={false}
+            showBadge={false}
+            quantity={qty}
+            isAdded={qty > 0}
+            compactPrice
+            onPress={() => handleProductPress(item)}
+            onAdd={() => addToCart(item.id, item.name, item.price, item.emoji)}
+            onIncrement={() => updateQuantity(item.id, 1)}
+            onDecrement={() => updateQuantity(item.id, -1)}
+          />
+        );
+      }
       return (
         <MartProductCard
           product={item}
-          width={GRID_CARD_W}
+          width={gridCardW}
+          nameLines={2}
+          showRating={false}
           quantity={qty}
           isAdded={qty > 0}
           onPress={() => handleProductPress(item)}
@@ -232,7 +258,7 @@ export function DealsLandingScreen({ navigation, route }: Props) {
         />
       );
     },
-    [cartItems, handleProductPress, addToCart, updateQuantity],
+    [cartItems, handleProductPress, addToCart, updateQuantity, isEssentialsGrid, gridCardW],
   );
 
   const notFound =
@@ -265,6 +291,9 @@ export function DealsLandingScreen({ navigation, route }: Props) {
       placement="SECTOR_RAIL"
       onProductClick={handleProductPress}
       addToCart={addToCart}
+      quantityOf={qtyOf}
+      onIncrement={(id) => void updateQuantity(id, 1)}
+      onDecrement={(id) => void updateQuantity(id, -1)}
       renderCard={(product, h) => (
         <MartProductCard
           key={product.id}
@@ -273,9 +302,12 @@ export function DealsLandingScreen({ navigation, route }: Props) {
           variant="rail"
           imageAspect={1}
           showAdLabel
+          quantity={h.quantity}
           isAdded={h.isAdded}
           onPress={h.onPress}
           onAdd={h.onAdd}
+          onIncrement={h.onIncrement}
+          onDecrement={h.onDecrement}
         />
       )}
     />
@@ -299,9 +331,10 @@ export function DealsLandingScreen({ navigation, route }: Props) {
 
       <FlatList
         data={products}
+        key={columns}
         keyExtractor={(item) => item.id}
-        numColumns={2}
-        columnWrapperStyle={styles.productRow}
+        numColumns={columns}
+        columnWrapperStyle={[styles.productRow, { columnGap: gridGap }]}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}
         renderItem={renderItem}
@@ -399,7 +432,6 @@ const styles = StyleSheet.create({
     paddingBottom: SPACE.LIST_BOTTOM,
   },
   productRow: {
-    gap: CARD_GAP,
     marginBottom: SPACE.ITEM,
   },
   hero: {

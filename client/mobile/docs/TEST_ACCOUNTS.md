@@ -55,6 +55,14 @@ under this project. See `docs/RUNBOOKS/FIREBASE_AUTH.md` §1.
    pair registered here.
 4. Do not delete or change a test number while an app is under review.
 
+> **App Store review (iPhone + iPad):** the same customer test number is the review credential.
+> A test number skips the **SMS only** — on iOS, Firebase still verifies the app with a silent
+> APNs push and falls back to reCAPTCHA when it cannot. Upload the APNs `.p8` to Firebase before
+> resubmitting so silent verification works on the physical iPad, and paste the sign-in note from
+> `APPSTORE_RELEASE.md` §5b into **App Review Information → Notes**. If the reCAPTCHA sheet does
+> appear and is blocked, current builds time out after 20 s and release the Send code button
+> instead of freezing (see `docs/RUNBOOKS/FIREBASE_AUTH.md` §3.1).
+
 ## Play Console setup
 
 For **each** app → **App content** → **Sign in details** (select "All or some functionality is

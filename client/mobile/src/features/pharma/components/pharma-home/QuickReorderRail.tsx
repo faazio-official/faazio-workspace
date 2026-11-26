@@ -16,6 +16,9 @@ interface QuickReorderRailProps {
   items: PharmaQuickReorderItem[];
   onPress?: (item: PharmaQuickReorderItem) => void;
   onAdd?: (item: PharmaQuickReorderItem) => void;
+  quantityOf?: (id: string) => number;
+  onIncrement?: (item: PharmaQuickReorderItem) => void;
+  onDecrement?: (item: PharmaQuickReorderItem) => void;
   onViewAll?: () => void;
 }
 
@@ -23,6 +26,9 @@ const QuickReorderRail = memo(function QuickReorderRail({
   items,
   onPress,
   onAdd,
+  quantityOf,
+  onIncrement,
+  onDecrement,
   onViewAll,
 }: QuickReorderRailProps) {
   return (
@@ -47,8 +53,11 @@ const QuickReorderRail = memo(function QuickReorderRail({
             <QuickReorderCard
               item={item}
               width={CARD_W}
+              quantity={quantityOf?.(item.id) ?? 0}
               onPress={() => onPress?.(item)}
               onAdd={() => onAdd?.(item)}
+              onIncrement={onIncrement ? () => onIncrement(item) : undefined}
+              onDecrement={onDecrement ? () => onDecrement(item) : undefined}
             />
           </View>
         ))}

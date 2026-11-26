@@ -1,11 +1,23 @@
 # Add to cart
 
 **App / route:** customer · product cards, PDP, sponsored rails, `Cart` / Cart tab
-**Status:** Shipped
-**Trigger:** Tapping "Add" on a product card or PDP, or +/- on a cart line.
+**Status:** Shipped (guest adds are device-local)
+**Trigger:** Tapping the card "Add" pill (or PDP CTA), or +/− on a cart line.
 
 ## Steps
 
+0. **Card affordance.** Product cards use the shared `AddToCartControl`
+   (`src/components/shared/AddToCartControl.tsx`): a sentence-case **Add** pill that, once the line
+   exists (`quantity > 0`), cross-fades + scales into a **`− qty +`** stepper in the same footprint —
+   the price row never reflows. The count is the live cart quantity, so the card updates in place on
+   every tap; Reduce Motion swaps the two states instantly. It is mounted on every non-ad product
+   card: Mart grids and home rails, the Home 3-up grids and rails, the Pharma popular / quick-reorder
+   / category cards, the Food menu and search dish cards, and the dense search rows. Card body order
+   is unit + **Add** on one line directly under the image, then price, then name. Paid placements
+   (`AdProductCard`, sponsored rail) keep their ad treatment and no shopper add action.
+0a. **Guests:** the cart is device-local. `useCartStore` skips the auth-scoped `/cart` writes while
+   `isAuthenticated` is false, so the optimistic line stays instead of rolling back on a 401. The
+   lines merge into the account when the guest signs in (`hydrateUserStores()`).
 1. The card/PDP calls `useCartStore.addToCart(id, name, price, iconKey, restaurantId?)`. The fourth
    argument is a semantic `EnterpriseIcon` key (`dining`, `pharma`, `mart`, …) for screen-sourced
    items; server/catalog products still pass their legacy emoji, which `EnterpriseIcon` resolves
@@ -33,7 +45,7 @@
 
 - `useCartStore` (`src/state/cartStore.ts`) — items, qty, totals, restaurant tagging, add-on
   `addonIds`/`addonPrice`/`addonSummary`, `syncError`.
-- `useAuthStore` — cart writes require a session.
+- `useAuthStore` — signed-in cart writes sync to the server; guest writes stay on the device.
 
 ## Data path
 

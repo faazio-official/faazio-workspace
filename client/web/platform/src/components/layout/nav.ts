@@ -146,6 +146,7 @@ export const SUPER_ADMIN_NAV: NavItem[] = [
   { label: "Products", to: "/admin/super/products", icon: Package, group: "Supply" },
   { label: "GST rates", to: "/admin/super/gst-rates", icon: Tags, group: "Supply" },
   { label: "Categories", to: "/admin/super/categories", icon: Tags, group: "Supply" },
+  { label: "Food master", to: "/admin/super/food-master", icon: BookOpen, group: "Supply" },
   { label: "Festival", to: "/admin/super/festival", icon: PartyPopper, group: "Growth" },
   { label: "Coupons", to: "/admin/super/coupons", icon: Ticket, group: "Growth" },
   { label: "Ads", to: "/admin/super/ads", icon: Megaphone, group: "Growth" },

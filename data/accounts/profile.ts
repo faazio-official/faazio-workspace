@@ -17,6 +17,11 @@ import { accountDetails } from '../account/details';
 export interface ProfileRow extends UserProfile {
   id: string;
   accountId: string;
+  /**
+   * True once the customer has chosen a real name (`GET /profile`). False while the row still
+   * carries the provisioning placeholder, so sign-in asks for a name only on first login.
+   */
+  hasName?: boolean;
 }
 
 export const profileTable: ProfileRow[] = [

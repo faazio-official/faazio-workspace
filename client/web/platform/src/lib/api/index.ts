@@ -469,6 +469,9 @@ export interface CategoryRow {
   nameTa?: string;
   /** Customer price-filter bucket set (0143): standard / premium / snack. */
   priceTierSet?: "standard" | "premium" | "snack";
+  /** Atomic Food Taxonomy v2 mapping of a FOOD carousel category (0145). */
+  atomicCategory?: string;
+  atomicSubcategory?: string;
   iconUrl?: string;
   parentId: string | null;
   searchQuery?: string;
@@ -569,6 +572,64 @@ export interface CategoryGSTRate {
   isActive: boolean;
   updatedAt?: string;
   updatedBy?: string;
+}
+
+/** One Atomic Food Taxonomy v2 row (`taxonomy.food_atomic_taxonomy`, migration 0145). */
+export interface FoodAtomicTaxonomyRow {
+  id: string;
+  app: string;
+  recordType: string;
+  category: string;
+  subCategory: string;
+  gstCategoryName: string;
+  gstSlug: string;
+  gstRatePct: number;
+  gstRuleStatus: string;
+  displayOrder: number;
+}
+
+/** One store-onboarding rule from the FOOD catalogue workbook (`taxonomy.store_config_options`). */
+export interface StoreConfigOption {
+  id: string;
+  storeAttributeGroup: string;
+  optionValue: string;
+  atomicCategory?: string;
+  atomicSubcategory?: string;
+  collectionStage: string;
+  behaviorNote: string;
+  displayOrder: number;
+}
+
+/** One generated sample dish template (`taxonomy.food_sample_menu_items`), not a live menu row. */
+export interface FoodSampleMenuItem {
+  id: string;
+  dishName: string;
+  appSubcategory: string;
+  atomicCategory: string;
+  atomicSubcategory: string;
+  dietaryPreference: string;
+  basePriceInr: number;
+  autoPriceBucket: string;
+  primaryFlavourOrIngredient: string;
+  masterTabGroup: string;
+  typeOrBase: string;
+  additiveOrSauce: string;
+  cuisineOrigin: string;
+  deliveryMode: string;
+  applicableGstRate: string;
+  displayOrder: number;
+}
+
+/** The read-only FOOD reference master data bundle (`GET /admin/food-master`). */
+export interface FoodMasterData {
+  atomicTaxonomy: FoodAtomicTaxonomyRow[];
+  storeConfig: StoreConfigOption[];
+  sampleMenu: FoodSampleMenuItem[];
+}
+
+/** Superadmin-only: the FOOD reference master data seeded from the catalogue workbook. */
+export async function fetchFoodMaster(): Promise<FoodMasterData> {
+  return remote.get<FoodMasterData>("/admin/food-master");
 }
 
 /** Superadmin-only: every category (including deactivated) for the portal, optionally app-scoped. */

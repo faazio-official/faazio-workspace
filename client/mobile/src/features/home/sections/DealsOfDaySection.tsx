@@ -22,7 +22,13 @@ interface DealsOfDaySectionProps extends SectionProps {
   products?: Product[];
 }
 
-function DealsOfDaySection({ products, onProductClick }: DealsOfDaySectionProps) {
+function DealsOfDaySection({
+  products,
+  onProductClick,
+  quantityOf,
+  onAddToCart,
+  onUpdateQuantity,
+}: DealsOfDaySectionProps) {
   const offline = !gateway.remoteEnabled;
   const [serverProducts, setServerProducts] = useState<Product[]>([]);
   const [fetchState, setFetchState] = useState<'idle' | 'loading' | 'live' | 'error'>('idle');
@@ -75,23 +81,30 @@ function DealsOfDaySection({ products, onProductClick }: DealsOfDaySectionProps)
         <AppText style={styles.stateText}>No deals available today.</AppText>
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-          {rows.map((product) => (
-            <MartProductCard
-              key={product.id}
-              product={product}
-              originalPrice={product.originalPrice}
-              variant="rail"
-              width={DEAL_CARD_W}
-              imageAspect={1}
-              showDescription
-              showAddButton={false}
-              showRating={false}
-              showBadge={false}
-              nameLines={2}
-              compactPrice
-              onPress={() => onProductClick?.(product)}
-            />
-          ))}
+          {rows.map((product) => {
+            const quantity = quantityOf?.(product.id) ?? 0;
+            return (
+              <MartProductCard
+                key={product.id}
+                product={product}
+                originalPrice={product.originalPrice}
+                variant="rail"
+                width={DEAL_CARD_W}
+                imageAspect={1}
+                showDescription
+                quantity={quantity}
+                isAdded={quantity > 0}
+                showRating={false}
+                showBadge={false}
+                nameLines={2}
+                compactPrice
+                onPress={() => onProductClick?.(product)}
+                onAdd={() => onAddToCart?.(product)}
+                onIncrement={() => onUpdateQuantity?.(product.id, 1)}
+                onDecrement={() => onUpdateQuantity?.(product.id, -1)}
+              />
+            );
+          })}
         </ScrollView>
       )}
     </>

@@ -24,8 +24,8 @@
    - **Dish details & filter tags** (contextual, optional) — the moment a sub-category is picked the
      form fetches that leaf's facet groups (`GET /categories/{id}/attribute-groups`) and renders them
      as pill chips. Burger shows Patty / Patty Type / Cheese Type / Dressing / Bun; Ice Cream shows
-     Flavour / Type; Shake shows Flavour / Type / Additive; Rolls shows Ingredient / Base /
-     Region / Cuisine Origin. Every other FOOD leaf (Dosa, Fried Rice, Chicken, Paratha, Rice, Fries,
+     Flavour / Type; Shake shows Flavour / Type / Additive; Rolls shows Ingredient / Sauce / Base /
+     Region / Cuisine Origin (`0145` splits Sauce out of Ingredient). Every other FOOD leaf (Dosa, Fried Rice, Chicken, Paratha, Rice, Fries,
      …) shows the global **Dietary Preference** group only. Every group is optional (never blocks
      publishing), `single_select` groups behave like a radio row and `multi_select` groups accept
      several picks; long lists get an in-card search. The dish name **auto-tags**: matching each
@@ -33,7 +33,8 @@
      tap to adjust"* badge (a chip the seller removes is suppressed until re-picked). These tags are
      the customer filter facets, not sub-categories. The leaf's `priceTierSet` (`standard` /
      `premium` / `snack`, `0143`) tells the customer price filter which bucket thresholds to derive
-     from the dish's base price.
+     from the dish's base price. Under the picked leaf the form also shows its one-line cuisine
+     mapping (`atomicCategory · atomicSubcategory`, `0145`), e.g. Dosa → South Indian · Tamil Tiffin.
    - **Cuisine** (free text with suggestions), **Dietary type** (Veg / Non-veg / Egg).
    - **Price (₹)** (required, ≥ 0) and optional **MRP (₹)**; MRP must be ≥ price, and the inline
      discount % appears when it is higher.

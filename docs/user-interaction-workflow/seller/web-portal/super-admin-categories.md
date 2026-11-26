@@ -124,6 +124,12 @@ links to a slab from that master.
    tree level). The header is **unbounded** — Mart and Pharma share one horizontally scrolled strip,
    so any number of active rows can be shared. A child row is a valid chip: the customer drill-in
    opens that node's subtree. FOOD is rejected.
+
+   **Food app rail:** separately, every active top-level FOOD category on this page appears on the
+   customer Food home as its own chip below the ad banner (`GET /categories?app=FOOD` →
+   `FoodCategoryRail`) — the Food home does not use `/categories/rail`. An Icon URL is optional: a
+   FOOD root with none renders the app's rounded food-glyph fallback and still opens the Food
+   category drill-in (leaf sub-categories + dish results).
 13. The customer app reads the curated chips from `GET /categories/rail` on the Home/Mart header (see
     the Home category rail flow). Tap → `CategoryDrillIn` (that node's subtree + vendored products). A
     header-only `MAIN_APP_HEADER` chip walks its own tree while the body searches the Mart pool.
@@ -223,6 +229,7 @@ links to a slab from that master.
 ## Linked docs
 
 - [`super-admin-gst-rates.md`](./super-admin-gst-rates.md) — the slab master this page picks from
+- [`super-admin-food-master.md`](./super-admin-food-master.md) — read-only FOOD atomic taxonomy, carousel map, store rules and sample dishes (`0145`)
 - `docs/architecture/db-schema.md` §12.30 (taxonomy) + §12.4 (menu + attribute facets, `0138`) + §12.43 (GST master + per-category link)
 - `docs/architecture/monolith-breakdown.md` §1 (categories + tax rows)
 - `docs/architecture/server-gateway-plan.md` (central category taxonomy)

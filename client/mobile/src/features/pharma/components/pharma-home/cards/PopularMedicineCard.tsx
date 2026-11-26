@@ -1,8 +1,10 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Star, Plus, Check } from 'lucide-react-native';
+import { Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
+import AddToCartControl from '@/components/shared/AddToCartControl';
 import { hs, ms, vs } from '@/utils/responsive';
+import { brandRamp } from '@/theme/brandTokens';
 import type { PharmaPopularMedicine } from '../../../types';
 import { PHARMA_GREY, PHARMA_INK, PHARMA_TEAL } from '@/theme/pharmaTokens';
 import { localizedName } from '@/lib/localizedText';
@@ -15,7 +17,9 @@ interface PopularMedicineCardProps {
   width: number;
   onPress?: () => void;
   onAdd?: () => void;
-  added?: boolean;
+  quantity?: number;
+  onIncrement?: () => void;
+  onDecrement?: () => void;
 }
 
 const PopularMedicineCard = memo(function PopularMedicineCard({
@@ -23,7 +27,9 @@ const PopularMedicineCard = memo(function PopularMedicineCard({
   width,
   onPress,
   onAdd,
-  added = false,
+  quantity = 0,
+  onIncrement,
+  onDecrement,
 }: PopularMedicineCardProps) {
   const language = useLanguageStore((s) => s.language);
   const name = localizedName(item, language);
@@ -33,33 +39,33 @@ const PopularMedicineCard = memo(function PopularMedicineCard({
         <PharmaImage uri={item.imageUrl} style={styles.image} contentFit="contain" />
       </View>
       <View style={styles.body}>
+        <View style={styles.metaRow}>
+          <AppText style={styles.unit} numberOfLines={1}>
+            {item.details}
+          </AppText>
+          {onAdd ? (
+            <AddToCartControl
+              quantity={quantity}
+              onAdd={onAdd}
+              onIncrement={onIncrement}
+              onDecrement={onDecrement}
+              accent={brandRamp.PHARMA.deep}
+              onAccent={brandRamp.PHARMA.onDeep}
+              compact
+              label={name}
+              style={styles.addControl}
+            />
+          ) : null}
+        </View>
+        <View style={styles.priceRow}>
+          <AppText style={styles.price}>Price on prescription</AppText>
+        </View>
         <AppText style={styles.name} numberOfLines={1}>
           {name}
-        </AppText>
-        <AppText style={styles.details} numberOfLines={1}>
-          {item.details}
         </AppText>
         <View style={styles.metricsRow}>
           <Star size={ms(10)} color={PHARMA_TEAL} fill={PHARMA_TEAL} strokeWidth={1.5} />
           <AppText style={styles.rating}>{formatRating(item.rating)}</AppText>
-        </View>
-        <View style={styles.footerRow}>
-<View style={styles.priceWrap}>
-              <AppText style={styles.price}>Price on prescription</AppText>
-            </View>
-          <TouchableOpacity
-            onPress={onAdd}
-            style={[styles.addBtn, added && styles.addBtnAdded]}
-            hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-            accessibilityRole="button"
-            accessibilityLabel={`Add ${name} to cart`}
-          >
-            {added ? (
-              <Check size={ms(12)} color="#FFFFFF" strokeWidth={3} />
-            ) : (
-              <Plus size={ms(12)} color={PHARMA_TEAL} strokeWidth={3} />
-            )}
-          </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
@@ -94,11 +100,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: PHARMA_INK,
   },
-  details: {
+  metaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    minHeight: ms(28),
+  },
+  unit: {
+    flexShrink: 1,
+    marginRight: hs(6),
     fontSize: ms(10),
     fontWeight: '500',
     color: PHARMA_GREY,
-    marginTop: vs(2),
+  },
+  addControl: { marginLeft: 'auto' },
+  priceRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: vs(4),
   },
   metricsRow: {
     flexDirection: 'row',
@@ -111,18 +130,6 @@ const styles = StyleSheet.create({
     color: PHARMA_INK,
     marginLeft: hs(3),
   },
-  footerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: vs(8),
-  },
-  priceWrap: {
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: hs(4),
-    flexShrink: 1,
-  },
   price: {
     fontSize: ms(14),
     fontWeight: '900',
@@ -133,19 +140,5 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: PHARMA_GREY,
     textDecorationLine: 'line-through',
-  },
-  addBtn: {
-    width: ms(26),
-    height: ms(26),
-    borderRadius: ms(6),
-    borderWidth: 1,
-    borderColor: PHARMA_TEAL,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#FFFFFF',
-  },
-  addBtnAdded: {
-    backgroundColor: PHARMA_TEAL,
-    borderColor: PHARMA_TEAL,
   },
 });

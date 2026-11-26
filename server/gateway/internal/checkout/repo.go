@@ -34,6 +34,19 @@ var ErrUnknownDistrict = errors.New("checkout: unknown district")
 // legitimate name never fails server-side; the bound exists so a crafted body cannot store bloat.
 const maxProfileNameRunes = 80
 
+// defaultProfileName is the placeholder written when a phone-OTP user is first provisioned. It is
+// the single marker for "the customer has not chosen a name yet": GET /profile exposes
+// `hasName = name != defaultProfileName`, so the client asks for a name only on first sign-in.
+const defaultProfileName = "Faazio User"
+
+// profileNameConfigured reports whether the customer has chosen a real display name (anything but
+// the provisioning placeholder). Names are trimmed by UpdateProfileName, so only the placeholder
+// itself needs a direct comparison.
+func profileNameConfigured(name string) bool {
+	trimmed := strings.TrimSpace(name)
+	return trimmed != "" && trimmed != defaultProfileName
+}
+
 // OrderLineAddon is one selected extra snapshot on an order line (checkout.order_item_addons).
 type OrderLineAddon struct {
 	AddonID   string `json:"addonId,omitempty"`
@@ -225,6 +238,9 @@ type Profile struct {
 	Name      string `json:"name"`
 	Email     string `json:"email"`
 	Phone     string `json:"phone"`
+	// HasName is false while the row still carries the provisioning placeholder. The sign-in flow
+	// reads it after OTP verification to ask for a name only when the customer has none.
+	HasName bool `json:"hasName"`
 }
 
 // Membership is accounts.membership.
@@ -331,12 +347,12 @@ func (r *Repo) ProvisionUserID(ctx context.Context, authUID, phone, email string
 	)
 	err := r.pool.QueryRow(ctx, `
 		insert into checkout.users (user_id, auth_uid, name, email, phone, last_login_at)
-		values ($1, $2, 'Faazio User', $3, $4, now())
+		values ($1, $2, $3, $4, $5, now())
 		on conflict (auth_uid) do update
 		   set email = coalesce(nullif(excluded.email, ''), checkout.users.email),
 		       phone = coalesce(nullif(excluded.phone, ''), checkout.users.phone),
 		       last_login_at = now()
-		returning user_id, email, phone`, userID, authUID, email, phone).Scan(&resolved, &resolvedEmail, &resolvedPhone)
+		returning user_id, email, phone`, userID, authUID, defaultProfileName, email, phone).Scan(&resolved, &resolvedEmail, &resolvedPhone)
 	if err != nil {
 		return "", err
 	}
@@ -345,11 +361,11 @@ func (r *Repo) ProvisionUserID(ctx context.Context, authUID, phone, email string
 	// upsert only forward-fills non-empty values so it never erases a profile the user has edited.
 	if _, err := r.pool.Exec(ctx, `
 		insert into accounts.profile (id, account_id, name, email, phone)
-		values ($1, $1, 'Faazio User', $2, $3)
+		values ($1, $1, $2, $3, $4)
 		on conflict (id) do update
 		   set email = coalesce(nullif(excluded.email, ''), accounts.profile.email),
 		       phone = coalesce(nullif(excluded.phone, ''), accounts.profile.phone),
-		       updated_at = now()`, resolved, resolvedEmail, resolvedPhone); err != nil {
+		       updated_at = now()`, resolved, defaultProfileName, resolvedEmail, resolvedPhone); err != nil {
 		return "", err
 	}
 	r.cacheUserID(ctx, authUID, resolved)
@@ -1901,8 +1917,16 @@ func (r *Repo) ProfileByUser(ctx context.Context, userID string) (Profile, bool,
 			}
 			return Profile{}, false, err
 		}
-		return Profile{ID: userID, AccountID: userID, Name: name, Email: email, Phone: phone}, true, nil
+		return Profile{
+			ID:        userID,
+			AccountID: userID,
+			Name:      name,
+			Email:     email,
+			Phone:     phone,
+			HasName:   profileNameConfigured(name),
+		}, true, nil
 	}
+	p.HasName = profileNameConfigured(p.Name)
 	return p, true, nil
 }
 
@@ -2159,6 +2183,7 @@ func (r *Repo) UpdateProfileName(ctx context.Context, userID, name string) (Prof
 		Scan(&p.ID, &p.AccountID, &p.Name, &p.Email, &p.Phone); err != nil {
 		return Profile{}, false, err
 	}
+	p.HasName = profileNameConfigured(p.Name)
 	if err := tx.Commit(ctx); err != nil {
 		return Profile{}, false, err
 	}

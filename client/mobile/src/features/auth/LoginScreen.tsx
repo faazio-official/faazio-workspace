@@ -12,7 +12,7 @@ import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { RootStackParamList } from '@/navigation/AppNavigator';
 import { navigationRef } from '@/navigation/navigationRef';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, X } from 'lucide-react-native';
 import Svg, {
   Circle,
   Ellipse,
@@ -33,6 +33,7 @@ import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 import { useAuthStore } from '@/state/authStore';
 import { useOnboardingStore } from '@/state/onboardingStore';
+import { clearPendingAuthAction, consumePendingAuthAction } from '@/services/authGate';
 import { openTrustedUrl } from '@/lib/externalLinks';
 import { PRIVACY_URL, TERMS_URL } from '@/lib/site';
 import { decodeIdToken } from '@/lib/tokenClaims';
@@ -41,7 +42,6 @@ import { getRecentPhones, saveRecentPhone } from '@/lib/recentPhones';
 import {
   cancelPrimaryOtp,
   consumeAutoVerifiedOtp,
-  displayName,
   firebaseAuthConfigured,
   sendOtp,
   subscribeOtpAutoVerified,
@@ -135,10 +135,20 @@ const MAX_NAME_LENGTH = 80;
 /** Customer phone auth is India-only; the dial code is fixed, never user-selectable. */
 const COUNTRY_DIAL = '+91';
 
-export function LoginScreen({ navigation }: Props) {
+export function LoginScreen({ navigation, route }: Props) {
   const login = useAuthStore((s) => s.login);
   const hasSeenOnboarding = useOnboardingStore((s) => s.hasSeenOnboarding);
+  const markOnboardingSeen = useOnboardingStore((s) => s.markSeen);
+  const resumeAfterLogin = route.params?.resume === true;
   const insets = useSafeAreaInsets();
+
+  // Hardware-back / swipe dismissal leaves the screen without a successful sign-in. Drop the
+  // pending gated action so a later sign-in from another surface cannot replay a stale tap.
+  useEffect(() => {
+    return () => {
+      if (!useAuthStore.getState().isAuthenticated) clearPendingAuthAction();
+    };
+  }, []);
   const reduceMotion = useReducedMotion();
   const handleOpenTerms = useCallback(() => {
     void openTrustedUrl(TERMS_URL);
@@ -150,15 +160,16 @@ export function LoginScreen({ navigation }: Props) {
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState('');
   const [phoneError, setPhoneError] = useState('');
-  // Three discrete steps: name first, then the phone number, then the SMS code. `otpState` is
-  // derived so every existing OTP guard keeps reading one source of truth.
-  const [authStep, setAuthStep] = useState<'name' | 'phone' | 'otp'>('name');
+  // Phone first: verifying the number tells us whether this customer already has a name, so only a
+  // first-time user is asked for one. `otpState` is derived so every OTP guard reads one source.
+  const [authStep, setAuthStep] = useState<'phone' | 'otp' | 'name'>('phone');
   const otpState = authStep === 'otp';
   const [otpCode, setOtpCode] = useState('');
   const [otpError, setOtpError] = useState('');
   const [isNameFocused, setIsNameFocused] = useState(false);
   const [isPhoneFocused, setIsPhoneFocused] = useState(false);
   const [isVerifying, setIsVerifying] = useState(false);
+  const [isFinishingName, setIsFinishingName] = useState(false);
   const [isSending, setIsSending] = useState(false);
   const [keyboardVisible, setKeyboardVisible] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
@@ -169,6 +180,12 @@ export function LoginScreen({ navigation }: Props) {
   const otpInputRef = useRef<TextInput>(null);
   const submitRef = useRef(false);
   const resendRef = useRef(false);
+  // Verified Firebase session held while the (new) customer chooses a name. The session is not
+  // persisted until the name is set, so abandoning the step cannot leave a signed-in unnamed user.
+  const verifiedSessionRef = useRef<FirebaseSession | null>(null);
+  // Synchronous guard: state (`isSending`) only flips on the next render, so two quick taps could
+  // otherwise both start a native send before the spinner replaces the button.
+  const sendRef = useRef(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const shakeAnim = useRef(new Animated.Value(0)).current;
@@ -301,16 +318,90 @@ export function LoginScreen({ navigation }: Props) {
   const phoneE164 = toE164(phone);
   const phoneValid = isValidPhone(phone);
 
+  /**
+   * After a session is stored: a guest-gate sign-in closes back to the browsing screen it was
+   * opened from and resumes the action that triggered the gate; a first-run sign-in continues
+   * into the language + location onboarding chain.
+   */
+  const finishLoginNavigation = useCallback((): boolean => {
+    if (!navigationRef.isReady()) return false;
+    if (resumeAfterLogin) {
+      if (navigation.canGoBack()) navigation.goBack();
+      else navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+      // The origin screen stayed mounted under the pushed Login screen.
+      setTimeout(consumePendingAuthAction, 0);
+      return true;
+    }
+    navigation.replace('LanguageSelection');
+    return true;
+  }, [navigation, resumeAfterLogin]);
+
+  /**
+   * Read the customer's stored name with the freshly verified OTP token. A first-time phone-auth
+   * user is provisioned with a placeholder (`hasName: false`), so the name step is shown only then;
+   * a returning customer signs straight in with the name already on their profile.
+   */
   const completeLogin = useCallback(
     async (session: FirebaseSession): Promise<boolean> => {
+      let profileName = '';
+      try {
+        const profile = await gateway.getProfile(session.accessToken);
+        if (profile?.hasName) profileName = profile.name.trim();
+      } catch (err) {
+        // An unreachable profile must not block sign-in: fall through and ask for the name.
+        if (__DEV__) {
+          console.warn('[phone-auth] profile lookup failed:', (err as Error)?.message);
+        }
+      }
+
+      if (profileName) {
+        const claims = decodeIdToken(session.accessToken);
+        await login({
+          user: {
+            id: session.user.uid,
+            name: profileName,
+            email: session.user.email ?? '',
+            phone: phoneE164,
+            role: claims.role,
+            stateCode: claims.stateCode,
+            districtCode: claims.districtCode,
+            sellerId: claims.sellerId,
+          },
+          accessToken: session.accessToken,
+        });
+        return finishLoginNavigation();
+      }
+
+      // No name on the account yet: keep the verified session in memory and ask for one. It is
+      // only persisted once the customer submits a name.
+      verifiedSessionRef.current = session;
+      setName('');
+      setNameError('');
+      setAuthStep('name');
+      return false;
+    },
+    [finishLoginNavigation, login, phoneE164],
+  );
+
+  /** Persist the verified session with the customer's chosen name, then finish sign-in. */
+  const submitName = useCallback(async () => {
+    const session = verifiedSessionRef.current;
+    if (!session || isFinishingName) return;
+    const typedName = name.trim();
+    if (!typedName) {
+      setNameError('Enter your name');
+      return;
+    }
+    setNameError('');
+    setIsFinishingName(true);
+    Keyboard.dismiss();
+    try {
       const claims = decodeIdToken(session.accessToken);
-      // The name captured on the first step is the customer's own choice — keep it instead of
-      // discarding it for Firebase's phone-derived fallback (a phone-auth profile has no name).
-      const typedName = name.trim();
+      // Keychain now holds the bearer, so the profile write below authenticates.
       await login({
         user: {
           id: session.user.uid,
-          name: typedName || displayName(session.user),
+          name: typedName,
           email: session.user.email ?? '',
           phone: phoneE164,
           role: claims.role,
@@ -320,21 +411,28 @@ export function LoginScreen({ navigation }: Props) {
         },
         accessToken: session.accessToken,
       });
-      // Keychain now holds the bearer, so the profile write authenticates. Best-effort on purpose:
-      // a failed write must never block a successful sign-in (the session already carries the name).
-      if (typedName) {
-        void gateway.updateProfileName(typedName).catch((err: unknown) => {
-          if (__DEV__) {
-            console.warn('[phone-auth] profile name sync failed:', (err as Error)?.message);
-          }
-        });
+      // Best-effort on purpose: a failed write must never block a successful sign-in (the session
+      // already carries the name and the next sign-in re-reads the profile).
+      void gateway.updateProfileName(typedName).catch((err: unknown) => {
+        if (__DEV__) {
+          console.warn('[phone-auth] profile name sync failed:', (err as Error)?.message);
+        }
+      });
+      // Keep the verified session reference until navigation succeeds so a retry can still finish
+      // (the Keychain session is already persisted, so this only guards the navigation step).
+      if (finishLoginNavigation()) {
+        verifiedSessionRef.current = null;
+      } else {
+        setIsFinishingName(false);
       }
-      if (!navigationRef.isReady()) return false;
-      navigation.replace('LanguageSelection');
-      return true;
-    },
-    [login, navigation, phoneE164, name],
-  );
+    } catch (err) {
+      if (__DEV__) {
+        console.warn('[phone-auth] name save failed:', (err as Error)?.message);
+      }
+      setNameError('Could not save your name. Please try again.');
+      setIsFinishingName(false);
+    }
+  }, [finishLoginNavigation, isFinishingName, login, name, phoneE164]);
 
   const submitOtp = useCallback(async () => {
     if (submitRef.current || otpCode.length !== 6 || !phoneValid) return;
@@ -350,21 +448,19 @@ export function LoginScreen({ navigation }: Props) {
         if (await completeLogin(session)) return;
       } else if (__DEV__) {
         // Dev-only fallback when Firebase Auth is unconfigured (local AUTH_DISABLED gateway).
-        // Release builds never reach here — configure.js refuses to embed a mock-login build.
-        const placeholderToken = `placeholder.${phone}.${Date.now()}`;
-        await login({
-          user: {
-            id: `user_${phoneE164}`,
-            name: name.trim() || 'Faazio User',
-            email: '',
-            phone: phoneE164,
-          },
-          accessToken: placeholderToken,
-        });
-        if (navigationRef.isReady()) {
-          navigation.replace('LanguageSelection');
-          return;
-        }
+        // Release builds never reach here — configure.js refuses to embed a mock-login build. No
+        // profile read is possible with the placeholder token, so ask for the name like a new user.
+        verifiedSessionRef.current = {
+          accessToken: `placeholder.${phone}.${Date.now()}`,
+          expiresAt: Math.floor(Date.now() / 1000) + 3600,
+          user: { uid: `user_${phoneE164}`, phoneNumber: phoneE164, email: '' },
+        };
+        setName('');
+        setNameError('');
+        setAuthStep('name');
+        submitRef.current = false;
+        setIsVerifying(false);
+        return;
       } else {
         throw new Error('auth-unconfigured');
       }
@@ -375,7 +471,7 @@ export function LoginScreen({ navigation }: Props) {
       setIsVerifying(false);
       setOtpError(otpErrorMessage(err, 'That code was not valid. Please try again.'));
     }
-  }, [completeLogin, login, navigation, name, otpCode, phoneE164, phoneValid]);
+  }, [completeLogin, otpCode, phoneE164, phoneValid]);
 
   const handleSmsCode = useCallback((code: string) => {
     if (submitRef.current) return;
@@ -427,14 +523,7 @@ export function LoginScreen({ navigation }: Props) {
   /** Send the SMS OTP, then advance to the code screen. Dev-only when Firebase is unconfigured. */
   const requestOtp = useCallback(
     async (digits: string) => {
-      if (isSending) return;
-      // `name` must be a dependency below: without it this reads the first render's empty string and
-      // the guard below rejects every tap, so `sendOtp` is never reached.
-      if (!name.trim()) {
-        setNameError('Enter your name');
-        setAuthStep('name');
-        return;
-      }
+      if (isSending || sendRef.current) return;
       if (!isValidPhone(digits)) {
         setPhoneError('Enter a valid Indian mobile number.');
         return;
@@ -446,16 +535,16 @@ export function LoginScreen({ navigation }: Props) {
       submitRef.current = false;
       setIsVerifying(false);
       if (firebaseAuthConfigured()) {
+        sendRef.current = true;
         setIsSending(true);
-        // The User Consent API only sees SMS received after it starts — arm before the send.
-        restartSmsConsent();
         try {
+          // The User Consent API only sees SMS received after it starts — arm before the send.
+          restartSmsConsent();
           await sendOtp(toE164(digits));
           // Remember the number so it can be suggested on the next signed-out visit.
           void saveRecentPhone(toE164(digits));
         } catch (err) {
           stopSmsConsent();
-          setIsSending(false);
           // Log the Firebase code in dev without surfacing raw SDK details in the UI.
           if (__DEV__) {
             const code = (err as { code?: string })?.code ?? 'unknown';
@@ -463,15 +552,19 @@ export function LoginScreen({ navigation }: Props) {
           }
           setPhoneError(otpErrorMessage(err, 'Could not send the code. Check your number and try again.'));
           return;
+        } finally {
+          // Every path — success, rejection, or the hard timeout in `firebaseAuth` — must release
+          // the Send button. Without this the spinner could stay up forever on iOS/iPad.
+          sendRef.current = false;
+          setIsSending(false);
         }
-        setIsSending(false);
       }
       // Freeze the number that actually received the SMS, even if the field was edited mid-send.
       setPhone(digits);
       setAuthStep('otp');
       setResendCooldown(RESEND_COOLDOWN_S);
     },
-    [isSending, name, restartSmsConsent, stopSmsConsent],
+    [isSending, restartSmsConsent, stopSmsConsent],
   );
 
   const handleNameChange = (val: string) => {
@@ -479,26 +572,6 @@ export function LoginScreen({ navigation }: Props) {
     setName(val.slice(0, MAX_NAME_LENGTH));
     setNameError('');
   };
-
-  /** Step 1 → 2: the name is mandatory before the phone field is offered. */
-  const goToPhoneStep = () => {
-    if (!name.trim()) {
-      setNameError('Enter your name');
-      return;
-    }
-    setNameError('');
-    setPhoneError('');
-    Keyboard.dismiss();
-    setAuthStep('phone');
-  };
-
-  /** Step 2 → 1: keep the typed name so the first field is never lost. */
-  const goBackToNameStep = useCallback(() => {
-    if (isSending) return;
-    setPhoneError('');
-    Keyboard.dismiss();
-    setAuthStep('name');
-  }, [isSending]);
 
   const handlePhoneChange = (val: string) => {
     const numericVal = val.replace(/\D/g, '').slice(0, 15);
@@ -538,24 +611,23 @@ export function LoginScreen({ navigation }: Props) {
   useFocusEffect(
     useCallback(() => {
       const onBackPress = () => {
-        // OTP → phone step (two-step: keyboard first), phone → name step, name → pop to Welcome.
+        // OTP → phone step (two-step: keyboard first). The post-verification name step is
+        // mandatory, so back is consumed there instead of dropping an authenticated session.
         if (otpState) {
           goBackFromOtp();
           return true;
         }
-        if (authStep === 'phone') {
-          goBackToNameStep();
-          return true;
-        }
+        if (authStep === 'name') return true;
         return false;
       };
       const sub = BackHandler.addEventListener('hardwareBackPress', onBackPress);
       return () => sub.remove();
-    }, [otpState, authStep, goBackFromOtp, goBackToNameStep]),
+    }, [otpState, authStep, goBackFromOtp]),
   );
 
   const handleResend = () => {
-    if (resendRef.current || submitRef.current || isSending || resendCooldown > 0) return;
+    if (resendRef.current || submitRef.current || isSending || sendRef.current || resendCooldown > 0)
+      return;
     setOtpCode('');
     setOtpError('');
     submitRef.current = false;
@@ -563,6 +635,7 @@ export function LoginScreen({ navigation }: Props) {
     setResendCooldown(RESEND_COOLDOWN_S);
     if (firebaseAuthConfigured()) {
       resendRef.current = true;
+      sendRef.current = true;
       // Re-arm before the resend SMS leaves the server (same 5-minute-window rule as the first send).
       restartSmsConsent();
       void sendOtp(phoneE164)
@@ -576,11 +649,22 @@ export function LoginScreen({ navigation }: Props) {
         })
         .finally(() => {
           resendRef.current = false;
+          sendRef.current = false;
         });
     } else {
       setOtpError(`A new demo code has been sent to ${dial} ${phone}.`);
     }
   };
+
+  const handleBrowseAsGuest = useCallback(() => {
+    clearPendingAuthAction();
+    markOnboardingSeen();
+    if (resumeAfterLogin && navigation.canGoBack()) {
+      navigation.goBack();
+      return;
+    }
+    navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+  }, [markOnboardingSeen, navigation, resumeAfterLogin]);
 
   return (
     <KeyboardAvoidingView
@@ -592,22 +676,38 @@ export function LoginScreen({ navigation }: Props) {
         <View style={styles.phoneStateContainer}>
 
           {authStep === 'phone' ? (
+            resumeAfterLogin ? (
+              <ScalePressable
+                onPress={handleBrowseAsGuest}
+                style={[styles.backBtn, { top: insets.top + vs(8) }]}
+                accessibilityRole="button"
+                accessibilityLabel="Close sign in"
+              >
+                <X size={ms(20)} color={neutral.ink} strokeWidth={2.5} />
+              </ScalePressable>
+            ) : !hasSeenOnboarding ? (
+              <ScalePressable
+                onPress={() => navigation.navigate('Onboarding')}
+                style={[styles.backBtn, { top: insets.top + vs(8) }]}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+              >
+                <ChevronLeft size={ms(20)} color={neutral.ink} strokeWidth={2.5} />
+              </ScalePressable>
+            ) : null
+          ) : null}
+
+          {/* Guest browsing: the app is fully usable without an account; only account-bound
+              actions (checkout, orders, favourites, rewards) ask for sign-in later. The
+              post-verification name step is not skippable. */}
+          {authStep === 'phone' ? (
             <ScalePressable
-              onPress={goBackToNameStep}
-              style={[styles.backBtn, { top: insets.top + vs(8) }]}
+              onPress={handleBrowseAsGuest}
+              style={[styles.guestBtn, { top: insets.top + vs(8) }]}
               accessibilityRole="button"
-              accessibilityLabel="Back to name"
+              accessibilityLabel="Browse as guest"
             >
-              <ChevronLeft size={ms(20)} color={neutral.ink} strokeWidth={2.5} />
-            </ScalePressable>
-          ) : !hasSeenOnboarding ? (
-            <ScalePressable
-              onPress={() => navigation.navigate('Onboarding')}
-              style={[styles.backBtn, { top: insets.top + vs(8) }]}
-              accessibilityRole="button"
-              accessibilityLabel="Go back"
-            >
-              <ChevronLeft size={ms(20)} color={neutral.ink} strokeWidth={2.5} />
+              <AppText style={styles.guestBtnText}>Skip</AppText>
             </ScalePressable>
           ) : null}
 
@@ -658,8 +758,9 @@ export function LoginScreen({ navigation }: Props) {
                       onBlur={() => setIsNameFocused(false)}
                       autoCapitalize="words"
                       autoCorrect={false}
-                      returnKeyType="next"
-                      onSubmitEditing={goToPhoneStep}
+                      returnKeyType="done"
+                      onSubmitEditing={() => { void submitName(); }}
+                      editable={!isFinishingName}
                       accessibilityLabel="Name"
                     />
                   </View>
@@ -670,15 +771,22 @@ export function LoginScreen({ navigation }: Props) {
                   ) : null}
 
                   <View style={styles.loaderContainer}>
-                    <TouchableOpacity
-                      activeOpacity={0.85}
-                      onPress={goToPhoneStep}
-                      accessibilityRole="button"
-                      accessibilityLabel="Continue"
-                      style={styles.sendBtn}
-                    >
-                      <AppText style={styles.sendBtnText}>Continue</AppText>
-                    </TouchableOpacity>
+                    {isFinishingName ? (
+                      <View style={styles.loadingPill}>
+                        <RotatingSpinner size={14} borderWidth={2} color={neutral.ink} />
+                        <AppText style={styles.loadingText}>Saving…</AppText>
+                      </View>
+                    ) : (
+                      <TouchableOpacity
+                        activeOpacity={0.85}
+                        onPress={() => { void submitName(); }}
+                        accessibilityRole="button"
+                        accessibilityLabel="Continue"
+                        style={styles.sendBtn}
+                      >
+                        <AppText style={styles.sendBtnText}>Continue</AppText>
+                      </TouchableOpacity>
+                    )}
                   </View>
                 </View>
               ) : (
@@ -972,6 +1080,29 @@ const styles = StyleSheet.create({
     elevation: 4,
     borderWidth: 1,
     borderColor: 'rgba(241, 245, 249, 0.1)',
+  },
+  guestBtn: {
+    position: 'absolute',
+    right: hs(16),
+    zIndex: 40,
+    minHeight: 44,
+    paddingHorizontal: hs(18),
+    borderRadius: 22,
+    backgroundColor: neutral.card,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: SHADOW_COLOR,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(241, 245, 249, 0.1)',
+  },
+  guestBtnText: {
+    fontSize: ms(13),
+    fontWeight: '600',
+    color: parentRamp.base,
   },
   topImageContainer: { width: '100%', backgroundColor: neutral.card, zIndex: 1, height: hp(20) + DOME_RADIUS },
   topImage: { width: '100%', height: '100%' },

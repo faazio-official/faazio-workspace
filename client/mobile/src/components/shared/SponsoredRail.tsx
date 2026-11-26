@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { View, ScrollView, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { FlashList } from '@shopify/flash-list';
 import { Info } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
@@ -11,9 +12,12 @@ import AppText from '@/components/AppText';
 
 /** Per-card wiring handed to the caller's `renderCard` so the paid shelf stays card-agnostic. */
 export interface SponsoredCardHandlers {
+  quantity: number;
   isAdded: boolean;
   onPress: () => void;
   onAdd: () => void;
+  onIncrement?: () => void;
+  onDecrement?: () => void;
 }
 
 interface SponsoredRailProps {
@@ -25,6 +29,10 @@ interface SponsoredRailProps {
   renderCard: (product: SponsoredProduct, handlers: SponsoredCardHandlers) => ReactNode;
   onProductClick?: (product: any) => void;
   addToCart?: (id: string, name: string, price: number, emoji: string) => void;
+  /** Live cart quantity for a paid card (host-owned; absent on read-only Home shelves). */
+  quantityOf?: (id: string) => number;
+  onIncrement?: (id: string) => void;
+  onDecrement?: (id: string) => void;
   /**
    * Optional shopper-discount map owned by the host. When provided, the rail shares the screen's
    * single `useActiveDiscounts` batch (one `GET /promo/active-discounts`) instead of firing its own,
@@ -47,6 +55,9 @@ function SponsoredRail({
   renderCard,
   onProductClick,
   addToCart,
+  quantityOf,
+  onIncrement,
+  onDecrement,
   discounts,
 }: SponsoredRailProps) {
   const [products, setProducts] = useState<SponsoredProduct[]>([]);
@@ -116,6 +127,25 @@ function SponsoredRail({
     [onProductClick],
   );
 
+  const renderItem = useCallback(
+    ({ item }: { item: SponsoredProduct }) => {
+      const quantity = quantityOf?.(item.id) ?? 0;
+      return (
+        <>
+          {renderCard(item, {
+            quantity,
+            isAdded: quantity > 0 || addedId === item.id,
+            onPress: () => handlePress(item),
+            onAdd: () => handleAdd(item),
+            onIncrement: onIncrement ? () => onIncrement(item.id) : undefined,
+            onDecrement: onDecrement ? () => onDecrement(item.id) : undefined,
+          })}
+        </>
+      );
+    },
+    [addedId, handleAdd, handlePress, onDecrement, onIncrement, quantityOf, renderCard],
+  );
+
   if (priced.length === 0) return null;
 
   return (
@@ -136,15 +166,16 @@ function SponsoredRail({
         </View>
       </View>
 
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {priced.map((product) =>
-          renderCard(product, {
-            isAdded: addedId === product.id,
-            onPress: () => handlePress(product),
-            onAdd: () => handleAdd(product),
-          }),
-        )}
-      </ScrollView>
+      <FlashList
+        data={priced}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        extraData={quantityOf}
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        bounces={false}
+        contentContainerStyle={styles.scroll}
+      />
 
       <SlideUpSheet visible={infoOpen} onRequestClose={() => setInfoOpen(false)}>
         <View style={styles.sheet}>

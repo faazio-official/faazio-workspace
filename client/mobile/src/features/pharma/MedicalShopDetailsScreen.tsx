@@ -27,6 +27,7 @@ import { matchesQuery } from '@/services/categoryVendors';
 import { useVendorProducts } from '@/features/catalog/hooks/useVendorProducts';
 import { usePharmaStores } from './hooks/usePharmaStores';
 import type { RootStackParamList } from '@/navigation/types';
+import { runAuthGate } from '@/services/authGate';
 import SearchPharmaProductCard from './components/SearchPharmaProductCard';
 import PharmaImage from './components/pharma-home/PharmaImage';
 import UploadPrescriptionFAB from './components/pharma-home/UploadPrescriptionFAB';
@@ -309,7 +310,13 @@ export function MedicalShopDetailsScreen({ navigation, route }: Props) {
         showsVerticalScrollIndicator={false}
       />
 
-      <UploadPrescriptionFAB onPress={() => navigation.navigate('PrescriptionFlow', { presetVendorId: store.id })} />
+      <UploadPrescriptionFAB
+        onPress={() =>
+          runAuthGate(() =>
+            navigation.navigate('PrescriptionFlow', { presetVendorId: store.id }),
+          )
+        }
+      />
     </View>
   );
 }

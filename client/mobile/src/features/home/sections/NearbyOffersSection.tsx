@@ -49,6 +49,9 @@ function NearbyOffersSection({
   products = nearbyOffers,
   origin,
   onProductClick,
+  quantityOf,
+  onAddToCart,
+  onUpdateQuantity,
 }: NearbyOffersSectionProps) {
   const liveOrigin = useLiveOrigin();
   const activeOrigin = origin ?? liveOrigin;
@@ -87,22 +90,29 @@ function NearbyOffersSection({
     <>
       <SectionHeader title="Nearby Offers" />
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {priced.map((product) => (
-          <UniversalFeedCard
-            key={product.id}
-            product={product}
-            variant="rail"
-            width={PRODUCT_CARD_WIDTH}
-            imageAspect={1}
-            showDescription
-            showAddButton={false}
-            showRating={false}
-            showBadge={false}
-            nameLines={2}
-            compactPrice
-            onPress={() => onProductClick?.(product)}
-          />
-        ))}
+        {priced.map((product) => {
+          const quantity = quantityOf?.(product.id) ?? 0;
+          return (
+            <UniversalFeedCard
+              key={product.id}
+              product={product}
+              variant="rail"
+              width={PRODUCT_CARD_WIDTH}
+              imageAspect={1}
+              showDescription
+              quantity={quantity}
+              isAdded={quantity > 0}
+              showRating={false}
+              showBadge={false}
+              nameLines={2}
+              compactPrice
+              onPress={() => onProductClick?.(product)}
+              onAdd={() => onAddToCart?.(product)}
+              onIncrement={() => onUpdateQuantity?.(product.id, 1)}
+              onDecrement={() => onUpdateQuantity?.(product.id, -1)}
+            />
+          );
+        })}
       </ScrollView>
     </>
   );

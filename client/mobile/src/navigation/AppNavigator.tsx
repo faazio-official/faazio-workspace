@@ -12,6 +12,7 @@ import { MainTabs } from './MainTabs';
 import { useAuthStore } from '@/state/authStore';
 import { useOnboardingStore } from '@/state/onboardingStore';
 import { useLocationStore } from '@/state/locationStore';
+import { resetLocalUserState } from '@/services/logout';
 
 export type { RootStackParamList, MainTabParamList } from './types';
 
@@ -91,13 +92,16 @@ export function AppNavigator() {
   }, [locationHydrated, hydrateLocation]);
 
   // A dead/revoked session is cleared by GatewayClient.recoverSession, which also resets
-  // authStore. Follow that transition here so the customer app actually returns to Login
-  // instead of sitting on an authenticated screen with no Keychain session.
+  // authStore. Follow that transition here so the customer app drops back to guest browsing
+  // (MainTabs) instead of forcing a login wall. Local per-user caches are cleared so the next
+  // person on the device cannot see the previous account's data; the server cart/favourites are
+  // untouched and re-hydrate on the next login.
   useEffect(() => {
     if (!hydrated) return;
     if (wasAuthenticated.current && !isAuthenticated) {
+      void resetLocalUserState().catch(() => {});
       if (navigationRef.isReady()) {
-        navigationRef.reset({ index: 0, routes: [{ name: 'Login' }] });
+        navigationRef.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
       }
       wasAuthenticated.current = false;
     } else {
@@ -106,13 +110,17 @@ export function AppNavigator() {
   }, [hydrated, isAuthenticated]);
 
   // Only an authenticated cold start is gated on location; signed-out users never
-  // need it (onboarding/login own the first-run chain).
+  // need it (guest browsing starts on MainTabs, and location is optional/prompted
+  // from the Home header exactly like Swiggy).
   const locationGateResolved =
     !isAuthenticated || locationHydrated || gateExpired;
 
+  // Guest browsing is the default for a returning signed-out user. The first launch still
+  // shows the skippable onboarding carousel; both Skip and the Login screen's guest action
+  // land on MainTabs without an account (App Store Guideline 5.1.1(v)).
   const initialRouteName = !isAuthenticated
     ? hasSeenOnboarding
-      ? 'Login'
+      ? 'MainTabs'
       : 'Onboarding'
     : locationStatus === 'idle'
       ? 'Location'

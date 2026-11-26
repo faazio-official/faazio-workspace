@@ -5,7 +5,7 @@
 **Routes:** `MainTabs` → `You` (`AccountScreen.tsx`), `You` pushed (`YouScreen.tsx`), `UserDetails`,
 `SavedAddresses`, `DeleteAccount`, `RequestDataDeletion`, `Notifications`, `FaazioRewards`,
 `RateVendor`, `Language`
-**Trigger:** Tapping the You tab or an account row.
+**Trigger:** Tapping the You tab or an account row. Signed-out users see a guest account surface (sign-in card + Preferences) instead of account rows.
 
 ## Flows
 
@@ -21,6 +21,12 @@
 ## Account surfaces
 
 - `AccountView.tsx` is shared by the tab (`AccountScreen`) and pushed (`YouScreen`).
+- **Guest mode:** when `useAuthStore.isAuthenticated` is false the page renders a "Sign in to
+  Faazio" card, gated Orders / Favourites / FaazioCoins rows, and the Preferences (Language) row.
+  Account nav (`GET /account-nav`), live rewards/notification data, addresses and logout are not
+  rendered; tapping a gated row opens `Login` with that destination remembered. Sign-in opens the root
+  `Login` with `{ resume: true }`, so it closes back to the account tab after success. Sign-out now
+  returns to `MainTabs` (guest browsing), never a forced login wall.
 - Account nav rows come from `useAccountNav` → `GET /account-nav` → `accounts.nav_defaults`
   (universal rows) + `accounts.nav` (per-user overrides). Groups whose effective rows are empty are
   omitted, and the client filters empty groups defensively; there is no `@data` runtime fallback.

@@ -90,7 +90,7 @@ export function DeleteAccountScreen({ navigation }: Props) {
     try {
       await deleteAccountEverywhere();
       if (navigation.isFocused()) {
-        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
       }
     } catch {
       setSubmitting(false);
@@ -135,7 +135,7 @@ export function DeleteAccountScreen({ navigation }: Props) {
       await verifyReauthOtp(phone, code);
       await deleteAccountEverywhere();
       if (navigation.isFocused()) {
-        navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
       }
     } catch {
       submitRef.current = false;

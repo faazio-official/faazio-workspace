@@ -2,6 +2,7 @@ import React, { memo } from 'react';
 import SearchProductRowCard from '@/components/shared/SearchProductRowCard';
 import { useCartProductActions } from '@/components/shared/hooks';
 import { useFavoriteStore } from '@/state/favoriteStore';
+import { runAuthGate } from '@/services/authGate';
 import type { Product } from '@data/types';
 
 interface SearchPharmaProductCardProps {
@@ -32,7 +33,9 @@ const SearchPharmaProductCard = memo(function SearchPharmaProductCard({
        appBrand="PHARMA"
        showFavorite
        isFavorite={isFavorite}
-       onFavorite={() => void toggleFavorite(product.id)}
+       onFavorite={() => {
+        if (runAuthGate(() => void toggleFavorite(product.id))) void toggleFavorite(product.id);
+      }}
        quantity={cart.quantity}
        onAdd={cart.onAdd}
        onIncrement={cart.onIncrement}

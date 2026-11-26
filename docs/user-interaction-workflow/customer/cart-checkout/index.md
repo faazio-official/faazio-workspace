@@ -1,6 +1,6 @@
 # Cart & checkout — domain index
 
-**Status:** Shipped (self-pickup points are server-derived; fulfilment choice moved to PAYMENT step)
+**Status:** Shipped (self-pickup points are server-derived; fulfilment choice moved to PAYMENT step; guest cart is device-local until sign-in)
 **Routes:** `Cart` (`features/cart/CartScreen.tsx`), Cart tab (`CartTabScreen.tsx`),
 `PaymentCallback` (`features/cart/payment/PaymentCallbackScreen.tsx`)
 **Shared view:** `CartView.tsx` (wizard `BAG → PAYMENT → RECEIPT`)
@@ -10,6 +10,7 @@
 
 | Flow | Doc |
 |---|---|
+| Guest cart (no account) | [../onboarding/guest-browsing.md](../onboarding/guest-browsing.md) |
 | Add to cart / quantity changes (+ dish add-ons) | [add-to-cart.md](./add-to-cart.md) |
 | Delivery-fee quote | [delivery-fee-quote.md](./delivery-fee-quote.md) |
 | Place order + payment | [place-order.md](./place-order.md) |
@@ -27,9 +28,19 @@
 leave ~20% faster, and drag the grab handle down to dismiss (translation clamps to its bounds).
 The receipt success uses a single pulse, not a loop.
 
+## Guest gate
+
+Browsing and adding to the cart need no account. Tapping **Continue** on the `BAG` step (and
+`handlePlaceOrder` as defence in depth) checks `isAuthenticated`; a guest is sent to the root
+`Login` screen with the payment step remembered as the pending action. After sign-in the screen
+closes back to the cart, the pending step resumes, and `hydrateUserStores()` merges the guest cart
+into the account's server cart before the authoritative `GET /cart` hydrate. Guests never call
+`GET /profile/addresses`; the address effect is skipped until a session exists.
+
 ## State
 
-- `useCartStore` — server-authoritative cart with optimistic writes and rollback.
+- `useCartStore` — server-authoritative cart with optimistic writes and rollback for signed-in
+  users; device-local (no network writes) while browsing as a guest.
 - `useOrdersStore` — adopts the server order after checkout.
 - `useRewardsStore` — coins balance/ledger; reconcile after checkout.
 - `useLocationStore` — live delivery fix.

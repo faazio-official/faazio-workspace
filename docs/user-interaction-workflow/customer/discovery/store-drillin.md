@@ -13,10 +13,13 @@
    - Food: `getFoodFeed` (`GET /sdui/food`) + `fetchStores('FOOD')` + `fetchVenues('FOOD')` — the
      restaurant grid is the union of seller-owned FOOD stores and dining venues. The `FOOD_HERO` ad
      banner renders directly below the diet-toggle `FoodHeader` (paid fill; `foodHero.banners` house
-     fallback when empty); there is no Top Rated rail.
+     fallback when empty), followed by the FOOD taxonomy root rail (`FoodCategoryRail`); there is no
+     Top Rated rail. Food chips open `FoodCategoryDrillIn`, not the Mart/Pharma `CategoryDrillIn`
+     (see [`food-categories.md`](./food-categories.md)).
    - Pharma: `fetchPharmaSections` (`GET /sdui/pharma`) + `fetchStores('PHARMA')`.
-3. Category tap → `CategoryDrillIn`; the hook `useCategoryVendors` groups server search results by
-   `storeId` (`GET /search?q=&app=` + `GET /stores?app=`).
+3. Mart/Pharma category tap → `CategoryDrillIn`; the hook `useCategoryVendors` groups server search
+   results by `storeId` (`GET /search?q=&app=` + `GET /stores?app=`). Food category chips use the
+   separate `FoodCategoryDrillIn` (leaf chips + dish FTS results).
 4. Store tap → `VendorDetails`; `getStore` + `getStoreProducts` load the store profile and catalog.
    Store rating renders through `formatRating(store.rating)` (1 dp) — the gateway already rounds the
    value; no raw float is printed. The Mart in-wrapper drill-in (`VendorProfileView`) renders the same
@@ -82,6 +85,7 @@
 
 ## Linked docs
 
+- [`food-categories.md`](./food-categories.md)
 - `docs/architecture/mobile-app.md`
 - `docs/architecture/monolith-breakdown.md` (catalog/directory rows)
 - `docs/architecture/caching-cloudflare-valkey.md`

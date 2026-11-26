@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { gateway } from '@/services/api/GatewayClient';
+import { useAuthStore } from '@/state/authStore';
 
 export interface CartItem {
   id: string;
@@ -62,11 +63,18 @@ interface CartState {
 }
 
 /**
- * Server-authoritative cart. The gateway (`inventory.carts`) is the source of truth; the local
- * array is an optimistic cache. Every mutation awaits the server write and rolls the UI back on
- * failure. In mock/offline mode (`remoteEnabled === false`) the store degrades to device-local state
- * instead of fabricating a successful server write.
+ * Server-authoritative cart for signed-in users. The gateway (`inventory.carts`) is the source of
+ * truth; the local array is an optimistic cache. Every mutation awaits the server write and rolls
+ * the UI back on failure. In mock/offline mode (`remoteEnabled === false`) the store degrades to
+ * device-local state instead of fabricating a successful server write.
+ *
+ * Signed-out guest browsing is deliberately device-local: a guest can add/remove/update lines, but
+ * `/cart` is auth-scoped, so calling it would 401 and roll the line back. `hydrateUserStores()`
+ * merges this local cart into the account when the guest signs in.
  */
+function canSyncCart(): boolean {
+  return gateway.remoteEnabled && useAuthStore.getState().isAuthenticated;
+}
 export const useCartStore = create<CartState>()((set, get) => ({
   cart: [],
   hydrated: false,
@@ -108,7 +116,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
         ];
     set({ cart: nextCart, syncError: null });
 
-    if (!gateway.remoteEnabled) return;
+    if (!canSyncCart()) return;
 
     set({ syncing: true });
     try {
@@ -129,7 +137,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
     if (!prev.some((i) => i.id === itemId)) return;
     set({ cart: prev.filter((i) => i.id !== itemId), syncError: null });
 
-    if (!gateway.remoteEnabled) return;
+    if (!canSyncCart()) return;
 
     set({ syncing: true });
     try {
@@ -152,7 +160,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
         : prev.filter((i) => i.id !== itemId);
     set({ cart: nextCart, syncError: null });
 
-    if (!gateway.remoteEnabled) return;
+    if (!canSyncCart()) return;
 
     set({ syncing: true });
     try {
@@ -172,7 +180,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
     const ids = prev.map((i) => i.id);
     set({ cart: [], syncError: null });
 
-    if (!gateway.remoteEnabled) return;
+    if (!canSyncCart()) return;
 
     set({ syncing: true });
     try {
@@ -198,7 +206,7 @@ export const useCartStore = create<CartState>()((set, get) => ({
       syncError: null,
     });
 
-    if (!gateway.remoteEnabled) return;
+    if (!canSyncCart()) return;
 
     set({ syncing: true });
     try {
@@ -220,7 +228,9 @@ export const useCartStore = create<CartState>()((set, get) => ({
   replaceCart: (items) => set({ cart: items }),
 
   hydrate: async () => {
-    if (!gateway.remoteEnabled) {
+    if (!canSyncCart()) {
+      // A guest (or an offline build) has no server cart to pull; the device-local guest cart
+      // stays exactly as the user left it.
       set({ hydrated: true });
       return;
     }

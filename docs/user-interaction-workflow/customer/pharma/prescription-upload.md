@@ -2,7 +2,7 @@
 
 **App / routes:** customer · `PrescriptionFlow` (`features/pharma/prescription/PrescriptionFlowScreen.tsx`) → `OrderDetails` (`features/profile/OrderDetailsScreen.tsx`)
 **Status:** Shipped
-**Trigger:** Pharma home "Upload prescription" or a pharmacy's prescription entry.
+**Trigger:** Pharma home "Upload prescription" or a pharmacy's prescription entry. Account-bound: while signed out, the FAB opens the root `Login` (pending action = open this flow) instead of starting a capture; the flow resumes after sign-in.
 
 ## Steps
 

@@ -29,6 +29,7 @@ import {
   ShieldCheck,
   Languages,
   Bell,
+  LogIn,
 } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
@@ -45,6 +46,7 @@ import { COOKIES_URL, DISCLAIMER_URL, PRIVACY_URL, REFUNDS_URL, TERMS_URL } from
 import { useThemeMode } from '@/hooks/useThemeMode';
 import { useNavBarScrollHandler } from '@/hooks/useAutoHideNavBar';
 import { useNotificationsStore } from '@/state/notificationsStore';
+import { runAuthGate } from '@/services/authGate';
 import type { AppPalette } from '@/theme/theme';
 
 const NAV_ICONS: Record<string, React.ComponentType<any>> = {
@@ -87,6 +89,8 @@ export interface AccountViewProps {
   onOpenSellerRequests?: () => void;
   onOpenFeeChangeRequests?: () => void;
   onOpenPlatformFeeRequest?: () => void;
+  /** Guest mode: opens the root Login screen; no account rows are rendered. */
+  onSignIn: () => void;
   onLogout: () => void;
 }
 
@@ -111,6 +115,7 @@ export function AccountView({
   onOpenSellerRequests,
   onOpenFeeChangeRequests,
   onOpenPlatformFeeRequest,
+  onSignIn,
   onLogout,
 }: AccountViewProps) {
   const insets = useSafeAreaInsets();
@@ -122,6 +127,7 @@ export function AccountView({
   const streakCount = useRewardsStore((s) => s.streakCount);
   const unread = useNotificationsStore((s) => s.unread);
   const authUser = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   // Nav groups: server-authoritative (DB catalog + per-user overrides). Groups with no real rows are
   // omitted so a stale/empty projection can never render as a blank titled card.
   const {
@@ -133,7 +139,7 @@ export function AccountView({
   const visibleGroups = accountNavGroups.filter((group) => group.rows.length > 0);
 
   const handleLogout = useCallback(() => {
-    Alert.alert('Log out?', 'You will need to sign in again to use Faazio.', [
+    Alert.alert('Log out?', 'You will be signed out. You can keep browsing as a guest.', [
       { text: 'Cancel', style: 'cancel' },
       { text: 'Log out', style: 'destructive', onPress: onLogout },
     ]);
@@ -204,7 +210,7 @@ export function AccountView({
         <View style={styles.headerText}>
           <AppText style={styles.headerTitle}>My Account</AppText>
         </View>
-        {onOpenNotifications ? (
+        {isAuthenticated && onOpenNotifications ? (
           <TouchableOpacity
             onPress={onOpenNotifications}
             style={styles.bellButton}
@@ -230,6 +236,8 @@ export function AccountView({
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
+        {isAuthenticated ? (
+          <>
         {/* FaazioCoins streak card */}
         <TouchableOpacity
           style={styles.coinsCard}
@@ -341,6 +349,91 @@ export function AccountView({
             </View>
           </View>
         ))}
+          </>
+        ) : (
+          <>
+            <View style={styles.guestCard}>
+              <View style={styles.guestIconCircle}>
+                <LogIn size={ms(22)} color={palette.accent} strokeWidth={2} />
+              </View>
+              <AppText style={styles.guestTitle}>Sign in to Faazio</AppText>
+              <AppText style={styles.guestBody}>
+                Track orders, save favourites and earn FaazioCoins.
+              </AppText>
+              <TouchableOpacity
+                style={styles.guestSignInBtn}
+                onPress={onSignIn}
+                activeOpacity={0.85}
+                accessibilityRole="button"
+                accessibilityLabel="Sign in"
+              >
+                <AppText style={styles.guestSignInText}>Sign in</AppText>
+              </TouchableOpacity>
+            </View>
+
+            {/* Account-bound rows stay visible so the tap opens Login (and resumes the action),
+                instead of hiding the feature entirely. Same rows the signed-in page shows. */}
+            <View style={styles.navGroup}>
+              <AppText style={styles.navGroupTitle}>Your activity</AppText>
+              <View style={styles.navCard}>
+                <TouchableOpacity
+                  style={styles.navRow}
+                  activeOpacity={0.7}
+                  onPress={() => runAuthGate(onOpenOrders)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Orders, sign in required"
+                >
+                  <View style={styles.navIconBox}>
+                    <Package size={ms(18)} color={palette.accent} strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.navText}>
+                    <AppText style={styles.navTitle}>Orders</AppText>
+                    <AppText style={styles.navSubtitle}>Track current and past orders</AppText>
+                  </View>
+                  <ChevronRight size={ms(18)} color={palette.accent} strokeWidth={2.2} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={styles.navRow}
+                  activeOpacity={0.7}
+                  onPress={() =>
+                    onOpenFavourites
+                      ? runAuthGate(onOpenFavourites)
+                      : runAuthGate()
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="Favourites, sign in required"
+                >
+                  <View style={styles.navIconBox}>
+                    <Heart size={ms(18)} color={palette.accent} strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.navText}>
+                    <AppText style={styles.navTitle}>Favourites</AppText>
+                    <AppText style={styles.navSubtitle}>Your saved products</AppText>
+                  </View>
+                  <ChevronRight size={ms(18)} color={palette.accent} strokeWidth={2.2} />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.navRow, styles.navRowLast]}
+                  activeOpacity={0.7}
+                  onPress={() =>
+                    onOpenRewards ? runAuthGate(onOpenRewards) : runAuthGate()
+                  }
+                  accessibilityRole="button"
+                  accessibilityLabel="FaazioCoins, sign in required"
+                >
+                  <View style={styles.navIconBox}>
+                    <Coins size={ms(18)} color={palette.accent} strokeWidth={2.2} />
+                  </View>
+                  <View style={styles.navText}>
+                    <AppText style={styles.navTitle}>FaazioCoins</AppText>
+                    <AppText style={styles.navSubtitle}>Coins, streak and rewards</AppText>
+                  </View>
+                  <ChevronRight size={ms(18)} color={palette.accent} strokeWidth={2.2} />
+                </TouchableOpacity>
+              </View>
+            </View>
+          </>
+        )}
 
         {/* Client-side preferences section. The server nav catalog is untouched. */}
         <View style={styles.navGroup}>
@@ -422,11 +515,13 @@ export function AccountView({
           </TouchableOpacity>
         ) : null}
 
-        {/* 8. Logout */}
-        <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={handleLogout}>
-          <LogOut size={ms(18)} color="#ffffff" strokeWidth={1.75} />
-          <AppText style={styles.logoutText}>Log out</AppText>
-        </TouchableOpacity>
+        {/* 8. Logout — signed-in users only. */}
+        {isAuthenticated ? (
+          <TouchableOpacity style={styles.logoutBtn} activeOpacity={0.8} onPress={handleLogout}>
+            <LogOut size={ms(18)} color="#ffffff" strokeWidth={1.75} />
+            <AppText style={styles.logoutText}>Log out</AppText>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -669,6 +764,52 @@ const createStyles = (palette: AppPalette) =>
   adminText: { flex: 1 },
   adminTitle: { fontSize: ms(14), fontWeight: '800', color: '#0f172a' },
   adminSubtitle: { fontSize: ms(11.5), fontWeight: '500', color: palette.textSubtle, marginTop: vs(2) },
+  guestCard: {
+    backgroundColor: palette.card,
+    borderRadius: ms(18),
+    borderWidth: 1,
+    borderColor: palette.border,
+    padding: hs(20),
+    alignItems: 'center',
+    marginBottom: SPACE.SECTION,
+  },
+  guestIconCircle: {
+    width: ms(52),
+    height: ms(52),
+    borderRadius: ms(26),
+    backgroundColor: palette.accentSoft,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: vs(12),
+  },
+  guestTitle: {
+    fontSize: ms(17),
+    fontWeight: '600',
+    color: palette.text,
+    marginBottom: vs(4),
+  },
+  guestBody: {
+    fontSize: ms(12),
+    lineHeight: ms(17),
+    fontWeight: '500',
+    color: palette.textMuted,
+    textAlign: 'center',
+    maxWidth: hs(260),
+  },
+  guestSignInBtn: {
+    minHeight: 46,
+    minWidth: hs(180),
+    borderRadius: ms(23),
+    backgroundColor: palette.accent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: SPACE.SECTION,
+  },
+  guestSignInText: {
+    fontSize: ms(14),
+    fontWeight: '600',
+    color: palette.onAccent,
+  },
   logoutBtn: {
     flexDirection: 'row',
     alignItems: 'center',

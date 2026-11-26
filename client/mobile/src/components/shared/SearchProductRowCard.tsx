@@ -1,8 +1,10 @@
 import React, { memo } from 'react';
 import { View, Image, TouchableOpacity, StyleSheet } from 'react-native';
-import { Heart, Store, Plus, Minus, Check } from 'lucide-react-native';
+import { Heart, Store } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import AppText from '@/components/AppText';
+import AddToCartControl from './AddToCartControl';
+import { neutral } from '@/theme/brandTokens';
 import type { Product, AppBrand } from '@data/types';
 import { localizedDesc, localizedName } from '@/lib/localizedText';
 import { useLanguageStore } from '@/state/languageStore';
@@ -26,6 +28,8 @@ interface SearchProductRowCardProps {
   onFavorite?: () => void;
   /** Show a slim one-line vendor header above the row. Default true. */
   showStoreHeader?: boolean;
+  /** Product title lines before truncating. Default 1. */
+  nameLines?: number;
 }
 
 function getDiscountPct(price: number, originalPrice?: number): number | null {
@@ -51,8 +55,8 @@ function resolveStoreName(product: Product): string {
  * a tiny Store icon, hairline bottom divider) sits above the row when
  * `showStoreHeader` is on; the inline store name is otherwise removed from the
  * body. The favourite heart sits at the right end of the card, not over the
- * image. No Add to Cart button — the card is view-only (tap opens product
- * detail).
+ * image. The action is the shared "Add" pill → `− qty +` stepper; without an
+ * `onAdd` handler the card stays a view-only tap target.
  */
 const SearchProductRowCard = memo(function SearchProductRowCard({
   product,
@@ -67,6 +71,7 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
   onFavorite,
   showStoreHeader = true,
   showPrice = true,
+  nameLines = 1,
 }: SearchProductRowCardProps) {
   const language = useLanguageStore((s) => s.language);
   const displayName = localizedName(product, language);
@@ -99,7 +104,7 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
         </View>
 
         <View style={styles.details}>
-          <AppText style={styles.name} numberOfLines={1} ellipsizeMode="tail">
+          <AppText style={styles.name} numberOfLines={nameLines} ellipsizeMode="tail">
             {displayName}
           </AppText>
 
@@ -122,36 +127,17 @@ const SearchProductRowCard = memo(function SearchProductRowCard({
               </>
             )}
             <View style={{ flex: 1 }} />
-            {quantity > 0 ? (
-              <View style={styles.stepper}>
-                <TouchableOpacity
-                  onPress={onDecrement}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Remove one ${displayName}`}
-                >
-                  <Minus size={ms(13)} color="#ffffff" strokeWidth={3} />
-                </TouchableOpacity>
-                <AppText style={styles.stepperQty}>{quantity}</AppText>
-                <TouchableOpacity
-                  onPress={onIncrement}
-                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                  accessibilityRole="button"
-                  accessibilityLabel={`Add one more ${displayName}`}
-                >
-                  <Plus size={ms(13)} color="#ffffff" strokeWidth={3} />
-                </TouchableOpacity>
-              </View>
-            ) : onAdd ? (
-              <TouchableOpacity
-                style={styles.addBtn}
-                onPress={onAdd}
-                hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
-                accessibilityRole="button"
-                accessibilityLabel={`Add ${displayName} to cart`}
-              >
-                <Check size={ms(14)} color="#ffffff" strokeWidth={3} />
-              </TouchableOpacity>
+            {onAdd || quantity > 0 ? (
+              <AddToCartControl
+                quantity={quantity}
+                onAdd={() => onAdd?.()}
+                onIncrement={onIncrement}
+                onDecrement={onDecrement}
+                accent={GREEN}
+                onAccent={neutral.card}
+                compact
+                label={displayName}
+              />
             ) : null}
           </View>
         </View>
@@ -261,29 +247,5 @@ const styles = StyleSheet.create({
     fontSize: ms(11),
     fontWeight: '600',
     color: GREEN,
-  },
-  addBtn: {
-    width: ms(32),
-    height: ms(32),
-    borderRadius: ms(16),
-    backgroundColor: GREEN,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderRadius: ms(16),
-    paddingHorizontal: hs(6),
-    height: ms(32),
-    backgroundColor: GREEN,
-  },
-  stepperQty: {
-    fontSize: ms(12),
-    fontWeight: '600',
-    color: '#ffffff',
-    marginHorizontal: hs(6),
-    minWidth: ms(12),
-    textAlign: 'center',
   },
 });

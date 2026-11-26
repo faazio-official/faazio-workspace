@@ -18,7 +18,7 @@ interface RecentlyViewedRailSectionProps extends SectionProps {
 
 function RecentlyViewedRailSection({
   title, products, accent, appBrand,
-  onProductClick,
+  onProductClick, quantityOf, onAddToCart, onUpdateQuantity,
 }: RecentlyViewedRailSectionProps) {
   const priced = usePricedProducts(products);
   return (
@@ -30,21 +30,28 @@ function RecentlyViewedRailSection({
         </View>
       </View>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scroll}>
-        {priced.map((product) => (
-          <UniversalFeedCard
-            key={product.id}
-            product={product}
-            variant="rail"
-            width={PRODUCT_CARD_WIDTH}
-            imageAspect={1}
-            showAddButton={false}
-            showRating={false}
-            showBadge={false}
-            nameLines={2}
-            compactPrice
-            onPress={() => onProductClick?.(product)}
-          />
-        ))}
+        {priced.map((product) => {
+          const quantity = quantityOf?.(product.id) ?? 0;
+          return (
+            <UniversalFeedCard
+              key={product.id}
+              product={product}
+              variant="rail"
+              width={PRODUCT_CARD_WIDTH}
+              imageAspect={1}
+              quantity={quantity}
+              isAdded={quantity > 0}
+              showRating={false}
+              showBadge={false}
+              nameLines={2}
+              compactPrice
+              onPress={() => onProductClick?.(product)}
+              onAdd={() => onAddToCart?.(product)}
+              onIncrement={() => onUpdateQuantity?.(product.id, 1)}
+              onDecrement={() => onUpdateQuantity?.(product.id, -1)}
+            />
+          );
+        })}
       </ScrollView>
     </>
   );

@@ -20,7 +20,7 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'RestaurantOffers'>;
 
 /**
  * "View All" offers page — a food-search-result-style list of a restaurant's
- * own discounted dishes. Reuses the SearchDishCard row (square thumb + ADD/stepper)
+ * own discounted dishes. Reuses the SearchDishCard row (square thumb + Add/stepper)
  * and keeps the strikethrough old price so it reads as an offers listing.
  *
  * The menu is re-fetched live via `useRestaurantMenu` (keys off the venue id) rather than trusting

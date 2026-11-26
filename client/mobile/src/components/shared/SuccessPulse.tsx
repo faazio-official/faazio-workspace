@@ -6,7 +6,7 @@ import Animated, {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import { DURATION, EASE_ENTRANCE, EASE_MOVE, SCALE } from '@/theme/motion';
+import { DURATION, RE_EASE_ENTRANCE, RE_EASE_MOVE, SCALE } from '@/theme/motion';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 interface SuccessPulseProps {
@@ -31,8 +31,8 @@ export function SuccessPulse({ children, trigger, style }: SuccessPulseProps) {
     }
     scale.value = 1;
     scale.value = withSequence(
-      withTiming(SCALE.knob, { duration: 180, easing: EASE_MOVE }),
-      withTiming(1, { duration: DURATION.move, easing: EASE_ENTRANCE }),
+      withTiming(SCALE.knob, { duration: 180, easing: RE_EASE_MOVE }),
+      withTiming(1, { duration: DURATION.move, easing: RE_EASE_ENTRANCE }),
     );
   }, [trigger, reduceMotion, scale]);
 

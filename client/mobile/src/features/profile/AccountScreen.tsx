@@ -8,6 +8,7 @@ import { logoutUser } from '@/services/logout';
 import { AccountView } from '@/features/profile/AccountView';
 import { useThemeMode } from '@/hooks/useThemeMode';
 import { useNotificationsStore } from '@/state/notificationsStore';
+import { useAuthStore } from '@/state/authStore';
 import type { MainTabParamList, RootStackParamList } from '@/navigation/types';
 
 type Props = CompositeScreenProps<
@@ -22,22 +23,29 @@ type Props = CompositeScreenProps<
  */
 export function AccountScreen({ navigation }: Props) {
   const { palette } = useThemeMode();
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const refreshUnread = useNotificationsStore((s) => s.refreshUnread);
 
   useFocusEffect(
     useCallback(() => {
-      void refreshUnread();
-    }, [refreshUnread]),
+      // `/notifications` is auth-scoped; a guest account page has no inbox to refresh.
+      if (isAuthenticated) void refreshUnread().catch(() => {});
+    }, [isAuthenticated, refreshUnread]),
   );
+
+  const handleSignIn = useCallback(() => {
+    navigation.navigate('Login', { resume: true });
+  }, [navigation]);
 
   const handleLogout = useCallback(() => {
     void logoutUser()
       .catch(() => {})
       .finally(() => {
         if (navigation.isFocused()) {
+          // Sign-out returns to guest browsing, never a forced login wall.
           (navigation.getParent() as NativeStackNavigationProp<RootStackParamList>)?.reset({
             index: 0,
-            routes: [{ name: 'Login' }],
+            routes: [{ name: 'MainTabs' }],
           });
         }
       });
@@ -111,6 +119,7 @@ export function AccountScreen({ navigation }: Props) {
         onOpenSellerRequests={handleOpenSellerRequests}
         onOpenFeeChangeRequests={handleOpenFeeChangeRequests}
         onOpenPlatformFeeRequest={handleOpenPlatformFeeRequest}
+        onSignIn={handleSignIn}
         onLogout={handleLogout}
       />
     </View>

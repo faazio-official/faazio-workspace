@@ -265,6 +265,12 @@ caller) and are event-purged on store live toggle and product edit/status change
   without hydrating every row. `0110` appends the sign-in phone and `0132` appends
   district_code/pincode/customer_code to the projection — same projection the district customers page
   and the super-admin users page both read.
+- **Customer profile (`GET|PUT /profile`, `internal/checkout`):** `GET /profile` returns the
+  caller's `accounts.profile` row (`id`, `accountId`, `name`, `email`, `phone`) plus `hasName`,
+  which is `false` while the name is still the `"Faazio User"` provisioning placeholder. Phone-OTP
+  sign-in reads it with the fresh token to ask for a name only on first login. `PUT /profile`
+  (`{name}`, trimmed, 1–80 runes → 400 `invalid_name`; 404 missing user) writes
+  `checkout.users.name` + `accounts.profile.name` in one transaction.
 - **Customer location (`PUT /profile/location`, `internal/checkout`):** the app reports the
   serviceable origin's state/district/pincode. The district is validated against
   `admins.district_master` and the state derived from it (never a client pair); the gateway stores
@@ -377,6 +383,14 @@ caller) and are event-purged on store live toggle and product edit/status change
   optional `attributeOptionIds`, persisted to `directory.menu_item_attributes` in the menu transaction;
   every option must belong to a group whose `subcategory_id` is the dish's own sub-category (`400
   invalid_attribute`), and both the seller and public menu reads project `attributeOptionIds`.
+- **Food master data (`internal/categories`, `0145`):** `GET /admin/food-master` (SUPER_ADMIN,
+  read-only) returns `{ atomicTaxonomy, storeConfig, sampleMenu }` from
+  `taxonomy.food_atomic_taxonomy` (147 cuisine sub-categories), `taxonomy.store_config_options`
+  (11 store onboarding rules) and `taxonomy.food_sample_menu_items` (15 templates — not live
+  `directory.menus`). `GET /categories` rows now carry `atomicCategory`/`atomicSubcategory`, the
+  workbook's carousel → Atomic Food Taxonomy v2 mapping, so the seller form can show the cuisine under
+  the picked sub-category. No write endpoint: the workbook tables are origin reference data updated by
+  migration.
 - **Rider payouts (`internal/delivery`, `0052` + `0054`):** `GET /delivery/payouts` (rider history)
   and `GET /delivery/payouts/{orderId}` (upsert a PENDING calculation). Completing a route
   (`UpdateStop` → `ROUTE_COMPLETE`, no failed drop) materialises the PENDING payout in the same

@@ -275,6 +275,10 @@ function SellerMenus() {
   const [attrSelected, setAttrSelected] = useState<string[]>([]);
   const [attrTouched, setAttrTouched] = useState<Set<string>>(() => new Set());
   const [attrSuppressed, setAttrSuppressed] = useState<Set<string>>(() => new Set());
+  const pickedCategory = useMemo(
+    () => (bySection.get(form.sectionId) ?? []).find((c) => c.id === form.subCategoryId),
+    [bySection, form.sectionId, form.subCategoryId],
+  );
   const suggestedOptions = useMemo(
     () => new Set(detectAttributeOptions(form.name, attrGroups)),
     [form.name, attrGroups],
@@ -945,6 +949,12 @@ function SellerMenus() {
                 </option>
               ))}
             </select>
+            {pickedCategory?.atomicCategory ? (
+              <span className="mt-1 block text-[10px] text-muted-foreground">
+                {pickedCategory.atomicCategory}
+                {pickedCategory.atomicSubcategory ? ` · ${pickedCategory.atomicSubcategory}` : ""}
+              </span>
+            ) : null}
             {form.sectionId && subCategoriesFor(form.sectionId).length === 0 ? (
               <span className="mt-1 block text-[10px] text-brand">
                 This section has no sub-categories yet — ask the superadmin to add one.

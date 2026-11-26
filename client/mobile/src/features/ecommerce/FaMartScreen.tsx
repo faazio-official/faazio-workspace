@@ -70,6 +70,10 @@ export function FaMartScreen({
   const cartItems = useCartStore((s) => s.cart);
   const addToCart = useCartStore((s) => s.addToCart);
   const updateQuantity = useCartStore((s) => s.updateQuantity);
+  const quantityOf = useCallback(
+    (id: string) => cartItems.find((c) => c.id === id)?.quantity ?? 0,
+    [cartItems],
+  );
   const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   // Hide the Mart sub-app bottom nav while its feed scrolls, mirroring the hub header.
   const onNavScroll = useNavBarScrollHandler();
@@ -253,6 +257,27 @@ export function FaMartScreen({
     });
   }, [navigation, pricedEssentials]);
 
+  const handleAddProduct = useCallback(
+    (product: Product) => {
+      addToCart(product.id, product.name, product.price, product.emoji);
+    },
+    [addToCart],
+  );
+
+  const handleDealAdd = useCallback(
+    (deal: MartDeal) => {
+      addToCart(deal.id, deal.name, deal.price, 'mart');
+    },
+    [addToCart],
+  );
+
+  const handleEssentialAdd = useCallback(
+    (item: MartEssential) => {
+      addToCart(item.id, item.name, item.price, item.emoji);
+    },
+    [addToCart],
+  );
+
   // Section nodes keyed by the registry id; the paid/organic order comes from MART_FEED_SECTIONS
   // (martFeedSections.ts) so the contract has one source. The footer ("vendors") is rendered below.
   const sectionNodes: Record<string, React.ReactNode> = {
@@ -273,6 +298,9 @@ export function FaMartScreen({
         placement="SPONSORED_SHOWCASE"
         onProductClick={onProductClick}
         addToCart={addToCart}
+        quantityOf={quantityOf}
+        onIncrement={(id) => void updateQuantity(id, 1)}
+        onDecrement={(id) => void updateQuantity(id, -1)}
         discounts={discounts}
         renderCard={(product, h) => (
           <MartProductCard
@@ -282,15 +310,40 @@ export function FaMartScreen({
             variant="rail"
             imageAspect={1}
             showAdLabel
+            quantity={h.quantity}
             isAdded={h.isAdded}
             onPress={h.onPress}
             onAdd={h.onAdd}
+            onIncrement={h.onIncrement}
+            onDecrement={h.onDecrement}
           />
         )}
       />
     ),
-    deals: <DealsOfDayRail deals={pricedDeals} onDealPress={handleDealPress} onViewAll={handleViewAllDeals} onItemView={handleDealView} />,
-    essentials: <DailyEssentialsRail items={pricedEssentials} onItemPress={handleEssentialPress} onViewAll={handleViewAllEssentials} onItemView={handleEssentialView} />,
+    deals: (
+      <DealsOfDayRail
+        deals={pricedDeals}
+        onDealPress={handleDealPress}
+        onViewAll={handleViewAllDeals}
+        quantityOf={quantityOf}
+        onAdd={handleDealAdd}
+        onIncrement={(id) => void updateQuantity(id, 1)}
+        onDecrement={(id) => void updateQuantity(id, -1)}
+        onItemView={handleDealView}
+      />
+    ),
+    essentials: (
+      <DailyEssentialsRail
+        items={pricedEssentials}
+        onItemPress={handleEssentialPress}
+        onViewAll={handleViewAllEssentials}
+        quantityOf={quantityOf}
+        onAdd={handleEssentialAdd}
+        onIncrement={(id) => void updateQuantity(id, 1)}
+        onDecrement={(id) => void updateQuantity(id, -1)}
+        onItemView={handleEssentialView}
+      />
+    ),
   };
 
   const feedSectionsData = MART_FEED_SECTION_IDS.map((id) => ({ id, component: sectionNodes[id] }));
@@ -302,13 +355,6 @@ export function FaMartScreen({
   const handleRateVendor = useCallback(
     (v: StoreProfile) => navigation.navigate('RateVendor', { vendorId: v.id, vendorName: v.name }),
     [navigation],
-  );
-
-  const handleAddProduct = useCallback(
-    (product: Product) => {
-      addToCart(product.id, product.name, product.price, product.emoji);
-    },
-    [addToCart],
   );
 
   const renderProductItem = useCallback(

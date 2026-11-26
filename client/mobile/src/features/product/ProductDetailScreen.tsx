@@ -6,6 +6,7 @@ import type { ProductView, ProductReviewSummary } from '@/services/api/GatewayCl
 import { applyActiveDiscount, useActiveDiscounts } from '@/services/pricing';
 import { useCartStore } from '@/state/cartStore';
 import { useFavoriteStore } from '@/state/favoriteStore';
+import { runAuthGate } from '@/services/authGate';
 import { useOrdersStore } from '@/state/ordersStore';
 import { canReviewProduct } from '@/services/productReviews';
 import { storeProfileToFoodRestaurant } from '@/features/food/utils/restaurantForProduct';
@@ -180,7 +181,9 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       cartItems={cartItems}
       updateCartQuantity={updateCartQuantity}
       favorites={favorites}
-      toggleFavorite={toggleFavorite}
+      toggleFavorite={(id: string) => {
+        if (runAuthGate(() => void toggleFavorite(id))) void toggleFavorite(id);
+      }}
       onViewVendor={handleViewVendor}
       onViewRestaurant={handleViewRestaurant}
       onOpenProduct={handleOpenProduct}
@@ -194,7 +197,10 @@ export function ProductDetailScreen({ navigation, route }: Props) {
       activeDiscountPercent={canonical ? discounts[canonical.id]?.discountPercent : undefined}
       onUploadPrescription={
         product.app === 'PHARMA'
-          ? () => navigation.navigate('PrescriptionFlow', { presetVendorId: product.storeId })
+          ? () =>
+              runAuthGate(() =>
+                navigation.navigate('PrescriptionFlow', { presetVendorId: product.storeId }),
+              )
           : undefined
       }
     />

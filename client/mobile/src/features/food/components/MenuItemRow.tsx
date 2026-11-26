@@ -1,11 +1,11 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Plus, Minus } from 'lucide-react-native';
 import type { SpecialDish } from '@data/types';
 import AppText from '@/components/AppText';
+import AddToCartControl from '@/components/shared/AddToCartControl';
 import { localizedDishDesc, localizedDishName } from '@/lib/localizedText';
 import { useLanguageStore } from '@/state/languageStore';
-import { hs, ms, vs } from '@/utils/responsive';
+import { hs, ms } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import RemoteImage from './RemoteImage';
 
@@ -33,7 +33,6 @@ const MenuItemRow = memo(function MenuItemRow({
   onDecrement,
   onPress,
 }: MenuItemRowProps) {
-  const isAdded = quantity > 0;
   const language = useLanguageStore((s) => s.language);
   const dishName = localizedDishName(dish, language);
   const dishDesc = localizedDishDesc(dish, language);
@@ -66,39 +65,17 @@ const MenuItemRow = memo(function MenuItemRow({
       </TouchableOpacity>
       <View style={styles.listImageWrapper}>
         <RemoteImage uri={dish.image} variant="dish" style={styles.listImage} />
-        {isAdded ? (
-          <View style={styles.qtyStepper}>
-            <TouchableOpacity
-              style={styles.qtyStepperBtn}
-              onPress={onDecrement}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel={`Decrease quantity of ${dishName}`}
-            >
-              <Minus color={foodTheme.primary} size={ms(14)} />
-            </TouchableOpacity>
-            <AppText style={styles.qtyStepperValue}>{quantity}</AppText>
-            <TouchableOpacity
-              style={styles.qtyStepperBtn}
-              onPress={onIncrement}
-              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-              accessibilityRole="button"
-              accessibilityLabel={`Increase quantity of ${dishName}`}
-            >
-              <Plus color={foodTheme.primary} size={ms(14)} />
-            </TouchableOpacity>
-          </View>
-        ) : (
-          <TouchableOpacity
-            style={styles.addBtnOutline}
-            onPress={onAdd}
-            accessibilityRole="button"
-            accessibilityLabel={`Add ${dishName}`}
-          >
-            <Plus color={foodTheme.primary} size={ms(14)} style={styles.addBtnPlus} />
-            <AppText style={styles.addBtnOutlineText}>Add</AppText>
-          </TouchableOpacity>
-        )}
+        <AddToCartControl
+          quantity={quantity}
+          onAdd={onAdd}
+          onIncrement={onIncrement}
+          onDecrement={onDecrement}
+          accent={foodTheme.primaryDeep}
+          onAccent={foodTheme.white}
+          variant="outline"
+          label={dishName}
+          style={styles.addControl}
+        />
       </View>
     </View>
   );
@@ -143,47 +120,5 @@ const styles = StyleSheet.create({
   },
   listImageWrapper: { alignItems: 'center' },
   listImage: { width: 110, height: 110, borderRadius: 16, backgroundColor: '#F3F4F6' },
-  addBtnOutline: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: foodTheme.primary,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-    marginTop: -14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  addBtnPlus: { marginRight: 2 },
-  addBtnOutlineText: { color: foodTheme.primaryDeep, fontWeight: 'bold', fontSize: 14 },
-  qtyStepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: foodTheme.primary,
-    borderRadius: 8,
-    marginTop: -14,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  qtyStepperBtn: {
-    paddingHorizontal: hs(12),
-    paddingVertical: vs(6),
-  },
-  qtyStepperValue: {
-    minWidth: ms(24),
-    textAlign: 'center',
-    color: foodTheme.primaryDeep,
-    fontWeight: 'bold',
-    fontSize: 14,
-  },
+  addControl: { marginTop: -14 },
 });

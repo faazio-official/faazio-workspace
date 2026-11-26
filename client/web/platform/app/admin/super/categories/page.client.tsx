@@ -668,7 +668,7 @@ export function CategoriesPage() {
     <div className="space-y-4">
       <PageHeader
         title="Categories"
-        description="The central category taxonomy. Every category has one primary pool — Mart, Food, Pharma, or the main app header (a header-only pool such as Electronics that drills into Android / iPhone). Each category and sub-category carries a mandatory GST rate. Sellers and apps pick from this list; deactivate hides a category in place, delete moves it to Deleted for 7 days so a mistake can be undone."
+        description="Category tree shared by Mart, Food, Pharma and the main app header. Every row carries a GST rate; deletes are restorable for 7 days."
         actions={
           <Button size="sm" className="gap-2" onClick={openCreate}>
             <Plus className="size-4" /> New category
@@ -684,9 +684,7 @@ export function CategoriesPage() {
 
       <SectionCard title="Main app header" bodyClassName="p-0">
         <p className="border-b border-border px-3 py-2 text-[12px] text-muted-foreground">
-          Top-level main app header chips, including header-only categories (app = Main app header)
-          and Mart / Pharma categories shared into the header. Food is not eligible. Each chip opens
-          its own sub-category drill-in.
+          Header chips shown in the app. Food is not eligible; each chip opens its sub-category drill-in.
         </p>
         <DataShell
           loading={mainLoading}

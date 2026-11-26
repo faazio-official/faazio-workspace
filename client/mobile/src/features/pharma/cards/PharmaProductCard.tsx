@@ -21,7 +21,7 @@ interface Props {
   width?: number;
   imageAspect?: number;
   nameLines?: number;
-  showPrice?: boolean; // default hidden
+  showPrice?: boolean;
   showAddButton?: boolean;
   showRating?: boolean;
   showBadge?: boolean;
@@ -49,7 +49,7 @@ const PharmaProductCard = memo(function PharmaProductCard({
        showAdLabel={showAdLabel}
        showDescription={showDescription}
        imageAspect={imageAspect}
-       showPrice={false}
+       priceLabel="Price on prescription"
      />
   );
 });

@@ -44,10 +44,16 @@
 ## State
 
 - `useLocationStore` — nearby origin for geo rails.
-- Home product cards are **tap-to-view only**: every Home section passes `showAddButton={false}`, so a
-  card opens `ProductDetail` and the shopper adds from there — no card-level add control on Home.
+- Home product cards in the 3-up grids mount the shared `AddToCartControl`. Card body order:
+  the pack size/unit sits on the left directly below the image, the **Add** pill on the right,
+  the price row below those two, and the product name last.
+- Every non-ad Home item card (3-up grids and horizontal rails alike) mounts the card-level
+  **Add** control; the card body stays unit → **Add** on one line, price, then name. Paid
+  placements (`AdProductCard`, sponsored rail) are the only Home cards without the shopper add
+  action.
 - Home grids (Men/Women/Kids, Hair & Skin Care, Discover) render as a compact **3-column** layout
-  with square images; every Home section uses one-line product names (`nameLines={1}`).
+  with square images; every Home section uses two-line product names (`nameLines={2}`) and hides
+  the card rating (`showRating={false}`).
 - `useRefreshStore` — cross-component pull signal (`home` counter) shared by the feed and the
   header rail, which are siblings in the collapsing header.
 - `useHomeFeed` returns `{ feed, loading, error, refreshing, refresh, reload }`; `refresh` sets

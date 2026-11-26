@@ -1,39 +1,45 @@
 import React, { memo } from 'react';
 import { View, TouchableOpacity, StyleSheet } from 'react-native';
-import { Star } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { PRODUCT_CARD_WIDTH } from '@/theme/cards';
 import MartImage from './MartImage';
-import { formatRating } from '@/components/shared/format';
+import AddToCartControl from '@/components/shared/AddToCartControl';
+import { brandRamp, neutral } from '@/theme/brandTokens';
 
 interface MartDealCardProps {
   image: string;
   name: string;
-  rating?: number;
   price: number;
   originalPrice?: number;
-  /** Optional green claim line shown under the price (e.g. "Lowest price in 30 days"). */
-  priceNote?: string;
+  /** Pack size shown directly under the image (e.g. "500 g", "Pack of 6"). */
+  unit?: string;
   width?: number;
+  quantity?: number;
   onPress?: () => void;
+  onAdd?: () => void;
+  onIncrement?: () => void;
+  onDecrement?: () => void;
 }
 
 /**
  * Minimal, presentational mart deal card — deliberately NOT threaded through
- * `ProductCardBase`. Pure tap target: portrait image, optional rating pill, 1-line
- * name, strikethrough-MRP-then-price row, optional green price note. No `+` button,
- * no badge, no heart. The whole card is the press area.
+ * `ProductCardBase`. Square image, then pack size + Add on one row, the
+ * strikethrough-MRP-then-price row, and a 2-line name. No rating pill, no
+ * badge/tag label, no heart. Tapping the card still opens the item.
  */
 const MartDealCard = memo(function MartDealCard({
   image,
   name,
-  rating,
   price,
   originalPrice,
-  priceNote,
+  unit,
   width,
+  quantity = 0,
   onPress,
+  onAdd,
+  onIncrement,
+  onDecrement,
 }: MartDealCardProps) {
   return (
     <TouchableOpacity
@@ -48,16 +54,24 @@ const MartDealCard = memo(function MartDealCard({
       </View>
 
       <View style={styles.body}>
-        {rating !== undefined ? (
-          <View style={styles.ratingChip}>
-            <Star size={ms(11)} color="#111827" fill="#111827" strokeWidth={1.5} />
-            <AppText style={styles.ratingText}>{formatRating(rating)}</AppText>
-          </View>
-        ) : null}
-
-        <AppText style={styles.name} numberOfLines={1}>
-          {name}
-        </AppText>
+        <View style={styles.metaRow}>
+          {unit ? (
+            <AppText style={styles.unit} numberOfLines={1}>{unit}</AppText>
+          ) : null}
+          {onAdd ? (
+            <AddToCartControl
+              quantity={quantity}
+              onAdd={onAdd}
+              onIncrement={onIncrement}
+              onDecrement={onDecrement}
+              accent={brandRamp.MART.deep}
+              onAccent={brandRamp.MART.onDeep}
+              compact
+              label={name}
+              style={styles.addControl}
+            />
+          ) : null}
+        </View>
 
         <View style={styles.priceRow}>
           {originalPrice !== undefined && originalPrice > price ? (
@@ -66,11 +80,9 @@ const MartDealCard = memo(function MartDealCard({
           <AppText style={styles.price}>₹{price}</AppText>
         </View>
 
-        {priceNote ? (
-          <AppText style={styles.priceNote} numberOfLines={1}>
-            {priceNote}
-          </AppText>
-        ) : null}
+        <AppText style={styles.name} numberOfLines={2}>
+          {name}
+        </AppText>
       </View>
     </TouchableOpacity>
   );
@@ -102,26 +114,25 @@ const styles = StyleSheet.create({
     paddingVertical: vs(10),
     gap: vs(4),
   },
-  ratingChip: {
-    alignSelf: 'flex-start',
+  metaRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: hs(3),
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
-    borderRadius: ms(6),
-    paddingHorizontal: hs(6),
-    paddingVertical: vs(2),
+    justifyContent: 'space-between',
+    minHeight: ms(28),
   },
-  ratingText: {
-    fontSize: ms(11),
-    fontWeight: '800',
-    color: '#111827',
+  unit: {
+    flexShrink: 1,
+    marginRight: hs(6),
+    fontSize: ms(10.5),
+    fontWeight: '500',
+    color: neutral.inkMuted,
   },
+  addControl: { marginLeft: 'auto' },
   name: {
     fontSize: ms(13),
     fontWeight: '700',
     color: '#1E2022',
+    minHeight: ms(34),
   },
   priceRow: {
     flexDirection: 'row',
@@ -138,10 +149,5 @@ const styles = StyleSheet.create({
     fontSize: ms(15),
     fontWeight: '900',
     color: '#111827',
-  },
-  priceNote: {
-    fontSize: ms(11),
-    fontWeight: '700',
-    color: '#16A34A',
   },
 });

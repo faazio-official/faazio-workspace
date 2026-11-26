@@ -3,6 +3,7 @@ import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Heart } from 'lucide-react-native';
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, withSequence } from 'react-native-reanimated';
 import { useFavoriteStore } from '@/state/favoriteStore';
+import { runAuthGate } from '@/services/authGate';
 import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 
@@ -35,7 +36,8 @@ const FavoriteButton = memo(function FavoriteButton({
 
   const handlePress = () => {
     pressAnim.value = withSequence(withTiming(1, { duration: 110 }), withTiming(0, { duration: 140 }));
-    toggleFavorite(id);
+    // Favourites are account-bound: a guest heart opens sign-in, then resumes the toggle.
+    if (runAuthGate(() => void toggleFavorite(id))) void toggleFavorite(id);
     onPress?.();
   };
 

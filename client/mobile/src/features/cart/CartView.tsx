@@ -60,6 +60,7 @@ import { useDeviceFix } from '@/hooks/useLiveLocation';
 import { useLocationStore } from '@/state/locationStore';
 import { haversineKm } from '@/utils/distance';
 import { useAuthStore } from '@/state/authStore';
+import { runAuthGate } from '@/services/authGate';
 import { brandRamp } from '@/theme/brandTokens';
 
 /** Beyond this distance the phone is nowhere near the delivery point — confirm before charging. */
@@ -208,9 +209,16 @@ export default function CartView({
   // Checkout must reference one of the caller's durable addresses. Fixture ids belong to the demo
   // user, so submitting them makes the server reject the order with `invalid_address`.
   const [savedAddresses, setSavedAddresses] = useState<SavedAddress[]>([]);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   // Refetch on focus so an address added/edited on the SavedAddresses screen is picked up.
   useFocusEffect(
     useCallback(() => {
+      // Guests have no saved addresses (`/profile/addresses` is auth-scoped); a guest checkout
+      // never reaches the address step because the login gate runs at "Continue".
+      if (!isAuthenticated) {
+        setSavedAddresses([]);
+        return;
+      }
       let cancelled = false;
       void gateway
         .getAddresses()
@@ -223,7 +231,7 @@ export default function CartView({
       return () => {
         cancelled = true;
       };
-    }, []),
+    }, [isAuthenticated]),
   );
 
   const discountCard = useRewardsStore((s) => s.discountCard);
@@ -413,6 +421,13 @@ export default function CartView({
 
   const applyCouponCode = (code: string) => {
     const normalized = code.toUpperCase().trim();
+    // Coupon validation is auth-scoped (`POST /checkout/validate-coupon`). A guest can browse the
+    // public coupon list, but applying one opens Login and resumes the apply afterwards. Read the
+    // live store (not the render snapshot) so the resumed call sees the new session.
+    if (!useAuthStore.getState().isAuthenticated) {
+      runAuthGate(() => applyCouponCode(normalized));
+      return;
+    }
     const coupon = couponList.find((c) => c.code === normalized);
     if (!coupon) {
       setCouponError('That code isn’t available for this cart. Check the code and try again.');
@@ -457,11 +472,14 @@ export default function CartView({
   const prefilledCouponRef = useRef(false);
   useEffect(() => {
     if (prefilledCouponRef.current || !initialCouponCode || !couponsLoaded) return;
+    // A guest cannot validate a coupon yet; leave the ref unset so the hand-off applies after the
+    // resumed sign-in rather than firing a 401 now.
+    if (!isAuthenticated) return;
     prefilledCouponRef.current = true;
     // Apply once the list is in: `applyCouponCode` validates against the live list and surfaces the
     // same inline error a manual entry would when the code is no longer offered.
     applyCouponCode(initialCouponCode.toUpperCase().trim());
-  }, [initialCouponCode, couponsLoaded, applyCouponCode]);
+  }, [initialCouponCode, couponsLoaded, applyCouponCode, isAuthenticated]);
 
   const applyStreakCard = () => {
     if (!discountCard) return;
@@ -582,6 +600,11 @@ export default function CartView({
 
   const handlePlaceOrder = (payload?: PlaceOrderPayload, skipDistanceGuard = false) => {
     if (paymentProcessing) return;
+    // Defense in depth: the "Continue" button already gates guests before the payment step.
+    if (!isAuthenticated) {
+      runAuthGate();
+      return;
+    }
     setPaymentError(null);
     const { method = 'COD', upiAppId, upiLabel, coinsRedeemed = 0 } = payload ?? {};
     if ((fulfillment ?? 'DELIVERY') === 'DELIVERY' && !checkoutAddressId && !deliveryAddress.address.trim()) {
@@ -1087,7 +1110,11 @@ export default function CartView({
 
             <TouchableOpacity
               style={[styles.proceedBtn, selectedItems.length === 0 && styles.proceedBtnDisabled]}
-              onPress={() => setStep('PAYMENT')}
+              onPress={() => {
+                // Swiggy-style gate: adding to the cart is open to guests, but paying needs an
+                // account. The pending action re-opens this step after a successful sign-in.
+                if (runAuthGate(() => setStep('PAYMENT'))) setStep('PAYMENT');
+              }}
               activeOpacity={0.88}
               disabled={selectedItems.length === 0}
             >

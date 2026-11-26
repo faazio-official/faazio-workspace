@@ -38,9 +38,9 @@ type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
 
 /**
  * Food-first sub-app home. Single scroll surface: the pre-grid sections
- * (FoodHeader, the FOOD_HERO ad banner, Today's Special, "What's on your mind?")
- * render as the RestaurantGrid's list header, and the "Restaurants" grid is the
- * body — no nested vertical lists.
+ * (FoodHeader, the FOOD_HERO ad banner, the category rail, Today's Special,
+ * "What's on your mind?") render as the RestaurantGrid's list header, and the
+ * "Restaurants" grid is the body — no nested vertical lists.
  */
 export function FoodHomeScreen({ navigation }: Props) {
   const { feed, error, reload, refreshing, refresh } = useRestaurantFeed();
@@ -152,6 +152,9 @@ export function FoodHomeScreen({ navigation }: Props) {
               })
             }
           />
+        </Animated.View>
+        <Animated.View entering={FadeInDown.duration(340)} style={styles.categoryRailWrap}>
+          <FoodCategoryRail />
         </Animated.View>
         <Animated.View entering={FadeInDown.duration(360)}>
           <View style={styles.sectionHeaderWrap}>
@@ -265,6 +268,9 @@ const styles = StyleSheet.create({
   },
   heroWrap: {
     paddingHorizontal: hs(16),
+    marginTop: SPACE.BLOCK,
+  },
+  categoryRailWrap: {
     marginTop: SPACE.BLOCK,
   },
   sectionHeaderWrap: {

@@ -330,6 +330,26 @@ re-applied automatically on `npm install` via the `postinstall: patch-package` s
   curl -s "http://localhost:8081/index.bundle?platform=android&dev=true&minify=false" | grep -c "Object.isFrozen(updaterContainer)"   # expect >= 1
   ```
 
+## 🔧 Add / stepper tap crashes: "[Reanimated] The easing function is not a worklet"
+
+Tapping **Add** on a product card (or any `withTiming`-driven control) blanks the app through the
+error boundary in dev:
+
+```
+ERROR [Error: [Reanimated] The easing function is not a worklet.
+       Please make sure you import `Easing` from react-native-reanimated.]
+  at AddToCartControl
+```
+
+Cause: `src/theme/motion.ts` exported `Easing.bezier(...)` from **react-native** and passed it to
+Reanimated's `withTiming`. RN's easing is a plain function, not a worklet, so Reanimated rejects it
+the first time an animation runs (render is fine, the tap is not).
+
+**Fix:** use the `RE_EASE_*` exports (plus `Easing` from `react-native-reanimated`) for every
+`withTiming` / `withSequence` call. Keep the plain `EASE_*` / `EASING` tokens only for RN
+`Animated.timing` (`SlideUpSheet`, `OnboardingScreen`, `DPMotion`, `DPPress`). Verify by tapping
+**Add** and checking `adb logcat | grep ReactNativeJS` is clean.
+
 ## 🔧 Header overlaps status bar / first content under the header
 
 If a header slides under the OS status bar (clock/battery/cutout) or the first section of
@@ -476,6 +496,8 @@ AVIF on the wazero/WASM encoder and produces a genuinely static binary — verif
   device, emulator or Gradle. The suite runs `scripts/configure.js` first so generated
   `src/lib/config.ts` exists; `GatewayClient` is mocked per-file as the network seam. If a render
   fails with "render has not been called", `await` the RNTL 14 async `render`/`fireEvent` calls.
+  Reanimated 4/worklets are resolved through `react-native-worklets/jest/resolver`
+  (`jest.config.js`); without it, mounting an `Animated` component fails at `loadUnpackers`.
 - **Local DB migration drift** (`column ... does not exist` in `catalog`/`categories`/`sellers`
   tests) means the `faazio-local-pg` volume predates the newest migrations. Reset and re-seed with
   `docker compose down -v && docker compose up -d` (see `DEVELOPER_ONBOARDING.md` §4a).
@@ -819,7 +841,7 @@ runtime, not build time.
   (a login loop), or no SMS is ever sent on iOS** → the default Firebase app was never configured,
   so `getApps()` is empty and `firebaseAuthConfigured()` is false. `LoginScreen` then uses its
   `__DEV__` placeholder path (any six digits, fake `placeholder.*` token), the gateway 401s,
-  `recoverSession` finds no native user and `expireSession` resets to Login. Fix: `ios/Faazio/
+  `recoverSession` finds no native user and `expireSession` clears the session and drops back to guest browsing (`MainTabs`). Fix: `ios/Faazio/
   AppDelegate.swift` must `import FirebaseCore` and call `FirebaseApp.configure()` before React
   Native starts (RNFB does not auto-configure iOS; see `docs/RUNBOOKS/FIREBASE_AUTH.md`).
 - **The app crashes with `SIGTRAP` / `EXC_BREAKPOINT` the moment OTP is sent, and the device log

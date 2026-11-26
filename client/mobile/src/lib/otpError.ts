@@ -20,6 +20,9 @@ const OTP_ERROR_COPY: Record<string, string> = {
   'auth/missing-client-identifier': 'This build cannot verify numbers. Use a Play Store install.',
   'auth/invalid-app-credential': 'This build cannot verify numbers. Use a Play Store install.',
   'auth/app-not-authorized': 'This build cannot verify numbers. Use a Play Store install.',
+  // Local guard in `services/firebaseAuth.ts`: the native promise exceeded its hard ceiling
+  // (a stuck reCAPTCHA presentation must never leave the UI spinning forever).
+  'faazio/otp-timeout': 'Verification timed out. Check your connection and try again.',
 };
 
 /** The Firebase auth error code (`auth/<reason>`), from `err.code` or parsed out of `err.message`. */
