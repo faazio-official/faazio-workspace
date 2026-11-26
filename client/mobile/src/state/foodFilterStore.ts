@@ -6,6 +6,9 @@ interface FoodFilterState {
   /** Zomato-style diet filter shared across all Food sub-app screens + search. */
   dietFilter: DietFilter;
   setDietFilter: (filter: DietFilter) => void;
+  /** Only restaurants that accept scheduled / pre-orders (0142). */
+  scheduleOnly: boolean;
+  setScheduleOnly: (value: boolean) => void;
 }
 
 /**
@@ -16,4 +19,6 @@ interface FoodFilterState {
 export const useFoodFilterStore = create<FoodFilterState>()((set) => ({
   dietFilter: 'all',
   setDietFilter: (dietFilter) => set({ dietFilter }),
+  scheduleOnly: false,
+  setScheduleOnly: (scheduleOnly) => set({ scheduleOnly }),
 }));

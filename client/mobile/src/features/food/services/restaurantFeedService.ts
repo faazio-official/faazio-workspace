@@ -37,6 +37,7 @@ function productToDish(p: ProductView): SpecialDish {
     ...(p.nameTa ? { dishNameTa: p.nameTa } : {}),
     ...(p.descTa ? { descriptionTa: p.descTa } : {}),
     restaurant: p.shop ?? '',
+    ...(p.storeId ? { restaurantId: p.storeId } : {}),
     price: p.price,
     mrp: p.originalPrice,
     image: p.image,
@@ -69,6 +70,10 @@ function venueToRestaurant(v: Venue): FoodRestaurant {
     longitude: v.longitude ?? 0,
     isFavourite: false,
     dietType: 'both',
+    instantDelivery: v.instantDelivery ?? true,
+    acceptsScheduledOrders: v.acceptsScheduledOrders ?? false,
+    scheduleLeadTimeMinutes: v.scheduleLeadTimeMinutes ?? 60,
+    scheduleSlots: v.scheduleSlots ?? [],
   };
 }
 
@@ -97,6 +102,10 @@ export function storeToRestaurant(s: StoreRecord): FoodRestaurant {
     longitude: s.longitude ?? 0,
     isFavourite: false,
     dietType: s.isVeg === undefined ? 'both' : s.isVeg ? 'veg' : 'nonveg',
+    instantDelivery: s.instantDelivery ?? true,
+    acceptsScheduledOrders: s.acceptsScheduledOrders ?? false,
+    scheduleLeadTimeMinutes: s.scheduleLeadTimeMinutes ?? 60,
+    scheduleSlots: s.scheduleSlots ?? [],
   };
 }
 

@@ -47,6 +47,7 @@ export function FoodHomeScreen({ navigation }: Props) {
   const [activeTab, setActiveTab] = useState<FoodTab>('Home');
   const scrollY = useSharedValue(0);
   const dietFilter = useFoodFilterStore((s) => s.dietFilter);
+  const scheduleOnly = useFoodFilterStore((s) => s.scheduleOnly);
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -193,13 +194,21 @@ export function FoodHomeScreen({ navigation }: Props) {
     );
   }
 
-  const restaurants = feed.restaurants.filter((r) => venueMatches(dietFilter, r));
+  const restaurants = feed.restaurants.filter(
+    (r) => venueMatches(dietFilter, r) && (!scheduleOnly || r.acceptsScheduledOrders),
+  );
 
   // Honest empty state: the server authoritatively lists no vendors (all delisted / state-filtered)
-  // and no diet filter is hiding anything — don't fall back to stale fixture restaurants.
-  // A diet-emptied grid keeps the filter note.
+  // and no filter is hiding anything — don't fall back to stale fixture restaurants. A schedule
+  // filter that hides everything gets its own copy so the user knows which chip to switch off.
   const gridEmpty =
-    restaurants.length > 0 ? undefined : feed.vendorsAuthoritative && feed.restaurants.length === 0 ? (
+    restaurants.length > 0 ? undefined
+    : scheduleOnly && feed.restaurants.length > 0 ? (
+      <View style={styles.emptyState}>
+        <AppText style={styles.emptyTitle}>No pre-order restaurants</AppText>
+        <AppText style={styles.emptySub}>Turn off Pre-order to see all restaurants.</AppText>
+      </View>
+    ) : feed.vendorsAuthoritative && feed.restaurants.length === 0 ? (
       <View style={styles.emptyState}>
         <AppText style={styles.emptyTitle}>No restaurants available right now</AppText>
         <AppText style={styles.emptySub}>Please check back soon.</AppText>

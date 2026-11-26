@@ -4,13 +4,14 @@ import { gateway, type MenuDish } from '@/services/api/GatewayClient';
 import type { FoodRestaurant } from '../types';
 
 /** Map one durable `directory.menus` dish onto the app's `SpecialDish` card shape. */
-function toSpecialDish(dish: MenuDish, restaurantName: string): SpecialDish {
+function toSpecialDish(dish: MenuDish, restaurantId: string, restaurantName: string): SpecialDish {
   return {
     id: dish.id,
     dishName: dish.name,
     ...(dish.nameTa ? { dishNameTa: dish.nameTa } : {}),
     ...(dish.descTa ? { descriptionTa: dish.descTa } : {}),
     restaurant: restaurantName,
+    restaurantId: restaurantId,
     price: dish.price,
     mrp: dish.mrp,
     image: dish.image ?? '',
@@ -51,7 +52,7 @@ export function useRestaurantMenu(restaurant: FoodRestaurant): RestaurantMenuSta
       .then((dishes) => {
         if (!active) return;
         // Authoritative: an empty live list is the venue's real menu (seller emptied it).
-        setMenu(dishes.map((d) => toSpecialDish(d, restaurant.name)));
+        setMenu(dishes.map((d) => toSpecialDish(d, restaurant.id, restaurant.name)));
       })
       .catch(() => {
         // Offline / HTTP error: show the honest empty menu, never fixture dishes.

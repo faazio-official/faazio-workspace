@@ -41,7 +41,7 @@ import { gateway } from '@/services/api/GatewayClient';
 import type { Product, StoreProfile, ProductVariant } from '@data/types';
 import type { ReviewRow } from '@data/reviews/reviews';
 import type { StockRow } from '@data/inventory/stock';
-import type { ProductReviewSummary, PublicCoupon } from '@/services/api/GatewayClient';
+import type { ProductReviewSummary, PublicCoupon, MenuDish } from '@/services/api/GatewayClient';
 import { localizedDesc, localizedName } from '@/lib/localizedText';
 import { useLanguageStore } from '@/state/languageStore';
 import { useAddressesStore } from '@/state/addressesStore';
@@ -77,6 +77,31 @@ interface ProductDetailViewProps {
 function discountPercent(price: number, original?: number): number {
   if (!original || original <= price) return 0;
   return Math.round(((original - price) / original) * 100);
+}
+
+/**
+ * Map a restaurant menu dish (`GET /venues/{id}/menu`) onto the shared `Product` card shape so the
+ * FOOD PDP can render a "Recommended" grid of sibling dishes without leaking into the Mart catalog.
+ * The venue id is carried through so tapping a recommended dish loads that restaurant's menu again.
+ */
+function menuDishToProduct(dish: MenuDish, ctx: { storeId?: string; shop?: string }): Product {
+  return {
+    id: dish.id,
+    app: 'FOOD',
+    category: dish.cuisine ?? 'Featured',
+    name: dish.name,
+    price: dish.price,
+    ...(dish.mrp !== undefined && dish.mrp > dish.price ? { originalPrice: dish.mrp } : {}),
+    emoji: '🍽️',
+    rating: dish.rating ?? 0,
+    desc: dish.description ?? '',
+    image: dish.image ?? '',
+    ...(ctx.shop ? { shop: ctx.shop } : {}),
+    ...(ctx.storeId ? { storeId: ctx.storeId } : {}),
+    ...(dish.nameTa ? { nameTa: dish.nameTa } : {}),
+    ...(dish.descTa ? { descTa: dish.descTa } : {}),
+    ...(dish.isVeg !== undefined ? { isVeg: dish.isVeg } : {}),
+  };
 }
 
 function inr(value: number): string {
@@ -262,22 +287,63 @@ export default function CommonProductDetailView({
   }, [serverStore, product?.storeId]);
 
   const [serverRelated, setServerRelated] = useState<Product[] | null>(null);
+  // Where the rail came from, so the subtitle never claims "same restaurant" for personalized rows.
+  const [relatedSource, setRelatedSource] = useState<'store' | 'personal' | null>(null);
   useEffect(() => {
     setServerRelated(null);
-    if ((product?.app !== 'MART' && product?.app !== 'PHARMA') || !product.storeId) return;
+    setRelatedSource(null);
+    const app = product?.app;
+    const storeId = product?.storeId;
+    const selfId = product?.id;
+    const shop = product?.shop;
+    if (!app || !selfId) return;
     let active = true;
-    gateway
-      .getStoreProducts(product.storeId)
-      .then((rows) => {
-        if (active) setServerRelated(rows.filter((p) => p.id !== product.id));
-      })
-      .catch(() => {
-        if (active) setServerRelated(null);
-      });
+    const cap = 12;
+    void (async () => {
+      // 1) Same vendor / same restaurant — the reliable "Recommended" source for every sector.
+      if (storeId) {
+        try {
+          if (app === 'FOOD') {
+            // FOOD PDP ids are `directory.menus` dish ids; the venue id is the restaurant/store id.
+            const dishes = await gateway.fetchMenu(storeId);
+            const rows = dishes
+              .filter((d) => d.id !== selfId)
+              .slice(0, cap)
+              .map((d) => menuDishToProduct(d, { storeId, shop }));
+            if (active && rows.length > 0) {
+              setServerRelated(rows);
+              setRelatedSource('store');
+              return;
+            }
+          } else {
+            const rows = await gateway.getStoreProducts(storeId);
+            const filtered = rows.filter((p) => p.id !== selfId).slice(0, cap);
+            if (active && filtered.length > 0) {
+              setServerRelated(filtered);
+              setRelatedSource('store');
+              return;
+            }
+          }
+        } catch {
+          /* fall through to personalized recommendations */
+        }
+      }
+      // 2) Personalized fallback (same app, never the current item). Honest [] when unavailable.
+      try {
+        const recs = await gateway.getRecommendations();
+        const filtered = recs.filter((p) => p.app === app && p.id !== selfId).slice(0, cap);
+        if (active) {
+          setServerRelated(filtered);
+          setRelatedSource(filtered.length > 0 ? 'personal' : null);
+        }
+      } catch {
+        if (active) setServerRelated([]);
+      }
+    })();
     return () => {
       active = false;
     };
-  }, [product?.app, product?.storeId, product?.id]);
+  }, [product?.app, product?.storeId, product?.id, product?.shop]);
 
   const relatedProducts = useMemo(() => {
     if (!product) return [];
@@ -592,7 +658,7 @@ export default function CommonProductDetailView({
         ) : null}
 
         {/* Vendor */}
-        {store ? (
+        {store && product.app !== 'FOOD' ? (
           <SurfaceCard style={styles.sectionGap}>
             <View style={styles.storeInfoRow}>
               <View style={styles.storeLogoContainer}>
@@ -626,7 +692,10 @@ export default function CommonProductDetailView({
 
             {relatedProducts.length > 0 ? (
               <>
-                <AppText style={styles.relatedTitle}>More from {store.name}</AppText>
+                <AppText style={styles.relatedTitle}>Recommended</AppText>
+                <AppText style={styles.relatedSubtitle}>
+                  {relatedSource === 'personal' ? 'Picked for you' : `More from ${store.name}`}
+                </AppText>
                 <View style={styles.relatedGrid}>
                   {pricedRelatedProducts.map((p) => {
                     const qty = cartItems.find((i) => i.id === p.id)?.quantity ?? 0;
@@ -654,6 +723,36 @@ export default function CommonProductDetailView({
           </SurfaceCard>
         ) : null}
 
+        {/* Recommended when the store context is not available (personalized fallback) */}
+        {!store && product.app !== 'FOOD' && pricedRelatedProducts.length > 0 ? (
+          <SurfaceCard style={styles.sectionGap}>
+            <AppText style={styles.sectionLabel}>Recommended</AppText>
+            <AppText style={styles.relatedSubtitle}>Picked for you</AppText>
+            <View style={styles.relatedGrid}>
+              {pricedRelatedProducts.map((p) => {
+                const qty = cartItems.find((i) => i.id === p.id)?.quantity ?? 0;
+                return (
+                  <ProductCardBase
+                    key={p.id}
+                    product={p}
+                    appBrand={product.app === 'PHARMA' ? 'PHARMA' : 'MART'}
+                    variant="grid2"
+                    width={CARD_WIDTH}
+                    showDescription
+                    originalPrice={p.originalPrice}
+                    quantity={qty}
+                    isAdded={qty > 0}
+                    onPress={onOpenProduct}
+                    onAdd={() => addToCart(p.id, p.name, Number(p.price) || 0, p.emoji ?? 'mart')}
+                    onIncrement={() => updateCartQuantity(p.id, 1)}
+                    onDecrement={() => updateCartQuantity(p.id, -1)}
+                  />
+                );
+              })}
+            </View>
+          </SurfaceCard>
+        ) : null}
+
         {/* Food restaurant */}
         {product.app === 'FOOD' && product.shop ? (
           <SurfaceCard style={styles.sectionGap}>
@@ -675,6 +774,33 @@ export default function CommonProductDetailView({
               </View>
               {onViewRestaurant ? <AppText style={styles.viewVendorLink}>View</AppText> : null}
             </TouchableOpacity>
+          </SurfaceCard>
+        ) : null}
+
+        {/* Food recommended — sibling dishes from the same restaurant menu */}
+        {product.app === 'FOOD' && pricedRelatedProducts.length > 0 ? (
+          <SurfaceCard style={styles.sectionGap}>
+            <AppText style={styles.sectionLabel}>Recommended</AppText>
+            <AppText style={styles.relatedSubtitle}>
+              {relatedSource === 'personal'
+                ? 'Picked for you'
+                : `More dishes from ${product.shop ?? 'this restaurant'}`}
+            </AppText>
+            <View style={styles.relatedGrid}>
+              {pricedRelatedProducts.map((p) => (
+                <ProductCardBase
+                  key={p.id}
+                  product={p}
+                  appBrand="FOOD"
+                  variant="grid2"
+                  width={CARD_WIDTH}
+                  showDescription
+                  originalPrice={p.originalPrice}
+                  onPress={onOpenProduct}
+                  showAddButton={false}
+                />
+              ))}
+            </View>
           </SurfaceCard>
         ) : null}
 
@@ -912,6 +1038,7 @@ const styles = StyleSheet.create({
   storeLocationText: { fontSize: ms(11), color: neutral.inkMuted, marginLeft: hs(4), flexShrink: 1 },
   viewVendorLink: { fontSize: ms(12), fontWeight: '600', color: semantic.info, paddingVertical: vs(4), paddingHorizontal: hs(4) },
   relatedTitle: { fontSize: ms(13), fontWeight: '600', color: neutral.ink, marginTop: SPACE.BLOCK, marginBottom: SPACE.BLOCK },
+  relatedSubtitle: { fontSize: ms(11), color: neutral.inkSubtle, marginTop: -SPACE.BLOCK / 2, marginBottom: SPACE.BLOCK },
   relatedGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', width: '100%' },
   ratingSummaryRow: { flexDirection: 'row', gap: hs(16), alignItems: 'center' },
   ratingBig: { width: ms(84), alignItems: 'center' },

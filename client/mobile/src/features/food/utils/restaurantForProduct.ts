@@ -3,7 +3,6 @@
  * There is **no** bundled restaurant/menu fixture: a FOOD product whose store never loads simply
  * has no tappable restaurant affordance (the server `GET /store/:id` path is the only source).
  */
-import type { Product } from '@data/types';
 import type { FoodRestaurant } from '../types';
 
 /** Adapt a server `StoreProfile` (food store) into a `FoodRestaurant` (presentation-only fields
@@ -43,15 +42,3 @@ export function storeProfileToFoodRestaurant(store: {
   };
 }
 
-/**
- * Resolve a food product to a full `FoodRestaurant`, or `undefined`. Server-only by contract: no
- * bundled restaurant pools or store directory are consulted, so a FOOD product with no loaded
- * server store resolves to `undefined` (the PDP shows no tappable restaurant affordance rather than
- * an invented one).
- */
-export function getFoodRestaurantForProduct(
-  product: Product,
-): FoodRestaurant | undefined {
-  if (product.app !== 'FOOD') return undefined;
-  return undefined;
-}

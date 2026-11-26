@@ -36,6 +36,7 @@ function viewToDish(p: ProductView): SpecialDish {
     ...(p.nameTa ? { dishNameTa: p.nameTa } : {}),
     ...(p.descTa ? { descriptionTa: p.descTa } : {}),
     restaurant,
+    ...(p.storeId ? { restaurantId: p.storeId } : {}),
     price: p.price,
     mrp: p.originalPrice !== undefined && p.originalPrice > p.price ? p.originalPrice : undefined,
     image: p.image,

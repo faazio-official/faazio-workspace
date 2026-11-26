@@ -18,6 +18,11 @@ export interface FoodRestaurant {
   isFavourite: boolean;
   /** Zomato-style venue diet classification for the Veg / Non-Veg filter. */
   dietType: 'veg' | 'nonveg' | 'both';
+  /** Advance-order availability (0142). */
+  instantDelivery?: boolean;
+  acceptsScheduledOrders?: boolean;
+  scheduleLeadTimeMinutes?: number;
+  scheduleSlots?: string[];
 }
 
 export interface FoodType {

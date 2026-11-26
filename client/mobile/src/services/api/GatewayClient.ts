@@ -423,6 +423,11 @@ export interface Venue {
   /** PII — only present on an authenticated read. */
   phone?: string;
   hours?: string;
+  /** Advance-order availability (0142), mirrored from the owning store when one exists. */
+  instantDelivery?: boolean;
+  acceptsScheduledOrders?: boolean;
+  scheduleLeadTimeMinutes?: number;
+  scheduleSlots?: string[];
 }
 
 /**
@@ -442,6 +447,8 @@ export interface Category {
   description?: string;
   /** Tamil display name (server translation, 0107). Empty → fall back to `name`. */
   nameTa?: string;
+  /** Customer price-filter bucket set (0143): standard / premium / snack. */
+  priceTierSet?: 'standard' | 'premium' | 'snack';
   /** Tamil display description (server translation, 0107). Empty → fall back to `description`. */
   descriptionTa?: string;
   iconUrl?: string;

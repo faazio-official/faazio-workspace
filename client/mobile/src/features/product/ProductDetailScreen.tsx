@@ -8,7 +8,7 @@ import { useCartStore } from '@/state/cartStore';
 import { useFavoriteStore } from '@/state/favoriteStore';
 import { useOrdersStore } from '@/state/ordersStore';
 import { canReviewProduct } from '@/services/productReviews';
-import { getFoodRestaurantForProduct } from '@/features/food/utils/restaurantForProduct';
+import { storeProfileToFoodRestaurant } from '@/features/food/utils/restaurantForProduct';
 import type { SubAppId } from '@/state/uiStore';
 import type { RootStackParamList } from '@/navigation/types';
 import type { Product } from '@data/types';
@@ -132,10 +132,36 @@ export function ProductDetailScreen({ navigation, route }: Props) {
     navigation.navigate('RateProduct', { productId: product.id, productName: product.name });
   }, [navigation, product?.id, product?.name]);
 
-  const restaurant = useMemo(
-    () => (product?.app === 'FOOD' ? getFoodRestaurantForProduct(product) : undefined),
-    [product],
-  );
+  // FOOD PDPs need a real restaurant object to open the restaurant profile. The product carries the
+  // venue id (storeId) from its menu/search source; resolve the public store row and adapt it. No
+  // invented restaurant when the id is absent or the read fails.
+  const [restaurant, setRestaurant] = useState<
+    ReturnType<typeof storeProfileToFoodRestaurant> | undefined
+  >(undefined);
+  useEffect(() => {
+    if (product?.app !== 'FOOD') {
+      setRestaurant(undefined);
+      return;
+    }
+    const storeId = product.storeId ?? canonical?.storeId;
+    if (!storeId) {
+      setRestaurant(undefined);
+      return;
+    }
+    let active = true;
+    gateway
+      .getStore(storeId)
+      .then((row) => {
+        if (!active) return;
+        setRestaurant(row ? storeProfileToFoodRestaurant(row) : undefined);
+      })
+      .catch(() => {
+        if (active) setRestaurant(undefined);
+      });
+    return () => {
+      active = false;
+    };
+  }, [product?.app, product?.storeId, canonical?.storeId]);
   const handleViewRestaurant = useCallback(() => {
     if (!restaurant) return;
     navigation.navigate('FoodApp', {

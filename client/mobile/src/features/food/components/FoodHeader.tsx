@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { hs, ms, vs } from '@/utils/responsive';
 import { foodTheme } from '../constants/theme';
 import DietToggle from './DietToggle';
+import ScheduleToggle from './ScheduleToggle';
 
 interface FoodHeaderProps {
   onBack?: () => void;
@@ -32,7 +33,12 @@ const FoodHeader = memo(function FoodHeader({ onBack }: FoodHeaderProps) {
         </TouchableOpacity>
 
         <View style={styles.toggleWrap}>
-          <DietToggle />
+          <View style={styles.toggleRow}>
+            <DietToggle />
+            <View style={styles.scheduleWrap}>
+              <ScheduleToggle />
+            </View>
+          </View>
         </View>
 
         <View style={styles.spacer} />
@@ -65,6 +71,13 @@ const styles = StyleSheet.create({
   toggleWrap: {
     flex: 1,
     alignItems: 'center',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  scheduleWrap: {
+    marginLeft: hs(6),
   },
   spacer: {
     width: ms(40),
