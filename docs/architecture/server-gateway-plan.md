@@ -368,6 +368,15 @@ caller) and are event-purged on store live toggle and product edit/status change
   creation accepts an optional `taxonomyCategoryId`
   (active leaf for the store's app); the gateway validates it and folds the leaf `search_query` into
   `catalog.products.search_tokens` (`0096`).
+- **Food attribute facets (`internal/categories` + `internal/directory`, `0138`):** the Category Tree
+  stays navigation + GST; dish metadata (Patty, Cheese Type, Bun, Dosa Style) is a separate facet
+  layer. Superadmin `GET|PUT /admin/categories/{id}/attribute-groups` reads/replaces a sub-category's
+  groups + options (replace-all; ids preserved so dish tags survive, a removed option cascades its dish
+  links). Any signed-in account reads `GET /categories/{id}/attribute-groups` (the seller dish form and
+  customer filter drawer share one definition). A dish write (`POST`/`PUT /seller/menus`) accepts
+  optional `attributeOptionIds`, persisted to `directory.menu_item_attributes` in the menu transaction;
+  every option must belong to a group whose `subcategory_id` is the dish's own sub-category (`400
+  invalid_attribute`), and both the seller and public menu reads project `attributeOptionIds`.
 - **Rider payouts (`internal/delivery`, `0052` + `0054`):** `GET /delivery/payouts` (rider history)
   and `GET /delivery/payouts/{orderId}` (upsert a PENDING calculation). Completing a route
   (`UpdateStop` → `ROUTE_COMPLETE`, no failed drop) materialises the PENDING payout in the same

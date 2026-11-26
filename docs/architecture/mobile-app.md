@@ -168,7 +168,7 @@ it has no handler; PH7 Featured Brands / PH8 Health Corner stay intentional **st
 portal SDUI editor cannot author new sections — promotion deferred). Routing: `CategoryDrillInScreen`
 sends `app='PHARMA'` vendors to `MedicalShopDetails` (defensive single `STORE_TOP` host), and the
 shared PDP resolves PHARMA stores (`pharmaStores`), pulls PHARMA related products, renders the store's
-real address/hours, tags its "More from store" grid `appBrand='PHARMA'`, and **View Vendor** → `MedicalShopDetails`.
+real address/hours, tags its "Recommended" grid `appBrand='PHARMA'`, and **View Vendor** → `MedicalShopDetails`.
 Blood donor: `BloodRequestDescription` gained an optional `source` provenance param and `useBloodRequests`
 now returns `settled` — a **cold deep link** waits for the live board before judging a `requestId`
 missing (a fixture id is never rendered as a server row), and `NearbyRequestCard` no longer prints
@@ -261,27 +261,29 @@ render layer for every paid hero, driven by `components/shared/CampaignHero`. Ph
 for the one-card-per-row banners).
 
 The **Mart Product Detail** (`CommonProductDetailView`) renders a store section below the
-"Product Details" block for any MART product with a resolvable `storeId`: a store card
+"Product Details" block for any MART/PHARMA product with a resolvable `storeId`: a store card
 (cover thumb + rating chip, name + verified badge, location line, open/closes row), a
-**"More from {store.name}"** 2-column related-products grid (same-store catalog rows served by
-`GatewayClient.getStoreProducts` → `GET /stores/{id}/products`, with the local `martProducts` filter
-kept as the offline fallback; rendered with the shared `ProductCardBase` so the ecommerce-cards
-boundary stays green — only Add / quantity steppers are interactive, card press is disabled), and a
-**"View Vendor"**
-button. "View Vendor" pushes `SubApp` with `subAppId: 'FA_MART'` plus the optional
-`initialVendorStoreId` param, which `SubAppWrapper` uses to open the vendor drill-in directly
-(header/tab-bar auto-hide for free). FOOD/PHARMA products, deals and products without a
-`storeId` render no store section.
+**"Recommended"** 2-column grid (subtitle **"More from {store.name}"**) built from same-store catalog
+rows served by `GatewayClient.getStoreProducts` → `GET /stores/{id}/products`, rendered with the
+shared `ProductCardBase` (Add / quantity steppers interactive; card press opens the PDP), and a
+**"View Vendor"** button. When there is no store context or same-store rows are empty, the rail falls
+back to personalized `GatewayClient.getRecommendations` (`GET /recommendations`) filtered to the same
+app and labelled **"Picked for you"**; it stays hidden when every source returns nothing. "View
+Vendor" pushes `SubApp` with `subAppId: 'FA_MART'` plus the optional `initialVendorStoreId` param,
+which `SubAppWrapper` uses to open the vendor drill-in directly (header/tab-bar auto-hide for free).
 
 The shared **Product Detail** (`CommonProductDetailView`) also renders a FOOD vendor card for
-any FOOD product (below "Product Details") resolved by `product.shop` against `@data/food/stores`
-`foodStores` (name + verified badge, desc, open/distance row; name-only header when the
-restaurant isn't in `foodStores`), plus a **"More from {restaurant}"** 2-column grid of the
-restaurant's other `TODAYS_SPECIALS` (via `dishToProduct`). Card tap pushes another `ProductDetail`
-(`onOpenProduct`); grid + footer adds for FOOD are **direct** (the fulfilment gate was
-removed — the mode is chosen later on the cart BAG step). The old "Free Delivery / COD /
-10-Day Return / Assured" trust block was removed from the shared view (applies to MART/PHARMA
-too — one component).
+any FOOD product (below "Product Details") plus the same **"Recommended"** rail. A FOOD dish carries
+its venue id from its menu/search/SDUI source (`SpecialDish.restaurantId` → `Product.storeId`); the
+vendor card name comes from `product.shop`, and the tappable restaurant affordance resolves the public
+store via `getStore` + `storeProfileToFoodRestaurant` (hidden when the venue id is absent or the read
+fails). The rail reads the restaurant's full menu (`GatewayClient.fetchMenu` →
+`GET /venues/{id}/menu`) and maps sibling dishes onto `Product` cards (subtitle **"More dishes from
+{restaurant}"**), falling back to same-app `getRecommendations` (**"Picked for you"**). Card tap pushes
+another `ProductDetail` (`onOpenProduct`); FOOD recommended cards intentionally have **no direct add**
+(a dish may need add-ons), while the footer's own add stays direct (the fulfilment gate was removed —
+the mode is chosen later on the cart BAG step). The old "Free Delivery / COD / 10-Day Return /
+Assured" trust block was removed from the shared view (applies to MART/PHARMA too — one component).
 
 `seller-partner` is the **standalone Seller Partner app** (not a customer route). Sellers log in
 with the same email/password as the web portal (gateway HS256 portal JWT; roles SELLER /

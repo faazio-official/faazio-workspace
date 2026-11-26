@@ -26,7 +26,7 @@
 
 - `useCartStore` — add-to-cart.
 - `useFavoriteStore` — favourites.
-- `useFoodFilterStore` — Food veg/non-veg filter.
+- `useFoodFilterStore` — Food veg/non-veg filter + the Pre-order (schedule) filter (`0142`).
 - `useSearchStore` — recent searches.
 - `useLocationStore` — nearby origin.
 
@@ -52,7 +52,10 @@
   `submitProductReview` → `PUT /products/{id}/review` → `reviews.reviews` (delivered purchase only,
   latest wins).
 - Food vendors: `fetchStores('FOOD')` + `fetchVenues('FOOD')` → `directory.stores` (FOOD delivery
-  kitchens, `is_live`-filtered) ∪ `directory.dining_venues` — the restaurant grid unions both.
+  kitchens, `is_live`-filtered) ∪ `directory.dining_venues` — the restaurant grid unions both. Both
+  feeds carry `instantDelivery` / `acceptsScheduledOrders` / `scheduleLeadTimeMinutes` /
+  `scheduleSlots` (`0142`); the header **Pre-order** chip filters the grid to
+  `acceptsScheduledOrders = true` and shows a dedicated empty state when it hides everything.
 - Menus: `fetchMenu` → `directory.menus` (`venue_id` resolves a store or a dining venue).
 - Mart, Food and Pharma use no `@data/*` substitution on a failed live read: empty/error is honest.
   Pharma's category grid shows a retryable error instead of authored rows; Food's restaurant grid,

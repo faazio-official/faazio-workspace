@@ -621,6 +621,15 @@ legal-metrology profile (country of origin, manufacturer/packer, shelf life, sto
 used to prefill a new listing. Per shop because the legal seller entity and FSSAI/drug licence are per
 shop; the seller portal reads/writes it through `GET /seller/stores` / `PUT /seller/stores/{id}`.
 
+**Order availability (`0142`):** `instant_delivery BOOLEAN NOT NULL DEFAULT true`,
+`accepts_scheduled_orders BOOLEAN NOT NULL DEFAULT false`,
+`schedule_lead_time_minutes SMALLINT NOT NULL DEFAULT 60 CHECK (0..1440)` and
+`schedule_slots TEXT[] NOT NULL DEFAULT '{}'` (HH:MM labels) are set once on the store profile
+(`/seller/stores`, `PUT /seller/stores/{id}`) and carried on `GET /stores`. A FOOD store update
+mirrors the same values to its `directory.dining_venues` row (same id), so the customer venue feed and
+the seller-owned store feed agree. The Food home **Pre-order** chip filters the authoritative
+store ∪ venue grid to `accepts_scheduled_orders = true`.
+
 **Vendor ownership (0068–0076):** `directory.stores` is the VENDOR (the real shop). It now also carries
  `seller_id` (TEXT NOT NULL, FK `stores_seller_fk` → `sellers.sellers(id)` ON DELETE RESTRICT — 0069/0071),
  `state_code`, `is_live`, and the per-shop commercial fields `platform_fee_pct SMALLINT NOT NULL DEFAULT 10
@@ -1126,6 +1135,71 @@ CREATE INDEX menus_venue_idx ON directory.menus (venue_id);
 back to the English column. Written by the seller portal (`PUT /seller/menus/{venueId}/{dishId}`,
 `POST|PUT /seller/addons`) and validated Tamil-only by `locale.IsTamilText`; public menu/venue/add-on
 reads project them alongside the English copy. See §12.30 → "Tamil translations".
+
+**Attribute facets — Category Tree vs. Facets split (`0138`).** Dish metadata such as Patty, Cheese
+Type, Bun, Dosa Style or Cooking Fat is **not** a sub-category; putting it in the tree would explode
+into thousands of duplicate permutations. It lives in a separate, superadmin-authored facet layer tied
+to a leaf sub-category:
+
+```sql
+CREATE TABLE taxonomy.subcategory_attribute_groups (       -- Burger → Patty, Cheese Type, Bun
+  id TEXT PRIMARY KEY, subcategory_id TEXT REFERENCES taxonomy.categories(id) ON DELETE CASCADE,
+  slug TEXT NOT NULL, display_name TEXT NOT NULL,
+  input_type TEXT NOT NULL CHECK (input_type IN ('single_select','multi_select')),
+  display_order INT NOT NULL DEFAULT 0, UNIQUE (subcategory_id, slug));
+
+CREATE TABLE taxonomy.attribute_options (                  -- Chicken, Cheddar, Brioche
+  id TEXT PRIMARY KEY, group_id TEXT REFERENCES taxonomy.subcategory_attribute_groups(id) ON DELETE CASCADE,
+  parent_filter_tab TEXT,                                  -- customer drawer tabs: Chicken | Paneer | Vegetables
+  label TEXT NOT NULL, icon_url TEXT, keywords TEXT[] NOT NULL DEFAULT '{}', -- auto-tagger
+  display_order INT NOT NULL DEFAULT 0, UNIQUE (group_id, lower(label)));
+
+CREATE TABLE directory.menu_item_attributes (              -- a seller's applied tags on one dish
+  venue_id TEXT, dish_id TEXT, option_id TEXT REFERENCES taxonomy.attribute_options(id) ON DELETE CASCADE,
+  PRIMARY KEY (venue_id, dish_id, option_id),
+  FOREIGN KEY (venue_id, dish_id) REFERENCES directory.menus(venue_id, dish_id) ON DELETE CASCADE);
+```
+
+Groups/options are managed by the superadmin (`PUT /admin/categories/{id}/attribute-groups`, a
+replace-all that preserves ids so dish tags survive a reorder) and read by the seller form + customer
+filter drawer (`GET /categories/{id}/attribute-groups`). A dish write
+(`POST`/`PUT /seller/menus`) carries optional `attributeOptionIds`; every option must belong to a
+group whose `subcategory_id` is the dish's own sub-category. Deleting an option cascades its dish
+links. The seller form auto-suggests chips by matching the dish name against option labels +
+`keywords`; nothing is mandatory.
+
+**Seed migration `0139` (FOOD facet master).** Seeds the five FOOD carousel roots (Burger, Dosa,
+Fried Rice, Chicken, Thali), one listable leaf each, a 5% `gst-food-standard` link per row, the `FOOD`
+header label per row, and the facet groups/options: Dietary Preference on every leaf; Patty (with the
+Chicken / Mutton & Seafood / Vegetables / Paneer / Others tabs), Patty Type, Cheese Type,
+Dressing / Sauce, Toppings, Bun Type and Region / Cuisine Origin on the Burger leaf. Ids are
+deterministic (`ag-<slug>`, `ao-<slug>-<label>`) and the write is `ON CONFLICT DO UPDATE`, so a re-run
+preserves ids and seller dish tags. Tamil copy is `''` (raw-SQL path) and option icons stay null until
+uploaded to R2. `0140` (FOOD v2) then makes this the only FOOD tree, fills the category Tamil names,
+drops the category description columns and remaps every FOOD seller item onto these leaves; see
+§12.30.
+
+**Facet Tamil names (`0141`, additive):** `taxonomy.subcategory_attribute_groups.name_ta` and
+`taxonomy.attribute_options.name_ta` are display-only translations (`text not null default ''`), seeded
+for all 12 groups and 164 options (`0141`) and editable in the superadmin facet sheet. `''` falls back
+to the English label; the English column stays the canonical key and the seller dish-tag id is
+unchanged. See `super-admin-categories.md`.
+
+**Store order availability (`0142`, additive):** `directory.dining_venues` carries the same
+`instant_delivery` / `accepts_scheduled_orders` / `schedule_lead_time_minutes` / `schedule_slots`
+columns as `directory.stores`; a FOOD store save mirrors them by id. `GET /venues` exposes them so the
+Food home **Pre-order** chip can filter to venues accepting advance orders. See §7.5.
+
+**FOOD expansion v3 (`0143`, additive):** 20 more top-level categories from the app flow (Rolls,
+Milkshake, Chicken Fried Rice, Paratha, Rice, Fries, Shake, South Indian, Desserts, Ice Cream,
+Noodles, Tandoori Chicken, Parotta, Sweets, Cheesecake, Tiramisu, Chilli Chicken, Chicken Curries,
+Juice, Chicken 65), each with one listable leaf, 5% `gst-food-standard`, `FOOD` header and Tamil name.
+The same migration seeds the global **Dietary Preference** on every new leaf plus the
+**Ice Cream** (Flavour with Classic/Fruit/Chocolate/Dry Fruit/Cake/Biscuit/Desi/Others tabs; Type),
+**Shake** (Flavour tabs; Type; Additive) and **Rolls** (Ingredient tabs; Base; Region / Cuisine
+Origin) facet masters. It also adds `taxonomy.categories.price_tier_set` (`standard` / `premium` /
+`snack`) so the customer price filter can derive the right bucket thresholds from a dish's base price.
+Facet labels carry Tamil `name_ta`; option icons remain null until uploaded to R2. Idempotent.
 
 `directory.dining_venues` is restaurant identity only — it has no booking/reservation fields,
 time slots, or table counts; Food fulfillment is DELIVERY or PICKUP only. It began as an identity
@@ -2477,7 +2551,7 @@ UPDATE directory.menus m SET seller_id = s.seller_id
 - Seller/app and admin RLS (`0050`) keeps its legacy state fallback; strict scoping is enforced in the
   gateway service layer. Media moderation and `admins` audit/customer reads are unchanged.
 
-### 12.30 Central category taxonomy — superadmin-owned tree (migrations `0067` + `0091` + `0096` + `0115` + `0136`)
+### 12.30 Central category taxonomy — superadmin-owned tree (migrations `0067` + `0091` + `0096` + `0115` + `0136` + `0139` + `0140`)
 
 The single source of truth for every sub-app category (Mart, Food, Pharma): one parent/child tree
 owned by the superadmin (portal-only writes; the Go gateway, `service_role`, is the only writer).
@@ -2493,8 +2567,6 @@ CREATE TABLE taxonomy.categories (
   name         TEXT NOT NULL,
   name_ta      TEXT NOT NULL DEFAULT '',  -- Tamil display name (0107); '' = untranslated
   slug         TEXT NOT NULL,
-  description  TEXT,
-  description_ta TEXT NOT NULL DEFAULT '',-- Tamil display description (0107); '' = untranslated
   icon_url     TEXT,
   parent_id    TEXT REFERENCES taxonomy.categories(id),  -- NULL = top-level
   search_query TEXT,                      -- leaf only: the drill-in vendor query
@@ -2527,6 +2599,33 @@ CREATE TABLE taxonomy.categories (
   categories (North Indian, South Indian, Chinese, Bakery, Cafe, Fast Food, Desserts). Ids are the
   legacy `cat_*` / `sg_*` / `sub_*` ids so `CATEGORY_TOP` ad targeting and drill-in deep links stay
   stable.
+- **Seed migration `0139` (FOOD carousel + facet master):** five top-level FOOD roots
+  (`cat-burger`, `cat-dosa`, `cat-fried-rice`, `cat-chicken`, `cat-thali`) each with one listable leaf
+  (`sub-<slug>`), `show_on_home_rail = false`, sequential `sort_order` 9700-9714, and
+  `created_by`/`updated_by = 'superadmin-seed'`. Every row gets a mandatory `gst-food-standard` (5%)
+  `tax.category_gst_rates` link and a `FOOD` `taxonomy.category_headers` label (never
+  `MAIN_APP_HEADER`). The same migration seeds the facet master on those leaves (Dietary Preference
+  everywhere; Patty, Patty Type, Cheese Type, Dressing / Sauce, Toppings, Bun Type and Region / Cuisine
+  Origin on the Burger leaf) with deterministic `ag-`/`ao-` ids. Idempotent `ON CONFLICT DO UPDATE`;
+  re-running preserves ids, so seller dish tags are never orphaned. Tamil copy is `''`; option icons
+  are null pending R2 upload. See §12.4 and `super-admin-categories.md`.
+- **FOOD v2 (`0140`, supersedes the legacy FOOD shelves):** the five 0139 roots/leaves become the
+  **only** FOOD tree. `0140` (1) drops the unused category `description` / `description_ta` columns
+  (dish descriptions on `directory.menus` are untouched), (2) fills `name_ta` for all 10 rows
+  (பர்கர் / தோசை / ஃப்ரைடு ரைஸ் / சிக்கன் / தாலி), (3) re-points every FOOD seller item —
+  `catalog.products.taxonomy_category_id` + display `category`, `directory.menus.section_id` /
+  `sub_category_id`, `directory.stores.seller_category_id` — onto the new leaves, then (4) deletes
+  every other `app = FOOD` row. The remap prefers Thali → Dosa → Fried Rice (rice/biryani/noodles/
+  Chinese) → Burger and defaults unmatched dishes/stores to Chicken, so nothing is orphaned. Icons
+  stay null and are edited on the superadmin page. Idempotent; re-running leaves 10 FOOD rows.
+- **FOOD expansion v3 (`0143`, additive):** adds 20 top-level categories + 20 leaves (Rolls,
+  Milkshake, Chicken Fried Rice, Paratha, Rice, Fries, Shake, South Indian, Desserts, Ice Cream,
+  Noodles, Tandoori Chicken, Parotta, Sweets, Cheesecake, Tiramisu, Chilli Chicken, Chicken Curries,
+  Juice, Chicken 65) at `sort_order` 9720-9759, each with `gst-food-standard`, a `FOOD` header and a
+  Tamil `name_ta`. It also adds `price_tier_set` (`standard` / `premium` / `snack`) on every FOOD row
+  for the customer price filter, plus the global Dietary Preference group on every new leaf and the
+  Ice Cream / Shake / Rolls facet masters (28 groups, 190 options, Tamil labels). Idempotent; the
+  superadmin facet sheet edits names/icons later. See §12.4 and `menu-creation.md`.
 - **Expansion (`0091`, additive):** 89 rows appended at `sort_order` 153-241 (existing ids/sorts
   never shift) — the base tree is **153 rows** (MART 110, PHARMA 36, FOOD 7) and the expanded tree is
   **242 rows**:
@@ -2590,14 +2689,15 @@ CREATE TABLE taxonomy.categories (
   drill-in. Editorial rail buckets (`🌧️ Monsoon Home Essentials`, `mart-foot`, …) are heterogeneous
   groups, so they deliberately stay unlinked with a null FK; checkout falls back to
   `taxmath.DefaultProductGSTRate` for an unlinked row.
-- **Tamil translations (`0107`, additive):** `taxonomy.categories.name_ta` / `description_ta` and
+- **Tamil names (`0107`, `0140`):** `taxonomy.categories.name_ta` and
   `catalog.products.name_ta` / `desc_text_ta` are display-only translations, `text not null default ''`.
-  An empty string means "not translated" and the app falls back to the English canonical column —
-  no read ever renders a blank label. The gateway validates both on write
+  `0140` dropped the unused `taxonomy.categories.description` / `description_ta` pair; category copy
+  is now name-only. An empty string means "not translated" and the app falls back to the English
+  canonical column — no read ever renders a blank label. The gateway validates Tamil fields on write
   (`internal/platform/locale.IsTamilText`: Tamil script, whitespace, digits and light punctuation
   only — Latin or any other script is rejected with `400`), so a direct API call cannot store English
   copy in a Tamil column. Authors: sellers (product name/description, seller portal) and super
-  admins (category name/description, admin portal).
+  admins (category name, admin portal).
 - **Tamil search (`0108`):** `catalog.products.search_vec` is rebuilt to include `name_ta` at weight
   `A` and `desc_text_ta` at weight `B`, so a Tamil query matches with the same
   `websearch_to_tsquery('simple', …)` path as English. Postgres ships no `tamil` text-search

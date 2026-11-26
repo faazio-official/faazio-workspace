@@ -10,8 +10,9 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 4. **`DEVELOPER_ONBOARDING.md`** — get a device booting in ~15 minutes.
 5. `data/DATA_CONTROL.md` — data ownership & status matrix (authoritative).
 6. **`user-interaction-workflow/README.md`** — authoritative end-to-end flows per app (customer, seller, delivery, shared).
-7. `PAGE_CATALOG.md` (root) — every screen/path in the app.
-8. `PENDING_WORK.md` (root) — repo-level backlog (server/DB/web/data); app-only backlog lives in `client/mobile/PENDING_WORK.md`.
+7. **`FAAZIO_USER_FLOW_GUIDE.md`** — client-facing visual map of the customer app + partner web portal (Mermaid diagrams + button tables).
+8. `PAGE_CATALOG.md` (root) — every screen/path in the app.
+9. `PENDING_WORK.md` (root) — repo-level backlog (server/DB/web/data); app-only backlog lives in `client/mobile/PENDING_WORK.md`.
 
 ## Map
 
@@ -19,6 +20,7 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 |---|---|---|
 | [DEVELOPER_ONBOARDING.md](./DEVELOPER_ONBOARDING.md) | Numbered getting-started guide (setup → run → verify) | Everyone |
 | [UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md) | **UI authority** + **brand colour SSOT** (Faazio Blue §5): unslop direction, nine passes, tokens, theme contract, per-surface playbooks, done checklist | Anyone touching UI |
+| [FAAZIO_USER_FLOW_GUIDE.md](./FAAZIO_USER_FLOW_GUIDE.md) | **Client-facing visual workflow guide**: customer-app + partner-portal screens, buttons, Mermaid diagrams and quick-reference tables. Must be updated on every flow change (AGENTS.md hard rule 16) | Clients / product / QA / everyone |
 | [BRAND_COLOR_MIGRATION.md](./BRAND_COLOR_MIGRATION.md) | Historical royal-purple → brand-blue accent change log + revert command (colour definition lives in [UI_DESIGN_SYSTEM.md](./UI_DESIGN_SYSTEM.md) §5) | Design / maintainers |
 | [architecture/mvp-backend.md](./architecture/mvp-backend.md) | **Production authority**: Go Chi modular monolith over Supabase + MongoDB + Valkey (production runtime; contexts, endpoints, RLS) | Engineers / infra |
 | [architecture/monolith-breakdown.md](./architecture/monolith-breakdown.md) | **Refactor authority**: context → package → schema → scaling-service ownership, boundaries, extraction playbook | Engineers / infra |
@@ -45,5 +47,6 @@ Operational and architectural documentation for the **Faazio SuperApp**.
 - **Terminology:** **"web app" / "the web app"** means the **web platform** — `client/web/` (Next.js Partner Portal at `client/web/platform/`, plus the landing page at `client/web/landingpage/`). **"app" / "mobile app"** means the React Native SuperApp at `client/mobile/`.
 - **Architecture deep-dives** live under `docs/architecture/`.
 - **User-flow docs** live under `docs/user-interaction-workflow/<app>/<domain>/`; any flow change updates its page in the same change.
+- **Visual flow guide:** `docs/FAAZIO_USER_FLOW_GUIDE.md` must be updated (matching diagram **and** button table) in the same change as any user-facing flow, screen, route, tab or button change — by every agent/harness (opencode, Cline, Claude Code, etc.).
 - **Operational guides / runbooks** live under `docs/RUNBOOKS/`.
 - When you add a doc, add it to this index and to the `docs/` tree in root `AGENTS.md`.

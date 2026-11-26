@@ -130,6 +130,13 @@ table:
 
 `/seller/stores` and the org-level analytics views stay deliberately cross-store.
 
+**Store profile + order availability (`/seller/stores`).** Each vendor card edits name/Tamil name,
+opening hours, pin, live/veg flags and licences. FOOD vendors additionally set **Instant delivery**
+and **Schedule / pre-order** availability (`0142`): a minimum-notice minutes field and optional HH:MM
+time slots. Saving calls `PUT /seller/stores/{id}`; the gateway validates the slots and mirrors the
+values to the matching `directory.dining_venues` row so the customer Food **Pre-order** filter sees
+the change immediately.
+
 ## Known gaps
 
 - Local-only seller surfaces: `support` (local tickets), `hub` checklist, `restaurant-status`,

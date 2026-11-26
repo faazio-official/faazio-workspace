@@ -21,6 +21,19 @@
      are selectable and a dish can never be filed on a parent. The options come from the superadmin
      taxonomy (`GET /categories?app=FOOD`, parent = header, child = leaf). A section with no
      sub-categories shows an inline "ask the superadmin to add one" note.
+   - **Dish details & filter tags** (contextual, optional) — the moment a sub-category is picked the
+     form fetches that leaf's facet groups (`GET /categories/{id}/attribute-groups`) and renders them
+     as pill chips. Burger shows Patty / Patty Type / Cheese Type / Dressing / Bun; Ice Cream shows
+     Flavour / Type; Shake shows Flavour / Type / Additive; Rolls shows Ingredient / Base /
+     Region / Cuisine Origin. Every other FOOD leaf (Dosa, Fried Rice, Chicken, Paratha, Rice, Fries,
+     …) shows the global **Dietary Preference** group only. Every group is optional (never blocks
+     publishing), `single_select` groups behave like a radio row and `multi_select` groups accept
+     several picks; long lists get an in-card search. The dish name **auto-tags**: matching each
+     option's label + `keywords` against the typed name pre-selects chips with an *"Auto-detected —
+     tap to adjust"* badge (a chip the seller removes is suppressed until re-picked). These tags are
+     the customer filter facets, not sub-categories. The leaf's `priceTierSet` (`standard` /
+     `premium` / `snack`, `0143`) tells the customer price filter which bucket thresholds to derive
+     from the dish's base price.
    - **Cuisine** (free text with suggestions), **Dietary type** (Veg / Non-veg / Egg).
    - **Price (₹)** (required, ≥ 0) and optional **MRP (₹)**; MRP must be ≥ price, and the inline
      discount % appears when it is higher.
@@ -43,6 +56,10 @@
 
 - Page-local React state in `app/seller/menus/page.client.tsx` (form fields, drawer/tab open flags,
   selected add-ons, add-on draft). The dish list itself is the shared `menus` slice via `useMenus`.
+- Facet-tag state in the same page: `attrSelected` (the chips saved with the dish), plus `attrTouched`
+  / `attrSuppressed` so the name auto-tagger never overrides a manual pick or re-adds a chip the seller
+  removed. `useSubcategoryAttributes(subCategoryId)` supplies the groups; changing the sub-category
+  resets the selection and swaps the card.
 - Add-ons + dish links are page-local, refreshed with `listAddons` / `listMenuAddons`.
 
 ## Data path
@@ -56,6 +73,11 @@
 - New columns persisted: `description`, `section_id`, `sub_category_id`, `dietary_type` (migration
   `0124_menu_taxonomy_dietary.sql`). `is_veg` stays the veg-mark source of truth and is kept consistent
   with the dietary type on every write.
+- Facet tags: the same write carries `attributeOptionIds`, persisted to `directory.menu_item_attributes`
+  inside the menu transaction (`0138`). A nil list on an edit leaves existing tags untouched; an
+  explicit list (including `[]`) replaces them. Every option must belong to a group whose
+  `subcategory_id` equals the dish's sub-category, else the gateway returns `400 invalid_attribute`.
+  Both `GET /seller/menus` and the public `GET /venues/{id}/menu` project `attributeOptionIds`.
 - `setMenuStatus` → `PUT /seller/menus/{venueId}/{dishId}/status` → `status` (`ACTIVE` / `DELISTED`).
 - `deleteMenu` → `DELETE /seller/menus/{venueId}/{dishId}`.
 - Image: `POST /media/upload-url` (owner `MENU`) → presigned PUT → `POST /media/confirm`; the stored

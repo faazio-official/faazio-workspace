@@ -20,7 +20,7 @@ faazio-workspace/
 ├── client/web/     Partner Portal — Next.js App Router console (`platform/`, shipping) + the Vite/TanStack reference (`vite-reference/`, read-only diff baseline) + the marketing landing page (`landingpage/`, TanStack Start + Nitro, deployed on Vercel — see its README.md). See docs/architecture/web-portal.md.
 ├── server/         Production Go Chi modular monolith `gateway/` + Supabase migrations/seed (active) + documented scaling-stage microservices (see docs/architecture/mvp-backend.md, monolith-breakdown.md).
 ├── data/           SDUI source of truth (enterprise-controlled), consumed via @data/*.
-├── docs/           Documentation system — architecture deep-dives + user-interaction-workflow/ (end-to-end flow authority) + runbooks + UI_DESIGN_SYSTEM.md (see "Documentation map").
+├── docs/           Documentation system — architecture deep-dives + user-interaction-workflow/ (end-to-end flow authority) + FAAZIO_USER_FLOW_GUIDE.md (client visual map) + runbooks + UI_DESIGN_SYSTEM.md (see "Documentation map").
 └── security/       Security hardening scripts + remediation guide (see "Security").
 ```
 See `ARCHITECTURE.md` (root) for the full mobile + backend design. Data ownership lives in `data/DATA_CONTROL.md`.
@@ -39,6 +39,7 @@ docs/
 ├── README.md                       # index + reading order
 ├── DEVELOPER_ONBOARDING.md         # numbered getting-started guide
 ├── UI_DESIGN_SYSTEM.md             # unslop: direction, 9 passes, tokens, BRAND COLOUR SSOT, theme contract, done checklist
+├── FAAZIO_USER_FLOW_GUIDE.md       # client-facing visual map: customer-app + partner-portal flows, buttons & Mermaid diagrams (must stay in sync with code)
 ├── BRAND_COLOR_MIGRATION.md        # historical royal-purple → brand-blue accent change log + revert (not the colour definition)
 ├── architecture/                   # deep-dives (mvp-backend, monolith-breakdown, mobile-app, web-portal, data-layer-sdui, server-gateway-plan, db-schema, caching-cloudflare-valkey)
 ├── user-interaction-workflow/      # authoritative end-to-end flows per app (customer, seller, delivery, shared) + KNOWN_GAPS.md
@@ -66,6 +67,7 @@ Anyone doing UI work reads `docs/UI_DESIGN_SYSTEM.md` first.
 13. **User Interaction Workflow freshness** — any code change that touches a user-facing flow (screen, route, tab, bottom sheet, action, store, `GatewayClient` method, endpoint, or DB read/write in a flow) MUST update the matching page under `docs/user-interaction-workflow/<app>/<domain>/` in the same change. A PR that ships behavior without the workflow page is incomplete and fails review. No **undocumented** partial or half-built user-interaction workflows may exist: if a route/screen/endpoint exists, its end-to-end flow (trigger → steps → screens → state → API → DB → success/error/empty) is documented before or alongside the code, and every partial flow is marked **Status: Partial** on its page and listed in `docs/user-interaction-workflow/KNOWN_GAPS.md`. Deleting a flow removes its page in the same change. New pages are added to `docs/user-interaction-workflow/README.md` and its app README; new folders are also added to `docs/README.md` and this Documentation map.
 14. **No mocked setup — DB-driven data only** — no fixture, fake latency, hardcoded response, or in-memory seed may act as the online origin on the client or the server. `@data/*` fixtures are explicitly labelled offline/error shells or type/seed sources only; `GatewayClient` is server-only and never substitutes fixtures on a remote failure. See "No mocked setup" below.
 15. **No new branches without asking** — never create a git branch (`git branch`, `git switch -c`, `git checkout -b`, or a worktree branch) unless the user explicitly asks for one. Work on the existing checked-out branch; only `main` is permanent. Deleting branches also requires an explicit request.
+16. **User Flow Guide freshness (every agent)** — `docs/FAAZIO_USER_FLOW_GUIDE.md` is the canonical, client-facing visual map of the customer app + partner web portal (screens, buttons, Mermaid diagrams, quick-reference tables). **Any** agent or agent harness — opencode, Cline, Claude Code, or any other — that adds, changes, or removes a user-facing flow, screen, route, tab, bottom sheet, button/control, or its destination MUST update this guide in the same change (the matching diagram **and** the button/table rows). Bump the change-log version and date when the flow surface changes. A change that alters a flow without touching this guide is incomplete and fails review. If a genuinely flow-neutral change is made, state why no flow update was needed.
 
 ## No mocked setup — DB-driven data only (client + server)
 
@@ -90,6 +92,8 @@ the same change — do not wait to be asked. Concretely, after implementing:
 - **New/removed/renamed user-facing flow or screen** → update
   `docs/user-interaction-workflow/<app>/<domain>/` (and `KNOWN_GAPS.md` if the flow is partial) in
   the same change; for the web portal flows use `docs/user-interaction-workflow/seller/web-portal/`.
+  **Also update `docs/FAAZIO_USER_FLOW_GUIDE.md`** (the visual guide diagrams + button tables) for any
+  flow change — this applies to every agent/harness (opencode, Cline, Claude Code, etc.).
 - **Data/`@data/*` changes** → update `data/DATA_CONTROL.md` and `docs/architecture/data-layer-sdui.md`.
 - **Server/API changes** → update `docs/architecture/server-gateway-plan.md` and, for package/context
   or endpoint changes, `docs/architecture/monolith-breakdown.md` (§1 ownership table).

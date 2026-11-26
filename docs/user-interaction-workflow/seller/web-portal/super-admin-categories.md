@@ -23,13 +23,14 @@ links to a slab from that master.
 3. **Create:** *New category* opens the sheet — App (Mart / Food / Pharma / **Main app header**),
    **GST rate** (mandatory select from the slab master, filtered to the chosen app's sector; for
    **Main app header** the pick-list combines the active Mart **and** Pharma slabs, since that pool
-   carries both), **Header labels**, Name, **Name (Tamil)**, **Description (Tamil)**, Icon URL, Vendor
+   carries both), **Header labels**, Name, **Name (Tamil)**, Icon URL, Vendor
    search query, Sort order, Active, and **Sub-categories**. Save calls `POST /categories` with
-   `headerLabels`, `gstRateCategoryId`, `gstRatePct` and `subCategories`. The two Tamil fields
-   validate with `tamilFieldError` (`src/lib/tamil.ts`) — Tamil letters, digits and light punctuation
-   only, blank = untranslated — and a filled value is sent as `nameTa`/`descriptionTa`; a non-Tamil
+   `headerLabels`, `gstRateCategoryId`, `gstRatePct` and `subCategories`. The Tamil name field
+   validates with `tamilFieldError` (`src/lib/tamil.ts`) — Tamil letters, digits and light punctuation
+   only, blank = untranslated — and a filled value is sent as `nameTa`; a non-Tamil
    character blocks Save with a toast before any request is made. The gateway re-validates
-   (`internal/platform/locale.IsTamilText`) and returns `400` if bypassed.
+   (`internal/platform/locale.IsTamilText`) and returns `400` if bypassed. Category descriptions were
+   removed in `0140` — the sheet has no English or Tamil description field.
    There is **no parent-id input**: the sheet omits `parentId`, so a new category is top-level
    (`parent_id = null`), and its children are the inline sub-category rows, which the gateway binds
    with `parent_id = <this category>`. On edit the sheet likewise omits `parentId`, and the repo keeps
@@ -43,19 +44,50 @@ links to a slab from that master.
    re-rate does not silently re-price an existing category.
 5. **Inline sub-categories:** the sheet is wide (`sm:max-w-2xl lg:max-w-3xl`) and each sub-category is
    a stacked card, one field per row so nothing is cramped: **Name** (+ remove button), **Name
-   (Tamil)**, **Description (Tamil)**, and its own **GST pick** (read-only 5% for FOOD). The two Tamil
-   fields are **mandatory** — save is blocked with a toast while any child has an empty or non-Tamil
-   Tamil name/description. Saving writes the child rows in the same transaction, with
+   (Tamil)**, and its own **GST pick** (read-only 5% for FOOD). The Tamil name is **mandatory** — save
+   is blocked with a toast while any child has an empty or non-Tamil Tamil name. Saving writes the
+   child rows in the same transaction, with
    `show_on_home_rail = false` and only the parent's own app label — a sub-category is reached through
    the parent's drill-in, never as its own rail chip. On update, a `subCategories` array replaces the
    parent's child set; omitting it leaves the children untouched. Editing a category hydrates each
-   child row with its stored `nameTa`/`descriptionTa`.
+   child row with its stored `nameTa`.
+
+   **Facet tags (per sub-category).** A leaf row in the Category tree shows a **Tags** action that
+   opens the facet manager (`AttributeManagerSheet`, `app/admin/super/categories/attribute-manager.tsx`).
+   It loads `GET /categories/{id}/attribute-groups` and edits groups (Patty, Cheese Type, Bun, Dosa
+   Style) with their options (Chicken, Cheddar, Brioche), each option carrying an optional
+   **filter tab** (for the customer drawer's Chicken | Paneer | Vegetables rail), an icon URL and
+   **auto-tag keywords**. Saving calls `PUT /admin/categories/{id}/attribute-groups` (replace-all;
+   ids are preserved so sellers' existing dish tags survive a reorder, removed options cascade their
+   dish links). These groups are deliberately **not** sub-categories — they never appear in the tree or
+   the customer drill-in; they are the filter facets the seller dish form and the customer filter
+   drawer read. Tags are optional on a dish.
+
+   **Tamil facet names (`0141`).** Each group and option has an optional **Tamil name** field in the
+   facet sheet (`nameTa`); the seeded FOOD master is translated for all 12 groups / 164 options.
+   Blank falls back to the English name, and the English label remains the stable key the dish tags
+   reference.
+
+   **Seed migrations `0139` + `0140` + `0143`.** The FOOD tree ships pre-seeded so a seller sees
+   listable rows on `/seller/menus` before any manual entry: the original five roots (Burger, Dosa,
+   Fried Rice, Chicken, Thali) plus the 20-category app-flow expansion (Rolls … Chicken 65), each with
+   one leaf (`cat-<slug>` / `sub-<slug>`), a mandatory 5% `gst-food-standard` row per category and a
+   `FOOD` header label per row (never `MAIN_APP_HEADER`). `0139` seeds the Burger facet master
+   (Patty with 5 tabs, Patty Type, Cheese Type, Dressing / Sauce, Toppings, Bun Type, Region /
+   Cuisine Origin); `0143` adds the global Dietary Preference on every new leaf and the Ice Cream
+   (Flavour tabs + Type), Shake (Flavour tabs + Type + Additive) and Rolls (Ingredient tabs + Base +
+   Region) masters. Group/option ids are deterministic (`ag-<slug>`, `ao-<slug>-<label>`), so
+   re-applying updates in place and never orphans a seller's dish tags. `0140` makes the curated tree
+   the only FOOD tree (Tamil names, no category descriptions, seller items remapped, legacy shelves
+   deleted). `0143` also adds the per-category `priceTierSet` (`standard` / `premium` / `snack`) used
+   by the customer price filter. Option icons are left null until uploaded to R2 (the facet sheet and
+   category form already edit the icon URL).
 6. **Header labels:** the pill group shows all four labels. The primary app label is always on and
    cannot be toggled off; the other app labels are inert. **Main app header** is the toggle that
    shares the row into the main header list — disabled for FOOD. A `MAIN_APP_HEADER` row is its own
    primary label and cannot be tagged with a vendor app label.
-7. **Edit:** *Edit* prefills the sheet (stored Tamil copy, the GST pick, the `MAIN_APP_HEADER` pill and
-   the existing sub-categories, each with its stored `nameTa`/`descriptionTa`) and calls
+7. **Edit:** *Edit* prefills the sheet (stored Tamil name, the GST pick, the `MAIN_APP_HEADER` pill and
+   the existing sub-categories, each with its stored `nameTa`) and calls
    `PUT /categories/{id}`. A nil `isActive` / `showOnHomeRail` / `headerLabels` / `subCategories` /
    `parentId` leaves the stored value unchanged — the sheet never sends `parentId`, so an edit can
    never re-parent or detach the row; the primary app label always follows a changed App.
@@ -115,10 +147,12 @@ links to a slab from that master.
 - `selected` — the set of trashed row ids ticked for the bulk "delete forever"; `confirmPurge` guards
   the confirmation dialog.
 - `mainRows` — the shared main app header list (`GET /admin/categories?header=MAIN_APP_HEADER`).
+- `tagging` — the leaf sub-category whose facet groups are open in `AttributeManagerSheet` (its own
+  local draft groups/options; saved in one replace-all call).
 - `rateCategories` — the slab pick-list (`useGSTRateCategories`, shared with the GST rates page).
-- Sheet form state — App, GST pick, header-label pills, name, Tamil name, Tamil description, icon,
-  search query, sort, Active, and the `subCategories` rows (name + Tamil name + Tamil description +
-  GST pick each). No parent-id state: new categories are top-level.
+- Sheet form state — App, GST pick, header-label pills, name, Tamil name, icon, search query, sort,
+  Active, and the `subCategories` rows (name + Tamil name + GST pick each). No parent-id state: new
+  categories are top-level.
 - No client-side category cache; each save refetches both tables.
 
 ## Data path
@@ -127,6 +161,10 @@ links to a slab from that master.
   + `tax.category_gst_rates ⋈ tax.gst_rate_categories`).
 - `listCategoriesByHeader("MAIN_APP_HEADER")` → `GET /admin/categories?header=MAIN_APP_HEADER` →
   `taxonomy.categories ⋈ taxonomy.category_headers` where `header = 'MAIN_APP_HEADER'`.
+- `fetchSubcategoryAttributes(id)` → `GET /categories/{id}/attribute-groups` →
+  `taxonomy.subcategory_attribute_groups ⋈ taxonomy.attribute_options`. `replaceSubcategoryAttributes(id, groups)`
+  → `PUT /admin/categories/{id}/attribute-groups` → one transaction upserting groups + options by id
+  (new rows mint `ag-`/`ao-` ids) and deleting the ones the payload dropped (SUPER_ADMIN).
 - `createCategory()` / `updateCategory()` → `POST /categories` / `PUT /categories/{id}` →
   `taxonomy.categories` + `taxonomy.category_headers` + `tax.category_gst_rates` (+ child rows) in one
   transaction (SUPER_ADMIN; audit-logged). `gst_rate_pct` is copied from the picked slab; the handler
@@ -161,9 +199,12 @@ links to a slab from that master.
   when a permanent delete is refused because a listing, store or menu still references the subtree.
 - **GST errors:** `400` when the pick is missing, the slab is inactive/unknown, or a FOOD row is given
   a non-5% slab. The portal blocks an unpicked row before sending.
-- **Sub-category errors:** `400` for a blank child name, a child with no Tamil name or Tamil
-  description, non-Tamil (or over-length) Tamil copy, or a child with no GST pick. The portal blocks
-  an empty/non-Tamil Tamil field and an unpicked GST row before sending.
+- **Sub-category errors:** `400` for a blank child name, a child with no Tamil name, non-Tamil (or
+  over-length) Tamil copy, or a child with no GST pick. The portal blocks an empty/non-Tamil Tamil
+  name and an unpicked GST row before sending.
+- **Facet-tag errors:** `400 bad_request` for a blank group name or option label, a bad input type or
+  an over-long tab; `409 conflict` when a group slug or option label is duplicated within the
+  sub-category; `404 not_found` when the sub-category was deleted meanwhile.
 - **Header label errors:** `400` for an unknown label, a label from another app, or
   `MAIN_APP_HEADER` on a FOOD row. The portal blocks the FOOD case before sending and shows a toast;
   the `0115` guard trigger also refuses it at the DB level.
@@ -182,7 +223,7 @@ links to a slab from that master.
 ## Linked docs
 
 - [`super-admin-gst-rates.md`](./super-admin-gst-rates.md) — the slab master this page picks from
-- `docs/architecture/db-schema.md` §12.30 (taxonomy) + §12.43 (GST master + per-category link)
+- `docs/architecture/db-schema.md` §12.30 (taxonomy) + §12.4 (menu + attribute facets, `0138`) + §12.43 (GST master + per-category link)
 - `docs/architecture/monolith-breakdown.md` §1 (categories + tax rows)
 - `docs/architecture/server-gateway-plan.md` (central category taxonomy)
 - [`../catalog/add-product.md`](../catalog/add-product.md)
