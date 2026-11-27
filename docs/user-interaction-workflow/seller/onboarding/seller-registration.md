@@ -115,6 +115,12 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
     `POST /sellers/{id}/edit`.
   - `409 compliance_failed` — an admin tried to activate an application whose format/checksum
     compliance status is `FAILED`.
+  - `50x media_unavailable` — the AVIF converter or the media registry/storage is temporarily busy
+    (a full-resolution phone photo normally takes 15–25 s on a shared instance). The copy tells the
+    seller the photo itself is fine and to retry; it no longer claims the photo reached the server
+    when the failure was a converter/storage step.
+  A KYC/passbook media failure is re-tagged client-side as `document_upload_failed` ("We couldn’t
+  upload your document") so the seller is not told the shop-photo converter is busy.
   The mobile screen maps the gateway `code` to specific copy (duplicate email, unverified phone,
   unknown district, missing agreements, invalid tier) instead of one generic "try again" message.
 - **Empty:** no application → onboarding entry state.

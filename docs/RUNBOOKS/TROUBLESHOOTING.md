@@ -219,11 +219,13 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   captures never reach the wire, and `GatewayClient.uploadShopPhoto` rejects a body over 4 MiB locally
   with a `photo_too_large` error (the "retake" copy) instead of a 20 s upload that ends in
   `media_unavailable` (which now reads as "converter busy, try again" — a server fault, not a bad
-  photo). Verified live 2026-11-27: a 10.9 MB JPEG still reproduced the 500 against the deployed
-  gateway (fix uncommitted at the time); a 2.5 KB JPEG returned 201 in ~3.7 s. **This fix only takes
-  effect once committed, pushed and the Render gateway redeployed.** If it still fails after deploy,
-  check instance CPU/memory and the R2 credentials; the client reads the gateway `media_unavailable`
-  code.
+  photo). Verified live 2026-11-27: before the fix a 4032×3024 camera JPEG reproduced the 500;
+  after the Render deploy the same images return 201 in 15–23 s (the converter is CPU-bound on a
+  shared instance, so the client caps captures at 1600 px). The HTTP server's `WriteTimeout` is now
+  60 s so the socket outlives the 45 s detached conversion bound. If it still
+  fails after deploy, check instance CPU/memory and the R2 credentials; the client reads the gateway
+  `media_unavailable` code, and a KYC/passbook failure is re-tagged `document_upload_failed` so it is
+  not misreported as the shop-photo converter being busy.
 
 ## 🔧 Gradle / native build failures
 

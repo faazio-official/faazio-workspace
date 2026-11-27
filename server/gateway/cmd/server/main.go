@@ -191,8 +191,12 @@ func main() {
 		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
-		IdleTimeout:       60 * time.Second,
+		// /media/avif converts a photo to AVIF inside the request (detached from the router's 10s
+		// timeout, bounded at 45s) and can legitimately take 15–25s on a shared instance. The socket
+		// write window must outlast that bound, or the client loses the JSON response even though the
+		// asset row was written.
+		WriteTimeout: 60 * time.Second,
+		IdleTimeout:  60 * time.Second,
 	}
 
 	go func() {

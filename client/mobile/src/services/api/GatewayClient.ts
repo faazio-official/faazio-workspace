@@ -2229,20 +2229,39 @@ export class GatewayClient {
   ): Promise<UploadedSellerDocument> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     const blob = await (await fetch(uri)).blob();
-    const ticket = await this.getMediaUploadUrl({
-      kind: 'PRIVATE',
-      ownerType: 'KYC',
-      ownerId,
-      mime,
-      bytes: blob.size,
-    });
+    let ticket: MediaUploadTicket;
+    try {
+      ticket = await this.getMediaUploadUrl({
+        kind: 'PRIVATE',
+        ownerType: 'KYC',
+        ownerId,
+        mime,
+        bytes: blob.size,
+      });
+    } catch (err) {
+      // The media registry shares the generic `media_unavailable` code with the AVIF converter.
+      // Re-tag a document failure so the seller is not told the photo converter is busy.
+      if (err instanceof GatewayHttpError && err.status !== 401) {
+        throw new GatewayHttpError(err.status, 'document_upload_failed', err.message);
+      }
+      throw err;
+    }
     const res = await fetch(ticket.uploadUrl, {
       method: 'PUT',
       headers: { 'Content-Type': mime },
       body: blob,
     });
-    if (!res.ok) throw new GatewayHttpError(res.status);
-    await this.confirmMedia(ticket.assetId, 'KYC', ownerId);
+    if (!res.ok) {
+      throw new GatewayHttpError(res.status, 'document_upload_failed', 'could not upload the document to storage');
+    }
+    try {
+      await this.confirmMedia(ticket.assetId, 'KYC', ownerId);
+    } catch (err) {
+      if (err instanceof GatewayHttpError && err.status !== 401) {
+        throw new GatewayHttpError(err.status, 'document_upload_failed', err.message);
+      }
+      throw err;
+    }
     return { key: ticket.key, assetId: ticket.assetId };
   }
 

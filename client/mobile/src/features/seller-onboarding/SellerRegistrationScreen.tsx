@@ -94,7 +94,9 @@ function describeSubmitError(err: unknown): string {
       case 'seller_update_failed':
         return 'The server couldn’t save your application. Please try again in a moment.';
       case 'media_unavailable':
-        return 'Your photo reached us, but the photo converter is busy. Try again in a moment — the photo itself is fine.';
+        return 'We couldn’t prepare your shop photo right now. Try again in a moment — the photo itself is fine.';
+      case 'document_upload_failed':
+        return 'We couldn’t upload your document. Check your connection and try again.';
       case 'photo_too_large':
         return 'One of your photos is too large to upload. Retake it (avoid very large images) and try again.';
       case 'bad_request':
