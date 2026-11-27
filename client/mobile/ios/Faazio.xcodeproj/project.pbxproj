@@ -37,10 +37,10 @@
 		FA10E0022E9A000000000002 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Faazio/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		FA20A0012E9B000000000001 /* VoipCallManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = VoipCallManager.swift; path = Faazio/VoipCallManager.swift; sourceTree = "<group>"; };
 		FA20A0032E9B000000000003 /* VoipCallBridge.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = VoipCallBridge.m; path = Faazio/VoipCallBridge.m; sourceTree = "<group>"; };
-		FA31F0002E9C000000000000 /* HindMadurai-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = HindMadurai-Regular.ttf; path = Faazio/Fonts/HindMadurai-Regular.ttf; sourceTree = "<group>"; };
-		FA31F0012E9C000000000001 /* HindMadurai-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = HindMadurai-Medium.ttf; path = Faazio/Fonts/HindMadurai-Medium.ttf; sourceTree = "<group>"; };
-		FA31F0022E9C000000000002 /* HindMadurai-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = HindMadurai-SemiBold.ttf; path = Faazio/Fonts/HindMadurai-SemiBold.ttf; sourceTree = "<group>"; };
-		FA31F0032E9C000000000003 /* HindMadurai-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = HindMadurai-Bold.ttf; path = Faazio/Fonts/HindMadurai-Bold.ttf; sourceTree = "<group>"; };
+		FA31F0002E9C000000000000 /* HindMadurai-Regular.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = HindMadurai-Regular.ttf; path = HindMadurai-Regular.ttf; sourceTree = "<group>"; };
+		FA31F0012E9C000000000001 /* HindMadurai-Medium.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = HindMadurai-Medium.ttf; path = HindMadurai-Medium.ttf; sourceTree = "<group>"; };
+		FA31F0022E9C000000000002 /* HindMadurai-SemiBold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = HindMadurai-SemiBold.ttf; path = HindMadurai-SemiBold.ttf; sourceTree = "<group>"; };
+		FA31F0032E9C000000000003 /* HindMadurai-Bold.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; name = HindMadurai-Bold.ttf; path = HindMadurai-Bold.ttf; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */

@@ -750,6 +750,13 @@ runtime, not build time.
   cache (Codemagic → Caching tab) and re-run — a stale SwiftPM cache can fail the archive midway.
   The workflow resolves packages explicitly before archiving so a bad cache fails with a clear error.
 
+- **`ARCHIVE FAILED` with `error: lstat(…/Faazio/Fonts/Faazio/Fonts/…ttf): No such file or directory`**
+  → the `HindMadurai-*.ttf` `PBXFileReference`s repeat the group path. The `Fonts` group already sets
+  `path = Faazio/Fonts`, so each child file reference must be the bare filename (`path =
+  HindMadurai-Regular.ttf`), not `Faazio/Fonts/HindMadurai-Regular.ttf`. Verify with `ruby -r xcodeproj`
+  (or Xcode) that every font `real_path` exists. Adding fonts by hand in the pbxproj is the usual cause;
+  add them through Xcode or keep child paths relative to their group.
+
 - **`xcode-project use-profiles` fails on `node_modules/...xcodeproj`** ("Failed to set code signing
   settings for …") → it searches recursively by default. Pass the app project explicitly:
   `xcode-project use-profiles --project ios/Faazio.xcodeproj` (the workflow does).
