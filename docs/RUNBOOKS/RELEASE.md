@@ -391,7 +391,7 @@ Customer Release**, and it is started **manually** from the Codemagic UI; it bui
 > released to the App Store. The Delivery Partner and Seller Partner apps ship on **Google Play
 > (Android) only** — they have no iOS target and **no planned iOS build or App Store release**.
 
-[`codemagic.yaml`](../../codemagic.yaml) runs on a Codemagic macOS M2 machine (Xcode 26.3):
+[`codemagic.yaml`](../../codemagic.yaml) runs on a Codemagic macOS M2 machine (Xcode 27):
 `npm ci` → `ts:check`/`check:boundaries`/`check:ui` → version rewrite →
 `npm run configure` (release) → `pod install` → `xcodebuild -resolvePackageDependencies` → the
 combined signing/archive/export step: `scripts/restore-ios-signing.sh customer` (imports the shared
@@ -401,9 +401,14 @@ and writes `~/export_options.plist`) → `xcodebuild archive` → `xcodebuild -e
 generated plist → `codesign` verify (Apple Distribution) → App Store Connect upload. Restore,
 archive and export share one step because Codemagic gives each script step a fresh shell/session, so
 keychain state does not survive between steps. Credentials are in the Codemagic environment variable
-group `ios app` (see `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store"). The GitHub
+group `ios app` (see `docs/RUNBOOKS/CI_PIPELINE.md` → "iOS / App Store") — the same Apple
+certificate/profile/API key used by the old GitHub Actions run, copied over, not re-created. The GitHub
 `ios-release.yml` workflow is disabled; re-enable it only as a rollback (see
 `docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md`).
+
+An App Store SDK warning (e.g. ITMS-90725: built with an older SDK; iOS 27 SDK required from
+April 2027) is avoided by the pinned `xcode: 27` and, if Apple raises the minimum again, by raising
+`environment.xcode` in `codemagic.yaml` and rebuilding — no app-code, project or signing change.
 
 The version input (or the customer entry in `app-versions.json`) sets `MARKETING_VERSION`; `CURRENT_PROJECT_VERSION` is a UTC
 timestamp (`YYYYMMDDHHmm`) generated on every run. `Info.plist` reads

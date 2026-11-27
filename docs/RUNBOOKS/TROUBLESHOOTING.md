@@ -728,7 +728,7 @@ runtime, not build time.
 
 ## 🔧 iOS CI (signing / archive / TestFlight)
 
-`codemagic.yaml` runs on a Codemagic macOS M2 machine with Xcode 26.3. The GitHub
+`codemagic.yaml` runs on a Codemagic macOS M2 machine with Xcode 27. The GitHub
 `ios-release.yml` workflow is disabled. There is no local iOS build on the Linux host.
 
 - **Firebase SPM resolution fails with "using Swift tools version 6.2.1 but the installed version is

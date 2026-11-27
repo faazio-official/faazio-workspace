@@ -26,7 +26,7 @@ Three active GitHub Actions workflows plus one Codemagic workflow:
   `build` / `vet` / `test` / `importlint` with Postgres + Valkey service containers (integration
   tests run; they skip cleanly when the services are absent). Triggers on `server/**` changes.
 - [`codemagic.yaml`](../../codemagic.yaml) (repo root) — signed release `.ipa` for the **customer
-  app** on Codemagic (macOS M2, Xcode 26.3) → TestFlight. Started manually from the Codemagic UI;
+  app** on Codemagic (macOS M2, Xcode 27) → TestFlight. Started manually from the Codemagic UI;
   the delivery/seller partner apps are Android/Play releases, not iOS (see "🍎 iOS release" below).
   [`.github/workflows/ios-release.yml`](../../.github/workflows/ios-release.yml) is **disabled**
   (`gh workflow disable "Release iOS"`) and kept only for history/rollback.
@@ -121,6 +121,10 @@ the Codemagic environment variable group `ios app` and are consumed by
 The disabled GitHub workflow also references `APPSTORE_PROVISIONING_PROFILE_DELIVERY` / `_SELLER`
 and `GOOGLE_SERVICE_INFO_DELIVERY_PLIST` / `_SELLER_PLIST`, but these are only read by the unused
 `delivery` / `seller` code paths. Codemagic only builds the customer app.
+
+The `ios app` group holds the **same** Apple credentials that were the GitHub Actions repo secrets
+when `ios-release.yml` was active — they were copied over, not re-created, so no certificate,
+profile or API key needs regenerating for a Codemagic build (or for the Xcode-version bump below).
 
 📖 The full step-by-step UI workflow for creating and downloading this `.p8` key (including the "App Manager" role choice and the one-time download warning) is on the dedicated runbook **`docs/RUNBOOKS/APPSTORE_API_KEY.md`**.
 
@@ -223,11 +227,16 @@ also carry `BuildConfig.BUILD_VARIANT` / `BuildConfig.DEBUG_BUILD` so a binary c
 
 ## 🍎 iOS release (customer only — Codemagic)
 
-Builds a release-signed `.ipa` for the **customer app** on Codemagic (macOS M2, Xcode 26.3) and
+Builds a release-signed `.ipa` for the **customer app** on Codemagic (macOS M2, Xcode 27) and
 uploads it to App Store Connect, where it appears under **TestFlight → Builds**. The committed
 `ios/` Xcode project is the source of truth — no prebuild. Delivery/seller have no planned iOS
 release (Android/Play only). The GitHub `ios-release.yml` workflow is disabled; see
 `docs/RUNBOOKS/IOS_RELEASE_WITHOUT_MACOS.md` for the full no-Mac runbook.
+
+> **SDK deadline (e.g. ITMS-90725).** Apple periodically requires a newer SDK (iOS 27 SDK from
+> April 2027; `codemagic.yaml` already pins `xcode: 27`). That is a toolchain bump, not a code
+> change: raise `environment.xcode` in `codemagic.yaml` when Apple raises the minimum, push, then
+> Start new build. No cert/profile/API-key change.
 
 **Trigger it from the Codemagic UI:**
 

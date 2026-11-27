@@ -7,7 +7,7 @@
 ## 1. Situation
 
 You no longer have a Mac (or never had one). All iOS work runs on Codemagic's macOS M2 build
-machines (Xcode 26.3), started from the Codemagic web UI, and submitted to App Store review from a
+machines (Xcode 27), started from the Codemagic web UI, and submitted to App Store review from a
 browser. The committed `ios/` Xcode project is the source of truth; there is no prebuild step.
 
 ## 2. One-time setup
@@ -65,6 +65,13 @@ The upload step normalises `APPSTORE_API_PRIVATE_KEY` through
 with quotes/CRLF, as a file path, or base64 is repaired before upload, so the "not a valid PEM
 encoded private key" failure only means the value is not the key at all.
 
+These are the **same** Apple credentials that were stored as GitHub Actions repository secrets when
+`ios-release.yml` was the pipeline (`APPSTORE_CERTIFICATE_BASE64`, `APPSTORE_CERTIFICATE_PASSWORD`,
+`APPSTORE_PROVISIONING_PROFILE_CUSTOMER`, `APPSTORE_API_PRIVATE_KEY`, `APPSTORE_TEAM_ID`,
+`APPSTORE_ISSUER_ID`, `APPSTORE_API_KEY_ID`). Moving to Codemagic only **copied** them into the
+`ios app` group — the distribution certificate, App Store provisioning profile and App Store Connect
+API key were not re-created, and need no change.
+
 ## 3. Every release (from Linux)
 
 ```bash
@@ -102,6 +109,18 @@ Then in the browser:
 5. **App Store → Add Build → select the build → submit for review**.
 
 Inviting TestFlight testers is optional — you can submit the build directly to App Store review.
+
+### Xcode / SDK upgrades (no code change)
+
+App Store Connect may warn that a build used an SDK nearing the minimum — e.g. ITMS-90725
+("built with the iOS 26.2 SDK; starting April 2027, apps must be built with the iOS 27 SDK,
+included in Xcode 27 or later"). This is a **build-toolchain** requirement, not a code change:
+`IPHONEOS_DEPLOYMENT_TARGET`, the Xcode project and all app code stay as-is.
+
+To clear it: raise `environment.xcode` in [`codemagic.yaml`](../../codemagic.yaml) to the required
+major version (`27` is already pinned), push to `main`, then **Start new build**. Nothing else
+changes — no certificate, provisioning profile or API key. The bump also needs whichever Codemagic
+Xcode image ships that version.
 
 ## 4. TestFlight: skip or not?
 

@@ -33,9 +33,10 @@ workflows:
         type: string
         default: ""
     environment:
-      # Xcode 26.3 ships Swift >= 6.2.1, required by Firebase iOS SDK 13
-      # (resolved through SPM by @react-native-firebase 27).
-      xcode: 26.3
+      # Xcode 27 ships Swift >= 6.2.1, required by Firebase iOS SDK 13
+      # (resolved through SPM by @react-native-firebase 27) and satisfies
+      # Apple's April 2027 iOS 27 SDK requirement (ITMS-90725).
+      xcode: 27
       node: 24
       cocoapods: default
       groups:
