@@ -497,7 +497,7 @@ const styles = StyleSheet.create({
     backgroundColor: neutral.surface,
   },
   pinLabel: {
-    fontSize: ms(10),
+    fontSize: ms(11),
     fontWeight: '700',
     color: neutral.inkMuted,
     textTransform: 'uppercase',
