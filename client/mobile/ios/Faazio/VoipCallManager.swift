@@ -47,7 +47,15 @@ struct VoipPushPayload {
     self.mode = userInfo["mode"] as? String ?? "VOIP"
     let label = userInfo["callerLabel"] as? String ?? ""
     self.callerLabel = label.isEmpty ? "Faazio call" : label
-    self.raw = userInfo.compactMapValues { $0 is NSNull ? nil : $0 }
+    // `userInfo` is keyed by `AnyHashable` (it arrives from PKPushPayload/UserDefaults), but the
+    // payload handed back to JS must be `[String: Any]`. Re-key explicitly and drop NSNull values
+    // (they cannot cross the RN bridge).
+    var raw: [String: Any] = [:]
+    for (key, value) in userInfo {
+      guard let key = key as? String, !(value is NSNull) else { continue }
+      raw[key] = value
+    }
+    self.raw = raw
   }
 }
 
