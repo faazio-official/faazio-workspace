@@ -17,11 +17,12 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
 1. Applicant enters account fields (business name, owner, PAN, optional GSTIN) and one or more
    vendor entries (app, category, per-store fee, FSSAI or drug licence, own pin, optional masked
    bank override, and **at least one shop-front photo**, up to five).
-   **Every shop must share its location** before submission: the "Pin your shop" picker mirrors the
-   customer "share my location" screen — search the shop address or use the device's current fix,
-   with permission-aware error copy and a Settings fallback. It no longer depends on a native
-   `MapView` (a missing/restricted Google Maps SDK key rendered a blank canvas); the first shop's
-   reverse-geocoded point sets the account state/district.
+   **Every shop must share its location** before submission: the "Pin your shop" picker shows a
+   native `MapView` with a draggable marker (matching the landing page's `sell-with-us` map) so the
+   seller can tap or drag the pin onto the shop door itself. Address search and "use my current
+   location" remain the reliable alternatives when map tiles are unavailable (a missing/restricted
+   Google Maps SDK key renders a blank canvas), with permission-aware error copy and a Settings
+   fallback. The first shop's reverse-geocoded point sets the account state/district.
 2. Contract tier: the screen reads `GET /sellers/contract-tiers` (server-owned rate card) and shows
    the selected tier's commission and payout terms. No tier is hardcoded on the client.
 3. Clickwrap: the applicant must tick three acceptances — Terms of Service, Seller / Partner
@@ -38,8 +39,18 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
 5. KYC documents upload (`uploadSellerDocument`), and per-vendor **shop photos**: each picked image is
    POSTed to `POST /media/avif`, which re-encodes it to AVIF server-side and returns an
    `assetId`/`key`. The gateway converts because React Native has no AVIF encoder; the bytes are
-   re-encoded from pixels, so camera EXIF/GPS never reaches storage. The application then sends each
-   vendor's ids as `shopPhotoIds`.
+   re-encoded from pixels, so camera EXIF/GPS never reaches storage. The conversion runs on a
+   **detached 45 s deadline**, not the router's 10 s request timeout: a full-resolution camera JPEG
+   takes several seconds to decode/downscale (long edge 1280)/encode on a shared instance, and the
+   old 10 s deadline cancelled the asset-row insert mid-submit, surfacing as a 500
+   (`media_unavailable`, "could not register image") for real phone photos. The client uploads
+   these one at a time so several full-resolution photos cannot oversubscribe the encoder.
+   Client-side hardening: `DocumentCapture` selects a ≤1600px camera format (`useCameraFormat`
+   `photoResolution`) so captures stop sending full-sensor 12–50 MP bodies, and `uploadShopPhoto`
+   fails fast locally with `photo_too_large` when a body still exceeds 4 MiB (shown as the
+   "retake" copy); `media_unavailable` itself now reads as "converter busy — try again", since it
+   is a server fault rather than a bad photo. The
+   application then sends each vendor's ids as `shopPhotoIds`.
 6. `gateway.submitSellerApplication(input)` → `POST /sellers` stores `sellers.sellers.user_id` from
    the auth subject, the `vendors[]` payload, the acceptance audit (timestamp, IP hash, account id),
    the resolved tier/rate-card version and the compliance status. `districtCode` is derived from the

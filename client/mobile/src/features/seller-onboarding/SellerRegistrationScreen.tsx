@@ -35,6 +35,7 @@ import {
   type ContractTier,
   type GeoState,
   type SellerApplication,
+  type SellerApplicationInput,
 } from '@/services/api/GatewayClient';
 import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/services/firebaseAuth';
 import { otpErrorMessage } from '@/lib/otpError';
@@ -92,6 +93,10 @@ function describeSubmitError(err: unknown): string {
       case 'seller_create_failed':
       case 'seller_update_failed':
         return 'The server couldn’t save your application. Please try again in a moment.';
+      case 'media_unavailable':
+        return 'Your photo reached us, but the photo converter is busy. Try again in a moment — the photo itself is fine.';
+      case 'photo_too_large':
+        return 'One of your photos is too large to upload. Retake it (avoid very large images) and try again.';
       case 'bad_request':
         return err.message || 'Some details are invalid. Please review the form and try again.';
       default:
@@ -770,51 +775,55 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     const ownerId = user?.id ? `seller-${user.id}` : 'seller-pending';
     try {
       const passbook = await gateway.uploadSellerDocument(passbookUri!, ownerId);
-      const vendorPayload = await Promise.all(
-        vendors.map(async (v) => {
-          let fssai: { key: string; assetId: string } | undefined;
-          if (v.app === 'FOOD' && v.fssaiUri) {
-            fssai = await gateway.uploadSellerDocument(v.fssaiUri, ownerId);
-          }
-          let drug: { key: string; assetId: string } | undefined;
-          if (v.app === 'PHARMA' && v.drugLicenseUri) {
-            drug = await gateway.uploadSellerDocument(v.drugLicenseUri, ownerId);
-          }
-          // Shop photos go through /media/avif: the gateway converts each to AVIF and only then does
-          // the application reference it, so storage holds AVIF and nothing else.
-          const shopPhotoIds = await Promise.all(
-            v.shopPhotoUris.map(async (uri) => (await gateway.uploadShopPhoto(uri)).assetId),
+      // Upload one image at a time. Each shop photo is an AVIF conversion on the server; firing five
+      // full-resolution photos (or several vendors) in parallel oversubscribes the encode CPU and
+      // makes every request slower than the process deadline. Sequential is slower end-to-end but
+      // reliable, and shows the upload state on the submit button throughout.
+      const vendorPayload: SellerApplicationInput['vendors'] = [];
+      for (const v of vendors) {
+        let fssai: { key: string; assetId: string } | undefined;
+        if (v.app === 'FOOD' && v.fssaiUri) {
+          fssai = await gateway.uploadSellerDocument(v.fssaiUri, ownerId);
+        }
+        let drug: { key: string; assetId: string } | undefined;
+        if (v.app === 'PHARMA' && v.drugLicenseUri) {
+          drug = await gateway.uploadSellerDocument(v.drugLicenseUri, ownerId);
+        }
+        // Shop photos go through /media/avif: the gateway converts each to AVIF and only then does
+        // the application reference it, so storage holds AVIF and nothing else.
+        const shopPhotoIds: string[] = [];
+        for (const uri of v.shopPhotoUris) {
+          shopPhotoIds.push((await gateway.uploadShopPhoto(uri)).assetId);
+        }
+        const useShopBank =
+          !v.sameAsAccountBank &&
+          [v.bankName, v.bankAccountNumber, v.bankIfsc, v.bankBeneficiary].some((field) =>
+            field.trim(),
           );
-          const useShopBank =
-            !v.sameAsAccountBank &&
-            [v.bankName, v.bankAccountNumber, v.bankIfsc, v.bankBeneficiary].some((field) =>
-              field.trim(),
-            );
-          return {
-            name: v.shopName.trim(),
-            app: v.app,
-            categoryId: v.categoryId ?? undefined,
-            platformFeePct: Number(v.platformFee),
-            address: v.shopAddress.trim() || undefined,
-            latitude: v.latitude,
-            longitude: v.longitude,
-            fssaiNumber: v.app === 'FOOD' ? v.fssaiNumber.trim() || undefined : undefined,
-            fssaiFileKey: fssai?.key,
-            fssaiAssetId: fssai?.assetId,
-            drugLicenseNumber:
-              v.app === 'PHARMA' ? v.drugLicenseNumber.trim() || undefined : undefined,
-            drugLicenseFileKey: drug?.key,
-            drugLicenseAssetId: drug?.assetId,
-            shopPhotoIds,
-            bankName: useShopBank ? v.bankName.trim() : undefined,
-            bankAccountNumber: useShopBank
-              ? v.bankAccountNumber.replace(/\D/g, '')
-              : undefined,
-            bankIfsc: useShopBank ? v.bankIfsc.trim().toUpperCase() : undefined,
-            bankBeneficiary: useShopBank ? v.bankBeneficiary.trim() : undefined,
-          };
-        }),
-      );
+        vendorPayload.push({
+          name: v.shopName.trim(),
+          app: v.app,
+          categoryId: v.categoryId ?? undefined,
+          platformFeePct: Number(v.platformFee),
+          address: v.shopAddress.trim() || undefined,
+          latitude: v.latitude,
+          longitude: v.longitude,
+          fssaiNumber: v.app === 'FOOD' ? v.fssaiNumber.trim() || undefined : undefined,
+          fssaiFileKey: fssai?.key,
+          fssaiAssetId: fssai?.assetId,
+          drugLicenseNumber:
+            v.app === 'PHARMA' ? v.drugLicenseNumber.trim() || undefined : undefined,
+          drugLicenseFileKey: drug?.key,
+          drugLicenseAssetId: drug?.assetId,
+          shopPhotoIds,
+          bankName: useShopBank ? v.bankName.trim() : undefined,
+          bankAccountNumber: useShopBank
+            ? v.bankAccountNumber.replace(/\D/g, '')
+            : undefined,
+          bankIfsc: useShopBank ? v.bankIfsc.trim().toUpperCase() : undefined,
+          bankBeneficiary: useShopBank ? v.bankBeneficiary.trim() : undefined,
+        });
+      }
       const res = await gateway.submitSellerApplication({
         businessName: form.businessName.trim(),
         ownerName: form.ownerName.trim(),

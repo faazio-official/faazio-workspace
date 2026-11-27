@@ -10,8 +10,8 @@
 | Field | Value |
 |---|---|
 | Document | Faazio User Interaction Workflow — Visual Guide |
-| Version | 1.9 |
-| Date | 26 November 2026 |
+| Version | 1.10 |
+| Date | 27 November 2026 |
 | Audience | Client stakeholders, product, design, QA, engineering, support |
 | Scope | Customer mobile app (`client/mobile`) + Partner Web Portal (`client/web/platform`) |
 | Verified against | Source code — navigation graphs, screen components and sidebar nav — not only older docs |
@@ -757,8 +757,9 @@ flowchart TD
   STATUS -->|"Active seller"| ACTIVE["Active seller screen<br/>Open seller app / portal"]
   FORM --> SECTIONS["Business identity<br/>KYC passbook<br/>Payout bank"]
   FORM --> SHOPS["Per-shop cards<br/>category, address, fee,<br/>licences, photos"]
+  SHOPS --> PIN["Pin your shop<br/>drag the map pin, search,<br/>or use current location"]
   SECTIONS --> SIGN["OTP signature<br/>Send OTP → Verify"]
-  SHOPS --> SIGN
+  PIN --> SIGN
   SIGN -->|"Submit application"| REVIEW
 ```
 
@@ -768,6 +769,7 @@ flowchart TD
 | KYC | Passbook/document upload |
 | Payout | Bank account details |
 | Shops | One card per shop: category, address, platform fee, FSSAI / drug licence, photos (up to 5) |
+| Shop location | **Pin your shop** full-screen map: tap the map / drag the pin onto the shop door, search the address, or **Use my current location**; sets state, district and the customer-visible map position |
 | Signature | **Send OTP** → enter OTP → **Verify**, then **Submit** |
 | Post-submit | Under-review status; on approval open the seller app / portal |
 
@@ -1310,6 +1312,7 @@ Use this map if a flow changes and the diagram needs to be updated.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.10 | 27 Nov 2026 | Sell with us: **Pin your shop** now shows a native map with a draggable marker (tap/drag onto the shop), with address search and “use my current location” as fallbacks. Fixed the shop-photo upload returning a gateway 500 for full-resolution phone photos (AVIF conversion now runs on a detached 45 s deadline instead of the 10 s request timeout). |
 | 1.9 | 26 Nov 2026 | Customer sign-in reordered to phone → OTP → name. After OTP, an existing account signs straight in with its stored name; only a first-time account is asked for a name (backed by `GET /profile` `hasName`). Skip stays on the phone step; the name step is not skippable. |
 | 1.8 | 26 Nov 2026 | Super admin **Supply → Food master** page: read-only atomic cuisine taxonomy (147 rows), carousel → cuisine map (24), store onboarding rules (11) and sample dish templates (15), all from migration `0145`. Seller dish form now shows the picked leaf’s cuisine; Food category drill-in shows a one-line cuisine subtitle. FOOD menus re-mapped off the over-loaded Chicken bucket. |
 | 1.7 | 26 Nov 2026 | Every non-ad item card (Mart, Mart home rails, Home grids + rails, Pharma) now shares the unit/price/name body: unit + **Add** on one line under the image, price below, name last. Paid ad cards are exempt. Pharma grid cards now show their price. Also fixed the Add-tap crash (Reanimated easing), and backfilled `unit` on all 822 catalogue rows (0144). |

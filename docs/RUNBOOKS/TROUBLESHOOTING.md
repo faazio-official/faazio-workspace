@@ -210,6 +210,20 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   app is reinstalled and a fresh token is registered (they are not push-able).
 - **Cart/order changes did not persist** → check `GET /cart` / `GET /orders` and the `syncError`
   banner; a failed write rolls the optimistic UI back rather than faking success.
+- **Seller shop-photo upload returns `500 media_unavailable` ("could not register image")** →
+  `POST /media/avif` decodes/downscales/encodes the image server-side. A full-resolution phone JPEG
+  can take longer than the router's 10 s request timeout on a shared instance; the old timeout
+  cancelled the asset-row insert and surfaced as a 500. The handler now runs the conversion on a
+  detached 45 s deadline and caps the long edge at 1280 px. The client side was also hardened:
+  `DocumentCapture` picks a ≤1600px camera format (`useCameraFormat` `photoResolution`) so full-sensor
+  captures never reach the wire, and `GatewayClient.uploadShopPhoto` rejects a body over 4 MiB locally
+  with a `photo_too_large` error (the "retake" copy) instead of a 20 s upload that ends in
+  `media_unavailable` (which now reads as "converter busy, try again" — a server fault, not a bad
+  photo). Verified live 2026-11-27: a 10.9 MB JPEG still reproduced the 500 against the deployed
+  gateway (fix uncommitted at the time); a 2.5 KB JPEG returned 201 in ~3.7 s. **This fix only takes
+  effect once committed, pushed and the Render gateway redeployed.** If it still fails after deploy,
+  check instance CPU/memory and the R2 credentials; the client reads the gateway `media_unavailable`
+  code.
 
 ## 🔧 Gradle / native build failures
 

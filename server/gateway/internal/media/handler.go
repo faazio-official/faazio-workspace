@@ -1,6 +1,7 @@
 package media
 
 import (
+	"context"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
@@ -30,11 +31,19 @@ const (
 	// maxAVIFInputBytes caps the source bytes POST /media/avif will decode. A phone camera JPEG is
 	// typically 2–6 MiB; 12 MiB leaves headroom without letting one caller pin a core for minutes.
 	maxAVIFInputBytes = 12 << 20
-	// maxAVIFLongEdge bounds the stored image. 1600px covers a full-width shop gallery on a 3x phone
-	// while keeping an encode in the low hundreds of milliseconds.
-	maxAVIFLongEdge = 1600
+	// maxAVIFLongEdge bounds the stored image. 1280px still covers a full-width shop gallery on a
+	// 3x phone, while cutting the WASM AVIF encode time by ~⅓ versus 1600px (a full-resolution phone
+	// photo takes seconds on a shared CPU, not milliseconds).
+	maxAVIFLongEdge = 1280
 	// maxAVIFUploadsPerIPPerDay caps anonymous conversions (5 photos per enquiry, plus retries).
 	maxAVIFUploadsPerIPPerDay = 30
+	// avifProcessTimeout is the detached deadline for one conversion + registry write. The router's
+	// global 10s timeout is too short for decoding a 12MP camera JPEG, area-downscaling it and
+	// encoding AVIF on a shared instance; the request context was already cancelled by the time the
+	// asset row was inserted, which surfaced as a 500 ("could not register image") for real phone
+	// photos. The work is bounded by maxAVIFInputBytes + maxAVIFLongEdge, so a longer, detached
+	// deadline is safe.
+	avifProcessTimeout = 45 * time.Second
 )
 
 // allowedMimes is the upload allowlist (AGENTS.md security): only web-safe raster images.
@@ -216,6 +225,14 @@ func (h *Handler) confirm(w http.ResponseWriter, r *http.Request) {
 // maxAVIFInputBytes, only JPEG/PNG are decoded, and the encoded output is always re-encoded from
 // pixels (so no EXIF/GPS survives).
 func (h *Handler) avifUpload(w http.ResponseWriter, r *http.Request) {
+	// Detach the conversion + registry write from the router's 10s request deadline. The AVIF encode
+	// is CPU-bound and cannot observe cancellation, so a deadline that fires mid-encode used to leave
+	// the subsequent context-bound DB insert cancelled → 500 "could not register image". The detached
+	// 45s context still carries the request values (actor, logging) but not the short deadline.
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(r.Context()), avifProcessTimeout)
+	defer cancel()
+	r = r.WithContext(ctx)
+
 	if !h.signer.Enabled() {
 		httpx.Fail(w, http.StatusServiceUnavailable, "media_unavailable", "media storage not configured")
 		return

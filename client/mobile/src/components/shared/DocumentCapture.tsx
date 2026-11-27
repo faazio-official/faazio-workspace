@@ -1,6 +1,11 @@
 import React, { useCallback, useRef } from 'react';
 import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Camera, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
+import {
+  Camera,
+  useCameraDevice,
+  useCameraFormat,
+  useCameraPermission,
+} from 'react-native-vision-camera';
 import { Camera as CameraIcon, ChevronLeft, X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
@@ -21,6 +26,12 @@ interface Props {
 export default function DocumentCapture({ visible, title, onClose, onCaptured }: Props) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
+  // Cap the capture at ~1600px on the long edge. The gateway downscales to 1280px before its AVIF
+  // encode, so a full-sensor 12–50MP capture only burns upload time (ReadTimeout is 15s) and encode
+  // CPU; 1600px keeps documents/shops sharp on a 3x phone at a fraction of the bytes.
+  const format = useCameraFormat(device, [
+    { photoResolution: { width: 1600, height: 1600 } },
+  ]);
   const cameraRef = useRef<Camera>(null);
 
   const takePhoto = useCallback(async () => {
@@ -76,7 +87,14 @@ export default function DocumentCapture({ visible, title, onClose, onCaptured }:
         ) : (
           <View style={styles.cameraWrap}>
             {device ? (
-              <Camera ref={cameraRef} style={StyleSheet.absoluteFill} device={device} isActive photo />
+              <Camera
+                ref={cameraRef}
+                style={StyleSheet.absoluteFill}
+                device={device}
+                format={format}
+                isActive
+                photo
+              />
             ) : null}
             <View style={styles.captureBar}>
               <TouchableOpacity

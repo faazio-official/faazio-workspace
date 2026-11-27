@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   KeyboardAvoidingView,
@@ -10,6 +10,7 @@ import {
   StyleSheet,
   View,
 } from 'react-native';
+import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LocateFixed, MapPin, Navigation, Search, X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
@@ -41,15 +42,19 @@ function coordsLabel(point: Coordinates): string {
   return `${point.latitude.toFixed(5)}, ${point.longitude.toFixed(5)}`;
 }
 
+// Viewport centre when there is no existing pin and no live fix. Karaikal town — the service area's
+// home. This is only the map's initial camera position, never a submitted shop location.
+const MAP_FALLBACK = { latitude: 10.9254, longitude: 79.838 };
+const MAP_DELTA = 0.008;
+
 /**
  * Foreground shop-pin picker for seller onboarding.
  *
- * Mirrors the customer "share my location" screen instead of relying on a native `MapView`: the
- * Android Maps SDK renders a blank canvas on builds whose key is missing or restricted to a
- * different signing certificate, and a blank map left sellers unable to pin a shop. This picker
- * therefore offers the two paths that always work — search for the shop address, or use the
- * device's current fix — with the same permission handling, error copy and Settings fallback as
- * the location screen. A pin only counts once it is real (a search result or a live fix).
+ * The primary control is a native map with a draggable marker (matching the landing page's
+ * sell-with-us form), so a seller can place the pin on the shop door itself. Search and "use my
+ * current location" stay as the reliable alternatives: on a build whose Android Maps key is missing
+ * or mismatched the tiles can render blank, but a search result or a live fix still drops a real
+ * pin. A pin only counts once it is real (a tap/drag on the map, a search result, or a live fix).
  */
 export default function SellerLocationPicker({
   visible,
@@ -58,6 +63,7 @@ export default function SellerLocationPicker({
   onPick,
 }: Props) {
   const insets = useSafeAreaInsets();
+  const mapRef = useRef<MapView>(null);
 
   const [pin, setPin] = useState<Coordinates | null>(null);
   const [address, setAddress] = useState('');
@@ -66,13 +72,37 @@ export default function SellerLocationPicker({
   const [locating, setLocating] = useState(false);
   const [resolving, setResolving] = useState(false);
 
-  const stored = useLocationStore((s) =>
-    typeof s.activeLocation?.latitude === 'number' &&
-    typeof s.activeLocation?.longitude === 'number' &&
-    !(s.activeLocation.latitude === 0 && s.activeLocation.longitude === 0)
-      ? { latitude: s.activeLocation.latitude, longitude: s.activeLocation.longitude }
-      : null,
+  // Select the store object itself (stable identity between store updates) and derive the point
+  // with useMemo — a selector returning a fresh object per call breaks useSyncExternalStore's
+  // snapshot cache and re-renders forever ("Maximum update depth exceeded").
+  const activeLocation = useLocationStore((s) => s.activeLocation);
+  const stored = useMemo(
+    () =>
+      activeLocation &&
+      typeof activeLocation.latitude === 'number' &&
+      typeof activeLocation.longitude === 'number' &&
+      !(activeLocation.latitude === 0 && activeLocation.longitude === 0)
+        ? { latitude: activeLocation.latitude, longitude: activeLocation.longitude }
+        : null,
+    [activeLocation],
   );
+
+  // The marker is only drawn for a real point (existing pin, parent-supplied pin, or live fix); the
+  // fallback merely centres the camera so a seller who has never pinned still sees their area.
+  const realPoint = pin ?? initial ?? stored;
+  const centre = realPoint ?? MAP_FALLBACK;
+
+  const focusMap = (point: Coordinates) => {
+    mapRef.current?.animateToRegion(
+      {
+        latitude: point.latitude,
+        longitude: point.longitude,
+        latitudeDelta: MAP_DELTA,
+        longitudeDelta: MAP_DELTA,
+      },
+      300,
+    );
+  };
 
   const { suggestions, loading: suggestionsLoading, enabled: placesEnabled } =
     usePlaceAutocomplete(query, pin ?? initial ?? stored);
@@ -84,6 +114,7 @@ export default function SellerLocationPicker({
     setAddress('');
     if (initial) {
       setPin(initial);
+      focusMap(initial);
       void resolveAddress(initial);
     } else {
       setPin(null);
@@ -105,6 +136,7 @@ export default function SellerLocationPicker({
 
   const selectPoint = (point: Coordinates, formatted?: string) => {
     setPin(point);
+    focusMap(point);
     setError('');
     setQuery('');
     if (formatted) {
@@ -190,6 +222,38 @@ export default function SellerLocationPicker({
           <View style={styles.iconBtn} />
         </View>
 
+        <View style={styles.mapCard}>
+          {visible ? (
+            <MapView
+              ref={mapRef}
+              style={styles.flex}
+              provider={Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined}
+              initialRegion={{
+                latitude: centre.latitude,
+                longitude: centre.longitude,
+                latitudeDelta: MAP_DELTA,
+                longitudeDelta: MAP_DELTA,
+              }}
+              onPress={(event) => selectPoint(event.nativeEvent.coordinate)}
+              accessibilityLabel="Shop location map"
+              accessibilityHint="Tap the map or drag the pin onto your shop"
+            >
+              {realPoint ? (
+                <Marker
+                  coordinate={pin ?? realPoint}
+                  draggable
+                  onDragEnd={(event) => selectPoint(event.nativeEvent.coordinate)}
+                  title="Shop location"
+                />
+              ) : null}
+            </MapView>
+          ) : null}
+          <View style={styles.mapHint} pointerEvents="none">
+            <MapPin size={ms(13)} color={neutral.card} />
+            <AppText style={styles.mapHintText}>Tap or drag the pin onto your shop</AppText>
+          </View>
+        </View>
+
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.flex}
@@ -201,8 +265,8 @@ export default function SellerLocationPicker({
             showsVerticalScrollIndicator={false}
           >
             <AppText style={styles.helper}>
-              Search for the shop address or use your current location. This pin sets your state,
-              district and where customers see the shop on the map.
+              Tap the map or drag the pin onto your shop, search its address, or use your current
+              location. This pin sets your state, district and where customers see the shop.
             </AppText>
 
             <View style={styles.searchRow}>
@@ -350,6 +414,29 @@ const styles = StyleSheet.create({
   },
   iconBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   title: { fontSize: ms(15), fontWeight: '800', color: neutral.ink },
+  mapCard: {
+    height: vs(220),
+    marginHorizontal: hs(16),
+    marginTop: vs(12),
+    borderRadius: ms(14),
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: neutral.border,
+    backgroundColor: neutral.surface,
+  },
+  mapHint: {
+    position: 'absolute',
+    left: hs(10),
+    bottom: vs(10),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(6),
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(5),
+    borderRadius: ms(8),
+    backgroundColor: 'rgba(15,23,42,0.62)',
+  },
+  mapHintText: { fontSize: ms(10.5), fontWeight: '700', color: neutral.card },
   content: { paddingHorizontal: hs(16), paddingTop: vs(14), paddingBottom: vs(24) },
   helper: { fontSize: ms(11.5), color: neutral.inkMuted, lineHeight: ms(17), marginBottom: vs(14) },
   searchRow: {

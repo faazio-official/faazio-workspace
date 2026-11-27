@@ -2256,6 +2256,12 @@ export class GatewayClient {
   async uploadShopPhoto(uri: string): Promise<UploadedSellerDocument> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     const blob = await (await fetch(uri)).blob();
+    // Early guard: a capture that still exceeds 4 MiB would take longer than the gateway's 15s
+    // ReadTimeout to upload on mobile upstream and then fail mid-conversion. Fail here, in a
+    // second, with an actionable code instead of a 20s+ wait that ends in media_unavailable.
+    if (blob.size > 4 * 1024 * 1024) {
+      throw new GatewayHttpError(413, 'photo_too_large', 'the photo is too large to upload');
+    }
     // React Native does not always populate `Blob.type` for a `file://` pick, so fall back to the
     // picked file's extension. The gateway decodes JPEG/PNG only and rejects anything else.
     const mime = blob.type === 'image/png' || /\.png$/i.test(uri) ? 'image/png' : 'image/jpeg';
@@ -2264,7 +2270,23 @@ export class GatewayClient {
       headers: { 'Content-Type': mime },
       body: blob,
     });
-    if (!res.ok) throw new GatewayHttpError(res.status);
+    if (!res.ok) {
+      // Surface the gateway's { code, error } so a slow conversion or a bad image reads as a
+      // specific message, not a bare status. A non-JSON proxy error degrades to the status.
+      let code: string | undefined;
+      let message: string | undefined;
+      try {
+        const text = await res.text();
+        if (text) {
+          const parsed = JSON.parse(text) as { code?: string; error?: string };
+          code = parsed.code;
+          message = parsed.error;
+        }
+      } catch {
+        // non-JSON error body — fall through to the status-only error
+      }
+      throw new GatewayHttpError(res.status, code, message);
+    }
     const body = (await res.json()) as { assetId?: string; key?: string };
     if (!body.assetId || !body.key) throw new GatewayHttpError(502);
     return { key: body.key, assetId: body.assetId };

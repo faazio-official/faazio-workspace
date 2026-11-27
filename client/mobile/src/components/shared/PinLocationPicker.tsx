@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Modal,
@@ -45,12 +45,19 @@ export default function PinLocationPicker({
   onPick,
 }: Props) {
   const insets = useSafeAreaInsets();
-  const stored = useLocationStore((s) =>
-    typeof s.activeLocation?.latitude === 'number' &&
-    typeof s.activeLocation?.longitude === 'number' &&
-    !(s.activeLocation.latitude === 0 && s.activeLocation.longitude === 0)
-      ? { latitude: s.activeLocation.latitude, longitude: s.activeLocation.longitude }
-      : null,
+  // Select the store object itself (stable identity between store updates) and derive the point
+  // with useMemo — a selector returning a fresh object per call breaks useSyncExternalStore's
+  // snapshot cache and re-renders forever ("Maximum update depth exceeded").
+  const activeLocation = useLocationStore((s) => s.activeLocation);
+  const stored = useMemo(
+    () =>
+      activeLocation &&
+      typeof activeLocation.latitude === 'number' &&
+      typeof activeLocation.longitude === 'number' &&
+      !(activeLocation.latitude === 0 && activeLocation.longitude === 0)
+        ? { latitude: activeLocation.latitude, longitude: activeLocation.longitude }
+        : null,
+    [activeLocation],
   );
   const [pin, setPin] = useState<Coordinates>(initial ?? stored ?? FALLBACK);
   const [address, setAddress] = useState('');
