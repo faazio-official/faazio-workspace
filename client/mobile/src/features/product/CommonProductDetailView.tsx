@@ -92,7 +92,7 @@ function menuDishToProduct(dish: MenuDish, ctx: { storeId?: string; shop?: strin
     name: dish.name,
     price: dish.price,
     ...(dish.mrp !== undefined && dish.mrp > dish.price ? { originalPrice: dish.mrp } : {}),
-    emoji: '🍽️',
+    emoji: 'dining',
     rating: dish.rating ?? 0,
     desc: dish.description ?? '',
     image: dish.image ?? '',
