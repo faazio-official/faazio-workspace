@@ -4,7 +4,12 @@ require Pod::Executable.execute_command('node', ['-p',
     {paths: [process.argv[1]]},
   )', __dir__]).strip
 
-platform :ios, min_ios_version_supported
+# Pin to the app target's deployment target (IPHONEOS_DEPLOYMENT_TARGET = 16.4 in
+# Faazio.xcodeproj) instead of React Native's 15.1 floor. @100mslive/react-native-hms
+# declares iOS 16.0, and CocoaPods validates every pod against this Podfile platform
+# before it looks at the Xcode project, so 15.1 fails with "required a higher minimum
+# deployment target". Keep this in sync when the app target changes.
+platform :ios, '16.4'
 prepare_react_native_project!
 
 # React Native Firebase 27 resolves Firebase 13 through Swift Package Manager,

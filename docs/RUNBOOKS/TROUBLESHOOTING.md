@@ -736,6 +736,13 @@ runtime, not build time.
   SDK 13 via Swift Package Manager, which requires Xcode 26.1+ (Swift 6.2.1). Bump
   `environment.xcode` in `codemagic.yaml`.
 
+- **`CocoaPods could not find compatible versions for pod "react-native-hms"` / "... required a
+  higher minimum deployment target"** → the 100ms iOS SDK pod (`@100mslive/react-native-hms`,
+  autolinked from `node_modules`) declares iOS 16.0, while the Podfile used React Native's 15.1
+  floor. CocoaPods validates pods against the Podfile `platform` before the Xcode project, so the
+  project's 16.4 target does not save it. `ios/Podfile` pins `platform :ios, '16.4'` to match
+  `IPHONEOS_DEPLOYMENT_TARGET`; keep the two in sync when the app target changes.
+
 - **`ARCHIVE FAILED` with only warnings above it** → the "Compile caching is not supported with
   implicit modules" and "'FirebaseCore' is missing a dependency on 'FirebaseCoreInternal'" lines are
   warnings, not the cause; xcodebuild prints the real cause as an `error:` line earlier in the step
