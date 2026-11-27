@@ -1,6 +1,7 @@
 jest.mock('@/services/api/GatewayClient', () => ({ gateway: {} }));
 
 import { matchServiceability } from '@/services/serviceability';
+import { deriveAccountGeo, resolveShopGeo } from '@/features/seller-onboarding/sellerGeo';
 
 const coverage = {
   states: [
@@ -230,5 +231,87 @@ describe('matchServiceability', () => {
       reason: 'district_unavailable',
       stateName: 'Tamil Nadu',
     });
+  });
+});
+
+// The seller form sends `stateCode` and `districtCode` to `POST /sellers`, which rejects a missing
+// district ("district is required"). It used to match them itself from the address string only, so a
+// geocode that named the taluk but not the revenue district produced a state-only application that
+// the server refused. These pin the account geo to the shared coverage resolver.
+describe('seller account geo', () => {
+  it('resolves the district for a pin whose address never names it', () => {
+    const geo = resolveShopGeo(
+      {
+        latitude: 10.8821515,
+        longitude: 78.8151983,
+        pinnedAddress: 'sirudayur, Lalgudi, Tamil Nadu, 621601',
+      },
+      coverage,
+    );
+    expect(geo).toEqual({
+      stateCode: 'TN',
+      districtCode: 'TTC',
+      latitude: 10.8821515,
+      longitude: 78.8151983,
+    });
+  });
+
+  it('resolves a coordinate-only label from the pin itself', () => {
+    const geo = resolveShopGeo(
+      {
+        latitude: 13.0827,
+        longitude: 80.2707,
+        pinnedAddress: '13.08270, 80.27070',
+      },
+      coverage,
+    );
+    expect(geo?.stateCode).toBe('TN');
+    expect(geo?.districtCode).toBe('TCH');
+  });
+
+  it('returns no district for a pin far outside every active district', () => {
+    expect(
+      resolveShopGeo(
+        { latitude: 28.6139, longitude: 77.209, pinnedAddress: 'Connaught Place, New Delhi' },
+        coverage,
+      ),
+    ).toBeNull();
+  });
+
+  it('derives the account geo from the first covered shop', () => {
+    const geo = deriveAccountGeo(
+      [
+        { latitude: 28.6139, longitude: 77.209, pinnedAddress: 'Connaught Place, New Delhi' },
+        {
+          latitude: 10.8821515,
+          longitude: 78.8151983,
+          pinnedAddress: 'sirudayur, Lalgudi, Tamil Nadu, 621601',
+        },
+      ],
+      coverage,
+    );
+    expect(geo).toEqual({
+      stateCode: 'TN',
+      districtCode: 'TTC',
+      latitude: 10.8821515,
+      longitude: 78.8151983,
+    });
+  });
+
+  // Without the district master (offline / load failure) no district code can be known, so the form
+  // must block and explain rather than submit a state-only application the server will reject.
+  it('derives nothing when the district master has not loaded', () => {
+    expect(
+      deriveAccountGeo(
+        [
+          {
+            latitude: 10.8821515,
+            longitude: 78.8151983,
+            pinnedAddress: 'Lalgudi, Tiruchirappalli, Tamil Nadu, India',
+          },
+        ],
+        { states: coverage.states, districts: [] },
+      ),
+    ).toBeNull();
   });
 });

@@ -37,6 +37,7 @@ import {
   type SellerApplication,
   type SellerApplicationInput,
 } from '@/services/api/GatewayClient';
+import { deriveAccountGeo } from './sellerGeo';
 import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/services/firebaseAuth';
 import { otpErrorMessage } from '@/lib/otpError';
 import { useSmsUserConsent } from '@/lib/smsUserConsent';
@@ -100,7 +101,11 @@ function describeSubmitError(err: unknown): string {
       case 'photo_too_large':
         return 'One of your photos is too large to upload. Retake it (avoid very large images) and try again.';
       case 'bad_request':
-        return err.message || 'Some details are invalid. Please review the form and try again.';
+        // The form now gates on a resolved district; this is the last-resort copy if a stale build or
+        // a master change still lands the server's bare "district is required".
+        return err.message.toLowerCase().includes('district')
+          ? 'We could not match a shop pin to a Faazio district. Re-pin the shop inside a covered district and submit again.'
+          : err.message || 'Some details are invalid. Please review the form and try again.';
       default:
         return err.message || `Could not submit right now (error ${err.status}). Please try again.`;
     }
@@ -131,70 +136,13 @@ interface PinSelection {
 }
 
 /**
- * Fold a place name/address for tolerant matching: case, accents, punctuation and the `(UT)`
- * suffix are removed, and the common `Pondicherry` spelling maps onto `Puducherry`.
+ * Account state/district come from the pinned shops, resolved through the same coverage master the
+ * delivery flow uses (`services/serviceability`): the pinned address, then the nearest active
+ * district centroid. `sellers.sellers` requires both codes, so a shop that resolves to no district
+ * blocks submission with an explanation instead of a server-side "district is required".
  */
-const foldGeo = (value: string): string =>
-  value
-    .toLowerCase()
-    .replace(/[àáâãäå]/g, 'a')
-    .replace(/[èéêë]/g, 'e')
-    .replace(/[ìíîï]/g, 'i')
-    .replace(/[òóôõö]/g, 'o')
-    .replace(/[ùúûü]/g, 'u')
-    .replace(/ç/g, 'c')
-    .replace(/\([^)]*\)/g, ' ')
-    .replace(/[^a-z0-9]/g, '')
-    .replace(/pondicherry/g, 'puducherry');
 
-function matchGeo(
-  address: string,
-  states: GeoState[],
-  districts: DistrictInfo[],
-): { stateCode: string; districtCode: string } | null {
-  const haystack = foldGeo(address);
-  if (!haystack) return null;
-  const state = states.find((s) => {
-    const name = foldGeo(s.name);
-    return name.length > 0 && haystack.includes(name);
-  });
-  if (!state) return null;
-  const district = districts.find((d) => {
-    const name = foldGeo(d.name);
-    return d.stateCode === state.stateCode && name.length > 0 && haystack.includes(name);
-  });
-  return { stateCode: state.stateCode, districtCode: district?.districtCode ?? '' };
-}
 
-/**
- * Account state/district come from the pinned shops. Prefer the first shop whose state is in the
- * district master (TN/PY today), so a covered shop always wins over one outside coverage; fall back
- * to the first matched shop when the district master has not loaded yet. The same shop supplies the
- * account-level coordinates, keeping `sellers.sellers`' pin and `stateCode` consistent.
- */
-function deriveAccountGeo(
-  vendors: VendorDraft[],
-  states: GeoState[],
-  districts: DistrictInfo[],
-): { stateCode: string; districtCode: string; latitude: number; longitude: number } | null {
-  const matches: {
-    stateCode: string;
-    districtCode: string;
-    latitude: number;
-    longitude: number;
-  }[] = [];
-  for (const shop of vendors) {
-    if (shop.latitude == null || shop.longitude == null) continue;
-    const geo = matchGeo(shop.pinnedAddress, states, districts);
-    if (!geo) continue;
-    matches.push({ ...geo, latitude: shop.latitude, longitude: shop.longitude });
-  }
-  if (matches.length === 0) return null;
-  if (districts.length > 0) {
-    return matches.find((m) => districts.some((d) => d.stateCode === m.stateCode)) ?? null;
-  }
-  return matches[0];
-}
 
 /**
  * Full seller registration in two parts:
@@ -379,10 +327,11 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     setVendors((prev) => (prev.length > 1 ? prev.filter((v) => v.key !== key) : prev));
 
   // Region/district come from the picker's formatted address (reverse geocode joins name, street,
-  // district, city, region). The account state/district/coordinates are derived from the shops so
-  // removing or re-pinning a shop cannot leave them stale.
+  // revenue district (`adminDistrict`), city, region) with the shop's own coordinates as the
+  // fallback. Deriving them from the shops means removing or re-pinning a shop cannot leave them
+  // stale — or empty while the form still allows a submit.
   const accountGeo = useMemo(
-    () => deriveAccountGeo(vendors, states, districts),
+    () => deriveAccountGeo(vendors, { states, districts }),
     [vendors, states, districts],
   );
 
@@ -703,11 +652,16 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     if (!partnerAccepted) return 'Accept the Seller / Partner Agreement to continue.';
     if (!ipGranted) return 'Accept the content and IP licence to continue.';
     if (vendors.length === 0) return 'Add at least one shop.';
+    if (!vendors.every((v) => v.latitude != null && v.longitude != null)) {
+      return 'Pin every shop on the map so its location is shared with Faazio and customers.';
+    }
     if (!/^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase())) {
       return 'Pin at least one shop on the map in Tamil Nadu / Puducherry so the state and district can be set.';
     }
-    if (!vendors.every((v) => v.latitude != null && v.longitude != null)) {
-      return 'Pin every shop on the map so its location is shared with Faazio and customers.';
+    if (!form.districtCode.trim()) {
+      // The gateway rejects a seller without a district code, so say so here — with the fix — instead
+      // of letting "district is required" come back from the server.
+      return 'We could not match a shop pin to a Faazio district. Open that shop’s location, search the shop address and pick the suggestion (or pin it inside the town), then submit again.';
     }
 
     for (const v of vendors) {
@@ -872,6 +826,7 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     partnerAccepted &&
     ipGranted &&
     /^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase()) &&
+    Boolean(form.districtCode.trim()) &&
     vendors.length > 0 &&
     vendors.every((v) => v.latitude != null && v.longitude != null) &&
     vendors.every(
@@ -1351,11 +1306,13 @@ export function SellerRegistrationScreen({ navigation }: Props) {
                 <AppText style={styles.addShopText}>Add another shop</AppText>
               </TouchableOpacity>
 
-              <View style={styles.geoNote}>
+              <View style={[styles.geoNote, !form.districtCode && form.stateCode ? styles.geoNoteWarn : null]}>
                 <AppText style={styles.geoNoteText}>
-                  {geoLabel
+                  {geoLabel && form.districtCode
                     ? `State & district set from your pinned shop: ${geoLabel}. Pin every shop — a location is required to submit.`
-                    : 'Pin every shop so its location is shared with Faazio and your state and district can be set.'}
+                    : form.stateCode
+                      ? `We can’t match a shop pin to a Faazio district. Open a shop’s location, search the shop address and pick the suggestion — a district is required to submit.`
+                      : 'Pin every shop so its location is shared with Faazio and your state and district can be set.'}
                 </AppText>
               </View>
             </View>
@@ -1609,6 +1566,7 @@ const styles = StyleSheet.create({
     backgroundColor: parentRamp.tint,
   },
   geoNoteText: { fontSize: ms(10.5), fontWeight: '600', color: parentRamp.deep, lineHeight: ms(15) },
+  geoNoteWarn: { backgroundColor: semanticTint.warning },
   errorText: {
     fontSize: ms(12),
     fontWeight: '700',

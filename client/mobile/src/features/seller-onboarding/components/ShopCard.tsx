@@ -1,11 +1,11 @@
 import React from 'react';
 import { ActivityIndicator, Image, StyleSheet, TouchableOpacity, View } from 'react-native';
-import { Camera, LocateFixed, Plus, Store, X } from 'lucide-react-native';
+import { Camera, CheckCircle2, LocateFixed, Plus, Store, X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import Checkbox from '@/components/shared/Checkbox';
 import SelectDropdown, { type SelectOption } from '@/components/shared/SelectDropdown';
 import { hs, ms, vs } from '@/utils/responsive';
-import { neutral, parentRamp } from '@/theme/brandTokens';
+import { neutral, parentRamp, semantic, semanticTint } from '@/theme/brandTokens';
 import type { AppBrand } from '@data/types';
 import type { Category } from '@/services/api/GatewayClient';
 import { DocumentRow, TextInputField } from './FormControls';
@@ -105,7 +105,7 @@ export default function ShopCard({
   const locationLabel = pinned
     ? vendor.pinnedAddress ||
       `${vendor.latitude!.toFixed(5)}, ${vendor.longitude!.toFixed(5)}`
-    : 'Share this shop location — required to submit';
+    : 'Not shared yet — customers use this to find and deliver to your shop.';
 
   return (
     <View style={styles.card}>
@@ -256,18 +256,34 @@ export default function ShopCard({
         </>
       ) : null}
 
-      <TouchableOpacity style={styles.pinButton} onPress={onPinLocation} activeOpacity={0.8}>
-        <LocateFixed size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
-        <View style={{ flex: 1 }}>
+      <View style={[styles.locationBlock, pinned ? styles.locationBlockPinned : null]}>
+        <View style={styles.locationHead}>
           <AppText style={styles.pinTitle}>
-            {pinned ? 'Shop location shared' : 'Share shop location'}
+            {pinned ? 'Shop location shared' : 'Shop location'}
             <AppText style={styles.pinRequired}> (required)</AppText>
           </AppText>
-          <AppText style={styles.pinValue} numberOfLines={1}>
-            {locationLabel}
-          </AppText>
+          {pinned ? (
+            <CheckCircle2 size={ms(14)} color={semantic.success} strokeWidth={2.4} />
+          ) : null}
         </View>
-      </TouchableOpacity>
+        <AppText style={styles.pinValue} numberOfLines={2}>
+          {locationLabel}
+        </AppText>
+        <TouchableOpacity
+          style={styles.pinButton}
+          onPress={onPinLocation}
+          activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={
+            pinned ? 'Update this shop location on the map' : 'Share this shop location on the map'
+          }
+        >
+          <LocateFixed size={ms(16)} color={parentRamp.onBase} strokeWidth={2.2} />
+          <AppText style={styles.pinButtonText}>
+            {pinned ? 'Update shop location' : 'Share shop location'}
+          </AppText>
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.bankToggle}>
         <Checkbox
@@ -385,18 +401,33 @@ const styles = StyleSheet.create({
   pinButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: hs(10),
-    paddingHorizontal: hs(12),
-    paddingVertical: vs(10),
+    justifyContent: 'center',
+    gap: hs(8),
+    minHeight: Math.max(44, vs(44)),
+    paddingHorizontal: hs(14),
     borderRadius: ms(10),
+    backgroundColor: parentRamp.base,
+  },
+  pinButtonText: { fontSize: ms(12), fontWeight: '800', color: parentRamp.onBase },
+  locationBlock: {
+    marginTop: vs(12),
+    borderRadius: ms(12),
     borderWidth: 1,
     borderColor: neutral.border,
-    backgroundColor: parentRamp.tint,
-    marginTop: vs(12),
+    backgroundColor: neutral.card,
+    padding: hs(12),
+    gap: vs(8),
   },
-  pinTitle: { fontSize: ms(11), fontWeight: '800', color: neutral.ink },
+  locationBlockPinned: { borderColor: semanticTint.success },
+  locationHead: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: hs(8),
+  },
+  pinTitle: { fontSize: ms(11.5), fontWeight: '800', color: neutral.ink },
   pinRequired: { fontWeight: '400', color: neutral.inkSubtle },
-  pinValue: { fontSize: ms(10), color: neutral.inkMuted, marginTop: vs(1) },
+  pinValue: { fontSize: ms(10.5), color: neutral.inkMuted, lineHeight: ms(15) },
   bankToggle: { flexDirection: 'row', alignItems: 'center', gap: hs(10), marginTop: vs(14) },
   bankToggleText: { fontSize: ms(12), fontWeight: '700', color: neutral.inkMuted },
   bankFields: { marginTop: vs(2) },

@@ -178,7 +178,7 @@ function matchDistrict(
  * from their centroid to a far corner, so 100 km keeps a real district member inside while refusing
  * a point that is nowhere near an enabled district.
  */
-const MAX_CENTROID_KM = 100;
+export const MAX_CENTROID_KM = 100;
 
 function haversineKm(a: ServiceabilityOrigin, b: ServiceabilityOrigin): number {
   const toRad = (value: number) => (value * Math.PI) / 180;
@@ -191,17 +191,19 @@ function haversineKm(a: ServiceabilityOrigin, b: ServiceabilityOrigin): number {
 }
 
 /**
- * The active district whose centroid is nearest the origin, within `MAX_CENTROID_KM`. This is the
- * fallback for a geocode that omits the revenue district (a platform geocoder can return
- * `adminDistrict: null` with only a taluk/city name, e.g. Lalgudi for Tiruchirappalli). It is only
- * consulted after the name match fails and only among the matched state's active districts.
+ * The active district whose centroid is nearest the origin, within `maxKm` (default
+ * `MAX_CENTROID_KM`). This is the fallback for a geocode that omits the revenue district (a platform
+ * geocoder can return `adminDistrict: null` with only a taluk/city name, e.g. Lalgudi for
+ * Tiruchirappalli). It is only consulted after the name match fails and only among the matched
+ * state's active districts.
  */
-function nearestCentroidDistrict(
+export function nearestCentroidDistrict(
   districts: DistrictInfo[],
   origin: ServiceabilityOrigin,
+  maxKm: number = MAX_CENTROID_KM,
 ): DistrictInfo | null {
   let best: DistrictInfo | null = null;
-  let bestKm = MAX_CENTROID_KM;
+  let bestKm = maxKm;
   for (const district of districts) {
     if (typeof district.latitude !== 'number' || typeof district.longitude !== 'number') continue;
     const km = haversineKm(origin, {

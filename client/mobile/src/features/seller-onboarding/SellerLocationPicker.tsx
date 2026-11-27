@@ -126,10 +126,14 @@ export default function SellerLocationPicker({
   const resolveAddress = async (point: Coordinates) => {
     setResolving(true);
     const place = await reverseGeocode(point.latitude, point.longitude);
-    const formatted =
-      [place?.name, place?.street, place?.district, place?.city, place?.region]
-        .filter(Boolean)
-        .join(', ') || coordsLabel(point);
+    // `adminDistrict` is the revenue district the coverage master is keyed on (Tiruchirappalli, not
+    // the taluk `district`/`city` may name), so it must reach the seller form's address string.
+    const parts: string[] = [];
+    for (const part of [place?.name, place?.street, place?.adminDistrict, place?.district, place?.city, place?.region]) {
+      const value = part?.trim();
+      if (value && !parts.some((seen) => seen.toLowerCase() === value.toLowerCase())) parts.push(value);
+    }
+    const formatted = parts.join(', ') || coordsLabel(point);
     setAddress(formatted);
     setResolving(false);
   };

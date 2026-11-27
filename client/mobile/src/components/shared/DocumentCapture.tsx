@@ -1,12 +1,12 @@
-import React, { useCallback, useRef } from 'react';
-import { Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Image, Modal, StyleSheet, TouchableOpacity, View } from 'react-native';
 import {
   Camera,
   useCameraDevice,
   useCameraFormat,
   useCameraPermission,
 } from 'react-native-vision-camera';
-import { Camera as CameraIcon, ChevronLeft, X } from 'lucide-react-native';
+import { Camera as CameraIcon, ChevronLeft, RefreshCw, X } from 'lucide-react-native';
 import AppText from '@/components/AppText';
 import { hs, ms, vs } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
@@ -22,25 +22,54 @@ interface Props {
 /**
  * Full-screen document camera. KYC images are captured on-device, uploaded straight to the private
  * R2 bucket via a presigned PUT, and never logged. Mirrors the prescription camera consent flow.
+ *
+ * A capture is reviewed before it is used: Retake throws the shot away and starts a fresh camera
+ * session, so a bad frame never reaches the upload or the form.
  */
 export default function DocumentCapture({ visible, title, onClose, onCaptured }: Props) {
   const { hasPermission, requestPermission } = useCameraPermission();
   const device = useCameraDevice('back');
-  // Cap the capture at ~1600px on the long edge. The gateway downscales to 1280px before its AVIF
-  // encode, so a full-sensor 12–50MP capture only burns upload time (ReadTimeout is 15s) and encode
-  // CPU; 1600px keeps documents/shops sharp on a 3x phone at a fraction of the bytes.
+  // Cap the capture at 1280px on the long edge — the exact size the gateway downscales to before its
+  // AVIF encode — so the JPEG written at shutter time is already the file that gets stored. A
+  // full-sensor 12–50MP capture only burns upload time (ReadTimeout is 15s) and encode CPU.
   const format = useCameraFormat(device, [
-    { photoResolution: { width: 1600, height: 1600 } },
+    { photoResolution: { width: 1280, height: 1280 } },
   ]);
   const cameraRef = useRef<Camera>(null);
+  const [shot, setShot] = useState<string | null>(null);
+  const [capturing, setCapturing] = useState(false);
+  // Remount key: bumping it tears the camera session down and starts a new one for the retake.
+  const [sessionKey, setSessionKey] = useState(0);
+
+  useEffect(() => {
+    if (!visible) {
+      setShot(null);
+      setCapturing(false);
+    }
+  }, [visible]);
 
   const takePhoto = useCallback(async () => {
-    if (!cameraRef.current) return;
-    const photo = await cameraRef.current.takePhoto({ flash: 'off' });
-    if (photo?.path) {
-      onCaptured(`file://${photo.path}`);
+    if (!cameraRef.current || capturing) return;
+    setCapturing(true);
+    try {
+      const photo = await cameraRef.current.takePhoto({ flash: 'off' });
+      if (photo?.path) setShot(`file://${photo.path}`);
+    } finally {
+      setCapturing(false);
     }
-  }, [onCaptured]);
+  }, [capturing]);
+
+  const retake = useCallback(() => {
+    setShot(null);
+    setSessionKey((key) => key + 1);
+  }, []);
+
+  const useShot = useCallback(() => {
+    if (!shot) return;
+    const uri = shot;
+    setShot(null);
+    onCaptured(uri);
+  }, [onCaptured, shot]);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={onClose} statusBarTranslucent>
@@ -88,28 +117,61 @@ export default function DocumentCapture({ visible, title, onClose, onCaptured }:
           <View style={styles.cameraWrap}>
             {device ? (
               <Camera
+                key={sessionKey}
                 ref={cameraRef}
                 style={StyleSheet.absoluteFill}
                 device={device}
                 format={format}
-                isActive
+                isActive={!shot}
                 photo
+                photoHdr={false}
+                photoQualityBalance="speed"
               />
             ) : null}
-            <View style={styles.captureBar}>
-              <TouchableOpacity
-                style={styles.shutter}
-                onPress={takePhoto}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-                accessibilityLabel="Capture document"
-              >
-                <View style={styles.shutterInner} />
-              </TouchableOpacity>
-            </View>
-            <AppText style={styles.hint}>
-              Lay the document flat, fill the frame and avoid glare.
-            </AppText>
+            {shot ? (
+              <View style={styles.reviewWrap}>
+                <Image source={{ uri: shot }} style={StyleSheet.absoluteFill} resizeMode="cover" />
+                <View style={styles.reviewBar}>
+                  <TouchableOpacity
+                    style={[styles.reviewButton, styles.retakeButton]}
+                    onPress={retake}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel="Retake photo"
+                  >
+                    <RefreshCw size={ms(15)} color={neutral.card} strokeWidth={2.4} />
+                    <AppText style={styles.retakeText}>Retake</AppText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.reviewButton, styles.useButton]}
+                    onPress={useShot}
+                    activeOpacity={0.85}
+                    accessibilityRole="button"
+                    accessibilityLabel="Use this photo"
+                  >
+                    <AppText style={styles.useText}>Use photo</AppText>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <>
+                <View style={styles.captureBar}>
+                  <TouchableOpacity
+                    style={[styles.shutter, capturing && styles.shutterBusy]}
+                    onPress={takePhoto}
+                    disabled={capturing}
+                    activeOpacity={0.8}
+                    accessibilityRole="button"
+                    accessibilityLabel="Capture document"
+                  >
+                    <View style={styles.shutterInner} />
+                  </TouchableOpacity>
+                </View>
+                <AppText style={styles.hint}>
+                  Lay the document flat, fill the frame and avoid glare.
+                </AppText>
+              </>
+            )}
           </View>
         )}
       </View>
@@ -190,6 +252,33 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   shutterInner: { width: ms(56), height: ms(56), borderRadius: ms(28), backgroundColor: neutral.card },
+  shutterBusy: { opacity: 0.5 },
+  reviewWrap: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'black' },
+  reviewBar: {
+    position: 'absolute',
+    left: hs(16),
+    right: hs(16),
+    bottom: vs(40),
+    flexDirection: 'row',
+    gap: hs(12),
+  },
+  reviewButton: {
+    flex: 1,
+    minHeight: Math.max(48, vs(48)),
+    borderRadius: ms(12),
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: hs(8),
+  },
+  retakeButton: {
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.7)',
+    backgroundColor: 'rgba(0,0,0,0.45)',
+  },
+  retakeText: { fontSize: ms(13), fontWeight: '800', color: neutral.card },
+  useButton: { backgroundColor: parentRamp.base },
+  useText: { fontSize: ms(13), fontWeight: '800', color: parentRamp.onBase },
   hint: {
     position: 'absolute',
     left: hs(24),
