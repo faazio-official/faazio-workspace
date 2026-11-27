@@ -2,10 +2,10 @@
 
 **App / route:** customer · `Location` (`src/features/auth/LocationScreen.tsx`)
 **Status:** Shipped
-**Trigger:** After language selection; on an authenticated cold start with no usable origin
-(`useLocationStore.status === 'idle'`); any time the user taps the Home location chip / the
-"Enter address" action in the Home location nudge; or while browsing as a guest (optional — the
-guest can close the screen or pick an area and continue).
+**Trigger:** After language selection; after skipping phone auth (`Skip` on the phone/OTP step);
+on an authenticated cold start with no usable origin (`useLocationStore.status === 'idle'`); and any
+time the user taps the Home location chip / the "Enter address" action in the Home location nudge.
+The screen has **no skip**: an origin is required before the catalogue, in every funnel.
 
 ## Two locations, deliberately
 
@@ -40,8 +40,8 @@ deliberate choice; while it is set, proximity auto-select stands down.
      - On iOS the global switch has no in-app prompt; the screen shows an inline Settings hint and
        the "Open settings" link (`Linking.openSettings()`).
    - **Enter location manually:** skips the OS dialog entirely and goes to `manual`.
-   - **Guest:** a close button (top-left) and "Browse without a location" link return to the
-     catalogue; location is never required before an account exists.
+   - **No escape:** the former guest close button and "Browse without a location" link are gone;
+     a guest who skipped phone auth must pick an origin before the catalogue.
    - **First denial (Android):** inline error; the manual path stays available and a later tap can
      show the OS dialog again.
    - **Services off after the native prompt:** if the user dismisses the system location dialog, the
@@ -57,8 +57,10 @@ deliberate choice; while it is set, proximity auto-select stands down.
    A picked place is reverse-geocoded once so the origin carries its `postalCode`/district/region.
 5. After a short confirmation dwell, the screen navigates to `MainTabs` only when
    `status === 'ready'` and the origin is not `(0, 0)`. Otherwise it returns to `manual` with an error.
-   - **Guest:** after a confirmed origin the screen navigates straight to `MainTabs` and skips the
-     authenticated serviceability check (the coverage store returns `unknown` without a session).
+   - **Guest:** after a confirmed origin the funnel is complete — `useAuthFunnelStore` is set to
+     `home` and the screen navigates to `MainTabs`, skipping the authenticated serviceability
+     check (the coverage store returns `unknown` without a session). The stored stage means a
+     later cold start opens the catalogue, not this picker.
    - **Signed in:** the enabled-district check is forced and an `unserviceable` origin is left to the
      app-level `ServiceAreaBlockedPage` — the screen never navigates around that verdict.
 

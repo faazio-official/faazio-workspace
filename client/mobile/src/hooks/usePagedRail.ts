@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { gateway } from '@/services/api/GatewayClient';
+import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import { categoryToRailItem, type CategoryRailItem } from '@/services/categoryRail';
 import type { VendorApp } from '@/services/categoryVendors';
 import { useRefreshStore } from '@/state/refreshStore';
@@ -78,9 +78,13 @@ export function usePagedRail(pageSize = HEADER_RAIL_PAGE_SIZE, app?: VendorApp):
         if (__DEV__) {
           console.warn(`[rail] fetchCategoryRail failed (app=${app ?? 'HOME'})`, err);
         }
-        setError(true);
         const scopeChanged = loadedScope.current?.app !== app;
         loadedScope.current = { app };
+        // A rail the caller may not read (signed out) or that the admin has emptied is "not
+        // available", not a failure: a Retry chip there can never succeed and reads as a broken
+        // header. Real network/5xx failures keep the retry affordance.
+        const unavailable = err instanceof GatewayHttpError && err.status === 401;
+        setError(!unavailable);
         if (scopeChanged) setAll([]);
       })
       .finally(() => {

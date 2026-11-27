@@ -1,35 +1,36 @@
 # Guest browsing (no account)
 
-**App / routes:** customer · `Onboarding` → `MainTabs`, `Login` (skip), `Location` (optional)
+**App / routes:** customer · `Onboarding` → `Login` → `Location` (required) → `MainTabs`
 **Status:** Partial (guest cart is in-memory; it merges on sign-in but is not persisted across app restarts)
-**Trigger:** Cold start with no session (after onboarding has been seen), **Skip** on the
-onboarding carousel, **Skip** on the login screen, sign-out, or a revoked session.
+**Trigger:** Skipping phone auth (**Skip** on the login phone/OTP step) and confirming a location,
+sign-out, or a revoked session.
 
 ## Why
 
 App Store Review Guideline 5.1.1(v) forbids requiring registration before a user can access
 features that are not account-based. Browsing the catalogue, searching, viewing menus and adding
 items to a cart are not account-based, so they are open to guests. Only checkout, orders,
-favourites, rewards, wallet and prescription upload ask for an account.
+favourites, rewards, wallet and prescription upload ask for an account. A delivery origin *is*
+required before the catalogue, because stores, fees and delivery times depend on it.
 
 ## Steps
 
-1. `AppNavigator` chooses the signed-out initial route: `MainTabs` when
-   `useOnboardingStore.hasSeenOnboarding` is true, else `Onboarding` (`AppNavigator.tsx`). A
-   signed-out user is never held on a login screen.
-2. **Onboarding Skip** marks onboarding seen and resets the root stack to `MainTabs`. **Get
-   Started** still opens `Login` for a user who wants an account; the login screen keeps a visible
-   **Skip** action.
-3. **Login Skip** (`Browse as guest`) marks onboarding seen, clears any pending gated action and
-   returns to `MainTabs` (or closes the pushed login screen and returns to the screen that opened
-   it).
-4. The guest browses the public surfaces: Home SDUI (`GET /sdui/home`), Mart/Food/Pharma feeds,
+1. `AppNavigator` chooses the signed-out initial route from `useOnboardingStore.hasSeenOnboarding`
+   and the persisted funnel stage `useAuthFunnelStore.stage` (`faazio:funnel:stage`):
+   `Onboarding` (first run) → `Login` (`auth`) → `Location` (`location`) → `MainTabs` (`home`, or
+   no stage stored — returning guests from before the funnel keep the catalogue).
+2. **Onboarding Skip** and **Get Started** both mark onboarding seen and reset the stack to `Login`
+   (stage `auth`). The carousel never jumps to `MainTabs`.
+3. **Login Skip** (phone step and OTP step, top-right) marks onboarding seen, clears any pending
+   gated action, sets stage `location` and resets the stack to `Location`. The name step has no
+   skip. A login pushed by an account-bound action (`resume: true`) shows a close **X** instead of
+   Skip and returns to the screen that opened it.
+4. **Location is required.** The picker has no close button and no "Browse without a location";
+   the guest allows GPS or picks an area. A confirmed origin sets stage `home` and navigates to
+   `MainTabs`; the authenticated serviceability check is skipped for guests.
+5. The guest browses the public surfaces: Home SDUI (`GET /sdui/home`), Mart/Food/Pharma feeds,
    category drill-in, store pages, search, product detail, deals and the public coupons list. These
    endpoints need no bearer token.
-5. **Location is optional.** `useLiveLocation` performs only a silent fix when permission was
-   already granted (never prompts on launch). The Home header shows "Set your location"; a guest can
-   open `Location`, allow GPS or pick an area, and continue to the catalogue. The `Location` screen
-   skips the authenticated serviceability check for guests and offers **Browse without a location**.
 6. **Cart works for guests and stays on the device.** `/cart` is auth-scoped, so `useCartStore`
    skips every server write while signed out. Add / remove / quantity changes are applied to the
    local array only.
@@ -43,20 +44,25 @@ favourites, rewards, wallet and prescription upload ask for an account.
    - Orders, rewards, wallet, notifications and saved addresses are not rendered as live data in
      the guest account page: the "You" tab shows a sign-in card plus Orders / Favourites /
      FaazioCoins rows, and tapping one opens `Login` with that destination as the pending action.
-   Registration is not needed to keep browsing: the guest can close the login screen at any time.
+   Registration is not needed to keep browsing: the guest can close the pushed login screen.
 8. After a successful resume sign-in, `LoginScreen` closes back to the origin screen and runs the
    pending action. `hydrateUserStores()` merges the device-local guest cart into the account's
    server cart before the authoritative `GET /cart` hydrate, so the lines the guest picked survive
    the sign-in.
+9. **App closed mid-funnel:** reopening resumes the stored stage — the phone-auth screen after the
+   welcome was skipped (including a name typed but not submitted: no session is written until the
+   name saves), or the location picker after phone auth was skipped.
 
 ## State
 
 - `useAuthStore` — `isAuthenticated` decides guest vs account surfaces.
 - `useCartStore` — signed-out mutations are device-local; signed-in mutations hit `inventory.carts`.
 - `useFavoriteStore` — guest toggles are gated in the UI; the store refuses unauthenticated writes.
-- `useOnboardingStore` — Skip / Browse-as-guest marks onboarding seen.
+- `useOnboardingStore` — Skip marks onboarding seen.
+- `useAuthFunnelStore` — persisted funnel stage (`auth` / `location` / `home`); sign-in and
+  sign-out reset it to `home`.
 - `src/services/authGate.ts` — pending gated action + `openSignIn` / `runAuthGate`.
-- `useLocationStore` — optional guest origin.
+- `useLocationStore` — the guest origin chosen on the required location step.
 
 ## Data path
 

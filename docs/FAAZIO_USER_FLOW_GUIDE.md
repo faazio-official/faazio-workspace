@@ -109,23 +109,27 @@ flowchart LR
 
 ## 2.1 App launch & routing
 
-On a cold start the app decides the first screen from two facts: **is the user signed in?** and **has the onboarding been seen?** A signed-out user is never forced to log in — they land on the catalogue as a guest.
+On a cold start the app decides the first screen from the facts **is the user signed in?**, **has the onboarding been seen?** and **where did the mandatory sign-in funnel stop last time?** Dropping out of the funnel is allowed at the two sign-in steps only; the app is fully usable without an account once a location is set.
 
 ```mermaid
 flowchart TD
   START(["App opened"]) --> AUTH{"Signed in?"}
   AUTH -->|"No"| SEEN{"Seen onboarding?"}
   SEEN -->|"No"| ONB["Onboarding"]
-  SEEN -->|"Yes"| TABS["Main Tabs — Home<br/>guest browsing"]
+  SEEN -->|"Yes"| STAGE{"Funnel stage<br/>(persisted)"}
+  STAGE -->|"auth"| LOGIN
+  STAGE -->|"location"| LOCATION
+  STAGE -->|"home"| TABS["Main Tabs — Home<br/>guest browsing"]
   AUTH -->|"Yes"| LOCCHK{"Saved location?"}
   LOCCHK -->|"No / unknown"| LOCATION["Location picker"]
   LOCCHK -->|"Yes"| TABS2["Main Tabs — Home"]
-  ONB -->|"Skip"| TABS
-  ONB -->|"Get Started"| LOGIN["Login"]
-  LOGIN -->|"Skip / Browse as guest"| TABS
+  ONB -->|"Skip"| LOGIN["Login — phone step"]
+  ONB -->|"Get Started"| LOGIN
+  LOGIN -->|"Skip (phone / OTP step)"| LOCATION
   LOGIN -->|"OTP verified (first run)"| LANG["Language selection"]
   LANG -->|"Continue"| LOCATION
-  LOCATION -->|"Location confirmed & serviceable"| TABS2
+  LOCATION -.->|"No skip — location required"| LOCATION
+  LOCATION -->|"Location confirmed"| TABS2
   LOGIN -->|"OTP verified (guest gate)"| RESUME["Back to the origin screen<br/>pending action resumed"]
   TABS -.->|"Session revoked / signed out"| TABS
 ```
@@ -134,8 +138,9 @@ flowchart TD
 
 - While the saved location is still loading, a short splash is shown (with a 3-second safety timeout).
 - If a signed-in session is revoked or dies, the app clears local per-user caches and resets to **Main Tabs** as a guest — never a forced login wall.
-- If a signed-in chosen address is outside a serviced district, an app-level coverage gate replaces the normal screens. Guests are not coverage-gated; checkout is still validated server-side.
-- Guest location is optional: the Home header offers **Set your location**, and the picker has **Browse without a location**.
+- If a signed-in chosen address is outside a serviced district, an app-level coverage gate replaces the normal screens. Checkout is still validated server-side.
+- The sign-in funnel persists its stage (`useAuthFunnelStore`, key `faazio:funnel:stage`): closing the app at the phone/OTP step reopens the phone-auth screen, and closing it on the location step reopens the picker. A typed-but-unsubmitted name leaves no session, so the next launch starts at the phone step; a guest who confirmed a location lands on **Main Tabs**.
+- Location has no escape in either funnel: there is no "Browse without a location" / guest close button.
 
 ---
 
@@ -157,15 +162,15 @@ flowchart TD
   S3 -->|"Next"| S4
   S4 -->|"Next"| S5
   S5 -->|"Get Started"| LOGIN
-  S1 -.->|"Skip"| TABS["Main Tabs — Home<br/>guest browsing"]
-  S3 -.->|"Skip"| TABS
+  S1 -.->|"Skip"| LOGIN
+  S3 -.->|"Skip"| LOGIN
 ```
 
 | Screen | Button / control | Action |
 |---|---|---|
 | Onboarding slides | **Next** | Advance one slide |
-| Onboarding slides | **Skip** | Mark onboarding seen → Main Tabs as a guest |
-| Final slide | **Get Started** | Mark onboarding seen → Login (sign-in is optional) |
+| Onboarding slides | **Skip** | Mark onboarding seen → Login (phone step) — the carousel is the only screen the skip short-cuts |
+| Final slide | **Get Started** | Mark onboarding seen → Login (sign-in is optional at the phone/OTP step) |
 | Onboarding slides | **Back** (where shown) | Return to the previous slide |
 
 ---
@@ -179,7 +184,8 @@ account does not already have one**.
 flowchart TD
   PHONE["Enter mobile number<br/>+91"] -->|"Send code"| OTP["Enter 6-digit SMS code"]
   PHONE -.->|"Tap a recent number"| PHONE
-  PHONE -.->|"Skip / Browse as guest"| TABS["Main Tabs — Home<br/>guest browsing"]
+  PHONE -.->|"Skip"| LOCATION["Location picker"]
+  OTP -.->|"Skip"| LOCATION
   OTP -->|"Verify"| OK{"Correct code?"}
   OK -->|"No"| ERR["Verification Failed banner"]
   ERR -->|"Resend / Resend in Ns"| OTP
@@ -198,7 +204,9 @@ flowchart TD
 | OTP step | 6-digit input + **Verify** | Verify code; existing name → sign in, new account → name step |
 | Name step (new accounts only) | Name field + **Continue** | Save the name and finish sign-in |
 | OTP step | **Resend / Resend in Ns** | Re-send the code after the cooldown |
-| Login — phone | **Skip** (top-right) | Clear any pending gated action → Main Tabs as a guest |
+| Login — phone | **Skip** (top-right) | Clear any pending gated action → Location picker (no guest home; location is required) |
+| Login — OTP | **Skip** (top-right) | Abandon verification → Location picker |
+| Login — name step | *(no skip)* | A name must be entered to finish sign-in |
 | Login — pushed over a screen | **X** (top-left) | Close sign-in and return to the origin screen |
 | Login | Back arrow | OTP → phone step; the post-verification name step is not skippable |
 
@@ -210,7 +218,7 @@ flowchart TD
 
 ## 2.4 Language & location
 
-After first-run sign-in the user picks a language, then sets a delivery location. For a signed-in user location is required because stores, fees and delivery time depend on it. Guests can browse without a location and set one later from the Home header; the guest picker has **Browse without a location**.
+After first-run sign-in the user picks a language, then sets a delivery location. For a signed-in user location is required because stores, fees and delivery time depend on it. A guest who skipped phone auth lands on the picker too, and **must** choose an origin — there is no "Browse without a location" escape; after confirming one they continue to the catalogue as a guest.
 
 ### Language selection
 
@@ -788,12 +796,12 @@ flowchart TD
 
 ```mermaid
 flowchart LR
-  ONB["Onboarding"] --> GUEST["Guest browsing<br/>Home"]
-  ONB --> LOGIN["Login<br/>phone + OTP"]
+  ONB["Onboarding"] --> LOGIN["Login<br/>phone + OTP"]
+  ONB -->|"Get Started / Skip"| LOGIN
+  LOGIN -->|"Skip on phone / OTP"| LOC["Location"]
   LOGIN --> LANG["Language"]
-  LANG --> LOC["Location"]
-  LOC --> HOME["Home"]
-  GUEST --> HOME
+  LANG --> LOC
+  LOC -->|"No skip — required"| HOME["Home"]
   HOME -.->|"Checkout / Favourites /<br/>Orders / Rewards / Rx"| LOGIN
   LOGIN -.->|"Resume"| HOME
   HOME --> DISC["Discover<br/>Mart / Food / Pharma"]
@@ -1186,9 +1194,9 @@ flowchart LR
 
 | # | Screen | Buttons / controls you can tap |
 |---|---|---|
-| 1 | Onboarding | Next, Skip (→ guest Home), Get Started (→ Login) |
-| 2 | Login — phone | +91, number field, Send code, recent-number chip, **Skip**, X (when pushed) |
-| 3 | Login — OTP | 6-digit input, Verify, Resend |
+| 1 | Onboarding | Next, Skip (→ Login phone step), Get Started (→ Login) |
+| 2 | Login — phone | +91, number field, Send code, recent-number chip, **Skip** (→ Location), X (when pushed) |
+| 3 | Login — OTP | 6-digit input, Verify, Resend, **Skip** (→ Location) |
 | 4 | Login — name (new accounts only) | Name field, Continue |
 | 5 | Language | English, Tamil, Continue |
 | 6 | Location primer | Allow location access, Enter location manually, Open settings |
@@ -1312,6 +1320,7 @@ Use this map if a flow changes and the diagram needs to be updated.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.11 | 27 Nov 2026 | Sign-in funnel: onboarding **Skip** now opens the phone-auth screen instead of guest Home; **Skip** on the phone and OTP steps advances to the location picker, which has no escape (**Browse without a location** removed). The funnel stage persists across app restarts. Home / Mart header category rail no longer shows a dead **Retry** when the rail is unavailable (401) or the super admin has turned every element off. |
 | 1.10 | 27 Nov 2026 | Sell with us: **Pin your shop** now shows a native map with a draggable marker (tap/drag onto the shop), with address search and “use my current location” as fallbacks. Fixed the shop-photo upload returning a gateway 500 for full-resolution phone photos (AVIF conversion now runs on a detached 45 s deadline instead of the 10 s request timeout). |
 | 1.9 | 26 Nov 2026 | Customer sign-in reordered to phone → OTP → name. After OTP, an existing account signs straight in with its stored name; only a first-time account is asked for a name (backed by `GET /profile` `hasName`). Skip stays on the phone step; the name step is not skippable. |
 | 1.8 | 26 Nov 2026 | Super admin **Supply → Food master** page: read-only atomic cuisine taxonomy (147 rows), carousel → cuisine map (24), store onboarding rules (11) and sample dish templates (15), all from migration `0145`. Seller dish form now shows the picked leaf’s cuisine; Food category drill-in shows a one-line cuisine subtitle. FOOD menus re-mapped off the over-loaded Chicken bucket. |

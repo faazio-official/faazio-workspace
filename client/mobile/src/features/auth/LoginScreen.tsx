@@ -33,6 +33,7 @@ import AppTextInput from '@/components/AppTextInput';
 import AppText from '@/components/AppText';
 import { useAuthStore } from '@/state/authStore';
 import { useOnboardingStore } from '@/state/onboardingStore';
+import { useAuthFunnelStore } from '@/state/authFunnelStore';
 import { clearPendingAuthAction, consumePendingAuthAction } from '@/services/authGate';
 import { openTrustedUrl } from '@/lib/externalLinks';
 import { PRIVACY_URL, TERMS_URL } from '@/lib/site';
@@ -139,6 +140,7 @@ export function LoginScreen({ navigation, route }: Props) {
   const login = useAuthStore((s) => s.login);
   const hasSeenOnboarding = useOnboardingStore((s) => s.hasSeenOnboarding);
   const markOnboardingSeen = useOnboardingStore((s) => s.markSeen);
+  const setFunnelStage = useAuthFunnelStore((s) => s.setStage);
   const resumeAfterLogin = route.params?.resume === true;
   const insets = useSafeAreaInsets();
 
@@ -325,6 +327,8 @@ export function LoginScreen({ navigation, route }: Props) {
    */
   const finishLoginNavigation = useCallback((): boolean => {
     if (!navigationRef.isReady()) return false;
+    // A signed-in user is out of the skip funnel: a later sign-out lands on the app, not mid-funnel.
+    setFunnelStage('home');
     if (resumeAfterLogin) {
       if (navigation.canGoBack()) navigation.goBack();
       else navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
@@ -334,7 +338,7 @@ export function LoginScreen({ navigation, route }: Props) {
     }
     navigation.replace('LanguageSelection');
     return true;
-  }, [navigation, resumeAfterLogin]);
+  }, [navigation, resumeAfterLogin, setFunnelStage]);
 
   /**
    * Read the customer's stored name with the freshly verified OTP token. A first-time phone-auth
@@ -656,15 +660,27 @@ export function LoginScreen({ navigation, route }: Props) {
     }
   };
 
-  const handleBrowseAsGuest = useCallback(() => {
+  // Funnel skip: only the phone and OTP steps may skip, and they skip *forward* into the
+  // mandatory location step — never back to the carousel and never to a guest home. The name
+  // step (post-verification) is not skippable, and a resumed (gated-action) sign-in keeps its
+  // close button instead.
+  const handleFunnelSkip = useCallback(() => {
     clearPendingAuthAction();
     markOnboardingSeen();
-    if (resumeAfterLogin && navigation.canGoBack()) {
+    setFunnelStage('location');
+    navigation.reset({ index: 0, routes: [{ name: 'Location' }] });
+  }, [clearPendingAuthAction, markOnboardingSeen, navigation, setFunnelStage]);
+
+  // A sign-in resumed from a gated action (add to cart, checkout, …) closes instead of skipping:
+  // the rest of the app is already behind it and nothing may be skipped on its behalf.
+  const handleCloseResumedSignIn = useCallback(() => {
+    clearPendingAuthAction();
+    if (navigation.canGoBack()) {
       navigation.goBack();
       return;
     }
     navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
-  }, [markOnboardingSeen, navigation, resumeAfterLogin]);
+  }, [clearPendingAuthAction, navigation]);
 
   return (
     <KeyboardAvoidingView
@@ -678,7 +694,7 @@ export function LoginScreen({ navigation, route }: Props) {
           {authStep === 'phone' ? (
             resumeAfterLogin ? (
               <ScalePressable
-                onPress={handleBrowseAsGuest}
+                onPress={handleCloseResumedSignIn}
                 style={[styles.backBtn, { top: insets.top + vs(8) }]}
                 accessibilityRole="button"
                 accessibilityLabel="Close sign in"
@@ -697,15 +713,15 @@ export function LoginScreen({ navigation, route }: Props) {
             ) : null
           ) : null}
 
-          {/* Guest browsing: the app is fully usable without an account; only account-bound
-              actions (checkout, orders, favourites, rewards) ask for sign-in later. The
-              post-verification name step is not skippable. */}
-          {authStep === 'phone' ? (
+          {/* Funnel skip: phone step only, and only when not resuming a gated action —
+              it advances to the mandatory location step (no guest escape). The name step is
+              not skippable. */}
+          {authStep === 'phone' && !resumeAfterLogin ? (
             <ScalePressable
-              onPress={handleBrowseAsGuest}
+              onPress={handleFunnelSkip}
               style={[styles.guestBtn, { top: insets.top + vs(8) }]}
               accessibilityRole="button"
-              accessibilityLabel="Browse as guest"
+              accessibilityLabel="Skip to location"
             >
               <AppText style={styles.guestBtnText}>Skip</AppText>
             </ScalePressable>
@@ -890,6 +906,18 @@ export function LoginScreen({ navigation, route }: Props) {
           >
             <ChevronLeft size={ms(20)} color={neutral.ink} strokeWidth={2.5} />
           </ScalePressable>
+
+          {/* The OTP step is the last skippable point: it advances to the location step. */}
+          {!resumeAfterLogin ? (
+            <ScalePressable
+              onPress={handleFunnelSkip}
+              style={[styles.guestBtn, { top: insets.top + vs(8) }]}
+              accessibilityRole="button"
+              accessibilityLabel="Skip to location"
+            >
+              <AppText style={styles.guestBtnText}>Skip</AppText>
+            </ScalePressable>
+          ) : null}
 
           <View style={styles.otpHeaderContainer}>
             <AppText style={styles.otpHeaderTitle}>Let's get verified</AppText>

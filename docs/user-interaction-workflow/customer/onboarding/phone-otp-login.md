@@ -2,15 +2,17 @@
 
 **App / route:** customer · `Login` (`src/features/auth/LoginScreen.tsx`)
 **Status:** Partial (dev-only mock login seam; see Known gaps)
-**Trigger:** **Get Started** on onboarding, or an account-bound action while browsing as a guest (checkout, favourites, orders, rewards, prescription upload). Sign-out and session expiry return to guest browsing, not this screen.
+**Trigger:** **Get Started / Skip** on onboarding, or an account-bound action while browsing as a guest (checkout, favourites, orders, rewards, prescription upload). Sign-out and session expiry return to guest browsing, not this screen.
 
 ## Steps
 
 `LoginScreen` has three possible steps (`authStep`: `phone` → `otp` → `name`). The **name** step is
 conditional: it appears only after OTP verification when the account has no chosen name yet.
 `otpState` is derived from `authStep === 'otp'`. A **Skip** action is visible on the phone step
-(and an `X` closes the screen when it was pushed over a browsing screen); skipping clears any
-pending gated action and returns to `MainTabs`.
+*and* the OTP step (an `X` closes the screen when it was pushed over a browsing screen by a gated
+action). Skipping clears any pending gated action, sets `useAuthFunnelStore` to `location` and
+resets the stack to the `Location` picker — there is no guest-home shortcut. The name step has no
+skip.
 
 1. **Phone.** A fixed `+91` (India) dial code + phone field — the country is not user-selectable.
    `toE164`/`isValidPhone` validate the number locally. The phone field auto-focuses and shows
@@ -87,8 +89,12 @@ pending gated action and returns to `MainTabs`.
   screen with the gated action resumed.
 - **Returning customer:** OTP verify → `GET /profile` `hasName: true` → sign in directly, no name
   prompt.
-- **Guest skip:** `MainTabs` with no account; the guest can browse and is asked again only when an
-  account-bound action needs a session.
+- **Guest skip:** phone/OTP **Skip** → `Location` (required, no skip); a confirmed origin sets the
+  funnel stage to `home` and opens `MainTabs` with no account. The guest is asked to sign in again
+  only when an account-bound action needs a session.
+- **App killed mid-funnel:** nothing is persisted unless sign-in completed, so the next launch
+  reopens the phone step (welcome skipped) or the `Location` picker (phone auth skipped,
+  `useAuthFunnelStore`).
 - **Empty name:** the name step shows "Enter your name" and does not advance (the name step is the
   only place that message can appear).
 - **Invalid phone:** the send button stays disabled until `isValidPhone`, and a rejected send shows

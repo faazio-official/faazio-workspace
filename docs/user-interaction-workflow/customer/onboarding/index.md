@@ -17,19 +17,28 @@
 
 ## First-run carousel
 
-1. `AppNavigator` picks `initialRouteName` from `useOnboardingStore.hasSeenOnboarding` and
-   `useAuthStore` (`AppNavigator.tsx`).
+1. `AppNavigator` picks `initialRouteName` from `useOnboardingStore.hasSeenOnboarding`,
+   `useAuthStore` and the persisted funnel stage in `useAuthFunnelStore`
+   (`src/state/authFunnelStore.ts`, key `faazio:funnel:stage`) — `AppNavigator.tsx`.
 2. `OnboardingScreen` shows the value carousel.
-3. **Skip** sets `hasSeenOnboarding` and resets the root stack to `MainTabs` (guest browsing).
-   **Get Started** sets `hasSeenOnboarding` and opens `Login` for a user who wants an account; the
-   login screen keeps a visible **Skip** action. Guest browsing is the default for a returning
-   signed-out user: a cold start with the flag set lands on `MainTabs`, not `Login`.
+3. **Skip** (and **Get Started**) set `hasSeenOnboarding` and open the mandatory sign-in funnel:
+   the stack is reset to `Login` (phone step) with `faazio:funnel:stage = auth`. There is no
+   guest-home shortcut from the carousel any more.
+4. On `Login`, **Skip** exists on the phone and OTP steps only and advances *forward* to
+   `Location` (`faazio:funnel:stage = location`); the post-verification name step is not
+   skippable. On `Location` there is no skip at all — see location-picker.md.
+5. Because the funnel stage persists, closing the app mid-funnel and reopening lands on the step
+   that was last reached: the phone-auth screen after a typed-but-unsubmitted name (no session is
+   written until the name is saved), or the location picker after skipping phone auth. A guest who
+   confirmed a location has `stage = 'home'` and cold-starts on `MainTabs`. Sign-in, a completed
+   funnel or a sign-out reset the stage.
 
-**State:** `useOnboardingStore` (`src/state/onboardingStore.ts`), persisted.
-**Data path:** none (local first-run flag only).
+**State:** `useOnboardingStore` (`src/state/onboardingStore.ts`) and `useAuthFunnelStore`
+(`src/state/authFunnelStore.ts`), both persisted.
+**Data path:** none (local first-run flag + funnel stage only).
 **Motion:** each step enters on the entrance curve (240ms) and travels on a short arc
 (`OnboardingScreen`); Reduce Motion replaces the slide/arc with a short cross-fade.
-**Success:** `MainTabs` (Skip) or `Login` (Get Started). **Error:** none. **Empty:** not applicable.
+**Success:** `Login` phone step (Skip / Get Started). **Error:** none. **Empty:** not applicable.
 
 ## Language selection
 
@@ -53,14 +62,17 @@ a translation is empty.
 | Authenticated, `useLocationStore.status === 'idle'` (no usable origin yet) | `Location` (primer step) |
 | Authenticated, origin known (`ready` / `denied` / `blocked`) **and** coverage serviceable | `MainTabs` (denied/blocked show the Home nudge banner) |
 | Authenticated, origin known but outside enabled district coverage | App-level `ServiceAreaBlockedPage` (no navigator mounted) |
-| Onboarding seen, no session | `MainTabs` (guest browsing; sign-in only on an account-bound action) |
-| First launch | `Onboarding` (Skip → `MainTabs`, Get Started → `Login`) |
+| Onboarding seen, no session, funnel stage `auth` | `Login` (phone step — resumed mid-funnel) |
+| Onboarding seen, no session, funnel stage `location` | `Location` (resumed mid-funnel) |
+| Onboarding seen, no session, funnel stage `home` / no stage stored | `MainTabs` (legacy guests keep the catalogue) |
+| First launch | `Onboarding` (Skip / Get Started → `Login`) |
 
 The authenticated branch waits for the persisted location to hydrate (3 s bound) before choosing, so
 a returning user with no origin is not stranded on an empty Home tab. On a cold start it also holds
 the splash for the first coverage decision (3 s bound) so a returning user outside coverage never
-flashes `MainTabs`. Guests are never gated on location or district coverage — location is optional
-and prompted from the Home header, and the authenticated hard gate only runs after sign-in. See
+flashes `MainTabs`. The signed-out branch also waits (same 3 s bound) for the funnel stage to
+hydrate before choosing. Guests are never gated on district coverage; checkout is still validated
+server-side. See
 [guest-browsing.md](./guest-browsing.md), [location-picker.md](./location-picker.md) and
 [service-area-gate.md](./service-area-gate.md).
 

@@ -11,6 +11,7 @@ import { LocationScreen } from '@/features/auth/LocationScreen';
 import { MainTabs } from './MainTabs';
 import { useAuthStore } from '@/state/authStore';
 import { useOnboardingStore } from '@/state/onboardingStore';
+import { useAuthFunnelStore } from '@/state/authFunnelStore';
 import { useLocationStore } from '@/state/locationStore';
 import { resetLocalUserState } from '@/services/logout';
 
@@ -79,6 +80,17 @@ export function AppNavigator() {
   const hydrateLocation = useLocationStore((s) => s.hydrate);
   const wasAuthenticated = useRef(isAuthenticated);
   const [gateExpired, setGateExpired] = useState(false);
+  const funnelStage = useAuthFunnelStore((s) => s.stage);
+  const funnelHydrated = useAuthFunnelStore((s) => s.hydrated);
+  const hydrateFunnel = useAuthFunnelStore((s) => s.hydrate);
+  const setFunnelStage = useAuthFunnelStore((s) => s.setStage);
+
+  // The signed-out start route resumes the persisted funnel stage, so that read has to settle
+  // before mount too; the same hard timeout covers a hung storage module.
+  useEffect(() => {
+    if (funnelHydrated) return;
+    void hydrateFunnel();
+  }, [funnelHydrated, hydrateFunnel]);
 
   // The authenticated start route depends on the persisted location, so the
   // navigator must not mount before that read settles (otherwise a user with no
@@ -99,6 +111,7 @@ export function AppNavigator() {
   useEffect(() => {
     if (!hydrated) return;
     if (wasAuthenticated.current && !isAuthenticated) {
+      setFunnelStage('home');
       void resetLocalUserState().catch(() => {});
       if (navigationRef.isReady()) {
         navigationRef.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
@@ -107,21 +120,28 @@ export function AppNavigator() {
     } else {
       wasAuthenticated.current = isAuthenticated;
     }
-  }, [hydrated, isAuthenticated]);
+  }, [hydrated, isAuthenticated, setFunnelStage]);
 
-  // Only an authenticated cold start is gated on location; signed-out users never
-  // need it (guest browsing starts on MainTabs, and location is optional/prompted
-  // from the Home header exactly like Swiggy).
-  const locationGateResolved =
-    !isAuthenticated || locationHydrated || gateExpired;
+  // Only an authenticated cold start is gated on location; signed-out users resume wherever the
+  // mandatory funnel left them (phone auth or location), and legacy guests still start on MainTabs.
+  const locationGateResolved = !isAuthenticated
+    ? (locationHydrated || gateExpired) && (funnelHydrated || gateExpired)
+    : locationHydrated || gateExpired;
 
-  // Guest browsing is the default for a returning signed-out user. The first launch still
-  // shows the skippable onboarding carousel; both Skip and the Login screen's guest action
-  // land on MainTabs without an account (App Store Guideline 5.1.1(v)).
+  // Signed-out cold start resumes the persisted funnel stage: carousel (first run) → phone auth
+  // (after skipping the welcome) → location (after skipping phone auth) → app. A name typed but
+  // not submitted leaves no session, so reopening returns to the phone-auth screen, and a guest
+  // who confirmed a location has stage 'home' and lands on the catalogue.
   const initialRouteName = !isAuthenticated
-    ? hasSeenOnboarding
-      ? 'MainTabs'
-      : 'Onboarding'
+    ? !hasSeenOnboarding
+      ? 'Onboarding'
+      : !funnelHydrated
+        ? 'MainTabs'
+        : funnelStage === 'auth'
+          ? 'Login'
+          : funnelStage === 'location'
+            ? 'Location'
+            : 'MainTabs'
     : locationStatus === 'idle'
       ? 'Location'
       : 'MainTabs';

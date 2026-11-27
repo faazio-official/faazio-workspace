@@ -36,6 +36,7 @@ import { isLocationServicesEnabled, reverseGeocode } from '@/services/location';
 import { useLocationStore } from '@/state/locationStore';
 import { useServiceabilityStore } from '@/state/serviceabilityStore';
 import { useAuthStore } from '@/state/authStore';
+import { useAuthFunnelStore } from '@/state/authFunnelStore';
 import { parentRamp } from '@/theme/brandTokens';
 import { semantic } from '@/theme/brandTokens';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
@@ -228,7 +229,6 @@ export function LocationScreen({ navigation }: Props) {
   const [manualError, setManualError] = useState('');
   const [placesRetry, setPlacesRetry] = useState(0);
   const checkServiceability = useServiceabilityStore((s) => s.check);
-  const isGuest = !useAuthStore((s) => s.isAuthenticated);
   const liveOrigin = useLiveOrigin();
   const {
     suggestions,
@@ -313,12 +313,6 @@ export function LocationScreen({ navigation }: Props) {
     setStep('manual');
   };
 
-  /** Guest escape hatch: location is optional, so return to the catalogue without one. */
-  const browseWithoutLocation = useCallback(() => {
-    if (navigation.canGoBack()) navigation.goBack();
-    else navigation.navigate('MainTabs');
-  }, [navigation]);
-
   const pickSuggestion = async (suggestion: PlaceSuggestion) => {
     setManualError('');
     const resolved = await resolvePlaceLocation(suggestion.placeId);
@@ -373,10 +367,10 @@ export function LocationScreen({ navigation }: Props) {
           return;
         }
 
-        // Guests browse before an account exists. Coverage is an authenticated gate (the
-        // serviceability store returns `unknown` without a session), so a guest who picks an
-        // origin goes straight back to the catalogue instead of being trapped on the loader.
+        // A guest who picked an origin has finished the funnel: the location is stored, so a
+        // cold start opens the catalogue instead of asking for it again.
         if (!useAuthStore.getState().isAuthenticated) {
+          useAuthFunnelStore.getState().setStage('home');
           navigation.navigate('MainTabs');
           return;
         }
@@ -482,17 +476,6 @@ export function LocationScreen({ navigation }: Props) {
       {step === 'request' && (
         <Animated.View style={[styles.requestContainer, { opacity: fadeAnim }]}>
 
-          {isGuest ? (
-            <Pressable
-              style={[styles.guestCloseBtn, { top: insets.top + vs(8) }]}
-              onPress={browseWithoutLocation}
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-            >
-              <ChevronLeft size={ms(22)} color={neutral.ink} />
-            </Pressable>
-          ) : null}
-
           <View style={styles.topTextContent}>
             <View style={styles.titleWrapper}>
               <AppText style={styles.titleText}>
@@ -576,17 +559,6 @@ export function LocationScreen({ navigation }: Props) {
               </AppText>
               <ArrowRight size={ms(11)} color={neutral.ink} />
             </Pressable>
-
-            {isGuest ? (
-              <Pressable
-                style={({ pressed }) => [styles.guestSkipBtn, pressed && { opacity: 0.6 }]}
-                onPress={browseWithoutLocation}
-                accessibilityRole="button"
-                accessibilityLabel="Browse without setting a location"
-              >
-                <AppText style={styles.guestSkipText}>Browse without a location</AppText>
-              </Pressable>
-            ) : null}
           </View>
         </Animated.View>
       )}
@@ -806,17 +778,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     position: 'relative',
   },
-  guestCloseBtn: {
-    position: 'absolute',
-    left: hs(8),
-    zIndex: 20,
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: neutral.card,
-  },
   topTextContent: { alignItems: 'center', zIndex: 10 },
   titleWrapper: { alignItems: 'center' },
   titleText: {
@@ -897,18 +858,6 @@ const styles = StyleSheet.create({
     marginTop: vs(18),
   },
   manualBtnText: { fontSize: ms(12), fontWeight: '600', color: neutral.ink },
-  guestSkipBtn: {
-    minHeight: 44,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: vs(4),
-  },
-  guestSkipText: {
-    fontSize: ms(12),
-    fontWeight: '600',
-    color: neutral.inkMuted,
-    textDecorationLine: 'underline',
-  },
   permissionErrorBlock: {
     alignItems: 'center',
     marginTop: vs(8),

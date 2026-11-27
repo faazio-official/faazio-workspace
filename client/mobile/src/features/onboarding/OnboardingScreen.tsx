@@ -18,6 +18,7 @@ import { parentRamp } from '@/theme/brandTokens';
 import { TOUCH } from '@/theme/tokens';
 import { DURATION, EASING } from '@/theme/motion';
 import { useOnboardingStore } from '@/state/onboardingStore';
+import { useAuthFunnelStore } from '@/state/authFunnelStore';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Onboarding'>;
@@ -91,6 +92,7 @@ export function OnboardingScreen({ navigation }: Props) {
   const directionRef = useRef<'next' | 'back'>('next');
   const isFirstRender = useRef(true);
   const markSeen = useOnboardingStore((s) => s.markSeen);
+  const setFunnelStage = useAuthFunnelStore((s) => s.setStage);
   const reduceMotion = useReducedMotion();
 
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -146,8 +148,7 @@ export function OnboardingScreen({ navigation }: Props) {
       directionRef.current = 'next';
       setCurrentStep((prev) => prev + 1);
     } else {
-      markSeen();
-      navigation.navigate('Login');
+      enterPhoneAuth();
     }
   };
 
@@ -158,11 +159,16 @@ export function OnboardingScreen({ navigation }: Props) {
     }
   };
 
-  const handleSkip = () => {
-    // Guest browsing: skip straight to the catalogue. Sign-in is only asked when an
-    // account-bound action needs it (checkout, orders, favourites, rewards).
+  const enterPhoneAuth = () => {
+    // Skip only short-cuts the carousel into the phone-auth funnel: the sign-in screens are
+    // mandatory from here (location has no escape), never a guest home.
     markSeen();
-    navigation.reset({ index: 0, routes: [{ name: 'MainTabs' }] });
+    setFunnelStage('auth');
+    navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+  };
+
+  const handleSkip = () => {
+    enterPhoneAuth();
   };
 
   const currentData = ONBOARDING_DATA[currentStep];

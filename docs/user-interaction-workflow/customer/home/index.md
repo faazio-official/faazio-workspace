@@ -55,6 +55,10 @@
 - **Success:** server-ordered sections render with joined rows.
 - **Loading:** an honest "Loading your feed…" state until `GET /sdui/home` answers.
 - **Error/offline:** online error → retry state; gateway disabled → static registry + fixtures.
+- **Header category rail:** the rail above the feed collapses silently — no **Retry** chip — when
+  the gateway refuses it (401 without a session) or when the super admin has turned every rail
+  element off (empty list). Retry is reserved for real network/5xx failures. The same rule then
+  applies to the Mart header (`usePagedRail` + `HeaderCategoryRail`).
 - **Empty:** a section with no server rows is omitted (or shows its own honest empty note); the
   feed itself shows an honest empty state when the server returns no sections.
 

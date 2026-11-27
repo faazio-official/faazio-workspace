@@ -965,26 +965,34 @@ AppNavigator (root native stack)
 │   optional `presetVendorId` skips the vendor step and opens fulfilment for that pharmacy)
 ```
 
-Entry is `Onboarding` on first launch, `MainTabs` (guest browsing) for a returning signed-out user
-(`useOnboardingStore.hasSeenOnboarding`), or — when authenticated — `Location` if
-`useLocationStore.status === 'idle'` (never asked / no origin), otherwise `MainTabs`. The
-authenticated branch waits for the persisted location to hydrate (3 s bound) so a returning user
-with no origin is not stranded on an empty Home tab; `denied`/`blocked` still open `MainTabs` with
-the Home nudge banner. Decided in `AppNavigator.tsx` from `useAuthStore.isAuthenticated` + the
-hydrated onboarding and location stores.
+Entry is `Onboarding` on first launch; for a returning signed-out user the persisted sign-in funnel
+stage decides (`useAuthFunnelStore`, key `faazio:funnel:stage`): `auth` → `Login` (phone step),
+`location` → `Location`, `home` (or no stage stored, i.e. pre-funnel guests) → `MainTabs`. When
+authenticated, entry is `Location` if `useLocationStore.status === 'idle'` (never asked / no
+origin), otherwise `MainTabs`. The authenticated branch waits for the persisted location to hydrate
+(3 s bound) so a returning user with no origin is not stranded on an empty Home tab;
+`denied`/`blocked` still open `MainTabs` with the Home nudge banner. The signed-out branch waits
+for the same bound on the funnel stage. Decided in `AppNavigator.tsx` from
+`useAuthStore.isAuthenticated` + the hydrated onboarding, funnel and location stores.
+
+**Sign-in funnel (mandatory skip path).** `Onboarding` **Skip** / **Get Started** reset the stack to
+`Login` (stage `auth`). On `Login`, **Skip** exists on the phone and OTP steps and resets to
+`Location` (stage `location`); the name step is not skippable. `Location` has no skip at all — the
+former guest close button and **Browse without a location** are gone — and a confirmed origin sets
+stage `home`, opening `MainTabs` for a guest or continuing to the authenticated coverage check. The
+stage is persisted so a cold start resumes where the funnel stopped; sign-in and sign-out reset it
+to `home`.
 
 **Guest browsing (Guideline 5.1.1(v)).** Signed-out users are never forced through `Login`.
-`Onboarding` **Skip** and the `Login` screen's **Skip** reset to `MainTabs`; a returning signed-out
-cold start lands there directly. Browsing, search, product detail, store pages and add-to-cart are
-public. Account-bound actions call `runAuthGate` (`src/services/authGate.ts`), which remembers the
+Browsing, search, product detail, store pages and add-to-cart are public. Account-bound actions call
+`runAuthGate` (`src/services/authGate.ts`), which remembers the
 triggering action and pushes `Login` with `{ resume: true }`; on success the screen closes back to
 the origin and the action resumes. Gated surfaces: checkout **Continue** / place order, favourites
 (tab, pushed page, every heart), prescription upload, and the guest account page's orders / rewards
 / notifications / addresses entry points. A dead/revoked session resets to `MainTabs` (guest) and
-clears local per-user caches, never a forced login wall. Location is optional for guests — the
-`Location` screen has **Browse without a location** and skips the authenticated district check. A
-guest cart is device-local (`/cart` is auth-scoped) and is merged into the account by
-`hydrateUserStores()` before the authoritative cart hydrate after sign-in.
+clears local per-user caches, never a forced login wall. A guest cart is device-local (`/cart` is
+auth-scoped) and is merged into the account by `hydrateUserStores()` before the authoritative cart
+hydrate after sign-in.
 
 ## Delivery Partner app (separate product)
 
