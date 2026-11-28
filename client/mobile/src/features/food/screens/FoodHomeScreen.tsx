@@ -33,6 +33,11 @@ import FoodHouseHero from '../components/FoodHouseHero';
 import type { StoreProfile } from '@data/types';
 import Button from '@/components/Button';
 import { driveNavBarFromDelta } from '@/hooks/useAutoHideNavBar';
+import { useServiceabilityStore } from '@/state/serviceabilityStore';
+import { useSduiScreenLayout } from '../sdui/useSduiScreenLayout';
+import { resolveHeroTarget } from '../sdui/heroResolver';
+import SduiHeroSlot from '../sdui/SduiHeroSlot';
+import type { SduiWidget } from '@/services/api/sduiLayout';
 
 type Props = NativeStackScreenProps<FoodStackParamList, 'FoodHome'>;
 
@@ -48,6 +53,24 @@ export function FoodHomeScreen({ navigation }: Props) {
   const scrollY = useSharedValue(0);
   const dietFilter = useFoodFilterStore((s) => s.dietFilter);
   const scheduleOnly = useFoodFilterStore((s) => s.scheduleOnly);
+  const districtCode = useServiceabilityStore((s) => s.districtCode);
+  const districtName = useServiceabilityStore((s) => s.districtName);
+  // Published SDUI layout for this district (PAN_INDIA when null). Null payload = no layout,
+  // and the home keeps its own paid hero + untinted header.
+  const sdui = useSduiScreenLayout('food', 'home', districtCode ?? undefined);
+
+  /** SDUI hero tap: only `faazio://food/offers/<CODE>` resolves today — it hands the coupon to the
+   *  central cart, the surface that actually applies it. Unresolvable actions render no CTA. */
+  const onSduiHeroPress = useCallback(
+    (widget: SduiWidget) => {
+      const target = resolveHeroTarget(widget);
+      if (!target?.couponCode) return;
+      navigation
+        .getParent<NativeStackNavigationProp<RootStackParamList>>()
+        ?.navigate('Cart', { couponCode: target.couponCode });
+    },
+    [navigation],
+  );
 
   const onScroll = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
@@ -131,27 +154,36 @@ export function FoodHomeScreen({ navigation }: Props) {
     return (
       <>
         <Animated.View entering={FadeIn.duration(260)}>
-          <FoodHeader onBack={goBack} />
+          <FoodHeader
+            onBack={goBack}
+            onSearch={() => openSearch()}
+            locationLabel={districtName ?? 'All India'}
+            theme={sdui.layout?.header_theme}
+          />
         </Animated.View>
         <Animated.View entering={FadeIn.duration(260)}>
-          <CampaignHero
-            placement="FOOD_HERO"
-            app="FOOD"
-            style={styles.heroWrap}
-            adLabelPosition="bottom-right"
-            adLabelTone="light"
-            fallback={feed.heroBanners.length ? <FoodHouseHero banners={feed.heroBanners} /> : null}
-            onPress={(ad) =>
-              void openHeroTarget(ad, {
-                onProduct: (product) =>
-                  navigation
-                    .getParent<NativeStackNavigationProp<RootStackParamList>>()
-                    ?.navigate('ProductDetail', { product }),
-                onStore: (store: StoreProfile) => void openVenue(store.id),
-                onVenue: (store: StoreProfile) => void openVenue(store.id),
-              })
-            }
-          />
+          {sdui.layout ? (
+            <SduiHeroSlot layout={sdui.layout} clockOffset={sdui.clockOffset} onPress={onSduiHeroPress} />
+          ) : (
+            <CampaignHero
+              placement="FOOD_HERO"
+              app="FOOD"
+              style={styles.heroWrap}
+              adLabelPosition="bottom-right"
+              adLabelTone="light"
+              fallback={feed.heroBanners.length ? <FoodHouseHero banners={feed.heroBanners} /> : null}
+              onPress={(ad) =>
+                void openHeroTarget(ad, {
+                  onProduct: (product) =>
+                    navigation
+                      .getParent<NativeStackNavigationProp<RootStackParamList>>()
+                      ?.navigate('ProductDetail', { product }),
+                  onStore: (store: StoreProfile) => void openVenue(store.id),
+                  onVenue: (store: StoreProfile) => void openVenue(store.id),
+                })
+              }
+            />
+          )}
         </Animated.View>
         <Animated.View entering={FadeInDown.duration(340)} style={styles.categoryRailWrap}>
           <FoodCategoryRail />
@@ -178,7 +210,20 @@ export function FoodHomeScreen({ navigation }: Props) {
         ) : null}
       </>
     );
-  }, [feed, dietFilter, openDishProduct, openMindSearch, goBack, openVenue, navigation]);
+  }, [
+    feed,
+    dietFilter,
+    openDishProduct,
+    openMindSearch,
+    goBack,
+    openVenue,
+    navigation,
+    openSearch,
+    districtName,
+    sdui.layout,
+    sdui.clockOffset,
+    onSduiHeroPress,
+  ]);
 
   if (!feed) {
     return (

@@ -34,6 +34,7 @@ Domain indexes are the entry point for each area; every flow page is linked from
 | Home | Sponsored rail | Home sections | [sponsored-rail.md](./home/sponsored-rail.md) |
 | Discovery | Mart / Food / Pharma browse | `SubApp`, `FoodApp`, `CategoryDrillIn`, `VendorDetails` | [discovery/index.md](./discovery/index.md) · [store-drillin.md](./discovery/store-drillin.md) |
 | Discovery | Food search | `FoodApp` → `Search` (`FoodSearchScreen`) | [discovery/food-search.md](./discovery/food-search.md) |
+| Discovery | Food home SDUI hero + themed header | `FoodApp` → `FoodHome` | [discovery/food-sdui-hero.md](./discovery/food-sdui-hero.md) |
 | Discovery | Food category rail + drill-in | `FoodApp` → `FoodHome` → `FoodCategoryDrillIn` | [discovery/food-categories.md](./discovery/food-categories.md) |
 | Discovery | Product detail | `ProductDetail` | [product-detail.md](./discovery/product-detail.md) |
 | Discovery | Product review | `ProductDetail` → `RateProduct` | [product-review.md](./discovery/product-review.md) |

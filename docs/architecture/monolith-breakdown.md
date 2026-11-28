@@ -229,6 +229,24 @@ display-only campaign projection joined to store + products (distinct from the s
 `GET /ads/campaigns` hero control plane);
 `contracts` + `internal/reco` own the layout shape.
 
+**SDUI control plane (v4, `0148`, Supabase Postgres — not Mongo).** `internal/sdui` also hosts a
+versioned layout/asset control plane: `admins.sdui_layout_versions` (immutable JSONB payload per
+version, unique on `(vertical, screen, coalesce(district_id,'PAN_INDIA'), version_num)`) and
+`admins.sdui_layout_pointers` (live pointer per `(vertical, screen, district)` + `epoch`, NULL
+district = PAN_INDIA fallback). Public reads `GET /sdui/layout?vertical=&screen=&district_id=`
+(schema-1.2 validated payload with `server_timestamp_utc` + `ttl_seconds`; cache
+`sdui:screen:{vertical}:{screen}:{district}`, 60 s) and `GET /sdui/epoch`. Super-admin writes
+`POST /admin/sdui/layouts/publish` (Zod-equivalent Go validation, transactional version + pointer
+upsert), `POST /admin/sdui/layouts/rollback`, plus `GET /admin/sdui/layouts|versions|districts` and
+`POST /admin/sdui/media/upload-url` (R2 presign). Every write flushes `sdui:screen:{vertical}:{screen}:*`
+via `DelPrefix` so the next read serves the new pointer. Portal editor: `/admin/super/layouts`
+(slot map, drag reorder, JSON import with Zod, Download UI, phone-frame preview, version timeline).
+Mobile consumer: `GatewayClient.getSduiLayout` → `features/food/sdui/` (`useSduiScreenLayout`,
+server-clock offset + monotonic countdown; `heroResolver.selectHeroWidget` — priority among live
+heroes, expired `SWAP_TO_FALLBACK` follows the pre-delivered fallback chain, `LOCK_OVERLAY` dims —
+rendered by `SduiHeroSlot` on the Food home; only `faazio://food/offers/<CODE>` deep links resolve,
+to Cart with `couponCode`; unresolvable actions render no CTA).
+
 **Partner completion (v3, `0017`)** adds four portal-only control surfaces: customer monitoring
 (`GET /customers` in `internal/admins`, reads the `checkout.users_admin` view — state/district scope,
 never cached; `0110` appends the customer phone, `0132` appends district/pincode/customer_code, and

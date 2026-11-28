@@ -400,6 +400,15 @@ flowchart TD
 |---|---|---|
 | Sub-category row | Open that sub-category's stores | Vendor details (pre-filtered) |
 
+### Food home — server-published hero & themed header
+
+| Control | Action | Destination |
+|---|---|---|
+| Themed header (maroon in a live festive layout) | Search row in the header tint | Food search |
+| SDUI hero **Order Now** (`faazio://food/offers/<CODE>`) | Apply the campaign coupon | Cart with the code prefilled |
+| SDUI hero when the window ends | `SWAP_TO_FALLBACK` cross-fades to the payload's fallback hero; `LOCK_OVERLAY` dims it, shows "Offer ended" and disables the tap | Same screen |
+| SDUI hero with no resolvable deep link | Renders as a static banner with **no** CTA | — |
+
 ### Food category rail & drill-in
 
 | Control | Action | Destination |
@@ -1369,6 +1378,7 @@ Use this map if a flow changes and the diagram needs to be updated.
 | 1.10 | 27 Nov 2026 | Sell with us: **Pin your shop** now shows a native map with a draggable marker (tap/drag onto the shop), with address search and “use my current location” as fallbacks. Fixed the shop-photo upload returning a gateway 500 for full-resolution phone photos (AVIF conversion now runs on a detached 45 s deadline instead of the 10 s request timeout). |
 | 1.9 | 26 Nov 2026 | Customer sign-in reordered to phone → OTP → name. After OTP, an existing account signs straight in with its stored name; only a first-time account is asked for a name (backed by `GET /profile` `hasName`). Skip stays on the phone step; the name step is not skippable. |
 | 1.8 | 26 Nov 2026 | Super admin **Supply → Food master** page: read-only atomic cuisine taxonomy (147 rows), carousel → cuisine map (24), store onboarding rules (11) and sample dish templates (15), all from migration `0145`. Seller dish form now shows the picked leaf’s cuisine; Food category drill-in shows a one-line cuisine subtitle. FOOD menus re-mapped off the over-loaded Chicken bucket. |
+| 1.8 | 28 Nov 2026 | Food home now renders the server-published SDUI layout: district-targeted themed header (maroon search row), a scheduled hero with server-clock countdown and swap-to-fallback/lock-on-expiry, and the `FESTIVE40` offer deep link landing on the Cart with the code prefilled. Unresolvable hero actions render no CTA. Paid-hero path unchanged when no layout is published. |
 | 1.7 | 26 Nov 2026 | Every non-ad item card (Mart, Mart home rails, Home grids + rails, Pharma) now shares the unit/price/name body: unit + **Add** on one line under the image, price below, name last. Paid ad cards are exempt. Pharma grid cards now show their price. Also fixed the Add-tap crash (Reanimated easing), and backfilled `unit` on all 822 catalogue rows (0144). |
 | 1.6 | 26 Nov 2026 | Food home category rail below the ad banner: FOOD taxonomy roots render as circular chips (server icon or rounded food-glyph fallback) and open a Food category drill-in with leaf pills + dish results. |
 | 1.5 | 26 Nov 2026 | 3-column item cards: body reordered to unit (left) + **Add** (right) directly under the image, then price, then item name. The Home 3-up grids and the Daily Essentials grid now mount the card-level Add control (previously tap-to-view only). |

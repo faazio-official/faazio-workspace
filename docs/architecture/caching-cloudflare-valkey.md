@@ -109,6 +109,7 @@ Examples: `faazio:v1:stock:fm-f1`, `faazio:v1:search:q:hoodie`, `faazio:v1:sdui:
 | SDUI Food projection (`/sdui/food`) | 300 s | `public, max-age=300, swr=60` | `layout.updated` / version bump (purged with home) |
 | SDUI Pharma projection (`/sdui/pharma`) | 300 s | `public, max-age=300, swr=60` | `layout.updated` / version bump (purged with home) |
 | Editorial campaigns (`/home/campaigns(/{id})`) | 600 s | `public, max-age=600, swr=60` | `layout.updated` / version bump (namespace purged by prefix on publish) |
+| SDUI control-plane layout (`/sdui/layout`, `0148`) | 60 s | not edge-cached (server-clock payload) | `DelPrefix(sdui:screen:{vertical}:{screen}:*)` on every publish/rollback |
 | Search top-query results | 600 s | `public, max-age=600` | TTL-bounded (600 s); **not** purged per edit — a `search:q:*` namespace purge on every product edit would cold-start every query (the 600 s window is the accepted bound) |
 | Product detail | 86400 s (24 h) | `public, max-age=86400, immutable` | `catalog.updated` · `order.placed` (product detail embeds stock, so a sale purges `product:{id}` too) |
 | Stock (per product) | 30–60 s | — | stock decrement / reservation commit |

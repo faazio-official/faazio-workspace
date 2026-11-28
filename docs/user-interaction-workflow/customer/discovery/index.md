@@ -14,6 +14,7 @@
 | Product detail | [product-detail.md](./product-detail.md) |
 | Product review | [product-review.md](./product-review.md) |
 | Food search | [food-search.md](./food-search.md) |
+| Food home SDUI hero + themed header | [food-sdui-hero.md](./food-sdui-hero.md) |
 
 ## Sub-app surfaces
 

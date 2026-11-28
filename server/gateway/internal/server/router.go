@@ -219,6 +219,8 @@ func NewRouter(d Deps) http.Handler {
 	reviews.NewHandler(reviewsRepo, reviewsService, d.Cache, adminsRepo).Register(r)
 	reco.NewHandler(recoRepo, recoService).Register(r)
 	sdui.NewHandler(sduiService, adminsRepo).Register(r)
+	// SDUI control plane (0148): versioned, district-targeted screen layouts + R2 upload signing.
+	sdui.NewControlHandler(sdui.NewStore(d.Pool), d.Cache, d.Signer, adminsRepo).Register(r)
 	admins.NewHandler(adminsRepo, admins.NewProvisioner(d.Pool, portal.NewHasher(d.Config.PortalPepper)), d.AuditPurger).Register(r)
 	portal.NewHandler(portalRepo, d.Cache, adminsRepo, d.Config.PortalJWTSecret, d.Config.PortalPepper).Register(r)
 	// Central remote config (0059): public GET /app-config for the mobile apps + SUPER_ADMIN control

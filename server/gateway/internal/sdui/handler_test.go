@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -12,6 +13,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/auth"
 	"github.com/faazio/server/gateway/internal/platform/authtest"
 	"github.com/faazio/server/gateway/internal/platform/cache"
+	"github.com/faazio/server/gateway/internal/platform/db"
 	"github.com/go-chi/chi/v5"
 )
 
@@ -204,5 +206,330 @@ func TestCampaignsEndpointServesCompiledList(t *testing.T) {
 	r.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/home/campaigns/unknown", nil))
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("unknown status = %d, want 404", rec.Code)
+	}
+}
+
+const seedLayoutJSON = `{
+  "schema_version": "1.2",
+  "header_theme": {
+    "background_hex": "#2B0909",
+    "search_bar_bg_hex": "#421414",
+    "status_bar_style": "light"
+  },
+  "widgets": [
+    {
+      "widget_id": "hero_rush_091",
+      "type": "HERO_PROMO_BANNER",
+      "slot": "hero_banner",
+      "priority": 1,
+      "copy": {"eyebrow": "ROYAL FEAST", "headline": "Flat 40% OFF", "accent_headline": "40%", "code_label": "CODE:", "code": "FESTIVE40", "cta": "Order Now"},
+      "schedule": {"starts_at_utc": "2026-11-28T10:40:00Z", "expires_at_utc": "2026-11-28T10:50:00Z", "on_expire_action": "SWAP_TO_FALLBACK", "fallback_widget_id": "hero_default_001"},
+      "action": {"type": "DEEP_LINK", "route": "faazio://food/offers/FESTIVE40", "auto_apply_coupon": "FESTIVE40"}
+    },
+    {
+      "widget_id": "hero_default_001",
+      "type": "HERO_PROMO_BANNER",
+      "slot": "hero_banner",
+      "priority": 2,
+      "copy": {"eyebrow": "FAAZIO DELIVERS", "headline": "Hot meals, 30 minutes", "cta": "Browse restaurants"},
+      "action": {"type": "NONE"}
+    }
+  ]
+}`
+
+func TestDecodePayloadAcceptsSeedLayout(t *testing.T) {
+	p, verr := DecodePayload([]byte(seedLayoutJSON))
+	if verr != nil {
+		t.Fatalf("seed layout rejected: %v", verr.Errors)
+	}
+	if p.SchemaVersion != SchemaVersion || len(p.Widgets) != 2 {
+		t.Fatalf("unexpected payload %+v", p)
+	}
+	if p.Widgets[0].Schedule == nil || p.Widgets[0].Schedule.FallbackWidgetID != "hero_default_001" {
+		t.Fatalf("schedule lost in decode: %+v", p.Widgets[0])
+	}
+}
+
+func TestDecodePayloadRejectsMalformedLayouts(t *testing.T) {
+	base := func(mutate func(map[string]any)) string {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(seedLayoutJSON), &m); err != nil {
+			t.Fatal(err)
+		}
+		mutate(m)
+		b, err := json.Marshal(m)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return string(b)
+	}
+	widget := func(m map[string]any) map[string]any {
+		return m["widgets"].([]any)[0].(map[string]any)
+	}
+
+	cases := []struct {
+		name string
+		raw  string
+		path string
+	}{
+		{"wrong schema version", base(func(m map[string]any) { m["schema_version"] = "1.1" }), "schema_version"},
+		{"bad header hex", base(func(m map[string]any) {
+			m["header_theme"].(map[string]any)["background_hex"] = "maroon"
+		}), "header_theme.background_hex"},
+		{"unknown widget type", base(func(m map[string]any) { widget(m)["type"] = "CAROUSEL_X" }), "widgets[0].type"},
+		{"duplicate priority", base(func(m map[string]any) {
+			m["widgets"].([]any)[1].(map[string]any)["priority"] = float64(1)
+		}), "widgets[1].priority"},
+		{"missing fallback widget", base(func(m map[string]any) {
+			widget(m)["schedule"].(map[string]any)["fallback_widget_id"] = "nope_001"
+		}), "widgets[0].schedule.fallback_widget_id"},
+		{"expiry before start", base(func(m map[string]any) {
+			widget(m)["schedule"].(map[string]any)["expires_at_utc"] = "2026-11-28T10:39:00Z"
+		}), "widgets[0].schedule.expires_at_utc"},
+		{"unknown root field", base(func(m map[string]any) { m["surprise"] = true }), "$"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, verr := DecodePayload([]byte(tc.raw))
+			if verr == nil {
+				t.Fatal("payload was accepted")
+			}
+			for _, fe := range verr.Errors {
+				if fe.Path == tc.path {
+					return
+				}
+			}
+			t.Fatalf("want an error at %s, got %+v", tc.path, verr.Errors)
+		})
+	}
+
+	if _, verr := DecodePayload([]byte(`{"schema_version":`)); verr == nil || verr.Errors[0].Path != "$" {
+		t.Fatalf("syntax error should be reported at $: %+v", verr)
+	}
+}
+
+// fakeControlStore implements ControlStore without a database.
+type fakeControlStore struct {
+	live      LiveLayout
+	epoch     int64
+	published []PublishInput
+	rollback  string
+	versions  []VersionRow
+}
+
+func (f *fakeControlStore) Resolve(context.Context, string, string, string) (LiveLayout, error) {
+	if f.live.VersionID == "" {
+		return LiveLayout{}, ErrVersionNotFound
+	}
+	return f.live, nil
+}
+
+func (f *fakeControlStore) Epoch(context.Context, string, string, string) (int64, error) {
+	return f.epoch, nil
+}
+
+func (f *fakeControlStore) Pointers(context.Context, string, string) ([]PointerRow, error) {
+	return nil, nil
+}
+
+func (f *fakeControlStore) Versions(context.Context, string, string, string, int) ([]VersionRow, error) {
+	return f.versions, nil
+}
+
+func (f *fakeControlStore) Publish(_ context.Context, in PublishInput) (VersionRow, error) {
+	f.published = append(f.published, in)
+	return VersionRow{ID: "v-new", VersionNum: 2, SchemaVersion: in.Payload.SchemaVersion, IsLive: true}, nil
+}
+
+func (f *fakeControlStore) Rollback(_ context.Context, _, _, _, versionID, _ string) (PointerRow, error) {
+	if versionID != "v-1" {
+		return PointerRow{}, ErrVersionNotFound
+	}
+	f.rollback = versionID
+	return PointerRow{VersionID: versionID, Epoch: 4}, nil
+}
+
+func (f *fakeControlStore) Districts(context.Context) ([]District, error) { return nil, nil }
+
+func newControlRouter(store ControlStore) http.Handler {
+	r := chi.NewRouter()
+	r.Use(authtest.Middleware())
+	NewControlHandler(store, nil, nil, nil).Register(r)
+	return r
+}
+
+func TestControlPublicLayoutServesCompiledPayload(t *testing.T) {
+	store := &fakeControlStore{live: LiveLayout{
+		VersionID: "v-1", VersionNum: 3, Epoch: 2, DistrictID: "",
+		Payload: json.RawMessage(seedLayoutJSON),
+	}}
+	rec := httptest.NewRecorder()
+	newControlRouter(store).ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/sdui/layout?vertical=food&screen=home&district_id=CHN", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d (%s)", rec.Code, rec.Body.String())
+	}
+	var got LayoutResponse
+	if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+		t.Fatal(err)
+	}
+	if got.SchemaVersion != "1.2" || got.HeaderTheme.BackgroundHex != "#2B0909" || len(got.Widgets) != 2 {
+		t.Fatalf("payload did not round-trip: %+v", got)
+	}
+	if got.ServerTimestampUTC == "" || got.TTLSeconds != LayoutTTLSeconds || got.VersionNum != 3 || got.SduiEpoch != 2 {
+		t.Fatalf("envelope incomplete: %+v", got)
+	}
+}
+
+func TestControlPublicLayoutUnknownScopeIs404(t *testing.T) {
+	rec := httptest.NewRecorder()
+	newControlRouter(&fakeControlStore{}).ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/sdui/layout?vertical=food", nil))
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	rec = httptest.NewRecorder()
+	newControlRouter(&fakeControlStore{}).ServeHTTP(rec,
+		httptest.NewRequest(http.MethodGet, "/sdui/layout?vertical=food&district_id=bad!", nil))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid district status = %d, want 400", rec.Code)
+	}
+}
+
+func TestControlPublishValidatesThenStores(t *testing.T) {
+	store := &fakeControlStore{}
+	bad := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/admin/sdui/layouts/publish",
+		strings.NewReader(`{"vertical":"food","payload":{"schema_version":"1.0"}}`))
+	req.Header.Set("X-Dev-Role", auth.RoleSuperAdmin)
+	newControlRouter(store).ServeHTTP(bad, req)
+	if bad.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("invalid publish status = %d, want 422 (%s)", bad.Code, bad.Body.String())
+	}
+	if len(store.published) != 0 {
+		t.Fatal("invalid payload reached the store")
+	}
+
+	body := `{"vertical":"food","screen":"home","district_id":"","note":"festive","payload":` + seedLayoutJSON + `}`
+	ok := httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/admin/sdui/layouts/publish", strings.NewReader(body))
+	req.Header.Set("X-Dev-Role", auth.RoleSuperAdmin)
+	newControlRouter(store).ServeHTTP(ok, req)
+	if ok.Code != http.StatusCreated {
+		t.Fatalf("valid publish status = %d (%s)", ok.Code, ok.Body.String())
+	}
+	if len(store.published) != 1 || store.published[0].Note != "festive" {
+		t.Fatalf("publish did not reach the store: %+v", store.published)
+	}
+}
+
+func TestControlRollbackRejectsForeignVersion(t *testing.T) {
+	store := &fakeControlStore{}
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/admin/sdui/layouts/rollback",
+		strings.NewReader(`{"vertical":"food","version_id":"v-999"}`))
+	req.Header.Set("X-Dev-Role", auth.RoleSuperAdmin)
+	newControlRouter(store).ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	req = httptest.NewRequest(http.MethodPost, "/admin/sdui/layouts/rollback",
+		strings.NewReader(`{"vertical":"food","version_id":"v-1"}`))
+	req.Header.Set("X-Dev-Role", auth.RoleSuperAdmin)
+	newControlRouter(store).ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || store.rollback != "v-1" {
+		t.Fatalf("rollback status = %d (%s)", rec.Code, rec.Body.String())
+	}
+}
+
+// TestControlStorePublishResolveRollback exercises the real Postgres tables (migration 0148). It is
+// skipped unless DATABASE_URL is set, so `go test ./...` stays hermetic.
+func TestControlStorePublishResolveRollback(t *testing.T) {
+	url := os.Getenv("DATABASE_URL")
+	if url == "" {
+		t.Skip("DATABASE_URL not set")
+	}
+	ctx := context.Background()
+	pool, err := db.Connect(ctx, url)
+	if err != nil || pool == nil {
+		t.Fatalf("connect: %v", err)
+	}
+
+	const vertical, screen = "pharma", "category_landing"
+	store := NewStore(pool)
+	// Cleanups run LIFO after the test body, so the close must be registered first: a deferred
+	// pool.Close() would run before these deletes and silently leave the scope populated, making
+	// the version_num assertions below fail on every run after the first.
+	clearScope := func(when string) {
+		if _, err := pool.Exec(ctx, `delete from admins.sdui_layout_pointers where vertical = $1 and screen = $2`, vertical, screen); err != nil {
+			t.Errorf("%s: delete pointers: %v", when, err)
+		}
+		if _, err := pool.Exec(ctx, `delete from admins.sdui_layout_versions where vertical = $1 and screen = $2`, vertical, screen); err != nil {
+			t.Errorf("%s: delete versions: %v", when, err)
+		}
+	}
+	t.Cleanup(func() { pool.Close() })
+	t.Cleanup(func() { clearScope("cleanup") })
+	clearScope("setup")
+
+	payload, verr := DecodePayload([]byte(seedLayoutJSON))
+	if verr != nil {
+		t.Fatalf("seed payload rejected: %v", verr.Errors)
+	}
+
+	v1, err := store.Publish(ctx, PublishInput{Vertical: vertical, Screen: screen, Payload: payload, Note: "first", Actor: "test"})
+	if err != nil {
+		t.Fatalf("publish v1: %v", err)
+	}
+	if v1.VersionNum != 1 {
+		t.Fatalf("version_num = %d, want 1", v1.VersionNum)
+	}
+	live, err := store.Resolve(ctx, vertical, screen, "")
+	if err != nil {
+		t.Fatalf("resolve after publish: %v", err)
+	}
+	if live.VersionID != v1.ID || live.Epoch != 1 {
+		t.Fatalf("pointer did not move to v1: %+v", live)
+	}
+
+	v2, err := store.Publish(ctx, PublishInput{Vertical: vertical, Screen: screen, Payload: payload, Note: "second", Actor: "test"})
+	if err != nil {
+		t.Fatalf("publish v2: %v", err)
+	}
+	if v2.VersionNum != 2 {
+		t.Fatalf("version_num = %d, want 2", v2.VersionNum)
+	}
+	// A district with no override must still answer from the PAN_INDIA row.
+	var code string
+	if err := pool.QueryRow(ctx, `select district_code from admins.district_master where is_active limit 1`).Scan(&code); err == nil {
+		fallback, ferr := store.Resolve(ctx, vertical, screen, code)
+		if ferr != nil {
+			t.Fatalf("district fallback: %v", ferr)
+		}
+		if fallback.VersionID != v2.ID || fallback.DistrictSet {
+			t.Fatalf("district %s should fall back to PAN_INDIA v2: %+v", code, fallback)
+		}
+	}
+
+	versions, err := store.Versions(ctx, vertical, screen, "", 10)
+	if err != nil || len(versions) != 2 || !versions[0].IsLive || versions[0].VersionNum != 2 {
+		t.Fatalf("history wrong: %+v (%v)", versions, err)
+	}
+
+	ptr, err := store.Rollback(ctx, vertical, screen, "", v1.ID, "test")
+	if err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	if ptr.VersionID != v1.ID || ptr.Epoch != 3 {
+		t.Fatalf("rollback pointer wrong: %+v", ptr)
+	}
+	live, err = store.Resolve(ctx, vertical, screen, "")
+	if err != nil || live.VersionID != v1.ID || live.VersionNum != 1 {
+		t.Fatalf("rollback did not take effect: %+v (%v)", live, err)
+	}
+	if _, err := store.Rollback(ctx, vertical, screen, "", "00000000-0000-0000-0000-000000000000", "test"); err != ErrVersionNotFound {
+		t.Fatalf("foreign rollback err = %v, want ErrVersionNotFound", err)
 	}
 }

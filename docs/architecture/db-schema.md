@@ -3523,3 +3523,23 @@ create unique index seller_document_requests_one_pending_idx
   flips the request to `FULFILLED` in one transaction.
 - **Admin read:** `GET /sellers/{id}` now carries `documentRequests` so the review page shows which
   asks are open and hides the **Request** action once one is pending.
+
+### 12.50 SDUI layout control plane (migration `0148`)
+
+**Authority:** `monolith-breakdown.md` §1 (SDUI control plane paragraph),
+`docs/architecture/caching-cloudflare-valkey.md` §5 (`sdui:screen:*`),
+portal page `/admin/super/layouts`.
+
+Supabase Postgres tables in `admins` (NOT Mongo — the Mongo `sdui_layouts` doc above stays the
+compiled home-feed source):
+
+- `admins.sdui_layout_versions` — append-only, one row per published version: `id`, `vertical`,
+  `screen`, `district_id` (NULL = PAN_INDIA), `version_num`, `layout_json` (JSONB, schema 1.2,
+  validated server-side before insert), `published_by`, `published_at`. Unique
+  `(vertical, screen, coalesce(district_id,'PAN_INDIA'), version_num)`.
+- `admins.sdui_layout_pointers` — the live pointer per `(vertical, screen, coalesce(district_id,'PAN_INDIA'))`:
+  `version_id` FK, `epoch` (bumped on every publish/rollback so clients can poll cheaply),
+  `updated_at`. Seeded with the FOOD PAN_INDIA layout.
+
+Writes go through `POST /admin/sdui/layouts/publish` / `rollback` (`internal/sdui/control_repo.go`,
+transactional); reads through `GET /sdui/layout` / `GET /sdui/epoch`.

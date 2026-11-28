@@ -23,6 +23,7 @@ import type { OrderRow } from '@data/checkout/orders';
 import type { ProfileRow, MembershipRow, OrderStatusRow, DetailsTable } from '@data/accounts/profile';
 import type { SduiSection } from '@data/home/sdui';
 import type { DistrictInfo } from '@data/districts';
+import type { SduiScreenLayout } from '@/services/api/sduiLayout';
 import {
   clearSession,
   getAccessToken,
@@ -1057,6 +1058,15 @@ export class GatewayClient {
     return this.serverOnly(
       () => this.http<AppConfigRow[]>(`/app-config${queryString({ variant: APP_VARIANT })}`),
     );
+  }
+
+  /** SDUI screen layout (schema 1.2): header theme + ordered widgets, plus the server clock the
+   *  renderer uses to lock a timed banner at the exact expiry second. Server-only. */
+  async getSduiLayout(vertical: string, screen: string, districtId?: string): Promise<SduiScreenLayout> {
+    const query = `vertical=${encodeURIComponent(vertical)}&screen=${encodeURIComponent(screen)}${
+      districtId ? `&district_id=${encodeURIComponent(districtId)}` : ''
+    }`;
+    return this.serverOnly(() => this.http<SduiScreenLayout>(`/sdui/layout?${query}`));
   }
 
   /** Seller order board. `status` is the portal lifecycle (NEW, PACKED, SHIPPED, ...). */

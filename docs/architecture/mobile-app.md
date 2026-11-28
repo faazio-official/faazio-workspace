@@ -1796,7 +1796,12 @@ catalogue but no longer consumed by the Food feed. Venues without presentation d
 defaults (`distance`/`priceForTwo` 0); the restaurant cards drop the `0.0 km` metric,
 the `₹0 for two` copy and the blank address, and show a **"New"** chip in place of the rating badge
 rather than printing a fake figure. The house hero banners come from the Food-only SDUI projection
-(`GET /sdui/food` → `foodHero.banners`, via `GatewayClient.getFoodFeed`). The "Today's Special" rail
+(`GET /sdui/food` → `foodHero.banners`, via `GatewayClient.getFoodFeed`). When a district-targeted
+layout is published through the control plane (`0148`), `FoodHomeScreen` renders that instead: the
+header takes `header_theme` and the `hero_banner` slot is filled by `features/food/sdui/SduiHeroSlot`
+(`useSduiScreenLayout` → `GET /sdui/layout`, server clock offset, `heroResolver.selectHeroWidget` for
+priority + `SWAP_TO_FALLBACK`/`LOCK_OVERLAY`). With no published layout the paid-hero path above stays
+unchanged. The "Today's Special" rail
 is built from the server-joined `foodSpecials.products` (server money/image/rating); the "What's on
 your mind?" and snack rails render empty because no server feed backs them (no bundled fixture).
 
