@@ -655,7 +655,7 @@ function CredentialsPage() {
                   <SelectContent>
                     {sellers.map((s) => (
                       <SelectItem key={s.sellerId} value={s.sellerId}>
-                        {s.businessName} · {s.sellerId}
+                        {s.shopName} · {s.sellerId}
                       </SelectItem>
                     ))}
                   </SelectContent>

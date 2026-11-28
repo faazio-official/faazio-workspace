@@ -56,7 +56,7 @@ function hasSlice<T>(v: T[] | undefined | null): v is T[] {
 
 interface RawSeller {
   sellerId: string;
-  businessName: string;
+  shopName: string;
   ownerName: string;
   gstin: string;
   pan: string;

@@ -41,7 +41,6 @@ function goRequestFields(): Set<string> {
 }
 
 const validInput = {
-  businessName: "Karaikal Spice Mart",
   ownerName: "Ravi Kumar",
   category: "MART" as const,
   contactPhone: "9876543210",
@@ -83,7 +82,6 @@ describe("seller enquiry wire contract", () => {
   it("carries the fields the enquiry needs", () => {
     const payload = buildInquiryPayload(inquirySchema.parse(validInput));
     expect(payload).toMatchObject({
-      businessName: "Karaikal Spice Mart",
       ownerName: "Ravi Kumar",
       category: "MART",
       contactPhone: "9876543210",

@@ -118,7 +118,7 @@ export function SellerIdentityCard({
       </div>
 
       <dl className="grid gap-x-6 gap-y-4 px-5 py-4 sm:grid-cols-2 lg:grid-cols-3">
-        <Fact label="Business name" value={seller.businessName} />
+        <Fact label="Shop name" value={seller.shopName} />
         <Fact label="Owner name" value={seller.ownerName} />
         <Fact label="Owner PAN" value={maskPan(seller.pan, revealed)} mono />
         <Fact

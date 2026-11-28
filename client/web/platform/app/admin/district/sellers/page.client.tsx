@@ -33,7 +33,7 @@ function StateSellers() {
   const [query, setQuery] = useState("");
   const sellers = useSellers({ districtCode, status });
   const rows = sellers.filter((s) =>
-    query ? s.businessName.toLowerCase().includes(query.toLowerCase()) : true,
+    query ? s.shopName.toLowerCase().includes(query.toLowerCase()) : true,
   );
 
   return (
@@ -83,7 +83,7 @@ function StateSellers() {
                       href={`/admin/district/sellers/${seller.sellerId}`}
                       className="text-primary hover:underline"
                     >
-                      {seller.businessName}
+                      {seller.shopName}
                     </Link>
                   </TableCell>
                   <TableCell className="text-[13px]">{seller.ownerName}</TableCell>
@@ -93,9 +93,7 @@ function StateSellers() {
                         <SectorPill key={app} sector={app} />
                       ))}
                       {!seller.vendorApps?.length ? (
-                        <span className="text-[12px] text-muted-foreground">
-                          {seller.vendorCount ?? 0} vendor{(seller.vendorCount ?? 0) === 1 ? "" : "s"}
-                        </span>
+                        <span className="text-[12px] text-muted-foreground">No vendor</span>
                       ) : null}
                     </span>
                   </TableCell>

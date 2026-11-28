@@ -522,6 +522,10 @@ func (h *Handler) createStore(w http.ResponseWriter, r *http.Request) {
 		ComplianceDefaults:      req.ComplianceDefaults,
 	})
 	if err != nil {
+		if errors.Is(err, ErrVendorExists) {
+			httpx.Fail(w, http.StatusConflict, "vendor_exists", "this account already owns a vendor — one account, one vendor")
+			return
+		}
 		httpx.Fail(w, http.StatusInternalServerError, "vendor_create_failed", "could not create vendor")
 		return
 	}

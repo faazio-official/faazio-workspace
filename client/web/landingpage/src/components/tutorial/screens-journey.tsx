@@ -1717,7 +1717,7 @@ export function SettingsScreen({ activeTarget }: ScreenProps) {
               <p className="tp-card-note">
                 Profile changes that affect KYC need admin re-verification.
               </p>
-              <PortalField label="Business name" value="Sharma Mart" />
+              <PortalField label="Shop name" value="Sharma Mart" />
               <PortalField label="Owner name" value="R. Sharma" />
               <PortalField label="GSTIN" value="33AACCS1234M1Z5" />
               <PortalField label="PAN" value="AACCS1234M" />

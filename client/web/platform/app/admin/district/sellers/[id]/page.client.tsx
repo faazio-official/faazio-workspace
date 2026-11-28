@@ -11,7 +11,7 @@ import { EmptyState } from "@/components/patterns/DataState";
 import { StatusPill } from "@/components/patterns/Pills";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { SellerCredentialCard } from "@/components/patterns/SellerCredentialCard";
-import { SellerIdentityCard, maskPan } from "@/components/patterns/SellerIdentityCard";
+import { maskPan } from "@/components/patterns/SellerIdentityCard";
 import { SellerShopCard } from "@/components/patterns/SellerShopCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -50,7 +50,6 @@ import type {
   SellerDetail,
   SellerLoginCredential,
   SellerProfilePatch,
-  SellerVendorRecord,
 } from "@/data/types";
 
 // A GSTIN is 15 chars: 2-digit state code + 10-char PAN + entity no. + 'Z' + check digit.
@@ -135,7 +134,6 @@ function SellerReview() {
     (seller.documentRequests ?? []).filter((r) => r.status === "PENDING").map((r) => r.docType),
   );
   const missingDocTypes = DOC_TYPES.filter((t) => !docs.some((doc) => doc.docType === t));
-  const bank = seller.bankAccount;
   const isInquiry = seller.status === "INQUIRY";
 
   const verifyDoc = async (doc: KycDocument) => {
@@ -247,7 +245,7 @@ function SellerReview() {
   return (
     <div className="space-y-4">
       <PageHeader
-        title={seller.businessName}
+        title={seller.shopName || seller.ownerName}
         description={`${seller.ownerName} · ${seller.districtCode ?? seller.stateCode} · applied ${formatDate(seller.createdAt)}`}
         actions={
           <div className="flex items-center gap-2">
@@ -265,7 +263,18 @@ function SellerReview() {
         }
       />
 
-      <SellerIdentityCard seller={seller} revealed={revealed} />
+      <KpiStrip
+        items={[
+          { label: "GMV (30d)", value: formatINR(sumGmv(series), { compact: true }) },
+          { label: "Orders (30d)", value: formatNumber(sumOrders(series)) },
+          { label: "Vendors", value: String(Math.min(seller.vendors?.length ?? 0, 1)) },
+          {
+            label: "KYC",
+            value:
+              docs.length === 0 ? "No docs" : docs.every((d) => d.verified) ? "Verified" : "In review",
+          },
+        ]}
+      />
 
       {isInquiry ? (
         <SectionCard
@@ -286,138 +295,53 @@ function SellerReview() {
         </SectionCard>
       ) : null}
 
-      <KpiStrip
-        items={[
-          { label: "GMV (30d)", value: formatINR(sumGmv(series), { compact: true }) },
-          { label: "Orders (30d)", value: formatNumber(sumOrders(series)) },
-          { label: "Vendors", value: String(seller.vendors?.length ?? 0) },
-          {
-            label: "KYC",
-            value:
-              docs.length === 0 ? "No docs" : docs.every((d) => d.verified) ? "Verified" : "In review",
-          },
-        ]}
+      <BusinessAccountForm
+        seller={seller}
+        revealed={revealed}
+        busy={busy}
+        onSave={saveProfile}
+        onSaveFee={async (storeId, pct) => {
+          setBusy(true);
+          try {
+            await updateVendorPlatformFee(seller.sellerId, storeId, pct);
+            toast.success(`Platform fee set to ${pct}%`);
+            await loadDetail();
+          } catch {
+            toast.error("Could not update the platform fee");
+          } finally {
+            setBusy(false);
+          }
+        }}
       />
 
-      <SectionCard
-        title="KYC documents"
-        description="Passbook is mandatory; FSSAI and drug licences are optional and verified during review."
-        actions={<ComponentHelp id="doc-row" label="About KYC documents" />}
-      >
-          {isInquiry ? (
-            <p className="text-[13px] text-muted-foreground">
-              An enquiry has no KYC documents. They are uploaded by the merchant in the app.
-            </p>
-          ) : (
-            <>
-              {docs.length === 0 ? (
-                <p className="text-[13px] text-muted-foreground">No documents uploaded yet.</p>
-              ) : (
-                <ul className="space-y-2">
-                  {docs.map((doc) => (
-                    <li
-                      key={doc.kycId}
-                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
-                    >
-                      <div>
-                        <p className="text-[13px] font-medium">{doc.docType.replace(/_/g, " ")}</p>
-                        <p className="num text-[11px] text-muted-foreground">
-                          {revealed
-                            ? (doc.assetId ?? doc.fileKey ?? doc.fileUrl ?? "No file reference")
-                            : (doc.assetId ? `…${doc.assetId.slice(-6)}` : "file on record")}
-                        </p>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <StatusPill status={doc.verified ? "VERIFIED" : "PENDING"} />
-                        <Button size="sm" variant="outline" onClick={() => void openDoc(doc)}>
-                          View
-                        </Button>
-                        {!doc.verified ? (
-                          <Button size="sm" disabled={busy} onClick={() => void verifyDoc(doc)}>
-                            Verify
-                          </Button>
-                        ) : null}
-                        <RequestDocButton
-                          busy={busy}
-                          requested={pendingDocRequests.has(doc.docType)}
-                          onRequest={() => void requestDoc(doc.docType)}
-                        />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {missingDocTypes.length > 0 ? (
-                <div className="mt-3">
-                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                    Request a missing document
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {missingDocTypes.map((docType) => (
-                      <div
-                        key={docType}
-                        className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
-                      >
-                        <span className="text-[13px] font-medium">
-                          {docType.replace(/_/g, " ")}
-                        </span>
-                        <RequestDocButton
-                          busy={busy}
-                          requested={pendingDocRequests.has(docType)}
-                          onRequest={() => void requestDoc(docType)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
-            </>
-          )}
-      </SectionCard>
+      <OwnerPanLicenceForm
+        seller={seller}
+        revealed={revealed}
+        busy={busy}
+        onSave={saveProfile}
+        documents={
+          <DocumentsOnFile
+            seller={seller}
+            docs={docs}
+            isInquiry={isInquiry}
+            revealed={revealed}
+            busy={busy}
+            pendingDocRequests={pendingDocRequests}
+            missingDocTypes={missingDocTypes}
+            onVerify={(doc) => void verifyDoc(doc)}
+            onOpen={(doc) => void openDoc(doc)}
+            onRequest={(docType) => void requestDoc(docType)}
+          />
+        }
+      />
 
-      <SectionCard
-        title="Vendors"
-        description="One account can own several shops. The platform fee and licences are per vendor."
-      >
-        {(seller.vendors ?? []).length === 0 ? (
-          <p className="text-[13px] text-muted-foreground">No vendor attached to this account yet.</p>
-        ) : (
-          <div className="space-y-3">
-            {(seller.vendors ?? []).map((vendor) => (
-              <SellerShopCard
-                key={vendor.storeId}
-                vendor={vendor}
-                busy={busy}
-                onSave={async (pct) => {
-                  setBusy(true);
-                  try {
-                    await updateVendorPlatformFee(seller.sellerId, vendor.storeId, pct);
-                    toast.success(`${vendor.name}: platform fee set to ${pct}%`);
-                    await loadDetail();
-                  } catch {
-                    toast.error("Could not update the platform fee");
-                  } finally {
-                    setBusy(false);
-                  }
-                }}
-              />
-            ))}
-          </div>
-        )}
-      </SectionCard>
+      <PayoutAccountForm seller={seller} revealed={revealed} busy={busy} onSave={saveBank} />
 
       {seller.rejectionReason ? (
         <SectionCard title="Last rejection" description="The seller can edit and resubmit.">
           <p className="text-[13px]">{seller.rejectionReason}</p>
         </SectionCard>
       ) : null}
-
-      <RegisteredDetails
-        seller={seller}
-        busy={busy}
-        onSave={saveProfile}
-        onSaveBank={saveBank}
-      />
 
       <SectionCard title="Decision" description="Approval creates the Razorpay Route linked account; every action is audited.">
         {seller.complianceStatus === "FAILED" ? (
@@ -466,10 +390,482 @@ function SellerReview() {
         >
           <SellerCredentialCard
             credential={credential}
-            businessName={seller.businessName}
+            shopName={seller.shopName}
             phone={seller.contactPhone}
           />
         </SectionCard>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Step 1 of the merchant's "Sell with us" form, laid out as the app's business-account sheet:
+ * the owner, how to reach them, and the one shop (name, category, photo, pin) the account owns.
+ */
+function BusinessAccountForm({
+  seller,
+  revealed,
+  busy,
+  onSave,
+  onSaveFee,
+}: {
+  seller: SellerDetail;
+  revealed: boolean;
+  busy: boolean;
+  onSave: (patch: SellerProfilePatch) => Promise<void>;
+  onSaveFee: (storeId: string, pct: number) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({
+    ownerName: seller.ownerName,
+    contactPhone: seller.contactPhone,
+    businessAddress: seller.businessAddress,
+  });
+
+  useEffect(() => {
+    setDraft({
+      ownerName: seller.ownerName,
+      contactPhone: seller.contactPhone,
+      businessAddress: seller.businessAddress,
+    });
+  }, [seller]);
+
+  const save = async () => {
+    try {
+      await onSave({
+        ownerName: draft.ownerName,
+        contactPhone: draft.contactPhone,
+        businessAddress: draft.businessAddress,
+      });
+      setEditing(false);
+    } catch {
+      // The parent already surfaced the error; keep the form open for correction.
+    }
+  };
+
+  return (
+    <SectionCard
+      title="1 · Business account"
+      description="What the merchant enters in the first form of Sell with us. Corrections here change the KYC-bearing owner record; an address change re-enters review."
+      actions={
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditing((v) => !v)}>
+          {editing ? "Cancel" : "Edit"}
+        </Button>
+      }
+    >
+      {editing ? (
+        <div className="space-y-3">
+          <Field label="Owner name">
+            <Input
+              value={draft.ownerName}
+              onChange={(e) => setDraft((d) => ({ ...d, ownerName: e.target.value }))}
+            />
+          </Field>
+          <Field label="Owner number">
+            <Input
+              className="num"
+              inputMode="numeric"
+              value={draft.contactPhone}
+              onChange={(e) =>
+                setDraft((d) => ({ ...d, contactPhone: e.target.value.replace(/\D/g, "").slice(0, 10) }))
+              }
+            />
+          </Field>
+          <Field label="Shop address">
+            <Textarea
+              rows={2}
+              value={draft.businessAddress}
+              onChange={(e) => setDraft((d) => ({ ...d, businessAddress: e.target.value }))}
+            />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" disabled={busy} onClick={() => void save()}>
+              Save business account
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          <Fact label="Owner name" value={seller.ownerName} />
+          <Fact label="Owner number" value={seller.contactPhone} mono />
+          <Fact
+            label="Contact email"
+            value={revealed ? seller.contactEmail : maskEmail(seller.contactEmail)}
+          />
+          <Fact label="Shop name" value={seller.shopName} />
+          <Fact label="Shop address" value={seller.businessAddress} className="sm:col-span-2" />
+          <Fact
+            label="OTP verified"
+            value={
+              seller.otpVerified
+                ? seller.otpVerifiedAt
+                  ? `Yes, ${formatDate(seller.otpVerifiedAt)}`
+                  : "Yes"
+                : "No"
+            }
+          />
+          <Fact
+            label="Terms accepted"
+            value={seller.termsAcceptedAt ? formatDate(seller.termsAcceptedAt) : undefined}
+          />
+        </dl>
+      )}
+
+      <div className="mt-4 space-y-3 border-t border-border pt-4">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          The one shop on this account
+        </p>
+        {(seller.vendors ?? []).length === 0 ? (
+          <p className="text-[13px] text-muted-foreground">No shop attached to this account yet.</p>
+        ) : (
+          (seller.vendors ?? []).map((vendor) => (
+            <SellerShopCard
+              key={vendor.storeId}
+              vendor={vendor}
+              busy={busy}
+              onSave={(pct) => onSaveFee(vendor.storeId, pct)}
+            />
+          ))
+        )}
+      </div>
+    </SectionCard>
+  );
+}
+
+/** Step 2 of the app form, first sheet: the owner's PAN, the category licence and the KYC files. */
+function OwnerPanLicenceForm({
+  seller,
+  revealed,
+  busy,
+  onSave,
+  documents,
+}: {
+  seller: SellerDetail;
+  revealed: boolean;
+  busy: boolean;
+  onSave: (patch: SellerProfilePatch) => Promise<void>;
+  documents: React.ReactNode;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({ pan: seller.pan, gstin: seller.gstin ?? "" });
+
+  useEffect(() => {
+    setDraft({ pan: seller.pan, gstin: seller.gstin ?? "" });
+  }, [seller]);
+
+  const vendor = seller.vendors?.[0];
+  const licence =
+    vendor?.app === "PHARMA"
+      ? { label: "Drug licence", number: vendor.drugLicenseNumber }
+      : vendor?.app === "FOOD"
+        ? { label: "FSSAI licence", number: vendor.fssaiNumber }
+        : { label: "Shop registration certificate", number: vendor?.fssaiNumber };
+  const gstinOk = gstinValid(draft.gstin);
+
+  const save = async () => {
+    if (!gstinOk) {
+      toast.error("Enter a valid 15-character GSTIN (e.g. 27AAPFU0939F1ZV), or leave it blank.");
+      return;
+    }
+    try {
+      await onSave({ pan: draft.pan.toUpperCase(), gstin: draft.gstin.toUpperCase() });
+      setEditing(false);
+    } catch {
+      // The parent already surfaced the error; keep the form open for correction.
+    }
+  };
+
+  return (
+    <SectionCard
+      title="2 · Owner PAN & licence"
+      description="The second form of Sell with us: the owner's PAN, the licence that fits the category, and the documents uploaded with them."
+      actions={
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditing((v) => !v)}>
+          {editing ? "Cancel" : "Edit"}
+        </Button>
+      }
+    >
+      {editing ? (
+        <div className="space-y-3">
+          <Field label="Owner PAN number">
+            <Input
+              className="num"
+              maxLength={10}
+              value={draft.pan}
+              onChange={(e) => setDraft((d) => ({ ...d, pan: e.target.value.toUpperCase() }))}
+            />
+          </Field>
+          <Field label="GSTIN">
+            <Input
+              className="num"
+              maxLength={15}
+              placeholder="e.g. 27AAPFU0939F1ZV (optional)"
+              value={draft.gstin}
+              onChange={(e) => setDraft((d) => ({ ...d, gstin: e.target.value.toUpperCase() }))}
+            />
+            {!gstinOk ? (
+              <p className="mt-1 text-[11px] text-destructive">
+                Not a valid GSTIN (15 characters, e.g. 27AAPFU0939F1ZV). Leave blank if unregistered.
+              </p>
+            ) : null}
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" disabled={busy} onClick={() => void save()}>
+              Save PAN &amp; licence
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          <Fact label="Owner PAN number" value={maskPan(seller.pan, revealed)} mono />
+          <Fact label="GSTIN" value={seller.gstin} mono />
+          <Fact label={licence.label} value={licence.number} mono />
+          <Fact label="Contract tier" value={seller.contractTier} />
+        </dl>
+      )}
+
+      <div className="mt-4 border-t border-border pt-4">{documents}</div>
+    </SectionCard>
+  );
+}
+
+/** Step 2 of the app form, second sheet: the bank account the shop is paid into. */
+function PayoutAccountForm({
+  seller,
+  revealed,
+  busy,
+  onSave,
+}: {
+  seller: SellerDetail;
+  revealed: boolean;
+  busy: boolean;
+  onSave: (input: BankAccountInput) => Promise<void>;
+}) {
+  const bank = seller.bankAccount;
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState({
+    bankName: bank?.bankName ?? "",
+    ifsc: bank?.ifsc ?? "",
+    beneficiaryName: bank?.beneficiaryName ?? "",
+  });
+
+  useEffect(() => {
+    setDraft({
+      bankName: bank?.bankName ?? "",
+      ifsc: bank?.ifsc ?? "",
+      beneficiaryName: bank?.beneficiaryName ?? "",
+    });
+  }, [bank]);
+
+  if (!bank) {
+    return (
+      <SectionCard
+        title="2 · Payout account"
+        description="The bank account the shop's payouts settle into."
+      >
+        <p className="text-[13px] text-muted-foreground">
+          No payout account on record. The merchant adds it in the app; verification is refused until one exists.
+        </p>
+      </SectionCard>
+    );
+  }
+
+  const ifscOk = IFSC_RE.test(draft.ifsc.trim().toUpperCase());
+
+  const save = async () => {
+    if (!ifscOk) {
+      toast.error("Enter a valid 11-character IFSC (e.g. HDFC0001234).");
+      return;
+    }
+    try {
+      await onSave({
+        bankName: draft.bankName.trim(),
+        accountNumber: bank.accountNumberMasked,
+        ifsc: draft.ifsc.trim().toUpperCase(),
+        beneficiaryName: draft.beneficiaryName.trim(),
+      });
+      setEditing(false);
+    } catch {
+      // The parent already surfaced the error; keep the form open for correction.
+    }
+  };
+
+  return (
+    <SectionCard
+      title="2 · Payout account"
+      description="The bank account the shop's payouts settle into. A corrected IFSC clears a compliance block on save."
+      actions={
+        <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditing((v) => !v)}>
+          {editing ? "Cancel" : "Edit"}
+        </Button>
+      }
+    >
+      {editing ? (
+        <div className="space-y-3">
+          <Field label="Beneficiary name">
+            <Input
+              value={draft.beneficiaryName}
+              onChange={(e) => setDraft((d) => ({ ...d, beneficiaryName: e.target.value }))}
+            />
+          </Field>
+          <Field label="Bank name">
+            <Input
+              value={draft.bankName}
+              onChange={(e) => setDraft((d) => ({ ...d, bankName: e.target.value }))}
+            />
+          </Field>
+          <Field label="IFSC">
+            <Input
+              className="num"
+              maxLength={11}
+              placeholder="e.g. HDFC0001234"
+              value={draft.ifsc}
+              onChange={(e) => setDraft((d) => ({ ...d, ifsc: e.target.value.toUpperCase() }))}
+            />
+            {!ifscOk ? (
+              <p className="mt-1 text-[11px] text-destructive">
+                Not a valid IFSC format (4 letters, 0, then 6 alphanumerics), e.g. HDFC0001234.
+              </p>
+            ) : null}
+          </Field>
+          <p className="text-[11px] text-muted-foreground">
+            Account {bank.accountNumberMasked} stays masked; only the beneficiary, bank and IFSC are editable.
+          </p>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" disabled={busy} onClick={() => void save()}>
+              Save payout account
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
+          <Fact label="Beneficiary name" value={bank.beneficiaryName} />
+          <Fact label="Bank name" value={bank.bankName} />
+          <Fact label="Account number" value={bank.accountNumberMasked} mono />
+          <Fact label="IFSC" value={bank.ifsc} mono />
+        </dl>
+      )}
+    </SectionCard>
+  );
+}
+
+/** The KYC files that sit beside the PAN, licence and passbook in the app's second form. */
+function DocumentsOnFile({
+  seller,
+  docs,
+  isInquiry,
+  revealed,
+  busy,
+  pendingDocRequests,
+  missingDocTypes,
+  onVerify,
+  onOpen,
+  onRequest,
+}: {
+  seller: SellerDetail;
+  docs: KycDocument[];
+  isInquiry: boolean;
+  revealed: boolean;
+  busy: boolean;
+  pendingDocRequests: Set<KycDocument["docType"]>;
+  missingDocTypes: KycDocument["docType"][];
+  onVerify: (doc: KycDocument) => void;
+  onOpen: (doc: KycDocument) => void;
+  onRequest: (docType: KycDocument["docType"]) => void;
+}) {
+  if (isInquiry) {
+    return (
+      <p className="text-[13px] text-muted-foreground">
+        An enquiry has no KYC documents. They are uploaded by the merchant in the app.
+      </p>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-1.5">
+        <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+          Documents on file
+        </p>
+        <ComponentHelp id="doc-row" label="About KYC documents" />
+      </div>
+      <p className="text-[12px] text-muted-foreground">
+        Passbook is mandatory; FSSAI and drug licences are optional and verified during review.
+      </p>
+      {docs.length === 0 ? (
+        <p className="text-[13px] text-muted-foreground">No documents uploaded yet.</p>
+      ) : (
+        <ul className="space-y-2">
+          {docs.map((doc) => (
+            <li
+              key={doc.kycId}
+              className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
+            >
+              <div>
+                <p className="text-[13px] font-medium">{doc.docType.replace(/_/g, " ")}</p>
+                <p className="num text-[11px] text-muted-foreground">
+                  {revealed
+                    ? (doc.assetId ?? doc.fileKey ?? doc.fileUrl ?? "No file reference")
+                    : doc.assetId
+                      ? `…${doc.assetId.slice(-6)}`
+                      : "file on record"}
+                </p>
+              </div>
+              <div className="flex items-center gap-2">
+                <StatusPill status={doc.verified ? "VERIFIED" : "PENDING"} />
+                <Button size="sm" variant="outline" onClick={() => onOpen(doc)}>
+                  View
+                </Button>
+                {!doc.verified ? (
+                  <Button size="sm" disabled={busy} onClick={() => onVerify(doc)}>
+                    Verify
+                  </Button>
+                ) : null}
+                <RequestDocButton
+                  busy={busy}
+                  requested={pendingDocRequests.has(doc.docType)}
+                  onRequest={() => onRequest(doc.docType)}
+                />
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+      {missingDocTypes.length > 0 ? (
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            Request a missing document
+          </p>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {missingDocTypes.map((docType) => (
+              <div
+                key={docType}
+                className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
+              >
+                <span className="text-[13px] font-medium">{docType.replace(/_/g, " ")}</span>
+                <RequestDocButton
+                  busy={busy}
+                  requested={pendingDocRequests.has(docType)}
+                  onRequest={() => onRequest(docType)}
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      ) : null}
+      {seller.inquiryAssignedTo ? (
+        <p className="text-[12px] text-muted-foreground">
+          Enquiry owner: <span className="font-medium text-foreground">{seller.inquiryAssignedTo}</span>
+        </p>
       ) : null}
     </div>
   );
@@ -485,9 +881,7 @@ function RequestDocButton({
   onRequest: () => void;
 }) {
   if (requested) {
-    return (
-      <span className="text-[11px] font-medium text-muted-foreground">Requested</span>
-    );
+    return <span className="text-[11px] font-medium text-muted-foreground">Requested</span>;
   }
   return (
     <Button size="sm" variant="outline" disabled={busy} onClick={onRequest}>
@@ -496,208 +890,42 @@ function RequestDocButton({
   );
 }
 
-function RegisteredDetails({
-  seller,
-  busy,
-  onSave,
-  onSaveBank,
+/** A labelled fact inside a form: the field label above its value, as the app's sheets render it. */
+function Fact({
+  label,
+  value,
+  mono = false,
+  className,
 }: {
-  seller: SellerDetail;
-  busy: boolean;
-  onSave: (patch: SellerProfilePatch) => Promise<void>;
-  onSaveBank: (input: BankAccountInput) => Promise<void>;
+  label: string;
+  value?: string | undefined;
+  mono?: boolean | undefined;
+  className?: string | undefined;
 }) {
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<SellerProfilePatch>({
-    businessName: seller.businessName,
-    ownerName: seller.ownerName,
-    gstin: seller.gstin,
-    pan: seller.pan,
-    businessAddress: seller.businessAddress,
-    contactPhone: seller.contactPhone,
-  });
-  const bank = seller.bankAccount;
-  const [bankDraft, setBankDraft] = useState({
-    bankName: bank?.bankName ?? "",
-    ifsc: bank?.ifsc ?? "",
-    beneficiaryName: bank?.beneficiaryName ?? "",
-  });
-
-  useEffect(() => {
-    setDraft({
-      businessName: seller.businessName,
-      ownerName: seller.ownerName,
-      gstin: seller.gstin,
-      pan: seller.pan,
-      businessAddress: seller.businessAddress,
-      contactPhone: seller.contactPhone,
-    });
-    setBankDraft({
-      bankName: bank?.bankName ?? "",
-      ifsc: bank?.ifsc ?? "",
-      beneficiaryName: bank?.beneficiaryName ?? "",
-    });
-  }, [seller, bank]);
-
-  const gstinOk = gstinValid(draft.gstin);
-  const ifscOk = !bank || IFSC_RE.test(bankDraft.ifsc.trim().toUpperCase());
-  const bankChanged =
-    !!bank &&
-    (bankDraft.ifsc.trim().toUpperCase() !== bank.ifsc ||
-      bankDraft.bankName.trim() !== (bank.bankName ?? "") ||
-      bankDraft.beneficiaryName.trim() !== bank.beneficiaryName);
-
   return (
-    <SectionCard
-      title="Correct registered details"
-      description="The merchant record above is the read-only summary. Edits here change the KYC-bearing facts; a GSTIN, PAN or address change re-enters review."
-      actions={
-        <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditing((v) => !v)}>
-          {editing ? "Cancel" : "Edit"}
-        </Button>
-      }
-    >
-      {editing ? (
-        <div className="space-y-3">
-          <Field label="Business name">
-            <Input
-              value={draft.businessName ?? ""}
-              onChange={(e) => setDraft((d) => ({ ...d, businessName: e.target.value }))}
-            />
-          </Field>
-          <Field label="Owner name">
-            <Input
-              value={draft.ownerName ?? ""}
-              onChange={(e) => setDraft((d) => ({ ...d, ownerName: e.target.value }))}
-            />
-          </Field>
-          <Field label="GSTIN">
-            <Input
-              className="num"
-              placeholder="e.g. 27AAPFU0939F1ZV (optional)"
-              value={draft.gstin ?? ""}
-              onChange={(e) => setDraft((d) => ({ ...d, gstin: e.target.value.toUpperCase() }))}
-            />
-            {!gstinOk ? (
-              <p className="mt-1 text-[11px] text-destructive">
-                Not a valid GSTIN (15 characters, e.g. 27AAPFU0939F1ZV). Leave blank if unregistered.
-              </p>
-            ) : null}
-          </Field>
-          <Field label="PAN">
-            <Input
-              className="num"
-              value={draft.pan ?? ""}
-              onChange={(e) => setDraft((d) => ({ ...d, pan: e.target.value.toUpperCase() }))}
-            />
-          </Field>
-          <Field label="Business address">
-            <Textarea
-              rows={2}
-              value={draft.businessAddress ?? ""}
-              onChange={(e) => setDraft((d) => ({ ...d, businessAddress: e.target.value }))}
-            />
-          </Field>
-          <Field label="Contact phone">
-            <Input
-              className="num"
-              inputMode="numeric"
-              value={draft.contactPhone ?? ""}
-              onChange={(e) =>
-                setDraft((d) => ({ ...d, contactPhone: e.target.value.replace(/\D/g, "").slice(0, 10) }))
-              }
-            />
-          </Field>
-          {bank ? (
-            <div className="space-y-3 rounded-lg border border-border p-3">
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                Payout account
-              </p>
-              <Field label="Bank name">
-                <Input
-                  value={bankDraft.bankName}
-                  onChange={(e) => setBankDraft((d) => ({ ...d, bankName: e.target.value }))}
-                />
-              </Field>
-              <Field label="IFSC">
-                <Input
-                  className="num"
-                  maxLength={11}
-                  placeholder="e.g. HDFC0001234"
-                  value={bankDraft.ifsc}
-                  onChange={(e) => setBankDraft((d) => ({ ...d, ifsc: e.target.value.toUpperCase() }))}
-                />
-                {!ifscOk ? (
-                  <p className="mt-1 text-[11px] text-destructive">
-                    Not a valid IFSC format (4 letters, 0, then 6 alphanumerics), e.g. HDFC0001234.
-                  </p>
-                ) : null}
-              </Field>
-              <Field label="Account holder">
-                <Input
-                  value={bankDraft.beneficiaryName}
-                  onChange={(e) => setBankDraft((d) => ({ ...d, beneficiaryName: e.target.value }))}
-                />
-              </Field>
-              <p className="text-[11px] text-muted-foreground">
-                Account {bank.accountNumberMasked} stays masked. A corrected IFSC clears a compliance block
-                on save.
-              </p>
-            </div>
-          ) : null}
-          <div className="flex justify-end gap-2">
-            <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
-              Cancel
-            </Button>
-            <Button
-              size="sm"
-              disabled={busy}
-              onClick={async () => {
-                if (!gstinOk) {
-                  toast.error("Enter a valid 15-character GSTIN (e.g. 27AAPFU0939F1ZV), or leave it blank.");
-                  return;
-                }
-                if (!ifscOk) {
-                  toast.error("Enter a valid 11-character IFSC (e.g. HDFC0001234).");
-                  return;
-                }
-                try {
-                  await onSave(draft);
-                  if (bankChanged && bank) {
-                    await onSaveBank({
-                      bankName: bankDraft.bankName.trim(),
-                      accountNumber: bank.accountNumberMasked,
-                      ifsc: bankDraft.ifsc.trim().toUpperCase(),
-                      beneficiaryName: bankDraft.beneficiaryName.trim(),
-                    });
-                  }
-                  setEditing(false);
-                } catch {
-                  // The parent already surfaced the error; keep the editor open for correction.
-                }
-              }}
-            >
-              Save details
-            </Button>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <p className="text-[14px] leading-5 text-muted-foreground">
-            Business name, owner, GSTIN, PAN, address, phone, bank and the acceptance record are all in the
-            merchant record at the top of this page. Choose{" "}
-            <span className="font-medium text-foreground">Edit</span> to correct them.
-          </p>
-          {seller.inquiryAssignedTo ? (
-            <p className="text-[14px] leading-5 text-muted-foreground">
-              Enquiry owner:{" "}
-              <span className="font-medium text-foreground">{seller.inquiryAssignedTo}</span>
-            </p>
-          ) : null}
-        </div>
-      )}
-    </SectionCard>
+    <div className={["min-w-0", className].filter(Boolean).join(" ")}>
+      <dt className="text-[12px] text-muted-foreground">{label}</dt>
+      <dd
+        className={[
+          "mt-0.5 text-[14px] leading-5",
+          mono ? "num" : "",
+          value ? "text-foreground" : "text-muted-foreground",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+      >
+        {value || "Not provided"}
+      </dd>
+    </div>
   );
+}
+
+/** The contact email is only needed in full once the admin has confirmed identity. */
+function maskEmail(email?: string): string {
+  if (!email) return "";
+  const [name, domain] = email.split("@");
+  if (!name || !domain) return email;
+  return `${name.slice(0, 2)}${"•".repeat(Math.max(name.length - 2, 2))}@${domain}`;
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {

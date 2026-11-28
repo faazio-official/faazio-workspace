@@ -368,7 +368,6 @@ type vendorApplication struct {
 }
 
 type createSellerRequest struct {
-	BusinessName    string              `json:"businessName"`
 	OwnerName       string              `json:"ownerName"`
 	GSTIN           string              `json:"gstin"`
 	PAN             string              `json:"pan"`
@@ -414,8 +413,8 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	req.PAN = strings.ToUpper(strings.TrimSpace(req.PAN))
 	req.ContactEmail = strings.TrimSpace(req.ContactEmail)
 
-	if strings.TrimSpace(req.BusinessName) == "" || strings.TrimSpace(req.OwnerName) == "" {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "business and owner name are required")
+	if strings.TrimSpace(req.OwnerName) == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "owner name is required")
 		return
 	}
 	if len(req.StateCode) != 2 {
@@ -433,9 +432,14 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "state is invalid")
 		return
 	}
-	// An account is only useful with at least one vendor; the vendor carries the brand.
+	// One account, one vendor (0149): the application carries exactly one shop. The multi-vendor
+	// payload is kept for wire compatibility but more than one is rejected.
 	if len(req.Vendors) == 0 {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "at least one vendor is required")
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "one vendor is required")
+		return
+	}
+	if len(req.Vendors) > 1 {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "one account can own only one vendor")
 		return
 	}
 	for i := range req.Vendors {
@@ -604,7 +608,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	ipHash := shortHash(clientIP(r))
 	accountID := auth.UserID(r.Context())
 	seller := Seller{
-		BusinessName: req.BusinessName, OwnerName: req.OwnerName,
+		OwnerName: req.OwnerName,
 		GSTIN: req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
 		ContactPhone: req.ContactPhone, ContactEmail: req.ContactEmail, StateCode: req.StateCode,
 		DistrictCode: req.DistrictCode,
@@ -882,7 +886,7 @@ func (h *Handler) provisionLogin(ctx context.Context, s Seller) *contracts.Selle
 	if h.logins == nil {
 		return nil
 	}
-	login, err := h.logins.ProvisionSellerLogin(ctx, s.SellerID, s.ContactEmail, s.BusinessName)
+	login, err := h.logins.ProvisionSellerLogin(ctx, s.SellerID, s.ContactEmail, s.OwnerName)
 	if err != nil {
 		return &contracts.SellerLogin{Skipped: true, Reason: "login provisioning failed"}
 	}
@@ -991,7 +995,6 @@ func (h *Handler) notifyStatus(ctx context.Context, sellerID, status, reason str
 }
 
 type editSellerRequest struct {
-	BusinessName      string   `json:"businessName"`
 	OwnerName         string   `json:"ownerName"`
 	GSTIN             string   `json:"gstin"`
 	PAN               string   `json:"pan"`
@@ -1077,7 +1080,7 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 		})
 	}
 	after, changes, err := h.repo.EditRequest(r.Context(), id, Seller{
-		BusinessName: req.BusinessName, OwnerName: req.OwnerName,
+		OwnerName: req.OwnerName,
 		GSTIN: req.GSTIN, PAN: req.PAN, BusinessAddress: req.BusinessAddress,
 		ContactPhone: req.ContactPhone, ContactEmail: strings.TrimSpace(req.ContactEmail),
 		StateCode: req.StateCode, DistrictCode: req.DistrictCode,
@@ -1106,7 +1109,6 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 // editProfileRequest is a partial PATCH body. Pointer fields distinguish "not provided" (leave
 // unchanged) from a zero value, so editing only the phone never clears the stored GSTIN/PAN/address.
 type editProfileRequest struct {
-	BusinessName    *string `json:"businessName"`
 	OwnerName       *string `json:"ownerName"`
 	GSTIN           *string `json:"gstin"`
 	PAN             *string `json:"pan"`
@@ -1158,20 +1160,15 @@ func (h *Handler) editProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	patch := ProfilePatch{
-		BusinessName:    trimmedPtr(req.BusinessName),
 		OwnerName:       trimmedPtr(req.OwnerName),
 		GSTIN:           upperPtr(req.GSTIN),
 		PAN:             upperPtr(req.PAN),
 		BusinessAddress: trimmedPtr(req.BusinessAddress),
 		ContactPhone:    trimmedPtr(req.ContactPhone),
 	}
-	if patch.BusinessName == nil && patch.OwnerName == nil && patch.GSTIN == nil &&
+	if patch.OwnerName == nil && patch.GSTIN == nil &&
 		patch.PAN == nil && patch.BusinessAddress == nil && patch.ContactPhone == nil {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "no changes provided")
-		return
-	}
-	if patch.BusinessName != nil && *patch.BusinessName == "" {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "a business name is required")
 		return
 	}
 	if patch.OwnerName != nil && *patch.OwnerName == "" {

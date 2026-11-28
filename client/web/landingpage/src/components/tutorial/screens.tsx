@@ -295,13 +295,7 @@ export function RegistrationScreen({ activeTarget }: ScreenProps) {
           title="Business identity"
           note="The account that owns your shops. PAN is required; GSTIN is optional."
         >
-          <AppField
-            label="Business name"
-            value="Sharma Traders"
-            target="business-name"
-            active={on("business-name")}
-          />
-          <AppField label="Owner / contact name" value="Rohit Sharma" />
+          <AppField label="Owner / contact name" value="Rohit Sharma" target="owner-name" active={on("owner-name")} />
           <AppField label="GSTIN (optional)" value="34ABCDE1234F1Z5" mono />
           <AppField label="PAN" value="ABCDE1234F" mono />
           <AppField label="Business address" value="12, Bharathiar Road, Karaikal" />

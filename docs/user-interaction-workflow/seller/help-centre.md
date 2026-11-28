@@ -75,7 +75,7 @@ There is no signature or agreement step: submitting while signed in is the accep
 | Step | Action | Flow |
 |---|---|---|
 | Open My Account and tap Sell with us | tap | `POST /sellers` entry (App/AccountView) |
-| Add your business identity | type | business name, owner, PAN, optional GSTIN, address, contact |
+| Add your business identity | type | owner name, PAN, optional GSTIN, address, contact |
 | Add the payout account and passbook | type | bank fields + bank passbook capture (`media.assets`) |
 | Add each shop you sell from | tap | shop app, category, platform fee, licence, map pin |
 | Submit for review | tap | `POST /sellers` → `PENDING_REVIEW` |
@@ -265,7 +265,7 @@ The wizard is one five-step form — `What → Where → Creative → When → R
 | Vendor store | tap | the shop that needs a new rate — the fee is per shop, not per account (`GET /seller/stores`) |
 | Current fee | read | the selected store's `platformFeePct`, read from the record |
 | Requested fee % | type | one whole percent between 1 and 100, ≥ 5 for a Food shop, and different from the current fee |
-| Why (optional) | type | up to 500 characters, stored as `seller_note` and shown to the reviewer under the business name |
+| Why (optional) | type | up to 500 characters, stored as `seller_note` and shown to the reviewer under the shop name |
 | Submit request | tap | `POST /sellers/{id}/platform-fee-request` `{storeId, platformFeePct, reason}` → `PENDING`; one pending per shop |
 | Fee history | tap | `/seller/fee-history` → `GET /sellers/{id}/platform-fee-requests` — `old% → requested%` with the seller's own note and status; an admin approves on `FeeChangeRequestsBoard` |
 

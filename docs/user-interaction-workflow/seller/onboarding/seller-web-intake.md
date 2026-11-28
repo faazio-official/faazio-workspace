@@ -19,7 +19,7 @@ promoting it records that the merchant is proceeding and hands the same row to n
    the partner team calls → finish the application in the app) and **"What you'll need when you
    apply"** (PAN, shop address and an OTP phone, bank passbook, GSTIN if available). Both describe the
    app application, not this form.
-3. Visitor fills the enquiry: business name, owner name, category (MART / FOOD / PHARMA), **platform
+3. Visitor fills the enquiry: owner name, category (MART / FOOD / PHARMA), **platform
    fee %** (required, see step 5), contact phone, contact email, **shop photos** (step 4a) and optional
    notes. There is **no typed shop-address field** and no typed district field: both are read-only
    readouts of the location the visitor shares (step 4).

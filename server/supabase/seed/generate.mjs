@@ -84,28 +84,37 @@ const isPrescription = (e) => e.app === 'PHARMA' && PRESCRIPTION_CATEGORIES.has(
 // Seller ACCOUNTS are brand-agnostic (0068): a business identity that owns one or more VENDORS
 // (directory.stores). `ads.sponsored_slots.seller_id` / `ads.campaigns.seller_id` FK to the account,
 // so a fresh deploy still serves a non-empty `GET /ads/live`. Ownership is bound per store below.
+// One account, one vendor (0149): each seller account owns EXACTLY ONE vendor (directory.stores),
+// enforced by the `stores_one_per_seller_uniq` index. The four named accounts below are kept as they
+// were (demo ads and the pre-0149 accounts reference them); every other store gets its own account
+// derived from the store id (`sel-<suffix>`) so a reseed can never violate the index.
 const SELLER_ACCOUNTS = [
-  { id: 'sel-tiruchi-01', businessName: 'Faazio Mart Tiruchirappalli', ownerName: 'Faazio Retail Pvt Ltd', state: 'TN', district: 'TTC', email: 'retail.tiruchirappalli@faazio.example' },
-  { id: 'sel-trichy-foods', businessName: 'Trichy Hospitality Group', ownerName: 'R. Sundaram', state: 'TN', district: 'TTC', email: 'hospitality.trichy@faazio.example' },
-  { id: 'sel-trichy-health', businessName: 'Trichy Health Retail', ownerName: 'K. Meenakshi', state: 'TN', district: 'TTC', email: 'health.trichy@faazio.example' },
-  { id: 'sel-trichy-retail', businessName: 'Trichy Neighbourhood Retail', ownerName: 'S. Arun', state: 'TN', district: 'TTC', email: 'neighbourhood.trichy@faazio.example' },
+  { id: 'sel-tiruchi-01', ownerName: 'Faazio Retail Pvt Ltd', state: 'TN', district: 'TTC', email: 'retail.tiruchirappalli@faazio.example' },
+  { id: 'sel-trichy-foods', ownerName: 'R. Sundaram', state: 'TN', district: 'TTC', email: 'hospitality.trichy@faazio.example' },
+  { id: 'sel-trichy-health', ownerName: 'K. Meenakshi', state: 'TN', district: 'TTC', email: 'health.trichy@faazio.example' },
+  { id: 'sel-trichy-retail', ownerName: 'S. Arun', state: 'TN', district: 'TTC', email: 'neighbourhood.trichy@faazio.example' },
 ];
-// Deliberately multi-brand: an account owns vendors across apps (the switcher's reason to exist).
-const STORE_OWNER = {
-  'store-f1': 'sel-trichy-foods', 'store-f2': 'sel-trichy-foods', 'store-f3': 'sel-trichy-foods',
-  'store-f4': 'sel-trichy-foods', 'store-f5': 'sel-trichy-foods', 'store-f6': 'sel-trichy-foods',
-  'store-g1': 'sel-trichy-foods',
-  'store-p1': 'sel-trichy-health', 'store-p2': 'sel-trichy-health', 'store-p3': 'sel-trichy-health',
-  'store-p4': 'sel-trichy-health', 'store-m5': 'sel-trichy-health',
-  'store-m1': 'sel-tiruchi-01', 'store-m2': 'sel-tiruchi-01', 'store-m3': 'sel-tiruchi-01',
-  'store-m4': 'sel-tiruchi-01', 'store-m6': 'sel-tiruchi-01', 'store-m7': 'sel-tiruchi-01',
-  'store-f7': 'sel-tiruchi-01',
-  'store-m8': 'sel-trichy-retail', 'store-m9': 'sel-trichy-retail', 'store-m10': 'sel-trichy-retail',
-  'store-m11': 'sel-trichy-retail', 'store-m12': 'sel-trichy-retail', 'store-m13': 'sel-trichy-retail',
-  'store-f8': 'sel-trichy-retail', 'store-f9': 'sel-trichy-retail', 'store-f10': 'sel-trichy-retail',
-  'store-f11': 'sel-trichy-retail', 'store-f12': 'sel-trichy-retail',
-  'store-p5': 'sel-trichy-retail', 'store-p6': 'sel-trichy-retail',
+// Flagship store each named account keeps; every other store owns its own account.
+const NAMED_STORE_ACCOUNT = {
+  'store-m1': 'sel-tiruchi-01',
+  'store-f1': 'sel-trichy-foods',
+  'store-p1': 'sel-trichy-health',
+  'store-m8': 'sel-trichy-retail',
 };
+const ownerForStore = (id) =>
+  NAMED_STORE_ACCOUNT[id] ?? `sel-${String(id).replace(/^store-/, '')}`;
+// Sibling accounts for stores no named account owns, derived from the store fixtures so every
+// account row exists before the store FK. Empty email keeps them portal-less (no credentials).
+const VENDOR_ACCOUNTS = d.storeDirectory
+  .filter((s) => !NAMED_STORE_ACCOUNT[s.id])
+  .map((s) => ({
+    id: ownerForStore(s.id),
+    ownerName: `Faazio Vendor ${String(s.id).replace(/^store-/, '').toUpperCase()}`,
+    state: 'TN',
+    district: 'TTC',
+    email: '',
+  }));
+const ALL_SELLER_ACCOUNTS = [...SELLER_ACCOUNTS, ...VENDOR_ACCOUNTS];
 // Per-vendor platform fee (the fee is a property of the SHOP, 0069 — values differ per shop so the
 // per-vendor model is demonstrable). FOOD floor is 5%.
 const STORE_FEE = {
@@ -116,7 +125,6 @@ const STORE_FEE = {
   'store-m13': 10, 'store-g1': 7,
   'store-p1': 7, 'store-p2': 6, 'store-p3': 8, 'store-p4': 7, 'store-p5': 6, 'store-p6': 9,
 };
-const ownerForStore = (id) => STORE_OWNER[id] ?? 'sel-tiruchi-01';
 const feeForStore = (id) => STORE_FEE[id] ?? 10;
 // Primary taxonomy category per vendor (seller_category_id, 0069): a best-fit top-level
 // `taxonomy.categories` id derived from the store fixture's category labels. Deterministic and small;
@@ -237,14 +245,14 @@ const DEMO_HEROES = [
   // Food sub-app hero (FOOD_HERO) — two LIVE poster creatives targeting real FOOD stores so the
   // placement is locally testable (was unseeded). The house fallback is `foodHero.banners`.
   {
-    placementId: 'ad-cmp-demo-foodhero-1', campaignId: 'cmp-demo-foodhero', sellerId: AD_ACCOUNT,
+    placementId: 'ad-cmp-demo-foodhero-1', campaignId: 'cmp-demo-foodhero', sellerId: ownerForStore('store-f1'),
     placement: 'FOOD_HERO', targetType: 'STORE', targetId: 'store-f1', targetApp: 'FOOD',
     category: null, storeId: null, title: 'Biryani Festival', subtitle: 'FLAT ₹150 OFF',
     cta: 'Order Now', state: 'TN',
     imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?fm=jpg&fit=crop&q=80&w=800&h=450',
   },
   {
-    placementId: 'ad-cmp-demo-foodhero-2', campaignId: 'cmp-demo-foodhero', sellerId: AD_ACCOUNT,
+    placementId: 'ad-cmp-demo-foodhero-2', campaignId: 'cmp-demo-foodhero', sellerId: ownerForStore('store-f8'),
     placement: 'FOOD_HERO', targetType: 'STORE', targetId: 'store-f8', targetApp: 'FOOD',
     category: null, storeId: null, title: 'Royal Mughlai Feast', subtitle: 'FESTIVE40 — 40% OFF',
     cta: 'Order Now', state: 'TN',
@@ -279,16 +287,15 @@ if (manifest) {
 // NULL (0071), so the owner rows must exist before the stores that reference them.
 sql.push(inserts(
   'sellers.sellers',
-  ['seller_id', 'business_name', 'owner_name', 'contact_email', 'state_code', 'district_code', 'status'],
-  SELLER_ACCOUNTS.map((s) => [
-    q(s.id), q(s.businessName), q(s.ownerName), q(s.email), q(s.state), q(s.district), `'ACTIVE'::seller_status`,
+  ['seller_id', 'owner_name', 'contact_email', 'state_code', 'district_code', 'status'],
+  ALL_SELLER_ACCOUNTS.map((s) => [
+    q(s.id), q(s.ownerName), q(s.email), q(s.state), q(s.district), `'ACTIVE'::seller_status`,
   ]),
   // 0071_backfill_live_sellers also seeds these accounts (for an existing DB) with an empty email,
   // so a fresh `--all --seed` must UPDATE the seeded identity fields rather than silently keep the
   // backfill placeholders.
   100,
   `on conflict (seller_id) do update set
-     business_name = excluded.business_name,
      owner_name = excluded.owner_name,
      contact_email = excluded.contact_email,
      state_code = excluded.state_code,
@@ -690,7 +697,7 @@ function assertLeanContract() {
   // Sponsored slots must reference a real catalog row + a seeded seller, or the app's
   // `getProductsByIds` join silently drops a paid placement (and `ads.sponsored_slots.seller_id` FK).
   const catalogIds = new Set(d.catalogIndex.map((e) => e.id));
-  const sellerIds = new Set(SELLER_ACCOUNTS.map((s) => s.id));
+  const sellerIds = new Set(ALL_SELLER_ACCOUNTS.map((s) => s.id));
   for (const a of SPONSORED_SLOTS) {
     if (!catalogIds.has(a.productId)) violations.push(`sponsored slot ${a.slotId}: product ${a.productId} not in catalogIndex`);
     if (!sellerIds.has(a.sellerId)) violations.push(`sponsored slot ${a.slotId}: seller ${a.sellerId} not seeded`);

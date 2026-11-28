@@ -80,10 +80,9 @@ identifies the role (on sign-in or on session restore) and sends the user to `ho
   shop name truncates instead of crowding the icons. In `OrdersTopBar` the shop-name bar (name +
   area) is the `StoreSwitcher` trigger, while the `Online`/`Offline` chip beside it is a separate
   link to `/seller/restaurant-status` — the two are distinct targets, never one control.
-- The shop switcher is read-only when there is nothing to switch to: with no shops (or while the
-  list is loading) the trigger renders as plain text, with exactly one shop it says "You have one
-  shop" instead of opening a one-row menu, and rows that arrive without a `storeId` are dropped. A
-  persisted `activeStoreId` that no longer names one of the seller's shops is reconciled to a real
+- The shop label is fixed, not a switcher: one account owns exactly one vendor (0149), so the
+  trigger always renders plain text. With no shop yet (or while the list is loading) it renders the
+  same plain text and rows that arrive without a `storeId` are dropped. A persisted `activeStoreId` that no longer names one of the seller's shops is reconciled to a real
   shop on load, so a switch never scopes the console to a ghost vendor. `PageHeader`'s `right` slot
   keeps its content on one line (`shrink-0`, `whitespace-nowrap`) and the title truncates first —
   the `Add shop` action on `/seller/stores` never wraps under its icon.

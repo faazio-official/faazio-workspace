@@ -50,7 +50,6 @@ type ShopPhoto struct {
 }
 
 type createInquiryRequest struct {
-	BusinessName    string `json:"businessName"`
 	OwnerName       string `json:"ownerName"`
 	Category        string `json:"category"`
 	ContactPhone    string `json:"contactPhone"`
@@ -98,13 +97,13 @@ func (r *Repo) CreateInquiry(ctx context.Context, s Seller, inquiryCategory stri
 	s.Source = "web"
 	created, err := scanSeller(tx.QueryRow(ctx, `
 		insert into sellers.sellers
-		  (seller_id, business_name, owner_name, address, phone, contact_email,
+		  (seller_id, owner_name, address, phone, contact_email,
 		   state_code, district_code, latitude, longitude, status, source,
 		   inquiry_category, inquiry_platform_fee_pct, inquiry_notes)
-		values ($1,$2,$3,$4,nullif($5,''),$6,$7,nullif($8,''),$9,$10,'INQUIRY'::seller_status,'web',
-		        $11::app_brand,$12,$13)
+		values ($1,$2,$3,nullif($4,''),$5,$6,nullif($7,''),$8,$9,'INQUIRY'::seller_status,'web',
+		        $10::app_brand,$11,$12)
 		returning `+sellerColumns,
-		s.SellerID, s.BusinessName, s.OwnerName, s.BusinessAddress, s.ContactPhone, s.ContactEmail,
+		s.SellerID, s.OwnerName, s.BusinessAddress, s.ContactPhone, s.ContactEmail,
 		s.StateCode, s.DistrictCode, s.Latitude, s.Longitude,
 		nullIfEmpty(inquiryCategory), feePct, nullIfEmpty(notes)))
 	if err != nil {
@@ -165,7 +164,6 @@ func (h *Handler) createInquiry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	req.BusinessName = strings.TrimSpace(req.BusinessName)
 	req.OwnerName = strings.TrimSpace(req.OwnerName)
 	req.Category = strings.ToUpper(strings.TrimSpace(req.Category))
 	req.ContactPhone = strings.TrimSpace(req.ContactPhone)
@@ -178,10 +176,6 @@ func (h *Handler) createInquiry(w http.ResponseWriter, r *http.Request) {
 	req.DistrictName = strings.TrimSpace(req.DistrictName)
 	req.Notes = strings.TrimSpace(req.Notes)
 
-	if req.BusinessName == "" || len(req.BusinessName) > inquiryFieldMax {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "business name is required")
-		return
-	}
 	if req.OwnerName == "" || len(req.OwnerName) > inquiryFieldMax {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "owner name is required")
 		return
@@ -269,7 +263,7 @@ func (h *Handler) createInquiry(w http.ResponseWriter, r *http.Request) {
 	}
 
 	created, keys, err := h.repo.CreateInquiry(r.Context(), Seller{
-		BusinessName: req.BusinessName, OwnerName: req.OwnerName,
+		OwnerName: req.OwnerName,
 		ContactPhone: req.ContactPhone, ContactEmail: req.ContactEmail,
 		BusinessAddress: req.BusinessAddress, StateCode: stateCode, DistrictCode: districtCode,
 		Latitude: req.Latitude, Longitude: req.Longitude,

@@ -152,7 +152,7 @@ function ProductDetailsDialog({
               <section>
                 <h3 className="mb-1 text-[12px] font-semibold text-muted-foreground">Seller</h3>
                 <DetailRow label="Seller id" value={product.sellerId} />
-                <DetailRow label="Business name" value={seller?.businessName ?? ""} />
+                <DetailRow label="Business name" value={seller?.shopName ?? ""} />
                 <DetailRow label="Owner name" value={seller?.ownerName ?? ""} />
                 <DetailRow label="Contact phone" value={seller?.contactPhone ?? ""} />
                 <DetailRow label="Address" value={seller?.businessAddress ?? ""} />

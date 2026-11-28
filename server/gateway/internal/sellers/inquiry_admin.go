@@ -48,7 +48,7 @@ func (r *Repo) ListInquiries(ctx context.Context, f InquiryFilter) ([]Seller, er
 		   and ($1 = '' or state_code = $1)
 		   and ($2 = '' or district_code = $2)
 		   and ($3 = '' or coalesce(inquiry_stage,'NEW') = $3)
-		   and ($4 = '' or business_name ilike '%'||$4||'%' or owner_name ilike '%'||$4||'%'
+		   and ($4 = '' or owner_name ilike '%'||$4||'%'
 		        or coalesce(phone,'') like '%'||$4||'%')
 		   and ($5 = '' or ($5 = 'unassigned' and coalesce(inquiry_assigned_to,'') = '')
 		                or ($5 <> 'unassigned' and inquiry_assigned_to = $6))

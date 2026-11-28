@@ -299,7 +299,7 @@ function SuperDistrictDrilldown() {
             <TableBody>
               {sellers.map((seller) => (
                 <TableRow key={seller.sellerId} className="h-12">
-                  <TableCell className="text-[13px] font-medium">{seller.businessName}</TableCell>
+                  <TableCell className="text-[13px] font-medium">{seller.shopName}</TableCell>
                   <TableCell className="text-[13px]">{seller.ownerName}</TableCell>
                   <TableCell className="num text-right">{seller.rating.toFixed(1)}</TableCell>
                   <TableCell>

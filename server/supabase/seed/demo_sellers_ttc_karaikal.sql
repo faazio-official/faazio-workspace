@@ -17,43 +17,43 @@ begin;
 
 -- ================================================================ sellers
 insert into sellers.sellers (
-  seller_id, business_name, owner_name, gstin, pan, address, phone,
+  seller_id, owner_name, gstin, pan, address, phone,
   state_code, district_code, status, rating, contact_email,
   otp_verified, otp_verified_at, latitude, longitude,
   rejection_reason, rejection_history, created_at
 ) values
   -- ---- Tiruchirappalli (TN) ----------------------------------------------------------------
-  ('sel-demo-ttc-mart-1', 'Sri Balaji Supermarket', 'Balaji Rajendran',
+  ('sel-demo-ttc-mart-1', 'Balaji Rajendran',
    '33ABCDE1234F1Z7', 'ABCDE1234F', 'No. 12, NSB Road, Tiruchirappalli, Tamil Nadu 620001',
    '+919843010001', 'TN', 'TTC', 'ACTIVE'::seller_status, 4.5, 'balaji.supermarket@faazio-demo.test',
    true, now() - interval '18 days', 10.7930, 78.6980, null, '[]'::jsonb, now() - interval '20 days'),
 
-  ('sel-demo-ttc-mart-2', 'Pillai Provision Store', 'Karthik Pillai',
+  ('sel-demo-ttc-mart-2', 'Karthik Pillai',
    '', 'FGHIJ5678K', 'No. 88, Big Bazaar Street, Tiruchirappalli, Tamil Nadu 620008',
    '+919843010002', 'TN', 'TTC', 'PENDING_REVIEW'::seller_status, 0, 'karthik.pillai@faazio-demo.test',
    true, now() - interval '2 days', 10.8060, 78.6850, null, '[]'::jsonb, now() - interval '3 days'),
 
-  ('sel-demo-ttc-food-1', 'Anandha Bhavan Restaurant', 'Suresh Kumar',
+  ('sel-demo-ttc-food-1', 'Suresh Kumar',
    '33KLMNO9012P1ZE', 'KLMNO9012P', 'No. 45, Cantonment Main Road, Tiruchirappalli, Tamil Nadu 620001',
    '+919843010003', 'TN', 'TTC', 'ACTIVE'::seller_status, 4.7, 'anandha.bhavan@faazio-demo.test',
    true, now() - interval '30 days', 10.8001, 78.6890, null, '[]'::jsonb, now() - interval '33 days'),
 
-  ('sel-demo-ttc-food-2', 'Hotel Kannappa Mess', 'Muthukumar Kannan',
+  ('sel-demo-ttc-food-2', 'Muthukumar Kannan',
    '', 'MNOPQ3456R', 'No. 17, Rockfort Road, Tiruchirappalli, Tamil Nadu 620002',
    '+919843010004', 'TN', 'TTC', 'PENDING_REVIEW'::seller_status, 0, 'kannappa.mess@faazio-demo.test',
    false, null, 10.8160, 78.6900, null, '[]'::jsonb, now() - interval '1 day'),
 
-  ('sel-demo-ttc-pharma-1', 'Vasan Medicals', 'Vasan Sankaran',
+  ('sel-demo-ttc-pharma-1', 'Vasan Sankaran',
    '33QRSTU7890V1ZE', 'QRSTU7890V', 'No. 22, Salai Road, Tiruchirappalli, Tamil Nadu 620018',
    '+919843010005', 'TN', 'TTC', 'ACTIVE'::seller_status, 4.6, 'vasan.medicals@faazio-demo.test',
    true, now() - interval '25 days', 10.8180, 78.6870, null, '[]'::jsonb, now() - interval '28 days'),
 
-  ('sel-demo-ttc-pharma-2', 'Sri Venkateswara Pharmacy', 'Ramesh Venkatesan',
+  ('sel-demo-ttc-pharma-2', 'Ramesh Venkatesan',
    '', 'UVWXY1234Z', 'No. 5, Thillai Nagar, Tiruchirappalli, Tamil Nadu 620018',
    '+919843010006', 'TN', 'TTC', 'PENDING_REVIEW'::seller_status, 0, 'venkateswara.pharmacy@faazio-demo.test',
    true, now() - interval '4 days', 10.8220, 78.6830, null, '[]'::jsonb, now() - interval '5 days'),
 
-  ('sel-demo-ttc-food-3', 'Quick Bites Trichy', 'Anand Mohan',
+  ('sel-demo-ttc-food-3', 'Anand Mohan',
    '33BCDEF2345G1ZS', 'BCDEF2345G', 'No. 60, Bharathidasan Road, Tiruchirappalli, Tamil Nadu 620017',
    '+919843010007', 'TN', 'TTC', 'REJECTED'::seller_status, 0, 'quickbites.trichy@faazio-demo.test',
    true, now() - interval '9 days', 10.8050, 78.6920,
@@ -62,37 +62,37 @@ insert into sellers.sellers (
    now() - interval '12 days'),
 
   -- ---- Karaikal (PY) -----------------------------------------------------------------------
-  ('sel-demo-py1-mart-1', 'Karaikal Mega Mart', 'Thirumalai Selvam',
+  ('sel-demo-py1-mart-1', 'Thirumalai Selvam',
    '34GHIJK6789L1ZR', 'GHIJK6789L', 'No. 34, Bharathiar Road, Karaikal, Puducherry 609602',
    '+919843020001', 'PY', 'PY1', 'ACTIVE'::seller_status, 4.4, 'karaikal.megamart@faazio-demo.test',
    true, now() - interval '15 days', 10.9250, 79.8380, null, '[]'::jsonb, now() - interval '17 days'),
 
-  ('sel-demo-py1-mart-2', 'Vallalar Provision Store', 'Subramani Perumal',
+  ('sel-demo-py1-mart-2', 'Subramani Perumal',
    '', 'HIJKL1234M', 'No. 9, Kamaraj Salai, Karaikal, Puducherry 609602',
    '+919843020002', 'PY', 'PY1', 'PENDING_REVIEW'::seller_status, 0, 'vallalar.store@faazio-demo.test',
    true, now() - interval '2 days', 10.9180, 79.8330, null, '[]'::jsonb, now() - interval '2 days'),
 
-  ('sel-demo-py1-food-1', 'Hotel Aristo Karaikal', 'Bhaskar Narayanan',
+  ('sel-demo-py1-food-1', 'Bhaskar Narayanan',
    '34MNOPQ4567R1ZK', 'MNOPQ4567R', 'No. 12, Church Street, Karaikal, Puducherry 609602',
    '+919843020003', 'PY', 'PY1', 'ACTIVE'::seller_status, 4.5, 'hotel.aristo@faazio-demo.test',
    true, now() - interval '22 days', 10.9270, 79.8360, null, '[]'::jsonb, now() - interval '24 days'),
 
-  ('sel-demo-py1-food-2', 'Sangam Mess', 'Dhandapani Krishnan',
+  ('sel-demo-py1-food-2', 'Dhandapani Krishnan',
    '', 'OPQRS8901T', 'No. 78, Nagore Road, Karaikal, Puducherry 609602',
    '+919843020004', 'PY', 'PY1', 'PENDING_REVIEW'::seller_status, 0, 'sangam.mess@faazio-demo.test',
    true, now() - interval '3 days', 10.9200, 79.8300, null, '[]'::jsonb, now() - interval '3 days'),
 
-  ('sel-demo-py1-pharma-1', 'Maruthi Medicals', 'Senthil Raja',
+  ('sel-demo-py1-pharma-1', 'Senthil Raja',
    '34TUVWX2345Y1Z5', 'TUVWX2345Y', 'No. 3, Beach Road, Karaikal, Puducherry 609602',
    '+919843020005', 'PY', 'PY1', 'ACTIVE'::seller_status, 4.3, 'maruthi.medicals@faazio-demo.test',
    true, now() - interval '19 days', 10.9230, 79.8400, null, '[]'::jsonb, now() - interval '21 days'),
 
-  ('sel-demo-py1-pharma-2', 'Annai Pharmacy', 'Ganesh Murugan',
+  ('sel-demo-py1-pharma-2', 'Ganesh Murugan',
    '', 'UVWXY6789Z', 'No. 21, Ammaiyappan Street, Karaikal, Puducherry 609602',
    '+919843020006', 'PY', 'PY1', 'PENDING_REVIEW'::seller_status, 0, 'annai.pharmacy@faazio-demo.test',
    true, now() - interval '1 day', 10.9160, 79.8270, null, '[]'::jsonb, now() - interval '1 day'),
 
-  ('sel-demo-py1-mart-3', 'Bharathi Stores', 'Ilango Thangavel',
+  ('sel-demo-py1-mart-3', 'Ilango Thangavel',
    '34ABCDE9012F1ZX', 'ABCDE9012F', 'No. 55, Market Road, Karaikal, Puducherry 609602',
    '+919843020007', 'PY', 'PY1', 'REJECTED'::seller_status, 0, 'bharathi.stores@faazio-demo.test',
    true, now() - interval '8 days', 10.9190, 79.8350,

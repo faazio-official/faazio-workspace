@@ -17,8 +17,9 @@ hidden and enforced server-side. See `accept-invite.md` for the invitee's side.
    order. The switch is pure Tailwind (`hidden md:block` on the tab bar, a `SectionView` wrapper that
    is `md:block` only when active and always visible below `md`), so there is no viewport JS and no
    hydration flash. Section content and behaviour are identical in both layouts.
-2. **Profile** — read rows come from the hydrated `sellers` slice (`useSeller`). "Edit profile"
-   opens inline `TextField`s for business name, owner name, GSTIN, PAN, contact phone and registered
+2. **Profile** — read rows come from the hydrated `sellers` slice (`useSeller`), including the
+   **Shop name**, which is read-only here (it belongs to the shop the merchant registered).
+   "Edit profile" opens inline `TextField`s for owner name, GSTIN, PAN, contact phone and registered
    address; "Save changes" sends **only the fields that changed** to `updateSeller(sellerId, patch)`
    → `PATCH /sellers/{id}` (true partial write — an omitted field is never cleared). An actual change
    to a KYC-bearing field (GSTIN/PAN/address) resets an `ACTIVE` account to `PENDING_REVIEW` for

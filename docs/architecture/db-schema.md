@@ -648,8 +648,10 @@ store ∪ venue grid to `accepts_scheduled_orders = true`.
  drug-selling licence `drug_license_number`/`drug_license_cert_key`/`drug_license_cert_asset_id` (0076,
  opt-in: a pharmacy may go live before the licence is attached). A shop may also override the account
  payout account with `bank_name`/`bank_account_number` (masked tail only)/`bank_ifsc`/
- `bank_beneficiary_name` (0083, empty = fall back to `sellers.bank_accounts`). One seller ACCOUNT owns many vendors across
- apps. `catalog.products.seller_id` and `directory.menus.seller_id` were **dropped** (0070); product
+ `bank_beneficiary_name` (0083, empty = fall back to `sellers.bank_accounts`). One seller ACCOUNT owns
+ exactly one vendor (0149: `stores_one_per_seller_uniq` on `directory.stores(seller_id)`); the earlier
+ multi-brand model (0068/0069) is retired. `catalog.products.seller_id` and `directory.menus.seller_id`
+ were **dropped** (0070); product
  ownership derives via `store_id`, menu ownership via `venue_id` → the owning store (dining-venue menus
  have no owner). The account is explicitly brand-agnostic: `sellers.sellers.category`,
 `platform_fee_pct`, `seller_category_id` and the `fssai_*` columns were **dropped** (0074) — every
@@ -3543,3 +3545,12 @@ compiled home-feed source):
 
 Writes go through `POST /admin/sdui/layouts/publish` / `rollback` (`internal/sdui/control_repo.go`,
 transactional); reads through `GET /sdui/layout` / `GET /sdui/epoch`.
+
+### 12.51 One shop per seller, no business name (migrations `0149`, `0150`)
+
+- `0149` (`stores_one_per_seller_uniq`) — a seller account owns exactly one
+  `directory.stores` row; the account is brand-agnostic and the shop carries the identity.
+- `0150` — drops `sellers.sellers.business_name`. The account's display name is now derived:
+  the first shop's name with the owner name as fallback (`sellers.repo` selects it as
+  `shop_name` and the JSON field is `shopName`). `PATCH /sellers/{id}` no longer accepts or
+  writes a business name; the merchant-owned shop name is not admin-editable.

@@ -105,7 +105,7 @@ export function SellerInquiryBoard({ scope }: { scope: "district" | "global" }) 
     setBusy(row.sellerId);
     try {
       const updated = await assignSellerInquiry(row.sellerId, take);
-      toast.success(take ? `You have ${row.businessName}` : `Released ${row.businessName}`);
+      toast.success(take ? `You have ${row.shopName}` : `Released ${row.shopName}`);
       if (selected?.sellerId === row.sellerId) setSelected(updated);
       await load();
     } catch (error) {
@@ -126,7 +126,7 @@ export function SellerInquiryBoard({ scope }: { scope: "district" | "global" }) 
     setBusy(row.sellerId);
     try {
       await updateSellerInquiry(row.sellerId, { stage: next });
-      toast.success(`${row.businessName} → ${next.toLowerCase()}`);
+      toast.success(`${row.shopName} → ${next.toLowerCase()}`);
       setSelected(null);
       setDialogError("");
       await load();
@@ -149,8 +149,8 @@ export function SellerInquiryBoard({ scope }: { scope: "district" | "global" }) 
       });
       toast.success(
         status === "REJECTED"
-          ? `${row.businessName} rejected`
-          : `${row.businessName} is proceeding — KYC now happens in the app`,
+          ? `${row.shopName} rejected`
+          : `${row.shopName} is proceeding — KYC now happens in the app`,
       );
       setSelected(null);
       setNote("");
@@ -272,7 +272,7 @@ export function SellerInquiryBoard({ scope }: { scope: "district" | "global" }) 
                 <TableRow key={row.sellerId} className="h-12">
                   <TableCell className="text-[13px] font-medium">
                     <Link href={detailHref(row.sellerId)} className="text-primary hover:underline">
-                      {row.businessName}
+                      {row.shopName}
                     </Link>
                     <p className="mt-0.5 text-[11px] font-normal text-muted-foreground">
                       {row.inquiryCategory ?? "—"} · {row.ownerName}
@@ -354,7 +354,7 @@ export function SellerInquiryBoard({ scope }: { scope: "district" | "global" }) 
           {selected ? (
             <>
               <DialogHeader>
-                <DialogTitle>{selected.businessName}</DialogTitle>
+                <DialogTitle>{selected.shopName}</DialogTitle>
                 <DialogDescription>
                   {selected.ownerName} · {selected.inquiryCategory ?? "—"} ·{" "}
                   {formatDateTime(selected.createdAt)}
@@ -371,7 +371,7 @@ export function SellerInquiryBoard({ scope }: { scope: "district" | "global" }) 
                         <img
                           key={photo.assetId}
                           src={photo.url}
-                          alt={`${selected.businessName} shop front`}
+                          alt={`${selected.shopName} shop front`}
                           className="size-20 rounded-md border border-border object-cover"
                         />
                       ) : (

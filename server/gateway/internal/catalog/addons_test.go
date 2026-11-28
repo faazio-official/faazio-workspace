@@ -18,8 +18,8 @@ func setupFoodVenue(t *testing.T) (sellerID, storeID string) {
 	sellerID = "sel-addon-" + shortTestID()
 	storeID = "store-addon-" + shortTestID()
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
-		values ($1,'Addon Test','O','TN','TCH')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code, district_code)
+		values ($1,'O','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -118,8 +118,8 @@ func TestAddonSectorsAndFoodDishLink(t *testing.T) {
 	sellerID := "sel-addon-mart-" + shortTestID()
 	storeID := "store-addon-mart-" + shortTestID()
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Mart Addon','O','TN')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','TN')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `

@@ -73,11 +73,11 @@ func TestValidPlatformFee(t *testing.T) {
 // TestRedactSellerAndHistory proves the audit projection drops PII (contact phone/email) while
 // keeping non-PII fields and never mutating its input.
 func TestRedactSellerAndHistory(t *testing.T) {
-	s := redactSeller(Seller{ContactPhone: "+919000000001", ContactEmail: "a@b.com", BusinessName: "X"})
+	s := redactSeller(Seller{ContactPhone: "+919000000001", ContactEmail: "a@b.com", OwnerName: "X"})
 	if s.ContactPhone != "" || s.ContactEmail != "" {
 		t.Fatalf("redactSeller left PII: %+v", s)
 	}
-	if s.BusinessName != "X" {
+	if s.OwnerName != "X" {
 		t.Fatalf("redactSeller dropped a non-PII field: %+v", s)
 	}
 

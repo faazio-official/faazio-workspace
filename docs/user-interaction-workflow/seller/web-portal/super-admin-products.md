@@ -33,7 +33,7 @@ Restore + Delete forever.
    - Product: name, Tamil name, description, Tamil description, sector, category, unit, price,
      veg / prescription flags, product id, created date.
    - Images: the primary photo plus every gallery URL, each linking to the full-size file.
-   - Seller: seller id, business name, owner name, contact phone and registered address
+   - Seller: seller id, shop name, owner name, contact phone and registered address
      (`getProduct` → `getSeller` off the hydrated `sellers` slice — no extra request).
    - Review: current status and the stored rejection reason when the listing was rejected.
 6. **Accept / Reject.** Pending listings expose both inside the detail dialog and inline on the row:

@@ -56,7 +56,6 @@ export function SellerForm() {
   } = useForm<InquiryInput>({
     resolver: zodResolver(inquirySchema),
     defaultValues: {
-      businessName: "",
       ownerName: "",
       category: "MART",
       contactPhone: "",
@@ -149,19 +148,6 @@ export function SellerForm() {
         <div className="sell-fields">
           <div className="field-row">
             <div className="field">
-              <label htmlFor="businessName">Business name</label>
-              <input
-                id="businessName"
-                type="text"
-                autoComplete="organization"
-                aria-invalid={errors.businessName ? "true" : undefined}
-                {...register("businessName")}
-              />
-              {errors.businessName ? (
-                <p className="field-error">{errors.businessName.message}</p>
-              ) : null}
-            </div>
-            <div className="field">
               <label htmlFor="ownerName">Owner name</label>
               <input
                 id="ownerName"
@@ -172,46 +158,6 @@ export function SellerForm() {
               />
               {errors.ownerName ? <p className="field-error">{errors.ownerName.message}</p> : null}
             </div>
-          </div>
-
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="category">What do you sell?</label>
-              <select id="category" {...register("category")}>
-                {CATEGORIES.map((c) => (
-                  <option key={c.value} value={c.value}>
-                    {c.label}
-                  </option>
-                ))}
-              </select>
-              {errors.category ? <p className="field-error">{errors.category.message}</p> : null}
-            </div>
-            <div className="field">
-              <label htmlFor="platformFeePct">Platform fee (%)</label>
-              <input
-                id="platformFeePct"
-                type="number"
-                inputMode="numeric"
-                min={category === "FOOD" ? 5 : 1}
-                max={100}
-                step={1}
-                placeholder={category === "FOOD" ? "5 or more" : "e.g. 10"}
-                aria-describedby="platform-fee-hint"
-                aria-invalid={errors.platformFeePct ? "true" : undefined}
-                {...register("platformFeePct", { valueAsNumber: true })}
-              />
-              {errors.platformFeePct ? (
-                <p className="field-error">{errors.platformFeePct.message}</p>
-              ) : null}
-              <p className="field-hint" id="platform-fee-hint">
-                {category === "FOOD"
-                  ? "The commission you can offer. Food sellers: minimum 5%."
-                  : "The commission you can offer, from 1% to 100%."}
-              </p>
-            </div>
-          </div>
-
-          <div className="field-row">
             <div className="field">
               <label htmlFor="contactPhone">Contact phone</label>
               <input
@@ -227,6 +173,9 @@ export function SellerForm() {
                 <p className="field-error">{errors.contactPhone.message}</p>
               ) : null}
             </div>
+          </div>
+
+          <div className="field-row">
             <div className="field">
               <label htmlFor="contactEmail">Contact email</label>
               <input
@@ -241,6 +190,41 @@ export function SellerForm() {
                 <p className="field-error">{errors.contactEmail.message}</p>
               ) : null}
             </div>
+            <div className="field">
+              <label htmlFor="category">What do you sell?</label>
+              <select id="category" {...register("category")}>
+                {CATEGORIES.map((c) => (
+                  <option key={c.value} value={c.value}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+              {errors.category ? <p className="field-error">{errors.category.message}</p> : null}
+            </div>
+          </div>
+
+          <div className="field">
+            <label htmlFor="platformFeePct">Platform fee (%)</label>
+            <input
+              id="platformFeePct"
+              type="number"
+              inputMode="numeric"
+              min={category === "FOOD" ? 5 : 1}
+              max={100}
+              step={1}
+              placeholder={category === "FOOD" ? "5 or more" : "e.g. 10"}
+              aria-describedby="platform-fee-hint"
+              aria-invalid={errors.platformFeePct ? "true" : undefined}
+              {...register("platformFeePct", { valueAsNumber: true })}
+            />
+            {errors.platformFeePct ? (
+              <p className="field-error">{errors.platformFeePct.message}</p>
+            ) : null}
+            <p className="field-hint" id="platform-fee-hint">
+              {category === "FOOD"
+                ? "The commission you can offer. Food sellers: minimum 5%."
+                : "The commission you can offer, from 1% to 100%."}
+            </p>
           </div>
 
           {/* Address + district are read-only views of the shared location — never typed. The form

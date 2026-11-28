@@ -17,13 +17,13 @@ function waNumber(phone: string | undefined): string {
 
 /** Pre-filled WhatsApp hand-over message. Never contains more than the admin is about to copy. */
 export function sellerLoginMessage(input: {
-  businessName?: string | undefined;
+  shopName?: string | undefined;
   email?: string | undefined;
   password?: string | undefined;
 }): string {
   const origin = typeof window === "undefined" ? "" : window.location.origin;
   const lines = [
-    input.businessName ? `Hi ${input.businessName}, your Faazio Partner Portal login is ready.` : "Your Faazio Partner Portal login is ready.",
+    input.shopName ? `Hi ${input.shopName}, your Faazio Partner Portal login is ready.` : "Your Faazio Partner Portal login is ready.",
     origin ? `Sign in: ${origin}/login` : "Sign in via the Faazio Partner Portal.",
     input.email ? `Email: ${input.email}` : "",
     input.password ? `Temporary password: ${input.password}` : "",
@@ -53,11 +53,11 @@ function shareOnWhatsApp(phone: string | undefined, message: string) {
 
 export function SellerCredentialCard({
   credential,
-  businessName,
+  shopName,
   phone,
 }: {
   credential: SellerLoginCredential;
-  businessName?: string | undefined;
+  shopName?: string | undefined;
   /** The seller's registered contact phone — the WhatsApp hand-over destination. */
   phone?: string | undefined;
 }) {
@@ -80,7 +80,7 @@ export function SellerCredentialCard({
 
   const email = credential.email ?? "";
   const password = credential.created ? credential.temporaryPassword : undefined;
-  const message = sellerLoginMessage({ businessName, email, password: password ?? undefined });
+  const message = sellerLoginMessage({ shopName, email, password: password ?? undefined });
 
   return (
     <div className="space-y-2">

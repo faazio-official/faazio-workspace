@@ -336,8 +336,8 @@ func TestStoreProductsEndpoint(t *testing.T) {
 	storeID := fmt.Sprintf("st-e2e-%d", time.Now().UnixNano())
 	sellerID := fmt.Sprintf("sel-e2e-%d", time.Now().UnixNano())
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Store Products E2E','O','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','KA')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `

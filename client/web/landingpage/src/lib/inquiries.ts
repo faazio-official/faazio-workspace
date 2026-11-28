@@ -24,7 +24,6 @@ export type ShopPhotoRef = { assetId: string; key: string; url?: string };
 
 export const inquirySchema = z
   .object({
-    businessName: z.string().trim().min(2, "Enter your business name").max(160),
     ownerName: z.string().trim().min(2, "Enter the owner's name").max(160),
     category: z.enum(["MART", "FOOD", "PHARMA"]),
     contactPhone: z
@@ -114,7 +113,6 @@ export type InquiryResult = { ok: true; sellerId: string | null } | { ok: false;
  */
 export function buildInquiryPayload(data: InquiryInput): Record<string, unknown> {
   return {
-    businessName: data.businessName,
     ownerName: data.ownerName,
     category: data.category,
     contactPhone: data.contactPhone,

@@ -91,7 +91,6 @@ check() {
 landing_page_body() {
   cat <<JSON
 {
-  "businessName": "Sim Inquiry Mart ${RUN_ID}",
   "ownerName": "Sim Inquiry Owner",
   "category": "MART",
   "contactPhone": "9876543210",
@@ -129,25 +128,25 @@ else
 fi
 
 # 2. Honeypot: silently accepted, no row written. Must look like success to a bot.
-check "honeypot silently accepted" 201 '{"businessName":"Bot Shop","ownerName":"Bot","category":"MART","contactPhone":"9876543210","contactEmail":"bot@example.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":10,"shopPhotoIds":["x"],"website":"http://spam.example"}'
+check "honeypot silently accepted" 201 '{"ownerName":"Bot","category":"MART","contactPhone":"9876543210","contactEmail":"bot@example.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":10,"shopPhotoIds":["x"],"website":"http://spam.example"}'
 
 # 3. An unknown district code is a hard 400 (not silently stored).
-check "unknown district code rejected" 400 '{"businessName":"X","ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtCode":"ZZZ","platformFeePct":10,"shopPhotoIds":["x"]}'
+check "unknown district code rejected" 400 '{"ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtCode":"ZZZ","platformFeePct":10,"shopPhotoIds":["x"]}'
 
 # 4. A category outside MART/FOOD/PHARMA is a 400.
-check "bad category rejected" 400 '{"businessName":"X","ownerName":"Y","category":"GROCERY","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":10,"shopPhotoIds":["x"]}'
+check "bad category rejected" 400 '{"ownerName":"Y","category":"GROCERY","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":10,"shopPhotoIds":["x"]}'
 
 # 5. The platform fee is required — an enquiry without one is a 400.
-check "missing platform fee rejected" 400 '{"businessName":"X","ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","shopPhotoIds":["x"]}'
+check "missing platform fee rejected" 400 '{"ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","shopPhotoIds":["x"]}'
 
 # 6. A FOOD enquiry below the 5% floor is a 400.
-check "food fee below floor rejected" 400 '{"businessName":"X","ownerName":"Y","category":"FOOD","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":2,"shopPhotoIds":["x"]}'
+check "food fee below floor rejected" 400 '{"ownerName":"Y","category":"FOOD","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":2,"shopPhotoIds":["x"]}'
 
 # 7. At least one shop picture is required — a shop with no picture is not reviewable.
-check "missing shop photo rejected" 400 '{"businessName":"X","ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":10,"shopPhotoIds":[]}'
+check "missing shop photo rejected" 400 '{"ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":10,"shopPhotoIds":[]}'
 
 # 8. A typo'd field is still rejected — the DisallowUnknownFields guard must stay on.
-check "unknown field rejected" 400 '{"businessName":"X","ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":10,"shopPhotoIds":["x"],"soruce":"web"}'
+check "unknown field rejected" 400 '{"ownerName":"Y","category":"MART","contactPhone":"9876543210","contactEmail":"a@b.com","businessAddress":"12 Some Street","districtName":"Karaikal","platformFeePct":10,"shopPhotoIds":["x"],"soruce":"web"}'
 
 # 9. The district read the form resolves codes from is public and carries Karaikal.
 if curl -s -m 15 "${GATEWAY_URL}/seller-inquiries/districts" | grep -q '"districtCode":"PY1"'; then
@@ -171,6 +170,6 @@ fi
 echo
 echo "Verify the rows landed (needs the local stack):"
 echo "  docker exec gateway-postgres-1 psql -U postgres -d faazio -tAc \\"
-echo "    \"select seller_id, business_name, status, source from sellers.sellers where status = 'INQUIRY' and business_name like 'Sim Inquiry Mart%' order by created_at desc;\""
+echo "    \"select seller_id, owner_name, status, source from sellers.sellers where status = 'INQUIRY' and owner_name like 'Sim Inquiry Owner%' order by created_at desc;\""
 
 [ "$fail" -eq 0 ]

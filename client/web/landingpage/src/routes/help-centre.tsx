@@ -62,7 +62,7 @@ const journeyNode: JsonLdNode = {
 };
 
 const requiredItems = [
-  "Business name, owner name and PAN — a GSTIN is optional",
+  "Owner name and PAN — a GSTIN is optional",
   "Business address and a contact phone and email",
   "Bank account, IFSC and a passbook photo",
   "Each shop's name, address, category and its own pin",

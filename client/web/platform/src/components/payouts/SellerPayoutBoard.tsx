@@ -208,7 +208,7 @@ export function SellerPayoutBoard({ scope }: { scope: "SUPER" | "STATE" }) {
               {rows.map((row) => (
                 <TableRow key={`${row.sellerId}-${row.cycle}`} className="h-12">
                   <TableCell className="text-[13px]">
-                    {row.businessName}
+                    {row.shopName}
                     <span className="num block text-[11px] text-muted-foreground">
                       {row.sellerId}
                       {row.districtCode ? ` · ${districtName(districts, row.districtCode)}` : ""}
@@ -267,7 +267,7 @@ export function SellerPayoutBoard({ scope }: { scope: "SUPER" | "STATE" }) {
               <DialogHeader>
                 <DialogTitle>Mark seller payout paid</DialogTitle>
                 <DialogDescription>
-                  {selected.businessName} · {selected.sellerId} · cycle {selected.cycle}
+                  {selected.shopName} · {selected.sellerId} · cycle {selected.cycle}
                 </DialogDescription>
               </DialogHeader>
 

@@ -316,7 +316,7 @@ export async function updateDeliveryUpipQr(input: {
 /** One owed/paid summary per seller + cycle on the manual payout board (0077). */
 export interface SellerPayoutSummary {
   sellerId: string;
-  businessName: string;
+  shopName: string;
   stateCode?: string;
   districtCode?: string;
   cycle: string;
@@ -1506,7 +1506,7 @@ export async function fetchSellers(): Promise<SellerRecord[]> {
   const rows = await remote.get<
     {
       sellerId: string;
-      businessName: string;
+      shopName: string;
       ownerName: string;
       gstin: string;
       pan: string;
@@ -1726,7 +1726,6 @@ export async function updateSeller(sellerId: string, patch: SellerProfilePatch):
   }
   const beforeValues: SellerProfilePatch = {};
   if (before) {
-    if (patch.businessName !== undefined) beforeValues.businessName = before.businessName;
     if (patch.ownerName !== undefined) beforeValues.ownerName = before.ownerName;
     if (patch.gstin !== undefined) beforeValues.gstin = before.gstin;
     if (patch.pan !== undefined) beforeValues.pan = before.pan;

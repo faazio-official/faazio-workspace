@@ -51,8 +51,8 @@ func TestStoreLiveModeration(t *testing.T) {
 
 	sellerID := "sel-dir-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
-		values ($1,'Directory Test','O','TN','TCH')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code, district_code)
+		values ($1,'O','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -132,8 +132,8 @@ func TestMenuLifecycle(t *testing.T) {
 
 	sellerID := "sel-menu-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
-		values ($1,'Menu Test','O','TN','TCH')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code, district_code)
+		values ($1,'O','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -218,8 +218,8 @@ func TestMenuDiningVenueOwnership(t *testing.T) {
 	sellerID := "sel-dining-" + manageID("")
 	otherID := "sel-dining-other-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
-		values ($1,'Dining Test','O','TN','TCH'), ($2,'Other Dining','O','TN','TCO')`,
+		insert into sellers.sellers (seller_id, owner_name, state_code, district_code)
+		values ($1,'O','TN','TCH'), ($2,'O','TN','TCO')`,
 		sellerID, otherID); err != nil {
 		t.Fatalf("seed sellers: %v", err)
 	}
@@ -279,8 +279,8 @@ func TestMenuInsertRequiresVenueOwnership(t *testing.T) {
 	ownerID := "sel-venue-" + manageID("")
 	otherID := "sel-venue-other-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Venue Owner','O','TN'), ($2,'Venue Other','O','TN')`,
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','TN'), ($2,'O','TN')`,
 		ownerID, otherID); err != nil {
 		t.Fatalf("seed sellers: %v", err)
 	}
@@ -319,8 +319,8 @@ func TestMenuWritesRequireFoodSector(t *testing.T) {
 
 	sellerID := "sel-sector-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
-		values ($1,'Sector Guard','O','TN','TCH')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code, district_code)
+		values ($1,'O','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -367,8 +367,8 @@ func TestMenuRequiresLeafSubCategory(t *testing.T) {
 
 	sellerID := "sel-leaf-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
-		values ($1,'Leaf Test','O','TN','TCH')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code, district_code)
+		values ($1,'O','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -466,8 +466,8 @@ func TestSellerOwnsVenue(t *testing.T) {
 	ownerID := "sel-own-" + manageID("")
 	otherID := "sel-own-other-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Own Probe','O','TN'), ($2,'Own Probe Other','O','TN')`,
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','TN'), ($2,'O','TN')`,
 		ownerID, otherID); err != nil {
 		t.Fatalf("seed sellers: %v", err)
 	}

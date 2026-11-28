@@ -64,12 +64,12 @@ export const SELLER_TOUR_STEPS: readonly SellerTourStep[] = [
   {
     id: "business",
     screen: "registration",
-    target: "business-name",
+    target: "owner-name",
     action: "type",
-    control: "Business name",
+    control: "Owner name",
     title: "Add your business identity",
     detail:
-      "Business name, owner name, PAN and an optional GSTIN, plus the address, phone and email the review team contacts.",
+      "Your owner name and PAN (GSTIN is optional), plus the address, phone and email the review team contacts.",
     holdMs: 1900,
   },
   {

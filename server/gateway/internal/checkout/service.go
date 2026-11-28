@@ -539,7 +539,7 @@ func (s *Service) CreateOrder(ctx context.Context, userID string, req PlaceOrder
 	sellerID, sellerName, sellerGSTIN := "", "", ""
 	if len(profiles) == 1 {
 		for _, p := range profiles {
-			sellerID, sellerName, sellerGSTIN = p.SellerID, p.BusinessName, p.GSTIN
+			sellerID, sellerName, sellerGSTIN = p.SellerID, p.ShopName, p.GSTIN
 		}
 	} else if len(profiles) > 1 {
 		sellerName = "Faazio Marketplace (multi-seller order)"

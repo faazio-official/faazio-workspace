@@ -164,7 +164,7 @@ function SuperAnalytics() {
             {perSeller.map((row, index) => (
               <TableRow key={row.seller.sellerId} className="h-12">
                 <TableCell className="num text-[12px] text-muted-foreground">{index + 1}</TableCell>
-                <TableCell className="text-[13px] font-medium">{row.seller.businessName}</TableCell>
+                <TableCell className="text-[13px] font-medium">{row.seller.shopName}</TableCell>
                 <TableCell className="num text-[13px]">{row.seller.stateCode}</TableCell>
                 <TableCell className="num text-right font-medium">{formatINR(row.gmv)}</TableCell>
                 <TableCell className="num text-right">

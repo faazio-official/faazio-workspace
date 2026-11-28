@@ -18,8 +18,8 @@ func TestPromoLifecycle(t *testing.T) {
 	sellerID := "sel-promo-" + shortID()
 	otherSellerID := "sel-promo-other-" + shortID()
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Promo Test','O','KA'), ($2,'Promo Other','O','KA')`,
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','KA'), ($2,'O','KA')`,
 		sellerID, otherSellerID); err != nil {
 		t.Fatalf("seed sellers: %v", err)
 	}
@@ -187,8 +187,8 @@ func TestActiveDiscounts(t *testing.T) {
 
 	sellerID := "sel-disc-" + shortID()
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Discount Test','O','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','KA')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -259,8 +259,8 @@ func TestActiveDiscountsCampaignWindow(t *testing.T) {
 
 	sellerID := "sel-disc2-" + shortID()
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Window Test','O','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','KA')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -346,8 +346,8 @@ func TestProductInSellerStoreSectorGuard(t *testing.T) {
 
 	sellerID := "sel-optin-" + shortID()
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Optin Guard','O','TN')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','TN')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -411,8 +411,8 @@ func TestCampaignSectorGuard(t *testing.T) {
 
 	sellerID := "sel-cmp-" + shortID()
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Campaign Sector','O','TN')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','TN')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	storeID := "store-cmp-" + shortID()

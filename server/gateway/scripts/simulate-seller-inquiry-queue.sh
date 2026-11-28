@@ -77,7 +77,7 @@ ok "portal login as super admin"
 submit_inquiry() {
   curl -s -m 15 -w '\n%{http_code}' -X POST "${GATEWAY_URL}/seller-inquiries" \
     -H 'Content-Type: application/json' \
-    -d "{\"businessName\":\"$1\",\"ownerName\":\"Queue Owner\",\"category\":\"MART\",\"contactPhone\":\"$2\",\"contactEmail\":\"$3\",\"businessAddress\":\"12 Bharathiar Street, Karaikal\",\"districtName\":\"Karaikal\",\"latitude\":10.9254,\"longitude\":79.838,\"platformFeePct\":10,\"notes\":\"sim ${RUN_ID}\",\"shopPhotoIds\":[\"$4\"]}"
+    -d "{\"ownerName\":\"Queue Owner\",\"category\":\"MART\",\"contactPhone\":\"$2\",\"contactEmail\":\"$3\",\"businessAddress\":\"12 Bharathiar Street, Karaikal\",\"districtName\":\"Karaikal\",\"latitude\":10.9254,\"longitude\":79.838,\"platformFeePct\":10,\"notes\":\"sim ${RUN_ID}\",\"shopPhotoIds\":[\"$4\"]}"
 }
 
 # ── 1. PUBLIC: two visitors submit landing-page enquiries ────────────────────────────────────────
@@ -170,6 +170,6 @@ echo "Summary: ${pass} passed, ${fail} failed"
 echo
 echo "Verify in the DB:"
 echo "  docker exec gateway-postgres-1 psql -U postgres -d faazio -tAc \\"
-echo "    \"select seller_id, business_name, status, source, inquiry_stage, inquiry_assigned_to from sellers.sellers where seller_id in ('${SELLER_A}','${SELLER_B}');\""
+echo "    \"select seller_id, owner_name, status, source, inquiry_stage, inquiry_assigned_to from sellers.sellers where seller_id in ('${SELLER_A}','${SELLER_B}');\""
 
 [ "$fail" -eq 0 ]

@@ -31,7 +31,7 @@ without touching the other, and the reviewer decides against the specific shop.
    unique index `seller_fee_requests_one_pending_per_store_idx`).
 7. Approval happens out of band on `/admin/district/fee-change-requests` or
    `/admin/super/fee-change-requests`; only `APPROVED` writes `directory.stores.platform_fee_pct`.
-   The reviewer sees the seller's reason under the business name.
+   The reviewer sees the seller's reason under the shop name.
 
 ## State
 

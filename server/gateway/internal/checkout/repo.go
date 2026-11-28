@@ -617,7 +617,7 @@ select o.order_id,
        coalesce(sl.state_code, '')       as state_code,
        coalesce(sl.district_code, '')    as district_code,
        coalesce(st.seller_id, '')        as seller_id,
-       coalesce(sl.business_name, st.name, '') as seller_name,
+       coalesce(st.name, '')             as seller_name,
        coalesce(st.app::text, '')        as sector,
        coalesce(st.id, '')               as store_id,
        (select coalesce(sum(oi.qty), 0) from checkout.order_items oi where oi.order_id = o.order_id) as items_count,
@@ -1219,9 +1219,9 @@ func (r *Repo) AddonSnapshots(ctx context.Context, venueID, dishID string, ids [
 
 // SellerTaxProfile is the seller identity + commission settings needed for tax and invoicing.
 type SellerTaxProfile struct {
-	SellerID     string
-	BusinessName string
-	GSTIN        string
+	SellerID string
+	ShopName string
+	GSTIN    string
 }
 
 // TaxRates returns the mandatory GST rate of each taxonomy category, keyed by category id. A product
@@ -1377,15 +1377,18 @@ func (r *Repo) SellerTaxProfiles(ctx context.Context, sellerIDs []string) (map[s
 		return out, nil
 	}
 	rows, err := r.pool.Query(ctx, `
-		select seller_id, business_name, coalesce(gstin,'')
-		  from sellers.sellers where seller_id = any($1)`, sellerIDs)
+		select s.seller_id,
+		       coalesce((select st.name from directory.stores st where st.seller_id = s.seller_id
+		                  order by st.created_at limit 1), s.owner_name, ''),
+		       coalesce(s.gstin,'')
+		  from sellers.sellers s where s.seller_id = any($1)`, sellerIDs)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	for rows.Next() {
 		var p SellerTaxProfile
-		if err := rows.Scan(&p.SellerID, &p.BusinessName, &p.GSTIN); err != nil {
+		if err := rows.Scan(&p.SellerID, &p.ShopName, &p.GSTIN); err != nil {
 			return nil, err
 		}
 		out[p.SellerID] = p

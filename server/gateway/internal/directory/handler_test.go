@@ -150,8 +150,8 @@ func TestMenuIncludesDisplayFields(t *testing.T) {
 	venueID := "venue-display-" + manageID("")
 	sellerID := "sel-display-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
-		values ($1,'Display Seller','O','TN','TCH')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code, district_code)
+		values ($1,'O','TN','TCH')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `

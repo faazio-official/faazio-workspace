@@ -68,8 +68,8 @@ func TestCampaignHeroLifecycle(t *testing.T) {
 
 	sellerID := "sel-hero-" + shortID()
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Hero Test','O','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','KA')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	t.Cleanup(func() { _, _ = pool.Exec(ctx, `delete from sellers.sellers where seller_id=$1`, sellerID) })
@@ -260,7 +260,7 @@ func seedHeroSeller(t *testing.T, ctx context.Context, pool *pgxpool.Pool, tag s
 	suffix := shortID()
 	s := heroSeller{sellerID: "sel-" + strings.ToLower(tag) + "-" + suffix}
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
+		insert into sellers.sellers (seller_id, owner_name, state_code)
 		values ($1,$2,'Owner','KA')`, s.sellerID, "Hero "+tag); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}

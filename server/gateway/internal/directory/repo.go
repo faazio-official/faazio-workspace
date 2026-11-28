@@ -685,11 +685,27 @@ type VendorInput struct {
 	ComplianceDefaults json.RawMessage
 }
 
+// ErrVendorExists reports a second vendor for an account. Faazio is one-account-one-vendor
+// (0149): an account owns exactly one store, so a create attempt on an account that already has
+// one is a conflict, not a failure to retry.
+var ErrVendorExists = errors.New("directory: seller account already owns a vendor")
+
 // CreateStore inserts a vendor owned by sellerID under the caller's scope. stateCode is the owning
-// account's state (the shop inherits it); app is the vendor's brand.
+// account's state (the shop inherits it); app is the vendor's brand. An account may own only one
+// vendor; a second attempt returns ErrVendorExists (backed by stores_one_per_seller_uniq).
 func (r *Repo) CreateStore(ctx context.Context, sellerID, stateCode string, in VendorInput) (SellerStore, error) {
 	if r.pool == nil {
 		return SellerStore{}, fmt.Errorf("directory: database not configured")
+	}
+	var owned bool
+	if err := r.pool.QueryRow(ctx,
+		`select exists (select 1 from directory.stores where seller_id = $1)`,
+		sellerID,
+	).Scan(&owned); err != nil {
+		return SellerStore{}, err
+	}
+	if owned {
+		return SellerStore{}, ErrVendorExists
 	}
 	fee := in.PlatformFeePct
 	if fee == 0 {

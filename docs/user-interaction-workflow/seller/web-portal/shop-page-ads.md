@@ -4,8 +4,7 @@
 `app/seller/ads/components/StorefrontPlaylist.tsx`); rendered on the customer store page via
 `STORE_TOP` (`client/mobile/src/components/shared/CampaignHero.tsx`)
 **Status:** Shipped (DB-backed: `ads.campaigns`, migration `0135`)
-**Trigger:** Seller opens **Ads** in the console and picks a shop in the shop switcher (the active
-store scopes the playlist).
+**Trigger:** Seller opens **Ads** in the console; the account's single shop scopes the playlist.
 
 ## Steps
 
@@ -29,7 +28,7 @@ store scopes the playlist).
 - Portal `usePortalStore.heroCampaigns` (hydrated from `GET /ads/campaigns`; refreshed after every
   playlist write) — read through `useHeroCampaigns({ sellerId, storeId })` and filtered to
   `placement === "STORE_TOP"`.
-- Active shop scope: `useSellerScope()` (`storeId`, `activeStore`, shop switcher).
+- Active shop scope: `useSellerScope()` (`storeId`, `activeStore`; one shop per account — 0149).
 - Product picker: `useProducts({ sellerId, storeId, status: "ACTIVE" })`.
 
 ## Data path

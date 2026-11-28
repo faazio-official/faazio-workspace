@@ -49,8 +49,8 @@ func seedSellerAndStore(t *testing.T, pool *pgxpool.Pool, district string) (sell
 	sellerID = "sel-cth-" + manageID("")
 	storeID = "store-cth-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code, district_code)
-		values ($1,'Handler Test','O','TN',$2)`, sellerID, district); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code, district_code)
+		values ($1,'O','TN',$2)`, sellerID, district); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `

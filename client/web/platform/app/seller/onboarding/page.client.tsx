@@ -137,7 +137,7 @@ function AddVendor() {
         <Card>
           <p className="text-sm font-bold">Vendor details</p>
           <p className="mb-1 text-[10px] text-muted-foreground">
-            A vendor is one shop in one app. Your account can own several vendors.
+            A vendor is one shop in one app. One account owns exactly one vendor.
           </p>
           <TextField label="Vendor name" value={form.name} onChange={(v) => field("name", v)} />
           <TextField

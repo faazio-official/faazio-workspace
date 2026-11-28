@@ -73,35 +73,36 @@ mobile widths. `signOut()` unregisters the device push token, clears the HttpOnl
 the portal session; the WebView's `clearCache` on the `/login` transition only wipes the HTTP cache —
 the session teardown itself is server-side.
 
-**Active shop + shop switcher (0068–0073).** A seller ACCOUNT owns many VENDORS across apps
-(Mart / Food / Pharma), so every seller page resolves its shop through `useActiveStore`
-(`fetchSellerStores` → `GET /seller/stores`), persisted as `activeStoreId` (localStorage). The
-`StoreSwitcher` (`src/components/sellers/StoreSwitcher.tsx`) is the single switcher UI: clicking the
-active shop name in the hub header, the orders header or the desktop sidebar opens a list of the
-seller's shops (name + sector badge + live dot); picking one calls `setActiveStoreId`, which
-re-scopes every data hook (orders/products/menus/ads/etc.) to that shop optimistically (checkmark
-moves immediately) and persists the choice. `setActiveStoreId` is the single funnel for a shop
-switch: it bumps a `storeScopeVersion` counter in the store (so store-scoped hooks and shells react
-even when a filter stays empty — e.g. the first-load restore) and calls `notifyVendorChange`
-(`src/lib/appContext.ts`) —
-it keeps `window.__faazio.vendorId` in sync, fires a `faazio:vendor-change` CustomEvent for in-page
-observers, and posts `{type:'faazio:vendor-change'}` to the native seller shell so a cold start
-reopens the portal on the chosen shop. The `/seller/outlet-info` profile stays reachable via the
-shop-initials avatar. The native seller WebView may inject `window.__faazio.vendorId`, which restores
-the last active shop on load (the same console is used in a desktop browser). The old desktop
-`VendorSwitcher` shipped inside the removed width-1440 `SellerShell`.
+**Active shop, one per account (0149).** An account owns exactly ONE vendor
+(directory.stores, unique per seller_id), so the console has no shop switching. Every seller page
+resolves its shop through `useActiveStore` (`fetchSellerStores` → `GET /seller/stores`), which
+returns the account's single store; `activeStoreId` (localStorage) is still persisted so the
+native seller shell can inject `window.__faazio.vendorId` and the store-scoped hooks keep one
+shape. `StoreSwitcher` (`src/components/sellers/StoreSwitcher.tsx`) is now a fixed label: the hub
+header, the orders header and the desktop sidebar render the shop name with no popover and no
+`setActiveStoreId` affordance. `setActiveStoreId` remains the single scope funnel (bumps
+`storeScopeVersion`, calls `notifyVendorChange` to sync `window.__faazio.vendorId`, fires
+`faazio:vendor-change`, posts to the native shell). The `/seller/outlet-info` profile stays
+reachable via the shop-initials avatar.
 
-**A switch can never scope the console to a shop that is not in the list.** `useActiveStore`
-reconciles the persisted `activeStoreId` against the fetched shops: when the id no longer names one of
-the seller's shops (vendor deleted, or a different seller signed in on the same browser), it falls
-back to the injected `vendorId` if owned, else the first shop, and persists that choice — so no
-store-scoped page is left filtered by a ghost vendor. The switcher itself drops rows without a
-`storeId`, renders the trigger as plain text when the seller owns no shops (or while the list is
-loading), refuses a target outside the list with a toast, and says "You have one shop" instead of
-opening a one-row menu. Because `notifyVendorChange` runs inside the Zustand `setActiveStoreId`
-updater — i.e. during a render — each of its hops (CustomEvent listeners, the native `postMessage`
-bridge) is individually guarded, so a throwing bridge can no longer abort the store update and take
-the page down to the route error boundary ("Something went wrong on our end").
+**A stale scope can never point at a shop the account does not own.** `useActiveStore`
+reconciles the persisted/injected `activeStoreId` against the fetched shop list and falls back to
+the account's store, persisting that choice. Creating a second vendor is rejected: the repository
+returns `ErrVendorExists` and the gateway answers `409 vendor_exists` ("this account already owns a
+vendor — one account, one vendor"), backed by the `stores_one_per_seller_uniq` index. A seller who
+wants a second shop signs up as a new account through onboarding.
+
+
+**A stale scope can never point at a shop the account does not own.** `useActiveStore`
+reconciles the persisted `activeStoreId` against the fetched shop: when the id no longer names the
+seller's shop (vendor deleted, or a different seller signed in on the same browser), it falls back to
+the injected `vendorId` if owned, else the account's store, and persists that choice — so no
+store-scoped page is left filtered by a ghost vendor. Rows without a `storeId` are dropped; the
+label renders as plain text while the list loads or when the account owns no shop yet. Because
+`notifyVendorChange` runs inside the Zustand `setActiveStoreId` updater — i.e. during a render — each
+of its hops (CustomEvent listeners, the native `postMessage` bridge) is individually guarded, so a
+throwing bridge can no longer abort the store update and take the page down to the route error
+boundary ("Something went wrong on our end").
 
 **Store scoping is client-side, not a per-shop refetch.** `hydrateFromGateway` (`src/lib/api/sync.ts`)
 fetches the seller's list slices **unfiltered** (`GET /seller/orders`, `/seller/pricing`,
@@ -323,7 +324,7 @@ A separate **connectivity** layer (`src/lib/connectivityStore.ts`, `navigator.on
 | `admin/super/categories` | central category taxonomy (`taxonomy.categories`) — `ALL`/Mart/Food/Pharma/**Main app header** filter chips over the primary app, a **Main app header** table (`GET /admin/categories?header=MAIN_APP_HEADER`) for the standalone header-only categories plus the Mart/Pharma categories shared into the mobile main header, and create/edit/soft-delete. The sheet has **no parent-id input** — a new category is top-level (`parentId = null`) and its children are the inline sub-category rows the gateway binds as drill-in children (`parent_id = <this category>`); an edit omits `parentId`, so the repo keeps the stored parent. Every category (parent and each inline sub-category) carries a **mandatory GST pick** (`tax.category_gst_rates`, `0119`; FOOD is pinned to 5%, and a **Main app header** pool offers the combined active Mart + Pharma slab list), the header-label pills (`taxonomy.category_headers`, `0115`) and inline sub-category rows written in the same save; each sub-category row also requires a **Tamil name and Tamil description** (stacked row layout in a wider sheet). The primary app label is fixed and FOOD cannot be tagged `MAIN_APP_HEADER`. See `docs/user-interaction-workflow/seller/web-portal/super-admin-categories.md` |
 | `admin/super/rewards` · `admin/super/users` · `admin/super/districts` | platform — `users` is the customer directory (`GET /customers?q=`, server-filtered by name/phone/user id, shows the sign-in phone, `0110`); `districts` is the **district coverage** master (`GET /admin/districts` + `GET /admin/districts/trash`, `POST`/`PUT`/`PATCH toggle`/`DELETE` + `restore`/`permanent` under `/admin/districts/*` — SUPER_ADMIN CRUD, soft delete with a 7-day trash, active toggle; the writable `admins.district_master`, `0114`/`0134`), and `districts/[code]` is the per-district drill-down (supply, campaigns, roster) |
 | `admin/{district,super}/seller-inquiries` | landing-page "Sell with us" enquiry queue (`GET /seller-inquiries`, `PATCH /seller-inquiries/{id}`) — district admins see their district, super admins every district with a district filter; stage chips (New/Contacted/Approved/Rejected/All) + ownership chips (Everyone/Mine/Unclaimed, `POST /seller-inquiries/{id}/assign`) + search over shop/owner/phone/email, the enquiry's shop photos, an open-enquiry dialog with click-to-call, mailto, the pinned shop on Google Maps and the merchant's own notes; the call-back stage and the decision are separate — `PENDING_REVIEW` promotes the row into the normal seller review, `REJECTED` needs a note, `409` on a concurrent move. An enquiry is a `sellers.sellers` row with `status = INQUIRY`, so approving it never creates a second record (`seller-inquiry-queue.md`, `0129`). The district dashboard counts unclaimed new enquiries in its alerts feed |
-| `admin/{district,super}/fee-change-requests` | seller-initiated platform-fee change review — district admins see their district, super admins every district; the seller's own reason (`seller_note`, `0106`) is shown under the business name, approve applies the fee to the named vendor store, reject requires a reason (server-enforced one pending request per store, `0072`) |
+| `admin/{district,super}/fee-change-requests` | seller-initiated platform-fee change review — district admins see their district, super admins every district; the seller's own reason (`seller_note`, `0106`) is shown under the shop name, approve applies the fee to the named vendor store, reject requires a reason (server-enforced one pending request per store, `0072`) |
 | `admin/super/district-admins` | district-admin directory across **every** district (a district filter chip + roster search; coverage bar follows the filter). **Unified creation:** one slide-over (`DistrictAdminDrawer`, shared with the district drilldown) picks any district and creates the roster + (optionally, `issueLogin` default ON) the portal login atomically — either as an **invite** (one-time link the admin uses to set their own password), a **temporary password** shown once, or **no login yet**. Per-vertical scope (Mart/Food/Pharma) is chosen at creation. Duplicate email blocked on/off-server, duplicate phone soft-warned. Roster shows vertical badges and an Active / Pending invite / Invite expired status, with **New invite link** (rotates the pending token) and Issue login for roster-only rows. **Edit sheet** updates name/email/phone/districts + verticals via `PUT /district-admins/{id}`; deactivate/reactivate also use it. No state picker or state fallback |
 | `admin/super/credentials` | issue/disable/delete seller and district-admin portal logins (role + seller/district scope). The board is split by a **role filter** — Sellers / District admins / Super admins / All — plus a **Deleted** filter. Each row offers **Reset** (new password), **Deactivate/Reactivate**, and **Delete**: delete is a soft delete (0128) — the login stops authenticating immediately, its sessions are revoked, and it sits under **Deleted** for 7 days with a **Restore** action (`purgeAt` tells when it is purged), then the gateway removes the row for good. Seller logins are minted on approval (`admin/super/sellers` Activate / district `verify-kyc`), which already returns the one-time password with Copy / Share on WhatsApp — there is no separate "ready to share" recovery list. See `credential-handover.md` |
 | `admin/super/sellers` | platform-wide seller roster; **Activate** awaits `PATCH /sellers/{id}/status` and opens a sheet with the credential the activation minted (email + one-time temporary password, copy / WhatsApp), rolling the row back with the gateway's message on failure. `admin/district/sellers/[id]` renders the same card from `verify-kyc` (`credential-handover.md`) |

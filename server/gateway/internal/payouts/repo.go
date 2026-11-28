@@ -72,7 +72,7 @@ type PayoutInvoice struct {
 // delivered checkout orders (gross − commission − TCS − TDS) merged with accumulated payouts.
 type SellerPayoutSummary struct {
 	SellerID        string `json:"sellerId"`
-	BusinessName    string `json:"businessName"`
+	ShopName       string `json:"shopName"`
 	StateCode       string `json:"stateCode"`
 	DistrictCode    string `json:"districtCode"`
 	Cycle           string `json:"cycle"`
@@ -104,7 +104,7 @@ var ErrAboveBalance = errors.New("payouts: amount exceeds outstanding balance")
 const sellerEarningsCTE = `
 with seller_lines as (
   select st.seller_id,
-         coalesce(sl.business_name, '') as business_name,
+         coalesce(st.name, '') as shop_name,
          coalesce(sl.state_code, '') as state_code,
          coalesce(sl.district_code, '') as district_code,
          to_char(o.placed_at, 'YYYY-MM') as cycle,
@@ -118,7 +118,7 @@ with seller_lines as (
    where o.status = 'Delivered' and o.total_charged_paisa > 0
      and oi.store_id is not null
      and st.seller_id is not null and st.seller_id <> ''
-   group by st.id, st.platform_fee_pct, st.seller_id, sl.business_name, sl.state_code,
+   group by st.id, st.name, st.platform_fee_pct, st.seller_id, sl.state_code,
             sl.district_code, to_char(o.placed_at, 'YYYY-MM'), o.order_id
 ),
 order_gross as (
@@ -261,7 +261,7 @@ func (r *Repo) Summaries(ctx context.Context, district, state string) ([]SellerP
 		return nil, err
 	}
 	rows, err := r.pool.Query(ctx, sellerEarningsCTE+`
-		select s.seller_id, max(s.business_name), max(s.state_code), max(s.district_code), s.cycle,
+		select s.seller_id, max(s.shop_name), max(s.state_code), max(s.district_code), s.cycle,
 		       count(distinct s.order_id)::bigint,
 		       sum(s.gross_paisa),
 		       sum(s.commission_paisa),
@@ -298,7 +298,7 @@ func (r *Repo) Summaries(ctx context.Context, district, state string) ([]SellerP
 			paid    int64
 			fully   bool
 		)
-		if err := rows.Scan(&s.SellerID, &s.BusinessName, &s.StateCode, &s.DistrictCode,
+		if err := rows.Scan(&s.SellerID, &s.ShopName, &s.StateCode, &s.DistrictCode,
 			&s.Cycle, &s.OrderCount, &s.GrossPaisa, &s.CommissionPaisa, &s.TCSPaisa, &s.TDSPaisa,
 			&s.NetPaisa, &paid, &fully, &s.PayoutID); err != nil {
 			return nil, err

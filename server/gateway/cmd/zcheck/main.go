@@ -9,7 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-const sellerColumns = `seller_id, business_name, owner_name, gstin, pan, address,
+const sellerColumns = `seller_id, owner_name, gstin, pan, address,
 	coalesce(phone,''), coalesce(contact_email,''), state_code, coalesce(district_code,''), status::text, rating,
 	otp_verified, otp_verified_at, coalesce(rejection_reason,''), rejection_history, created_at,
 	latitude, longitude,

@@ -118,17 +118,21 @@ no booking/reservation fields. There is no `/book-table`, `/reserve`, or `/dinin
 `checkout.orders.fulfillment_mode` is `DELIVERY | PICKUP` only — so this change needs **no ownership,
 table, cache-key, or endpoint update** in §1.
 
-**Vendor ownership (0068–0076):** a seller ACCOUNT (`sellers.sellers`) is brand-agnostic and may own
- many VENDORS (`directory.stores`) across apps; the vendor carries `platform_fee_pct`, `seller_category_id`,
+**Vendor ownership (0068–0076, one-account-one-vendor 0149):** one seller ACCOUNT
+(`sellers.sellers`) owns exactly ONE VENDOR (`directory.stores`) — the earlier brand-agnostic
+multi-vendor model is retired and enforced by `stores_one_per_seller_uniq` on
+`directory.stores(seller_id)`. The vendor carries `platform_fee_pct`, `seller_category_id`,
  optional `fssai_*` (FOOD) and `drug_license_*` (`0076`, opt-in PHARMA; both optional at submission,
  verified by an admin during review) and has a NOT NULL `seller_id` FK. `catalog.products.seller_id` and `directory.menus.seller_id`
  were dropped — ownership derives through the store; `0074` drops the account-level
  `category`/`platform_fee_pct`/`seller_category_id`/`fssai_*` columns. New portal-only endpoints: `POST /seller/stores`
- (create a vendor under the caller; accepts the optional PHARMA drug-licence trio), `PUT /seller/stores/{id}` (edit profile/fee/category/FSSAI/drug licence),
+ (create the account's single vendor under the caller; a second attempt returns `409 vendor_exists`
+ — `directory.ErrVendorExists`; accepts the optional PHARMA drug-licence trio), `PUT /seller/stores/{id}` (edit profile/fee/category/FSSAI/drug licence),
  `PUT /seller/stores/{id}/fee` (replaces `PATCH /sellers/{id}/platform-fee` for vendors); a seller
 fee-change request now carries a `store_id`. Checkout + payouts resolve the platform fee per
-`vendor_store_id` from `directory.stores`. `GET /seller/stores` is the portal switcher's data source.
-`POST`/`PUT /seller/stores` carry the shop geo pin (`latitude`/`longitude`, `0041`) — required at
+`vendor_store_id` from `directory.stores`. `GET /seller/stores` is the portal's active-shop data source
+(returns at most one row). `sellers.seller_vendor_counts` remains the 0/1 integrity signal shown in
+the admin seller list. `POST`/`PUT /seller/stores` carry the shop geo pin (`latitude`/`longitude`, `0041`) — required at
 creation by the portal's `StorePinPicker`, settable/movable (not clearable) on edit — and both flush
 the `geo:nearby` store+product tiles for the previous and the new pin, so a created or moved shop
 appears for nearby shoppers immediately rather than waiting out `TTLNearby`. The `GET /seller/stores`

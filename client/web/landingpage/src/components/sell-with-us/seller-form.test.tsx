@@ -65,7 +65,6 @@ function type(label: string, value: string) {
 }
 
 function fillRequired() {
-  type("Business name", "Karaikal Spice Mart");
   type("Owner name", "Ravi Kumar");
   type("Contact phone", "9876543210");
   type("Contact email", "ravi@example.com");
@@ -171,7 +170,6 @@ describe("SellerForm", () => {
     await waitFor(() => expect(submitSellerInquiry).toHaveBeenCalledTimes(1));
     const { data } = submitSellerInquiry.mock.calls[0]![0] as { data: Record<string, unknown> };
     expect(data).toMatchObject({
-      businessName: "Karaikal Spice Mart",
       ownerName: "Ravi Kumar",
       category: "MART",
       contactPhone: "9876543210",

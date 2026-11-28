@@ -14,7 +14,7 @@ func TestSellerLifecycle(t *testing.T) {
 	ctx := context.Background()
 
 	s, err := repo.Create(ctx, "user-test-1", Seller{
-		BusinessName: "Test Traders", OwnerName: "A. Kaur",
+		OwnerName: "A. Kaur",
 		GSTIN: "29ABCDE1234F1ZW", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
 		ContactPhone: "+91 9000000000", ContactEmail: "test@example.com", StateCode: "KA",
 	})
@@ -30,7 +30,7 @@ func TestSellerLifecycle(t *testing.T) {
 	}
 
 	got, ok, err := repo.ByID(ctx, s.SellerID)
-	if err != nil || !ok || got.BusinessName != "Test Traders" {
+	if err != nil || !ok || got.OwnerName != "A. Kaur" {
 		t.Fatalf("ByID: ok=%v err=%v seller=%+v", ok, err, got)
 	}
 
@@ -94,12 +94,12 @@ func strPtr(s string) *string { return &s }
 
 func TestProfilePatchMergeAndKYCChange(t *testing.T) {
 	before := Seller{
-		BusinessName: "Old Name", OwnerName: "Owner", GSTIN: "29AAAAA0000A1Z5",
+		OwnerName: "Owner", GSTIN: "29AAAAA0000A1Z5",
 		PAN: "AAAAA0000A", BusinessAddress: "1 Old St", ContactPhone: "+91 9000000000",
 		Status: "ACTIVE",
 	}
 	merged := ProfilePatch{ContactPhone: strPtr("+91 9111111111")}.apply(before)
-	if merged.BusinessName != before.BusinessName || merged.GSTIN != before.GSTIN {
+	if merged.GSTIN != before.GSTIN {
 		t.Fatalf("partial patch must leave untouched fields unchanged: %+v", merged)
 	}
 	if merged.ContactPhone != "+91 9111111111" {
@@ -121,7 +121,7 @@ func TestUpdateProfileRequeueSemantics(t *testing.T) {
 	ctx := context.Background()
 
 	s, err := repo.Create(ctx, "user-profile-test", Seller{
-		BusinessName: "Profile Test", OwnerName: "P. Test",
+		OwnerName: "P. Test",
 		GSTIN: "29ABCDE1234F1ZW", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
 		ContactPhone: "+91 9000000000", ContactEmail: "profile-test@example.com", StateCode: "KA",
 	})
@@ -147,7 +147,7 @@ func TestUpdateProfileRequeueSemantics(t *testing.T) {
 	if after.Status != "ACTIVE" {
 		t.Fatalf("phone-only edit re-queued the seller: status=%s", after.Status)
 	}
-	if after.GSTIN != "29ABCDE1234F1ZW" || after.BusinessName != "Profile Test" {
+	if after.GSTIN != "29ABCDE1234F1ZW" || after.OwnerName != "P. Test" {
 		t.Fatalf("partial edit wiped untouched fields: %+v", after)
 	}
 
@@ -179,7 +179,7 @@ func TestNotificationPreferencesAndSubUsers(t *testing.T) {
 	ctx := context.Background()
 
 	s, err := repo.Create(ctx, "user-settings-test", Seller{
-		BusinessName: "Settings Test", OwnerName: "S. Test", StateCode: "KA",
+		OwnerName: "S. Test", StateCode: "KA",
 	})
 	if err != nil {
 		t.Fatalf("create: %v", err)
@@ -272,7 +272,7 @@ func TestFeeChangeRequestLifecycle(t *testing.T) {
 	ctx := context.Background()
 
 	s, err := repo.Create(ctx, "user-fee-test", Seller{
-		BusinessName: "Fee Test", OwnerName: "F. Test",
+		OwnerName: "F. Test",
 		GSTIN: "29ABCDE1234F1ZW", PAN: "ABCDE1234F", BusinessAddress: "1 Test St",
 		ContactPhone: "+91 9000000000", ContactEmail: "fee-test@example.com",
 		StateCode: "PY", DistrictCode: "PY0",
@@ -357,7 +357,7 @@ func TestVendorsProjectShopLocation(t *testing.T) {
 
 	lat, lng := 10.7905, 78.7047
 	s, err := repo.CreateExtended(ctx, "user-loc-1", Seller{
-		BusinessName: "Location Traders", OwnerName: "B. Kumar",
+		OwnerName: "B. Kumar",
 		GSTIN: "33ABCDE1234F1Z5", PAN: "ABCDE1234F", BusinessAddress: "9 Test Rd",
 		ContactPhone: "+91 9000000099", ContactEmail: "loc-projection@example.com", StateCode: "TN",
 	}, nil, nil, []VendorSeed{{

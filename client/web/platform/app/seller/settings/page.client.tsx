@@ -174,7 +174,6 @@ function SellerSettings() {
   const startProfileEdit = () => {
     if (!seller) return;
     setProfileDraft({
-      businessName: seller.businessName,
       ownerName: seller.ownerName,
       gstin: seller.gstin,
       pan: seller.pan,
@@ -189,9 +188,6 @@ function SellerSettings() {
     // so the server only re-queues for review when a KYC field actually changed.
     const patch: SellerProfilePatch = {};
     const changed = (draft: string | undefined, current: string) => (draft ?? "") !== current;
-    if (changed(profileDraft.businessName, seller.businessName)) {
-      patch.businessName = profileDraft.businessName ?? "";
-    }
     if (changed(profileDraft.ownerName, seller.ownerName)) {
       patch.ownerName = profileDraft.ownerName ?? "";
     }
@@ -444,11 +440,6 @@ function SellerSettings() {
               ) : profileDraft ? (
                 <>
                   <TextField
-                    label="Business name"
-                    value={profileDraft.businessName ?? ""}
-                    onChange={(v) => setProfileDraft({ ...profileDraft, businessName: v })}
-                  />
-                  <TextField
                     label="Owner name"
                     value={profileDraft.ownerName ?? ""}
                     onChange={(v) => setProfileDraft({ ...profileDraft, ownerName: v })}
@@ -494,7 +485,6 @@ function SellerSettings() {
                 </>
               ) : (
                 <>
-                  <Row label="Business name" value={seller?.businessName ?? ""} />
                   <Row label="Owner name" value={seller?.ownerName ?? ""} />
                   <Row label="GSTIN" value={seller?.gstin ?? ""} />
                   <Row label="PAN" value={seller?.pan ?? ""} />

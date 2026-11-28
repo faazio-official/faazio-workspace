@@ -44,14 +44,14 @@ function SuperSellers() {
   // until the admin dismisses the sheet — closing it really does end the chance to share it.
   const [issued, setIssued] = useState<{
     sellerId: string;
-    businessName: string;
+    shopName: string;
     phone?: string | undefined;
     credential: SellerLoginCredential;
   } | null>(null);
   const sellers = useSellers({ status });
   const rows = sellers.filter((s) =>
     query
-      ? s.businessName.toLowerCase().includes(query.toLowerCase()) ||
+      ? s.shopName.toLowerCase().includes(query.toLowerCase()) ||
         s.districtCode?.toLowerCase() === query.toLowerCase() ||
         s.stateCode.toLowerCase() === query.toLowerCase()
       : true,
@@ -68,7 +68,7 @@ function SuperSellers() {
       if (credential) {
         setIssued({
           sellerId: seller.sellerId,
-          businessName: seller.businessName,
+          shopName: seller.shopName,
           phone: seller.contactPhone,
           credential,
         });
@@ -157,7 +157,7 @@ function SuperSellers() {
                       href={`/admin/district/sellers/${seller.sellerId}`}
                       className="text-primary hover:underline"
                     >
-                      {seller.businessName}
+                      {seller.shopName}
                     </Link>
                   </TableCell>
                   <TableCell className="num text-[13px] font-medium">
@@ -169,9 +169,7 @@ function SuperSellers() {
                         <SectorPill key={app} sector={app} />
                       ))}
                       {!seller.vendorApps?.length ? (
-                        <span className="text-[12px] text-muted-foreground">
-                          {seller.vendorCount ?? 0} vendor{(seller.vendorCount ?? 0) === 1 ? "" : "s"}
-                        </span>
+                        <span className="text-[12px] text-muted-foreground">No vendor</span>
                       ) : null}
                     </span>
                   </TableCell>
@@ -209,7 +207,7 @@ function SuperSellers() {
       <Sheet open={Boolean(issued)} onOpenChange={(next) => !next && setIssued(null)}>
         <SheetContent className="w-full sm:max-w-md">
           <SheetHeader>
-            <SheetTitle>Seller login for {issued?.businessName ?? "seller"}</SheetTitle>
+            <SheetTitle>Seller login for {issued?.shopName ?? "seller"}</SheetTitle>
             <SheetDescription>
               Provisioned automatically on approval. Share it once; the temporary password is never
               stored in the clear.
@@ -219,7 +217,7 @@ function SuperSellers() {
             <div className="px-4 pb-6">
               <SellerCredentialCard
                 credential={issued.credential}
-                businessName={issued.businessName}
+                shopName={issued.shopName}
                 phone={issued.phone}
               />
             </div>

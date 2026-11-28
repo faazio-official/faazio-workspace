@@ -57,7 +57,8 @@ export interface AuthUser {
 /** sellers.sellers */
 export interface SellerRecord {
   sellerId: string;
-  businessName: string;
+  /** The account's display name: its first shop's name (owner-name fallback), server-derived. */
+  shopName: string;
   ownerName: string;
   gstin: string;
   pan: string;
@@ -154,7 +155,6 @@ export interface BankAccountInput {
 
 /** Editable business-profile fields on `sellers.sellers`. KYC-bearing fields re-enter admin review. */
 export interface SellerProfilePatch {
-  businessName?: string;
   ownerName?: string;
   gstin?: string;
   pan?: string;
@@ -616,7 +616,7 @@ export interface FeeChangeRequest {
   sellerId: string;
   /** The vendor (`directory.stores` id) the decision applies to (0072); empty on legacy account-level rows. */
   storeId?: string | undefined;
-  businessName?: string | undefined;
+  shopName?: string | undefined;
   districtCode?: string | undefined;
   currentFeePct: number;
   requestedFeePct: number;

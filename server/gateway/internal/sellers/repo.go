@@ -34,7 +34,7 @@ var ErrEmailTaken = errors.New("sellers: contact email already registered")
 // of this row. contact_phone is PII — auth/role-scoped only.
 type Seller struct {
 	SellerID        string  `json:"sellerId"`
-	BusinessName    string  `json:"businessName"`
+	ShopName        string  `json:"shopName,omitempty"`
 	OwnerName       string  `json:"ownerName"`
 	GSTIN           string  `json:"gstin"`
 	PAN             string  `json:"pan"`
@@ -346,7 +346,7 @@ func (r *Repo) ContractTier(ctx context.Context, code string) (ContractTier, boo
 	return t, true, nil
 }
 
-const sellerColumns = `seller_id, business_name, owner_name, gstin, pan, address,
+const sellerColumns = `seller_id, owner_name, gstin, pan, address,
 	coalesce(phone,''), coalesce(contact_email,''), state_code, coalesce(district_code,''), status::text, rating,
 	otp_verified, otp_verified_at, coalesce(rejection_reason,''), rejection_history, created_at,
 	latitude, longitude,
@@ -376,7 +376,11 @@ const vendorRollup = `
 
 // vendorRollupColumns are the two aggregate columns appended after sellerColumns. Order matters:
 // scanSellerWithVendors decodes them last.
-const vendorRollupColumns = `, coalesce(v.vendor_count, 0), coalesce(v.vendor_apps, '{}')`
+// The trailing column is the account's display name: the first shop it registered (directory.stores),
+// falling back to the owner's name. Business name was a separate column until 0149.
+const vendorRollupColumns = `, coalesce(v.vendor_count, 0), coalesce(v.vendor_apps, '{}'),
+	coalesce((select st.name from directory.stores st where st.seller_id = s.seller_id
+	           order by st.created_at limit 1), s.owner_name)`
 
 // sellerSelectWithVendors is the shared rollup read used by GET /sellers/me, the create response
 // and the admin detail so every seller read exposes vendorCount/vendorApps consistently. The base
@@ -645,24 +649,24 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 		created, err = scanSeller(tx.QueryRow(ctx, `
 			update sellers.sellers set
 			  user_id = coalesce(nullif($2,''), user_id),
-			  business_name = $3, owner_name = $4, gstin = $5, pan = $6, address = $7,
-			  phone = nullif($8,''), contact_email = $9, state_code = $10,
-			  district_code = nullif($11,''), latitude = $12, longitude = $13,
-			  otp_verified = $14, otp_verified_at = $15, status = 'PENDING_REVIEW'::seller_status,
+			  owner_name = $3, gstin = $4, pan = $5, address = $6,
+			  phone = nullif($7,''), contact_email = $8, state_code = $9,
+			  district_code = nullif($10,''), latitude = $11, longitude = $12,
+			  otp_verified = $13, otp_verified_at = $14, status = 'PENDING_REVIEW'::seller_status,
 			  source = 'app', rejection_reason = null, rejection_history = '[]'::jsonb,
-			  terms_accepted_at = $16, terms_accepted_ip = $17, terms_accepted_account_id = $18,
-			  partner_agreement_accepted_at = $19, partner_agreement_accepted_ip = $20,
-			  partner_agreement_accepted_account_id = $21,
-			  ip_license_granted_at = $22, ip_license_granted_ip = $23,
-			  ip_license_granted_account_id = $24,
-			  contract_tier = nullif($25,''), rate_card_version = nullif($26,''),
-			  commission_pct = nullif($27,0), settlement_terms = nullif($28,''),
-			  compliance_status = $29, compliance_note = nullif($30,''),
-			  validated_at = $31, validated_by = nullif($32,''),
+			  terms_accepted_at = $15, terms_accepted_ip = $16, terms_accepted_account_id = $17,
+			  partner_agreement_accepted_at = $18, partner_agreement_accepted_ip = $19,
+			  partner_agreement_accepted_account_id = $20,
+			  ip_license_granted_at = $21, ip_license_granted_ip = $22,
+			  ip_license_granted_account_id = $23,
+			  contract_tier = nullif($24,''), rate_card_version = nullif($25,''),
+			  commission_pct = nullif($26,0), settlement_terms = nullif($27,''),
+			  compliance_status = $28, compliance_note = nullif($29,''),
+			  validated_at = $30, validated_by = nullif($31,''),
 			  updated_at = now()
 			 where seller_id = $1
 			 returning `+sellerColumns,
-			existingID, userID, s.BusinessName, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
+			existingID, userID, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
 			s.ContactPhone, s.ContactEmail, s.StateCode, s.DistrictCode, s.Latitude, s.Longitude,
 			s.OTPVerified, otpAt,
 			timeOrNil(s.TermsAcceptedAt), nullIfEmpty(s.TermsAcceptedIP), nullIfEmpty(s.TermsAcceptedAccountID),
@@ -675,7 +679,7 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 		s.SellerID = "sel-" + shortID()
 		created, err = scanSeller(tx.QueryRow(ctx, `
 			insert into sellers.sellers
-			  (seller_id, user_id, business_name, owner_name, gstin, pan, address, phone, contact_email,
+			  (seller_id, user_id, owner_name, gstin, pan, address, phone, contact_email,
 			   state_code, district_code,
 			   otp_verified, otp_verified_at, latitude, longitude,
 			   terms_accepted_at, terms_accepted_ip, terms_accepted_account_id,
@@ -688,7 +692,7 @@ func (r *Repo) CreateExtended(ctx context.Context, userID string, s Seller, bank
 			        $16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29,$30,$31,$32,
 			        'PENDING_REVIEW'::seller_status,'app')
 			returning `+sellerColumns,
-			s.SellerID, nullIfEmpty(userID), s.BusinessName, s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
+			s.SellerID, nullIfEmpty(userID), s.OwnerName, s.GSTIN, s.PAN, s.BusinessAddress,
 			nullIfEmpty(s.ContactPhone), s.ContactEmail, s.StateCode, nullIfEmpty(s.DistrictCode),
 			s.OTPVerified, otpAt, s.Latitude, s.Longitude,
 			timeOrNil(s.TermsAcceptedAt), nullIfEmpty(s.TermsAcceptedIP), nullIfEmpty(s.TermsAcceptedAccountID),
@@ -943,13 +947,13 @@ func (r *Repo) EditRequest(ctx context.Context, id string, next Seller, bank *Ba
 
 	after, err := scanSeller(tx.QueryRow(ctx, `
 		update sellers.sellers set
-		  business_name=$2, owner_name=$3, gstin=$4, pan=$5,
-		  address=$6, phone=$7, contact_email=$8, state_code=$9, district_code=$10,
-		  latitude=coalesce($11, latitude), longitude=coalesce($12, longitude),
+		  owner_name=$2, gstin=$3, pan=$4,
+		  address=$5, phone=$6, contact_email=$7, state_code=$8, district_code=$9,
+		  latitude=coalesce($10, latitude), longitude=coalesce($11, longitude),
 		  status='PENDING_REVIEW', rejection_reason=null
 		 where seller_id=$1
 		 returning `+sellerColumns,
-		id, next.BusinessName, next.OwnerName, next.GSTIN, next.PAN,
+		id, next.OwnerName, next.GSTIN, next.PAN,
 		next.BusinessAddress, nullIfEmpty(next.ContactPhone), next.ContactEmail, next.StateCode,
 		nullIfEmpty(next.DistrictCode), next.Latitude, next.Longitude))
 	if err != nil {
@@ -1019,7 +1023,6 @@ func diffFields(before, after Seller) []fieldChange {
 		old  string
 		new  string
 	}{
-		{"businessName", before.BusinessName, after.BusinessName},
 		{"ownerName", before.OwnerName, after.OwnerName},
 		{"gstin", before.GSTIN, after.GSTIN},
 		{"pan", before.PAN, after.PAN},
@@ -1297,18 +1300,22 @@ func (r *Repo) SellerActivity(ctx context.Context, districtCode, stateCode strin
 	rows, err := r.pool.Query(ctx, `
 		with events as (
 		  select 'SELLER_REGISTERED' as kind, s.seller_id, s.seller_id as entity_id,
-		         s.business_name as name, coalesce(s.status::text,'') as detail, s.created_at as at,
+		         coalesce((select st.name from directory.stores st where st.seller_id = s.seller_id
+		                    order by st.created_at limit 1), s.owner_name) as name,
+		         coalesce(s.status::text,'') as detail, s.created_at as at,
 		         coalesce(s.district_code,'') as district_code, coalesce(s.state_code,'') as state_code
 		    from sellers.sellers s
 		  union all
 		  select 'SELLER_DOCUMENT_UPLOADED', s.seller_id, k.kyc_id,
-		         s.business_name, k.doc_type::text, k.uploaded_at,
+		         coalesce((select st.name from directory.stores st where st.seller_id = s.seller_id
+		                    order by st.created_at limit 1), s.owner_name), k.doc_type::text, k.uploaded_at,
 		         coalesce(s.district_code,''), coalesce(s.state_code,'')
 		    from sellers.kyc_documents k
 		    join sellers.sellers s on s.seller_id = k.seller_id
 		  union all
 		  select 'SELLER_DOCUMENT_FULFILLED', s.seller_id, d.request_id,
-		         s.business_name, d.doc_type::text, d.fulfilled_at,
+		         coalesce((select st.name from directory.stores st where st.seller_id = s.seller_id
+		                    order by st.created_at limit 1), s.owner_name), d.doc_type::text, d.fulfilled_at,
 		         coalesce(s.district_code,''), coalesce(s.state_code,'')
 		    from sellers.document_requests d
 		    join sellers.sellers s on s.seller_id = d.seller_id
@@ -1430,7 +1437,7 @@ type sellerScan struct {
 // column only has to be added once.
 func (sc *sellerScan) dest() []any {
 	return []any{
-		&sc.s.SellerID, &sc.s.BusinessName, &sc.s.OwnerName, &sc.s.GSTIN, &sc.s.PAN,
+		&sc.s.SellerID, &sc.s.OwnerName, &sc.s.GSTIN, &sc.s.PAN,
 		&sc.s.BusinessAddress, &sc.s.ContactPhone, &sc.s.ContactEmail, &sc.s.StateCode, &sc.s.DistrictCode, &sc.s.Status, &sc.s.Rating,
 		&sc.s.OTPVerified, &sc.otpAt, &sc.s.RejectionReason, &sc.history, &sc.createdAt,
 		&sc.lat, &sc.lng,
@@ -1491,7 +1498,7 @@ func scanSellerWithVendors(row rowScanner) (Seller, error) {
 	sc := &sellerScan{}
 	dest := append(sc.dest(), &sc.s.VendorCount)
 	var apps []string
-	dest = append(dest, &apps)
+	dest = append(dest, &apps, &sc.s.ShopName)
 	if err := row.Scan(dest...); err != nil {
 		return Seller{}, err
 	}
@@ -1508,7 +1515,7 @@ type FeeChangeRequest struct {
 	RequestID       string `json:"requestId"`
 	SellerID        string `json:"sellerId"`
 	StoreID         string `json:"storeId,omitempty"`
-	BusinessName    string `json:"businessName,omitempty"`
+	ShopName        string `json:"shopName,omitempty"`
 	DistrictCode    string `json:"districtCode,omitempty"`
 	CurrentFeePct   int    `json:"currentFeePct"`
 	RequestedFeePct int    `json:"requestedFeePct"`
@@ -1521,7 +1528,9 @@ type FeeChangeRequest struct {
 	ReviewReason    string `json:"reviewReason,omitempty"`
 }
 
-const feeRequestColumns = `r.request_id, r.seller_id, coalesce(r.store_id,''), coalesce(s.business_name,''),
+const feeRequestColumns = `r.request_id, r.seller_id, coalesce(r.store_id,''),
+	coalesce((select st.name from directory.stores st where st.seller_id = s.seller_id
+	           order by st.created_at limit 1), s.owner_name, ''),
 	coalesce(r.district_code, coalesce(s.district_code,'')), r.current_fee_pct, r.requested_fee_pct,
 	r.status, r.admin_note, coalesce(r.seller_note,''), r.requested_at, coalesce(r.reviewed_by,''),
 	r.reviewed_at, r.review_reason`
@@ -1532,7 +1541,7 @@ func scanFeeRequest(row rowScanner) (FeeChangeRequest, error) {
 		requested  time.Time
 		reviewedAt *time.Time
 	)
-	if err := row.Scan(&f.RequestID, &f.SellerID, &f.StoreID, &f.BusinessName, &f.DistrictCode,
+	if err := row.Scan(&f.RequestID, &f.SellerID, &f.StoreID, &f.ShopName, &f.DistrictCode,
 		&f.CurrentFeePct, &f.RequestedFeePct, &f.Status, &f.AdminNote, &f.SellerNote, &requested,
 		&f.ReviewedBy, &reviewedAt, &f.ReviewReason); err != nil {
 		return FeeChangeRequest{}, err
@@ -1744,7 +1753,6 @@ var ErrSubUserExists = errors.New("sellers: sub-user already invited")
 // ProfilePatch is the set of seller-editable business-profile fields (PATCH /sellers/{id}). A nil
 // field is left unchanged (true PATCH semantics); a pointer to "" clears an optional KYC field.
 type ProfilePatch struct {
-	BusinessName    *string
 	OwnerName       *string
 	GSTIN           *string
 	PAN             *string
@@ -1754,9 +1762,6 @@ type ProfilePatch struct {
 
 // apply merges the provided fields onto a seller row (nil = unchanged).
 func (p ProfilePatch) apply(s Seller) Seller {
-	if p.BusinessName != nil {
-		s.BusinessName = *p.BusinessName
-	}
 	if p.OwnerName != nil {
 		s.OwnerName = *p.OwnerName
 	}
@@ -1814,11 +1819,11 @@ func (r *Repo) UpdateProfile(ctx context.Context, id string, patch ProfilePatch,
 	}
 	after, err := scanSeller(tx.QueryRow(ctx, `
 		update sellers.sellers set
-		  business_name=$2, owner_name=$3, gstin=$4, pan=$5, address=$6,
-		  phone=nullif($7,''), status=$8, updated_at=now()
+		  owner_name=$2, gstin=$3, pan=$4, address=$5,
+		  phone=nullif($6,''), status=$7, updated_at=now()
 		 where seller_id=$1
 		 returning `+sellerColumns,
-		id, merged.BusinessName, merged.OwnerName, merged.GSTIN, merged.PAN,
+		id, merged.OwnerName, merged.GSTIN, merged.PAN,
 		merged.BusinessAddress, merged.ContactPhone, merged.Status))
 	if err != nil {
 		return Seller{}, false, err

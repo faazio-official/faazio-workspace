@@ -162,13 +162,15 @@ function SellerStores() {
         title="Stores"
         sub="Account"
         right={
-          <Link
-            href="/seller/onboarding"
-            className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-foreground px-3 py-2 text-xs font-semibold text-background"
-          >
-            <Plus className="h-3.5 w-3.5 shrink-0" />
-            Add shop
-          </Link>
+          stores.length === 0 ? (
+            <Link
+              href="/seller/onboarding"
+              className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-foreground px-3 py-2 text-xs font-semibold text-background"
+            >
+              <Plus className="h-3.5 w-3.5 shrink-0" />
+              Create shop
+            </Link>
+          ) : undefined
         }
       />
       <div className="space-y-3 px-4 pt-3 pb-8">
@@ -182,13 +184,13 @@ function SellerStores() {
           <Card>
             <EmptyState
               icon={<Store className="h-12 w-12" strokeWidth={1.2} />}
-              text="No vendor yet — create your first shop to start selling."
+              text="No vendor yet — create your shop to start selling. One account owns one vendor."
             />
             <Link
               href="/seller/onboarding"
               className="block rounded-xl bg-foreground py-3 text-center text-sm font-semibold text-background"
             >
-              Create a shop
+              Create your shop
             </Link>
           </Card>
         ) : (

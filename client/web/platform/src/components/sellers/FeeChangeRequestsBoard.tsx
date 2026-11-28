@@ -69,7 +69,7 @@ export function FeeChangeRequestsBoard({
     setBusy(row.requestId);
     try {
       await approveFeeChangeRequest(row.requestId);
-      toast.success(`${row.businessName || row.sellerId} is now on ${row.requestedFeePct}%`);
+      toast.success(`${row.shopName || row.sellerId} is now on ${row.requestedFeePct}%`);
       await load();
     } catch {
       toast.error("Could not approve the request");
@@ -155,7 +155,7 @@ export function FeeChangeRequestsBoard({
               {rows.map((row) => (
                 <TableRow key={row.requestId} className="h-12">
                   <TableCell className="text-[13px] font-medium">
-                    {row.businessName || row.sellerId}
+                    {row.shopName || row.sellerId}
                     {row.sellerNote ? (
                       <p className="mt-0.5 max-w-[22rem] truncate text-[11px] font-normal text-muted-foreground">
                         “{row.sellerNote}”

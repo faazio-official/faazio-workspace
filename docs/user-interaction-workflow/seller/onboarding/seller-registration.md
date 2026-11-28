@@ -16,7 +16,7 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
 
 ## Steps
 
-1. Applicant enters account fields (business name, owner, PAN, optional GSTIN) and one shop entry
+1. Applicant enters account fields (owner name, PAN, optional GSTIN) and one shop entry
    (app, category, per-store fee, FSSAI or drug licence, own pin, optional masked
    bank override, and **at least one shop-front photo**, up to five).
    The **shop number** is a single field like the fields around it: the `+91` dial code is plain
@@ -192,15 +192,24 @@ any failure. It writes real rows through the real handler — no fixtures.
 
 ## Admin review page (`/admin/district/sellers/[id]`)
 
-The district admin detail page opens with a **Merchant record** card that shows every fact this
-application collects at body size (14px values, 12px labels, three columns on desktop): business name,
-owner name, owner PAN (masked until **Show hidden details**), GSTIN, contact phone, contact email,
-business address, state · district, shop pin (map link), payout bank and account holder, passbook
-status, contract tier · commission, signature & acceptance timestamps, settlement terms and compliance
-status. Each shop renders as its own card with the shop name, live/paused state, address, phone,
-hours, category, map pin, licence number + **View certificate**, shop photos (96px tiles) and the
-inline platform-fee editor. **Correct registered details** at the bottom holds the same fields as an
-editable form; it is the only place that writes them.
+The district admin detail page mirrors the app's two-part Sell with us form as **stacked form blocks**,
+in the merchant's own order, so a reviewer checks the application the way it was filled in:
+
+1. **1 · Business account** — owner name, owner number, contact email (masked until **Show hidden
+   details**), shop name and shop address, plus OTP-verified and terms-accepted timestamps. Its own
+   **Edit** writes owner name, phone and address (an address change re-enters review).
+2. **2 · Owner PAN & licence** — owner PAN (masked until revealed), GSTIN (checksum-validated), the
+   category licence number and contract tier, and, inside the same block, **Documents on file**: every
+   KYC document with **View**, **Verify** and **Request** (re-upload), plus request buttons for the
+   missing document types.
+3. **2 · Payout account** — beneficiary, bank name, masked account number and IFSC with its own
+   **Edit**; a corrected IFSC clears a compliance block on save.
+
+Each block shows labelled 12px labels over 14px values, two columns on desktop and one on phones. The
+shop itself renders inside block 1 as its own card with live/paused state, address, phone, hours,
+category, map pin, licence number + **View certificate**, shop photos (96px tiles) and the inline
+platform-fee editor. **Decision** (verify & activate, reject, suspend) and the one-time **Seller login**
+credential follow the forms.
 
 ## Linked docs
 

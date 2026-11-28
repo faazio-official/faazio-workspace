@@ -81,8 +81,8 @@ func TestByStorePageActiveOnly(t *testing.T) {
 	storeID := "st-cat-" + manageID("")
 	sellerID := "sel-cat-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Catalog Test','O','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','KA')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
@@ -157,8 +157,8 @@ func TestSearchActiveOnly(t *testing.T) {
 	storeID := "st-search-" + manageID("")
 	sellerID := "sel-search-" + manageID("")
 	if _, err := pool.Exec(ctx, `
-		insert into sellers.sellers (seller_id, business_name, owner_name, state_code)
-		values ($1,'Search Test','O','KA')`, sellerID); err != nil {
+		insert into sellers.sellers (seller_id, owner_name, state_code)
+		values ($1,'O','KA')`, sellerID); err != nil {
 		t.Fatalf("seed seller: %v", err)
 	}
 	if _, err := pool.Exec(ctx, `
