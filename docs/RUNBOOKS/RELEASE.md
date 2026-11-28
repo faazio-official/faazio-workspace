@@ -241,10 +241,11 @@ is left empty.
 
 ### Build flags (faster + smaller + obfuscated)
 
-- **arm64-only build** — `REACT_NATIVE_ARCHS=arm64-v8a` (env in the workflow) is passed as
+- **arm64-only by default** — `REACT_NATIVE_ARCHS=arm64-v8a` (env in the workflow) is passed as
   `-PreactNativeArchitectures`. 64-bit devices only; roughly halves native (C++) compile work
-  and the `.so` payload vs the old 4-ABI universal build. Re-add `armeabi-v7a` in the workflow
-  env only if 32-bit device support is required.
+  and the `.so` payload vs the old 4-ABI universal build. Dispatch with `-f include-32bit=true`
+  to also compile `armeabi-v7a` (universal APK for 32-bit sideload devices; those must still run
+  Android 7+ / minSdk 24).
 - **AAB on demand** — the Play-bound `.aab` is built and attached only when the release is
   dispatched with `-f include-aab=true`; the default dispatch is APK-only.
 - **R8 minify + resource shrink ON** — passed as `-Pandroid.enableMinifyInReleaseBuilds=true`

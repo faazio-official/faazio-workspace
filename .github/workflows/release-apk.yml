@@ -50,6 +50,11 @@ on:
         required: false
         type: boolean
         default: false
+      include-32bit:
+        description: "Also compile armeabi-v7a (universal APK for 32-bit devices; Android 7+ only)"
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -57,9 +62,9 @@ permissions:
 env:
   NODE_VERSION: "24"
   JAVA_VERSION: "21"
-  # ABI to build into the release APK/AAB. arm64-v8a only — 64-bit devices — which
-  # roughly halves native compile work and .so payload vs a 2-ABI build. Re-add
-  # armeabi-v7a here only if 32-bit device support becomes a requirement.
+  # Default ABI for the release APK/AAB. arm64-v8a only — 64-bit devices — roughly
+  # halves native compile work and .so payload. Pass `include-32bit` to also compile
+  # armeabi-v7a when a universal APK is needed for 32-bit sideload devices.
   REACT_NATIVE_ARCHS: "arm64-v8a"
 
 # Never run two release builds at once — they share the same tag/artifact names
@@ -241,16 +246,21 @@ jobs:
             *) TASK=assembleCustomerRelease; BUNDLE=bundleCustomerRelease ;;
           esac
           # R8 minify + resource shrinking ON → smaller dex + obfuscation.
-          # ABI restricted to REACT_NATIVE_ARCHS → less native work + payload.
+          # ABI defaults to arm64-v8a; `include-32bit` adds armeabi-v7a for universal
+          # sideloads (32-bit devices must still run Android 7+ / minSdk 24).
           # The AAB is only built when requested (it powers Google Play uploads;
           # the APK is for direct install / smoke testing). Both are signed with
           # the same release keystore.
+          ARCHS="$REACT_NATIVE_ARCHS"
+          if [[ "${{ github.event.inputs['include-32bit'] }}" == "true" ]]; then
+            ARCHS="$REACT_NATIVE_ARCHS,armeabi-v7a"
+          fi
           TASKS=( "$TASK" )
           if [[ "${{ github.event.inputs['include-aab'] }}" == "true" ]]; then
             TASKS+=( "$BUNDLE" )
           fi
           ./gradlew "${TASKS[@]}" --no-daemon \
-            -PreactNativeArchitectures="$REACT_NATIVE_ARCHS" \
+            -PreactNativeArchitectures="$ARCHS" \
             -Pandroid.enableMinifyInReleaseBuilds=true \
             -Pandroid.enableShrinkResourcesInReleaseBuilds=true
         env:
