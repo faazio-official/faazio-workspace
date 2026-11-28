@@ -2,6 +2,8 @@ import React, { useCallback, useMemo } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
+  ImageBackground,
   StyleSheet,
   View,
   ScrollView,
@@ -22,6 +24,7 @@ import {
   Flame,
   Info,
   Lock,
+  Pencil,
   Receipt,
   Store,
   Percent,
@@ -34,12 +37,16 @@ import {
 import AppText from '@/components/AppText';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
+import { neutral } from '@/theme/brandTokens';
+import { hero } from '@/theme/heroTokens';
 import { useLanguageStore } from '@/state/languageStore';
 import { languageLabel } from '@/lib/languages';
 import { useAccountNav } from '@/features/profile/useAccountNav';
 import type { AccountNavGroup, AccountNavRow } from '@data/types';
 import { useRewardsStore } from '@/state/rewardsStore';
-import { STREAK_TARGET_DAYS } from '@data/rewards/rewards';
+import { STREAK_MILESTONES, STREAK_TARGET_DAYS } from '@data/rewards/rewards';
+import { nextStreakPercent, unlockedStreakPercent } from '@/features/rewards/rewardsLogic';
+
 import { isPartnerAdmin, useAuthStore } from '@/state/authStore';
 import { openTrustedUrl } from '@/lib/externalLinks';
 import { COOKIES_URL, DISCLAIMER_URL, PRIVACY_URL, REFUNDS_URL, TERMS_URL } from '@/lib/site';
@@ -48,6 +55,8 @@ import { useNavBarScrollHandler } from '@/hooks/useAutoHideNavBar';
 import { useNotificationsStore } from '@/state/notificationsStore';
 import { runAuthGate } from '@/services/authGate';
 import type { AppPalette } from '@/theme/theme';
+import heroBackgroundImg from '@/assets/account_hero_background.webp';
+import streakTicketImg from '@/assets/account_streak_ticket.png';
 
 const NAV_ICONS: Record<string, React.ComponentType<any>> = {
   idcard: IdCard,
@@ -73,6 +82,16 @@ const LEGAL_LINKS: Record<string, string> = {
   disclaimer: DISCLAIMER_URL,
 };
 
+/** Identity name is single-line: cap it so a long account name never crowds the Edit pill. */
+const MAX_NAME_CHARS = 22;
+
+function clampName(value: string): string {
+  const trimmed = value.trim();
+  return trimmed.length > MAX_NAME_CHARS
+    ? `${trimmed.slice(0, MAX_NAME_CHARS - 1).trimEnd()}…`
+    : trimmed;
+}
+
 export interface AccountViewProps {
   /** When provided, a back arrow is rendered in the fixed header (pushed mode). */
   onBack?: () => void;
@@ -84,6 +103,8 @@ export interface AccountViewProps {
   onOpenNotifications?: () => void;
   onOpenFavourites?: () => void;
   onOpenRewards?: () => void;
+  /** Hero "Order now" CTA — sends the customer back to the shopping surface. */
+  onStartOrder?: () => void;
   onOpenLanguage?: () => void;
   onOpenSellWithUs?: () => void;
   onOpenSellerRequests?: () => void;
@@ -110,6 +131,7 @@ export function AccountView({
   onOpenNotifications,
   onOpenFavourites,
   onOpenRewards,
+  onStartOrder,
   onOpenLanguage,
   onOpenSellWithUs,
   onOpenSellerRequests,
@@ -137,6 +159,14 @@ export function AccountView({
     retry: retryNav,
   } = useAccountNav();
   const visibleGroups = accountNavGroups.filter((group) => group.rows.length > 0);
+
+  const displayName = clampName(authUser?.name ?? '') || 'Your account';
+  const contactLine =
+    (authUser?.phone ?? '').trim() || (authUser?.email ?? '').trim() || 'Signed in';
+  const avatarInitial = (displayName.match(/[a-z0-9]/i)?.[0] ?? 'F').toUpperCase();
+  const streakDays = Math.min(streakCount, STREAK_TARGET_DAYS);
+  // The card headline shows what the streak is worth now, or the next milestone it is climbing to.
+  const headlinePercent = unlockedStreakPercent(streakDays) || nextStreakPercent(streakDays);
 
   const handleLogout = useCallback(() => {
     Alert.alert('Log out?', 'You will be signed out. You can keep browsing as a guest.', [
@@ -194,40 +224,6 @@ export function AccountView({
 
   return (
     <View style={styles.container}>
-      {/* Fixed top bar (You) — stays pinned while content scrolls. */}
-      <View style={[styles.fixedHeader, { paddingTop: insets.top + vs(12) }]}>
-        {onBack ? (
-          <TouchableOpacity
-            onPress={onBack}
-            style={styles.backButton}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-          >
-            <ChevronLeft size={ms(26)} color={palette.text} strokeWidth={2.2} />
-          </TouchableOpacity>
-        ) : null}
-        <View style={styles.headerText}>
-          <AppText style={styles.headerTitle}>My Account</AppText>
-        </View>
-        {isAuthenticated && onOpenNotifications ? (
-          <TouchableOpacity
-            onPress={onOpenNotifications}
-            style={styles.bellButton}
-            activeOpacity={0.7}
-            accessibilityRole="button"
-            accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
-          >
-            <Bell size={ms(22)} color={palette.text} strokeWidth={2.2} />
-            {unread > 0 ? (
-              <View style={styles.bellBadge}>
-                <AppText style={styles.bellBadgeText}>{unread > 99 ? '99+' : unread}</AppText>
-              </View>
-            ) : null}
-          </TouchableOpacity>
-        ) : null}
-      </View>
-
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -236,51 +232,160 @@ export function AccountView({
         onScroll={onScroll}
         scrollEventThrottle={16}
       >
+        {/* Hero band: burgundy artwork backdrop, identity block and streak card. */}
+        <ImageBackground
+          source={heroBackgroundImg}
+          style={[styles.hero, { paddingTop: insets.top + vs(8) }]}
+          imageStyle={styles.heroImage}
+          resizeMode="cover"
+        >
+          <View style={styles.heroTopRow}>
+            {onBack ? (
+              <TouchableOpacity
+                onPress={onBack}
+                style={styles.heroIconButton}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel="Go back"
+              >
+                <ChevronLeft size={ms(25)} color={hero.onHero} strokeWidth={2.2} />
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.heroIconButton} />
+            )}
+            <View style={styles.heroTopSpacer} />
+            {isAuthenticated && onOpenNotifications ? (
+              <TouchableOpacity
+                onPress={onOpenNotifications}
+                style={styles.heroIconButton}
+                activeOpacity={0.7}
+                accessibilityRole="button"
+                accessibilityLabel={unread > 0 ? `Notifications, ${unread} unread` : 'Notifications'}
+              >
+                <Bell size={ms(21)} color={hero.onHero} strokeWidth={2.2} />
+                {unread > 0 ? (
+                  <View style={styles.bellBadge}>
+                    <AppText style={styles.bellBadgeText}>{unread > 99 ? '99+' : unread}</AppText>
+                  </View>
+                ) : null}
+              </TouchableOpacity>
+            ) : null}
+          </View>
+          {isAuthenticated ? (
+            <>
+              <View style={styles.identityRow}>
+                <View style={styles.avatar}>
+                  <AppText style={styles.avatarText}>{avatarInitial}</AppText>
+                </View>
+                <View style={styles.identityText}>
+                  <AppText
+                    style={styles.identityName}
+                    numberOfLines={1}
+                    ellipsizeMode="tail"
+                    accessibilityRole="header"
+                  >
+                    {displayName}
+                  </AppText>
+                  <AppText style={styles.identityMeta} numberOfLines={1}>
+                    {contactLine}
+                  </AppText>
+                </View>
+                <TouchableOpacity
+                  onPress={onOpenDetails}
+                  style={styles.editPill}
+                  activeOpacity={0.8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit profile"
+                  hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
+                >
+                  <Pencil size={ms(12)} color={neutral.ink} strokeWidth={2.4} />
+                  <AppText style={styles.editPillText}>Edit</AppText>
+                </TouchableOpacity>
+              </View>
+
+              {/* Discount-streak card: gold ticket art, streak flames, reward + CTA. */}
+              <View style={styles.streakCard}>
+                <Image
+                  source={streakTicketImg}
+                  style={styles.streakTicket}
+                  accessible={false}
+                  importantForAccessibility="no-hide-descendants"
+                />
+                <View style={styles.streakDivider} />
+                <View style={styles.streakBody}>
+                  <View style={styles.streakTitleRow}>
+                    <AppText style={styles.streakTitle} numberOfLines={1}>
+                      Discount streak
+                    </AppText>
+                    <TouchableOpacity
+                      onPress={() => onOpenRewards?.()}
+                      disabled={!onOpenRewards}
+                      style={styles.coinsChip}
+                      accessibilityRole="button"
+                      accessibilityLabel={`${coinBalance} FaazioCoins. Open rewards`}
+                      accessibilityState={{ disabled: !onOpenRewards }}
+                      hitSlop={{ top: 10, bottom: 10, left: 6, right: 6 }}
+                    >
+                      <Coins size={ms(12)} color={hero.gold} strokeWidth={2.4} />
+                      <AppText style={styles.coinsChipText}>
+                        {coinBalance.toLocaleString('en-IN')}
+                      </AppText>
+                      <ChevronRight size={ms(12)} color={hero.gold} strokeWidth={2.4} />
+                    </TouchableOpacity>
+                  </View>
+
+                  <View style={styles.streakFlameRow}>
+                    {Array.from({ length: STREAK_TARGET_DAYS }).map((_, i) => {
+                      const day = i + 1;
+                      const filled = i < streakDays;
+                      const milestone = STREAK_MILESTONES.find((m) => m.day === day);
+                      return (
+                        <View key={day} style={styles.streakFlameSlot}>
+                          <Flame
+                            size={ms(20)}
+                            color={filled ? hero.gold : hero.goldMuted}
+                            strokeWidth={2.1}
+                            fill={filled ? hero.gold : 'none'}
+                          />
+                          <AppText
+                            style={[
+                              styles.streakFlamePct,
+                              filled && styles.streakFlamePctReached,
+                            ]}
+                          >
+                            {milestone ? `${milestone.percent}%` : ' '}
+                          </AppText>
+                        </View>
+                      );
+                    })}
+                    <AppText style={styles.streakCounter}>
+                      {streakDays}/{STREAK_TARGET_DAYS}
+                    </AppText>
+                  </View>
+
+                  <View style={styles.streakFooter}>
+                    <AppText style={styles.streakReward}>{headlinePercent}% off</AppText>
+                    <TouchableOpacity
+                      onPress={() => (onStartOrder ? onStartOrder() : onOpenRewards?.())}
+                      style={styles.orderPill}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Order now — ${streakDays} of ${STREAK_TARGET_DAYS} days towards your ${headlinePercent}% discount`}
+                      hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+                    >
+                      <AppText style={styles.orderPillText}>Order now</AppText>
+                      <ChevronRight size={ms(13)} color={hero.ink} strokeWidth={2.8} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            </>
+          ) : null}
+        </ImageBackground>
+
+        <View style={styles.body}>
         {isAuthenticated ? (
           <>
-        {/* FaazioCoins streak card */}
-        <TouchableOpacity
-          style={styles.coinsCard}
-          activeOpacity={0.85}
-          onPress={() => onOpenRewards?.()}
-          disabled={!onOpenRewards}
-          accessibilityRole="button"
-          accessibilityLabel="Open FaazioCoins"
-          accessibilityState={{ disabled: !onOpenRewards }}
-        >
-          <View style={styles.coinsHeader}>
-            <View style={styles.coinsTitleRow}>
-              <View style={styles.coinsIcon}>
-                <Coins size={ms(16)} color={palette.coinText} strokeWidth={2.2} />
-              </View>
-              <AppText style={styles.coinsTitle}>FaazioCoins</AppText>
-            </View>
-            <View style={styles.coinsBalanceWrap}>
-              <AppText style={styles.coinsBalance}>{coinBalance.toLocaleString('en-IN')}</AppText>
-              <AppText style={styles.coinsBalanceUnit}>coins</AppText>
-            </View>
-          </View>
-
-          <View style={styles.fireRow}>
-            {Array.from({ length: STREAK_TARGET_DAYS }).map((_, i) => {
-              const filled = i < streakCount;
-              return (
-                <View key={i} style={styles.fireWrap}>
-                  <Flame
-                    size={ms(22)}
-                    color={filled ? palette.flame : palette.flameInactive}
-                    strokeWidth={2.2}
-                    fill={filled ? palette.flame : 'none'}
-                  />
-                </View>
-              );
-            })}
-          </View>
-          <AppText style={styles.coinsCaption}>
-            {streakCount} of {STREAK_TARGET_DAYS} days — order today to keep your streak
-          </AppText>
-        </TouchableOpacity>
-
         {/* 5 + 6. Nav groups */}
         {navLoading && accountNavGroups.length === 0 ? (
           <View style={styles.navState}>
@@ -522,6 +627,7 @@ export function AccountView({
             <AppText style={styles.logoutText}>Log out</AppText>
           </TouchableOpacity>
         ) : null}
+        </View>
       </ScrollView>
     </View>
   );
@@ -537,45 +643,57 @@ const createStyles = (palette: AppPalette) =>
     flex: 1,
   },
   scrollContent: {
-    paddingTop: SPACE.SECTION,
-    paddingHorizontal: hs(16),
     paddingBottom: SPACE.LIST_BOTTOM,
   },
-  fixedHeader: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'space-between',
+  body: {
+    paddingTop: SPACE.SECTION,
     paddingHorizontal: hs(16),
-    paddingBottom: SPACE.BLOCK,
-    backgroundColor: palette.card,
-    zIndex: 10,
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 8,
-    elevation: 2,
   },
-  backButton: {
-    marginRight: hs(8),
-    paddingVertical: vs(2),
+  hero: {
+    paddingBottom: vs(20),
+    backgroundColor: hero.canvas,
+    borderBottomLeftRadius: ms(26),
+    borderBottomRightRadius: ms(26),
+    overflow: 'hidden',
   },
-  headerText: {
+  heroImage: {
+    borderBottomLeftRadius: ms(26),
+    borderBottomRightRadius: ms(26),
+  },
+  heroTopRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: hs(10),
+  },
+  heroIconButton: {
+    width: ms(40),
+    height: ms(40),
+    borderRadius: ms(20),
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroTopSpacer: {
     flex: 1,
-    paddingRight: hs(12),
   },
-  headerTitle: {
-    fontSize: ms(22),
-    fontWeight: '900',
-    color: palette.text,
+  editPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: ms(30),
+    paddingHorizontal: hs(12),
+    borderRadius: ms(15),
+    backgroundColor: neutral.card,
+    marginLeft: hs(12),
   },
-  bellButton: {
-    paddingVertical: vs(2),
-    paddingLeft: hs(8),
+  editPillText: {
+    fontSize: ms(12),
+    fontWeight: '800',
+    color: neutral.ink,
+    marginLeft: hs(5),
   },
   bellBadge: {
     position: 'absolute',
-    top: vs(0),
-    right: hs(-6),
+    top: vs(4),
+    right: hs(4),
     minWidth: ms(16),
     height: ms(16),
     borderRadius: ms(8),
@@ -589,68 +707,150 @@ const createStyles = (palette: AppPalette) =>
     fontWeight: '600',
     color: '#FFFFFF',
   },
-  coinsCard: {
-    backgroundColor: palette.card,
-    borderRadius: ms(18),
-    borderWidth: 1,
-    borderColor: palette.border,
-    padding: hs(16),
-    marginBottom: SPACE.SECTION,
+  identityRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: hs(16),
+    paddingTop: vs(14),
   },
-  coinsHeader: {
+  avatar: {
+    width: ms(46),
+    height: ms(46),
+    borderRadius: ms(23),
+    borderWidth: 1.5,
+    borderColor: hero.gold,
+    backgroundColor: hero.goldWash,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  avatarText: {
+    fontSize: ms(18),
+    fontWeight: '800',
+    color: hero.gold,
+  },
+  identityText: {
+    flex: 1,
+    marginLeft: hs(12),
+    marginRight: hs(12),
+  },
+  identityName: {
+    flexShrink: 1,
+    fontSize: ms(17),
+    fontWeight: '800',
+    color: hero.onHero,
+  },
+  identityMeta: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: hero.onHeroMuted,
+    marginTop: vs(2),
+  },
+  streakCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: vs(16),
+    marginHorizontal: hs(16),
+    paddingVertical: vs(10),
+    paddingHorizontal: hs(10),
+    borderRadius: ms(18),
+    borderWidth: 1.5,
+    borderColor: hero.gold,
+    backgroundColor: hero.cardWash,
+    shadowColor: hero.gold,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  streakTicket: {
+    width: ms(66),
+    height: ms(60),
+  },
+  streakDivider: {
+    width: 1,
+    alignSelf: 'stretch',
+    marginVertical: vs(6),
+    marginHorizontal: hs(9),
+    backgroundColor: hero.goldMuted,
+  },
+  streakBody: {
+    flex: 1,
+  },
+  streakTitleRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: vs(14),
   },
-  coinsTitleRow: {
+  streakTitle: {
+    flex: 1,
+    fontSize: ms(11),
+    fontWeight: '800',
+    letterSpacing: 0.3,
+    color: hero.gold,
+    textTransform: 'uppercase',
+  },
+  coinsChip: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginLeft: hs(6),
   },
-  coinsIcon: {
-    width: ms(30),
-    height: ms(30),
-    borderRadius: ms(9),
-    backgroundColor: palette.coinSurface,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: hs(8),
+  coinsChipText: {
+    fontSize: ms(11),
+    fontWeight: '800',
+    color: hero.gold,
+    marginHorizontal: hs(3),
   },
-  coinsTitle: {
-    fontSize: ms(14),
-    fontWeight: '900',
-    color: palette.text,
-  },
-  coinsBalanceWrap: {
+  streakFlameRow: {
     flexDirection: 'row',
-    alignItems: 'baseline',
+    alignItems: 'flex-end',
+    marginTop: vs(6),
   },
-  coinsBalance: {
+  streakFlameSlot: {
+    alignItems: 'center',
+    marginRight: hs(3),
+  },
+  streakFlamePct: {
+    fontSize: ms(7.5),
+    fontWeight: '800',
+    lineHeight: ms(10),
+    color: hero.goldMuted,
+  },
+  streakFlamePctReached: {
+    color: hero.gold,
+  },
+  streakCounter: {
+    fontSize: ms(11),
+    fontWeight: '800',
+    color: hero.onHero,
+    marginLeft: hs(8),
+    alignSelf: 'flex-start',
+    marginTop: vs(3),
+  },
+  streakFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginTop: vs(8),
+  },
+  streakReward: {
     fontSize: ms(18),
     fontWeight: '900',
-    color: palette.coinText,
+    color: hero.onHero,
+    letterSpacing: 0.2,
   },
-  coinsBalanceUnit: {
-    fontSize: ms(10),
-    fontWeight: '700',
-    color: palette.textSubtle,
-    marginLeft: hs(4),
-  },
-  fireRow: {
+  orderPill: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    paddingHorizontal: hs(2),
-  },
-  fireWrap: {
     alignItems: 'center',
-    justifyContent: 'center',
+    height: ms(32),
+    paddingHorizontal: hs(12),
+    borderRadius: ms(16),
+    backgroundColor: hero.gold,
   },
-  coinsCaption: {
-    fontSize: ms(11),
-    color: palette.textMuted,
-    fontWeight: '600',
-    marginTop: SPACE.BLOCK,
-    textAlign: 'center',
+  orderPillText: {
+    fontSize: ms(12),
+    fontWeight: '800',
+    color: hero.ink,
+    marginRight: hs(2),
   },
   navCard: {
     backgroundColor: palette.card,

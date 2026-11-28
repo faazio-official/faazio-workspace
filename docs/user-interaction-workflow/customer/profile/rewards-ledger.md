@@ -13,6 +13,12 @@
 4. Coins are earned **inside the checkout order transaction**; there is no client earn/redeem path.
 5. Redemption is validated against the server-held balance during `POST /orders`; an over-balance
    redemption is rejected with `400 insufficient_coins`.
+6. Streak milestones (`STREAK_MILESTONES` in `data/rewards/rewards.ts`) are a run of consecutive
+   order-days: **5% off at day 6**, **10% off at day 7** (`STREAK_TARGET_DAYS`). The account streak
+   card labels the 6th and 7th flame with those percentages and heads with the unlocked milestone,
+   or the next one while climbing (`rewardsLogic.unlockedStreakPercent`/`nextStreakPercent`).
+   The card grant itself still fires only on the completed 7-day streak — the day-6 tier is
+   presentation today; the cart coupon stays `DISCOUNT_CARD_PERCENT` (10).
 
 ## State
 

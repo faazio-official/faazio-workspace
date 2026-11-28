@@ -461,7 +461,8 @@ the `GROCERY` member was dropped from `AppBrand` / `CartCategory` / `SubAppId` /
 | `COIN_REDEEM_RATE` | `number` (100 coins per ₹1) | `rewardsLogic.computeRedeemableRupees`, `rewardsStore.redeemCoins` | `@static` |
 | `COIN_REDEEM_MIN` | `number` (100 coins min redemption) | `CoinsRedeemRow` (gate + validation) | `@static` |
 | `STREAK_TARGET_DAYS` | `number` (7) | `rewardsLogic.evaluateStreak` (card grant threshold) | `@static` |
-| `DISCOUNT_CARD_PERCENT` | `number` (10) | `rewardsStore.recordOrder` (grant), CartView streak coupon | `@static` |
+| `DISCOUNT_CARD_PERCENT` | `number` (10) | `rewardsStore.recordOrder` (grant), CartView streak coupon, streak-card headline | `@static` |
+| `STREAK_MILESTONES` | `{ day, percent }[]` (day 6 → 5%, day 7 → 10%) | `rewardsLogic.unlockedStreakPercent`/`nextStreakPercent` (streak-card milestone labels + headline) | `@static` |
 | `DISCOUNT_CARD_VALIDITY_DAYS` | `number` (5) | `rewardsStore.recordOrder` (card expiry) | `@static` |
 | `FaazioDiscountCard` | type | `rewardsStore`, `rewardsLogic`, `FaazioRewardsScreen` | `@static` |
 

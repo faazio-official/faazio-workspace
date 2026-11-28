@@ -21,6 +21,12 @@
 ## Account surfaces
 
 - `AccountView.tsx` is shared by the tab (`AccountScreen`) and pushed (`YouScreen`).
+- **Hero band header:** the band has no "My Account" title — the top row holds only the back button and
+  the notifications bell, and the account name itself is the heading (`accessibilityRole="header"`).
+  The **Edit** pill (→ `UserDetails`) is pinned to the far right of the identity row, styled white with
+  ink text/icon; the name is capped at 22 characters with a trailing ellipsis and truncates on one
+  line, so a long name never crowds it.
+  Guests have no identity row, so no Edit pill is rendered for them.
 - **Guest mode:** when `useAuthStore.isAuthenticated` is false the page renders a "Sign in to
   Faazio" card, gated Orders / Favourites / FaazioCoins rows, and the Preferences (Language) row.
   Account nav (`GET /account-nav`), live rewards/notification data, addresses and logout are not

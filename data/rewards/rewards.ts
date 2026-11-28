@@ -12,6 +12,14 @@ export const COIN_REDEEM_RATE = 100;
 export const STREAK_TARGET_DAYS = 7;
 /** Percent discount granted by the completed-streak Faazio discount card. */
 export const DISCOUNT_CARD_PERCENT = 10;
+/**
+ * Streak milestones, ascending by day: a run of `day` consecutive order-days grants `percent` off.
+ * The last milestone is the completed-streak card (`DISCOUNT_CARD_PERCENT`).
+ */
+export const STREAK_MILESTONES: { day: number; percent: number }[] = [
+  { day: 6, percent: 5 },
+  { day: STREAK_TARGET_DAYS, percent: DISCOUNT_CARD_PERCENT },
+];
 /** How long a granted discount card stays valid (days from grant). */
 export const DISCOUNT_CARD_VALIDITY_DAYS = 5;
 /** Smallest redemption unit in coins (keeps redemptions to whole rupees). */

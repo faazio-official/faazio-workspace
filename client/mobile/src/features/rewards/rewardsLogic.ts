@@ -1,7 +1,9 @@
 import {
   COIN_EARN_RATE,
   COIN_REDEEM_RATE,
+  DISCOUNT_CARD_PERCENT,
   DISCOUNT_CARD_VALIDITY_DAYS,
+  STREAK_MILESTONES,
 } from '@data/rewards/rewards';
 import type { FaazioDiscountCard } from '@data/rewards/rewards';
 
@@ -60,4 +62,15 @@ export function cardExpiryFrom(grantedAt: Date): Date {
   const expiry = new Date(grantedAt);
   expiry.setDate(expiry.getDate() + DISCOUNT_CARD_VALIDITY_DAYS);
   return expiry;
+}
+
+/** Percent off a streak of `days` has already unlocked (0 below the first milestone). */
+export function unlockedStreakPercent(days: number): number {
+  return STREAK_MILESTONES.reduce((percent, m) => (days >= m.day ? m.percent : percent), 0);
+}
+
+/** Percent off the milestone a streak of `days` is still working towards (the last one once all are met). */
+export function nextStreakPercent(days: number): number {
+  const ahead = STREAK_MILESTONES.find((m) => days < m.day);
+  return ahead ? ahead.percent : DISCOUNT_CARD_PERCENT;
 }

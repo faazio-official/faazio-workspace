@@ -448,7 +448,6 @@ separate from the in-app assets: `client/mobile/store-assets/` holds the Play
 
 ### Spacing scale
 `4, 8, 12, 16, 20, 24, 32, 40, 48, 64, 80, 96, 128`
-
 - Inside a control: 4–12 · Between related items: 2–8 · Between groups: 12–24
 - Between sections: 32–64 · Landing sections: 80–128
 - Row heights: 32 compact, 36 default, 40–44 touch

@@ -27,6 +27,8 @@ import SlideUpSheet from '@/components/shared/SlideUpSheet';
 import { useRewardsStore } from '@/state/rewardsStore';
 import {
   STREAK_TARGET_DAYS,
+  STREAK_MILESTONES,
+  DISCOUNT_CARD_PERCENT,
   COIN_EARN_RATE,
   COIN_REDEEM_RATE,
 } from '@data/rewards/rewards';
@@ -154,7 +156,7 @@ export function FaazioRewardsScreen({ navigation }: Props) {
           <AppText style={styles.streakCaption}>
             {streakCount > 0
               ? `${streakCount} of ${STREAK_TARGET_DAYS} days — order today to keep your streak.`
-              : `Order ${STREAK_TARGET_DAYS} days in a row to earn a 10% discount card.`}
+              : `Order ${STREAK_MILESTONES[0].day} days in a row for ${STREAK_MILESTONES[0].percent}% off, ${STREAK_TARGET_DAYS} for ${DISCOUNT_CARD_PERCENT}% off.`}
           </AppText>
           <AppText style={styles.streakNote}>Miss a day and it resets.</AppText>
         </View>
@@ -235,7 +237,8 @@ export function FaazioRewardsScreen({ navigation }: Props) {
         <View style={styles.infoRow}>
           <AppText style={styles.infoBullet}>•</AppText>
           <AppText style={styles.infoText}>
-            Order {STREAK_TARGET_DAYS} days in a row to unlock a 10% discount card, valid for 5 days.
+            Order {STREAK_MILESTONES[0].day} days in a row for {STREAK_MILESTONES[0].percent}% off,{' '}
+            {STREAK_TARGET_DAYS} days for a {DISCOUNT_CARD_PERCENT}% discount card, valid for 5 days.
           </AppText>
         </View>
       </SlideUpSheet>

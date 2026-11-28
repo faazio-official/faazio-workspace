@@ -11,10 +11,8 @@ import {
   type ViewStyle,
 } from 'react-native';
 import { AppImage } from './AppImage';
-import { Tag, ArrowRight } from 'lucide-react-native';
 import { hs, vs, ms } from '@/utils/responsive';
 import type { AdSlide } from '@data/types';
-import AppText from '@/components/AppText';
 import AdLabelBadge from './AdLabelBadge';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 
@@ -37,11 +35,13 @@ interface AdBannerCarouselProps {
 }
 
 /**
- * Auto-playing paged ad-banner carousel (16:9 full-width rounded card, image bg +
- * overlay + badge + title/tagline). Presentation-only: the caller owns spacing
- * via `style` and optional tap handling via `onSlidePress` (no handler → tap is
- * a no-op). Extracted from the Home hub's `AdBannerSection` so Food can reuse it
- * without crossing the food→home boundary. Optional `showAdLabel` adds the AD pill.
+ * Auto-playing paged ad-banner carousel (16:9 full-width rounded card, artwork only).
+ * The creative is shown with no scrim, headline, badge or dimming layer on top of it;
+ * only the shared "AD" disclosure pill and the slide dots sit over it. Presentation-only:
+ * the caller owns spacing via `style` and optional tap handling via `onSlidePress` (no
+ * handler → tap is a no-op). Extracted from the Home hub's `AdBannerSection` so Food can
+ * reuse it without crossing the food→home boundary. Optional `showAdLabel` adds the AD
+ * pill; slide copy stays available to screen readers via `accessibilityLabel`.
  */
 const AdBannerCarousel = memo(function AdBannerCarousel({
   slides,
@@ -124,13 +124,6 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
                   cachePolicy="memory-disk"
                   transition={120}
                 />
-                <View style={styles.overlay} />
-                {slide.badge && (
-                  <View style={styles.badge}>
-                    <Tag size={ms(9)} color="#fbbf24" fill="#fbbf24" />
-                    <AppText style={styles.badgeText}>{slide.badge}</AppText>
-                  </View>
-                )}
                 {showAdLabel && (
                   <View
                     style={
@@ -142,18 +135,6 @@ const AdBannerCarousel = memo(function AdBannerCarousel({
                     <AdLabelBadge tone={adLabelTone} />
                   </View>
                 )}
-                <View
-                  style={[
-                    styles.content,
-                    adLabelPosition === 'bottom-right' && styles.contentRaised,
-                  ]}
-                >
-                  <AppText style={styles.title}>{slide.title}</AppText>
-                  <View style={styles.taglineRow}>
-                    <AppText style={styles.tagline} numberOfLines={1}>{slide.tagline}</AppText>
-                    <ArrowRight size={ms(10)} color="#cbd5e1" />
-                  </View>
-                </View>
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -204,31 +185,6 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     width: '100%',
     height: '100%',
-    opacity: 0.85,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: 'rgba(15, 23, 42, 0.4)',
-  },
-  badge: {
-    position: 'absolute',
-    top: vs(14),
-    left: hs(14),
-    backgroundColor: 'rgba(0,0,0,0.45)',
-    paddingVertical: vs(4),
-    paddingHorizontal: hs(8),
-    borderRadius: ms(6),
-    flexDirection: 'row',
-    alignItems: 'center',
-    borderWidth: 0.5,
-    borderColor: 'rgba(255,255,255,0.15)',
-  },
-  badgeText: {
-    color: '#ffffff',
-    fontSize: ms(11),
-    fontWeight: '600',
-    letterSpacing: 0.2,
-    marginLeft: hs(4),
   },
   adLabelWrap: {
     position: 'absolute',
@@ -239,33 +195,6 @@ const styles = StyleSheet.create({
     position: 'absolute',
     bottom: vs(10),
     right: hs(12),
-  },
-  content: {
-    position: 'absolute',
-    bottom: vs(16),
-    left: hs(16),
-    right: hs(16),
-  },
-  contentRaised: {
-    bottom: vs(38),
-  },
-  title: {
-    color: '#ffffff',
-    fontSize: ms(15),
-    fontWeight: '600',
-    lineHeight: ms(19),
-  },
-  taglineRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginTop: vs(4),
-    gap: hs(4),
-  },
-  tagline: {
-    color: '#cbd5e1',
-    fontSize: ms(11),
-    fontWeight: '500',
-    flex: 1,
   },
   dots: {
     position: 'absolute',

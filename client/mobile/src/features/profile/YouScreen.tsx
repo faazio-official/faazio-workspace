@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { StyleSheet, View } from 'react-native';
+import { StyleSheet, StatusBar, View } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { useFocusEffect } from '@react-navigation/native';
 import { logoutUser } from '@/services/logout';
@@ -23,8 +23,12 @@ export function YouScreen({ navigation }: Props) {
 
   useFocusEffect(
     useCallback(() => {
+      // The hero band is burgundy, so the status bar icons must be light while
+      // this screen is focused (Home uses the same push/pop pattern).
+      const statusBar = StatusBar.pushStackEntry({ barStyle: 'light-content' });
       // `/notifications` is auth-scoped; a guest account page has no inbox to refresh.
       if (isAuthenticated) void refreshUnread().catch(() => {});
+      return () => StatusBar.popStackEntry(statusBar);
     }, [isAuthenticated, refreshUnread]),
   );
 
@@ -78,6 +82,11 @@ export function YouScreen({ navigation }: Props) {
     navigation.navigate('FaazioRewards');
   }, [navigation]);
 
+  // The hero "Order now" CTA sends the customer back to the shopping home.
+  const handleStartOrder = useCallback(() => {
+    navigation.navigate('MainTabs', { screen: 'Home' });
+  }, [navigation]);
+
   const handleOpenLanguage = useCallback(() => {
     navigation.navigate('Language');
   }, [navigation]);
@@ -110,6 +119,7 @@ export function YouScreen({ navigation }: Props) {
         onOpenNotifications={handleOpenNotifications}
         onOpenFavourites={handleOpenFavourites}
         onOpenRewards={handleOpenRewards}
+        onStartOrder={handleStartOrder}
         onOpenLanguage={handleOpenLanguage}
         onOpenSellWithUs={handleOpenSellWithUs}
         onOpenSellerRequests={handleOpenSellerRequests}
