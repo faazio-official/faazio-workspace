@@ -73,6 +73,18 @@ export interface SellerRecord {
   contactEmail?: string | undefined;
   otpVerified?: boolean | undefined;
   otpVerifiedAt?: string | undefined;
+  /** Shop pin captured in the app (public business location, not customer PII). */
+  latitude?: number | undefined;
+  longitude?: number | undefined;
+  /** Contract acceptance audit the app records at submit (gateway migration 0100). */
+  termsAcceptedAt?: string | undefined;
+  partnerAgreementAcceptedAt?: string | undefined;
+  ipLicenseGrantedAt?: string | undefined;
+  /** Server-owned rate card the application was put on. */
+  contractTier?: string | undefined;
+  rateCardVersion?: string | undefined;
+  commissionPct?: number | undefined;
+  settlementTerms?: string | undefined;
   rejectionReason?: string | undefined;
   rejectionHistory?: unknown;
   /** Server-side compliance verdict recomputed from the stored KYC fields (PAN/GSTIN/IFSC/FSSAI). */

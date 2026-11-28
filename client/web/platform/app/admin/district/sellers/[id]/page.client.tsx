@@ -3,14 +3,16 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ExternalLink, Eye, EyeOff, MapPin } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { KpiStrip } from "@/components/patterns/KpiCard";
 import { EmptyState } from "@/components/patterns/DataState";
-import { SectorPill, StatusPill } from "@/components/patterns/Pills";
+import { StatusPill } from "@/components/patterns/Pills";
 import { ComponentHelp } from "@/components/patterns/ComponentHelp";
 import { SellerCredentialCard } from "@/components/patterns/SellerCredentialCard";
+import { SellerIdentityCard, maskPan } from "@/components/patterns/SellerIdentityCard";
+import { SellerShopCard } from "@/components/patterns/SellerShopCard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -249,9 +251,6 @@ function SellerReview() {
         description={`${seller.ownerName} · ${seller.districtCode ?? seller.stateCode} · applied ${formatDate(seller.createdAt)}`}
         actions={
           <div className="flex items-center gap-2">
-            {(seller.vendors ?? []).map((vendor) => (
-              <SectorPill key={vendor.storeId} sector={vendor.app} />
-            ))}
             <StatusPill status={seller.status} />
             <Button
               size="sm"
@@ -265,6 +264,8 @@ function SellerReview() {
           </div>
         }
       />
+
+      <SellerIdentityCard seller={seller} revealed={revealed} />
 
       {isInquiry ? (
         <SectionCard
@@ -298,12 +299,11 @@ function SellerReview() {
         ]}
       />
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <SectionCard
-          title="KYC documents"
-          description="Passbook is mandatory; FSSAI and drug licences are optional and verified during review."
-          actions={<ComponentHelp id="doc-row" label="About KYC documents" />}
-        >
+      <SectionCard
+        title="KYC documents"
+        description="Passbook is mandatory; FSSAI and drug licences are optional and verified during review."
+        actions={<ComponentHelp id="doc-row" label="About KYC documents" />}
+      >
           {isInquiry ? (
             <p className="text-[13px] text-muted-foreground">
               An enquiry has no KYC documents. They are uploaded by the merchant in the app.
@@ -373,16 +373,7 @@ function SellerReview() {
               ) : null}
             </>
           )}
-        </SectionCard>
-
-        <RegisteredDetails
-          seller={seller}
-          busy={busy}
-          revealed={revealed}
-          onSave={saveProfile}
-          onSaveBank={saveBank}
-        />
-      </div>
+      </SectionCard>
 
       <SectionCard
         title="Vendors"
@@ -393,7 +384,7 @@ function SellerReview() {
         ) : (
           <div className="space-y-3">
             {(seller.vendors ?? []).map((vendor) => (
-              <VendorFeeRow
+              <SellerShopCard
                 key={vendor.storeId}
                 vendor={vendor}
                 busy={busy}
@@ -420,6 +411,13 @@ function SellerReview() {
           <p className="text-[13px]">{seller.rejectionReason}</p>
         </SectionCard>
       ) : null}
+
+      <RegisteredDetails
+        seller={seller}
+        busy={busy}
+        onSave={saveProfile}
+        onSaveBank={saveBank}
+      />
 
       <SectionCard title="Decision" description="Approval creates the Razorpay Route linked account; every action is audited.">
         {seller.complianceStatus === "FAILED" ? (
@@ -501,13 +499,11 @@ function RequestDocButton({
 function RegisteredDetails({
   seller,
   busy,
-  revealed,
   onSave,
   onSaveBank,
 }: {
   seller: SellerDetail;
   busy: boolean;
-  revealed: boolean;
   onSave: (patch: SellerProfilePatch) => Promise<void>;
   onSaveBank: (input: BankAccountInput) => Promise<void>;
 }) {
@@ -553,8 +549,8 @@ function RegisteredDetails({
 
   return (
     <SectionCard
-      title="Registered details"
-      description="These are the merchant's KYC-bearing business facts. A GSTIN/PAN/address edit re-enters review."
+      title="Correct registered details"
+      description="The merchant record above is the read-only summary. Edits here change the KYC-bearing facts; a GSTIN, PAN or address change re-enters review."
       actions={
         <Button size="sm" variant="outline" disabled={busy} onClick={() => setEditing((v) => !v)}>
           {editing ? "Cancel" : "Edit"}
@@ -686,32 +682,19 @@ function RegisteredDetails({
           </div>
         </div>
       ) : (
-        <dl className="space-y-2 text-[13px]">
-          <Row label="GSTIN" value={seller.gstin} {...(gstinOk ? {} : { tone: "bad" as const })} />
-          <Row label="PAN" value={maskPan(seller.pan, revealed)} />
-          <Row label="Address" value={seller.businessAddress} />
-          <Row label="Phone" value={seller.contactPhone || "—"} />
-          <Row label="Email" value={seller.contactEmail || "—"} />
-          <Row
-            label="Bank"
-            value={
-              bank
-                ? `${bank.bankName ? `${bank.bankName} · ` : ""}${bank.accountNumberMasked} · ${bank.ifsc}`
-                : "Not added"
-            }
-          />
-          <Row label="OTP signature" value={seller.otpVerified ? "Verified" : "Missing"} />
-          {seller.source ? <Row label="Source" value={seller.source === "web" ? "Landing page" : "App"} /> : null}
-          {revealed ? (
-            <>
-              <Row label="Seller ID" value={seller.sellerId} />
-              <Row label="Created" value={formatDate(seller.createdAt)} />
-              {seller.inquiryAssignedTo ? (
-                <Row label="Enquiry owner" value={seller.inquiryAssignedTo} />
-              ) : null}
-            </>
+        <div className="space-y-2">
+          <p className="text-[14px] leading-5 text-muted-foreground">
+            Business name, owner, GSTIN, PAN, address, phone, bank and the acceptance record are all in the
+            merchant record at the top of this page. Choose{" "}
+            <span className="font-medium text-foreground">Edit</span> to correct them.
+          </p>
+          {seller.inquiryAssignedTo ? (
+            <p className="text-[14px] leading-5 text-muted-foreground">
+              Enquiry owner:{" "}
+              <span className="font-medium text-foreground">{seller.inquiryAssignedTo}</span>
+            </p>
           ) : null}
-        </dl>
+        </div>
       )}
     </SectionCard>
   );
@@ -722,181 +705,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
     <div>
       <p className="mb-1 text-[12px] text-muted-foreground">{label}</p>
       {children}
-    </div>
-  );
-}
-
-/** PAN is identity-grade PII: hidden behind the reveal toggle, with only the last 4 visible by default. */
-function maskPan(pan: string, revealed: boolean): string {
-  if (!pan) return "—";
-  if (revealed) return pan;
-  return pan.length > 4 ? `${"•".repeat(pan.length - 4)}${pan.slice(-4)}` : pan;
-}
-
-function VendorFeeRow({
-  vendor,
-  busy,
-  onSave,
-}: {
-  vendor: SellerVendorRecord;
-  busy: boolean;
-  onSave: (pct: number) => Promise<void>;
-}) {
-  const [fee, setFee] = useState(String(vendor.platformFeePct));
-  const [openingLicence, setOpeningLicence] = useState(false);
-  useEffect(() => setFee(String(vendor.platformFeePct)), [vendor.platformFeePct]);
-  const floor = vendor.app === "FOOD" ? 5 : 1;
-  const hasPin =
-    typeof vendor.latitude === "number" && typeof vendor.longitude === "number";
-  const mapUrl = hasPin
-    ? `https://www.google.com/maps/search/?api=1&query=${vendor.latitude},${vendor.longitude}`
-    : null;
-  const photos = vendor.photoUrls ?? [];
-  const photoKeys = vendor.photoKeys ?? [];
-  const licence =
-    vendor.app === "PHARMA"
-      ? {
-          label: "Drug licence",
-          number: vendor.drugLicenseNumber ?? "",
-          assetId: vendor.drugLicenseCertAssetId ?? "",
-        }
-      : {
-          label: vendor.app === "FOOD" ? "FSSAI licence" : "Shop registration certificate",
-          number: vendor.fssaiNumber ?? "",
-          assetId: vendor.fssaiCertAssetId ?? "",
-        };
-  const openLicence = async () => {
-    if (!licence.assetId) return;
-    setOpeningLicence(true);
-    try {
-      const url = await fetchPrivateDocumentUrl(licence.assetId);
-      if (url) window.open(url, "_blank", "noopener,noreferrer");
-      else toast.error("This licence has no downloadable file");
-    } catch {
-      toast.error("Could not open this licence");
-    } finally {
-      setOpeningLicence(false);
-    }
-  };
-  return (
-    <div className="rounded-lg border border-border px-3 py-2">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-[13px] font-medium">{vendor.name}</p>
-          <p className="num text-[11px] text-muted-foreground">
-            {vendor.storeId} · {vendor.app}
-            {vendor.fssaiNumber ? ` · FSSAI ${vendor.fssaiNumber}` : ""}
-            {vendor.drugLicenseNumber ? ` · Drug licence ${vendor.drugLicenseNumber}` : ""}
-            {vendor.isLive ? " · live" : " · paused"}
-          </p>
-          {licence.number || licence.assetId ? (
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
-              <span className="text-muted-foreground">
-                {licence.label}: {licence.number || "number not provided"}
-              </span>
-              {licence.assetId ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={busy || openingLicence}
-                  onClick={() => void openLicence()}
-                >
-                  View certificate
-                </Button>
-              ) : (
-                <span className="text-destructive">No certificate file uploaded</span>
-              )}
-            </div>
-          ) : (
-            <p className="mt-1 text-[11px] text-muted-foreground">
-              No {licence.label.toLowerCase()} on record.
-            </p>
-          )}
-          {vendor.address ? (
-            <p className="mt-1 flex items-start gap-1 text-[11px] text-muted-foreground">
-              <MapPin className="mt-0.5 size-3 shrink-0" aria-hidden />
-              <span>{vendor.address}</span>
-            </p>
-          ) : (
-            <p className="mt-1 text-[11px] text-muted-foreground">No shop address stored.</p>
-          )}
-          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-            {mapUrl ? (
-              <a
-                href={mapUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
-              >
-                <ExternalLink className="size-3" aria-hidden />
-                View pin on map
-              </a>
-            ) : (
-              <span>No map pin stored</span>
-            )}
-            {vendor.phone ? <span className="num">{vendor.phone}</span> : null}
-            {vendor.hours ? <span>{vendor.hours}</span> : null}
-          </div>
-          {photos.length ? (
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {photos.map((url, i) => (
-                <a
-                  key={url}
-                  href={url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={`Shop photo ${i + 1}`}
-                >
-                  <img
-                    src={url}
-                    alt={`${vendor.name} shop photo ${i + 1}`}
-                    className="size-16 rounded-md border border-border object-cover"
-                  />
-                </a>
-              ))}
-            </div>
-          ) : photoKeys.length ? (
-            <p className="mt-2 text-[11px] text-muted-foreground">
-              {photoKeys.length} AVIF shop photo{photoKeys.length === 1 ? "" : "s"} stored (preview
-              unavailable)
-            </p>
-          ) : (
-            <p className="mt-2 text-[11px] text-muted-foreground">No shop photos stored.</p>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <Input
-            className="num h-9 w-24"
-            value={fee}
-            inputMode="numeric"
-            onChange={(e) => setFee(e.target.value.replace(/\D/g, "").slice(0, 3))}
-          />
-          <Button
-            size="sm"
-            disabled={busy}
-            onClick={() => {
-              const pct = Number(fee);
-              if (!Number.isInteger(pct) || pct < floor || pct > 100) {
-                toast.error(`Allowed: ${floor}–100% for ${vendor.app}`);
-                return;
-              }
-              void onSave(pct);
-            }}
-          >
-            Save fee
-          </Button>
-          <ComponentHelp id="fee-input" label="About the platform fee" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Row({ label, value, tone }: { label: string; value: string; tone?: "bad" }) {
-  return (
-    <div className="flex items-start justify-between gap-4 border-b border-border pb-2 last:border-0">
-      <dt className="text-muted-foreground">{label}</dt>
-      <dd className={tone === "bad" ? "num text-right text-destructive" : "num text-right"}>{value}</dd>
     </div>
   );
 }

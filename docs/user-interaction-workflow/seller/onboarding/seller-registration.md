@@ -190,6 +190,18 @@ The script mints one HS256 token per applicant (`sub` + matching `phone` claim) 
 `PENDING_REVIEW`, and that `GET /sellers/me` returns the same `sellerId`. Exit code is non-zero on
 any failure. It writes real rows through the real handler — no fixtures.
 
+## Admin review page (`/admin/district/sellers/[id]`)
+
+The district admin detail page opens with a **Merchant record** card that shows every fact this
+application collects at body size (14px values, 12px labels, three columns on desktop): business name,
+owner name, owner PAN (masked until **Show hidden details**), GSTIN, contact phone, contact email,
+business address, state · district, shop pin (map link), payout bank and account holder, passbook
+status, contract tier · commission, signature & acceptance timestamps, settlement terms and compliance
+status. Each shop renders as its own card with the shop name, live/paused state, address, phone,
+hours, category, map pin, licence number + **View certificate**, shop photos (96px tiles) and the
+inline platform-fee editor. **Correct registered details** at the bottom holds the same fields as an
+editable form; it is the only place that writes them.
+
 ## Linked docs
 
 - `docs/architecture/mobile-app.md` (seller onboarding)
