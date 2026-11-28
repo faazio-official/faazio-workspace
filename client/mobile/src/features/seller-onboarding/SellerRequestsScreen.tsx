@@ -152,7 +152,7 @@ export function SellerRequestsScreen({ navigation }: Props) {
               </View>
               <View style={styles.rowText}>
                 <AppText style={styles.rowTitle} numberOfLines={1}>
-                  {item.businessName}
+                  {item.shopName}
                 </AppText>
                 <AppText style={styles.rowSubtitle}>
                   {item.vendors && item.vendors.length > 0

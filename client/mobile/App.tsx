@@ -39,6 +39,7 @@ import { useBottomInset } from './src/utils/responsive';
 import { useThemeMode } from './src/hooks/useThemeMode';
 import { createNavigationTheme } from './src/theme/theme';
 import { installGlobalErrorHandlers } from './src/services/crashReporting';
+import { probePlayServicesAvailability } from './src/services/playServices';
 import { flushPendingPaymentCallback, startPaymentCallbackLinks } from './src/services/paymentLinks';
 import { reconcilePendingUpiOrder } from './src/services/paymentReconciliation';
 
@@ -142,6 +143,13 @@ export default function App() {
   // Report the covered origin's state/district/pincode so the admin directory gets a real location
   // and the stable customer id. Quiet until the origin is serviceable with a pincode.
   useCustomerLocationSync();
+
+  // The layer-2 splash is the first JS surface, so the Android Play Services probe starts here in
+  // parallel with session hydration and is never awaited: it only warms the verdict the OTP flow
+  // reads later. A missing Play Services (HMS Huawei, de-bloated ROM) fails silently to manual OTP.
+  useEffect(() => {
+    void probePlayServicesAvailability();
+  }, []);
 
   // Probe `/health` on mount, then poll while foregrounded so a connectivity drop is noticed
   // without a NetInfo dependency (see connectivityStore).

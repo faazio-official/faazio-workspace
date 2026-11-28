@@ -213,6 +213,11 @@ flowchart TD
 > A send or verify that stalls (e.g. a blocked iOS reCAPTCHA sheet) times out after 20 s, shows
 > "Verification timed out…" and returns the button to its tappable state — it never spins forever.
 > The flow above is unchanged; only this recovery state was added.
+>
+> On Android, SMS auto-read is a bonus that runs only when Google Play Services is available
+> (checked under the splash in parallel with startup). On an HMS-only Huawei phone or a
+> de-bloated/custom ROM the app silently skips auto-read and the user types the 6 digits in the
+> same field — no prompt, spinner or crash. Manual entry is always the path.
 
 ---
 
@@ -788,7 +793,7 @@ flowchart TD
 
 | Area | Controls |
 |---|---|
-| Business identity | Business name, owner/contact, GSTIN (optional), phone |
+| Business identity | Owner name, PAN, GSTIN (optional), phone |
 | KYC | Passbook/document upload |
 | Payout | Bank account details |
 | Shops | One card per shop: category, address, FSSAI / drug licence, photos (up to 5) |
@@ -923,7 +928,7 @@ flowchart TD
 | Growth | **Promotions** | Campaigns / discounts |
 | Growth | **Ads** | Shop-page ads |
 | Growth | **Analytics** | Sales analytics |
-| Account | **Stores** | Outlet list, add a vendor |
+| Account | **Stores** | Your shop (one per account), create it when empty |
 | Account | **Platform fee** | Request a fee change + history |
 | Account | **Reviews** | Customer reviews / replies |
 | Account | **Settings** | Profile, bank, notifications, sub-users, security |
@@ -943,7 +948,7 @@ flowchart TD
 | `/seller/outlet-info` | Stores → outlet |
 | `/seller/restaurant-status` | Orders / dashboard (rush control) |
 | `/seller/rush-hour` | Dashboard / restaurant status |
-| `/seller/onboarding` | Stores → **Add a vendor** |
+| `/seller/onboarding` | Stores → **Create your shop** (only when the account has none) |
 | `/seller/explore` | Business hub explore shortcuts |
 
 ## 3.3 Seller order lifecycle
@@ -1290,7 +1295,7 @@ flowchart LR
 | Promotions | Create campaign |
 | Ads | Playlist draft/play/order/target |
 | Analytics | Date-range reporting |
-| Stores | Add a vendor, open outlet |
+| Stores | Create your shop (one per account), open outlet |
 | Platform fee | Request change, history |
 | Reviews | Reply to review |
 | Settings | Profile, bank, notifications, sub-users, security |
@@ -1362,11 +1367,13 @@ Use this map if a flow changes and the diagram needs to be updated.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.23 | 28 Nov 2026 | Customer sign-in OTP: the Android SMS auto-reader is now gated on a Google Play Services availability check probed under the layer-2 splash (in parallel with startup). HMS-only Huawei / de-bloated ROMs silently fall back to manual 6-digit entry instead of a failed auto-read; no screen or button changes. |
 | 1.22 | 28 Nov 2026 | Seller review (`/admin/district/sellers/[id]`) **Registered details → Edit**: fixed GSTIN/IFSC validation. The GSTIN check now matches the gateway (15 chars + mod-36 checksum, blank allowed because GSTIN is optional), so valid seeded GSTINs no longer show as invalid, and the **Save details** button is no longer disabled — clicking it surfaces the exact format problem. Added valid sample placeholders (`27AAPFU0939F1ZV`, `HDFC0001234`). |
 | 1.21 | 28 Nov 2026 | Seller review (`/admin/district/sellers/[id]`): added a **3.5.1** flow — the district admin can now correct a bad payout **IFSC**/bank name/account holder from **Registered details → Edit** (account number stays masked). Compliance is re-run on that save and at **Verify KYC & activate**, so a corrected IFSC clears a stale `FAILED` block; the **Decision** card shows the blocking reason. |
 | 1.20 | 28 Nov 2026 | Admin notifications console (`/admin/{district,super}/notifications`): added a **Seller activity** feed (new registrations, KYC document uploads, fulfilled document requests) read from the seller tables, each card opening the seller detail. Outbox rows are now clickable (seller detail / order / product destination) and all descriptive copy was removed. |
 | 1.19 | 28 Nov 2026 | Seller review: missing KYC documents are now shown as **cards** with a **Request** button (the document-type dropdown and admin-side upload are gone). The `SELLER_DOC_REQUEST` push and in-app notification now deep-link straight to the customer-app **Sell with us** screen so the applicant can upload. |
 | 1.18 | 28 Nov 2026 | Seller review: the admin KYC row **Replace** action became **Request** — the admin asks the applicant to re-upload. The customer-app Sell with us screen now shows "Faazio has requested you to upload your <document>" with a **Capture & upload** button that fulfils the request (`sellers.document_requests`, migration `0147`). |
+| 1.18 | 28 Nov 2026 | One account, one vendor: the seller console no longer has a shop switcher — an account owns exactly one shop (DB-enforced, migration `0149`), so the header/sidebar show the shop name and nothing switches. **Stores** offers **Create your shop** only when the account has none; a second shop requires a new seller account. Super-admin and district seller pages show a single **Vendor**, and multi-vendor seed data was split so every shop has its own account. |
 | 1.17 | 28 Nov 2026 | Sell with us: removed every per-question/input description and the bottom security/autosave notes. The step 2 submit button is now a single large **Submit** button that is always enabled — tapping it with missing or invalid fields shows a red inline message naming what to fill in. |
 | 1.16 | 28 Nov 2026 | Sell with us: the **Shop number** `+91` is now plain inline text at the start of the field (the separate dial-code box is gone), so the field and its label line up like every other input. |
 | 1.15 | 28 Nov 2026 | Sell with us step 2: the **Signature** block is gone (Send OTP / 6-digit code / Verify / resend countdown / "OTP verified" panel), and the three agreement tick-boxes (Terms of Service, Seller / Partner Agreement, content & IP licence) with their **Read** sheets are gone as well. Submitting the application is the acceptance; the gateway's required consent flags are sent with it. Step 2 now ends on **Back to business account**. |

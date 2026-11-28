@@ -115,6 +115,16 @@ SMS template (or without Play Services) the user types the code. iOS needs no na
 `textContentType="oneTimeCode"` drives QuickType. No SMS body, sender, phone number or code is
 logged.
 
+**Play Services is checked, never assumed.** `services/playServices.ts` probes
+`getUtils().getPlayServicesStatus()` once per process under the layer-2 splash, in parallel with
+session hydration and without blocking it (customer `App.tsx`, delivery `DeliveryPartnerApp.tsx`).
+`sendOtp` arms the native auto-retrieval watcher only when the verdict is `available`; an
+HMS-only Huawei phone, a de-bloated/custom ROM, a missing native module, a probe error or a timeout
+all resolve `unavailable` and are swallowed. The watcher also self-clears after 120 s. Auto-fill is
+always a bonus: the six-segment code input stays manual, so the user can type the SMS code with no
+crash, spinner or blocking prompt regardless of Google's presence. Delivery uses the same probe;
+the seller partner app does not use Firebase Auth.
+
 **Account deletion deletes the Firebase identity client-side:** `DeleteAccountScreen` runs a fresh
 phone-OTP re-auth (`sendReauthOtp`/`verifyReauthOtp`), then `deleteAccountEverywhere()` calls the
 gateway `DELETE /users/me`, then native `user.delete()` (`authStore.deleteFirebaseIdentity` →
@@ -468,7 +478,7 @@ Device smoke test (CI debug APK):
 | `401` from the gateway after login | The gateway builds the Firebase verifier only when `FIREBASE_PROJECT_ID` is non-empty (`config.Config.FirebaseProjectID`); if empty it verifies only portal/legacy HS256 tokens, so every Firebase ID token (RS256) 401s. Check: a valid token whose `iss` = `https://securetoken.google.com/project-65696e12-8def-460e-b29` and `aud` = `project-65696e12-8def-460e-b29` still gets `{"code":"unauthorized"}` from `https://api.faazio.com/categories/rail`, while a legacy HS256 token works. Fix: set `FIREBASE_PROJECT_ID` (and `FCM_PROJECT_ID`) on the Render service to `project-65696e12-8def-460e-b29` and redeploy; a `render.yaml` Blueprint deploy syncs these, a manually-created service does not. Client symptom: the Home/Mart category rail shows a **Retry** chip and logs `[rail] fetchCategoryRail failed ... GatewayHttpError status: 401` in dev. |
 | `401` from the gateway after login (config present) | `FIREBASE_PROJECT_ID` value mismatch (wrong/rotated project or a stray quote/space), or the container cannot reach `googleapis.com` to fetch the signing certs. Confirm the project id matches the client `google-services.json`. |
 | SMS never arrives | Region policy excludes +91, the number is not a test number, or the free quota is exhausted (Blaze billing required past the quota). On a **sideloaded APK** also check logcat for `Failed to initialize reCAPTCHA config: No Recaptcha Enterprise siteKey configured` — Play Integrity is rejected and the Enterprise fallback cannot run until Part 6 (site key) is configured. `requestSmsCode` retries such a rejected send with the legacy reCAPTCHA v2 flow, which needs the browser round-trip; dismiss/complete it and the SMS is sent. A **Firebase test number** (customer `+91 9000000001`) never receives an SMS — only its console code (`123456`) works. |
-| No SMS-autofill consent sheet | Google Play Services is missing/outdated, the APK predates the native module, or the retriever was armed **after** the SMS was sent. Type the code manually; rebuild via `gh workflow run android-debug.yml -f app=customer`. |
+| No SMS-autofill consent sheet | Google Play Services is missing/outdated (the startup probe marks auto-retrieval unavailable and the user types the code — expected on HMS-only Huawei), the APK predates the native module, or the retriever was armed **after** the SMS was sent. Type the code manually; rebuild via `gh workflow run android-debug.yml -f app=customer`. |
 | Consent approved but the code is not filled | The message must contain a 6-digit run and be surfaced by Play Services. Type the code manually; no `RECEIVE_SMS` permission is involved. |
 | Seller signature OTP does not autofill | The seller signature step was removed; the seller form sends `otpVerified: true` and the gateway checks the signed-in session claim. Manual entry enables Verify at six digits. |
 | Seller signature shows a red "Could not send the OTP" | The screen now maps the real Firebase code via `src/lib/otpError.ts` (e.g. `auth/too-many-requests`, `auth/invalid-app-credential`, `auth/network-request-failed`). App-verification failures on a sideloaded build mean Play Integrity could not prove the install — install from Play, or complete Part 6. A same-number signature uses the primary app precisely to avoid this on Android. |

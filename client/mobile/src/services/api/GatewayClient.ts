@@ -703,7 +703,6 @@ export interface ContractTier {
 }
 
 export interface SellerApplicationInput {
-  businessName: string;
   ownerName: string;
   gstin: string;
   pan: string;
@@ -766,7 +765,8 @@ export interface SellerApplicationVendor {
 
 export interface SellerApplication {
   sellerId: string;
-  businessName: string;
+  /** The account's display name: its first shop's name (owner-name fallback). */
+  shopName: string;
   ownerName: string;
   gstin: string;
   pan: string;
@@ -813,7 +813,7 @@ export interface SellerApplication {
 export interface FeeChangeRequest {  requestId: string;
   sellerId: string;
   storeId?: string;
-  businessName?: string;
+  shopName?: string;
   districtCode?: string;
   currentFeePct: number;
   requestedFeePct: number;

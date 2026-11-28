@@ -215,7 +215,7 @@ export function SellerRequestDetailScreen({ navigation, route }: Props) {
               <Store size={ms(20)} color={parentRamp.base} strokeWidth={2.2} />
             </View>
             <View style={{ flex: 1 }}>
-              <AppText style={styles.heroTitle}>{d.businessName}</AppText>
+              <AppText style={styles.heroTitle}>{d.shopName}</AppText>
               <AppText style={styles.heroSub}>
                 {d.vendors && d.vendors.length > 0
                   ? `${d.vendors.map((v) => v.app).join(' / ')} · ${d.districtCode || d.stateCode}`

@@ -25,6 +25,7 @@ import {
 } from '../lib/config';
 import { DEFAULT_COUNTRY, toE164 as normalizePhone } from '@/lib/phone';
 import { isOtpSessionExpired, otpErrorCode } from '@/lib/otpError';
+import { resolvePlayServicesAvailability } from './playServices';
 
 export interface FirebaseUser {
   uid: string;
@@ -61,11 +62,22 @@ type PendingOtp = {
 /** Pending native phone verification for the current send→verify round-trip. */
 let pending: PendingOtp | null = null;
 let autoWatchUnsubscribe: (() => void) | null = null;
+let autoWatchTimeout: ReturnType<typeof setTimeout> | null = null;
 const autoVerifiedListeners = new Set<() => void>();
+
+/**
+ * How long the native auto-retrieval watcher stays armed. It is a bonus path only: after this
+ * window it is torn down silently and the user keeps the always-available manual code entry.
+ */
+const OTP_AUTO_WATCH_TIMEOUT_MS = 120_000;
 
 function clearAutoWatch(): void {
   autoWatchUnsubscribe?.();
   autoWatchUnsubscribe = null;
+  if (autoWatchTimeout !== null) {
+    clearTimeout(autoWatchTimeout);
+    autoWatchTimeout = null;
+  }
 }
 
 /**
@@ -74,41 +86,57 @@ function clearAutoWatch(): void {
  * `onVerificationCompleted` callback, but the native SDK signs the user in, so
  * `onAuthStateChanged` is the only reliable JS signal.
  *
+ * Auto-retrieval is Play Services-owned on Android, so the caller only arms this when Google is
+ * present (see `resolvePlayServicesAvailability` in `sendOtpForScope`). The watcher itself is
+ * entirely best-effort: a failure to subscribe, a timeout, or a token failure is swallowed and the
+ * user types the code.
+ *
  * This watcher never treats a pre-existing session as a successful OTP (delete-account re-auth)
  * and yields to a manual `confirm()` that is already in flight.
  */
 function armAutoVerificationWatch(auth: Auth, current: PendingOtp): void {
   clearAutoWatch();
-  autoWatchUnsubscribe = auth.onAuthStateChanged(async (user) => {
-    if (pending !== current || current.manualVerifyStarted) return;
-    if (!user || user.phoneNumber !== current.phone) return;
-    if (
-      current.initialUid &&
-      user.uid === current.initialUid &&
-      user.metadata.lastSignInTime === current.initialSignIn
-    ) {
-      return;
-    }
-    try {
-      const token = await user.getIdTokenResult();
+  try {
+    autoWatchUnsubscribe = auth.onAuthStateChanged(async (user) => {
       if (pending !== current || current.manualVerifyStarted) return;
-      current.autoSession = toSession(
-        user,
-        token.token,
-        Math.floor(new Date(token.expirationTime).getTime() / 1000),
-      );
-      clearAutoWatch();
-      autoVerifiedListeners.forEach((listener) => {
-        try {
-          listener();
-        } catch {
-          // A screen listener must never break the auth state machine.
-        }
-      });
-    } catch {
-      // Auto-verification is best-effort; manual code entry remains available.
-    }
-  });
+      if (!user || user.phoneNumber !== current.phone) return;
+      if (
+        current.initialUid &&
+        user.uid === current.initialUid &&
+        user.metadata.lastSignInTime === current.initialSignIn
+      ) {
+        return;
+      }
+      try {
+        const token = await user.getIdTokenResult();
+        if (pending !== current || current.manualVerifyStarted) return;
+        current.autoSession = toSession(
+          user,
+          token.token,
+          Math.floor(new Date(token.expirationTime).getTime() / 1000),
+        );
+        clearAutoWatch();
+        autoVerifiedListeners.forEach((listener) => {
+          try {
+            listener();
+          } catch {
+            // A screen listener must never break the auth state machine.
+          }
+        });
+      } catch {
+        // Auto-verification is best-effort; manual code entry remains available.
+      }
+    });
+  } catch {
+    // The native auth module is unavailable or missing Play Services: never arm, never throw.
+    autoWatchUnsubscribe = null;
+    return;
+  }
+  // The SMS is irrelevant after this window; drop the listener instead of leaking it.
+  autoWatchTimeout = setTimeout(() => {
+    autoWatchTimeout = null;
+    clearAutoWatch();
+  }, OTP_AUTO_WATCH_TIMEOUT_MS);
 }
 
 /** Notified when native Firebase auto-verifies the pending primary OTP. */
@@ -455,8 +483,17 @@ async function sendOtpForScope(phoneDigits: string, scope: OtpScope): Promise<vo
   };
   // Replace any earlier request; an old confirmation must never verify a newer send.
   pending = current;
-  // Arm before the request: native auto-retrieval can sign in as soon as the SMS lands.
-  if (scope === 'primary') armAutoVerificationWatch(auth, current);
+  // Arm before the request: native auto-retrieval can sign in as soon as the SMS lands. On Android
+  // the retriever is Play Services-owned, so never assume Google exists (HMS-only Huawei,
+  // de-bloated/custom ROMs): only arm when availability is confirmed. The layer-2 splash probe
+  // makes this read immediate; an unknown/unavailable verdict skips auto-fill silently and manual
+  // code entry remains the path. `resolvePlayServicesAvailability` never throws.
+  if (
+    scope === 'primary' &&
+    (await resolvePlayServicesAvailability()) === 'available'
+  ) {
+    armAutoVerificationWatch(auth, current);
+  }
   try {
     current.confirmation = await requestSmsCode(auth, phone);
   } catch (err) {

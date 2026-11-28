@@ -118,7 +118,6 @@ function describeSubmitError(err: unknown): string {
 }
 
 interface FormState {
-  businessName: string;
   ownerName: string;
   gstin: string;
   pan: string;
@@ -212,7 +211,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const [phoneCountry, setPhoneCountry] = useState(DEFAULT_COUNTRY);
 
   const [form, setForm] = useState<FormState>({
-    businessName: '',
     ownerName: user?.name ?? '',
     gstin: '',
     pan: '',
@@ -689,7 +687,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       const res = await gateway.submitSellerApplication({
         // One shop means the account identity is the shop's identity: no separate business-name or
         // address fields, and GSTIN stays optional (small/unregistered shops) and unasked here.
-        businessName: v.shopName.trim(),
         ownerName: form.ownerName.trim(),
         gstin: form.gstin.trim().toUpperCase(),
         pan: form.pan.trim().toUpperCase(),

@@ -15,6 +15,7 @@ import { useAuthStore } from './state/authStore';
 import { useAppFonts, resolveFontFamily } from './theme/fonts';
 import { useBottomInset } from './utils/responsive';
 import { installGlobalErrorHandlers } from './services/crashReporting';
+import { probePlayServicesAvailability } from './services/playServices';
 import { DELIVERY } from './theme/deliveryTokens';
 
 // Release crash observability for the delivery partner app (see services/crashReporting.ts).
@@ -56,6 +57,12 @@ export default function DeliveryPartnerApp() {
       active = false;
     };
   }, [hydrateAuth]);
+
+  // Warm the Play Services verdict under the layer-2 splash, in parallel with auth hydration.
+  // Auto-retrieval is optional; a missing Play Services falls back to manual OTP silently.
+  useEffect(() => {
+    void probePlayServicesAvailability();
+  }, []);
 
   // Attach call listeners + adopt a notification action / open call as early as possible (a cold
   // start from an Answer tap or a call push would otherwise miss it). Prompt-free: no phone account

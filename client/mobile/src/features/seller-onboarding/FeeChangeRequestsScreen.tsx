@@ -77,7 +77,7 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
   const approve = (item: FeeChangeRequest) => {
     Alert.alert(
       'Approve fee change',
-      `${item.businessName || item.sellerId}: ${item.currentFeePct}% → ${item.requestedFeePct}%?`,
+      `${item.shopName || item.sellerId}: ${item.currentFeePct}% → ${item.requestedFeePct}%?`,
       [
         { text: 'Cancel', style: 'cancel' },
         {
@@ -195,7 +195,7 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
               </View>
               <View style={styles.rowText}>
                 <AppText style={styles.rowTitle} numberOfLines={1}>
-                  {item.businessName || item.sellerId}
+                  {item.shopName || item.sellerId}
                 </AppText>
                 <AppText style={styles.rowSubtitle}>
                   {item.currentFeePct}% → {item.requestedFeePct}%
@@ -212,7 +212,7 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
                     onPress={() => approve(item)}
                     disabled={busyId === item.requestId}
                     accessibilityRole="button"
-                    accessibilityLabel={`Approve request from ${item.businessName || item.sellerId}`}
+                    accessibilityLabel={`Approve request from ${item.shopName || item.sellerId}`}
                   >
                     <Check size={ms(16)} color={neutral.card} strokeWidth={2.6} />
                   </TouchableOpacity>
@@ -221,7 +221,7 @@ export function FeeChangeRequestsScreen({ navigation }: Props) {
                     onPress={() => setRejecting(item)}
                     disabled={busyId === item.requestId}
                     accessibilityRole="button"
-                    accessibilityLabel={`Reject request from ${item.businessName || item.sellerId}`}
+                    accessibilityLabel={`Reject request from ${item.shopName || item.sellerId}`}
                   >
                     <X size={ms(16)} color={neutral.card} strokeWidth={2.6} />
                   </TouchableOpacity>

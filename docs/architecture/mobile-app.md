@@ -1157,7 +1157,11 @@ recovers the already-signed-in user rather than reporting a false invalid code. 
 hash (or without Play Services) the user types the code; the six-segment inputs keep
 `textContentType="oneTimeCode"` and `autoComplete="sms-otp"`. iOS needs no native module —
 `textContentType="oneTimeCode"` drives QuickType on every OTP input. No SMS body, sender, phone
-number or code is logged.
+number or code is logged. Play Services availability is probed once under the layer-2 splash
+(`App.tsx` → `services/playServices.ts`, in parallel with hydration and never awaited by it) and
+`sendOtp` arms the auto-retrieval watcher only when it is confirmed available; HMS-only Huawei and
+de-bloated/custom ROMs silently skip auto-read (the watcher also self-clears after 120 s), leaving
+the manual six-digit entry as the path. See `docs/RUNBOOKS/FIREBASE_AUTH.md`.
 
 **Background tracking.** While online, Android runs `DeliveryTrackingService` with
 `foregroundServiceType="location"` and a persistent low-importance notification, waking
@@ -1417,7 +1421,7 @@ ad SDKs, no data brokers, no third-party advertising, so no category is used for
 
 | Apple category | Data type | Where it lives | Linked |
 |---|---|---|---|
-| Contact Info | Name | profile / saved-address recipient / seller-onboarding owner-business name; reviews | Yes |
+| Contact Info | Name | profile / saved-address recipient / seller-onboarding owner & shop name; reviews | Yes |
 | Contact Info | Email Address | account + seller-onboarding contact email | Yes |
 | Contact Info | Phone Number | Firebase Phone Auth identity (`services/firebaseAuth.ts`) | Yes |
 | Contact Info | Physical Address | `checkout.addresses` (delivery) + seller business address | Yes |
@@ -1607,7 +1611,7 @@ the screen only ever sends `{tag, name, phone, address, isDefault}`.
 `SellerRegistrationScreen` (`features/seller-onboarding/`, route `SellWithUs`) replaced the old
 minimal form and is reached from the Account `earn` group. It is a two-part form:
 
-**Part 1 — the brand-agnostic account.** Business identity (business name, owner, **optional
+**Part 1 — the brand-agnostic account.** Business identity (owner, **optional
 GSTIN**, required PAN, address, contact phone/email), the **mandatory bank passbook** photo and the
 default payout account (bank name, account number, IFSC, beneficiary). There is **no signature step**:
 the screen used to collect a Firebase OTP as a "digital signature" and it was removed, because the

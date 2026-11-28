@@ -43,7 +43,12 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
    activity — an SMS that lands while the browser is open is held and shown on return.
 3. The user enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval). Both apps
    render an animated 6-segment field driven by a hidden `textContentType="oneTimeCode"` /
-   `autoComplete="sms-otp"` input and auto-submit at 6 digits.
+   `autoComplete="sms-otp"` input and auto-submit at 6 digits. Auto-retrieval is optional and
+   Play Services-owned on Android: `services/playServices.ts` probes availability once under the
+   layer-2 splash (in parallel with hydration) and `firebaseAuth` arms the auto-verify watcher only
+   when it is confirmed available. On HMS-only Huawei, a de-bloated/custom ROM, a probe error or a
+   timeout the app silently skips auto-read (the watcher self-clears after 120 s) and the manual
+   field is the path — no prompt, spinner or crash. Delivery uses the same probe.
 4. `verifyOtp` returns a Firebase session. Customer `completeLogin` reads `GET /profile` with that
    token: `hasName: true` signs in with the stored name; `hasName: false` holds the session and
    shows the name step, then decodes claims (`role`, `stateCode`, `districtCode`, `sellerId`) into

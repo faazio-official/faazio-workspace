@@ -46,7 +46,6 @@ export interface DraftVendor {
 }
 
 export interface DraftForm {
-  businessName: string;
   ownerName: string;
   gstin: string;
   pan: string;
@@ -141,7 +140,6 @@ export function hasDraftContent(draft: SellerDraft): boolean {
   const f = draft.form;
   const filled = (v: unknown): boolean => typeof v === 'string' && v.trim().length > 0;
   const formFilled =
-    filled(f.businessName) ||
     filled(f.ownerName) ||
     filled(f.gstin) ||
     filled(f.pan) ||
