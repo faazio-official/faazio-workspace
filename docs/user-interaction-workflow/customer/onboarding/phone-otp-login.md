@@ -27,6 +27,12 @@ skip.
      occluded presenter), the native promise never settles; the timeout clears the pending request,
      releases **Send code** (a `finally` always resets `isSending`), and shows
      "Verification timed out. Check your connection and try again." under the field.
+   - The timeout counts **foreground time only**: it pauses while the app is backgrounded and
+     resumes when the app returns. This matters on Android, where the sideloaded/CI build falls
+     back to the **legacy reCAPTCHA v2 browser flow** (no Play Integrity, no reCAPTCHA Enterprise
+     site key yet) — the user is outside the app for the whole challenge and returning must still
+     find the send in flight. That forced retry gets a larger budget (`OTP_RECAPTCHA_TIMEOUT_MS`,
+     120 s) so solving the challenge cannot itself trip the ceiling.
    - A synchronous `sendRef` guard prevents a double tap from starting two native sends before the
      spinner renders.
 3. The user enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval) in an
@@ -104,10 +110,18 @@ skip.
   `src/lib/otpError.ts` — the raw `[auth/<code>] …` SDK text is never shown. An expired session
   (`auth/session-expired`) renders "That code has expired. Tap Resend OTP to get a new one." and
   clears the dead pending request so only a fresh send can succeed.
-- **Timed-out send/verify:** the 20 s hard timeout rejects with `faazio/otp-timeout`, renders
+- **Timed-out send/verify:** the 20 s foreground timeout rejects with `faazio/otp-timeout`, renders
   "Verification timed out. Check your connection and try again.", clears the dead pending request,
   and releases the button (`isSending`/`isVerifying` always reset in `finally`/`catch`). The user
   can retry Send code, or Resend on the code step.
+- **reCAPTCHA browser round-trip (sideloaded Android):** Play Integrity cannot attest an app that
+  was not installed from the Play Store, so Firebase falls back to reCAPTCHA; because the
+  **reCAPTCHA Enterprise site key (Part 6)** is not configured, the client forces the **legacy v2
+  Custom-Tab browser** flow. The send stays in flight while the user is in the browser (timeout
+  paused) and resumes on return; if the app is killed while backgrounded the in-memory confirmation
+  is lost, so tap **Send code** again. Registering the signing SHA-1/SHA-256 is required but does
+  **not** remove the browser — install from **Play** (internal/closed testing) or complete
+  **Part 6** (`docs/RUNBOOKS/FIREBASE_AUTH.md` §4) for a browser-free flow.
 - **Profile read fails after OTP:** sign-in continues to the name step (a returning customer may be
   asked again while the gateway is unreachable) — the flow never fabricates a name.
 - **Unconfigured Firebase:** release build refuses to embed the mock-login config; the screen

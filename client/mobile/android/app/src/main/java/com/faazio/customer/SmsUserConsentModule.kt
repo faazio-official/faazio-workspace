@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.SystemClock
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Arguments
+import com.facebook.react.bridge.LifecycleEventListener
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
@@ -26,7 +27,8 @@ import com.google.android.gms.common.api.Status
  */
 class SmsUserConsentModule(reactContext: ReactApplicationContext) :
   ReactContextBaseJavaModule(reactContext),
-  ActivityEventListener {
+  ActivityEventListener,
+  LifecycleEventListener {
 
   @Volatile private var receiverRegistered = false
 
@@ -35,6 +37,17 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
 
   /** When the current consent sheet was launched, used to recover a dropped activity result. */
   @Volatile private var consentStartedAt = 0L
+
+  /** True between `onHostResume` and `onHostPause` — the consent sheet may only launch while resumed. */
+  @Volatile private var hostResumed = false
+
+  /**
+   * A consent intent whose SMS arrived while the app was backgrounded (the reCAPTCHA browser is
+   * open, so the phone-auth send has the app in the background). Android blocks activities started
+   * from a background app, and launching it then made the consent sheet come from a dead state or
+   * bounce to Play services/Play Store. Hold it and show it on the next `onHostResume` instead.
+   */
+  private var pendingConsentIntent: Intent? = null
 
   private val smsReceiver =
     object : BroadcastReceiver() {
@@ -51,31 +64,23 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
               emitError("no-consent-intent")
               return
             }
-            val activity = reactApplicationContext.currentActivity
-            if (activity == null) {
-              emitError("no-activity")
-              return
-            }
-            try {
-              consentInFlight = true
-              consentStartedAt = SystemClock.elapsedRealtime()
-              activity.startActivityForResult(consentIntent, SMS_CONSENT_REQUEST)
-            } catch (error: Exception) {
-              consentInFlight = false
-              consentStartedAt = 0L
-              emitError("consent-launch-failed")
-            }
+            // The consent intent stays valid for ~5 minutes, so showing it after the user returns
+            // to the app (and foregrounds it) is still in time.
+            pendingConsentIntent = consentIntent
+            launchPendingConsent()
           }
           CommonStatusCodes.TIMEOUT -> {
             unregisterSmsReceiver()
             consentInFlight = false
             consentStartedAt = 0L
+            pendingConsentIntent = null
             emitError("timeout")
           }
           else -> {
             unregisterSmsReceiver()
             consentInFlight = false
             consentStartedAt = 0L
+            pendingConsentIntent = null
             emitError("sms-retrieval-failed")
           }
         }
@@ -84,9 +89,49 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
 
   init {
     reactApplicationContext.addActivityEventListener(this)
+    reactApplicationContext.addLifecycleEventListener(this)
+    // The module is usually created after the host has already resumed, so seed the flag from the
+    // current activity; later onHostResume/onHostPause keep it accurate.
+    hostResumed = reactApplicationContext.hasCurrentActivity()
   }
 
   override fun getName(): String = MODULE_NAME
+
+  /**
+   * Launch the held consent intent only from a resumed activity with a live window. If the app is
+   * backgrounded (system browser showing the reCAPTCHA) or the activity is tearing down, keep it
+   * until `onHostResume` so the sheet is never requested from a dead/backgrounded task.
+   */
+  private fun launchPendingConsent() {
+    val consentIntent = pendingConsentIntent ?: return
+    if (!hostResumed) return
+    val activity = reactApplicationContext.currentActivity
+    if (activity == null || activity.isFinishing || activity.isDestroyed) return
+    pendingConsentIntent = null
+    try {
+      consentInFlight = true
+      consentStartedAt = SystemClock.elapsedRealtime()
+      activity.startActivityForResult(consentIntent, SMS_CONSENT_REQUEST)
+    } catch (error: Exception) {
+      consentInFlight = false
+      consentStartedAt = 0L
+      emitError("consent-launch-failed")
+    }
+  }
+
+  override fun onHostResume() {
+    hostResumed = true
+    launchPendingConsent()
+  }
+
+  override fun onHostPause() {
+    hostResumed = false
+  }
+
+  override fun onHostDestroy() {
+    hostResumed = false
+    pendingConsentIntent = null
+  }
 
   @Synchronized
   @ReactMethod
@@ -113,6 +158,7 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
   fun stopSmsUserConsent() {
     consentInFlight = false
     consentStartedAt = 0L
+    pendingConsentIntent = null
     unregisterSmsReceiver()
   }
 
@@ -148,8 +194,11 @@ class SmsUserConsentModule(reactContext: ReactApplicationContext) :
   override fun invalidate() {
     consentInFlight = false
     consentStartedAt = 0L
+    pendingConsentIntent = null
+    hostResumed = false
     unregisterSmsReceiver()
     reactApplicationContext.removeActivityEventListener(this)
+    reactApplicationContext.removeLifecycleEventListener(this)
     super.invalidate()
   }
 

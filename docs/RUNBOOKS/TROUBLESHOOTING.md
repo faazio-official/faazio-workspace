@@ -117,7 +117,20 @@ rendered on the error card** (plus the first stack frame in a dev build) — tha
   `com.faazio.deliverypartner`. The **seller** APK has no native map (WebView shell) and deliberately
   embeds no Maps key, so there is nothing to fix there.
 - **No address suggestions on the Location screen** → `GOOGLE_PLACES_API_KEY` is empty or the key
-  lacks Places API (New); the screen intentionally falls back to static suggestions.
+  lacks Places API (New); the screen intentionally falls back to static suggestions. On a
+  **sideloaded/CI release APK** a typed search that loads then shows the red "Search is unavailable"
+  message is almost always an **HTTP 403**: the Places key's Android restrictions do not include the
+  installed APK's signing SHA-1 (the CI APK uses the upload key, not Play App Signing). Add that
+  SHA-1 to the key restrictions (digests: `SIGNING_FINGERPRINTS.md` §2) and rebuild. Dev builds log
+  `[places] autocomplete failed: 403` (see `usePlaceAutocomplete.ts`). A location instead of the
+  fingerprint is not the cause when typing works but "Use my current location" fails — that is now a
+  high-accuracy fix timing out and falling back to a coarse fix; if both fail the device's GPS/
+  network provider is off.
+- **"Use my current location" spins then shows the red location error** → both the high-accuracy
+  fix (`getHighAccuracyPosition`, 15 s) and the coarse fallback (`getCoarsePosition`, 10 s) failed.
+  Usually the OS Location master switch is off or permission was revoked — re-check the Location
+  screen's own hint and Settings → Location. A timed-out high-accuracy provider now falls back to
+  the network fix instead of failing the action outright (`requestAndRefreshLocation`).
 - **Nearby lists fall back to fixture order** → no foreground fix yet. Check that permission was
   granted via the Location screen; the customer app never prompts on launch and never tracks in
   background.
