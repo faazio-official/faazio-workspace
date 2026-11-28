@@ -1782,7 +1782,12 @@ func (h *Handler) requestDocument(w http.ResponseWriter, r *http.Request) {
 			_ = h.notifier.Enqueue(r.Context(), userID, "SELLER_DOC_REQUEST",
 				"Faazio has requested a document",
 				"Please upload your "+documentLabel(docType)+" in Sell with us.",
-				map[string]any{"docType": docType, "requestId": created.RequestID})
+				map[string]any{
+					"kind":      "SELLER_DOC_REQUEST",
+					"screen":    "SellWithUs",
+					"docType":   docType,
+					"requestId": created.RequestID,
+				})
 		}
 	}
 	detail, _, _ := h.repo.DetailByID(r.Context(), s.SellerID)

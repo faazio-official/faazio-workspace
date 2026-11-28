@@ -65,10 +65,13 @@ function handleMessage(message: RemoteMessage, tapped: boolean, onNotification?:
   if (board) refreshBoards(board);
   // Keep the unread badge warm for any push (foreground or background).
   void useNotificationsStore.getState().refreshUnread();
-  // A tap on a non-call alert opens the durable inbox so the customer sees it in context.
+  // A tap on a non-call alert opens the durable inbox so the customer sees it in context — except a
+  // seller document request, which jumps straight to Sell with us where the upload happens.
   if (tapped) {
+    const sellerDocRequest =
+      data?.kind === 'SELLER_DOC_REQUEST' || data?.screen === 'SellWithUs';
     if (navigationRef.isReady()) {
-      navigationRef.navigate('Notifications');
+      navigationRef.navigate(sellerDocRequest ? 'SellWithUs' : 'Notifications');
     }
   }
   onNotification?.();

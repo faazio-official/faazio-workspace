@@ -96,8 +96,9 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
    KYC bytes are never copied or uploaded to persist a draft.
 10. **Admin document requests:** `GET /sellers/me/document-requests` is read on open (and works even
     while the application is under review). A `PENDING` request renders a card above the status
-    screen — "Faazio has requested you to upload your <document>" — with **Capture & upload**. The
-    captured file uploads and fulfils the request
+    screen — "Faazio has requested you to upload your <document>" — with **Capture & upload**. Tapping
+    the `SELLER_DOC_REQUEST` push notification (or the in-app notification) deep-links straight to
+    this `SellWithUs` screen. The captured file uploads and fulfils the request
     (`POST /sellers/me/document-requests/{id}/fulfill`), which writes a fresh unverified KYC document
     and removes the card. See [`kyc-documents.md`](./kyc-documents.md).
 

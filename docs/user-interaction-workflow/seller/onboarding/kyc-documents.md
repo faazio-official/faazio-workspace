@@ -19,13 +19,17 @@
    private `fssaiCertAssetId`/`drugLicenseCertAssetId` via `GET /media/private/{assetId}`. A missing
    file is flagged inline instead of being silently absent.
 5. **Request a re-upload (not admin-side replace):** each KYC document row has a **Request** button
-   (`POST /sellers/{id}/document-requests {docType}`) instead of the old **Replace**. It writes a
-   `PENDING` `sellers.document_requests` row (one per seller+docType, so repeat taps refresh rather
-   than duplicate) and notifies the applicant (`SELLER_DOC_REQUEST`). While a request is open the row
-   shows **Requested**.
-6. **Applicant fulfils from the app:** the customer-app **Sell with us** screen (`GET
-   /sellers/me/document-requests`) shows "Faazio has requested you to upload your <document>" with a
-   **Capture & upload** button. The picked file uploads via `uploadSellerDocument`, then
+   (`POST /sellers/{id}/document-requests {docType}`) instead of the old **Replace**. Missing document
+   types (GSTIN / PAN / BANK_PROOF / SHOP_LICENSE / PASSBOOK / FSSAI) are listed as **cards** under
+   "Request a missing document" — no dropdown and no admin-side upload. A request writes a `PENDING`
+   `sellers.document_requests` row (one per seller+docType, so repeat taps refresh rather than
+   duplicate) and notifies the applicant (`SELLER_DOC_REQUEST`, with `screen=SellWithUs` in the push
+   data). While a request is open the row/card shows **Requested**.
+6. **Applicant fulfils from the app:** tapping the push or the in-app notification routes the customer
+   to the **Sell with us** screen (the push handler and `NotificationsScreen` both send
+   `SELLER_DOC_REQUEST` to `SellWithUs`). That screen reads `GET /sellers/me/document-requests` and
+   shows "Faazio has requested you to upload your <document>" with a **Capture & upload** button. The
+   picked file uploads via `uploadSellerDocument`, then
    `POST /sellers/me/document-requests/{requestId}/fulfill {fileKey, assetId}` writes a fresh
    `sellers.kyc_documents` row of that type (unverified, so it re-enters review) and marks the
    request `FULFILLED` in one transaction. The card disappears once the list reloads.

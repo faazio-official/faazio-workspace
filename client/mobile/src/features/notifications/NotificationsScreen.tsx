@@ -98,6 +98,10 @@ export function NotificationsScreen({ navigation }: Props) {
   const openNotification = useCallback(
     (item: NotificationRecord) => {
       markRead(item.id);
+      if (item.kind === 'SELLER_DOC_REQUEST') {
+        navigation.navigate('SellWithUs');
+        return;
+      }
       const data = item.data as { orderId?: unknown } | undefined;
       const orderId = typeof data?.orderId === 'string' ? data.orderId : undefined;
       if (orderId) {

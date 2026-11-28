@@ -1,9 +1,9 @@
 "use client";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ExternalLink, Eye, EyeOff, MapPin, Upload } from "lucide-react";
+import { ExternalLink, Eye, EyeOff, MapPin } from "lucide-react";
 import { PageHeader } from "@/components/patterns/PageHeader";
 import { SectionCard } from "@/components/patterns/SectionCard";
 import { KpiStrip } from "@/components/patterns/KpiCard";
@@ -25,17 +25,9 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { formatDate, formatINR, formatNumber } from "@/lib/format";
 import { sumGmv, sumOrders } from "@/lib/analytics/derive";
 import {
-  addSellerKycDocument,
   fetchPrivateDocumentUrl,
   fetchSellerDetail,
   getBankAccount,
@@ -48,7 +40,6 @@ import {
   verifySellerDocument,
   verifySellerKyc,
 } from "@/lib/api";
-import { uploadPrivateDocument } from "@/lib/media/kyc";
 import { useAnalyticsSeries, useSeller } from "@/lib/api/hooks";
 import type {
   KycDocument,
@@ -118,6 +109,7 @@ function SellerReview() {
   const pendingDocRequests = new Set(
     (seller.documentRequests ?? []).filter((r) => r.status === "PENDING").map((r) => r.docType),
   );
+  const missingDocTypes = DOC_TYPES.filter((t) => !docs.some((doc) => doc.docType === t));
   const bank = seller.bankAccount;
   const isInquiry = seller.status === "INQUIRY";
 
@@ -141,20 +133,6 @@ function SellerReview() {
       else toast.error("This document has no downloadable file");
     } catch {
       toast.error("Could not open this document");
-    }
-  };
-
-  const uploadDoc = async (docType: KycDocument["docType"], file: File) => {
-    setBusy(true);
-    try {
-      const upload = await uploadPrivateDocument(file);
-      const next = await addSellerKycDocument(seller.sellerId, docType, upload);
-      setDetail(next);
-      toast.success(`${docType.replace(/_/g, " ")} uploaded`);
-    } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not upload that document");
-    } finally {
-      setBusy(false);
     }
   };
 
@@ -293,52 +271,70 @@ function SellerReview() {
             <p className="text-[13px] text-muted-foreground">
               An enquiry has no KYC documents. They are uploaded by the merchant in the app.
             </p>
-          ) : docs.length === 0 ? (
-            <div className="space-y-3">
-              <p className="text-[13px] text-muted-foreground">No documents uploaded yet.</p>
-              <UploadDocRow busy={busy} taken={[]} onUpload={(docType, file) => uploadDoc(docType, file)} />
-            </div>
           ) : (
-            <ul className="space-y-2">
-              {docs.map((doc) => (
-                <li
-                  key={doc.kycId}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
-                >
-                  <div>
-                    <p className="text-[13px] font-medium">{doc.docType.replace(/_/g, " ")}</p>
-                    <p className="num text-[11px] text-muted-foreground">
-                      {revealed
-                        ? (doc.assetId ?? doc.fileKey ?? doc.fileUrl ?? "No file reference")
-                        : (doc.assetId ? `…${doc.assetId.slice(-6)}` : "file on record")}
-                    </p>
+            <>
+              {docs.length === 0 ? (
+                <p className="text-[13px] text-muted-foreground">No documents uploaded yet.</p>
+              ) : (
+                <ul className="space-y-2">
+                  {docs.map((doc) => (
+                    <li
+                      key={doc.kycId}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
+                    >
+                      <div>
+                        <p className="text-[13px] font-medium">{doc.docType.replace(/_/g, " ")}</p>
+                        <p className="num text-[11px] text-muted-foreground">
+                          {revealed
+                            ? (doc.assetId ?? doc.fileKey ?? doc.fileUrl ?? "No file reference")
+                            : (doc.assetId ? `…${doc.assetId.slice(-6)}` : "file on record")}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <StatusPill status={doc.verified ? "VERIFIED" : "PENDING"} />
+                        <Button size="sm" variant="outline" onClick={() => void openDoc(doc)}>
+                          View
+                        </Button>
+                        {!doc.verified ? (
+                          <Button size="sm" disabled={busy} onClick={() => void verifyDoc(doc)}>
+                            Verify
+                          </Button>
+                        ) : null}
+                        <RequestDocButton
+                          busy={busy}
+                          requested={pendingDocRequests.has(doc.docType)}
+                          onRequest={() => void requestDoc(doc.docType)}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {missingDocTypes.length > 0 ? (
+                <div className="mt-3">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                    Request a missing document
+                  </p>
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    {missingDocTypes.map((docType) => (
+                      <div
+                        key={docType}
+                        className="flex items-center justify-between gap-2 rounded-lg border border-border px-3 py-2"
+                      >
+                        <span className="text-[13px] font-medium">
+                          {docType.replace(/_/g, " ")}
+                        </span>
+                        <RequestDocButton
+                          busy={busy}
+                          requested={pendingDocRequests.has(docType)}
+                          onRequest={() => void requestDoc(docType)}
+                        />
+                      </div>
+                    ))}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <StatusPill status={doc.verified ? "VERIFIED" : "PENDING"} />
-                    <Button size="sm" variant="outline" onClick={() => void openDoc(doc)}>
-                      View
-                    </Button>
-                    {!doc.verified ? (
-                      <Button size="sm" disabled={busy} onClick={() => void verifyDoc(doc)}>
-                        Verify
-                      </Button>
-                    ) : null}
-                    <RequestDocButton
-                      busy={busy}
-                      requested={pendingDocRequests.has(doc.docType)}
-                      onRequest={() => void requestDoc(doc.docType)}
-                    />
-                  </div>
-                </li>
-              ))}
-              <li className="pt-1">
-                <UploadDocRow
-                  busy={busy}
-                  taken={docs.map((d) => d.docType)}
-                  onUpload={(docType, file) => uploadDoc(docType, file)}
-                />
-              </li>
-            </ul>
+                </div>
+              ) : null}
+            </>
           )}
         </SectionCard>
 
@@ -428,67 +424,6 @@ function SellerReview() {
           />
         </SectionCard>
       ) : null}
-    </div>
-  );
-}
-
-/** One hidden file input reused for "upload a missing document" and "replace this document". */
-function useFilePicker(onPick: (file: File) => void) {
-  const ref = useRef<HTMLInputElement>(null);
-  const input = (
-    <input
-      ref={ref}
-      type="file"
-      accept="image/jpeg,image/png,image/webp"
-      className="sr-only"
-      onChange={(event) => {
-        const file = event.target.files?.[0];
-        event.target.value = "";
-        if (file) onPick(file);
-      }}
-    />
-  );
-  return { input, open: () => ref.current?.click() };
-}
-
-function UploadDocRow({
-  busy,
-  taken,
-  onUpload,
-}: {
-  busy: boolean;
-  taken: KycDocument["docType"][];
-  onUpload: (docType: KycDocument["docType"], file: File) => void;
-}) {
-  const available = DOC_TYPES.filter((d) => !taken.includes(d));
-  const [docType, setDocType] = useState<KycDocument["docType"]>(available[0] ?? "PASSBOOK");
-  const picker = useFilePicker((file) => onUpload(docType, file));
-  if (available.length === 0) {
-    return (
-      <p className="text-[12px] text-muted-foreground">
-        Every document type is on file. Use Replace on a row to re-upload one.
-      </p>
-    );
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <Select value={docType} onValueChange={(v) => setDocType(v as KycDocument["docType"])}>
-        <SelectTrigger className="h-9 w-[11rem] text-[12px]" aria-label="Document type">
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          {available.map((d) => (
-            <SelectItem key={d} value={d}>
-              {d.replace(/_/g, " ")}
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-      <Button size="sm" variant="outline" disabled={busy} onClick={picker.open}>
-        <Upload className="size-3.5" aria-hidden />
-        Upload a missing document
-      </Button>
-      {picker.input}
     </div>
   );
 }
