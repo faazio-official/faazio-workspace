@@ -51,9 +51,30 @@ import type {
   SellerVendorRecord,
 } from "@/data/types";
 
-const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]{2}$/;
+// A GSTIN is 15 chars: 2-digit state code + 10-char PAN + entity no. + 'Z' + check digit.
+const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]Z[0-9A-Z]$/;
 const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+const GSTIN_ALPHABET = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 const DOC_TYPES: KycDocument["docType"][] = ["GSTIN", "PAN", "BANK_PROOF", "SHOP_LICENSE", "PASSBOOK", "FSSAI"];
+
+/** Mirrors the gateway's GSTIN mod-36 checksum so the portal accepts exactly what the server does. */
+function gstinChecksumValid(gstin: string): boolean {
+  if (gstin.length !== 15) return false;
+  let sum = 0;
+  for (let i = 0; i < 14; i++) {
+    const value = GSTIN_ALPHABET.indexOf(gstin.charAt(i));
+    if (value < 0) return false;
+    const product = value * (i % 2 === 1 ? 2 : 1);
+    sum += Math.floor(product / 36) + (product % 36);
+  }
+  return gstin.charAt(14) === GSTIN_ALPHABET.charAt((36 - (sum % 36)) % 36);
+}
+
+/** GSTIN is optional (small/unregistered shops); only a non-empty value has to be well-formed. */
+function gstinValid(gstin?: string): boolean {
+  const value = (gstin ?? "").trim().toUpperCase();
+  return value === "" || (GSTIN_RE.test(value) && gstinChecksumValid(value));
+}
 
 function SellerReview() {
   const { id } = useParams<{ id: string }>();
@@ -107,7 +128,6 @@ function SellerReview() {
     );
   }
 
-  const gstinOk = GSTIN_RE.test(seller.gstin);
   const docs = seller.kycDocuments ?? [];
   const pendingDocRequests = new Set(
     (seller.documentRequests ?? []).filter((r) => r.status === "PENDING").map((r) => r.docType),
@@ -523,7 +543,7 @@ function RegisteredDetails({
     });
   }, [seller, bank]);
 
-  const gstinOk = GSTIN_RE.test(draft.gstin ?? "");
+  const gstinOk = gstinValid(draft.gstin);
   const ifscOk = !bank || IFSC_RE.test(bankDraft.ifsc.trim().toUpperCase());
   const bankChanged =
     !!bank &&
@@ -558,11 +578,14 @@ function RegisteredDetails({
           <Field label="GSTIN">
             <Input
               className="num"
+              placeholder="e.g. 27AAPFU0939F1ZV (optional)"
               value={draft.gstin ?? ""}
               onChange={(e) => setDraft((d) => ({ ...d, gstin: e.target.value.toUpperCase() }))}
             />
             {!gstinOk ? (
-              <p className="mt-1 text-[11px] text-destructive">Not a valid GSTIN format.</p>
+              <p className="mt-1 text-[11px] text-destructive">
+                Not a valid GSTIN (15 characters, e.g. 27AAPFU0939F1ZV). Leave blank if unregistered.
+              </p>
             ) : null}
           </Field>
           <Field label="PAN">
@@ -604,12 +627,13 @@ function RegisteredDetails({
                 <Input
                   className="num"
                   maxLength={11}
+                  placeholder="e.g. HDFC0001234"
                   value={bankDraft.ifsc}
                   onChange={(e) => setBankDraft((d) => ({ ...d, ifsc: e.target.value.toUpperCase() }))}
                 />
                 {!ifscOk ? (
                   <p className="mt-1 text-[11px] text-destructive">
-                    Not a valid IFSC format (4 letters, 0, then 6 alphanumerics).
+                    Not a valid IFSC format (4 letters, 0, then 6 alphanumerics), e.g. HDFC0001234.
                   </p>
                 ) : null}
               </Field>
@@ -631,8 +655,16 @@ function RegisteredDetails({
             </Button>
             <Button
               size="sm"
-              disabled={busy || !gstinOk || !ifscOk}
+              disabled={busy}
               onClick={async () => {
+                if (!gstinOk) {
+                  toast.error("Enter a valid 15-character GSTIN (e.g. 27AAPFU0939F1ZV), or leave it blank.");
+                  return;
+                }
+                if (!ifscOk) {
+                  toast.error("Enter a valid 11-character IFSC (e.g. HDFC0001234).");
+                  return;
+                }
                 try {
                   await onSave(draft);
                   if (bankChanged && bank) {
