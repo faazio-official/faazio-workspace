@@ -16,7 +16,6 @@ import {
 import { gateway, GatewayHttpError } from '@/services/api/GatewayClient';
 import { useAuthStore } from '@/state/authStore';
 import { useDeliveryPartnerStore } from '@/state/deliveryPartnerStore';
-import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { otpErrorCode, otpErrorMessage } from '@/lib/otpError';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { ms, vs } from '@/utils/responsive';
@@ -68,16 +67,6 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
   }
   const digitAnims = digitAnimsRef.current;
   const prevOtpLength = useRef(0);
-
-  const handleSmsCode = useCallback((smsCode: string) => {
-    if (submitRef.current || verifiedSession) return;
-    setError(null);
-    setCode(smsCode);
-  }, [verifiedSession]);
-  const { restart: restartSmsConsent, stop: stopSmsConsent } = useSmsUserConsent(
-    handleSmsCode,
-    !verifying && !profilePending,
-  );
 
   useEffect(() => {
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -293,17 +282,14 @@ export function OtpVerifyScreen({ navigation, route }: Props) {
     autoSubmittedRef.current = null;
     setResendCooldown(RESEND_COOLDOWN_S);
     setResending(true);
-    // Re-arm before the resend SMS leaves the server.
-    restartSmsConsent();
     try {
       await sendOtp(phone);
     } catch (err) {
-      stopSmsConsent();
       setError(otpErrorMessage(err, 'Could not resend the OTP. Try again.'));
     } finally {
       setResending(false);
     }
-  }, [phone, restartSmsConsent, resendCooldown, resending, stopSmsConsent, verifiedSession, verifying]);
+  }, [phone, resendCooldown, resending, verifiedSession, verifying]);
 
   const goBackToPhoneEntry = useCallback(() => {
     // Never abandon the screen mid-verification; the in-flight `verifyOtp` would still navigate.

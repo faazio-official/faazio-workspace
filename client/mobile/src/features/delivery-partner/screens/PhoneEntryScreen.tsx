@@ -6,7 +6,6 @@ import AppText from '@/components/AppText';
 import { DPPage, DPButton, DPField, DPSectionCard } from '@/components/shared/dp';
 import { DELIVERY, DP_TYPE } from '@/theme/deliveryTokens';
 import { sendOtp } from '@/services/firebaseAuth';
-import { armSmsUserConsent, disarmSmsUserConsent } from '@/lib/smsUserConsent';
 import { otpErrorMessage } from '@/lib/otpError';
 import { formatAsYouType, nationalDigits, toE164 } from '@/lib/phone';
 import { getRecentPhones, saveRecentPhone } from '@/lib/recentPhones';
@@ -116,8 +115,6 @@ export function PhoneEntryScreen({ navigation }: Props) {
       }
       setError(null);
       setSending(true);
-      // Start listening before the SMS is sent; the OTP screen attaches the listener on mount.
-      armSmsUserConsent();
       try {
         await sendOtp(digits);
         setStorePhone(digits);
@@ -125,7 +122,6 @@ export function PhoneEntryScreen({ navigation }: Props) {
         await saveRecentPhone(toE164(digits));
         navigation.navigate('OtpVerify', { phone: digits });
       } catch (err) {
-        disarmSmsUserConsent();
         setError(otpErrorMessage(err, 'Could not send the OTP. Try again.'));
       } finally {
         setSending(false);

@@ -21,7 +21,6 @@ import {
   hasAutoVerifiedOtp,
   subscribeOtpAutoVerified,
 } from '@/services/firebaseAuth';
-import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { useAuthStore } from '@/state/authStore';
 import { openTrustedUrl } from '@/lib/externalLinks';
 import { ACCOUNT_DELETION_MAILTO, PRIVACY_URL } from '@/lib/site';
@@ -69,13 +68,6 @@ export function DeleteAccountScreen({ navigation }: Props) {
 
   const phone = user?.phone ?? '';
 
-  const handleSmsCode = useCallback((code: string) => {
-    if (submitRef.current) return;
-    setOtpError(null);
-    setOtpCode(code);
-  }, []);
-  const { restart: restartSmsConsent, stop: stopSmsConsent } = useSmsUserConsent(handleSmsCode, reauth);
-
   const handleBack = useCallback(() => navigation.goBack(), [navigation]);
   const handleEmailDelete = useCallback(() => {
     void Linking.openURL(ACCOUNT_DELETION_MAILTO);
@@ -108,20 +100,17 @@ export function DeleteAccountScreen({ navigation }: Props) {
     setOtpError(null);
     setError(null);
     setSendingOtp(true);
-    // The User Consent API only sees SMS received after it starts — arm before the re-auth send.
-    restartSmsConsent();
     try {
       await sendReauthOtp(phone);
       setReauth(true);
     } catch {
-      stopSmsConsent();
       setError(
         'We could not send a verification code to your number. Try again, or use the email option below.',
       );
     } finally {
       setSendingOtp(false);
     }
-  }, [phone, restartSmsConsent, sendReauthOtp, sendingOtp, stopSmsConsent]);
+  }, [phone, sendReauthOtp, sendingOtp]);
 
   const finishDelete = useCallback(async (code: string) => {
     if (submitRef.current || submitting) return;

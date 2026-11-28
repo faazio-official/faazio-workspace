@@ -38,7 +38,7 @@ src/
 │   # is applied to the visible glyph box (814×227) so both variants share one scale.
 │   └── shared/                 # reusable primitives incl. dp/ (delivery Vite-reference primitives), 17 legacy primitives (ProductCardBase, StoreCardBase, Screen, AdBannerCarousel, OfflinePage, OfflineToast, …)
 ├── features/                   # vertical feature modules (20)
-├── lib/                        # config, externalLinks, site, tokenClaims, smsUserConsent (Android SMS User Consent hook), recentPhones (device-local sign-in suggestions)
+├── lib/                        # config, externalLinks, site, tokenClaims, recentPhones (device-local sign-in suggestions)
 ├── navigation/                 # AppNavigator, MainTabs, FoodStack, offlineNavigationGuard, types
 ├── services/                   # GatewayClient, authGate (guest gating), logout, secureSession, categoryVendors, homeFeed, pricing
 ├── state/                      # Zustand stores (incl. deliveryPartner + deliverySettings + shared callStore)
@@ -823,7 +823,6 @@ offline read still throws `GatewayOfflineError` (the retired `_mock` lambdas/`wi
   `secureSession` (never logged). `GatewayClient.recoverSession` forces one `refreshIdToken` on a
   401; when no native user remains it clears the Keychain + `authStore.expireSession()`. The public
   native config lives in `android/app/google-services.json` + `ios/Faazio/GoogleService-Info.plist`.
-  The Android-only SMS autofill companion is `lib/smsUserConsent.ts` (see "Android SMS User Consent").
 - `secureSession.ts` — tokens via `react-native-keychain` (Android Keystore / iOS Keychain; never AsyncStorage for secrets). Single owner of the session with an in-memory mirror so `GatewayClient` can read `getAccessToken()` per request without a Keychain round-trip; `updateSessionTokens()` persists a rotated pair, and `getRefreshToken()` returns the portal refresh token for seller/admin sessions.
 - `sessionStores.ts` — `hydrateUserStores()` runs after authentication. It first merges a
   device-local guest cart into the account (`GET /cart` + one `PUT /cart/items` per line with
@@ -1009,8 +1008,8 @@ DeliveryPartnerNavigator (native stack, no customer screens)
 ├── PhoneEntry   — auto-focused 10-digit entry (+ device-local recent-number suggestions) →
 │                  Firebase phone OTP, auto-sent 150 ms after the 10th digit; resumes an existing
 │                  session via GET /delivery/me
-├── OtpVerify    — animated 6-segment field (hidden oneTimeCode/sms-otp input; manual, SMS User
-│                  Consent autofill or Firebase auto-retrieval → auto-submit), 30 s resend cooldown,
+├── OtpVerify    — animated 6-segment field (hidden oneTimeCode/sms-otp input; manual or Firebase
+│                  auto-retrieval → auto-submit), 30 s resend cooldown,
 │                  hardware back to the preserved number → authStore Keychain session
 ├── Register     — KYC application: profile, live Aadhaar/selfie/PAN + motor DL/RC/insurance capture,
 │                  vehicle-capped capacity, bank details (private R2 uploads → POST /delivery/register)
@@ -1146,30 +1145,19 @@ fold/unfold re-evaluates the policy in `onConfigurationChanged` without an activ
 customer/delivery UI is authored portrait-first with module-scope `Dimensions` reads
 (`src/utils/responsive.ts`), so handset landscape is intentionally not a supported layout.
 
-**Android SMS User Consent.** `android/.../SmsUserConsentModule.kt` (registered by
-`SmsUserConsentPackage` in `MainApplication`) implements the Play Services SMS User Consent API.
-Before the SMS is requested, `src/lib/smsUserConsent.ts` (`useSmsUserConsent`) arms a dynamically
-registered `SMS_RETRIEVED` receiver guarded by
-`com.google.android.gms.auth.api.phone.permission.SEND` — there is **no
-`RECEIVE_SMS`/`READ_SMS` permission**. The API only observes messages received after
-`startSmsUserConsent()`, so `LoginScreen`, delivery `PhoneEntryScreen`, the `DeleteAccountScreen`
-re-auth, and the `SellerRegistrationScreen` signature arm first and re-arm before every resend. Play
-Services shows its system consent sheet; on approval the module prefers a 6-digit run next to a
-whole-word "code"/"OTP"/"PIN" (falling back to the first standalone 6-digit run, ignoring 6-digit
-substrings of longer numbers) and emits `FaazioSmsUserConsent`, which fills and auto-submits the OTP
-in `LoginScreen`, delivery `OtpVerifyScreen`, the delete re-auth, and the seller signature (the
-seller verify runs on its disposable secondary Firebase app, so the shopper session is untouched).
-`smsUserConsent.ts` keeps one shared emitter subscription and buffers a code that arrives before the
-OTP screen mounts (delivery `PhoneEntryScreen` arms before navigating), replaying it on mount instead
-of dropping it. It is independent of Play Integrity, requires Google Play Services, and falls back
-to manual entry on any error/timeout. Native Firebase auto-retrieval, when it happens, is surfaced
-through
-`onAuthStateChanged` (the installed v27 modular API has no `onVerificationCompleted` callback); if
-it races a manual confirm, `firebaseAuth` recovers the already-signed-in user rather than reporting
-a false invalid code, and `LoginScreen` / delivery `OtpVerifyScreen` / the delete re-auth consume
-that session directly. No SMS body, sender, phone number or code is logged. iOS needs no native
-module — `textContentType="oneTimeCode"` drives QuickType on every OTP input, including the seller
-signature.
+**Android OTP autofill.** The custom SMS User Consent module was **removed**. It registered a
+second `SMS_RETRIEVED` receiver alongside Firebase's own native retriever, and Firebase's
+`firebase-auth` receiver crashed with an NPE when it received our User Consent broadcast (a consent
+intent carries no `EXTRA_SMS_MESSAGE`). Android OTP autofill is now owned solely by Firebase's
+native SMS Retriever: when the SMS carries the app's 11-character hash, Play Services reads it
+silently and the native SDK surfaces the session through `onAuthStateChanged` (the installed v27
+modular API has no `onVerificationCompleted` callback). `LoginScreen` / delivery `OtpVerifyScreen` /
+the delete re-auth consume that session directly; if it races a manual confirm, `firebaseAuth`
+recovers the already-signed-in user rather than reporting a false invalid code. Without the app
+hash (or without Play Services) the user types the code; the six-segment inputs keep
+`textContentType="oneTimeCode"` and `autoComplete="sms-otp"`. iOS needs no native module —
+`textContentType="oneTimeCode"` drives QuickType on every OTP input. No SMS body, sender, phone
+number or code is logged.
 
 **Background tracking.** While online, Android runs `DeliveryTrackingService` with
 `foregroundServiceType="location"` and a persistent low-importance notification, waking
@@ -1352,14 +1340,12 @@ abandoning the step leaves no signed-in, unnamed session. The chosen name is the
 failed profile read after OTP falls through to the name step (it never fabricates a name). The OTP is
 sent **only** on an explicit
 "Send code" tap (disabled until `isValidPhone`) — the customer screen no longer auto-sends after the
-10th digit, so a half-typed number cannot burn an SMS. The send arms **SMS User Consent**
-(`src/lib/smsUserConsent.ts` + native `SmsUserConsentModule`) *before* calling
-`firebaseAuth.sendOtp()` (native Firebase); a failed send disarms it and shows an alert. When the phone field is empty it offers device-local recently used
+10th digit, so a half-typed number cannot burn an SMS. The send calls
+`firebaseAuth.sendOtp()` (native Firebase) directly; a failed send shows an alert. When the phone field is empty it offers device-local recently used
 numbers as tappable chips (`src/lib/recentPhones.ts`); a successful send records the number and
-sign-out clears the list. The User Consent API only sees SMS received after it starts, so the
-ordering matters. Play Services then shows the consent sheet, fills the 6 digits and auto-submits.
-Independently, Android's Firebase SDK may auto-retrieve when Play Integrity succeeds; that session
-is surfaced through `onAuthStateChanged` and consumed without typing. When Play Integrity is rejected
+sign-out clears the list. Play Integrity / reCAPTCHA determines the send; the code is typed manually
+or, when Play Integrity succeeds and the SMS carries the app hash, auto-retrieved by the Firebase
+SDK. Native auto-retrieval is surfaced through `onAuthStateChanged` and consumed without typing. When Play Integrity is rejected
 (a sideloaded debug/CI APK), `requestSmsCode` retries the send once with the legacy reCAPTCHA v2 web
 flow (`auth.settings.forceRecaptchaFlowForTesting`), because the SDK's default reCAPTCHA Enterprise
 fallback needs a Google Cloud site key the project has not been linked to yet (`FIREBASE_AUTH.md`
@@ -1666,8 +1652,8 @@ Documents are captured with `DocumentCapture` (Vision Camera, consent-gated), up
 the private R2 bucket through `GatewayClient.uploadSellerDocument` (`/media/upload-url` presigned
 PUT → `/media/confirm`), and only the object key + asset id reach the application. Submission is
 blocked until the mandatory passbook photo and the shared location of every shop are complete
-(licences stay optional). The Firebase OTP signature block, its Android **SMS User Consent** auto-fill,
-the send/verify lock-out and the resend countdown were all removed with the signature step; the screen
+(licences stay optional). The Firebase OTP signature block, the
+send/verify lock-out and the resend countdown were all removed with the signature step; the screen
 now sends `otpVerified: true` and the gateway's own `auth.OTPSigned` check decides from the session.
 `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) creates the
 `PENDING_REVIEW` seller, bank account and KYC rows in one transaction, plus one `directory.stores`

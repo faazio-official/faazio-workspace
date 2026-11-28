@@ -42,8 +42,8 @@ current digit) with a 30 s resend cooldown and hardware back that returns to the
    [rider-registration.md](./rider-registration.md).
 2. `PhoneEntry` auto-focuses the field, shows device-local **recent numbers** as suggestion chips, and
    sends the OTP either from the "Get OTP" button or automatically 150 ms after the 10th digit is
-   typed. A successful send saves the number to the suggestions list. SMS User Consent is armed
-   before the send.
+   typed. A successful send saves the number to the suggestions list. The code is typed manually or
+   auto-retrieved by Firebase when the SMS carries the app hash.
 3. `OtpVerify` shows an animated 6-segment field (hidden `oneTimeCode`/`sms-otp` input drives OS
    autofill), auto-focuses, auto-submits at 6 digits, enforces a 30 s resend cooldown, and verifies
    the Firebase code before calling `getDeliveryPartnerMe()` to route by status. Hardware back (and

@@ -20,7 +20,6 @@ class MainApplication : Application(), ReactApplication {
         PackageList(this).packages.apply {
           // Packages that cannot be autolinked yet can be added manually here.
           add(FaazioGeocoderPackage())
-          add(SmsUserConsentPackage())
           add(IncomingCallPackage())
           if (BuildConfig.FLAVOR == "delivery") add(DeliveryTrackingPackage())
         },

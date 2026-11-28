@@ -277,8 +277,6 @@ dependencies {
     implementation("com.facebook.react:react-android")
     // Native launch theme (windowSplashScreen*).
     implementation("androidx.core:core-splashscreen:1.0.1")
-    // SMS User Consent (no RECEIVE_SMS permission); see SmsUserConsentModule.kt.
-    implementation("com.google.android.gms:play-services-auth-api-phone:18.3.1")
     // OS "Turn on location" resolution dialog; see FaazioGeocoderModule.kt requestEnableLocation.
     implementation("com.google.android.gms:play-services-location:21.3.0")
 

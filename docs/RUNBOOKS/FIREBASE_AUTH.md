@@ -59,15 +59,12 @@ fix in the simulator by logging `getApps().length` (must be ≥ 1).
 
 ```
 LoginScreen / delivery PhoneEntry
-  └─ SMS User Consent armed BEFORE the SMS is requested
-       └─ firebaseAuth.sendOtp(digits)
-            → signInWithPhoneNumber(auth, "+91…") (primary app)
-            ├─ Android: Play Integrity / reCAPTCHA → SMS (or native auto-retrieval)
-            └─ iOS: APNs silent push, else reCAPTCHA → SMS
-  └─ Android SMS User Consent (src/lib/smsUserConsent.ts + SmsUserConsentModule.kt)
-       └─ Play Services consent sheet → 6-digit code → fills the OTP UI + auto-submits
-  └─ native auto-retrieval (when supported) → onAuthStateChanged → session, no typing
-  └─ user enters 6 digits (or the code is autofilled) → firebaseAuth.verifyOtp()
+  └─ firebaseAuth.sendOtp(digits)
+       → signInWithPhoneNumber(auth, "+91…") (primary app)
+       ├─ Android: Play Integrity / reCAPTCHA → SMS (or native auto-retrieval)
+       └─ iOS: APNs silent push, else reCAPTCHA → SMS
+  └─ native auto-retrieval (when the SMS carries the app hash) → onAuthStateChanged → session, no typing
+  └─ user enters 6 digits (or QuickType fills them) → firebaseAuth.verifyOtp()
        └─ ConfirmationResult.confirm(code) → Firebase user + ID token (RS256 JWT)
             └─ authStore.login() stores {token, user} in the Keychain
                  └─ GatewayClient sends `Authorization: Bearer <ID token>`
@@ -106,25 +103,16 @@ applicant, which re-submits through the form.
 `refreshIdToken()` forces `getIdToken(true)`;
 `GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token, phone number or OTP code.
 
-Android arms **SMS User Consent before** `sendOtp`: the API only observes messages
-received after `startSmsUserConsent()`, so `LoginScreen`, delivery `PhoneEntryScreen` and the
-`DeleteAccountScreen` re-auth start a dynamically
-registered `SMS_RETRIEVED` receiver first (guarded by
-`com.google.android.gms.auth.api.phone.permission.SEND`, **no `RECEIVE_SMS`/`READ_SMS` permission**)
-and re-arm before every resend. When the user approves the system sheet, the native module extracts
-the code (a 6-digit run next to "code"/"OTP"/"PIN", else the first standalone 6-digit run) and emits
-it to `useSmsUserConsent`, which fills the OTP input and auto-submits (including the seller signature
-on the disposable secondary app). This is independent of Play Integrity and works on any device with
-Google Play Services; otherwise it errors and manual entry is unchanged. Native Firebase
-auto-retrieval, when it happens, is surfaced via `onAuthStateChanged`
-(the installed v27 modular API has no `onVerificationCompleted` callback); `LoginScreen`, delivery
-`OtpVerifyScreen`, and the `DeleteAccountScreen` re-auth consume that session and skip code entry.
-If auto-retrieval races a manual `confirm()`, `firebaseAuth` recovers the already-signed-in user
-instead of surfacing a false invalid-code error. `smsUserConsent.ts` buffers a code that arrives
-before the OTP screen mounts (delivery `PhoneEntryScreen` arms before navigating) and replays it on
-mount. iOS needs no native path — `textContentType="oneTimeCode"` drives QuickType. The module
-requires a native rebuild
-(`gh workflow run android-debug.yml -f app=customer`); no SMS body, sender, phone number or code is
+Android OTP autofill is owned solely by Firebase's native SMS Retriever (the custom SMS User Consent
+module was removed — its second `SMS_RETRIEVED` receiver collided with Firebase's own receiver and
+made `firebase-auth` NPE on a consent-intent broadcast). When the SMS carries the app's 11-character
+hash, Play Services reads it silently and the native SDK surfaces the session through
+`onAuthStateChanged` (the installed v27 modular API has no `onVerificationCompleted` callback);
+`LoginScreen`, delivery `OtpVerifyScreen`, and the `DeleteAccountScreen` re-auth consume that session
+and skip code entry. If auto-retrieval races a manual `confirm()`, `firebaseAuth` recovers the
+already-signed-in user instead of surfacing a false invalid-code error. Without the app hash in the
+SMS template (or without Play Services) the user types the code. iOS needs no native path —
+`textContentType="oneTimeCode"` drives QuickType. No SMS body, sender, phone number or code is
 logged.
 
 **Account deletion deletes the Firebase identity client-side:** `DeleteAccountScreen` runs a fresh
@@ -394,9 +382,8 @@ cannot leak into the next attempt.
     `ios/Faazio/Faazio-Debug.entitlements` = `development` for `*Debug`; `remote-notification` in all
     three variant plists). Only the `.p8` upload above remains.
 
-Until Part 6 is done, native SMS auto-retrieval and silent iOS verification may not work. Android
-SMS User Consent still autofills (it is independent of Play Integrity), and manual code
-entry/reCAPTCHA remains the fallback everywhere.
+Until Part 6 is done, native SMS auto-retrieval and silent iOS verification may not work, so manual
+code entry / reCAPTCHA remains the fallback everywhere.
 
 ### Test phone numbers (Play Store review)
 
@@ -483,12 +470,12 @@ Device smoke test (CI debug APK):
 | SMS never arrives | Region policy excludes +91, the number is not a test number, or the free quota is exhausted (Blaze billing required past the quota). On a **sideloaded APK** also check logcat for `Failed to initialize reCAPTCHA config: No Recaptcha Enterprise siteKey configured` — Play Integrity is rejected and the Enterprise fallback cannot run until Part 6 (site key) is configured. `requestSmsCode` retries such a rejected send with the legacy reCAPTCHA v2 flow, which needs the browser round-trip; dismiss/complete it and the SMS is sent. A **Firebase test number** (customer `+91 9000000001`) never receives an SMS — only its console code (`123456`) works. |
 | No SMS-autofill consent sheet | Google Play Services is missing/outdated, the APK predates the native module, or the retriever was armed **after** the SMS was sent. Type the code manually; rebuild via `gh workflow run android-debug.yml -f app=customer`. |
 | Consent approved but the code is not filled | The message must contain a 6-digit run and be surfaced by Play Services. Type the code manually; no `RECEIVE_SMS` permission is involved. |
-| Seller signature OTP does not autofill | SMS User Consent is independent of the Firebase app that sent the code. When the signature targets the signed-in number it runs on the primary app; a different contact number uses the disposable `faazio-seller-otp` app. Either way the same consent sheet should appear after "Send OTP". Without Play Services, type the code manually; the Verify button enables at six digits. |
+| Seller signature OTP does not autofill | The seller signature step was removed; the seller form sends `otpVerified: true` and the gateway checks the signed-in session claim. Manual entry enables Verify at six digits. |
 | Seller signature shows a red "Could not send the OTP" | The screen now maps the real Firebase code via `src/lib/otpError.ts` (e.g. `auth/too-many-requests`, `auth/invalid-app-credential`, `auth/network-request-failed`). App-verification failures on a sideloaded build mean Play Integrity could not prove the install — install from Play, or complete Part 6. A same-number signature uses the primary app precisely to avoid this on Android. |
 | Seller screen drops back to "Send OTP" after tapping resend | The resend failed, so Firebase discarded the previous pending confirmation; re-send once the network is back rather than typing the old code. |
 | "Resend OTP" is tappable but does nothing during verification | Expected: a resend is refused while a verify owns the pending request. Wait for Verify to finish, then resend. |
 | `401 otp_unverified` after the seller signature | The bearer token's phone claim does not match the application `contactPhone` (now sent as parsed E.164). Sign in on the shopper account that owns the contact phone and re-verify; a client `otpVerified: true` alone is rejected. |
 | International number rejected or mangled on seller onboarding | The seller contact field uses `src/lib/phone.ts` (`libphonenumber-js`). Pick the country first, then type the national number; a leading `+` is parsed as international and preserved even when invalid (never rewritten to `+91`). The `CountryCodePicker` is only shown when the account has no auth phone; if the number came from login it is read-only. Existing login/delivery flows still assume a 10-digit Indian number. |
-| Auto-verification never skips the OTP screen | Firebase templates usually cannot use hash-based auto-retrieval; SMS User Consent is the normal fast path. Manual entry remains available. |
+| Auto-verification never skips the OTP screen | Firebase hash-based auto-retrieval needs the app's 11-character hash in the SMS template; otherwise manual entry is the path. |
 | OTP screen shows an error right after a resend | An older `confirm()` resolved against a newer send; pending requests are request-scoped now, so retry once and report if it recurs. |
 | Token works but user rows are missing | `checkout.users` upsert needs Postgres; check `/health` → `db:true`. |

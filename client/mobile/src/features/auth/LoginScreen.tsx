@@ -49,7 +49,6 @@ import {
   verifyOtp,
   type FirebaseSession,
 } from '@/services/firebaseAuth';
-import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { otpErrorMessage } from '@/lib/otpError';
 import { useReducedMotion } from '@/hooks/useReducedMotion';
 import { gateway } from '@/services/api/GatewayClient';
@@ -477,17 +476,6 @@ export function LoginScreen({ navigation, route }: Props) {
     }
   }, [completeLogin, otpCode, phoneE164, phoneValid]);
 
-  const handleSmsCode = useCallback((code: string) => {
-    if (submitRef.current) return;
-    setOtpError('');
-    setOtpCode(code);
-  }, []);
-
-  const { restart: restartSmsConsent, stop: stopSmsConsent } = useSmsUserConsent(
-    handleSmsCode,
-    otpState,
-  );
-
   // Submission derives from state, not from the 6th keystroke's onChangeText:
   // this fires however the code arrived (fast typing, paste, re-render race).
   useEffect(() => {
@@ -542,13 +530,10 @@ export function LoginScreen({ navigation, route }: Props) {
         sendRef.current = true;
         setIsSending(true);
         try {
-          // The User Consent API only sees SMS received after it starts — arm before the send.
-          restartSmsConsent();
           await sendOtp(toE164(digits));
           // Remember the number so it can be suggested on the next signed-out visit.
           void saveRecentPhone(toE164(digits));
         } catch (err) {
-          stopSmsConsent();
           // Log the Firebase code in dev without surfacing raw SDK details in the UI.
           if (__DEV__) {
             const code = (err as { code?: string })?.code ?? 'unknown';
@@ -568,7 +553,7 @@ export function LoginScreen({ navigation, route }: Props) {
       setAuthStep('otp');
       setResendCooldown(RESEND_COOLDOWN_S);
     },
-    [isSending, restartSmsConsent, stopSmsConsent],
+    [isSending],
   );
 
   const handleNameChange = (val: string) => {
@@ -640,11 +625,8 @@ export function LoginScreen({ navigation, route }: Props) {
     if (firebaseAuthConfigured()) {
       resendRef.current = true;
       sendRef.current = true;
-      // Re-arm before the resend SMS leaves the server (same 5-minute-window rule as the first send).
-      restartSmsConsent();
       void sendOtp(phoneE164)
         .catch((err: unknown) => {
-          stopSmsConsent();
           if (__DEV__) {
             const code = (err as { code?: string })?.code ?? 'unknown';
             console.warn('[phone-auth] resend failed:', code, (err as Error)?.message);
