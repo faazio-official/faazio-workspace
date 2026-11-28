@@ -9,7 +9,7 @@
  * The Firebase refresh token never leaves the native SDK, and nothing here logs tokens,
  * phone numbers or OTP codes.
  */
-import { Platform } from 'react-native';
+import { AppState, Platform } from 'react-native';
 import { deleteApp, getApp, getApps, initializeApp } from '@react-native-firebase/app';
 import {
   getAuth,
@@ -302,6 +302,15 @@ function forceLegacyRecaptchaFlow(auth: Auth): boolean {
  */
 const OTP_SEND_TIMEOUT_MS = 20_000;
 
+/**
+ * Budget for the retry that is forced through the legacy reCAPTCHA v2 browser flow. Unlike the
+ * Play-Integrity attempt, this one deliberately leaves the app: the user solves the challenge in
+ * the system browser, so it must get far more than the stuck-spinner ceiling. The countdown is
+ * also paused while the app is backgrounded (`withTimeout`), so the browser round-trip itself
+ * never consumes this budget.
+ */
+const OTP_RECAPTCHA_TIMEOUT_MS = 120_000;
+
 /** A code confirmation is a plain network round-trip; it must never pin the Verify button. */
 const OTP_VERIFY_TIMEOUT_MS = 20_000;
 
@@ -318,18 +327,77 @@ export class OtpTimeoutError extends Error {
   }
 }
 
+/**
+ * Reject on its own if `promise` has not settled within `ms` of **foreground** time.
+ *
+ * Time spent while the app is backgrounded does not count. On Android the Play-Integrity fallback
+ * is the legacy reCAPTCHA v2 flow, which opens the system browser: the user is outside the app for
+ * as long as the challenge takes (often well past 20 s), and returning to the app must still find
+ * the send in flight. Counting that browser time was cutting the send off, clearing the pending
+ * confirmation and signing out the phantom session, so the SMS arrived while the UI had already
+ * given up. On iOS the reCAPTCHA sheet is presented in-app (the app stays active), so the
+ * stuck-presenter guard still releases the Send button as before.
+ */
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => reject(new OtpTimeoutError()), ms);
+    let settled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let remaining = ms;
+    let startedAt = Date.now();
+    let subscription: { remove: () => void } | null = null;
+
+    const backgrounded = () =>
+      AppState.currentState === 'background' || AppState.currentState === 'inactive';
+
+    const clearTimer = () => {
+      if (timer !== null) {
+        clearTimeout(timer);
+        timer = null;
+      }
+    };
+
+    const finish = (action: () => void) => {
+      if (settled) return;
+      settled = true;
+      clearTimer();
+      subscription?.remove();
+      subscription = null;
+      action();
+    };
+
+    const pause = () => {
+      if (timer === null) return;
+      clearTimeout(timer);
+      timer = null;
+      remaining = Math.max(0, remaining - (Date.now() - startedAt));
+    };
+
+    const arm = () => {
+      if (settled) return;
+      // Reserve time already spent in the current foreground window (a duplicate 'active' event
+      // must not refund it), then start a fresh segment.
+      pause();
+      startedAt = Date.now();
+      timer = setTimeout(() => finish(() => reject(new OtpTimeoutError())), remaining);
+    };
+
+    try {
+      subscription = AppState.addEventListener('change', (state) => {
+        if (state === 'active') arm();
+        else pause();
+      });
+    } catch {
+      // No AppState (e.g. a non-standard runtime) — fall back to a plain wall-clock timeout.
+      subscription = null;
+    }
+
+    // Start the clock only while the app is foreground; a send begun from the background resumes
+    // its budget when the app next becomes active.
+    if (!backgrounded()) arm();
+
     promise.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (err: unknown) => {
-        clearTimeout(timer);
-        reject(err);
-      },
+      (value) => finish(() => resolve(value)),
+      (err: unknown) => finish(() => reject(err)),
     );
   });
 }
@@ -342,7 +410,8 @@ async function requestSmsCode(auth: Auth, phone: string): Promise<ConfirmationRe
     if (__DEV__) {
       console.warn('[phone-auth] Play Integrity unavailable — retrying with reCAPTCHA v2');
     }
-    return withTimeout(signInWithPhoneNumber(auth, phone), OTP_SEND_TIMEOUT_MS);
+    // The browser round-trip is user-paced; give it the reCAPTCHA budget, not the 20 s ceiling.
+    return withTimeout(signInWithPhoneNumber(auth, phone), OTP_RECAPTCHA_TIMEOUT_MS);
   }
 }
 

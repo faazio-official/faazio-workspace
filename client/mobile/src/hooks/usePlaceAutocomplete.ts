@@ -80,7 +80,14 @@ export function usePlaceAutocomplete(
           },
           body: JSON.stringify(body),
         });
-        if (!response.ok) throw new Error('places_autocomplete_failed');
+        if (!response.ok) {
+          if (__DEV__) {
+            // A 403 here almost always means the API key's Android restrictions do not include the
+            // installed APK's signing SHA-1 (a sideloaded release uses the upload key).
+            console.warn('[places] autocomplete failed:', response.status);
+          }
+          throw new Error('places_autocomplete_failed');
+        }
         const data = (await response.json()) as { suggestions?: RawSuggestion[] };
         if (id !== requestId.current) return;
         const mapped = (data.suggestions ?? [])
@@ -120,7 +127,12 @@ export async function resolvePlaceLocation(
       `${PLACE_URL}${encodeURIComponent(placeId)}?fields=location,formattedAddress`,
       { headers: { 'X-Goog-Api-Key': placesKey } },
     );
-    if (!response.ok) return null;
+    if (!response.ok) {
+      if (__DEV__) {
+        console.warn('[places] place details failed:', response.status);
+      }
+      return null;
+    }
     const data = (await response.json()) as {
       location?: { latitude?: number; longitude?: number };
       formattedAddress?: string;

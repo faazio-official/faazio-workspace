@@ -91,8 +91,11 @@ export async function refreshLiveLocation(
   }
   store.setLoading();
   try {
+    // An explicit "use my location" prefers a GPS fix, but a timed-out high-accuracy provider
+    // (indoors, flaky OEM GPS, Android 9 while switching providers) must not fail the whole action
+    // when a network fix is available.
     const coordinates = prompt
-      ? await getHighAccuracyPosition()
+      ? await getHighAccuracyPosition().catch(() => getCoarsePosition())
       : await getCoarsePosition();
     const previous = currentDevice(store);
     if (sameOrigin(previous, coordinates) && store.deviceFix?.address) {
@@ -177,7 +180,9 @@ export async function requestAndRefreshLocation(): Promise<LocationRequestResult
   }
 
   try {
-    const coordinates = await getHighAccuracyPosition();
+    const coordinates = await getHighAccuracyPosition().catch(() =>
+      getCoarsePosition(),
+    );
     const place = await reverseGeocode(
       coordinates.latitude,
       coordinates.longitude,

@@ -36,7 +36,11 @@ never be mistaken for a Firebase token (distinct issuer/audience; see
    (sideloaded debug/CI APK), `requestSmsCode` (`src/services/firebaseAuth.ts`) retries once with the
    legacy reCAPTCHA v2 web flow after an app-credential rejection — Firebase's default reCAPTCHA
    Enterprise fallback needs a Google Cloud site key the project does not have yet (`FIREBASE_AUTH.md`
-   Part 6), so without the retry the send fails and no SMS is dispatched.
+   Part 6), so without the retry the send fails and no SMS is dispatched. That browser round-trip is
+   user-paced: `withTimeout` pauses its countdown while the app is backgrounded and gives the forced
+   reCAPTCHA retry a 120 s budget, so returning from the browser no longer finds a timed-out,
+   already-cleared request. On Android the SMS consent sheet is only launched from a resumed
+   activity — an SMS that lands while the browser is open is held and shown on return.
 3. The user enters the 6-digit code (manual, SMS user-consent, or Firebase auto-retrieval). Both apps
    render an animated 6-segment field driven by a hidden `textContentType="oneTimeCode"` /
    `autoComplete="sms-otp"` input and auto-submit at 6 digits.

@@ -18,6 +18,16 @@
       <action android:name="android.intent.action.VIEW"/>
       <category android:name="android.intent.category.BROWSABLE"/>
       <data android:scheme="https"/>
+      <data android:scheme="http"/>
+    </intent>
+    <!-- Firebase phone auth's reCAPTCHA fallback opens a Chrome Custom Tab (RecaptchaActivity uses
+         androidx.browser.customtabs). Android 11+ package visibility must expose the browser and its
+         CustomTabsService, otherwise the fallback cannot resolve/return and the flow dies. -->
+    <intent>
+      <action android:name="android.support.customtabs.action.CustomTabsService"/>
+    </intent>
+    <intent>
+      <action android:name="androidx.browser.customtabs.action.CustomTabsService"/>
     </intent>
     <!-- UPI app detection at checkout (Linking.canOpenURL — Android 11 package visibility).
          Scheme intents + package visibility for GPay / PhonePe / Paytm / Amazon Pay / BHIM. -->
