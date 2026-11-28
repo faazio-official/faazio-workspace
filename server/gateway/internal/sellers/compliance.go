@@ -62,6 +62,11 @@ var (
 
 const gstinAlphabet = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+// isIFSC reports whether s is a valid 11-character IFSC (4 letters, 0, then 6 alphanumerics).
+func isIFSC(s string) bool {
+	return ifscPattern.MatchString(strings.ToUpper(strings.TrimSpace(s)))
+}
+
 func (FormatComplianceValidator) Validate(_ context.Context, in ComplianceInput) ComplianceReport {
 	checks := make([]ComplianceCheck, 0, 4)
 

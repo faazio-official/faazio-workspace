@@ -25,6 +25,8 @@ export interface DraftVendor {
   key: string;
   app: AppBrand;
   shopName: string;
+  shopPhone: string;
+  sameAsOwnerPhone: boolean;
   shopAddress: string;
   platformFee: string;
   categoryId: string | null;
@@ -67,9 +69,6 @@ export interface SellerDraft {
   vendors: DraftVendor[];
   passbookUri: string | null;
   tierCode: string | null;
-  termsAccepted: boolean;
-  partnerAccepted: boolean;
-  ipGranted: boolean;
 }
 
 function keyFor(userKey: string): string {
@@ -81,6 +80,8 @@ function toDraftVendor(v: VendorDraft): DraftVendor {
     key: v.key,
     app: v.app,
     shopName: v.shopName,
+    shopPhone: v.shopPhone,
+    sameAsOwnerPhone: v.sameAsOwnerPhone,
     shopAddress: v.shopAddress,
     platformFee: v.platformFee,
     categoryId: v.categoryId,
@@ -109,6 +110,9 @@ export function restoreVendor(d: DraftVendor): VendorDraft {
     key: str(d.key) || `v-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     app: d.app === 'FOOD' || d.app === 'PHARMA' || d.app === 'MART' ? d.app : 'MART',
     shopName: str(d.shopName),
+    shopPhone: str(d.shopPhone),
+    // Older drafts predate the tick: keep their typed shop number rather than overwriting it.
+    sameAsOwnerPhone: d.sameAsOwnerPhone === true,
     shopAddress: str(d.shopAddress),
     platformFee: str(d.platformFee) || '10',
     categoryId: typeof d.categoryId === 'string' ? d.categoryId : null,
@@ -170,9 +174,6 @@ export function buildDraft(input: {
   passbookUri: string | null;
   tierCode: string | null;
   phoneCountry: string;
-  termsAccepted: boolean;
-  partnerAccepted: boolean;
-  ipGranted: boolean;
 }): SellerDraft {
   return {
     version: VERSION,
@@ -182,9 +183,6 @@ export function buildDraft(input: {
     vendors: input.vendors.map(toDraftVendor),
     passbookUri: input.passbookUri,
     tierCode: input.tierCode,
-    termsAccepted: input.termsAccepted,
-    partnerAccepted: input.partnerAccepted,
-    ipGranted: input.ipGranted,
   };
 }
 
@@ -205,9 +203,6 @@ export async function readSellerDraft(userKey: string): Promise<SellerDraft | nu
       vendors: parsed.vendors as DraftVendor[],
       passbookUri: parsed.passbookUri ?? null,
       tierCode: parsed.tierCode ?? null,
-      termsAccepted: parsed.termsAccepted === true,
-      partnerAccepted: parsed.partnerAccepted === true,
-      ipGranted: parsed.ipGranted === true,
     };
   } catch {
     return null;

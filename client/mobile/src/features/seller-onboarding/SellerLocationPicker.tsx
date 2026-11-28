@@ -87,10 +87,26 @@ export default function SellerLocationPicker({
     [activeLocation],
   );
 
-  // The marker is only drawn for a real point (existing pin, parent-supplied pin, or live fix); the
-  // fallback merely centres the camera so a seller who has never pinned still sees their area.
+  // The marker is drawn for a real point (existing pin, parent-supplied pin, or live fix); with no
+  // real point yet it sits at the camera centre (`MAP_FALLBACK`), where a tap or drag replaces it.
+  // The map must never open pinless, or the "tap or drag the pin" hint points at nothing.
   const realPoint = pin ?? initial ?? stored;
   const centre = realPoint ?? MAP_FALLBACK;
+  const markerPoint = centre;
+
+  // Blank tiles (a missing or wrongly restricted Android Maps key) fire no load callback. Detect it
+  // and point the seller at search / current location instead of leaving a silent beige rectangle.
+  const [mapLoaded, setMapLoaded] = useState(false);
+  const [mapUnavailable, setMapUnavailable] = useState(false);
+  useEffect(() => {
+    if (!visible) {
+      setMapLoaded(false);
+      setMapUnavailable(false);
+      return;
+    }
+    const timer = setTimeout(() => setMapUnavailable((unavailable) => unavailable || !mapLoaded), 6000);
+    return () => clearTimeout(timer);
+  }, [visible, mapLoaded]);
 
   const focusMap = (point: Coordinates) => {
     mapRef.current?.animateToRegion(
@@ -239,23 +255,32 @@ export default function SellerLocationPicker({
                 longitudeDelta: MAP_DELTA,
               }}
               onPress={(event) => selectPoint(event.nativeEvent.coordinate)}
+              onMapLoaded={() => setMapLoaded(true)}
               accessibilityLabel="Shop location map"
               accessibilityHint="Tap the map or drag the pin onto your shop"
             >
-              {realPoint ? (
-                <Marker
-                  coordinate={pin ?? realPoint}
-                  draggable
-                  onDragEnd={(event) => selectPoint(event.nativeEvent.coordinate)}
-                  title="Shop location"
-                />
-              ) : null}
+              <Marker
+                coordinate={markerPoint}
+                draggable
+                pinColor={semantic.danger}
+                onDragEnd={(event) => selectPoint(event.nativeEvent.coordinate)}
+                title="Shop location"
+              />
             </MapView>
           ) : null}
           <View style={styles.mapHint} pointerEvents="none">
             <MapPin size={ms(13)} color={neutral.card} />
             <AppText style={styles.mapHintText}>Tap or drag the pin onto your shop</AppText>
           </View>
+          {mapUnavailable ? (
+            <View style={styles.mapNotice} pointerEvents="none">
+              <MapPin size={ms(30)} color={semantic.danger} fill={semantic.danger} strokeWidth={1.6} />
+              <AppText style={styles.mapNoticeText}>
+                Map tiles aren’t loading on this device — set the pin with search or your current
+                location below.
+              </AppText>
+            </View>
+          ) : null}
         </View>
 
         <KeyboardAvoidingView
@@ -431,7 +456,7 @@ const styles = StyleSheet.create({
   mapHint: {
     position: 'absolute',
     left: hs(10),
-    bottom: vs(10),
+    top: vs(10),
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(6),
@@ -441,6 +466,22 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(15,23,42,0.62)',
   },
   mapHintText: { fontSize: ms(10.5), fontWeight: '700', color: neutral.card },
+  mapNotice: {
+    position: 'absolute',
+    left: hs(10),
+    right: hs(10),
+    bottom: vs(10),
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: hs(10),
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(8),
+    borderRadius: ms(10),
+    backgroundColor: neutral.surface,
+    borderWidth: 1,
+    borderColor: semantic.danger,
+  },
+  mapNoticeText: { flex: 1, fontSize: ms(10.5), fontWeight: '600', color: neutral.ink, lineHeight: ms(15) },
   content: { paddingHorizontal: hs(16), paddingTop: vs(14), paddingBottom: vs(24) },
   helper: { fontSize: ms(11.5), color: neutral.inkMuted, lineHeight: ms(17), marginBottom: vs(14) },
   searchRow: {
@@ -503,7 +544,7 @@ const styles = StyleSheet.create({
   pinLabel: {
     fontSize: ms(11),
     fontWeight: '700',
-    color: neutral.inkMuted,
+    color: neutral.ink,
     textTransform: 'uppercase',
   },
   pinValue: { fontSize: ms(12), fontWeight: '600', color: neutral.ink, marginTop: vs(2) },

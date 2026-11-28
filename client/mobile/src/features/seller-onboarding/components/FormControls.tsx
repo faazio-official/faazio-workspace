@@ -45,6 +45,62 @@ export function TextInputField({
   );
 }
 
+export interface PaperFieldProps extends Omit<TextInputFieldProps, 'label'> {
+  label: string;
+  required?: boolean;
+  hint?: string;
+  /** Fixed text shown inline before the value, e.g. a `+91` dial code. */
+  prefix?: string;
+}
+
+/**
+ * Underline field used by the two-step application sheet: label above, hairline rule under the value,
+ * no boxed chrome. Reads like the printed form it replaces.
+ */
+export function PaperField({
+  label,
+  placeholder,
+  value,
+  onChangeText,
+  autoCapitalize,
+  keyboardType,
+  maxLength,
+  editable = true,
+  required = false,
+  hint,
+  prefix,
+}: PaperFieldProps) {
+  return (
+    <View style={styles.paperField}>
+      <View style={styles.paperLabelRow}>
+        <AppText style={styles.paperLabel}>
+          {label}
+          {required ? <AppText style={styles.paperRequired}> *</AppText> : null}
+        </AppText>
+      </View>
+      <View style={prefix ? styles.paperValueRow : undefined}>
+        {prefix ? <AppText style={styles.paperPrefix}>{prefix}</AppText> : null}
+        <AppTextInput
+          style={[
+            styles.paperInput,
+            prefix ? styles.paperInputInline : null,
+            !editable && styles.paperInputReadOnly,
+          ]}
+          placeholder={placeholder}
+          placeholderTextColor={neutral.inkSubtle}
+          value={value}
+          onChangeText={onChangeText}
+          autoCapitalize={autoCapitalize}
+          keyboardType={keyboardType}
+          maxLength={maxLength}
+          editable={editable}
+        />
+      </View>
+      {hint ? <AppText style={styles.paperHint}>{hint}</AppText> : null}
+    </View>
+  );
+}
+
 export function DocumentRow({
   label,
   uri,
@@ -83,7 +139,7 @@ const styles = StyleSheet.create({
   inputLabel: {
     fontSize: ms(11),
     fontWeight: '700',
-    color: neutral.inkSubtle,
+    color: neutral.ink,
     textTransform: 'uppercase',
     letterSpacing: 0.4,
     marginBottom: vs(6),
@@ -100,6 +156,41 @@ const styles = StyleSheet.create({
     color: neutral.ink,
   },
   inputReadOnly: { backgroundColor: '#EEF2F7', color: neutral.inkMuted },
+  paperField: { marginTop: vs(14) },
+  paperLabelRow: { flexDirection: 'row', alignItems: 'center' },
+  paperLabel: {
+    fontSize: ms(11),
+    fontWeight: '700',
+    color: neutral.ink,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
+  paperRequired: { color: neutral.inkMuted },
+  paperInput: {
+    height: Math.max(44, vs(44)),
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    borderBottomWidth: 1,
+    borderBottomColor: neutral.border,
+    fontSize: ms(15.5),
+    fontWeight: '600',
+    color: neutral.ink,
+  },
+  paperInputReadOnly: { color: neutral.inkMuted },
+  paperValueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: neutral.border,
+  },
+  paperPrefix: {
+    fontSize: ms(15.5),
+    fontWeight: '600',
+    color: neutral.inkMuted,
+    paddingRight: hs(4),
+  },
+  paperInputInline: { flex: 1, borderBottomWidth: 0 },
+  paperHint: { fontSize: ms(10.5), color: neutral.inkSubtle, marginTop: vs(5) },
   docRow: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -506,7 +506,7 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 		// number so only the tail reaches Postgres.
 		if v.BankName != "" || v.BankAccountNumber != "" || v.BankIFSC != "" || v.BankBeneficiary != "" {
 			masked, ok := maskAccount(v.BankAccountNumber)
-			if !ok || v.BankName == "" || len(v.BankIFSC) != 11 || v.BankBeneficiary == "" {
+			if !ok || v.BankName == "" || !isIFSC(v.BankIFSC) || v.BankBeneficiary == "" {
 				httpx.Fail(w, http.StatusBadRequest, "bad_request", "shop bank name, account number, ifsc and beneficiary are required together")
 				return
 			}
@@ -566,8 +566,8 @@ func (h *Handler) create(w http.ResponseWriter, r *http.Request) {
 	}
 	masked, ok := maskAccount(req.BankAccountNumber)
 	if !ok || strings.TrimSpace(req.BankName) == "" ||
-		len(strings.TrimSpace(req.BankIFSC)) != 11 || strings.TrimSpace(req.BankBeneficiary) == "" {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "bank name, account number, ifsc and beneficiary are required")
+		!isIFSC(req.BankIFSC) || strings.TrimSpace(req.BankBeneficiary) == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "bank name, account number, a valid ifsc (e.g. HDFC0001234) and beneficiary are required")
 		return
 	}
 	if !isStorageKey(req.PassbookFileKey) {
@@ -1055,8 +1055,8 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 	var bank *BankAccount
 	if strings.TrimSpace(req.BankAccountNumber) != "" {
 		masked, ok := maskAccount(req.BankAccountNumber)
-		if !ok || len(strings.TrimSpace(req.BankIFSC)) != 11 || strings.TrimSpace(req.BankBeneficiary) == "" {
-			httpx.Fail(w, http.StatusBadRequest, "bad_request", "bank details are incomplete")
+		if !ok || !isIFSC(req.BankIFSC) || strings.TrimSpace(req.BankBeneficiary) == "" {
+			httpx.Fail(w, http.StatusBadRequest, "bad_request", "bank details are incomplete or the ifsc is not valid (e.g. HDFC0001234)")
 			return
 		}
 		bank = &BankAccount{
@@ -2000,8 +2000,8 @@ func (h *Handler) putBank(w http.ResponseWriter, r *http.Request) {
 	req.IFSC = strings.ToUpper(strings.TrimSpace(req.IFSC))
 	req.BeneficiaryName = strings.TrimSpace(req.BeneficiaryName)
 	// Only a masked tail may be stored — reject a full number.
-	if !strings.Contains(req.AccountNumberMasked, "*") || len(req.IFSC) != 11 || req.BeneficiaryName == "" {
-		httpx.Fail(w, http.StatusBadRequest, "bad_request", "provide a masked account number, an 11-char IFSC and a beneficiary")
+	if !strings.Contains(req.AccountNumberMasked, "*") || !isIFSC(req.IFSC) || req.BeneficiaryName == "" {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "provide a masked account number, a valid IFSC (e.g. HDFC0001234) and a beneficiary")
 		return
 	}
 	b, err := h.repo.UpsertBankAccount(r.Context(), BankAccount{

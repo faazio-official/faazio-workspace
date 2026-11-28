@@ -69,16 +69,14 @@ pressed control is not marked `data-active`.
 
 The application is **one scrolling screen** in the customer app (`SellerRegistrationScreen`), so
 the chapter keeps that screen mounted and moves through its sections in document order: Part 1
-business account (identity, KYC, payout, contract, signature), Part 2 shops, then submit and the
-Pending-review state.
+business account (identity, KYC, payout), Part 2 shops, then submit and the Pending-review state.
+There is no signature or agreement step: submitting while signed in is the acceptance.
 
 | Step | Action | Flow |
 |---|---|---|
 | Open My Account and tap Sell with us | tap | `POST /sellers` entry (App/AccountView) |
 | Add your business identity | type | business name, owner, PAN, optional GSTIN, address, contact |
 | Add the payout account and passbook | type | bank fields + bank passbook capture (`media.assets`) |
-| Pick the contract tier and accept the agreements | tap | `GET /sellers/contract-tiers`, clickwrap |
-| Verify your phone — the digital signature | type | Firebase OTP (`otpVerified`) |
 | Add each shop you sell from | tap | shop app, category, platform fee, licence, map pin |
 | Submit for review | tap | `POST /sellers` → `PENDING_REVIEW` |
 | Pending review | tap | `GET /sellers/me` review card; nothing is approved automatically |

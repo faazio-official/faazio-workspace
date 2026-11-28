@@ -1622,8 +1622,11 @@ the screen only ever sends `{tag, name, phone, address, isDefault}`.
 minimal form and is reached from the Account `earn` group. It is a two-part form:
 
 **Part 1 — the brand-agnostic account.** Business identity (business name, owner, **optional
-GSTIN**, required PAN, address, contact phone/email), the **mandatory bank passbook** photo, the
-default payout account (bank name, account number, IFSC, beneficiary) and the OTP digital signature.
+GSTIN**, required PAN, address, contact phone/email), the **mandatory bank passbook** photo and the
+default payout account (bank name, account number, IFSC, beneficiary). There is **no signature step**:
+the screen used to collect a Firebase OTP as a "digital signature" and it was removed, because the
+gateway already authorises the write from the bearer token's phone claim (see below). The owner number
+is therefore read-only while a signed-in phone exists — it is the number that signs the application.
 There are **no manual state/district dropdowns**: when a shop is pinned in Part 2 the picker's
 reverse-geocoded region/district are matched case-/punctuation-insensitively (the `(UT)` suffix and
 the `Pondicherry` spelling are normalised) against `GET /geo/states`
@@ -1634,13 +1637,13 @@ or removed, so the account can never keep a stale state after its shop is delete
 pinned, or none is in the server's district master (TN/PY coverage today), submission is blocked with
 a clear message.
 
-Between the payout account and the OTP signature the screen renders **Contract & terms**. It reads
-`GatewayClient.listContractTiers` (`GET /sellers/contract-tiers`, server-owned rate cards, no local
-fallback) into a `SelectDropdown`, shows the selected tier's commission/payout summary, and requires
-three clickwrap acceptances: Terms of Service, Seller / Partner Agreement and the content/IP licence.
-Each opens a concise in-app summary sheet (`components/ContractTerms.tsx`) rather than a wall of
-legal prose. Submission is blocked until a tier and all three acceptances are present; the gateway
-resolves the rate card and records the acceptance timestamp, hashed IP and account id server-side.
+The screen reads `GatewayClient.listContractTiers` (`GET /sellers/contract-tiers`, server-owned rate
+cards, no local fallback) in the background and puts the shop on the lowest-commission published tier;
+no rate-card question is shown. There is **no clickwrap UI**: the three agreement tick-boxes (Terms of
+Service, Seller / Partner Agreement, content/IP licence) and the `components/ContractTerms.tsx` reader
+sheet were removed from this screen, and `POST /sellers` receives the three consent flags as accepted
+because submitting the form is the acceptance. The gateway still resolves the rate card and records the
+acceptance timestamp, hashed IP and account id server-side.
 
 **Part 2 — the shops (vendors).** Each `ShopCard` (`features/seller-onboarding/components/`) picks
 its own app (`MART`/`FOOD`/`PHARMA` via the shared `SelectDropdown`), shop name/address, taxonomy
@@ -1662,18 +1665,10 @@ internal code keeps "vendor". Labels/placeholders still come from `SELLER_SETUP_
 Documents are captured with `DocumentCapture` (Vision Camera, consent-gated), uploaded straight to
 the private R2 bucket through `GatewayClient.uploadSellerDocument` (`/media/upload-url` presigned
 PUT → `/media/confirm`), and only the object key + asset id reach the application. Submission is
-blocked until the mandatory passbook photo, the shared location of every shop and the OTP digital
-signature are complete (licences stay optional). The OTP runs on the **primary** Firebase app when the
-signature targets the signed-in phone (same phone-auth UID, so no session swap) and on a disposable
-secondary app only for a different contact number — avoiding the secondary app's app-verification
-fallback on Android. The signature also uses Android **SMS User Consent**: `SellerRegistrationScreen`
-arms the retriever before `sendSellerOtp`, re-arms on resend, fills the six digits on approval, and
-auto-submits `verifySellerOtp` (manual entry and the Verify button remain available). Send and verify
-are mutually exclusive (a resend is refused while a verify is pending, and vice versa), the OTP and
-contact-phone inputs lock while `otpBusy`, editing the phone clears the signature and disarms the
-retriever, and a failed resend returns the UI to "Send OTP" because Firebase discarded the previous
-pending confirmation. The seller scope has no `onAuthStateChanged` auto-retrieval watcher; consent
-autofill or manual entry is its path.
+blocked until the mandatory passbook photo and the shared location of every shop are complete
+(licences stay optional). The Firebase OTP signature block, its Android **SMS User Consent** auto-fill,
+the send/verify lock-out and the resend countdown were all removed with the signature step; the screen
+now sends `otpVerified: true` and the gateway's own `auth.OTPSigned` check decides from the session.
 `GatewayClient.submitSellerApplication` (`POST /sellers`, audited) creates the
 `PENDING_REVIEW` seller, bank account and KYC rows in one transaction, plus one `directory.stores`
 **vendor** per entry in the `vendors[]` payload — the account is brand-agnostic, and the app,

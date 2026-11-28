@@ -58,11 +58,10 @@ fix in the simulator by logging `getApps().length` (must be ≥ 1).
 ## 3. Flow
 
 ```
-LoginScreen / delivery PhoneEntry / seller signature
+LoginScreen / delivery PhoneEntry
   └─ SMS User Consent armed BEFORE the SMS is requested
-       └─ firebaseAuth.sendOtp(digits) / sendSellerOtp(phoneDigits)
-            → signInWithPhoneNumber(auth, "+91…") (seller: primary app when the number matches the
-              signed-in shopper, else the disposable secondary app)
+       └─ firebaseAuth.sendOtp(digits)
+            → signInWithPhoneNumber(auth, "+91…") (primary app)
             ├─ Android: Play Integrity / reCAPTCHA → SMS (or native auto-retrieval)
             └─ iOS: APNs silent push, else reCAPTCHA → SMS
   └─ Android SMS User Consent (src/lib/smsUserConsent.ts + SmsUserConsentModule.kt)
@@ -82,21 +81,12 @@ created but the UI never consumed. A late auto-retrieval for the abandoned numbe
 sign the next attempt in, and re-entering a different number starts from a clean Firebase state.
 
 `sendOtp`/`verifyOtp` sign in the **primary** Firebase app so `refreshIdToken()` can rotate the
-session. Seller onboarding uses `sendSellerOtp`/`verifySellerOtp`. Because a phone-auth UID is derived
-from the phone number, when the signature targets the **same** number that owns the signed-in shopper
-session it runs on the **primary** app (a re-authentication of the same user, never a session swap) —
-this sidesteps the disposable app's Play Integrity / reCAPTCHA fallback, which can fail on sideloaded
-Android builds and surfaced as a generic red "could not send the OTP". A contact number different from
-the shopper's phone still uses the disposable secondary app so that session is never replaced. The
-seller signature uses the same Android SMS User Consent path: consent fills the six digits and
-auto-submits the seller verify, then the gateway's `auth.OTPSigned` check binds the shared shopper
-token's `phone_number` claim to the application's `contactPhone`. The seller screen also refuses a
-resend while a verify is in flight (and vice versa), locks the OTP and contact-phone inputs while
-`otpBusy`, clears the code on a phone edit, and returns to "Send OTP" if a resend fails (Firebase has
-already discarded the previous pending confirmation, so keeping "Verify" would only fail). Send and
-verify failures map the real Firebase code to actionable copy (`src/lib/otpError.ts`). The seller
-scope has no `onAuthStateChanged` auto-retrieval watcher; consent autofill or manual entry is its fast
-path.
+session. The seller-onboarding **signature step was removed** from the customer app, so
+`sendSellerOtp`/`verifySellerOtp` (and its OTP/SMS-consent UI) are no longer called from any screen.
+The gateway's `auth.OTPSigned` check is unchanged: it still binds the signed-in token's
+`phone_number` claim to the application's `contactPhone`, so the seller form now sends
+`otpVerified: true`, the owner number is read-only while a signed-in phone exists, and a token whose
+phone claim does not match is rejected with `401 otp_unverified`.
 Phone numbers are normalized to E.164 through `src/lib/phone.ts` (`libphonenumber-js`).
 `toE164(digits, country = 'IN')` keeps the historical `+91` default for the existing OTP flows. When
 the seller has no auth phone, the contact field pairs `CountryCodePicker` (7 countries: IN, US, CA,
@@ -116,9 +106,9 @@ applicant, which re-submits through the form.
 `refreshIdToken()` forces `getIdToken(true)`;
 `GatewayClient.recoverSession` uses it once on a 401. Nothing logs the token, phone number or OTP code.
 
-Android arms **SMS User Consent before** `sendOtp`/`sendSellerOtp`: the API only observes messages
-received after `startSmsUserConsent()`, so `LoginScreen`, delivery `PhoneEntryScreen`, the
-`DeleteAccountScreen` re-auth, and the `SellerRegistrationScreen` signature start a dynamically
+Android arms **SMS User Consent before** `sendOtp`: the API only observes messages
+received after `startSmsUserConsent()`, so `LoginScreen`, delivery `PhoneEntryScreen` and the
+`DeleteAccountScreen` re-auth start a dynamically
 registered `SMS_RETRIEVED` receiver first (guarded by
 `com.google.android.gms.auth.api.phone.permission.SEND`, **no `RECEIVE_SMS`/`READ_SMS` permission**)
 and re-arm before every resend. When the user approves the system sheet, the native module extracts

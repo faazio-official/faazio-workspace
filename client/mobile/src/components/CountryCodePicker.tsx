@@ -24,7 +24,11 @@ interface CountryCodePickerProps {
   disabled?: boolean;
 }
 
-export function CountryCodePicker({ value, onChange, disabled = false }: CountryCodePickerProps) {
+export function CountryCodePicker({
+  value,
+  onChange,
+  disabled = false,
+}: CountryCodePickerProps) {
   const [open, setOpen] = useState(false);
   const selected = COUNTRY_OPTIONS.find((c) => c.code === value) ?? COUNTRY_OPTIONS[0];
 

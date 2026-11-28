@@ -15,6 +15,9 @@ export interface VendorDraft {
   key: string;
   app: AppBrand;
   shopName: string;
+  shopPhone: string;
+  /** Shop number mirrors the owner number while ticked; `shopPhone` still holds the national digits. */
+  sameAsOwnerPhone: boolean;
   shopAddress: string;
   platformFee: string;
   categoryId: string | null;
@@ -44,6 +47,8 @@ export function newVendorDraft(app: AppBrand = 'MART'): VendorDraft {
     key: `v-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     app,
     shopName: '',
+    shopPhone: '',
+    sameAsOwnerPhone: true,
     shopAddress: '',
     platformFee: '10',
     categoryId: null,
