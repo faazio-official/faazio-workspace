@@ -60,11 +60,15 @@ web enquiry (/sell-with-us → POST /seller-inquiries → sellers.sellers status
 - `POST /sellers`, `GET /sellers/me`, `GET /sellers/{id}` → `sellers.sellers`.
 - `POST /media/upload-url` + `POST /media/confirm` → `media.assets`.
 - `POST /sellers/{id}/verify-doc/{docType}` → `sellers.kyc_documents`,
-  `sellers.kyc_verification_log`; `POST /sellers/{id}/verify-kyc` only sets
-  `sellers.sellers.status` to ACTIVE (it writes no document/log rows).
+  `sellers.kyc_verification_log`; `POST /sellers/{id}/verify-kyc` sets
+  `sellers.sellers.status` to ACTIVE after re-running the compliance check (it writes no
+  document/log rows).
 - `PATCH /sellers/{id}/status` sets the moderation status; an optional `reason` is recorded in the
   audit entry and persisted to `rejection_reason` + `rejection_history` on a REJECTED transition
-  (ACTIVE clears the rejection trail).
+  (ACTIVE clears the rejection trail). An activation re-runs compliance first.
+- `PUT /sellers/{id}/bank-account` (admin or seller) corrects the payout account and revalidates
+  compliance, so a fixed IFSC clears a stale `FAILED` verdict. `PATCH /sellers/{id}` and
+  `POST /sellers/{id}/edit` also revalidate.
 - `POST /seller/stores`, `PUT /seller/stores/{id}` → `directory.stores`.
 
 ## Success / error / empty
@@ -90,6 +94,12 @@ web enquiry (/sell-with-us → POST /seller-inquiries → sellers.sellers status
   copy + WhatsApp hand-over (super board sheet, district review card); a login whose password was
   missed is reset and re-shared from `/admin/super/credentials` (the role-tabbed board, Sellers tab)
   — see [`web-portal/credential-handover.md`](../web-portal/credential-handover.md).
+- **Compliance is recomputed, not frozen:** the format/checksum adapter runs at application creation
+  and is re-run on `PUT /sellers/{id}/bank-account`, `PATCH /sellers/{id}`, `POST /sellers/{id}/edit`,
+  and at activation (`verify-kyc` / `PATCH status → ACTIVE`). A `FAILED` verdict blocks activation
+  until the flagged field is corrected; the district review page's **Registered details → Edit**
+  lets the admin fix a bad payout IFSC (account number stays masked) and shows the blocking reason
+  on the **Decision** card.
 - **Seller app is a WebView over the portal:** the seller partner app loads the portal, so there is
   no native seller auth or separate seller web app to build.
 

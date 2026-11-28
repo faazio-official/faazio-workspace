@@ -75,6 +75,9 @@ export interface SellerRecord {
   otpVerifiedAt?: string | undefined;
   rejectionReason?: string | undefined;
   rejectionHistory?: unknown;
+  /** Server-side compliance verdict recomputed from the stored KYC fields (PAN/GSTIN/IFSC/FSSAI). */
+  complianceStatus?: "PENDING" | "VALIDATED" | "FAILED" | string | undefined;
+  complianceNote?: string | undefined;
   /** Vendor rollup from GET /sellers (an account can own shops in several apps). */
   vendorCount?: number | undefined;
   vendorApps?: Sector[] | undefined;

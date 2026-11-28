@@ -559,6 +559,40 @@ func (r *Repo) Vendors(ctx context.Context, sellerID string) ([]Vendor, error) {
 	return out, rows.Err()
 }
 
+// SaveCompliance persists a fresh compliance verdict on the account and appends each check to the
+// append-only validation log. Used to revalidate after a payout/profile correction or at activation,
+// so a stale FAILED cannot permanently block an application whose offending field was fixed.
+func (r *Repo) SaveCompliance(ctx context.Context, sellerID string, report ComplianceReport) error {
+	if r.pool == nil {
+		return fmt.Errorf("sellers: database not configured")
+	}
+	status := report.Status
+	if status == "" {
+		status = CompliancePending
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if _, err := tx.Exec(ctx, `
+		update sellers.sellers
+		   set compliance_status = $2, compliance_note = nullif($3,''), updated_at = now()
+		 where seller_id = $1`, sellerID, status, report.Note); err != nil {
+		return err
+	}
+	for _, c := range report.Checks {
+		if _, err := tx.Exec(ctx, `
+			insert into sellers.compliance_validations
+			  (log_id, seller_id, check_type, subject_masked, status, source, reason)
+			values ($1,$2,$3,$4,$5,$6,$7)`,
+			"cvl-"+shortID(), sellerID, c.CheckType, c.SubjectMasked, c.Status, c.Source, c.Reason); err != nil {
+			return err
+		}
+	}
+	return tx.Commit(ctx)
+}
+
 // Create inserts an onboarding seller (status PENDING_REVIEW) and returns the new row.
 func (r *Repo) Create(ctx context.Context, userID string, s Seller) (Seller, error) {
 	return r.CreateExtended(ctx, userID, s, nil, nil, nil, nil, nil)

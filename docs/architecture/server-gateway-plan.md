@@ -206,9 +206,13 @@ caller) and are event-purged on store live toggle and product edit/status change
   hashed client IP and `auth.UserID()` server-side. A `ComplianceValidator` adapter runs on the same
   call and writes append-only `sellers.compliance_validations`; the default `FormatComplianceValidator`
   checks PAN/GSTIN/FSSAI/IFSC shape + the GSTIN checksum and leaves the account `PENDING`
-  (`Handler.WithCompliance` is the government-provider seam). `PATCH /sellers/:id/status` → `ACTIVE`
-  and `POST /sellers/:id/verify-kyc` return `409 compliance_failed` only when the status is `FAILED`
-  (PENDING still allows the district admin's manual review).
+  (`Handler.WithCompliance` is the government-provider seam). Compliance is **revalidated**, not
+  frozen at creation: `PUT /sellers/{id}/bank-account`, `PATCH /sellers/{id}`,
+  `POST /sellers/{id}/edit`, and activation (`PATCH /sellers/:id/status` → `ACTIVE` /
+  `POST /sellers/:id/verify-kyc`) re-run the adapter against the stored profile + payout account +
+  vendors and persist the fresh verdict (`Repo.SaveCompliance`), so a corrected IFSC clears a stale
+  `FAILED`. Activation returns `409 compliance_failed` only when the recomputed status is still
+  `FAILED` (PENDING still allows the district admin's manual review).
   **Shopper self-read (`0084`):** `POST /sellers` stores `auth.UserID()` as `sellers.sellers.user_id`,
   and `GET /sellers/me` (mounted under `auth.Require`, **not** `RequireRole`) returns the caller's
   newest application or `404 not_found`. This lets a still-shopper applicant read their status

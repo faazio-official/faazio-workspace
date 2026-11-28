@@ -10,7 +10,7 @@
 | Field | Value |
 |---|---|
 | Document | Faazio User Interaction Workflow — Visual Guide |
-| Version | 1.11 |
+| Version | 1.21 |
 | Date | 28 November 2026 |
 | Audience | Client stakeholders, product, design, QA, engineering, support |
 | Scope | Customer mobile app (`client/mobile`) + Partner Web Portal (`client/web/platform`) |
@@ -1058,6 +1058,31 @@ flowchart TD
 | Operations | **Audit log** | Change history |
 | Operations | **Settings** | District settings |
 
+### 3.5.1 Seller application review (`/admin/district/sellers/[id]`)
+
+```mermaid
+flowchart TD
+  R["District admin → Sellers → open application"] --> D{"Review"}
+  D -->|"Verify on each KYC row"| VD["Document verified"]
+  D -->|"Edit (Registered details)"| ED["Correct GSTIN/PAN/address and payout bank name / IFSC / holder"]
+  ED --> RV["Compliance re-runs on save"]
+  D -->|"Verify KYC & activate"| CK{"Compliance FAILED?"}
+  CK -->|"Yes"| BLK["Activation blocked + reason shown on Decision card"]
+  BLK --> ED
+  CK -->|"No"| ACT["Seller ACTIVE + one-time login credential"]
+  D -->|"Reject"| REJ["REJECTED with reason"]
+  D -->|"Suspend"| SUS["SUSPENDED"]
+```
+
+| Control | Effect |
+|---|---|
+| **Verify** (per KYC row) | Verifies that document (`POST /sellers/{id}/verify-doc/{docType}`) |
+| **Request** (per KYC row) | Asks the applicant to re-upload that document |
+| **Edit** (Registered details) | Corrects GSTIN/PAN/address and the payout bank name, IFSC and account holder; the account number stays masked |
+| **Save details** | Saves the profile and, if changed, the payout account; compliance is recomputed immediately |
+| **Verify KYC & activate** | Re-runs compliance, then activates and returns the one-time seller login; refused with the reason if a check is still `FAILED` |
+| **Reject** / **Suspend** | Rejects (seller can resubmit) or suspends (listings go offline) with a reason |
+
 ## 3.6 Super admin console
 
 A super admin governs the whole platform.
@@ -1328,6 +1353,7 @@ Use this map if a flow changes and the diagram needs to be updated.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.21 | 28 Nov 2026 | Seller review (`/admin/district/sellers/[id]`): added a **3.5.1** flow — the district admin can now correct a bad payout **IFSC**/bank name/account holder from **Registered details → Edit** (account number stays masked). Compliance is re-run on that save and at **Verify KYC & activate**, so a corrected IFSC clears a stale `FAILED` block; the **Decision** card shows the blocking reason. |
 | 1.20 | 28 Nov 2026 | Admin notifications console (`/admin/{district,super}/notifications`): added a **Seller activity** feed (new registrations, KYC document uploads, fulfilled document requests) read from the seller tables, each card opening the seller detail. Outbox rows are now clickable (seller detail / order / product destination) and all descriptive copy was removed. |
 | 1.19 | 28 Nov 2026 | Seller review: missing KYC documents are now shown as **cards** with a **Request** button (the document-type dropdown and admin-side upload are gone). The `SELLER_DOC_REQUEST` push and in-app notification now deep-link straight to the customer-app **Sell with us** screen so the applicant can upload. |
 | 1.18 | 28 Nov 2026 | Seller review: the admin KYC row **Replace** action became **Request** — the admin asks the applicant to re-upload. The customer-app Sell with us screen now shows "Faazio has requested you to upload your <document>" with a **Capture & upload** button that fulfils the request (`sellers.document_requests`, migration `0147`). |

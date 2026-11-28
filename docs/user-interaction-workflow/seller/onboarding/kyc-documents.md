@@ -34,15 +34,18 @@
    `sellers.kyc_documents` row of that type (unverified, so it re-enters review) and marks the
    request `FULFILLED` in one transaction. The card disappears once the list reloads.
 7. Admin verifies the whole KYC with `POST /sellers/{id}/verify-kyc`, or rejects with
-   `POST /sellers/{id}/reject` and a reason.
-8. Private document preview uses `GET /media/private/{assetId}` (creator/admin presigned GET).
-9. Every document verification (`verify-doc`) writes `sellers.kyc_verification_log`;
-   `verify-kyc` only flips the seller status to ACTIVE.
-5. Admin verifies the whole KYC with `POST /sellers/{id}/verify-kyc`, or rejects with
-   `POST /sellers/{id}/reject` and a reason.
-6. Private document preview uses `GET /media/private/{assetId}` (creator/admin presigned GET).
-7. Every document verification (`verify-doc`) writes `sellers.kyc_verification_log`;
-   `verify-kyc` only flips the seller status to ACTIVE.
+   `POST /sellers/{id}/reject` and a reason. `verify-kyc` (and `PATCH /sellers/{id}/status` →
+   `ACTIVE`) **re-runs the compliance check first** against the stored profile + payout account +
+   vendors, and refuses with `409 compliance_failed` only if the fresh verdict is still `FAILED`.
+8. **Correct a flagged payout account without the seller:** the district review page's
+   **Registered details → Edit** exposes the payout bank name, IFSC and account holder
+   (`PUT /sellers/{id}/bank-account`); the account number itself stays masked. Saving re-runs
+   compliance immediately, so a corrected IFSC clears the `FAILED` block. The **Decision** card
+   shows the blocking reason; profile edits (`PATCH /sellers/{id}`) and seller re-submission
+   (`POST /sellers/{id}/edit`) also revalidate.
+9. Private document preview uses `GET /media/private/{assetId}` (creator/admin presigned GET).
+10. Every document verification (`verify-doc`) writes `sellers.kyc_verification_log`;
+    `verify-kyc` flips the seller status to ACTIVE (it writes no document/log rows).
 
 ## State
 
@@ -57,7 +60,11 @@
   `sellers.bank_accounts`.
 - `gateway.verifySellerDoc` → `POST /sellers/{id}/verify-doc/{docType}` →
   `sellers.kyc_documents`, `sellers.kyc_verification_log`.
-- `gateway.verifySellerKyc` → `POST /sellers/{id}/verify-kyc`.
+- `gateway.verifySellerKyc` → `POST /sellers/{id}/verify-kyc` → revalidates compliance
+  (`sellers.sellers.compliance_status`/`compliance_note`, appends `sellers.compliance_validations`)
+  before flipping status to ACTIVE.
+- `gateway.upsertBankAccount` → `PUT /sellers/{id}/bank-account` → `sellers.bank_accounts`, then
+  revalidates compliance.
 - `gateway.rejectSeller` → `POST /sellers/{id}/reject`.
 - `gateway.getPrivateMediaUrl` → `GET /media/private/{assetId}`.
 - `requestSellerDocument` → `POST /sellers/{id}/document-requests` → `sellers.document_requests`.

@@ -36,12 +36,14 @@ import {
   requestSellerDocument,
   setSellerStatus,
   updateSeller,
+  upsertBankAccount,
   updateVendorPlatformFee,
   verifySellerDocument,
   verifySellerKyc,
 } from "@/lib/api";
 import { useAnalyticsSeries, useSeller } from "@/lib/api/hooks";
 import type {
+  BankAccountInput,
   KycDocument,
   SellerDetail,
   SellerLoginCredential,
@@ -50,6 +52,7 @@ import type {
 } from "@/data/types";
 
 const GSTIN_RE = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][0-9A-Z]{2}$/;
+const IFSC_RE = /^[A-Z]{4}0[A-Z0-9]{6}$/;
 const DOC_TYPES: KycDocument["docType"][] = ["GSTIN", "PAN", "BANK_PROOF", "SHOP_LICENSE", "PASSBOOK", "FSSAI"];
 
 function SellerReview() {
@@ -157,6 +160,20 @@ function SellerReview() {
       toast.success("Registered details updated");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not save those details");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const saveBank = async (input: BankAccountInput) => {
+    setBusy(true);
+    try {
+      await upsertBankAccount(seller.sellerId, input);
+      await loadDetail();
+      toast.success("Payout account updated");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not save the payout account");
+      throw error;
     } finally {
       setBusy(false);
     }
@@ -338,7 +355,13 @@ function SellerReview() {
           )}
         </SectionCard>
 
-        <RegisteredDetails seller={seller} busy={busy} revealed={revealed} onSave={saveProfile} />
+        <RegisteredDetails
+          seller={seller}
+          busy={busy}
+          revealed={revealed}
+          onSave={saveProfile}
+          onSaveBank={saveBank}
+        />
       </div>
 
       <SectionCard
@@ -379,6 +402,12 @@ function SellerReview() {
       ) : null}
 
       <SectionCard title="Decision" description="Approval creates the Razorpay Route linked account; every action is audited.">
+        {seller.complianceStatus === "FAILED" ? (
+          <p className="mb-3 rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2 text-[12px] text-destructive">
+            Activation is blocked by a compliance check: {seller.complianceNote || "checks failed"}. Correct
+            the flagged bank or business detail above, then retry — the check re-runs automatically.
+          </p>
+        ) : null}
         <Textarea
           rows={3}
           value={reason}
@@ -454,11 +483,13 @@ function RegisteredDetails({
   busy,
   revealed,
   onSave,
+  onSaveBank,
 }: {
   seller: SellerDetail;
   busy: boolean;
   revealed: boolean;
   onSave: (patch: SellerProfilePatch) => Promise<void>;
+  onSaveBank: (input: BankAccountInput) => Promise<void>;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState<SellerProfilePatch>({
@@ -468,6 +499,12 @@ function RegisteredDetails({
     pan: seller.pan,
     businessAddress: seller.businessAddress,
     contactPhone: seller.contactPhone,
+  });
+  const bank = seller.bankAccount;
+  const [bankDraft, setBankDraft] = useState({
+    bankName: bank?.bankName ?? "",
+    ifsc: bank?.ifsc ?? "",
+    beneficiaryName: bank?.beneficiaryName ?? "",
   });
 
   useEffect(() => {
@@ -479,10 +516,20 @@ function RegisteredDetails({
       businessAddress: seller.businessAddress,
       contactPhone: seller.contactPhone,
     });
-  }, [seller]);
+    setBankDraft({
+      bankName: bank?.bankName ?? "",
+      ifsc: bank?.ifsc ?? "",
+      beneficiaryName: bank?.beneficiaryName ?? "",
+    });
+  }, [seller, bank]);
 
   const gstinOk = GSTIN_RE.test(draft.gstin ?? "");
-  const bank = seller.bankAccount;
+  const ifscOk = !bank || IFSC_RE.test(bankDraft.ifsc.trim().toUpperCase());
+  const bankChanged =
+    !!bank &&
+    (bankDraft.ifsc.trim().toUpperCase() !== bank.ifsc ||
+      bankDraft.bankName.trim() !== (bank.bankName ?? "") ||
+      bankDraft.beneficiaryName.trim() !== bank.beneficiaryName);
 
   return (
     <SectionCard
@@ -542,16 +589,64 @@ function RegisteredDetails({
               }
             />
           </Field>
+          {bank ? (
+            <div className="space-y-3 rounded-lg border border-border p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                Payout account
+              </p>
+              <Field label="Bank name">
+                <Input
+                  value={bankDraft.bankName}
+                  onChange={(e) => setBankDraft((d) => ({ ...d, bankName: e.target.value }))}
+                />
+              </Field>
+              <Field label="IFSC">
+                <Input
+                  className="num"
+                  maxLength={11}
+                  value={bankDraft.ifsc}
+                  onChange={(e) => setBankDraft((d) => ({ ...d, ifsc: e.target.value.toUpperCase() }))}
+                />
+                {!ifscOk ? (
+                  <p className="mt-1 text-[11px] text-destructive">
+                    Not a valid IFSC format (4 letters, 0, then 6 alphanumerics).
+                  </p>
+                ) : null}
+              </Field>
+              <Field label="Account holder">
+                <Input
+                  value={bankDraft.beneficiaryName}
+                  onChange={(e) => setBankDraft((d) => ({ ...d, beneficiaryName: e.target.value }))}
+                />
+              </Field>
+              <p className="text-[11px] text-muted-foreground">
+                Account {bank.accountNumberMasked} stays masked. A corrected IFSC clears a compliance block
+                on save.
+              </p>
+            </div>
+          ) : null}
           <div className="flex justify-end gap-2">
             <Button size="sm" variant="ghost" onClick={() => setEditing(false)}>
               Cancel
             </Button>
             <Button
               size="sm"
-              disabled={busy || !gstinOk}
+              disabled={busy || !gstinOk || !ifscOk}
               onClick={async () => {
-                await onSave(draft);
-                setEditing(false);
+                try {
+                  await onSave(draft);
+                  if (bankChanged && bank) {
+                    await onSaveBank({
+                      bankName: bankDraft.bankName.trim(),
+                      accountNumber: bank.accountNumberMasked,
+                      ifsc: bankDraft.ifsc.trim().toUpperCase(),
+                      beneficiaryName: bankDraft.beneficiaryName.trim(),
+                    });
+                  }
+                  setEditing(false);
+                } catch {
+                  // The parent already surfaced the error; keep the editor open for correction.
+                }
               }}
             >
               Save details

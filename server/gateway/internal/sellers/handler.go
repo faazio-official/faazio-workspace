@@ -685,15 +685,24 @@ func (h *Handler) setStatus(w http.ResponseWriter, r *http.Request) {
 		httpx.Fail(w, http.StatusBadRequest, "bad_request", "reason is too long")
 		return
 	}
-	// A failed compliance check blocks activation. PENDING is allowed because the district admin's
-	// manual KYC review is the current verification path until a government provider is linked.
-	if req.Status == "ACTIVE" && before.ComplianceStatus == ComplianceFailed {
-		note := before.ComplianceNote
-		if note == "" {
-			note = "compliance checks failed"
+	// A failed compliance check blocks activation. Revalidate first so a corrected bank/profile
+	// clears a stale FAILED verdict instead of blocking forever. PENDING is allowed because the
+	// district admin's manual KYC review is the current verification path until a provider is linked.
+	if req.Status == "ACTIVE" {
+		fresh, rerr := h.revalidateCompliance(r.Context(), before)
+		if rerr != nil {
+			httpx.Fail(w, http.StatusInternalServerError, "compliance_unavailable", "could not revalidate compliance")
+			return
 		}
-		httpx.Fail(w, http.StatusConflict, "compliance_failed", "cannot activate: "+note)
-		return
+		before = fresh
+		if before.ComplianceStatus == ComplianceFailed {
+			note := before.ComplianceNote
+			if note == "" {
+				note = "compliance checks failed"
+			}
+			httpx.Fail(w, http.StatusConflict, "compliance_failed", "cannot activate: "+note)
+			return
+		}
 	}
 	after, ok, err := h.repo.SetStatus(r.Context(), id, req.Status, req.Reason, h.actor(r))
 	if err != nil {
@@ -776,6 +785,38 @@ func (h *Handler) updatePlatformFee(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+// revalidateCompliance re-runs the compliance adapter against the current persisted application
+// (profile + payout account + vendors) and stores the fresh verdict. Compliance is otherwise only
+// computed at application creation, so a stale FAILED would permanently block activation even after
+// the offending field (e.g. a bad payout IFSC) has been corrected.
+func (h *Handler) revalidateCompliance(ctx context.Context, s Seller) (Seller, error) {
+	var bank *BankAccount
+	if b, found, err := h.repo.BankAccount(ctx, s.SellerID); err != nil {
+		return Seller{}, err
+	} else if found {
+		bank = &b
+	}
+	vendors, err := h.repo.Vendors(ctx, s.SellerID)
+	if err != nil {
+		return Seller{}, err
+	}
+	seeds := make([]VendorSeed, 0, len(vendors))
+	for _, v := range vendors {
+		seeds = append(seeds, VendorSeed{App: v.App, FSSAINumber: v.FSSAINumber})
+	}
+	validator := h.compliance
+	if validator == nil {
+		validator = FormatComplianceValidator{}
+	}
+	report := validator.Validate(ctx, ComplianceInput{Seller: s, Bank: bank, Vendors: seeds})
+	if err := h.repo.SaveCompliance(ctx, s.SellerID, report); err != nil {
+		return Seller{}, err
+	}
+	s.ComplianceStatus = report.Status
+	s.ComplianceNote = report.Note
+	return s, nil
+}
+
 func (h *Handler) verifyKYC(w http.ResponseWriter, r *http.Request) {
 	s, ok := h.adminSeller(w, r)
 	if !ok {
@@ -787,6 +828,12 @@ func (h *Handler) verifyKYC(w http.ResponseWriter, r *http.Request) {
 			"an enquiry has no KYC to verify — move it to PENDING_REVIEW first")
 		return
 	}
+	fresh, err := h.revalidateCompliance(r.Context(), s)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "compliance_unavailable", "could not revalidate compliance")
+		return
+	}
+	s = fresh
 	if s.ComplianceStatus == ComplianceFailed {
 		note := s.ComplianceNote
 		if note == "" {
@@ -1049,6 +1096,10 @@ func (h *Handler) edit(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.log(r, "SELLER_RESUBMIT", id, nil, map[string]any{"changedFields": redactHistory(changes)})
+	if _, err := h.revalidateCompliance(r.Context(), after); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not revalidate compliance")
+		return
+	}
 	httpx.JSON(w, http.StatusOK, after)
 }
 
@@ -1137,6 +1188,12 @@ func (h *Handler) editProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.log(r, "SELLER_PROFILE_UPDATE", id, nil, redactSeller(after))
+	// GSTIN/PAN/address feed the compliance checks; recompute so a corrected identifier clears a
+	// stale FAILED verdict instead of blocking activation forever.
+	if _, err := h.revalidateCompliance(r.Context(), after); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "seller_update_failed", "could not revalidate compliance")
+		return
+	}
 	httpx.JSON(w, http.StatusOK, after)
 }
 
@@ -1956,6 +2013,12 @@ func (h *Handler) putBank(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	h.log(r, "BANK_UPDATE", s.SellerID, nil, map[string]string{"ifsc": b.IFSC})
+	// A corrected IFSC must clear a stale FAILED verdict; otherwise activation stays blocked by the
+	// compliance check computed at application creation.
+	if _, err := h.revalidateCompliance(r.Context(), s); err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "bank_update_failed", "could not revalidate bank account")
+		return
+	}
 	httpx.JSON(w, http.StatusOK, b)
 }
 
