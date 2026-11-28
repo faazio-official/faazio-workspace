@@ -106,6 +106,18 @@ export interface KycDocument {
   uploadedAt: string;
 }
 
+/** sellers.document_requests — an admin ask for the applicant to (re)upload a KYC document. */
+export interface SellerDocumentRequest {
+  requestId: string;
+  sellerId: string;
+  docType: KycDocument["docType"];
+  status: "PENDING" | "FULFILLED" | "CANCELLED" | string;
+  note?: string | undefined;
+  requestedBy?: string | undefined;
+  requestedAt: string;
+  fulfilledAt?: string | undefined;
+}
+
 /** sellers.bank_accounts */
 export interface BankAccount {
   bankAccountId: string;
@@ -218,6 +230,8 @@ export interface SellerDetail extends SellerRecord {
   kycDocuments: KycDocument[];
   verificationLog: SellerVerificationLog[];
   vendors: SellerVendorRecord[];
+  /** Admin document-request trail (newest first). PENDING rows awaiting the applicant's upload. */
+  documentRequests?: SellerDocumentRequest[] | undefined;
   /** Present on the approval response: the auto-provisioned login, shown once to the admin. */
   credential?: SellerLoginCredential | undefined;
 }

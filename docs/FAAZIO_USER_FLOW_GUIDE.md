@@ -10,8 +10,8 @@
 | Field | Value |
 |---|---|
 | Document | Faazio User Interaction Workflow — Visual Guide |
-| Version | 1.10 |
-| Date | 27 November 2026 |
+| Version | 1.11 |
+| Date | 28 November 2026 |
 | Audience | Client stakeholders, product, design, QA, engineering, support |
 | Scope | Customer mobile app (`client/mobile`) + Partner Web Portal (`client/web/platform`) |
 | Verified against | Source code — navigation graphs, screen components and sidebar nav — not only older docs |
@@ -624,12 +624,16 @@ The inbox is the durable notification outbox — the same events that power orde
 
 "**My Account**" is built from a server-driven menu. The tree below reflects the signed-in catalog. A guest sees a **Sign in to Faazio** card plus **Orders**, **Favourites** and **FaazioCoins** rows; tapping any of them opens Login and resumes at that screen after sign-in. Preferences (Language) stays available.
 
+The page opens on a burgundy-and-gold hero band (artwork backdrop): a back button and the bell on the top row, then the identity block (avatar initial, name capped at 22 characters with a trailing ellipsis, phone/email, and the white **Edit** pill pinned to the right edge of the row — it opens My Profile) and the **discount-streak card** — gold ticket art, 7 flames with the milestone percentages under the 6th (`5%`) and 7th (`10%`) flame, the `n/7` counter, the reward headline (the unlocked milestone, or the next one while climbing), the FaazioCoins balance chip (opens FaazioRewards) and the **Order now** pill (returns to the Home tab). Everything below the band is the usual light settings canvas. The band carries no "My Account" title; the name is the band's heading. Guests see no identity block, so no Edit pill.
+
 ```mermaid
 flowchart TD
-  ACC["My Account"]
+  ACC["My Account<br/>hero band + settings groups"]
 
-  ACC --> COINS["FaazioCoins card<br/>Open FaazioRewards"]
+  ACC --> EDIT["Edit pill (white, far right)<br/>UserDetails"]
   ACC --> BELL["Bell<br/>Notifications"]
+  ACC --> COINS["FaazioCoins chip on streak card<br/>Open FaazioRewards"]
+  ACC --> ORDER["Order now on streak card<br/>Home tab"]
   ACC --> G1["Profile settings"]
   ACC --> G2["Privacy and security"]
   ACC --> G3["Earn with us"]
@@ -760,15 +764,15 @@ The customer app also contains the seller application wizard. On approval the ap
 ```mermaid
 flowchart TD
   START["Sell with us"] --> STATUS{"Already applied?"}
-  STATUS -->|"No"| FORM["Application form"]
+  STATUS -->|"No"| STEP1["Step 1 Business account<br/>owner, shop, category,<br/>photo, shop pin"]
   STATUS -->|"Under review"| REVIEW["Under-review screen"]
   STATUS -->|"Active seller"| ACTIVE["Active seller screen<br/>Open seller app / portal"]
-  FORM --> SECTIONS["Business identity<br/>KYC passbook<br/>Payout bank"]
-  FORM --> SHOPS["Per-shop cards<br/>category, address, fee,<br/>licences, photos"]
-  SHOPS --> PIN["Pin your shop<br/>drag the map pin, search,<br/>or use current location"]
-  SECTIONS --> SIGN["OTP signature<br/>Send OTP → Verify"]
-  PIN --> SIGN
-  SIGN -->|"Submit application"| REVIEW
+  STEP1 -->|"Next"| STEP2["Step 2 Owner PAN & licence<br/>payout bank, passbook"]
+  STEP2 --> BACK["Back to business account"]
+  BACK --> STEP1
+  STEP2 -->|"Submit"| REVIEW
+  REVIEW -->|"Admin requested a document"| DOCREQ["Requested document card<br/>Capture & upload"]
+  DOCREQ --> REVIEW
 ```
 
 | Area | Controls |
@@ -776,10 +780,12 @@ flowchart TD
 | Business identity | Business name, owner/contact, GSTIN (optional), phone |
 | KYC | Passbook/document upload |
 | Payout | Bank account details |
-| Shops | One card per shop: category, address, platform fee, FSSAI / drug licence, photos (up to 5) |
+| Shops | One card per shop: category, address, FSSAI / drug licence, photos (up to 5) |
+| Shop number | `+91` as plain inline text at the start of the field (no separate box) + 10 national digits (digits only, capped at 10); label left-aligned like every other field; with a **Same as owner number** tick below it: ticked copies the owner number and keeps them in step, with the field read-only |
 | Shop location | **Pin your shop** full-screen map: tap the map / drag the pin onto the shop door, search the address, or **Use my current location**; sets state, district and the customer-visible map position |
-| Signature | **Send OTP** → enter OTP → **Verify**, then **Submit** |
+| Submit | **Back to business account** returns to step 1; the large **Submit** button is always enabled — if fields are missing it shows a red inline message naming what to fill in (no OTP signature step and no agreement tick-boxes) |
 | Post-submit | Under-review status; on approval open the seller app / portal |
+| Requested document | If an admin taps **Request** on a KYC row, this screen shows "Faazio has requested you to upload your <document>" with **Capture & upload** — the applicant uploads and the request clears |
 
 ---
 
@@ -1220,7 +1226,7 @@ flowchart LR
 | 24 | Favourites | All/Mart/Food/Pharma, sort, heart, product |
 | 25 | FaazioRewards | How FaazioCoins work, ledger, discount card |
 | 26 | Notifications | Notification rows |
-| 27 | My Account | Coins card, bell, all menu rows, Log out (guest: Sign in card + gated Orders/Favourites/Coins rows) |
+| 27 | My Account | Burgundy hero band (no title — name is the heading, white Edit pill at the far right of the identity row, bell, identity, discount-streak card with Order now), all menu rows, Log out (guest: Sign in card + gated Orders/Favourites/Coins rows) |
 | 28 | My Profile | Profile rows / edit |
 | 29 | Addresses | Deliver here, Edit, Delete, tag, pin, default, Save |
 | 30 | Language (profile) | English, Tamil, Save |
@@ -1228,7 +1234,7 @@ flowchart LR
 | 32 | Request data deletion | Data categories, Submit |
 | 33 | Prescription | Camera, Choose photos, Confirm (N), note, Continue, Delivery/Pickup |
 | 34 | Blood donor | Next through 5 steps, Submit, Ask Blood |
-| 35 | Sell with us | Form fields, Send OTP, Verify, Submit |
+| 35 | Sell with us | Step 1 fields + **Next**, step 2 fields + **Back to business account**, **Submit** |
 | 36 | Active call | End call |
 
 ## 5.2 Seller portal — every sidebar page
@@ -1320,6 +1326,14 @@ Use this map if a flow changes and the diagram needs to be updated.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.18 | 28 Nov 2026 | Seller review: the admin KYC row **Replace** action became **Request** — the admin asks the applicant to re-upload. The customer-app Sell with us screen now shows "Faazio has requested you to upload your <document>" with a **Capture & upload** button that fulfils the request (`sellers.document_requests`, migration `0147`). |
+| 1.17 | 28 Nov 2026 | Sell with us: removed every per-question/input description and the bottom security/autosave notes. The step 2 submit button is now a single large **Submit** button that is always enabled — tapping it with missing or invalid fields shows a red inline message naming what to fill in. |
+| 1.16 | 28 Nov 2026 | Sell with us: the **Shop number** `+91` is now plain inline text at the start of the field (the separate dial-code box is gone), so the field and its label line up like every other input. |
+| 1.15 | 28 Nov 2026 | Sell with us step 2: the **Signature** block is gone (Send OTP / 6-digit code / Verify / resend countdown / "OTP verified" panel), and the three agreement tick-boxes (Terms of Service, Seller / Partner Agreement, content & IP licence) with their **Read** sheets are gone as well. Submitting the application is the acceptance; the gateway's required consent flags are sent with it. Step 2 now ends on **Back to business account**. |
+| 1.14 | 28 Nov 2026 | My Account: the **Edit** pill moved to the far right of the identity row (it used to sit beside the name) and is now white with ink text/icon instead of the gold wash. The decorative crown that occupied that corner was removed. |
+| 1.14 | 28 Nov 2026 | Sell with us: the two-step rail (**1 Business account / 2 Licence & payout**), the blue **Partner with Faazio** banner and the whole **Platform fee** question (title, description, rate-card dropdown, summary and retry row) are gone. The wizard now opens straight on the Business account form and step 2 starts at **Owner PAN & licence**; the shop is put on the lowest-commission rate card the gateway publishes, disclosed in the Terms of Service summary the applicant accepts. |
+| 1.13 | 28 Nov 2026 | Sell with us: the **Shop number** now uses a fixed **+91** prefix and accepts 10 digits only, with a **Same as owner number** tick below the field that mirrors the owner number (field read-only while ticked, kept in step with later owner edits). |
+| 1.12 | 28 Nov 2026 | My Account hero band: the **My Account** title is gone (the account name is the band's heading) and the **Edit** pill now sits directly right of the name, capped at 22 characters with a trailing ellipsis so a long name never crowds it. Top row keeps only the back button and the bell. Guests see no Edit pill (there is no name row for them). |
 | 1.11 | 27 Nov 2026 | Sign-in funnel: onboarding **Skip** now opens the phone-auth screen instead of guest Home; **Skip** on the phone and OTP steps advances to the location picker, which has no escape (**Browse without a location** removed). The funnel stage persists across app restarts. Home / Mart header category rail no longer shows a dead **Retry** when the rail is unavailable (401) or the super admin has turned every element off. |
 | 1.10 | 27 Nov 2026 | Sell with us: **Pin your shop** now shows a native map with a draggable marker (tap/drag onto the shop), with address search and “use my current location” as fallbacks. Fixed the shop-photo upload returning a gateway 500 for full-resolution phone photos (AVIF conversion now runs on a detached 45 s deadline instead of the 10 s request timeout). |
 | 1.9 | 26 Nov 2026 | Customer sign-in reordered to phone → OTP → name. After OTP, an existing account signs straight in with its stored name; only a first-time account is asked for a name (backed by `GET /profile` `hasName`). Skip stays on the phone step; the name step is not skippable. |

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Linking,
   Platform,
   ScrollView,
@@ -11,23 +12,22 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
+  ArrowLeft,
+  ArrowRight,
   BadgeCheck,
+  Camera,
   ChevronLeft,
-  FileCheck2,
-  Lock,
-  Mail,
-  Plus,
-  ShieldCheck,
+  LocateFixed,
   Store,
+  X,
 } from 'lucide-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import AppText from '@/components/AppText';
-import AppTextInput from '@/components/AppTextInput';
+import Checkbox from '@/components/shared/Checkbox';
 import { CountryCodePicker } from '@/components/CountryCodePicker';
 import { DEFAULT_COUNTRY, isValidPhone, toE164 } from '@/lib/phone';
 import { hs, vs, ms } from '@/utils/responsive';
 import { SPACE } from '@/theme/spacing';
-import { SELLER_SETUP_FIELDS } from '@data/index';
 import type { DistrictInfo } from '@data/districts';
 import {
   GatewayHttpError,
@@ -36,17 +36,15 @@ import {
   type GeoState,
   type SellerApplication,
   type SellerApplicationInput,
+  type SellerDocumentRequest,
 } from '@/services/api/GatewayClient';
 import { deriveAccountGeo } from './sellerGeo';
-import { firebaseAuthConfigured, sendSellerOtp, verifySellerOtp } from '@/services/firebaseAuth';
-import { otpErrorMessage } from '@/lib/otpError';
-import { useSmsUserConsent } from '@/lib/smsUserConsent';
 import { useAuthStore } from '@/state/authStore';
 import type { RootStackParamList } from '@/navigation/types';
 import DocumentCapture from '@/components/shared/DocumentCapture';
 import SellerLocationPicker from './SellerLocationPicker';
 import { neutral, parentRamp, semantic, semanticTint } from '@/theme/brandTokens';
-import ShopCard, { newVendorDraft, type VendorDraft } from './components/ShopCard';
+import { newVendorDraft, type VendorDraft } from './components/ShopCard';
 import {
   buildDraft,
   clearSellerDraft,
@@ -56,19 +54,25 @@ import {
   writeSellerDraft,
   type SellerDraft,
 } from './sellerDraft';
-import { DocumentRow, TextInputField } from './components/FormControls';
-import {
-  ContractSummary,
-  ClickwrapRow,
-  TermsViewer,
-  type AgreementKind,
-} from './components/ContractTerms';
-import SelectDropdown from '@/components/shared/SelectDropdown';
+import { DocumentRow, PaperField } from './components/FormControls';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'SellWithUs'>;
 
-/** Label/placeholder sourced from the stable @data contract (keeps the fixture meaningful). */
-const setup = (key: string) => SELLER_SETUP_FIELDS.find((f) => f.key === key);
+const CATEGORY_OPTIONS: { app: VendorDraft['app']; label: string }[] = [
+  { app: 'MART', label: 'Mart' },
+  { app: 'FOOD', label: 'Food' },
+  { app: 'PHARMA', label: 'Pharma' },
+];
+
+/** Human label per KYC document type, used in the "Faazio requested a document" card. */
+const DOC_REQUEST_LABELS: Record<string, string> = {
+  GSTIN: 'GSTIN certificate',
+  PAN: 'PAN card',
+  BANK_PROOF: 'bank proof',
+  SHOP_LICENSE: 'shop licence',
+  PASSBOOK: 'bank passbook',
+  FSSAI: 'FSSAI licence',
+};
 
 /**
  * Map a submission failure to actionable copy. The gateway returns `{ code, error }`; branch on the
@@ -81,11 +85,11 @@ function describeSubmitError(err: unknown): string {
         return 'This email is already linked to a seller application. Use a different email, or open the app with the account that applied.';
       case 'otp_unverified':
       case 'otp_required':
-        return 'Phone verification is required. Please verify your number again and resubmit.';
+        return 'Sign in with the owner’s phone number before submitting — the application is signed by your session, not by a code.';
       case 'unknown_district':
         return 'That district isn’t recognised. Re-pin your shop on the map and try again.';
       case 'agreements_required':
-        return 'Accept all three agreements before submitting.';
+        return 'The agreement record did not reach the server. Please submit again.';
       case 'invalid_contract_tier':
         return 'Choose a contract tier before submitting.';
       case 'compliance_failed':
@@ -136,23 +140,70 @@ interface PinSelection {
 }
 
 /**
- * Account state/district come from the pinned shops, resolved through the same coverage master the
+ * Account state/district come from the pinned shop, resolved through the same coverage master the
  * delivery flow uses (`services/serviceability`): the pinned address, then the nearest active
  * district centroid. `sellers.sellers` requires both codes, so a shop that resolves to no district
  * blocks submission with an explanation instead of a server-side "district is required".
  */
 
+export interface ShopLicence {
+  /** Label shown on the sheet and in errors, per category. */
+  name: string;
+  number: string;
+  uri: string | null;
+  /** Food and Pharma are licensed trades; a Mart shop's certificate is optional. */
+  required: boolean;
+  /** Which draft slot holds the licence (Pharma keeps its own columns on the server). */
+  slot: 'fssai' | 'drug';
+  capture: 'fssai' | 'drug';
+}
 
+/** The one field that changes per category: its licence, its label and whether it is required. */
+export function licenceFor(vendor: VendorDraft): ShopLicence {
+  if (vendor.app === 'PHARMA') {
+    return {
+      name: 'Pharma drug licence',
+      number: vendor.drugLicenseNumber,
+      uri: vendor.drugLicenseUri,
+      required: true,
+      slot: 'drug',
+      capture: 'drug',
+    };
+  }
+  if (vendor.app === 'FOOD') {
+    return {
+      name: 'FSSAI licence',
+      number: vendor.fssaiNumber,
+      uri: vendor.fssaiUri,
+      required: true,
+      slot: 'fssai',
+      capture: 'fssai',
+    };
+  }
+  return {
+    name: 'Shop registration certificate',
+    number: vendor.fssaiNumber,
+    uri: vendor.fssaiUri,
+    required: false,
+    slot: 'fssai',
+    capture: 'fssai',
+  };
+}
 
 /**
- * Full seller registration in two parts:
- *   Part 1 — the brand-agnostic account (identity, KYC passbook, payout bank, OTP signature).
- *   Part 2 — one or more shops (vendors), each with its own app/category/fee, documents, optional
- *            bank override and map pin.
+ * "Sell with us" — one shop, two steps, in the order of the printed application:
+ *   Step 1  Business account: owner, one shop, category, shop photo, shop pin.  →  Next
+ *   Step 2  Owner PAN, the category licence, payout bank and passbook.
+ *           →  Complete the required steps
+ *
+ * There is no platform-fee question: the shop is put on the lowest-commission rate card the
+ * gateway publishes (`GET /sellers/contract-tiers`). There is also no signature step: no OTP sheet
+ * and no tick-box agreements — submitting the application is the applicant's acceptance, and the
+ * gateway's required consent flags are sent with it.
  *
  * There are no manual state/district dropdowns: the account state/district are derived from the
- * first shop pin (reverse-geocoded region/district matched against `GET /geo/states` and
- * `GET /geo/districts`). GSTIN is optional; PAN remains required.
+ * shop pin (reverse-geocoded region/district matched against `GET /geo/states` and
+ * `GET /geo/districts`). GSTIN is optional and unasked; PAN is required.
  */
 export function SellerRegistrationScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
@@ -184,38 +235,25 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const [states, setStates] = useState<GeoState[]>([]);
   const [districts, setDistricts] = useState<DistrictInfo[]>([]);
 
-  const [otpCode, setOtpCode] = useState('');
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpVerified, setOtpVerified] = useState(false);
-  const [otpBusy, setOtpBusy] = useState(false);
-  const [countdown, setCountdown] = useState(0);
-  const [otpError, setOtpError] = useState('');
-
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SellerApplication | null>(null);
-  const [otpVerifiedAt, setOtpVerifiedAt] = useState('');
+  // Admin-requested document uploads: shown on this screen even while the application is under review.
+  const [docRequests, setDocRequests] = useState<SellerDocumentRequest[]>([]);
+  const [docRequestCapture, setDocRequestCapture] = useState<SellerDocumentRequest | null>(null);
+  const [docRequestBusy, setDocRequestBusy] = useState(false);
   // Cross-session status read: `loadingStatus` holds the form back until GET /sellers/me settles so
   // an existing PENDING/ACTIVE applicant never flashes the onboarding form.
   const [loadingStatus, setLoadingStatus] = useState(true);
   const [submittedApps, setSubmittedApps] = useState<string[]>([]);
 
-  // Contract tier comes from the server catalogue; clickwrap state is local until submit.
+  // Contract tier comes from the server catalogue.
   const [tiers, setTiers] = useState<ContractTier[]>([]);
-  const [tiersError, setTiersError] = useState('');
   const [tierCode, setTierCode] = useState<string | null>(null);
-  const [termsAccepted, setTermsAccepted] = useState(false);
-  const [partnerAccepted, setPartnerAccepted] = useState(false);
-  const [ipGranted, setIpGranted] = useState(false);
-  const [viewer, setViewer] = useState<AgreementKind | null>(null);
 
-  // Guards a category request per shop so a slower earlier app request cannot overwrite a newer one.
-  const categoryReq = useRef<Record<string, number>>({});
   const tierReq = useRef(0);
-  const sendRef = useRef(false);
-  const submitRef = useRef(false);
-  const autoSubmittedRef = useRef<string | null>(null);
-  const consentArmedRef = useRef(false);
+  const scrollRef = useRef<ScrollView>(null);
+  const [step, setStep] = useState<1 | 2>(1);
   const statusCheckedRef = useRef(false);
   // Autosave draft: `draftHydratedRef` blocks the first writes until the stored draft has been read
   // (so the initial empty state never clobbers it); `draftDisabledRef` stops writes once the gate is
@@ -226,85 +264,54 @@ export function SellerRegistrationScreen({ navigation }: Props) {
   const update = (key: keyof FormState) => (value: string) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
-  const otpPhone = authPhone || form.contactPhone;
-  // The number actually dialled/verified: E.164 for the selected country. Never truncate to the
-  // last 10 digits — that silently mangles non-Indian numbers.
-  const phoneE164 = useMemo(() => toE164(otpPhone, phoneCountry), [otpPhone, phoneCountry]);
-  const phoneValid = useMemo(() => isValidPhone(otpPhone, phoneCountry), [otpPhone, phoneCountry]);
-  // Snapshot for async guards: a phone edit mid-request must not mark the new number verified.
-  const phoneE164Ref = useRef(phoneE164);
-  useEffect(() => {
-    phoneE164Ref.current = phoneE164;
-  }, [phoneE164]);
+  // The owner number in E.164 for the selected country. Never truncate to the last 10 digits —
+  // that silently mangles non-Indian numbers.
+  const phoneE164 = useMemo(
+    () => toE164(form.contactPhone, phoneCountry),
+    [form.contactPhone, phoneCountry],
+  );
+  const phoneValid = useMemo(
+    () => isValidPhone(form.contactPhone, phoneCountry),
+    [form.contactPhone, phoneCountry],
+  );
 
-  // Editing the phone (or its country) invalidates any OTP already sent/verified.
-  const resetSignature = () => {
-    setOtpCode('');
-    setOtpSent(false);
-    setOtpVerified(false);
-    setOtpVerifiedAt('');
-    setCountdown(0);
-    setOtpError('');
-    autoSubmittedRef.current = null;
-    consentArmedRef.current = false;
-    stopSmsConsent();
-  };
-
-  const updateContactPhone = (value: string) => {
-    // The field is locked while a send/verify is in flight; ignore any programmatic edit as well so
-    // an in-flight request can never sign a number the user just replaced.
-    if (sendRef.current || submitRef.current) return;
-    phoneE164Ref.current = toE164(value, phoneCountry);
-    setForm((prev) => ({ ...prev, contactPhone: value }));
-    resetSignature();
-  };
-
-  const changePhoneCountry = (code: string) => {
-    if (sendRef.current || submitRef.current || code === phoneCountry) return;
-    phoneE164Ref.current = toE164(form.contactPhone, code);
-    setPhoneCountry(code);
-    resetSignature();
-  };
-
-  const handleSmsCode = useCallback((code: string) => {
-    if (!consentArmedRef.current || submitRef.current) return;
-    // Defense in depth: the hook and native module already validate, but the single state binding
-    // must never receive anything except six digits (a chip/paste must fully overwrite a typo).
-    const digits = code.replace(/\D/g, '').slice(0, 6);
-    if (digits.length !== 6) return;
-    setOtpError('');
-    setOtpCode(digits);
-  }, []);
-
-  const { restart: restartSmsConsent, stop: stopSmsConsent } = useSmsUserConsent(
-    handleSmsCode,
-    otpSent && !otpVerified,
+  // Owner number as national digits (the +91 tail). The shop number mirrors it while its tick is on.
+  const ownerPhoneDigits = useMemo(
+    () => form.contactPhone.replace(/\D/g, '').slice(-10),
+    [form.contactPhone],
   );
 
   const updateVendor = (key: string, patch: Partial<VendorDraft>) =>
     setVendors((prev) => prev.map((v) => (v.key === key ? { ...v, ...patch } : v)));
 
-  // Superadmin-owned category taxonomy for one shop's app (GET /categories?app=). Server-only — no
-  // fixture list. A failure leaves the picker empty so the seller can retry by re-selecting the app.
-  function loadCategoriesFor(key: string, app: VendorDraft['app']) {
-    const requestId = (categoryReq.current[key] ?? 0) + 1;
-    categoryReq.current[key] = requestId;
-    const isCurrent = () => categoryReq.current[key] === requestId;
-    updateVendor(key, { categoriesLoading: true, categories: [] });
-    gateway
-      .fetchCategories(app)
-      .then((rows) => {
-        if (!isCurrent()) return;
-        updateVendor(key, { categories: rows.filter((c) => c.parentId === null && c.isActive) });
-      })
-      .catch(() => {
-        if (isCurrent()) updateVendor(key, { categories: [] });
-      })
-      .finally(() => {
-        if (isCurrent()) updateVendor(key, { categoriesLoading: false });
-      });
-  }
+  /** The shop number is always +91 + national digits, so a paste of `+91 …` or spaces just trims. */
+  const updateShopPhone = (key: string, raw: string) =>
+    updateVendor(key, { shopPhone: raw.replace(/\D/g, '').slice(0, 10) });
 
+  const toggleSameAsOwnerPhone = (shop: VendorDraft) => {
+    const same = !shop.sameAsOwnerPhone;
+    updateVendor(shop.key, {
+      sameAsOwnerPhone: same,
+      shopPhone: same ? ownerPhoneDigits : shop.shopPhone,
+    });
+  };
+
+  // Keep a ticked shop number in step with the owner number, including while the owner edits it.
+  useEffect(() => {
+    setVendors((prev) =>
+      prev.some((v) => v.sameAsOwnerPhone && v.shopPhone !== ownerPhoneDigits)
+        ? prev.map((v) =>
+            v.sameAsOwnerPhone && v.shopPhone !== ownerPhoneDigits
+              ? { ...v, shopPhone: ownerPhoneDigits }
+              : v,
+          )
+        : prev,
+    );
+  }, [ownerPhoneDigits]);
+
+  // The application carries exactly one shop, so the category is the app brand itself
+  // (Mart / Food / Pharma) — there is no sub-category step. Switching it clears the licence, which
+  // is issued per category.
   const changeVendorApp = (key: string, app: VendorDraft['app']) => {
     updateVendor(key, {
       app,
@@ -314,17 +321,25 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       drugLicenseNumber: '',
       drugLicenseUri: null,
     });
-    loadCategoriesFor(key, app);
   };
 
-  const addVendor = () => {
-    const draft = newVendorDraft();
-    setVendors((prev) => [...prev, draft]);
-    loadCategoriesFor(draft.key, 'MART');
+  const updateLicence = (key: string, patch: { number?: string; uri?: string | null }) => {
+    const vendor = vendors.find((v) => v.key === key);
+    if (!vendor) return;
+    const licence = licenceFor(vendor);
+    updateVendor(
+      key,
+      licence.slot === 'drug'
+        ? {
+            drugLicenseNumber: patch.number ?? licence.number,
+            drugLicenseUri: patch.uri === undefined ? licence.uri : patch.uri,
+          }
+        : {
+            fssaiNumber: patch.number ?? licence.number,
+            fssaiUri: patch.uri === undefined ? licence.uri : patch.uri,
+          },
+    );
   };
-
-  const removeVendor = (key: string) =>
-    setVendors((prev) => (prev.length > 1 ? prev.filter((v) => v.key !== key) : prev));
 
   // Region/district come from the picker's formatted address (reverse geocode joins name, street,
   // revenue district (`adminDistrict`), city, region) with the shop's own coordinates as the
@@ -342,17 +357,22 @@ export function SellerRegistrationScreen({ navigation }: Props) {
 
   const loadTiers = useCallback(() => {
     const req = ++tierReq.current;
-    setTiersError('');
     gateway
       .listContractTiers()
       .then((rows) => {
-        if (req === tierReq.current) setTiers(rows);
+        if (req !== tierReq.current) return;
+        setTiers(rows);
+        // No rate-card question in the wizard: the shop goes on the lowest-commission card the
+        // gateway publishes. The rate stays server-owned and is disclosed in the Terms summary.
+        if (rows.length === 0) return;
+        const cheapest = rows.reduce((low, t) => (t.commissionPct < low.commissionPct ? t : low));
+        setTierCode((current) =>
+          current && rows.some((t) => t.tierCode === current) ? current : cheapest.tierCode,
+        );
       })
       .catch(() => {
-        // Server-only catalogue: never substitute a local rate card.
-        if (req === tierReq.current) {
-          setTiersError('Could not load contract tiers. Reconnect and try again.');
-        }
+        // Server-only catalogue: never substitute a local rate card. Submit re-fetches it, and
+        // validatePayout() then says the rate card could not be loaded instead of submitting blind.
       });
   }, []);
 
@@ -400,8 +420,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         // Offline/unauthorized: district remains empty; the server accepts a missing district.
       });
     loadTiers();
-    const first = vendors[0];
-    if (first) loadCategoriesFor(first.key, first.app);
     return () => {
       alive = false;
     };
@@ -439,6 +457,46 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     };
   }, []);
 
+  // Admin-requested document uploads. Loaded even for an application already under review, because
+  // the applicant fulfils these from this same screen.
+  useEffect(() => {
+    let alive = true;
+    gateway
+      .listMyDocumentRequests()
+      .then((rows) => {
+        if (alive) setDocRequests(rows);
+      })
+      .catch(() => {
+        // No application / offline: nothing to show, the normal status flow still runs.
+      });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // Upload the file the applicant picked for a pending document request, then mark it fulfilled.
+  const fulfillDocumentRequest = async (request: SellerDocumentRequest, uri: string) => {
+    if (docRequestBusy) return;
+    setDocRequestBusy(true);
+    setError(null);
+    try {
+      const ownerId = result?.sellerId ? `seller-${result.sellerId}` : `seller-${user?.id ?? 'pending'}`;
+      const upload = await gateway.uploadSellerDocument(uri, ownerId);
+      await gateway.fulfillDocumentRequest(request.requestId, {
+        fileKey: upload.key,
+        assetId: upload.assetId,
+      });
+      setDocRequests((prev) => prev.filter((r) => r.requestId !== request.requestId));
+      setDocRequestCapture(null);
+      // Refresh so the underlying application reflects the new document.
+      gateway.getMySellerApplication().then(setResult).catch(() => {});
+    } catch (err) {
+      setError(describeSubmitError(err));
+    } finally {
+      setDocRequestBusy(false);
+    }
+  };
+
   // Restore a locally autosaved draft on open (per account). This runs regardless of the server
   // status check; if the account already has an in-flight/active application, the status effect
   // below clears the draft and disables further autosaves. Keyed on `user?.id` so a session that
@@ -451,16 +509,11 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         if (!alive || !draft || draftDisabledRef.current) return;
         setForm((prev) => ({ ...prev, ...draft.form }));
         if (draft.phoneCountry) setPhoneCountry(draft.phoneCountry);
-        const restored =
-          draft.vendors.length > 0 ? draft.vendors.map(restoreVendor) : [newVendorDraft()];
+        // One shop per application: an older multi-shop draft restores its first shop only.
+        const restored = draft.vendors.length > 0 ? [restoreVendor(draft.vendors[0])] : [newVendorDraft()];
         setVendors(restored);
         setPassbookUri(draft.passbookUri);
         setTierCode(draft.tierCode);
-        setTermsAccepted(draft.termsAccepted);
-        setPartnerAccepted(draft.partnerAccepted);
-        setIpGranted(draft.ipGranted);
-        // Category options are server-owned and never persisted: reload them for each restored shop.
-        restored.forEach((v) => loadCategoriesFor(v.key, v.app));
       })
       .finally(() => {
         if (alive) draftHydratedRef.current = true;
@@ -484,9 +537,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       passbookUri,
       tierCode,
       phoneCountry,
-      termsAccepted,
-      partnerAccepted,
-      ipGranted,
     });
     latestDraftRef.current = { userKey, draft };
     const timer = setTimeout(() => {
@@ -501,9 +551,6 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     passbookUri,
     tierCode,
     phoneCountry,
-    termsAccepted,
-    partnerAccepted,
-    ipGranted,
     submitting,
     user?.id,
   ]);
@@ -518,212 +565,87 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     };
   }, []);
 
-  useEffect(() => {
-    if (countdown <= 0) return;
-    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000);
-    return () => clearTimeout(timer);
-  }, [countdown]);
+  const shop = vendors[0];
 
-  const sendSignatureOtp = async () => {
-    // A resend must never overlap an in-flight verify or another send: Firebase replaces `pending`
-    // per send, so an overlapping verify would resolve against the wrong request.
-    if (sendRef.current || submitRef.current) return;
-    setOtpError('');
-    if (!phoneValid || !phoneE164) {
-      setOtpError('Enter a valid contact phone number for the selected country.');
-      return;
+  // Step 1 — who they are and the one shop. Stops the wizard at the business-account sheet.
+  const validateBusiness = (): string | null => {
+    const required: [string, string][] = [
+      [form.ownerName, 'owner name'],
+      [form.contactPhone, 'owner number'],
+      [shop.shopName, 'shop name'],
+      [shop.shopPhone, 'shop number'],
+      [form.contactEmail, 'contact email'],
+      [shop.shopAddress, 'shop address'],
+    ];
+    const missing = required.filter(([, value]) => !value.trim()).map(([label]) => label);
+    if (missing.length > 0) return `Please fill in: ${missing.join(', ')}.`;
+    if (!phoneValid) return 'Enter a valid owner number for the selected country.';
+    if (!isValidPhone(shop.shopPhone, DEFAULT_COUNTRY)) {
+      return 'Enter a valid 10-digit shop number.';
     }
-    if (!firebaseAuthConfigured()) {
-      setOtpError('OTP verification is not available in this build.');
-      return;
+    if (!/^\S+@\S+\.\S+$/.test(form.contactEmail.trim())) return 'Enter a valid contact email.';
+    if (shop.shopPhotoUris.length === 0) {
+      return 'Add a shop photo — customers see it, and an admin cannot review a shop without one.';
     }
-    const targetPhone = phoneE164;
-    const wasSent = otpSent;
-    sendRef.current = true;
-    autoSubmittedRef.current = null;
-    setOtpBusy(true);
-    setOtpCode('');
-    setOtpVerified(false);
-    setOtpVerifiedAt('');
-    // The User Consent API only observes SMS received after it starts — arm before the send.
-    consentArmedRef.current = true;
-    restartSmsConsent();
-    try {
-      await sendSellerOtp(targetPhone);
-      if (phoneE164Ref.current !== targetPhone) {
-        consentArmedRef.current = false;
-        stopSmsConsent();
-        return;
-      }
-      setOtpSent(true);
-      setCountdown(60);
-    } catch (err) {
-      consentArmedRef.current = false;
-      stopSmsConsent();
-      if (phoneE164Ref.current === targetPhone) {
-        // A failed resend has already dropped the previous pending confirmation inside
-        // firebaseAuth, so keeping the UI in "Verify" mode would only produce misleading errors.
-        if (wasSent) {
-          setOtpSent(false);
-          setCountdown(0);
-          setOtpCode('');
-        }
-        // Surface the real Firebase code (rate-limit, app verification, network) instead of a
-        // generic retry message, so the applicant knows whether to wait, check the number or
-        // install the Play Store build.
-        setOtpError(
-          otpErrorMessage(err, 'Could not send the OTP. Please try again.'),
-        );
-      }
-    } finally {
-      sendRef.current = false;
-      setOtpBusy(false);
+    if (shop.latitude == null || shop.longitude == null) {
+      return 'Pin the shop on the map so its location is shared with Faazio and customers.';
     }
+    return null;
   };
 
-  const confirmSignatureOtp = useCallback(async () => {
-    if (submitRef.current || sendRef.current) return;
-    setOtpError('');
-    if (!otpSent || otpCode.trim().length !== 6) {
-      setOtpError('Enter the 6-digit code.');
-      return;
+  // Step 2 — licence, payout bank and passbook.
+  const validatePayout = (): string | null => {
+    if (!form.pan.trim()) return 'Enter the owner PAN number.';
+    if (!/^[A-Z]{5}[0-9]{4}[A-Z]$/.test(form.pan.trim().toUpperCase())) {
+      return 'Enter a valid PAN (10 characters, e.g. ABCDE1234F).';
     }
-    const targetPhone = phoneE164;
-    const code = otpCode.trim();
-    submitRef.current = true;
-    setOtpBusy(true);
-    try {
-      await verifySellerOtp(targetPhone, code);
-      if (phoneE164Ref.current !== targetPhone) return;
-      // The OTP is the digital signature; the shopper's primary Firebase session is untouched.
-      consentArmedRef.current = false;
-      setOtpVerified(true);
-      setOtpVerifiedAt(new Date().toLocaleTimeString());
-      setCountdown(0);
-    } catch (err) {
-      if (phoneE164Ref.current === targetPhone) {
-        setOtpError(
-          otpErrorMessage(err, 'That code is incorrect or expired. Request a new one.'),
-        );
-      }
-    } finally {
-      submitRef.current = false;
-      setOtpBusy(false);
+    const licence = licenceFor(shop);
+    if (licence.required && !licence.number.trim()) return `Enter the ${licence.name} number.`;
+    if (licence.required && !licence.uri) return `Capture the ${licence.name} document.`;
+    if (licence.number.trim() && !licence.uri) return `Capture the ${licence.name} document.`;
+    if (!licence.number.trim() && licence.uri && licence.required) {
+      return `Enter the ${licence.name} number.`;
     }
-  }, [otpCode, otpSent, phoneE164]);
-
-  // Submission derives from state, not the 6th keystroke: this fires however the code arrived
-  // (typing, paste, or Android SMS User Consent). A failed verify keeps the dedup value so it is
-  // not retried in a loop; the visible Verify button remains available.
-  useEffect(() => {
-    if (otpCode.length !== 6) autoSubmittedRef.current = null;
-    if (!otpSent || otpVerified || otpBusy || otpCode.length !== 6) return;
-    if (autoSubmittedRef.current === otpCode) return;
-    autoSubmittedRef.current = otpCode;
-    void confirmSignatureOtp();
-  }, [confirmSignatureOtp, otpCode, otpSent, otpVerified, otpBusy]);
-
-  const validate = (): string | null => {
-    const required: [keyof FormState, string][] = [
-      ['businessName', 'business name'],
-      ['ownerName', 'owner name'],
-      ['pan', 'PAN'],
-      ['businessAddress', 'business address'],
-      ['contactPhone', 'contact phone'],
-      ['contactEmail', 'contact email'],
-      ['bankName', 'bank name'],
-      ['bankAccountNumber', 'bank account number'],
-      ['bankIfsc', 'IFSC'],
-      ['bankBeneficiary', 'beneficiary name'],
+    const required: [string, string][] = [
+      [form.bankBeneficiary, 'beneficiary name'],
+      [form.bankName, 'bank name'],
+      [form.bankAccountNumber, 'bank account number'],
+      [form.bankIfsc, 'IFSC code'],
     ];
-    const missing = required.filter(([k]) => !form[k].trim()).map(([, label]) => label);
+    const missing = required.filter(([, value]) => !value.trim()).map(([label]) => label);
     if (missing.length > 0) return `Please fill in: ${missing.join(', ')}.`;
-    if (!phoneValid) return 'Enter a valid contact phone number for the selected country.';
-    if (!/^\S+@\S+\.\S+$/.test(form.contactEmail.trim())) return 'Enter a valid contact email.';
     const accountDigits = form.bankAccountNumber.replace(/\D/g, '');
     if (accountDigits.length < 6 || accountDigits.length > 20) {
-      return 'Enter a valid bank account number.';
+      return 'Bank account number must be 6–20 digits (digits only).';
     }
     if (form.bankIfsc.trim().length !== 11) return 'IFSC must be 11 characters.';
     if (!passbookUri) return 'Capture your bank passbook photo.';
-    if (!otpVerified) return 'Verify the OTP to sign your application.';
-    if (!tierCode || !selectedTier) return 'Select a contract tier.';
-    if (!termsAccepted) return 'Accept the Terms of Service to continue.';
-    if (!partnerAccepted) return 'Accept the Seller / Partner Agreement to continue.';
-    if (!ipGranted) return 'Accept the content and IP licence to continue.';
-    if (vendors.length === 0) return 'Add at least one shop.';
-    if (!vendors.every((v) => v.latitude != null && v.longitude != null)) {
-      return 'Pin every shop on the map so its location is shared with Faazio and customers.';
+    if (!tierCode || !selectedTier) {
+      return 'Could not load the rate card. Reconnect and try again.';
     }
     if (!/^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase())) {
-      return 'Pin at least one shop on the map in Tamil Nadu / Puducherry so the state and district can be set.';
+      return 'Pin the shop on the map in Tamil Nadu / Puducherry so the state and district can be set.';
     }
     if (!form.districtCode.trim()) {
       // The gateway rejects a seller without a district code, so say so here — with the fix — instead
       // of letting "district is required" come back from the server.
-      return 'We could not match a shop pin to a Faazio district. Open that shop’s location, search the shop address and pick the suggestion (or pin it inside the town), then submit again.';
-    }
-
-    for (const v of vendors) {
-      const label = v.shopName.trim() || 'every shop';
-      if (!v.shopName.trim()) return 'Give every shop a name.';
-      if (!v.shopAddress.trim()) return `Enter the address for ${label}.`;
-      if (!v.categoryId) {
-        return v.categories.length === 0
-          ? 'Categories are unavailable right now. Reconnect and try again.'
-          : `Select a category for ${label}.`;
-      }
-      const pct = Number(v.platformFee);
-      if (!Number.isInteger(pct) || pct < 1 || pct > 100) {
-        return `Platform fee for ${label} must be between 1 and 100.`;
-      }
-      if (v.app === 'FOOD' && pct < 5) {
-        return `${label} is a food shop: its platform fee must be at least 5%.`;
-      }
-      if (v.shopPhotoUris.length === 0) {
-        return `Add at least one photo of ${label} — customers see it, and an admin cannot review a shop without one.`;
-      }
-      if (v.shopPhotoUris.length > 5) {
-        return `Up to 5 photos for ${label}.`;
-      }
-      if (v.app === 'FOOD' && (v.fssaiNumber.trim() === '') !== (v.fssaiUri === null)) {
-        return `For ${label}, provide both the FSSAI number and certificate, or neither.`;
-      }
-      if (
-        v.app === 'PHARMA' &&
-        (v.drugLicenseNumber.trim() === '') !== (v.drugLicenseUri === null)
-      ) {
-        return `For ${label}, provide both the drug licence number and certificate, or neither.`;
-      }
-      if (!v.sameAsAccountBank) {
-        const shopBank = [
-          v.bankName,
-          v.bankAccountNumber,
-          v.bankIfsc,
-          v.bankBeneficiary,
-        ].map((field) => field.trim());
-        if (shopBank.some(Boolean)) {
-          if (shopBank.some((field) => !field)) {
-            return `For ${label}, fill all shop bank fields or leave them blank.`;
-          }
-          const digits = v.bankAccountNumber.replace(/\D/g, '');
-          if (digits.length < 6 || digits.length > 20) {
-            return `Enter a valid bank account number for ${label}.`;
-          }
-          if (v.bankIfsc.trim().length !== 11) {
-            return `IFSC for ${label} must be 11 characters.`;
-          }
-        }
-      }
+      return 'We could not match the shop pin to a Faazio district. Open the shop location, search the shop address and pick the suggestion (or pin it inside the town), then submit again.';
     }
     return null;
   };
+
+  const validate = (): string | null => validateBusiness() ?? validatePayout();
 
   const submit = async () => {
     if (submitting) return;
     const problem = validate();
     if (problem) {
+      // The rate card loads in the background now; if that fetch failed, ask for it again so the
+      // next press can go through instead of leaving the applicant stuck.
+      if (!tierCode) loadTiers();
       setError(problem);
+      // A step-2 problem on a hidden sheet is invisible: bring the sheet the problem belongs to back.
+      if (!validateBusiness()) setStep(2);
       return;
     }
     setError(null);
@@ -731,61 +653,47 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     const ownerId = user?.id ? `seller-${user.id}` : 'seller-pending';
     try {
       const passbook = await gateway.uploadSellerDocument(passbookUri!, ownerId);
-      // Upload one image at a time. Each shop photo is an AVIF conversion on the server; firing five
-      // full-resolution photos (or several vendors) in parallel oversubscribes the encode CPU and
-      // makes every request slower than the process deadline. Sequential is slower end-to-end but
-      // reliable, and shows the upload state on the submit button throughout.
-      const vendorPayload: SellerApplicationInput['vendors'] = [];
-      for (const v of vendors) {
-        let fssai: { key: string; assetId: string } | undefined;
-        if (v.app === 'FOOD' && v.fssaiUri) {
-          fssai = await gateway.uploadSellerDocument(v.fssaiUri, ownerId);
-        }
-        let drug: { key: string; assetId: string } | undefined;
-        if (v.app === 'PHARMA' && v.drugLicenseUri) {
-          drug = await gateway.uploadSellerDocument(v.drugLicenseUri, ownerId);
-        }
-        // Shop photos go through /media/avif: the gateway converts each to AVIF and only then does
-        // the application reference it, so storage holds AVIF and nothing else.
-        const shopPhotoIds: string[] = [];
-        for (const uri of v.shopPhotoUris) {
-          shopPhotoIds.push((await gateway.uploadShopPhoto(uri)).assetId);
-        }
-        const useShopBank =
-          !v.sameAsAccountBank &&
-          [v.bankName, v.bankAccountNumber, v.bankIfsc, v.bankBeneficiary].some((field) =>
-            field.trim(),
-          );
-        vendorPayload.push({
+      const v = shop;
+      const licence = licenceFor(v);
+      // The licence slot is per category: FSSAI and the Mart registration certificate share the
+      // vendor FSSAI columns (the only generic licence columns on the table), Pharma uses the drug
+      // columns. The gateway validates FSSAI format only for a Food shop.
+      const licenceUpload = licence.uri
+        ? await gateway.uploadSellerDocument(licence.uri, ownerId)
+        : undefined;
+      // Shop photos go through /media/avif one at a time: each is a server-side AVIF conversion, and
+      // parallel encodes oversubscribe the CPU. Sequential is slower but reliable.
+      const shopPhotoIds: string[] = [];
+      for (const uri of v.shopPhotoUris) {
+        shopPhotoIds.push((await gateway.uploadShopPhoto(uri)).assetId);
+      }
+      const isPharma = v.app === 'PHARMA';
+      const vendorPayload: SellerApplicationInput['vendors'] = [
+        {
           name: v.shopName.trim(),
           app: v.app,
-          categoryId: v.categoryId ?? undefined,
-          platformFeePct: Number(v.platformFee),
-          address: v.shopAddress.trim() || undefined,
+          platformFeePct: selectedTier?.commissionPct ?? Number(v.platformFee),
+          address: v.shopAddress.trim(),
+          phone: toE164(v.shopPhone, DEFAULT_COUNTRY),
           latitude: v.latitude,
           longitude: v.longitude,
-          fssaiNumber: v.app === 'FOOD' ? v.fssaiNumber.trim() || undefined : undefined,
-          fssaiFileKey: fssai?.key,
-          fssaiAssetId: fssai?.assetId,
-          drugLicenseNumber:
-            v.app === 'PHARMA' ? v.drugLicenseNumber.trim() || undefined : undefined,
-          drugLicenseFileKey: drug?.key,
-          drugLicenseAssetId: drug?.assetId,
+          fssaiNumber: !isPharma ? licence.number.trim() || undefined : undefined,
+          fssaiFileKey: !isPharma ? licenceUpload?.key : undefined,
+          fssaiAssetId: !isPharma ? licenceUpload?.assetId : undefined,
+          drugLicenseNumber: isPharma ? licence.number.trim() || undefined : undefined,
+          drugLicenseFileKey: isPharma ? licenceUpload?.key : undefined,
+          drugLicenseAssetId: isPharma ? licenceUpload?.assetId : undefined,
           shopPhotoIds,
-          bankName: useShopBank ? v.bankName.trim() : undefined,
-          bankAccountNumber: useShopBank
-            ? v.bankAccountNumber.replace(/\D/g, '')
-            : undefined,
-          bankIfsc: useShopBank ? v.bankIfsc.trim().toUpperCase() : undefined,
-          bankBeneficiary: useShopBank ? v.bankBeneficiary.trim() : undefined,
-        });
-      }
+        },
+      ];
       const res = await gateway.submitSellerApplication({
-        businessName: form.businessName.trim(),
+        // One shop means the account identity is the shop's identity: no separate business-name or
+        // address fields, and GSTIN stays optional (small/unregistered shops) and unasked here.
+        businessName: v.shopName.trim(),
         ownerName: form.ownerName.trim(),
         gstin: form.gstin.trim().toUpperCase(),
         pan: form.pan.trim().toUpperCase(),
-        businessAddress: form.businessAddress.trim(),
+        businessAddress: v.shopAddress.trim(),
         contactPhone: phoneE164,
         contactEmail: form.contactEmail.trim(),
         stateCode: form.stateCode.trim().toUpperCase(),
@@ -799,14 +707,16 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         bankBeneficiary: form.bankBeneficiary.trim(),
         passbookFileKey: passbook.key,
         passbookAssetId: passbook.assetId,
+        // The gateway requires a signature/consent record on every application. The app no longer
+        // collects them separately: submitting this form is the applicant's acceptance.
         otpVerified: true,
         contractTier: tierCode!,
-        termsAccepted,
-        partnerAgreementAccepted: partnerAccepted,
-        ipLicenseGranted: ipGranted,
+        termsAccepted: true,
+        partnerAgreementAccepted: true,
+        ipLicenseGranted: true,
       });
       setResult(res);
-      setSubmittedApps(vendorPayload.map((v) => v.app).filter(Boolean));
+      setSubmittedApps(vendorPayload.map((item) => item.app).filter(Boolean));
       // The application is on the server now — the local autosaved draft is no longer needed.
       draftDisabledRef.current = true;
       void clearSellerDraft(user?.id ?? '');
@@ -817,31 +727,16 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     }
   };
 
-  const canSubmit =
-    !submitting &&
-    otpVerified &&
-    Boolean(passbookUri) &&
-    Boolean(tierCode) &&
-    termsAccepted &&
-    partnerAccepted &&
-    ipGranted &&
-    /^[A-Z]{2}$/.test(form.stateCode.trim().toUpperCase()) &&
-    Boolean(form.districtCode.trim()) &&
-    vendors.length > 0 &&
-    vendors.every((v) => v.latitude != null && v.longitude != null) &&
-    vendors.every(
-      (v) =>
-        Boolean(v.shopName.trim()) &&
-        Boolean(v.shopAddress.trim()) &&
-        Boolean(v.categoryId) &&
-        v.shopPhotoUris.length > 0,
-    );
-
-  const stateName = states.find((s) => s.stateCode === form.stateCode)?.name;
-  const districtName = districts.find((d) => d.districtCode === form.districtCode)?.name;
-  const geoLabel = form.stateCode
-    ? [stateName ?? form.stateCode, districtName].filter(Boolean).join(' · ')
-    : '';
+  const nextStep = () => {
+    const problem = validateBusiness();
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    setError(null);
+    setStep(2);
+    scrollRef.current?.scrollTo({ y: 0, animated: true });
+  };
 
   // Status-derived UI. `result` comes from GET /sellers/me on mount or from the submit response;
   // rejected/suspended (and any unexpected status) fall back to the form (with a notice) so the
@@ -866,6 +761,8 @@ export function SellerRegistrationScreen({ navigation }: Props) {
     });
   }, []);
 
+  const licence = licenceFor(shop);
+
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + vs(8) }]}>
@@ -883,25 +780,13 @@ export function SellerRegistrationScreen({ navigation }: Props) {
       </View>
 
       <ScrollView
+        ref={scrollRef}
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         bounces={false}
         keyboardShouldPersistTaps="handled"
       >
-        {!loadingStatus && !isUnderReview && !isActiveSeller ? (
-          <View style={styles.heroCard}>
-            <View style={styles.heroIcon}>
-              <Store size={ms(22)} color={parentRamp.base} strokeWidth={2.2} />
-            </View>
-            <AppText style={styles.heroTitle}>Partner with Faazio</AppText>
-            <AppText style={styles.heroSub}>
-              Complete your business account first, then add every shop you run. A district admin
-              reviews the application before your shops go live.
-            </AppText>
-          </View>
-        ) : null}
-
         {applicationStatus === 'REJECTED' ? (
           <View style={styles.statusNoticeCard}>
             <AppText style={styles.statusNoticeTitle}>Application not approved</AppText>
@@ -918,6 +803,36 @@ export function SellerRegistrationScreen({ navigation }: Props) {
             </AppText>
           </View>
         ) : null}
+
+        {docRequests.length > 0
+          ? docRequests.map((request) => (
+              <View key={request.requestId} style={styles.docRequestCard}>
+                <AppText style={styles.docRequestTitle}>
+                  {`Faazio has requested you to upload your ${DOC_REQUEST_LABELS[request.docType] ?? 'document'}.`}
+                </AppText>
+                {request.note ? (
+                  <AppText style={styles.docRequestNote}>{request.note}</AppText>
+                ) : null}
+                <TouchableOpacity
+                  style={styles.docRequestBtn}
+                  activeOpacity={0.9}
+                  onPress={() => {
+                    setError(null);
+                    setDocRequestCapture(request);
+                  }}
+                  disabled={docRequestBusy}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Upload ${DOC_REQUEST_LABELS[request.docType] ?? 'document'}`}
+                >
+                  {docRequestBusy && docRequestCapture?.requestId === request.requestId ? (
+                    <ActivityIndicator size="small" color={parentRamp.onBase} />
+                  ) : (
+                    <AppText style={styles.docRequestBtnText}>Capture &amp; upload</AppText>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ))
+          : null}
 
         {loadingStatus ? (
           <View style={styles.statusLoading}>
@@ -999,361 +914,342 @@ export function SellerRegistrationScreen({ navigation }: Props) {
           </View>
         ) : (
           <>
-            <View style={styles.stepRow}>
-              <View style={styles.stepBadge}>
-                <AppText style={styles.stepBadgeText}>1</AppText>
-              </View>
-              <AppText style={styles.stepTitle}>Business account</AppText>
-            </View>
+            {step === 1 ? (
+              <View style={styles.sheet}>
+                <AppText style={styles.sheetTitle}>Business account</AppText>
 
-            <View style={styles.sectionCard}>
-              <AppText style={styles.sectionTitle}>Business identity</AppText>
-              <AppText style={styles.sectionNote}>
-                The account that owns your shops. PAN is required; GSTIN is optional.
-              </AppText>
-
-              <TextInputField
-                label={setup('businessName')?.label ?? 'Business name'}
-                placeholder={setup('businessName')?.placeholder ?? 'e.g. Sharma Traders'}
-                value={form.businessName}
-                onChangeText={update('businessName')}
-              />
-              <TextInputField
-                label={setup('ownerName')?.label ?? 'Owner / contact name'}
-                placeholder={setup('ownerName')?.placeholder ?? 'Full name'}
+              <PaperField
+                label="Owner name"
+                required
+                placeholder="Full name as on PAN"
                 value={form.ownerName}
                 onChangeText={update('ownerName')}
+                autoCapitalize="words"
               />
-              <TextInputField
-                label={`${setup('gstin')?.label ?? 'GSTIN'} (optional)`}
-                placeholder={setup('gstin')?.placeholder ?? '22ABCDE1234F1Z5'}
-                value={form.gstin}
-                onChangeText={update('gstin')}
-                autoCapitalize="characters"
-              />
-              <TextInputField
-                label={setup('pan')?.label ?? 'PAN'}
-                placeholder={setup('pan')?.placeholder ?? 'ABCDE1234F'}
-                value={form.pan}
-                onChangeText={update('pan')}
-                autoCapitalize="characters"
-              />
-              <TextInputField
-                label={setup('businessAddress')?.label ?? 'Business address'}
-                placeholder={setup('businessAddress')?.placeholder ?? 'Full address'}
-                value={form.businessAddress}
-                onChangeText={update('businessAddress')}
-              />
+
               {authPhone ? (
-                <TextInputField
-                  label={setup('contactPhone')?.label ?? 'Contact phone'}
-                  placeholder={setup('contactPhone')?.placeholder ?? '+91 00000 00000'}
+                <PaperField
+                  label="Owner number"
+                  required
+                  placeholder="+91 00000 00000"
                   value={form.contactPhone}
                   keyboardType="phone-pad"
                   editable={false}
                 />
               ) : (
-                <View style={styles.phoneRow}>
-                  <CountryCodePicker
-                    value={phoneCountry}
-                    onChange={changePhoneCountry}
-                    disabled={otpBusy}
-                  />
-                  <View style={styles.phoneInputWrap}>
-                    <TextInputField
-                      label={setup('contactPhone')?.label ?? 'Contact phone'}
-                      placeholder={setup('contactPhone')?.placeholder ?? '+91 00000 00000'}
+                <View style={styles.phonePaperRow}>
+                  <CountryCodePicker value={phoneCountry} onChange={setPhoneCountry} />
+                  <View style={styles.phonePaperInput}>
+                    <PaperField
+                      label="Owner number"
+                      required
+                      placeholder="+91 00000 00000"
                       value={form.contactPhone}
-                      onChangeText={updateContactPhone}
+                      onChangeText={update('contactPhone')}
                       keyboardType="phone-pad"
-                      editable={!otpBusy}
+                      editable={!authPhone}
                     />
                   </View>
                 </View>
               )}
-              <TextInputField
-                label={setup('contactEmail')?.label ?? 'Contact email'}
-                placeholder={setup('contactEmail')?.placeholder ?? 'owner@business.com'}
+
+              <PaperField
+                label="Shop name"
+                required
+                placeholder="e.g. Sharma Provisions"
+                value={shop.shopName}
+                onChangeText={(v) => updateVendor(shop.key, { shopName: v })}
+                autoCapitalize="words"
+              />
+
+              <PaperField
+                label="Shop number"
+                required
+                prefix="+91"
+                placeholder="10-digit number customers can call"
+                value={shop.shopPhone}
+                onChangeText={(v) => updateShopPhone(shop.key, v)}
+                keyboardType="phone-pad"
+                maxLength={10}
+                editable={!shop.sameAsOwnerPhone}
+              />
+
+              <View style={styles.samePhoneRow}>
+                <Checkbox checked={shop.sameAsOwnerPhone} onToggle={() => toggleSameAsOwnerPhone(shop)} />
+                <TouchableOpacity
+                  onPress={() => toggleSameAsOwnerPhone(shop)}
+                  activeOpacity={0.7}
+                  accessibilityRole="checkbox"
+                  accessibilityState={{ checked: shop.sameAsOwnerPhone }}
+                  accessibilityLabel="Same as owner number"
+                >
+                  <AppText style={styles.samePhoneText}>Same as owner number</AppText>
+                </TouchableOpacity>
+              </View>
+
+              <PaperField
+                label="Contact email"
+                required
+                placeholder="owner@business.com"
                 value={form.contactEmail}
                 onChangeText={update('contactEmail')}
                 keyboardType="email-address"
                 autoCapitalize="none"
               />
-            </View>
 
-            <View style={styles.sectionCard}>
-              <AppText style={styles.sectionTitle}>KYC documents</AppText>
-              <AppText style={styles.sectionNote}>
-                Images are uploaded to a private bucket and shown only to you and the review team.
-                Your state and district are set from the first shop pin in Part 2.
-              </AppText>
-              <DocumentRow
-                label="Bank passbook"
-                uri={passbookUri}
-                onCapture={() => setCapture('passbook')}
-                onRemove={() => setPassbookUri(null)}
+              <PaperField
+                label="Shop address"
+                required
+                placeholder="Door no., street, area, town"
+                value={shop.shopAddress}
+                onChangeText={(v) => updateVendor(shop.key, { shopAddress: v })}
               />
+
+              <View style={styles.paperBlock}>
+                <AppText style={styles.paperBlockLabel}>
+                  Category<AppText style={styles.paperRequired}> *</AppText>
+                </AppText>
+                <View style={styles.categoryRow}>
+                  {CATEGORY_OPTIONS.map((option) => {
+                    const selected = shop.app === option.app;
+                    return (
+                      <TouchableOpacity
+                        key={option.app}
+                        style={[styles.categoryChip, selected && styles.categoryChipActive]}
+                        onPress={() => changeVendorApp(shop.key, option.app)}
+                        activeOpacity={0.85}
+                        accessibilityRole="button"
+                        accessibilityState={{ selected }}
+                      >
+                        <AppText
+                          style={[styles.categoryLabel, selected && styles.categoryLabelActive]}
+                        >
+                          {option.label}
+                        </AppText>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+
+              <View style={styles.paperBlock}>
+                <AppText style={styles.paperBlockLabel}>
+                  Shop photo<AppText style={styles.paperRequired}> *</AppText>
+                </AppText>
+                <View style={styles.photoRow}>
+                  {shop.shopPhotoUris.map((uri) => (
+                    <View key={uri} style={styles.photoTile}>
+                      <Image source={{ uri }} style={styles.photoImage} resizeMode="cover" />
+                      <TouchableOpacity
+                        style={styles.photoRemove}
+                        onPress={() =>
+                          updateVendor(shop.key, {
+                            shopPhotoUris: shop.shopPhotoUris.filter((u) => u !== uri),
+                          })
+                        }
+                        accessibilityRole="button"
+                        accessibilityLabel="Remove shop photo"
+                      >
+                        <X size={ms(12)} color="#FFFFFF" strokeWidth={2.6} />
+                      </TouchableOpacity>
+                    </View>
+                  ))}
+                  {shop.shopPhotoUris.length < 1 ? (
+                    <TouchableOpacity
+                      style={[styles.photoTile, styles.photoTileEmpty]}
+                      onPress={() => {
+                        setCaptureVendorKey(shop.key);
+                        setCapture('shop');
+                      }}
+                      activeOpacity={0.85}
+                      accessibilityRole="button"
+                      accessibilityLabel="Add a photo of your shop"
+                    >
+                      <Camera size={ms(20)} color={parentRamp.base} strokeWidth={2} />
+                      <AppText style={styles.photoTileText}>Add photo</AppText>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              </View>
+
+              <View style={styles.paperBlock}>
+                <AppText style={styles.paperBlockLabel}>
+                  Shop location<AppText style={styles.paperRequired}> *</AppText>
+                </AppText>
+                <TouchableOpacity
+                  style={styles.locationRow}
+                  onPress={() => setPinTarget(shop.key)}
+                  activeOpacity={0.85}
+                  accessibilityRole="button"
+                  accessibilityLabel="Pin the shop location on the map"
+                >
+                  <LocateFixed size={ms(18)} color={parentRamp.base} strokeWidth={2.2} />
+                  <View style={styles.locationBody}>
+                    <AppText
+                      style={[
+                        styles.locationValue,
+                        shop.latitude == null && styles.locationValueMuted,
+                      ]}
+                      numberOfLines={2}
+                    >
+                      {shop.latitude != null
+                        ? shop.shopAddress.trim() || 'Pinned on the map'
+                        : 'Pin the shop on the map'}
+                    </AppText>
+                    <AppText style={styles.locationAction}>
+                      {shop.latitude != null ? 'Change pin' : 'Open map'}
+                    </AppText>
+                  </View>
+                </TouchableOpacity>
+              </View>
+
+                <TouchableOpacity
+                  style={styles.primaryBtn}
+                  onPress={nextStep}
+                  activeOpacity={0.9}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next: licence and payout"
+                >
+                  <AppText style={styles.primaryBtnText}>Next</AppText>
+                  <ArrowRight size={ms(18)} color={parentRamp.onBase} strokeWidth={2.4} />
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+            <View style={styles.sheet}>
+              <AppText style={styles.sheetTitle}>Owner PAN & licence</AppText>
+
+              <PaperField
+                label="Owner PAN number"
+                required
+                placeholder="ABCDE1234F"
+                value={form.pan}
+                onChangeText={(v) => update('pan')(v.toUpperCase().slice(0, 10))}
+                autoCapitalize="characters"
+                maxLength={10}
+              />
+
+              <View style={styles.paperBlock}>
+                <AppText style={styles.paperBlockLabel}>
+                  {licence.name}
+                  {licence.required ? <AppText style={styles.paperRequired}> *</AppText> : null}
+                </AppText>
+                <PaperField
+                  label="Licence / certificate number"
+                  required={licence.required}
+                  placeholder={
+                    shop.app === 'FOOD'
+                      ? '14-digit FSSAI number'
+                      : shop.app === 'PHARMA'
+                        ? 'Drug licence number'
+                        : 'Registration number'
+                  }
+                  value={licence.number}
+                  onChangeText={(v) => updateLicence(shop.key, { number: v })}
+                  autoCapitalize="characters"
+                />
+                <DocumentRow
+                  label={licence.name}
+                  uri={licence.uri}
+                  onCapture={() => {
+                    setCaptureVendorKey(shop.key);
+                    setCapture(licence.capture);
+                  }}
+                  onRemove={() => updateLicence(shop.key, { uri: null })}
+                />
+              </View>
             </View>
 
-            <View style={styles.sectionCard}>
-              <AppText style={styles.sectionTitle}>Payout account</AppText>
-              <AppText style={styles.sectionNote}>
-                The default account for every shop. A shop can override it in Part 2. The full
-                account number is sent to Razorpay and never stored by Faazio.
-              </AppText>
-              <TextInputField
-                label={setup('bankName')?.label ?? 'Bank name'}
-                placeholder={setup('bankName')?.placeholder ?? 'e.g. HDFC Bank'}
+            <View style={styles.sheet}>
+              <AppText style={styles.sheetTitle}>Payout account</AppText>
+
+              <PaperField
+                label="Beneficiary name"
+                required
+                placeholder="As printed on the passbook"
+                value={form.bankBeneficiary}
+                onChangeText={update('bankBeneficiary')}
+                autoCapitalize="words"
+              />
+              <PaperField
+                label="Bank name"
+                required
+                placeholder="e.g. HDFC Bank"
                 value={form.bankName}
                 onChangeText={update('bankName')}
+                autoCapitalize="words"
               />
-              <TextInputField
-                label={setup('bankAccount')?.label ?? 'Account number'}
-                placeholder={setup('bankAccount')?.placeholder ?? 'Enter account number'}
+              <PaperField
+                label="Bank account number"
+                required
+                placeholder="Enter account number"
                 value={form.bankAccountNumber}
-                onChangeText={update('bankAccountNumber')}
+                onChangeText={(v) => update('bankAccountNumber')(v.replace(/\D/g, '').slice(0, 20))}
                 keyboardType="number-pad"
+                maxLength={20}
               />
-              <TextInputField
-                label={setup('ifsc')?.label ?? 'IFSC'}
-                placeholder={setup('ifsc')?.placeholder ?? 'HDFC0001234'}
+              <PaperField
+                label="IFSC code"
+                required
+                placeholder="HDFC0001234"
                 value={form.bankIfsc}
                 onChangeText={update('bankIfsc')}
                 autoCapitalize="characters"
                 maxLength={11}
               />
-              <TextInputField
-                label={setup('bankBeneficiary')?.label ?? 'Beneficiary name'}
-                placeholder={setup('bankBeneficiary')?.placeholder ?? 'As printed on the passbook'}
-                value={form.bankBeneficiary}
-                onChangeText={update('bankBeneficiary')}
-              />
-            </View>
-
-            <View style={styles.sectionCard}>
-              <AppText style={styles.sectionTitle}>Contract & terms</AppText>
-              <AppText style={styles.sectionNote}>
-                Pick a rate card, then accept the agreements that apply to every shop.
-              </AppText>
-
-              <SelectDropdown<string>
-                label="Contract tier"
-                required
-                placeholder={
-                  tiersError ? 'Tiers unavailable' : tiers.length === 0 ? 'Loading tiers…' : 'Select a tier'
-                }
-                options={tiers.map((t) => ({
-                  value: t.tierCode,
-                  label: `${t.name} · ${t.commissionPct}%`,
-                }))}
-                value={tierCode}
-                onChange={setTierCode}
-                disabled={tiers.length === 0}
-              />
-              {tiersError ? (
-                <View style={styles.tierErrorRow}>
-                  <AppText style={styles.helperError}>{tiersError}</AppText>
-                  <TouchableOpacity onPress={loadTiers} accessibilityRole="button">
-                    <AppText style={styles.tierRetry}>Retry</AppText>
-                  </TouchableOpacity>
-                </View>
-              ) : null}
-              <ContractSummary tier={selectedTier} />
-
-              <ClickwrapRow
-                label="I accept the Terms of Service"
-                checked={termsAccepted}
-                onToggle={() => setTermsAccepted((v) => !v)}
-                onRead={() => setViewer('terms')}
-              />
-              <ClickwrapRow
-                label="I accept the Seller / Partner Agreement"
-                checked={partnerAccepted}
-                onToggle={() => setPartnerAccepted((v) => !v)}
-                onRead={() => setViewer('partner')}
-              />
-              <ClickwrapRow
-                label="I grant Faazio the content and IP licence"
-                checked={ipGranted}
-                onToggle={() => setIpGranted((v) => !v)}
-                onRead={() => setViewer('ip')}
-              />
-            </View>
-
-            <View style={styles.sectionCard}>
-              <View style={styles.sectionTitleRow}>
-                <AppText style={styles.sectionTitle}>Digital signature</AppText>
-                {otpVerified ? (
-                  <View style={styles.verifiedPill}>
-                    <ShieldCheck size={ms(12)} color={semantic.success} strokeWidth={2.4} />
-                    <AppText style={styles.verifiedText}>Verified</AppText>
-                  </View>
-                ) : null}
-              </View>
-              <AppText style={styles.sectionNote}>
-                We send a one-time code to {otpPhone || 'your registered phone'}. Verifying it signs
-                the application.
-              </AppText>
-
-              {!otpVerified ? (
-                <>
-                  <View style={styles.otpRow}>
-                    <AppTextInput
-                      style={[styles.input, styles.otpInput]}
-                      placeholder="6-digit OTP"
-                      placeholderTextColor={neutral.inkSubtle}
-                      value={otpCode}
-                      onChangeText={(v) => {
-                        setOtpError('');
-                        setOtpCode(v.replace(/\D/g, '').slice(0, 6));
-                      }}
-                      keyboardType="number-pad"
-                      textContentType="oneTimeCode"
-                      autoComplete="sms-otp"
-                      maxLength={6}
-                      editable={!otpBusy}
-                    />
-                    <TouchableOpacity
-                      style={[
-                        styles.otpButton,
-                        (otpBusy || (otpSent ? otpCode.length !== 6 : !phoneValid)) &&
-                          styles.otpButtonDisabled,
-                      ]}
-                      onPress={otpSent ? confirmSignatureOtp : sendSignatureOtp}
-                      disabled={otpBusy || (otpSent ? otpCode.length !== 6 : !phoneValid)}
-                      activeOpacity={0.85}
-                    >
-                      {otpBusy ? (
-                        <ActivityIndicator size="small" color={parentRamp.onBase} />
-                      ) : (
-                        <AppText style={styles.otpButtonText}>
-                          {otpSent ? 'Verify' : 'Send OTP'}
-                        </AppText>
-                      )}
-                    </TouchableOpacity>
-                  </View>
-                  {otpSent ? (
-                    <TouchableOpacity
-                      onPress={sendSignatureOtp}
-                      disabled={countdown > 0 || otpBusy}
-                      activeOpacity={0.7}
-                    >
-                      <AppText style={[styles.linkText, countdown > 0 && styles.linkTextMuted]}>
-                        {countdown > 0 ? `Resend OTP in ${countdown}s` : 'Resend OTP'}
-                      </AppText>
-                    </TouchableOpacity>
-                  ) : null}
-                  {otpError ? <AppText style={styles.helperError}>{otpError}</AppText> : null}
-                </>
-              ) : (
-                <View style={styles.signedBox}>
-                  <FileCheck2 size={ms(18)} color={semantic.success} strokeWidth={2.2} />
-                  <AppText style={styles.signedText}>
-                    OTP verified at {otpVerifiedAt || 'this session'}. This is your digital
-                    signature.
-                  </AppText>
-                </View>
-              )}
-            </View>
-
-            <View style={styles.stepRow}>
-              <View style={styles.stepBadge}>
-                <AppText style={styles.stepBadgeText}>2</AppText>
-              </View>
-              <AppText style={styles.stepTitle}>Your shops</AppText>
-            </View>
-
-            <View style={styles.sectionCard}>
-              <AppText style={styles.sectionNote}>
-                Add every shop you run. Each shop picks its own app, category, platform fee,
-                documents, optional bank account and map pin.
-              </AppText>
-
-              {vendors.map((vendor, index) => (
-                <ShopCard
-                  key={vendor.key}
-                  vendor={vendor}
-                  index={index}
-                  canRemove={vendors.length > 1}
-                  onRemove={() => removeVendor(vendor.key)}
-                  onChange={(patch) => updateVendor(vendor.key, patch)}
-                  onAppChange={(app) => changeVendorApp(vendor.key, app)}
-                  onPinLocation={() => setPinTarget(vendor.key)}
-                  onCaptureDoc={(kind) => {
-                    setCaptureVendorKey(vendor.key);
-                    setCapture(kind);
-                  }}
-                  onAddShopPhoto={() => {
-                    setCaptureVendorKey(vendor.key);
-                    setCapture('shop');
-                  }}
-                  onRemoveShopPhoto={(uri) =>
-                    updateVendor(vendor.key, {
-                      shopPhotoUris: vendor.shopPhotoUris.filter((u) => u !== uri),
-                    })
-                  }
-                  onAddAnother={addVendor}
-                />
-              ))}
-
-              <TouchableOpacity
-                style={styles.addShopBtn}
-                onPress={addVendor}
-                activeOpacity={0.8}
-                accessibilityRole="button"
-              >
-                <Plus size={ms(16)} color={parentRamp.base} strokeWidth={2.2} />
-                <AppText style={styles.addShopText}>Add another shop</AppText>
-              </TouchableOpacity>
-
-              <View style={[styles.geoNote, !form.districtCode && form.stateCode ? styles.geoNoteWarn : null]}>
-                <AppText style={styles.geoNoteText}>
-                  {geoLabel && form.districtCode
-                    ? `State & district set from your pinned shop: ${geoLabel}. Pin every shop — a location is required to submit.`
-                    : form.stateCode
-                      ? `We can’t match a shop pin to a Faazio district. Open a shop’s location, search the shop address and pick the suggestion — a district is required to submit.`
-                      : 'Pin every shop so its location is shared with Faazio and your state and district can be set.'}
+              <View style={styles.paperBlock}>
+                <AppText style={styles.paperBlockLabel}>
+                  Bank passbook<AppText style={styles.paperRequired}> *</AppText>
                 </AppText>
+                <DocumentRow
+                  label="Passbook page with account number and IFSC"
+                  uri={passbookUri}
+                  onCapture={() => setCapture('passbook')}
+                  onRemove={() => setPassbookUri(null)}
+                />
               </View>
-            </View>
-
-            {error ? <AppText style={styles.errorText}>{error}</AppText> : null}
-
-            <View style={styles.draftNote}>
-              <ShieldCheck size={ms(12)} color={neutral.inkSubtle} strokeWidth={2.2} />
-              <AppText style={styles.draftNoteText}>
-                Saved automatically on this device — your progress is here when you come back.
-              </AppText>
             </View>
 
             <TouchableOpacity
-              style={[styles.submitBtn, !canSubmit && styles.submitBtnDisabled]}
-              activeOpacity={0.85}
-              onPress={submit}
-              disabled={!canSubmit}
+              style={styles.backBtn}
+              onPress={() => {
+                setStep(1);
+                scrollRef.current?.scrollTo({ y: 0, animated: true });
+              }}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Back to business account"
             >
-              {submitting ? (
-                <ActivityIndicator size="small" color={parentRamp.onBase} />
-              ) : (
-                <>
-                  <Lock size={ms(16)} color={parentRamp.onBase} strokeWidth={2.2} />
-                  <AppText style={styles.submitText}>
-                    {canSubmit ? 'Submit for review' : 'Complete the required steps'}
-                  </AppText>
-                </>
-              )}
+              <ArrowLeft size={ms(16)} color={neutral.inkMuted} strokeWidth={2.2} />
+              <AppText style={styles.backBtnText}>Back to business account</AppText>
             </TouchableOpacity>
+            
+            </>
+            )}
+
+            {error ? <AppText style={styles.errorText}>{error}</AppText> : null}
+
+            {step === 2 ? (
+              <TouchableOpacity
+                style={[styles.primaryBtn, styles.submitBig]}
+                activeOpacity={0.9}
+                onPress={submit}
+                disabled={submitting}
+                accessibilityRole="button"
+                accessibilityLabel="Submit"
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color={parentRamp.onBase} />
+                ) : (
+                  <AppText style={[styles.primaryBtnText, styles.submitBigText]}>
+                    Submit
+                  </AppText>
+                )}
+              </TouchableOpacity>
+            ) : null}
             {submitting ? (
               <AppText style={styles.uploadingText}>Uploading documents securely…</AppText>
             ) : null}
-
-            <View style={styles.secureNote}>
-              <Mail size={ms(12)} color={neutral.inkSubtle} strokeWidth={2.2} />
-              <AppText style={styles.secureNoteText}>
-                Your bank details are sent over an authenticated connection. KYC images live in a
-                private bucket; secrets and OTPs are never logged.
-              </AppText>
-            </View>
           </>
         )}
       </ScrollView>
@@ -1403,10 +1299,13 @@ export function SellerRegistrationScreen({ navigation }: Props) {
         }}
       />
 
-      <TermsViewer
-        kind={viewer}
-        visible={viewer !== null}
-        onClose={() => setViewer(null)}
+      <DocumentCapture
+        visible={docRequestCapture !== null}
+        title={docRequestCapture ? DOC_REQUEST_LABELS[docRequestCapture.docType] ?? 'Document' : 'Document'}
+        onClose={() => setDocRequestCapture(null)}
+        onCaptured={(uri) => {
+          if (docRequestCapture) void fulfillDocumentRequest(docRequestCapture, uri);
+        }}
       />
     </View>
   );
@@ -1438,135 +1337,140 @@ const styles = StyleSheet.create({
   },
   backButton: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontSize: ms(18), fontWeight: '900', color: neutral.ink },
-  heroCard: {
-    backgroundColor: parentRamp.base,
-    borderRadius: ms(20),
-    padding: hs(18),
+  sheet: {
+    backgroundColor: neutral.card,
+    borderRadius: ms(18),
+    paddingHorizontal: hs(16),
+    paddingTop: vs(16),
+    paddingBottom: vs(18),
     marginBottom: SPACE.SECTION,
   },
-  heroIcon: {
-    width: ms(42),
-    height: ms(42),
-    borderRadius: ms(12),
-    backgroundColor: neutral.card,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: SPACE.BLOCK,
+  sheetTitle: { fontSize: ms(19), fontWeight: '900', color: neutral.ink, letterSpacing: -0.3 },
+  paperBlock: { marginTop: vs(20) },
+  paperBlockLabel: {
+    fontSize: ms(11),
+    fontWeight: '700',
+    color: neutral.ink,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
   },
-  heroTitle: { fontSize: ms(18), fontWeight: '900', color: parentRamp.onBase },
-  heroSub: { fontSize: ms(12), color: parentRamp.tint, lineHeight: ms(18), marginTop: vs(6) },
-  stepRow: {
+  paperRequired: { color: neutral.inkMuted },  categoryRow: { flexDirection: 'row', gap: hs(8), marginTop: vs(10) },
+  samePhoneRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: hs(8),
-    marginBottom: SPACE.BLOCK,
-    marginTop: vs(2),
+    marginTop: vs(10),
   },
-  stepBadge: {
-    width: ms(24),
-    height: ms(24),
-    borderRadius: ms(12),
-    backgroundColor: parentRamp.tint,
+  samePhoneText: {
+    fontSize: ms(12),
+    fontWeight: '600',
+    color: neutral.inkMuted,
+  },
+  categoryChip: {
+    flex: 1,
+    minHeight: vs(44),
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  stepBadgeText: { fontSize: ms(12), fontWeight: '900', color: parentRamp.base },
-  stepTitle: {
-    fontSize: ms(13),
-    fontWeight: '900',
-    color: neutral.ink,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  sectionCard: {
-    backgroundColor: neutral.card,
-    borderRadius: ms(18),
-    padding: hs(16),
-    marginBottom: SPACE.SECTION,
-  },
-  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  sectionTitle: {
-    fontSize: ms(14),
-    fontWeight: '900',
-    color: neutral.ink,
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
-  },
-  sectionNote: {
-    fontSize: ms(11),
-    color: neutral.inkSubtle,
-    marginTop: vs(2),
-    marginBottom: SPACE.BLOCK,
-    lineHeight: ms(16),
-  },
-  input: {
-    height: Math.max(46, vs(46)),
-    backgroundColor: neutral.surface,
+    paddingHorizontal: hs(10),
+    paddingVertical: vs(8),
     borderRadius: ms(12),
     borderWidth: 1,
     borderColor: neutral.border,
-    paddingHorizontal: hs(12),
-    fontSize: ms(14),
-    fontWeight: '600',
-    color: neutral.ink,
+    backgroundColor: neutral.surfaceAlt,
   },
-  helperError: { fontSize: ms(11), color: semantic.danger, fontWeight: '700', marginTop: vs(8) },
-  tierErrorRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  tierRetry: { fontSize: ms(11), color: parentRamp.base, fontWeight: '800', marginTop: vs(8) },
-  linkText: { fontSize: ms(11), fontWeight: '800', color: parentRamp.base, marginTop: vs(8) },
-  linkTextMuted: { color: neutral.inkSubtle },
-  verifiedPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: hs(4),
-    paddingHorizontal: hs(8),
-    paddingVertical: vs(4),
-    borderRadius: ms(20),
-    backgroundColor: semanticTint.success,
-  },
-  verifiedText: { fontSize: ms(10), fontWeight: '800', color: semantic.success },
-  otpRow: { flexDirection: 'row', gap: hs(8), alignItems: 'center' },
-  otpInput: { flex: 1 },
-  otpButton: {
-    height: Math.max(46, vs(46)),
-    minWidth: hs(96),
+  categoryChipActive: { borderColor: parentRamp.base, backgroundColor: parentRamp.tint },
+  categoryLabel: { fontSize: ms(13.5), fontWeight: '800', color: neutral.ink },
+  categoryLabelActive: { color: parentRamp.base },
+  photoRow: { flexDirection: 'row', gap: hs(10), marginTop: vs(10) },
+  photoTile: {
+    width: ms(96),
+    height: ms(72),
     borderRadius: ms(12),
-    backgroundColor: parentRamp.base,
+    overflow: 'hidden',
+    backgroundColor: neutral.surfaceAlt,
+  },
+  photoTileEmpty: {
     alignItems: 'center',
     justifyContent: 'center',
+    gap: vs(4),
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: neutral.border,
   },
-  otpButtonDisabled: { opacity: 0.6 },
-  otpButtonText: { fontSize: ms(12), fontWeight: '800', color: parentRamp.onBase, textTransform: 'uppercase' },
-  signedBox: {
+  photoTileText: { fontSize: ms(10), fontWeight: '700', color: parentRamp.base },
+  photoImage: { width: '100%', height: '100%' },
+  photoRemove: {
+    position: 'absolute',
+    top: vs(4),
+    right: hs(4),
+    width: ms(20),
+    height: ms(20),
+    borderRadius: ms(10),
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(15,23,42,0.72)',
+  },
+  locationRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: hs(8),
-    padding: hs(12),
+    gap: hs(10),
+    paddingVertical: vs(12),
+    paddingHorizontal: hs(12),
+    marginTop: vs(10),
     borderRadius: ms(12),
-    backgroundColor: semanticTint.success,
+    borderWidth: 1,
+    borderColor: neutral.border,
+    backgroundColor: neutral.surfaceAlt,
   },
-  signedText: { flex: 1, fontSize: ms(11), color: semantic.success, lineHeight: ms(16), fontWeight: '600' },
-  addShopBtn: {
+  locationBody: { flex: 1 },
+  locationValue: { fontSize: ms(13), fontWeight: '700', color: neutral.ink },
+  locationValueMuted: { color: neutral.inkMuted, fontWeight: '600' },
+  locationAction: {
+    fontSize: ms(10.5),
+    fontWeight: '800',
+    color: parentRamp.base,
+    marginTop: vs(2),
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: hs(8),
+    minHeight: vs(50),
+    borderRadius: ms(14),
+    backgroundColor: parentRamp.base,
+    marginTop: vs(24),
+    paddingHorizontal: hs(16),
+  },
+  submitBig: {
+    minHeight: vs(60),
+    borderRadius: ms(16),
+    marginTop: SPACE.SECTION,
+  },
+  primaryBtnText: {
+    fontSize: ms(13.5),
+    fontWeight: '900',
+    color: parentRamp.onBase,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  submitBigText: {
+    fontSize: ms(16),
+    letterSpacing: 0.5,
+  },
+  backBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: hs(6),
-    height: Math.max(46, vs(46)),
-    borderRadius: ms(12),
-    borderWidth: 1,
-    borderColor: parentRamp.tint,
-    borderStyle: 'dashed',
-    backgroundColor: neutral.surface,
+    minHeight: vs(44),
+    marginTop: vs(14),
   },
-  addShopText: { fontSize: ms(12), fontWeight: '800', color: parentRamp.base },
-  geoNote: {
-    marginTop: SPACE.BLOCK,
-    padding: hs(10),
-    borderRadius: ms(10),
-    backgroundColor: parentRamp.tint,
-  },
-  geoNoteText: { fontSize: ms(10.5), fontWeight: '600', color: parentRamp.deep, lineHeight: ms(15) },
-  geoNoteWarn: { backgroundColor: semanticTint.warning },
+  backBtnText: { fontSize: ms(12), fontWeight: '700', color: neutral.inkMuted },
+  phonePaperRow: { flexDirection: 'row', alignItems: 'flex-end', gap: hs(10), marginTop: vs(2) },
+  phonePaperInput: { flex: 1 },
   errorText: {
     fontSize: ms(12),
     fontWeight: '700',
@@ -1583,7 +1487,6 @@ const styles = StyleSheet.create({
     borderRadius: ms(14),
     backgroundColor: parentRamp.base,
   },
-  submitBtnDisabled: { opacity: 0.55 },
   submitText: { fontSize: ms(13), fontWeight: '800', color: parentRamp.onBase, textTransform: 'uppercase' },
   uploadingText: {
     fontSize: ms(10.5),
@@ -1591,25 +1494,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: vs(8),
   },
-  secureNote: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    justifyContent: 'center',
-    marginTop: vs(14),
-    paddingHorizontal: hs(8),
-    gap: hs(6),
-  },
-  secureNoteText: { fontSize: ms(10.5), color: neutral.inkSubtle, lineHeight: ms(15), flex: 1 },
-  draftNote: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: hs(6),
-    marginBottom: vs(10),
-  },
-  draftNoteText: { fontSize: ms(11), color: neutral.inkSubtle, lineHeight: ms(15) },
-  phoneRow: { flexDirection: 'row', alignItems: 'flex-end', gap: hs(8) },
-  phoneInputWrap: { flex: 1 },
   statusLoading: { paddingVertical: vs(48), alignItems: 'center', justifyContent: 'center' },
   statusNoticeCard: {
     backgroundColor: semanticTint.danger,
@@ -1623,6 +1507,43 @@ const styles = StyleSheet.create({
     color: semantic.danger,
     lineHeight: ms(18),
     marginTop: vs(4),
+  },
+  docRequestCard: {
+    backgroundColor: neutral.card,
+    borderRadius: ms(16),
+    padding: hs(16),
+    marginBottom: SPACE.SECTION,
+    borderWidth: 1,
+    borderColor: parentRamp.base,
+  },
+  docRequestTitle: {
+    fontSize: ms(14),
+    fontWeight: '800',
+    color: neutral.ink,
+    lineHeight: ms(20),
+  },
+  docRequestNote: {
+    fontSize: ms(12),
+    color: neutral.inkMuted,
+    lineHeight: ms(18),
+    marginTop: vs(6),
+  },
+  docRequestBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minHeight: vs(46),
+    borderRadius: ms(12),
+    backgroundColor: parentRamp.base,
+    marginTop: vs(14),
+    paddingHorizontal: hs(16),
+  },
+  docRequestBtnText: {
+    fontSize: ms(13),
+    fontWeight: '900',
+    color: parentRamp.onBase,
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
   },
   reviewCard: {
     backgroundColor: neutral.card,

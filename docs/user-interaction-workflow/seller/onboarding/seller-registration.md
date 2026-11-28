@@ -4,8 +4,10 @@
 **Status:** Shipped (mobile-only by design; the portal deliberately has no seller-application form.
 On approval the seller's portal login is auto-provisioned from `contact_email` — role `SELLER`,
 scoped to `seller_id`, `must_change=true`; the seller app is a WebView over the portal.)
-Contract clickwrap, the server-owned rate card and the compliance status gate are **Partial**: the
-acceptance/IP/tier audit is live, but no government GSTIN/PAN/FSSAI/bank provider is linked yet.
+Contract acceptance, the server-owned rate card and the compliance status gate are **Partial**: the
+acceptance/IP/tier audit is live, but no government GSTIN/PAN/FSSAI/bank provider is linked yet. The
+application form itself no longer has a signature step or agreement tick-boxes: submitting the form
+while signed in is the applicant's acceptance (see step 4).
 **Trigger:** "Sell with us" entry in the customer app. A visitor who has not installed the app yet
 can send a public enquiry on the landing page (`/sell-with-us` → `POST /seller-inquiries`) — that
 creates an `INQUIRY` row only, never a KYC account, and this application remains the way to apply
@@ -14,28 +16,48 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
 
 ## Steps
 
-1. Applicant enters account fields (business name, owner, PAN, optional GSTIN) and one or more
-   vendor entries (app, category, per-store fee, FSSAI or drug licence, own pin, optional masked
+1. Applicant enters account fields (business name, owner, PAN, optional GSTIN) and one shop entry
+   (app, category, per-store fee, FSSAI or drug licence, own pin, optional masked
    bank override, and **at least one shop-front photo**, up to five).
+   The **shop number** is a single field like the fields around it: the `+91` dial code is plain
+   inline text at the start of the value line (no separate box or control), followed by the 10
+   national digits — the field strips non-digits and caps at 10. A **Same as owner number** tick below it mirrors the owner number into the shop
+   number and keeps them in step while the owner edits theirs, leaving the field read-only. The tick
+   is pre-selected for new drafts and off for drafts saved before it existed.
    **Every shop must share its location** before submission: the "Pin your shop" picker shows a
    native `MapView` with a draggable marker (matching the landing page's `sell-with-us` map) so the
-   seller can tap or drag the pin onto the shop door itself. Address search and "use my current
+   seller can tap or drag the pin onto the shop door itself. The marker is always drawn — before any
+   choice it sits at the camera centre so the "tap or drag the pin" hint has a pin to point at, and
+   **Confirm pin** stays disabled until a real point exists. Address search and "use my current
    location" remain the reliable alternatives when map tiles are unavailable (a missing/restricted
-   Google Maps SDK key renders a blank canvas), with permission-aware error copy and a Settings
-   fallback. The first shop's reverse-geocoded point sets the account state/district.
-2. Contract tier: the screen reads `GET /sellers/contract-tiers` (server-owned rate card) and shows
-   the selected tier's commission and payout terms. No tier is hardcoded on the client.
-3. Clickwrap: the applicant must tick three acceptances — Terms of Service, Seller / Partner
-   Agreement and the content/IP licence. Each opens a short in-app summary sheet. The full public
+   Google Maps SDK key renders a blank canvas): when the map fires no load callback within 6 seconds
+   the picker shows an in-card notice — with a red pin glyph — telling the seller to set the pin by
+   search or current location instead of leaving a silent blank canvas. Permission-aware error copy
+   and a Settings fallback are kept. The first shop's reverse-geocoded point sets the account
+   state/district.
+   The Business account step carries no per-question description text: field labels (dark ink, not
+   muted grey) plus the controls only. The same applies to the Owner PAN & licence and Payout
+   account steps — no section notes, licence hints, passbook hints or district status line.
+   Step 2's **Submit** button is always enabled; tapping it with missing or
+   invalid fields shows a red inline message naming exactly what to fill in (and jumps back to
+   Step 1 when a Step 1 field is the problem) instead of being greyed out.
+2. Contract tier: no rate-card question is shown. The screen reads `GET /sellers/contract-tiers` in
+   the background (server-owned rate card, nothing hardcoded on the client) and puts the shop on the
+   lowest-commission published tier, which `POST /sellers` receives as `contractTier`; the Terms of
+   Service summary states that Faazio charges that commission per delivered order. If the catalogue
+   cannot be read, submit is blocked with "Could not load the rate card. Reconnect and try again."
+   and re-fetches it, never substituting a local card.
+3. No clickwrap UI: there are no agreement tick-boxes in the form. Submitting the application is the
+   acceptance, and `POST /sellers` still receives the three consent flags the gateway requires
+   (`termsAccepted`, `partnerAgreementAccepted`, `ipLicenseGranted`) as accepted. The full public
    merchant disclosure is `https://faazio.com/seller-terms` (landing-page route
-   `src/routes/seller-terms.tsx`; `/partner-terms` 301-redirects there); the clickwrap capture and
-   audit remain server-side.
-4. Phone verification with Firebase OTP on mobile (the digital signature). The seller scope uses the
-   **primary** Firebase app when the OTP target is the same phone that owns the signed-in session
-   (a phone-auth UID is phone-derived, so this only re-authenticates the same user) and the disposable
-   secondary app only for a different contact number. This avoids the secondary app's Play Integrity
-   / reCAPTCHA fallback failing on sideloaded Android builds. Send/verify failures map the real
-   Firebase code (`rate-limited`, `app verification`, `network`) to actionable copy.
+   `src/routes/seller-terms.tsx`; `/partner-terms` 301-redirects there); the acceptance audit stays
+   server-side.
+4. No OTP signature step: the Signature card (Send OTP, 6-digit code, Verify, resend countdown,
+   "OTP verified" panel) is gone, and `otpVerified` is sent as `true`. The applicant is already a
+   signed-in customer-app user, and the gateway separately rejects a bearer token whose phone claim
+   does not match `contactPhone` (`401 otp_unverified`). Seller OTP helpers
+   (`sendSellerOtp`/`verifySellerOtp`, Firebase phone auth) are no longer used by this screen.
 5. KYC documents upload (`uploadSellerDocument`), and per-vendor **shop photos**: each picked image is
    POSTed to `POST /media/avif`, which re-encodes it to AVIF server-side and returns an
    `assetId`/`key`. The gateway converts because React Native has no AVIF encoder; the bytes are
@@ -64,20 +86,25 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
 8. A rejected application can be edited with `POST /sellers/{id}/edit` (REJECTED only; currently
    seller-role-gated, so the customer-app applicant cannot use it — see Known gaps).
 9. **Local autosave draft (no Save button):** every change — account fields, shop cards, captured
-   document/shop-photo URIs, the selected tier and the three clickwrap booleans — is debounced
+   document/shop-photo URIs and the resolved tier — is debounced
    (~600 ms) into an AsyncStorage draft keyed per account
    (`faazio:seller-onboarding:draft:v1:<userId>`, `features/seller-onboarding/sellerDraft.ts`) and
    restored on the next open, so a half-filled application survives leaving the screen, backgrounding
-   or an app restart. The OTP signature is deliberately **not** persisted (it is a live Firebase
-   confirmation, re-verified on a fresh open); the phone number is kept. The draft is cleared on a
+   or an app restart. The phone number is kept. The draft is cleared on a
    successful submit and whenever `GET /sellers/me` reports `PENDING_REVIEW`/`ACTIVE`. Captured image
    URIs point at the app's local cache — if the OS purged a file, only that field needs a re-capture;
    KYC bytes are never copied or uploaded to persist a draft.
+10. **Admin document requests:** `GET /sellers/me/document-requests` is read on open (and works even
+    while the application is under review). A `PENDING` request renders a card above the status
+    screen — "Faazio has requested you to upload your <document>" — with **Capture & upload**. The
+    captured file uploads and fulfils the request
+    (`POST /sellers/me/document-requests/{id}/fulfill`), which writes a fresh unverified KYC document
+    and removes the card. See [`kyc-documents.md`](./kyc-documents.md).
 
 ## State
 
 - `useAuthStore` — applicant identity (customer-app session).
-- Local form state (including the selected tier and three acceptance booleans).
+- Local form state (including the resolved tier).
 - `sellerDraft.ts` — device-local autosave draft (AsyncStorage, per-account key), restored on mount and
   reconciled with `GET /sellers/me` (cleared when an application is already in flight/active).
 
@@ -106,8 +133,8 @@ email **promotes** that same row to `PENDING_REVIEW` instead of creating a secon
     inactive/unservable `stateCode` (validated against `admins.states`, 0073), a missing `districtCode`
     (`district is required`), or a `districtCode` whose parent state does not match `stateCode`.
   - `400 unknown_district` — `districtCode` is not in the active master (`admins.district_master`).
-  - `400 otp_required` — `otpVerified` is false.
-  - `400 agreements_required` — any of the three clickwrap acceptances is missing.
+  - `400 otp_required` — `otpVerified` is false (this screen always sends it true).
+  - `400 agreements_required` — any consent flag is missing (this screen always sends all three).
   - `400 invalid_contract_tier` — the selected tier is absent/inactive.
   - `401 otp_unverified` — the bearer token's phone claim does not match `contactPhone`.
   - `409 email_taken` — the lower-cased `contactEmail` already belongs to another application

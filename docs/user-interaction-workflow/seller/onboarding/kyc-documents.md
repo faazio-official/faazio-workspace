@@ -13,7 +13,27 @@
 3. Seller document types are the `kyc_doc_type` enum: `GSTIN`, `PAN`, `BANK_PROOF`,
    `SHOP_LICENSE`, `PASSBOOK`, `FSSAI`.
 4. Admin opens the application (`GET /sellers/{id}`), reviews documents, and calls
-   `POST /sellers/{id}/verify-doc/{docType}` per document.
+   `POST /sellers/{id}/verify-doc/{docType}` per document. The **Vendors** section also surfaces the
+   per-shop licence captured during onboarding: the FSSAI number (Food), drug licence number
+   (Pharma) or shop registration certificate (Mart) plus a **View certificate** button that opens the
+   private `fssaiCertAssetId`/`drugLicenseCertAssetId` via `GET /media/private/{assetId}`. A missing
+   file is flagged inline instead of being silently absent.
+5. **Request a re-upload (not admin-side replace):** each KYC document row has a **Request** button
+   (`POST /sellers/{id}/document-requests {docType}`) instead of the old **Replace**. It writes a
+   `PENDING` `sellers.document_requests` row (one per seller+docType, so repeat taps refresh rather
+   than duplicate) and notifies the applicant (`SELLER_DOC_REQUEST`). While a request is open the row
+   shows **Requested**.
+6. **Applicant fulfils from the app:** the customer-app **Sell with us** screen (`GET
+   /sellers/me/document-requests`) shows "Faazio has requested you to upload your <document>" with a
+   **Capture & upload** button. The picked file uploads via `uploadSellerDocument`, then
+   `POST /sellers/me/document-requests/{requestId}/fulfill {fileKey, assetId}` writes a fresh
+   `sellers.kyc_documents` row of that type (unverified, so it re-enters review) and marks the
+   request `FULFILLED` in one transaction. The card disappears once the list reloads.
+7. Admin verifies the whole KYC with `POST /sellers/{id}/verify-kyc`, or rejects with
+   `POST /sellers/{id}/reject` and a reason.
+8. Private document preview uses `GET /media/private/{assetId}` (creator/admin presigned GET).
+9. Every document verification (`verify-doc`) writes `sellers.kyc_verification_log`;
+   `verify-kyc` only flips the seller status to ACTIVE.
 5. Admin verifies the whole KYC with `POST /sellers/{id}/verify-kyc`, or rejects with
    `POST /sellers/{id}/reject` and a reason.
 6. Private document preview uses `GET /media/private/{assetId}` (creator/admin presigned GET).
@@ -36,6 +56,10 @@
 - `gateway.verifySellerKyc` → `POST /sellers/{id}/verify-kyc`.
 - `gateway.rejectSeller` → `POST /sellers/{id}/reject`.
 - `gateway.getPrivateMediaUrl` → `GET /media/private/{assetId}`.
+- `requestSellerDocument` → `POST /sellers/{id}/document-requests` → `sellers.document_requests`.
+- `listMyDocumentRequests` → `GET /sellers/me/document-requests` → `sellers.document_requests`.
+- `fulfillDocumentRequest` → `POST /sellers/me/document-requests/{id}/fulfill` →
+  `sellers.kyc_documents` + `sellers.document_requests`.
 
 ## Success / error / empty
 

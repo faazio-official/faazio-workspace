@@ -1986,9 +1986,33 @@ export async function replaceSellerKycDocument(
   return detail;
 }
 
+/**
+ * Admin: ask the applicant to (re)upload a KYC document. The applicant fulfils it from the
+ * customer-app Sell with us screen; the returned detail carries the new `documentRequests` trail.
+ */
+export async function requestSellerDocument(
+  sellerId: string,
+  docType: KycDocument["docType"],
+  note = "",
+): Promise<SellerDetail> {
+  if (!remoteConfigured()) throw new ApiError(0, "unconfigured", "Gateway is not configured");
+  const detail = toCamel(
+    await remote.post<SellerDetail>(`/sellers/${encodeURIComponent(sellerId)}/document-requests`, {
+      docType,
+      note,
+    }),
+  );
+  audit({
+    action: "DOCUMENT_REQUEST",
+    entity: "sellers.sellers",
+    entityId: sellerId,
+    after: { docType },
+  });
+  return detail;
+}
+
 /** Short-lived presigned GET for a private KYC asset (creator or admin only). */
-export async function fetchPrivateDocumentUrl(assetId: string): Promise<string | null> {
-  if (!remoteConfigured()) return null;
+export async function fetchPrivateDocumentUrl(assetId: string): Promise<string | null> {  if (!remoteConfigured()) return null;
   const res = await remote.get<{ url: string }>(`/media/private/${encodeURIComponent(assetId)}`);
   return res.url;
 }

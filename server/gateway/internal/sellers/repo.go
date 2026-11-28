@@ -143,6 +143,19 @@ type KycDocument struct {
 	UploadedAt string `json:"uploadedAt"`
 }
 
+// DocumentRequest is one sellers.document_requests row: an admin asking the applicant to (re)upload a
+// KYC document. It is PENDING until the applicant uploads the file, then FULFILLED.
+type DocumentRequest struct {
+	RequestID   string `json:"requestId"`
+	SellerID    string `json:"sellerId"`
+	DocType     string `json:"docType"`
+	Status      string `json:"status"`
+	Note        string `json:"note,omitempty"`
+	RequestedBy string `json:"requestedBy,omitempty"`
+	RequestedAt string `json:"requestedAt"`
+	FulfilledAt string `json:"fulfilledAt,omitempty"`
+}
+
 // BankAccount is one sellers.bank_accounts row (masked tail only — the full number is never stored).
 type BankAccount struct {
 	BankAccountID       string `json:"bankAccountId"`
@@ -200,6 +213,8 @@ type Detail struct {
 	KYCDocuments    []KycDocument     `json:"kycDocuments"`
 	VerificationLog []VerificationLog `json:"verificationLog"`
 	Vendors         []Vendor          `json:"vendors"`
+	// DocumentRequests are the admin "please re-upload" asks for this application, newest first.
+	DocumentRequests []DocumentRequest `json:"documentRequests"`
 }
 
 // RequestHistoryEntry is one changed field on a rejected application resubmission.
@@ -464,7 +479,7 @@ func (r *Repo) DetailByID(ctx context.Context, id string) (Detail, bool, error) 
 	if err != nil || !ok {
 		return Detail{}, ok, err
 	}
-	d := Detail{Seller: s, KYCDocuments: []KycDocument{}, VerificationLog: []VerificationLog{}, Vendors: []Vendor{}}
+	d := Detail{Seller: s, KYCDocuments: []KycDocument{}, VerificationLog: []VerificationLog{}, Vendors: []Vendor{}, DocumentRequests: []DocumentRequest{}}
 	if vendors, verr := r.Vendors(ctx, id); verr != nil {
 		return Detail{}, false, verr
 	} else {
@@ -484,6 +499,11 @@ func (r *Repo) DetailByID(ctx context.Context, id string) (Detail, bool, error) 
 		return Detail{}, false, lerr
 	} else {
 		d.VerificationLog = logs
+	}
+	if reqs, rerr := r.DocumentRequests(ctx, id); rerr != nil {
+		return Detail{}, false, rerr
+	} else {
+		d.DocumentRequests = reqs
 	}
 	return d, true, nil
 }
@@ -1079,6 +1099,139 @@ func insertKYC(ctx context.Context, q execQuerier, d KycDocument) (KycDocument, 
 		return KycDocument{}, err
 	}
 	d.UploadedAt = uploadedAt.UTC().Format(time.RFC3339)
+	return d, nil
+}
+
+// documentRequestColumns is the shared projection for sellers.document_requests reads.
+const documentRequestColumns = `request_id, seller_id, doc_type::text, status, note, requested_by, requested_at, fulfilled_at`
+
+// scanDocumentRequest fills one row from documentRequestColumns.
+func scanDocumentRequest(row pgx.Row) (DocumentRequest, error) {
+	var (
+		d           DocumentRequest
+		requestedAt time.Time
+		fulfilledAt *time.Time
+	)
+	if err := row.Scan(&d.RequestID, &d.SellerID, &d.DocType, &d.Status, &d.Note, &d.RequestedBy,
+		&requestedAt, &fulfilledAt); err != nil {
+		return DocumentRequest{}, err
+	}
+	d.RequestedAt = requestedAt.UTC().Format(time.RFC3339)
+	if fulfilledAt != nil {
+		d.FulfilledAt = fulfilledAt.UTC().Format(time.RFC3339)
+	}
+	return d, nil
+}
+
+// DocumentRequests returns every document request for a seller, newest first (all statuses).
+func (r *Repo) DocumentRequests(ctx context.Context, sellerID string) ([]DocumentRequest, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("sellers: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select `+documentRequestColumns+`
+		  from sellers.document_requests where seller_id = $1
+		 order by requested_at desc`, sellerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []DocumentRequest{}
+	for rows.Next() {
+		d, err := scanDocumentRequest(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// PendingDocumentRequests returns the seller's still-open asks (what the applicant must upload).
+func (r *Repo) PendingDocumentRequests(ctx context.Context, sellerID string) ([]DocumentRequest, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("sellers: database not configured")
+	}
+	rows, err := r.pool.Query(ctx, `
+		select `+documentRequestColumns+`
+		  from sellers.document_requests
+		 where seller_id = $1 and status = 'PENDING'
+		 order by requested_at desc`, sellerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []DocumentRequest{}
+	for rows.Next() {
+		d, err := scanDocumentRequest(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, d)
+	}
+	return out, rows.Err()
+}
+
+// CreateDocumentRequest records (or refreshes) the admin ask for one KYC document. The partial unique
+// index means a second request for the same seller+doc_type updates the open row instead of queuing a
+// duplicate, so repeated taps are idempotent.
+func (r *Repo) CreateDocumentRequest(ctx context.Context, sellerID, docType, note, requestedBy string) (DocumentRequest, error) {
+	if r.pool == nil {
+		return DocumentRequest{}, fmt.Errorf("sellers: database not configured")
+	}
+	id := "dreq-" + shortID()
+	return scanDocumentRequest(r.pool.QueryRow(ctx, `
+		insert into sellers.document_requests (request_id, seller_id, doc_type, note, requested_by)
+		values ($1,$2,$3::kyc_doc_type,$4,$5)
+		on conflict (seller_id, doc_type) where status = 'PENDING'
+		do update set note = excluded.note, requested_by = excluded.requested_by, requested_at = now()
+		returning `+documentRequestColumns,
+		id, sellerID, docType, note, requestedBy))
+}
+
+// FulfillDocumentRequest consumes a PENDING request: the seller-supplied upload replaces (or adds) the
+// KYC document of that type, unverified so it re-enters review, and the request is marked FULFILLED in
+// the same transaction. Returns pgx.ErrNoRows when the request does not belong to this seller or is no
+// longer pending.
+func (r *Repo) FulfillDocumentRequest(ctx context.Context, requestID, sellerID, fileKey, assetID string) (DocumentRequest, error) {
+	if r.pool == nil {
+		return DocumentRequest{}, fmt.Errorf("sellers: database not configured")
+	}
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return DocumentRequest{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	d, err := scanDocumentRequest(tx.QueryRow(ctx, `
+		select `+documentRequestColumns+`
+		  from sellers.document_requests
+		 where request_id = $1 and seller_id = $2 and status = 'PENDING'
+		 for update`, requestID, sellerID))
+	if err != nil {
+		return DocumentRequest{}, err
+	}
+	if _, err := tx.Exec(ctx, `
+		delete from sellers.kyc_documents where seller_id = $1 and doc_type = $2::kyc_doc_type`,
+		sellerID, d.DocType); err != nil {
+		return DocumentRequest{}, err
+	}
+	doc, err := insertKYC(ctx, tx, KycDocument{
+		SellerID: sellerID, DocType: d.DocType, FileKey: fileKey, AssetID: assetID,
+	})
+	if err != nil {
+		return DocumentRequest{}, err
+	}
+	if _, err := tx.Exec(ctx, `
+		update sellers.document_requests
+		   set status = 'FULFILLED', fulfilled_at = now(), fulfilled_kyc_id = $2
+		 where request_id = $1`, requestID, doc.KycID); err != nil {
+		return DocumentRequest{}, err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return DocumentRequest{}, err
+	}
+	d.Status = "FULFILLED"
+	d.FulfilledAt = time.Now().UTC().Format(time.RFC3339)
 	return d, nil
 }
 

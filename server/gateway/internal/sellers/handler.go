@@ -16,6 +16,7 @@ import (
 	"github.com/faazio/server/gateway/internal/platform/geo"
 	"github.com/faazio/server/gateway/internal/platform/httpx"
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
 )
 
 // Handler serves the seller directory + onboarding. Reads and writes are role-gated; every mutation
@@ -141,6 +142,10 @@ func (h *Handler) Register(r chi.Router) {
 	// The applicant's own status. auth.Require (not RequireRole) is intentional: a shopper is
 	// authenticated via Firebase but has no SELLER role until an admin activates the account.
 	r.With(auth.Require).Get("/sellers/me", h.me)
+	// Applicant-side document requests: what Faazio has asked them to (re)upload, and the fulfilment
+	// once they pick a file. auth.Require for the same reason as /sellers/me (no SELLER role yet).
+	r.With(auth.Require).Get("/sellers/me/document-requests", h.myDocumentRequests)
+	r.With(auth.Require).Post("/sellers/me/document-requests/{requestId}/fulfill", h.fulfillDocumentRequest)
 	// Server-owned contract tiers/rate cards. Read by the applicant before accepting the agreement;
 	// never hardcoded on the client.
 	r.With(auth.Require).Get("/sellers/contract-tiers", h.listContractTiers)
@@ -157,6 +162,9 @@ func (h *Handler) Register(r chi.Router) {
 		// Replace (not append) the current document of one type: the admin re-uploads over a bad or
 		// expired document. The replacement clears verification so it is re-checked.
 		g.Put("/sellers/{id}/kyc/{docType}", h.replaceKYC)
+		// Ask the applicant to (re)upload a KYC document themselves. The applicant fulfils it from the
+		// customer-app Sell with us screen (POST /sellers/me/document-requests/{id}/fulfill).
+		g.Post("/sellers/{id}/document-requests", h.requestDocument)
 		// Payout account + business profile are owner-only for a seller sub-user (admins unaffected).
 		g.With(auth.RequireSellerOwner).Get("/sellers/{id}/bank-account", h.getBank)
 		g.With(auth.RequireSellerOwner).Put("/sellers/{id}/bank-account", h.putBank)
@@ -1731,6 +1739,132 @@ func (h *Handler) replaceKYC(w http.ResponseWriter, r *http.Request) {
 	h.log(r, "KYC_REPLACE_"+docType, s.SellerID, nil, map[string]string{"docType": doc.DocType})
 	detail, _, _ := h.repo.DetailByID(r.Context(), s.SellerID)
 	httpx.JSON(w, http.StatusOK, detail)
+}
+
+type documentRequestBody struct {
+	DocType string `json:"docType"`
+	Note    string `json:"note"`
+}
+
+// requestDocument is the admin "ask the applicant to (re)upload this document" action. It replaces the
+// old admin-side Replace: the applicant uploads from their own device on the Sell with us screen, which
+// then calls the fulfilment endpoint. Returns the refreshed detail so the review page shows the ask.
+func (h *Handler) requestDocument(w http.ResponseWriter, r *http.Request) {
+	s, ok := h.adminSeller(w, r)
+	if !ok {
+		return
+	}
+	if s.Status == "INQUIRY" {
+		httpx.Fail(w, http.StatusConflict, "not_an_application",
+			"an enquiry has no KYC documents yet — the merchant uploads them from the app")
+		return
+	}
+	var req documentRequestBody
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	docType := strings.ToUpper(strings.TrimSpace(req.DocType))
+	if !validDocType(docType) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid document type")
+		return
+	}
+	created, err := h.repo.CreateDocumentRequest(r.Context(), s.SellerID, docType,
+		strings.TrimSpace(req.Note), h.actor(r))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "document_request_failed", "could not request document")
+		return
+	}
+	h.log(r, "DOCUMENT_REQUEST", s.SellerID, nil, map[string]string{"docType": docType})
+	// Tell the applicant in-app if we can reach them; the request itself is the source of truth.
+	if h.notifier != nil {
+		if userID, uerr := h.repo.UserID(r.Context(), s.SellerID); uerr == nil && userID != "" {
+			_ = h.notifier.Enqueue(r.Context(), userID, "SELLER_DOC_REQUEST",
+				"Faazio has requested a document",
+				"Please upload your "+documentLabel(docType)+" in Sell with us.",
+				map[string]any{"docType": docType, "requestId": created.RequestID})
+		}
+	}
+	detail, _, _ := h.repo.DetailByID(r.Context(), s.SellerID)
+	httpx.JSON(w, http.StatusCreated, detail)
+}
+
+// myDocumentRequests lists the signed-in applicant's still-open document requests. An account with no
+// application gets an empty list (not a 404) so the screen can stay simple.
+func (h *Handler) myDocumentRequests(w http.ResponseWriter, r *http.Request) {
+	s, ok, err := h.repo.GetByUserID(r.Context(), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "document_requests_unavailable", "document requests unavailable")
+		return
+	}
+	if !ok {
+		httpx.JSON(w, http.StatusOK, []DocumentRequest{})
+		return
+	}
+	reqs, err := h.repo.PendingDocumentRequests(r.Context(), s.SellerID)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "document_requests_unavailable", "document requests unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, reqs)
+}
+
+type fulfillDocumentRequestBody struct {
+	FileKey string `json:"fileKey"`
+	AssetID string `json:"assetId"`
+}
+
+// fulfillDocumentRequest consumes one of the applicant's pending requests with the file they uploaded.
+func (h *Handler) fulfillDocumentRequest(w http.ResponseWriter, r *http.Request) {
+	s, ok, err := h.repo.GetByUserID(r.Context(), auth.UserID(r.Context()))
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "sellers_unavailable", "sellers unavailable")
+		return
+	}
+	if !ok {
+		httpx.Fail(w, http.StatusNotFound, "not_found", "no seller application")
+		return
+	}
+	var req fulfillDocumentRequestBody
+	if err := httpx.Decode(r, &req); err != nil {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "invalid request body")
+		return
+	}
+	if !isStorageKey(strings.TrimSpace(req.FileKey)) {
+		httpx.Fail(w, http.StatusBadRequest, "bad_request", "fileKey is invalid")
+		return
+	}
+	fulfilled, err := h.repo.FulfillDocumentRequest(r.Context(), chi.URLParam(r, "requestId"),
+		s.SellerID, strings.TrimSpace(req.FileKey), strings.TrimSpace(req.AssetID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		httpx.Fail(w, http.StatusNotFound, "request_not_found", "document request not found or already fulfilled")
+		return
+	}
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "document_upload_failed", "could not save the document")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, fulfilled)
+}
+
+// documentLabel is the human label used in the applicant notification.
+func documentLabel(docType string) string {
+	switch docType {
+	case "GSTIN":
+		return "GSTIN"
+	case "PAN":
+		return "PAN"
+	case "BANK_PROOF":
+		return "bank proof"
+	case "SHOP_LICENSE":
+		return "shop licence"
+	case "PASSBOOK":
+		return "bank passbook"
+	case "FSSAI":
+		return "FSSAI licence"
+	default:
+		return "document"
+	}
 }
 
 func (h *Handler) getBank(w http.ResponseWriter, r *http.Request) {

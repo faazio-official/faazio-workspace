@@ -41,7 +41,7 @@ import {
   getBankAccount,
   listKyc,
   rejectSellerApplication,
-  replaceSellerKycDocument,
+  requestSellerDocument,
   setSellerStatus,
   updateSeller,
   updateVendorPlatformFee,
@@ -115,6 +115,9 @@ function SellerReview() {
 
   const gstinOk = GSTIN_RE.test(seller.gstin);
   const docs = seller.kycDocuments ?? [];
+  const pendingDocRequests = new Set(
+    (seller.documentRequests ?? []).filter((r) => r.status === "PENDING").map((r) => r.docType),
+  );
   const bank = seller.bankAccount;
   const isInquiry = seller.status === "INQUIRY";
 
@@ -141,22 +144,28 @@ function SellerReview() {
     }
   };
 
-  const uploadDoc = async (docType: KycDocument["docType"], file: File, mode: "add" | "replace") => {
+  const uploadDoc = async (docType: KycDocument["docType"], file: File) => {
     setBusy(true);
     try {
       const upload = await uploadPrivateDocument(file);
-      const next =
-        mode === "replace"
-          ? await replaceSellerKycDocument(seller.sellerId, docType, upload)
-          : await addSellerKycDocument(seller.sellerId, docType, upload);
+      const next = await addSellerKycDocument(seller.sellerId, docType, upload);
       setDetail(next);
-      toast.success(
-        mode === "replace"
-          ? `${docType.replace(/_/g, " ")} replaced — re-verify it`
-          : `${docType.replace(/_/g, " ")} uploaded`,
-      );
+      toast.success(`${docType.replace(/_/g, " ")} uploaded`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Could not upload that document");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const requestDoc = async (docType: KycDocument["docType"]) => {
+    setBusy(true);
+    try {
+      const next = await requestSellerDocument(seller.sellerId, docType);
+      setDetail(next);
+      toast.success(`Requested ${docType.replace(/_/g, " ")} re-upload from the seller`);
+    } catch {
+      toast.error("Could not send the document request");
     } finally {
       setBusy(false);
     }
@@ -287,7 +296,7 @@ function SellerReview() {
           ) : docs.length === 0 ? (
             <div className="space-y-3">
               <p className="text-[13px] text-muted-foreground">No documents uploaded yet.</p>
-              <UploadDocRow busy={busy} taken={[]} onUpload={(docType, file) => uploadDoc(docType, file, "add")} />
+              <UploadDocRow busy={busy} taken={[]} onUpload={(docType, file) => uploadDoc(docType, file)} />
             </div>
           ) : (
             <ul className="space-y-2">
@@ -314,10 +323,10 @@ function SellerReview() {
                         Verify
                       </Button>
                     ) : null}
-                    <ReplaceDocButton
-                      docType={doc.docType}
+                    <RequestDocButton
                       busy={busy}
-                      onPick={(file) => uploadDoc(doc.docType, file, "replace")}
+                      requested={pendingDocRequests.has(doc.docType)}
+                      onRequest={() => void requestDoc(doc.docType)}
                     />
                   </div>
                 </li>
@@ -326,7 +335,7 @@ function SellerReview() {
                 <UploadDocRow
                   busy={busy}
                   taken={docs.map((d) => d.docType)}
-                  onUpload={(docType, file) => uploadDoc(docType, file, "add")}
+                  onUpload={(docType, file) => uploadDoc(docType, file)}
                 />
               </li>
             </ul>
@@ -484,23 +493,24 @@ function UploadDocRow({
   );
 }
 
-function ReplaceDocButton({
-  docType,
+function RequestDocButton({
   busy,
-  onPick,
+  requested,
+  onRequest,
 }: {
-  docType: KycDocument["docType"];
   busy: boolean;
-  onPick: (file: File) => void;
+  requested: boolean;
+  onRequest: () => void;
 }) {
-  const picker = useFilePicker(onPick);
+  if (requested) {
+    return (
+      <span className="text-[11px] font-medium text-muted-foreground">Requested</span>
+    );
+  }
   return (
-    <>
-      <Button size="sm" variant="outline" disabled={busy} onClick={picker.open}>
-        Replace
-      </Button>
-      {picker.input}
-    </>
+    <Button size="sm" variant="outline" disabled={busy} onClick={onRequest}>
+      Request
+    </Button>
   );
 }
 
@@ -671,6 +681,7 @@ function VendorFeeRow({
   onSave: (pct: number) => Promise<void>;
 }) {
   const [fee, setFee] = useState(String(vendor.platformFeePct));
+  const [openingLicence, setOpeningLicence] = useState(false);
   useEffect(() => setFee(String(vendor.platformFeePct)), [vendor.platformFeePct]);
   const floor = vendor.app === "FOOD" ? 5 : 1;
   const hasPin =
@@ -680,6 +691,31 @@ function VendorFeeRow({
     : null;
   const photos = vendor.photoUrls ?? [];
   const photoKeys = vendor.photoKeys ?? [];
+  const licence =
+    vendor.app === "PHARMA"
+      ? {
+          label: "Drug licence",
+          number: vendor.drugLicenseNumber ?? "",
+          assetId: vendor.drugLicenseCertAssetId ?? "",
+        }
+      : {
+          label: vendor.app === "FOOD" ? "FSSAI licence" : "Shop registration certificate",
+          number: vendor.fssaiNumber ?? "",
+          assetId: vendor.fssaiCertAssetId ?? "",
+        };
+  const openLicence = async () => {
+    if (!licence.assetId) return;
+    setOpeningLicence(true);
+    try {
+      const url = await fetchPrivateDocumentUrl(licence.assetId);
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+      else toast.error("This licence has no downloadable file");
+    } catch {
+      toast.error("Could not open this licence");
+    } finally {
+      setOpeningLicence(false);
+    }
+  };
   return (
     <div className="rounded-lg border border-border px-3 py-2">
       <div className="flex flex-wrap items-start justify-between gap-3">
@@ -691,6 +727,29 @@ function VendorFeeRow({
             {vendor.drugLicenseNumber ? ` · Drug licence ${vendor.drugLicenseNumber}` : ""}
             {vendor.isLive ? " · live" : " · paused"}
           </p>
+          {licence.number || licence.assetId ? (
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-[11px]">
+              <span className="text-muted-foreground">
+                {licence.label}: {licence.number || "number not provided"}
+              </span>
+              {licence.assetId ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={busy || openingLicence}
+                  onClick={() => void openLicence()}
+                >
+                  View certificate
+                </Button>
+              ) : (
+                <span className="text-destructive">No certificate file uploaded</span>
+              )}
+            </div>
+          ) : (
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              No {licence.label.toLowerCase()} on record.
+            </p>
+          )}
           {vendor.address ? (
             <p className="mt-1 flex items-start gap-1 text-[11px] text-muted-foreground">
               <MapPin className="mt-0.5 size-3 shrink-0" aria-hidden />

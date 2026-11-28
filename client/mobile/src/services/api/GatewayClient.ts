@@ -809,8 +809,7 @@ export interface SellerApplication {
 }
 
 /** One sellers.seller_fee_change_requests row (seller-initiated, admin-reviewed). */
-export interface FeeChangeRequest {
-  requestId: string;
+export interface FeeChangeRequest {  requestId: string;
   sellerId: string;
   storeId?: string;
   businessName?: string;
@@ -824,6 +823,18 @@ export interface FeeChangeRequest {
   reviewedBy?: string;
   reviewedAt?: string;
   reviewReason?: string;
+}
+
+/** One sellers.document_requests row: an admin ask for the applicant to (re)upload a KYC document. */
+export interface SellerDocumentRequest {
+  requestId: string;
+  sellerId: string;
+  docType: 'GSTIN' | 'PAN' | 'BANK_PROOF' | 'SHOP_LICENSE' | 'PASSBOOK' | 'FSSAI' | string;
+  status: string;
+  note?: string;
+  requestedBy?: string;
+  requestedAt: string;
+  fulfilledAt?: string;
 }
 
 /** One sellers.kyc_documents row (private R2 key + media asset id, never a URL). */
@@ -2155,6 +2166,28 @@ export class GatewayClient {
   async getMySellerApplication(): Promise<SellerApplication> {
     if (!REMOTE_ENABLED) throw new GatewayOfflineError();
     return this.http<SellerApplication>('/sellers/me');
+  }
+
+  /**
+   * The signed-in applicant's still-open document requests (Faazio asked them to re-upload a KYC
+   * document). Server-only; an account with no application returns an empty list. Uses `auth.Require`
+   * so a pre-activation shopper can fulfil a request from Sell with us.
+   */
+  async listMyDocumentRequests(): Promise<SellerDocumentRequest[]> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<SellerDocumentRequest[]>('/sellers/me/document-requests');
+  }
+
+  /** Fulfil one pending document request with the file the applicant just uploaded. */
+  async fulfillDocumentRequest(
+    requestId: string,
+    input: { fileKey: string; assetId: string },
+  ): Promise<SellerDocumentRequest> {
+    if (!REMOTE_ENABLED) throw new GatewayOfflineError();
+    return this.http<SellerDocumentRequest>(
+      `/sellers/me/document-requests/${encodeURIComponent(requestId)}/fulfill`,
+      { method: 'POST', body: JSON.stringify(input) },
+    );
   }
 
   /**

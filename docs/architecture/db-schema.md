@@ -3486,3 +3486,40 @@ returns integer language plpgsql as $$ ... delete ... where deleted_at < now() -
 - **Reads:** `GET /geo/districts` and `GET /admin/districts` both filter `deleted_at is null`; the
   geo mirror's `Reload` does too, so a new seller cannot select a trashed district.
 - **Audit:** `DISTRICT_DELETE`, `DISTRICT_RESTORE` and `DISTRICT_PURGE` on `admins.district_master`.
+
+### 12.49 Seller document requests (migration `0147`)
+
+**Authority:** `monolith-breakdown.md` §1 (sellers row),
+`user-interaction-workflow/seller/onboarding/kyc-documents.md`,
+`FAAZIO_USER_FLOW_GUIDE.md` §2.16.
+
+The admin seller-review page used to let a district/super admin replace a KYC document themselves
+(re-uploading from the admin browser). `0147` replaces that with a request: the admin asks the
+applicant to re-upload, and the applicant fulfils it from the customer-app **Sell with us** screen.
+
+```sql
+create table sellers.document_requests (
+  request_id       text primary key,
+  seller_id        text not null references sellers.sellers (seller_id) on delete cascade,
+  doc_type         kyc_doc_type not null,
+  status           text not null default 'PENDING'
+                     check (status in ('PENDING', 'FULFILLED', 'CANCELLED')),
+  note             text not null default '',
+  requested_by     text not null default '',
+  requested_at     timestamptz not null default now(),
+  fulfilled_at     timestamptz,
+  fulfilled_kyc_id text
+);
+create unique index seller_document_requests_one_pending_idx
+  on sellers.document_requests (seller_id, doc_type) where status = 'PENDING';
+```
+
+- **Admin ask:** `POST /sellers/{id}/document-requests` creates (or refreshes) one `PENDING` row per
+  `seller_id + doc_type`; the partial unique index makes repeated taps idempotent. The applicant is
+  notified via `contracts.Notifier.Enqueue` (`SELLER_DOC_REQUEST`).
+- **Applicant fulfilment:** `GET /sellers/me/document-requests` lists the caller's `PENDING` rows;
+  `POST /sellers/me/document-requests/{id}/fulfill` (body `{fileKey, assetId}`) writes a new
+  `sellers.kyc_documents` row of that type (delete-then-insert, unverified so it re-enters review) and
+  flips the request to `FULFILLED` in one transaction.
+- **Admin read:** `GET /sellers/{id}` now carries `documentRequests` so the review page shows which
+  asks are open and hides the **Request** action once one is pending.
