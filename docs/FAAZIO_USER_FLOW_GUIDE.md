@@ -1328,6 +1328,7 @@ Use this map if a flow changes and the diagram needs to be updated.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.20 | 28 Nov 2026 | Admin notifications console (`/admin/{district,super}/notifications`): added a **Seller activity** feed (new registrations, KYC document uploads, fulfilled document requests) read from the seller tables, each card opening the seller detail. Outbox rows are now clickable (seller detail / order / product destination) and all descriptive copy was removed. |
 | 1.19 | 28 Nov 2026 | Seller review: missing KYC documents are now shown as **cards** with a **Request** button (the document-type dropdown and admin-side upload are gone). The `SELLER_DOC_REQUEST` push and in-app notification now deep-link straight to the customer-app **Sell with us** screen so the applicant can upload. |
 | 1.18 | 28 Nov 2026 | Seller review: the admin KYC row **Replace** action became **Request** — the admin asks the applicant to re-upload. The customer-app Sell with us screen now shows "Faazio has requested you to upload your <document>" with a **Capture & upload** button that fulfils the request (`sellers.document_requests`, migration `0147`). |
 | 1.17 | 28 Nov 2026 | Sell with us: removed every per-question/input description and the bottom security/autosave notes. The step 2 submit button is now a single large **Submit** button that is always enabled — tapping it with missing or invalid fields shows a red inline message naming what to fill in. |

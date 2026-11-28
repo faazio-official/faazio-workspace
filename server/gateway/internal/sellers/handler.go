@@ -227,11 +227,34 @@ func (h *Handler) Register(r chi.Router) {
 		g.Get("/seller/fee-change-requests", h.listFeeChangeRequests)
 		g.Patch("/seller/fee-change-requests/{id}/approve", h.approveFeeChangeRequest)
 		g.Patch("/seller/fee-change-requests/{id}/reject", h.rejectFeeChangeRequest)
+		// Operator activity feed: new applications, uploaded KYC documents and fulfilled document
+		// requests, scoped like the rest of the console. Read straight from the seller tables, not
+		// the customer push outbox (which has no admin recipient).
+		g.Get("/admin/seller-activity", h.sellerActivity)
 	})
 }
 
-func (h *Handler) list(w http.ResponseWriter, r *http.Request) {
-	f := ListFilter{
+// sellerActivity returns the admin console's seller-onboarding event feed (registrations, document
+// uploads, requested-document fulfilments), scoped to the caller's district (or state fallback) and
+// unscoped for a super admin.
+func (h *Handler) sellerActivity(w http.ResponseWriter, r *http.Request) {
+	district, state := "", ""
+	if auth.Role(r.Context()) != auth.RoleSuperAdmin {
+		if d := auth.DistrictCode(r.Context()); d != "" {
+			district = d
+		} else {
+			state = auth.StateCode(r.Context())
+		}
+	}
+	items, err := h.repo.SellerActivity(r.Context(), district, state, 100)
+	if err != nil {
+		httpx.Fail(w, http.StatusInternalServerError, "seller_activity_unavailable", "seller activity unavailable")
+		return
+	}
+	httpx.JSON(w, http.StatusOK, items)
+}
+
+func (h *Handler) list(w http.ResponseWriter, r *http.Request) {	f := ListFilter{
 		SellerID:     strings.TrimSpace(r.URL.Query().Get("sellerId")),
 		StateCode:    strings.ToUpper(strings.TrimSpace(r.URL.Query().Get("state"))),
 		DistrictCode: geo.Normalise(r.URL.Query().Get("district")),
@@ -908,7 +931,7 @@ func (h *Handler) notifyStatus(ctx context.Context, sellerID, status, reason str
 	default:
 		return
 	}
-	data := map[string]any{"status": status}
+	data := map[string]any{"status": status, "sellerId": sellerID}
 	// The applicant's own auth identity gets the durable inbox row.
 	if userID, err := h.repo.UserID(ctx, sellerID); err == nil && userID != "" {
 		_ = h.notifier.Enqueue(ctx, userID, "SELLER_"+status, title, body, data)
@@ -1787,6 +1810,7 @@ func (h *Handler) requestDocument(w http.ResponseWriter, r *http.Request) {
 					"screen":    "SellWithUs",
 					"docType":   docType,
 					"requestId": created.RequestID,
+					"sellerId":  s.SellerID,
 				})
 		}
 	}

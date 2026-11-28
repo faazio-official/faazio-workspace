@@ -68,9 +68,19 @@ verified" fixture).
 
 ## Admin console
 
-District and super admins have a cross-user outbox console at `/admin/{district,super}/notifications`
-(`src/components/admin/AdminNotificationsConsole.tsx`) over `GET /admin/notifications`, filterable by
-delivery status (PENDING / SENT / FAILED). The admin header bell navigates there.
+District and super admins have a cross-user console at `/admin/{district,super}/notifications`
+(`src/components/admin/AdminNotificationsConsole.tsx`). It has two parts:
+
+- **Seller activity** — `GET /admin/seller-activity` derives recent events straight from the seller
+  tables: new registrations (`sellers.sellers`), uploaded KYC documents (`sellers.kyc_documents`) and
+  fulfilled document requests (`sellers.document_requests`). Each card opens the seller detail page
+  (`/admin/district/sellers/{id}`). This is why seller-registration and document-upload events appear
+  here even though they are not customer push-outbox rows (the outbox has no admin recipient).
+- **Outbox** — `GET /admin/notifications`, filterable by delivery status (PENDING / SENT / FAILED).
+  Rows are clickable: a row carrying `data.sellerId` opens the seller detail, `data.orderId` opens the
+  order (super detail / district orders), and `PRODUCT_*` opens the product queue.
+
+The page carries no descriptive copy (titles only).
 
 ## Linked docs
 

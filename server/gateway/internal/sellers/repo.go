@@ -156,6 +156,19 @@ type DocumentRequest struct {
 	FulfilledAt string `json:"fulfilledAt,omitempty"`
 }
 
+// SellerActivity is one operator-facing event derived from the seller tables (registration, document
+// upload, requested-document fulfilment). These are not push-outbox rows — the admin console reads
+// them straight from the source of truth so seller onboarding events always appear there.
+type SellerActivity struct {
+	ID        string `json:"id"`
+	Kind      string `json:"kind"`
+	Title     string `json:"title"`
+	Body      string `json:"body"`
+	SellerID  string `json:"sellerId"`
+	Status    string `json:"status,omitempty"`
+	CreatedAt string `json:"createdAt"`
+}
+
 // BankAccount is one sellers.bank_accounts row (masked tail only — the full number is never stored).
 type BankAccount struct {
 	BankAccountID       string `json:"bankAccountId"`
@@ -1233,6 +1246,85 @@ func (r *Repo) FulfillDocumentRequest(ctx context.Context, requestID, sellerID, 
 	d.Status = "FULFILLED"
 	d.FulfilledAt = time.Now().UTC().Format(time.RFC3339)
 	return d, nil
+}
+
+// SellerActivity returns recent seller-onboarding events (new applications, uploaded KYC documents,
+// fulfilled document requests), newest first, scoped to one district or (when districtCode is empty)
+// one state. Pass both empty for the super admin's cross-platform view.
+func (r *Repo) SellerActivity(ctx context.Context, districtCode, stateCode string, limit int) ([]SellerActivity, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("sellers: database not configured")
+	}
+	districtCode = strings.ToUpper(strings.TrimSpace(districtCode))
+	stateCode = strings.ToUpper(strings.TrimSpace(stateCode))
+	if limit <= 0 || limit > 200 {
+		limit = 100
+	}
+	rows, err := r.pool.Query(ctx, `
+		with events as (
+		  select 'SELLER_REGISTERED' as kind, s.seller_id, s.seller_id as entity_id,
+		         s.business_name as name, coalesce(s.status::text,'') as detail, s.created_at as at,
+		         coalesce(s.district_code,'') as district_code, coalesce(s.state_code,'') as state_code
+		    from sellers.sellers s
+		  union all
+		  select 'SELLER_DOCUMENT_UPLOADED', s.seller_id, k.kyc_id,
+		         s.business_name, k.doc_type::text, k.uploaded_at,
+		         coalesce(s.district_code,''), coalesce(s.state_code,'')
+		    from sellers.kyc_documents k
+		    join sellers.sellers s on s.seller_id = k.seller_id
+		  union all
+		  select 'SELLER_DOCUMENT_FULFILLED', s.seller_id, d.request_id,
+		         s.business_name, d.doc_type::text, d.fulfilled_at,
+		         coalesce(s.district_code,''), coalesce(s.state_code,'')
+		    from sellers.document_requests d
+		    join sellers.sellers s on s.seller_id = d.seller_id
+		   where d.fulfilled_at is not null
+		)
+		select kind, seller_id, entity_id, name, detail, at
+		  from events
+		 where ($1 = '' or district_code = $1)
+		   and ($2 = '' or state_code = $2)
+		 order by at desc
+		 limit $3`, districtCode, stateCode, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := []SellerActivity{}
+	for rows.Next() {
+		var (
+			kind, sellerID, entityID, name, detail string
+			at                                     time.Time
+		)
+		if err := rows.Scan(&kind, &sellerID, &entityID, &name, &detail, &at); err != nil {
+			return nil, err
+		}
+		a := SellerActivity{
+			ID:        kind + ":" + entityID,
+			Kind:      kind,
+			SellerID:  sellerID,
+			CreatedAt: at.UTC().Format(time.RFC3339),
+		}
+		switch kind {
+		case "SELLER_REGISTERED":
+			a.Title = "New seller registration"
+			a.Body = name
+			a.Status = detail
+		case "SELLER_DOCUMENT_UPLOADED":
+			a.Title = "Document uploaded"
+			a.Body = name + " uploaded " + documentLabel(detail)
+			a.Status = detail
+		case "SELLER_DOCUMENT_FULFILLED":
+			a.Title = "Requested document received"
+			a.Body = name + " uploaded " + documentLabel(detail)
+			a.Status = detail
+		default:
+			a.Title = kind
+			a.Body = name
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
 }
 
 // BankAccount returns the seller's current payout account.

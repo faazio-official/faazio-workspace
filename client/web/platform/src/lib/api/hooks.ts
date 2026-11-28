@@ -520,6 +520,48 @@ export function useAdminNotifications(status: string): {
   return { items, loading, reload };
 }
 
+/**
+ * Admin seller-activity feed (`GET /admin/seller-activity`): new registrations, uploaded KYC
+ * documents and fulfilled document requests, polled every 30s while mounted.
+ */
+export function useSellerActivity(): {
+  items: api.SellerActivity[];
+  loading: boolean;
+} {
+  const [items, setItems] = useState<api.SellerActivity[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (!remoteConfigured()) {
+      setItems([]);
+      return;
+    }
+    let cancelled = false;
+    const load = () => {
+      setLoading(true);
+      api
+        .fetchSellerActivity()
+        .then((rows) => {
+          if (!cancelled) setItems(rows);
+        })
+        .catch(() => {
+          if (!cancelled) setItems([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoading(false);
+        });
+    };
+    load();
+    const timer = setInterval(load, 30_000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
+
+  return { items, loading };
+}
+
 /** States/UTs from `admins.states` (the DB is the authority). */
 export function useStates(): api.StateSummary[] {
   const [items, setItems] = useState<api.StateSummary[]>([]);

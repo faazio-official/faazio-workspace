@@ -2213,6 +2213,32 @@ export interface AdminNotification extends PortalNotification {
   attempts?: number;
 }
 
+/** One seller-onboarding event from `GET /admin/seller-activity` (registration / doc upload). */
+export interface SellerActivity {
+  id: string;
+  kind: string;
+  title: string;
+  body: string;
+  sellerId: string;
+  status?: string;
+  createdAt: string;
+}
+
+/** Admin console seller-activity feed (registrations, document uploads, fulfilments). */
+export async function fetchSellerActivity(): Promise<SellerActivity[]> {
+  if (!remoteConfigured()) return [];
+  const rows = await remote.get<SellerActivity[]>("/admin/seller-activity");
+  return rows.map((row) => ({
+    id: row.id,
+    kind: row.kind,
+    title: row.title,
+    body: row.body,
+    sellerId: row.sellerId,
+    ...(row.status ? { status: row.status } : {}),
+    createdAt: row.createdAt,
+  }));
+}
+
 /** Admin console outbox (`GET /admin/notifications`), optionally filtered by delivery status. */
 export async function fetchAdminNotifications(status?: string): Promise<AdminNotification[]> {
   if (!remoteConfigured()) return [];
